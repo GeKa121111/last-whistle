@@ -1,0 +1,22 @@
+{
+  "id": "./",
+  "name": "LAST WHISTLE — مسيرة لاعب",
+  "short_name": "Last Whistle",
+  "description": "لعبة محاكاة مسيرة لاعب كرة قدم باللغة العربية",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080e1b",
+  "theme_color": "#10152c",
+  "icons": [
+    {
+      "src": "./app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

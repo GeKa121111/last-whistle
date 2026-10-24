@@ -1,0 +1,13 @@
+{
+  "name": "last-whistle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Last Whistle football career game — static web build with match-engine regression checks",
+  "scripts": {
+    "test": "node scripts/test-ui-smoke.cjs && node source/scripts/test-match-engine.cjs",
+    "build": "node scripts/build-static.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

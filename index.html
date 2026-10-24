@@ -2248,7 +2248,7 @@ const INITIAL = {
  careerStarted:false,leagueCountry:"مصر",leagueDivision:2,clubName:"مركز شباب النور",clubTier:0,calendarDay:1,lastOfferWindow:"",lastTransferDay:-99,averageRatingSum:0,averageRatingCount:0,leagueRatingSum:0,leagueRatingCount:0,pendingTransfer:null,favoriteLeague:"",
  shooting:52,dribbling:61,passing:55,speed:67,fitness:60,composure:48,defending:50,goalkeeping:50,vision:50,playerPotential:82,careerXP:0,levelXP:0,careerLevel:1,trainingSessions:0,trainingXP:{},trainingIntensity:"normal",careerAwards:[],careerAppearances:0,careerMinutes:0,qualifyingAppearances:0,careerMilestonesEarned:[],progressionMatchIds:[],competitionStats:{},clubPower:52,leagueCompetition:"",leagueSource:"",
  money:450,followers:120,goals:0,assists:0,apps:0,lastRating:0,
- schemaVersion:7,randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
+ schemaVersion:8,randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
  boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,
@@ -2283,7 +2283,7 @@ function safeText(s){return String(s??"");}
 function log(message){state.diary.unshift({day:state.day,season:state.season,text:String(message)});state.diary=state.diary.slice(0,40);}
 function setStory(title,text){state.storyTitle=title;state.storyText=text;}
 function saveGame(silent=false){
-	 try{state.schemaVersion=7;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));if(!silent)toast("اتحفظت مسيرتك بنجاح على الجهاز.");return true;}
+	 try{state.schemaVersion=8;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));if(!silent)toast("اتحفظت مسيرتك بنجاح على الجهاز.");return true;}
  catch(err){if(!silent)toast("المتصفح منع الحفظ المحلي. جرّب فتح الملف في Chrome أو انشر اللعبة على موقع.");return false;}
 }
 function exportSave(){
@@ -2388,10 +2388,11 @@ function loadGame(){
   const saved=JSON.parse(raw);
   if(!saved||typeof saved!=="object")return false;
   state={...structuredCloneSafe(INITIAL),...saved};
+  if(!Object.prototype.hasOwnProperty.call(saved,"calendarDay")||!Number.isFinite(Number(saved.calendarDay))||Number(saved.calendarDay)<1)state.calendarDay=Math.max(1,Number(saved.day)||1);
   state.pressHistory=Array.isArray(state.pressHistory)?state.pressHistory:[];state.relationshipHistory=Array.isArray(state.relationshipHistory)?state.relationshipHistory:[];
   for(const key of ["professionalism","mediaReputation","teamChemistry","coachRelationship"])state[key]=clamp(state[key]??INITIAL[key]);
   if(Number(saved.schemaVersion||3)<4)window.LWCareer?.rebuildLegacyCareerStats(state);if(Number(saved.schemaVersion||3)<5||saved.leagueRatingSum===undefined||saved.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(state);
-  state.schemaVersion=7;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
+  state.schemaVersion=8;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
   state.diary=Array.isArray(state.diary)?state.diary.slice(0,40):[];
   state.achievements=Array.isArray(state.achievements)?state.achievements:[];
   state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
@@ -2797,11 +2798,11 @@ function renderDiary(){
 function calendarDateLabel(){const d=((state.calendarDay-1)%365)+1;const months=["يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر","يناير","فبراير","مارس","أبريل","مايو","يونيو"];const mi=Math.min(11,Math.floor((d-1)/30.5));return `${Math.floor(((d-1)%30.5)+1)} ${months[mi]}`;}
 function resetDailyActions(){state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionUsed=false;state.dailyActionType="";state.dailyActionDay=state.day;}
 function canUseDailyAction(){const currentDay=Math.max(1,Number(state.day)||1);if(!Number.isFinite(Number(state.dailyActionDay))||Number(state.dailyActionDay)!==currentDay){state.dailyActionDay=currentDay;state.dailyActionUsed=false;state.dailyActionType="";state.nightToday=false;}else if(state.nightToday&&!state.dailyActionUsed){state.dailyActionUsed=true;state.dailyActionType=String(state.dailyActionType||"نشاط جانبي");}return !state.dailyActionUsed;}
-function useDailyAction(type){if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return false;}state.dailyActionUsed=true;state.dailyActionType=String(type||"نشاط");state.nightToday=true;return true;}
+function useDailyAction(type){if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return false;}state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=true;state.dailyActionType=String(type||"نشاط");state.nightToday=true;return true;}
 function advanceCalendarDays(days,reason="نشاط",options={}){
  const n=Math.max(0,Math.floor(Number(days)||0));if(!n)return;
  const oldDay=Number(state.calendarDay)||1,newDay=oldDay+n;
- const oldWeek=Math.floor(oldDay/7),newWeek=Math.floor(newDay/7);
+ const oldWeek=Math.floor((Math.max(1,oldDay)-1)/7),newWeek=Math.floor((Math.max(1,newDay)-1)/7);
  state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
  const wages=Math.max(0,newWeek-oldWeek);if(wages&&state.weeklyWage>0){state.money+=wages*(Number(state.weeklyWage)||0);log(`استلمت ${wages} مرتب أسبوعي أثناء ${reason}: ${wages*(Number(state.weeklyWage)||0)} جنيه.`);}
@@ -3103,13 +3104,20 @@ function train(type){
 }
 function rest(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
- const oldInjury=state.injuryDays;
+ if(state.winterBreakPending){openWinterMarket();return;}
+ const before={day:Number(state.day)||1,energy:clamp(state.energy),fatigue:clamp(state.fatigue),injuryDays:Math.max(0,Number(state.injuryDays)||0),morale:clamp(state.morale)};
  state.morale=clamp(state.morale+4);
  advanceCalendarDays(1,"يوم استشفاء",{rest:true});
- if(oldInjury>0)setStory("استشفاء وعودة","مرّ يوم كامل من الراحة؛ تحسنت الإصابة يومًا واحدًا واستعدت طاقة. لا يزال التعافي مرتبطًا بالأيام الفعلية.");
- else setStory("راحة ذكية","مرّ يوم استشفاء كامل. استعدت طاقة وخف الإجهاد؛ الراحة جزء من الاحتراف.");
- log(oldInjury>0?"أخدت يوم استشفاء كامل؛ انخفضت الإصابة يومًا واحدًا.":"أخدت يوم استشفاء كامل واستعدت الطاقة وخف الإجهاد.");
- saveGame(true);render();toast("الراحة اتسجلت. الطاقة دلوقتي "+state.energy+"%.");
+ const energyGain=Math.max(0,clamp(state.energy)-before.energy);
+ const fatigueRelief=Math.max(0,before.fatigue-clamp(state.fatigue));
+ const injuryRelief=Math.max(0,before.injuryDays-(Number(state.injuryDays)||0));
+ const moraleGain=Math.max(0,clamp(state.morale)-before.morale);
+ const injuryText=injuryRelief>0?"، ومدة الإصابة انخفضت "+injuryRelief+" يوم":"";
+ const resultText="مرّ يوم راحة كامل. الطاقة +"+energyGain+"، الإجهاد -"+fatigueRelief+"، المعنويات +"+moraleGain+injuryText+".";
+ setStory(before.injuryDays>0?"استشفاء وعودة":"راحة ذكية",resultText);
+ log("يوم استشفاء كامل: الطاقة +"+energyGain+"، الإجهاد -"+fatigueRelief+"، المعنويات +"+moraleGain+(injuryRelief>0?"، مدة الإصابة -"+injuryRelief+" يوم":"")+".");
+ saveGame(true);render();
+ toast("راحة يوم كامل: الطاقة +"+energyGain+"، الإجهاد -"+fatigueRelief+(injuryRelief>0?"، الإصابة -"+injuryRelief+" يوم":"")+".");
 }
 function openWinterMarket(){
  if(!state.winterBreakPending && state.seasonApps<seasonMidpoint()){toast("سوق الشتاء هيفتح بعد الوصول لنصف الموسم.");return;}

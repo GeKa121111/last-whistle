@@ -34,6 +34,7 @@
   }
   function recommendation(s,energy,fatigue,trust,relation){
     if(s.retired)return {title:"المسيرة انتهت",text:"اللاعب معتزل؛ المؤشرات هنا للمراجعة فقط."};
+    if(s.winterBreakPending)return {title:"راجع انتقالات منتصف الموسم",text:"المسيرة متوقفة مؤقتًا عند نافذة الشتاء. راجع السوق أو اختار تكملة الموسم قبل تمرير يوم الراحة أو اليوم التالي."};
     if(Number(s.injuryDays)>0)return {title:"الأولوية للتعافي",text:"عندك إصابة لسه باقي لها "+Number(s.injuryDays)+" يوم. التدريب والمشاركة مقفولين لحد ما مدة الإصابة تخلص؛ يوم الراحة يقللها يومًا."};
     if(energy<30||fatigue>=70)return {title:"خد راحة قبل أي مجهود",text:"طاقتك أو مستوى الإجهاد مش مناسبين لحصة قوية. يوم استشفاء يمرر يومًا في التقويم ويرفع الطاقة ويقلل الإجهاد."};
     if(energy<48||fatigue>=55)return {title:"خفّف الحمل البدني",text:"الأفضل تختار راحة، أو حصة خفيفة لو لسه ما تمرنتش وما لعبتش النهارده. تجنب الشدة المكثفة."};
@@ -54,7 +55,7 @@
     text("wellnessReadinessScore",readiness);
     text("wellnessStatusTitle",advice.title);
     text("wellnessStatusText",advice.text);
-    text("wellnessAdvice",energy<40||fatigue>=60||injury>0?"التوصية: افتح قسم الإجراءات بالأسفل واختر يوم استشفاء.":trust<35||relation<35?"التوصية: جلسة مع المدرب أو تدريب منتظم، حسب حالة يومك.":"التوصية: اختار بين التدريب والمباراة حسب تقويم المسيرة.");
+    text("wellnessAdvice",s.winterBreakPending?"التوصية: احسم قرار نافذة الشتاء أو اختار تكملة الموسم قبل تمرير اليوم.":energy<40||fatigue>=60||injury>0?"التوصية: افتح قسم الإجراءات بالأسفل واختر يوم استشفاء.":trust<35||relation<35?"التوصية: جلسة مع المدرب أو تدريب منتظم، حسب حالة يومك.":"التوصية: اختار بين التدريب والمباراة حسب تقويم المسيرة.");
     text("wellnessEnergyValue",energy+"/100");
     text("wellnessEnergyLabel",statusEnergy(energy));bar("wellnessEnergyBar",energy);
     text("wellnessFatigueValue",fatigue+"/100");

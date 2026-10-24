@@ -53,7 +53,7 @@ body.lw-rebuild .lw-overview-copy p{max-width:660px;margin:0;color:#95a296;font-
 body.lw-rebuild .lw-rating{display:flex;flex:0 0 84px;min-height:84px;flex-direction:column;align-items:center;justify-content:center;border:1px solid #51673a;border-radius:14px;background:linear-gradient(145deg,#1a2916,#10190e)}
 body.lw-rebuild .lw-rating strong{color:var(--lw-lime);font-size:32px;font-weight:1000;line-height:1.1;font-variant-numeric:tabular-nums}
 body.lw-rebuild .lw-rating small{margin-top:5px;color:#8fa182;font-size:8px;font-weight:950;letter-spacing:.11em}
-body.lw-rebuild .lw-overview-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:0 0 12px}
+body.lw-rebuild .lw-overview-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:0 0 12px}
 body.lw-rebuild .lw-overview-stat{min-width:0;padding:10px 11px;border:1px solid #263429;border-radius:11px;background:#0b110d}
 body.lw-rebuild .lw-overview-stat small{display:block;margin-bottom:5px;color:#738174;font-size:8px;font-weight:850;letter-spacing:.04em}
 body.lw-rebuild .lw-overview-stat strong{display:block;overflow:hidden;color:#e6eee2;font-size:12px;font-weight:900;text-overflow:ellipsis;white-space:nowrap}

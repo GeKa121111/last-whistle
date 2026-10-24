@@ -1,5 +1,5 @@
-const CACHE_NAME = "last-whistle-static-v4";
-const APP_SHELL = ["./index.html", "./manifest.webmanifest", "./app-icon.svg"];
+const CACHE_NAME = "last-whistle-static-v5";
+const APP_SHELL = ["./index.html", "./manifest.webmanifest", "./app-icon.svg", "./story-ui.css", "./story-mode.js"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });

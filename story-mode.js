@@ -183,7 +183,7 @@ function ensureShell(){
       '<div class="lw-overview-stat"><small>PLAYER / اللاعب</small><strong id="lw-hub-name">لاعب جديد</strong></div>'+
       '<div class="lw-overview-stat"><small>CLUB / النادي</small><strong id="lw-hub-club">—</strong></div>'+
       '<div class="lw-overview-stat"><small>SEASON / المشاركات</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
-      '<div class="lw-overview-stat"><small>ENERGY / الطاقة</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div>'+
+      '<div class="lw-overview-stat"><small>ENERGY / الطاقة</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div><div class="lw-overview-stat"><small>BALANCE / الرصيد</small><strong id="lw-hub-money">—</strong></div>'+
       '</div>'+
       '<div class="lw-progress-block"><div class="lw-progress-head"><span id="lw-hub-progress-label">مؤشر الموسم</span><b id="lw-hub-progress-value">0%</b></div><div class="lw-progress-line"><i id="lw-hub-progress-bar" style="width:0%"></i></div></div>'+
       '<div class="lw-action-heading"><span>اختار خطوتك الجاية</span><small>QUICK ACTIONS</small></div>'+
@@ -345,8 +345,14 @@ function renderOverview(s){
   set("lw-hub-progress-value",pct+"%");
   var bar=document.getElementById("lw-hub-progress-bar");if(bar)bar.style.width=pct+"%";
   set("lw-next-opponent",getNextFixture(s));
-  set("lw-console-round",(Number(s.leagueRoundIndex)||0)+1);
-  set("lw-next-match-meta","من "+total+" جولة");
+  var calendarDay=Math.max(1,Number(s.calendarDay)||Number(s.day)||1);
+  var lastMatchDay=Math.max(0,Number(s.lastLeagueMatchCalendarDay)||0);
+  var waitDays=window.LWCareer&&typeof window.LWCareer.leagueMatchDaysRemaining==="function"
+    ? window.LWCareer.leagueMatchDaysRemaining(lastMatchDay,calendarDay,5) : 0;
+  set("lw-console-round",waitDays===0?"النهارده":waitDays===1?"بعد يوم":"بعد "+waitDays+" أيام");
+  set("lw-next-match-meta","الجولة "+((Number(s.leagueRoundIndex)||0)+1)+" من "+total);
+  var currency=api&&typeof api.currency==="function"?api.currency():"";
+  set("lw-hub-money",Number(s.money||0).toLocaleString("en-US")+(currency?" "+currency:""));
   var desc=" "+(s.age||17)+" سنة • "+(s.leagueCountry||"مصر")+" • "+(s.role||"بديل");
   set("lw-overview-sub","مسيرة "+(s.name||"لاعب جديد")+" — "+(s.clubName||"ناديك")+" / "+desc+". كل قرار بيغير طريقك.");
   var cta=document.getElementById("lw-cta-match");if(cta)cta.disabled=!!s.retired;

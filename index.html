@@ -18,6 +18,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LAST WHISTLE | مسيرة لاعب</title>
+<link rel="stylesheet" href="./story-ui.css?v=1">
 <style>
 :root{--bg:#0a1020;--panel:#121a32;--panel2:#192342;--line:#2c3659;--text:#eef2ff;--muted:#a5afd0;--green:#4ee0a1;--green2:#1e9e78;--indigo:#7779ff;--gold:#ffd166;--red:#ff7185;--shadow:0 16px 40px #0004}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% -10%,#25345f 0,transparent 42%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.55;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -2172,7 +2173,7 @@ const INITIAL = {
  storyText:"النهارده أول يوم ليك في مركز شباب النور. الكابتن شريف بصّلك وقال: «الموهبة مهمة، بس الالتزام هو اللي بيخلي اللاعب يكمل». قدامك موسم طويل، وكل يوم ممكن يغيّر مستقبلك.",
  seasonLog:[],careerMatchHistory:[],seasonHistory:[],leagueArchives:[],recordedMatchIds:[],leagueArchiveSequence:0,transferHistory:[],league:null,fixtureSchedule:[],calendarEvents:[],cupState:null,cupHistory:[],internationalHistory:[],promotionHistory:[],currentPage:"home",seasonSummary:null,internationalPlayed:false,journeyTransferReviewed:false,journeyEventSeen:false,journeySeasonReviewed:false,seasonFinished:false,seasonPhase:"firstHalf",winterBreakPending:false,
  dailyActionDay:1,dailyActionUsed:false,dailyActionType:"",suspensions:{},bookings:{},contractOffer:null,freeAgent:false,contractDecisionSeason:0,leagueRoundHistory:[],
- professionalism:65,mediaReputation:20,teamChemistry:50,coachRelationship:35,pressHistory:[],relationshipHistory:[]
+ professionalism:65,mediaReputation:20,teamChemistry:50,coachRelationship:35,pressHistory:[],relationshipHistory:[],storyFlags:{},storyHistory:[],storyPendingId:""
 };
 let state = structuredCloneSafe(INITIAL);
 let modalResolver = null;
@@ -3564,6 +3565,16 @@ async function init(){
  ensureLeague();bind();render();showPage(state.currentPage||"home");if(!state.careerStarted)$("startScreen").classList.add("show");
 }
 init();
+window.LWStoryRuntime = {
+ getState: () => state,
+ save: () => saveGame(true),
+ render: () => render(),
+ log: (message) => log(message),
+ toast: (message) => toast(message),
+ overall: () => overall(),
+ setStory: (title, text) => setStory(title, text),
+ showPage: (page) => showPage(page)
+};
 })();
 </script>
 <!-- Single-file build: application logic and catalog are embedded for static hosting. -->
@@ -3572,5 +3583,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 </script>
+<script src="./story-mode.js?v=1"></script>
 </body>
 </html>

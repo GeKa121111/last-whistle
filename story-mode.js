@@ -132,6 +132,7 @@ function eligibleEvents(s){
   var flags=storyFlags(s);
   var list=[];
   eventDefs.forEach(function(def){
+    if(def.id==="injury-choice")return;
     if(flags[def.id])return;
     try{if(def.when(s))list.push(actualEvent(def,s));}catch(err){}
   });
@@ -322,7 +323,7 @@ function chooseStory(id,index){
 function renderOverview(s){
   var api=API();if(!s)return;
   var set=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value);};
-  var val=typeof s.overall==="number"?s.overall:null;
+  var val=api&&typeof api.overall==="function"?api.overall():(typeof s.overall==="number"?s.overall:null);
   if(val==null){
     var keys=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision"];
     var sum=keys.reduce(function(acc,k){return acc+(Number(s[k])||0);},0);

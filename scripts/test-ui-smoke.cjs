@@ -222,4 +222,101 @@ if (!html.includes('else if(action==="coach")b.disabled=!!state.retired||!canUse
   console.error("Action reset test failed: non-match actions must be re-enabled after starting a new career."); process.exit(1);
 }
 
+
+const favoriteClickBindings = [...html.matchAll(/\$\("leagueCatalog"\)\.addEventListener\("click"/g)].length;
+if (favoriteClickBindings !== 1) {
+  console.error("Listener regression failed: leagueCatalog must have one delegated click listener, found", favoriteClickBindings);
+  process.exit(1);
+}
+
+// Exercise transfer gating with controlled state instead of merely searching for function names.
+const eligibilityStart = html.indexOf("function transferEligibilityReason(target){");
+const eligibilityEnd = html.indexOf("\nfunction transferChance(target){", eligibilityStart);
+if (eligibilityStart < 0 || eligibilityEnd < 0) {
+  console.error("Transfer integration test failed: transfer eligibility helper boundaries missing.");
+  process.exit(1);
+}
+const eligibilitySource = html.slice(eligibilityStart, eligibilityEnd);
+function evaluateTransferEligibility(state, options = {}) {
+  const sandbox = {
+    state,
+    activeCupInProgress: () => !!options.cupActive,
+    transferWindow: () => options.window || { open: true, name: "الانتقالات الصيفية", days: 0 },
+    transferAverageRating: () => options.average == null ? 6.5 : options.average,
+    transferFactors: () => options.factors || { ageAdjustment: 0, contractAdjustment: 0, currentRoleAdjustment: 0, positionAdjustment: 0, targetRoleAdjustment: 0 },
+    overall: () => options.overall == null ? 70 : options.overall
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(eligibilitySource, sandbox, { filename: "transferEligibility" });
+  return sandbox.transferEligibilityReason({ club: "Next FC", country: "Egypt", power: 75 });
+}
+const transferReadyState = {
+  retired: false, careerStarted: true, loan: null, clubName: "Current FC", leagueCountry: "Egypt",
+  apps: 2, daysSinceTransfer: 9, transferCooldown: 0, trust: 50, freeAgent: false
+};
+if (evaluateTransferEligibility({ ...transferReadyState }) !== "") {
+  console.error("Transfer integration test failed: eligible player should pass gating.");
+  process.exit(1);
+}
+if (!evaluateTransferEligibility({ ...transferReadyState, apps: 1 }).includes("مباراتين")) {
+  console.error("Transfer integration test failed: appearance gate should explain the two-match requirement.");
+  process.exit(1);
+}
+if (!evaluateTransferEligibility({ ...transferReadyState }, { window: { open: false, name: "السوق مغلق", days: 17 } }).includes("17 يوم")) {
+  console.error("Transfer integration test failed: closed market should explain the opening countdown.");
+  process.exit(1);
+}
+if (!evaluateTransferEligibility({ ...transferReadyState, loan: { parentClub: "Parent FC" } }).includes("معار")) {
+  console.error("Transfer integration test failed: active loan should block permanent transfer with a clear reason.");
+  process.exit(1);
+}
+if (!evaluateTransferEligibility({ ...transferReadyState, trust: 10 }).includes("20/100")) {
+  console.error("Transfer integration test failed: low trust should explain the threshold.");
+  process.exit(1);
+}
+
+// Execute the actual transfer-review modal action and prove that the review routes to contracts.
+const reviewStart = html.indexOf("function openWinterMarket(){");
+const reviewEnd = html.indexOf("\nfunction resumeManualSeason(){", reviewStart);
+if (reviewStart < 0 || reviewEnd < 0) {
+  console.error("Transfer review integration test failed: modal function boundaries missing.");
+  process.exit(1);
+}
+const reviewSource = html.slice(reviewStart, reviewEnd);
+function exerciseTransferReview(winterBreak) {
+  const sandbox = {
+    state: { retired: false, freeAgent: false, weeklyWage: 400, contractSeasons: 2, apps: 5, winterBreakPending: winterBreak, journeyTransferReviewed: false, season: 1, day: 10 },
+    transferWindow: () => ({ open: !winterBreak, name: winterBreak ? "السوق مغلق" : "الانتقالات الصيفية", days: 0 }),
+    seasonMatchTotal: () => 38,
+    log: () => {},
+    saveGame: () => {},
+    render: () => {},
+    showPage: (page) => { sandbox.lastPage = page; },
+    openModal: (title, message, choices) => { sandbox.lastModal = { title, message, choices }; },
+    resumeManualSeason: () => { sandbox.resumed = true; },
+    simulateSeasonBlock: () => { sandbox.simulated = true; },
+    toast: (message) => { sandbox.lastToast = message; }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(reviewSource, sandbox, { filename: "openWinterMarket" });
+  sandbox.openWinterMarket();
+  return sandbox;
+}
+const normalReview = exerciseTransferReview(false);
+if (!normalReview.lastModal || normalReview.lastModal.choices[0].label !== "مراجعة العقد والسوق") {
+  console.error("Transfer review integration test failed: normal market review action missing.");
+  process.exit(1);
+}
+normalReview.lastModal.choices[0].action();
+if (normalReview.lastPage !== "contract" || normalReview.state.journeyTransferReviewed !== true) {
+  console.error("Transfer review integration test failed: review action must mark the milestone and open contracts.");
+  process.exit(1);
+}
+const winterReview = exerciseTransferReview(true);
+if (!winterReview.lastModal || !winterReview.lastModal.choices.some(choice => choice.label === "أكمل بالمباريات اليدوية")
+    || !winterReview.lastModal.choices.some(choice => choice.label.startsWith("حاكي آخر"))) {
+  console.error("Transfer review integration test failed: winter pause must expose continuation paths.");
+  process.exit(1);
+}
+
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

@@ -3754,7 +3754,7 @@ function bind(){
  $("transferMarket").addEventListener("click",e=>{const b=e.target.closest("[data-transfer-club]");if(b)requestTransferToClub(b.dataset.transferCountry,b.dataset.transferClub);});$("requestLoanBtn").addEventListener("click",requestLoan);
  $("cupCatalog").addEventListener("click",e=>{const b=e.target.closest("[data-enter-cup]");if(b)enterCup(b.dataset.enterCup);});
  $("cupActive").addEventListener("click",e=>{if(e.target.closest("[data-play-cup]"))playCupMatch();});
- $("leagueCatalog").addEventListener("click",e=>{const b=e.target.closest("[data-favorite-league]");if(!b)return;state.favoriteLeague=b.dataset.favoriteLeague;saveGame(true);toast("اتسجل "+state.favoriteLeague+" كدوري مفضل.");});
+
  $("menuOpen").addEventListener("click",openDrawer);$("menuClose").addEventListener("click",closeDrawer);$("drawerShade").addEventListener("click",closeDrawer);
  $("modalClose").addEventListener("click",closeModal);
  $("modalShade").addEventListener("click",e=>{if(e.target===$("modalShade"))closeModal();});

@@ -19,7 +19,9 @@ const required = [
   "function simulateCareerMatch",
   "story-ui.css?v=1",
   "story-mode.js?v=1",
-  "storyPendingId"
+  "storyPendingId",
+  "window.LWStoryRuntime =",
+  'class="page active"'
 ];
 const missing = required.filter((token) => !html.includes(token));
 if (missing.length) {

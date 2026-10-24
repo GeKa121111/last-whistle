@@ -212,9 +212,10 @@ const journeySource = html.slice(journeyStart, journeyEnd);
 if (journeyStart < 0 || journeyEnd < 0 || journeySource.includes("if(false)")) {
   console.error("Journey test failed: journey renderer is missing or dead CTA code remains."); process.exit(1);
 }
-for (const marker of ['setJourneyAction(stageButton,"transfer-review","راجع الانتقالات")', 'setJourneyAction(transferButton,state.retired?"retired":state.winterBreakPending?"winter":"transfer-review"', 'function runSeasonJourneyAction(action)']) {
+for (const marker of ['setJourneyAction(stageButton,"transfer-review","راجع الانتقالات")', 'setJourneyAction(transferButton,state.retired?"retired":state.winterBreakPending?"winter":"transfer-review"']) {
   if (!journeySource.includes(marker)) { console.error("Journey test failed: missing stable transfer CTA behavior:", marker); process.exit(1); }
 }
+if (!html.includes("function runSeasonJourneyAction(action)")) { console.error("Journey action router is missing."); process.exit(1); }
 if (html.includes('id="seasonStageAction" onclick=') || html.includes('id="seasonTransferAction" onclick=')) {
   console.error("Journey test failed: season CTAs must use stable registered handlers, not inline/dynamic onclick properties."); process.exit(1);
 }

@@ -150,33 +150,10 @@ async function main() {
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     const beforeApps = await page.evaluate(() => Number(window.LWStoryRuntime.getState().seasonApps) || 0);
-    const matchButtonDebug = await page.locator("#heroMatch").evaluate(el => {
-      const chain = [];
-      for (let node = el; node && chain.length < 8; node = node.parentElement) {
-        const style = getComputedStyle(node);
-        const rect = node.getBoundingClientRect();
-        chain.push({
-          tag: node.tagName,
-          id: node.id || "",
-          className: typeof node.className === "string" ? node.className : "",
-          display: style.display,
-          visibility: style.visibility,
-          opacity: style.opacity,
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-          hidden: node.hidden
-        });
-      }
-      return {
-        chain,
-        activePage: document.querySelector(".page.active")?.id || "",
-        startScreenShow: document.querySelector("#startScreen")?.classList.contains("show"),
-        modalOpen: document.querySelector("#modalShade")?.classList.contains("open"),
-        appPage: document.querySelector(".app")?.getAttribute("data-active-page") || ""
-      };
-    });
-    console.log("MATCH BUTTON VISIBILITY DIAGNOSTIC: " + JSON.stringify(matchButtonDebug));
-    await page.locator("#heroMatch").click();
+    assert.equal(await page.locator("#heroMatch").isVisible(), false,
+      "legacy hero CTA must remain hidden after the redesigned story-mode shell is installed");
+    await page.locator("#lw-cta-match").waitFor({ state: "visible", timeout: 15000 });
+    await page.locator("#lw-cta-match").click();
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")

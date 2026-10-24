@@ -1030,7 +1030,7 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
         <article class="card span6"><h2>⚽ المنافسة على مركزك</h2><p class="muted small">تقييم افتراضي للمنافسة على دورك حسب مستواك وفورمتك وثقة المدرب، وليس قائمة أسماء حقيقية.</p><div id="squadCompetition" class="eventFeed"></div></article>
         <article class="card span6"><h2>🤝 الرعاية والإعلانات</h2><p class="muted small" id="sponsorStatus">تقدر تفاوض على عقد رعاية مرتبط بمشاركاتك وسمعتك.</p><button class="btn primary" id="sponsorBtn" type="button">تفاوض على عقد رعاية</button></article>
         <article class="card span6"><h2>📈 سلم الأندية</h2><p class="muted small">كل نقلة أصعب من اللي قبلها. لازم تثبت إنك جاهز، والعروض مش بتتكرر كل يوم.</p><div id="clubLadder"></div></article>
-        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer">استكشف أندية الدرجة الأولى من قوائم OpenFootball المتاحة. قوة النادي والراتب وفرصة قبول الطلب تقديرات محاكاة وليست تقييمات رسمية. فتح السوق مرتبط بتقويم الانتقالات داخل المسيرة.</p><div class="marketTools"><input id="transferSearch" placeholder="ابحث عن نادي أو دوري أو دولة"><span class="pill" id="transferMarketCount">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid"></div></article>
+        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p><div class="marketTools"><input id="transferSearch" placeholder="ابحث عن نادي أو دوري أو دولة"><span class="pill" id="transferMarketCount">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid"></div></article>
         <article class="card span12"><h2>📑 تاريخ العقود والانتقالات</h2><div id="transferHistory" class="eventFeed"></div></article>
       </div>
     </section>
@@ -2594,13 +2594,32 @@ function transferFactors(target){
  return {ageAdjustment,contractAdjustment,currentRoleAdjustment,positionFit,positionAdjustment,targetRole,targetRoleAdjustment};
 }
 function transferAverageRating(){return Number(state.leagueRatingCount)>0?(Number(state.leagueRatingSum)||0)/Number(state.leagueRatingCount):6.1;}
-function transferEligible(target){
- if(state.retired||!target||target.club===state.clubName||state.loan||activeCupInProgress())return false;
+function transferEligibilityReason(target){
+ if(state.retired)return "المسيرة انتهت بالاعتزال.";
+ if(!state.careerStarted)return "ابدأ مسيرتك الأول قبل طلب انتقال.";
+ if(!target)return "النادي المطلوب مش موجود في بيانات السوق.";
+ if(target.club===state.clubName&&target.country===state.leagueCountry)return "ده ناديك الحالي بالفعل.";
+ if(state.loan)return "أنت معار حاليًا؛ راجع نهاية الإعارة قبل طلب انتقال جديد.";
+ if(activeCupInProgress())return "عندك بطولة إقصائية مستمرة؛ خلّصها الأول قبل طلب انتقال.";
  const windowInfo=transferWindow();
+ if(!windowInfo.open&&!state.freeAgent)return "السوق مغلق حاليًا. "+windowInfo.name+" بعد "+windowInfo.days+" يوم.";
+ if(Number(state.apps||0)<2)return "لازم تلعب مباراتين رسميتين على الأقل عشان يبقى عندك سجل يقيّمك النادي.";
+ const daysSince=Math.max(0,Number(state.daysSinceTransfer)||0);
+ if(daysSince<7)return "لازم تستنى "+(7-daysSince)+" أيام بعد آخر انتقال.";
+ const cooldown=Math.max(0,Number(state.transferCooldown)||0);
+ if(cooldown>0)return "طلب انتقال جديد متاح بعد "+cooldown+" أيام.";
+ if(Number(state.trust||0)<20)return "ثقة الجهاز الفني أقل من المطلوب (20/100). ركّز على الأداء والانضباط.";
  const average=transferAverageRating();
- const fit=transferFactors(target);const fitScore=fit.ageAdjustment+fit.contractAdjustment+fit.currentRoleAdjustment+fit.positionAdjustment+fit.targetRoleAdjustment;
- return (windowInfo.open||state.freeAgent)&&state.apps>=2&&state.daysSinceTransfer>=7&&state.transferCooldown<=0&&state.trust>=20&&average>=5.8&&overall()+16+fitScore>=target.power;
+ if(average<5.8)return "متوسط تقييم مبارياتك "+average.toFixed(1)+"/10؛ محتاج توصل إلى 5.8 على الأقل.";
+ const fit=transferFactors(target);
+ const fitScore=fit.ageAdjustment+fit.contractAdjustment+fit.currentRoleAdjustment+fit.positionAdjustment+fit.targetRoleAdjustment;
+ if(overall()+16+fitScore<(Number(target.power)||50))return "النادي أعلى من مستواك الحالي. حسّن تقييمك أو اختار ناديًا أقرب لمستواك.";
+ return "";
 }
+function transferEligible(target){
+ return transferEligibilityReason(target)==="";
+}
+
 function transferChance(target){
  const average=transferAverageRating();
  const fit=transferFactors(target);const fitScore=fit.ageAdjustment+fit.contractAdjustment+fit.currentRoleAdjustment+fit.positionAdjustment+fit.targetRoleAdjustment;
@@ -2611,11 +2630,30 @@ function renderTransferMarket(){
  const box=$("transferMarket");if(!box||!window.LWCatalog)return;
  const q=($("transferSearch")?.value||"").trim().toLocaleLowerCase();
  const targets=transferTargets().filter(target=>!q||[target.country,target.club,target.league,target.season].join(" ").toLocaleLowerCase().includes(q));
- setText("marketAvailability",`${window.LWCatalog.summary().sourcedLeagueRosters} دوريات متاحة`);setText("transferMarketCount",`${targets.length} ناديًا`);
+ const windowInfo=transferWindow();
+ const availableCount=targets.filter(transferEligible).length;
+ const marketStatus=state.retired?"المسيرة انتهت":windowInfo.open?windowInfo.name+" مفتوحة":state.freeAgent?"لاعب حر — السوق متاح":windowInfo.name+" بعد "+windowInfo.days+" يوم";
+ setText("marketAvailability",marketStatus);
+ setText("transferMarketCount",availableCount+" متاح / "+targets.length+" ناديًا");
+ const notice=$("transferMarketNotice");
+ if(notice){
+  let message=windowInfo.open
+   ?"نافذة الانتقالات مفتوحة. طلب الانتقال يحتاج مباراتين رسميتين، وثقة 20/100 على الأقل، ومتوسط تقييم 5.8/10، وعدم وجود إعارة أو بطولة إقصائية نشطة."
+   :state.freeAgent
+    ?"أنت لاعب حر، لذلك تقدر تبحث عن عقد حتى خارج نافذة الانتقالات، بشرط استيفاء شروط الأداء والجاهزية."
+    :"السوق مغلق حاليًا. "+windowInfo.name+" بعد "+windowInfo.days+" يوم. تقدر تراجع عقدك الآن وتستعد للنافذة القادمة.";
+  if(state.winterBreakPending)message+=" الموسم متوقف عند منتصفه؛ راجع السوق أو ارجع لخريطة الموسم لاختيار طريقة الاستكمال.";
+  notice.textContent=message;
+ }
  const shown=targets.slice(0,48);
- box.innerHTML=shown.map(target=>{const eligible=transferEligible(target);const fit=transferFactors(target);return `<div class="dataCard"><h4>${safeHTML(target.club)}</h4><p>${safeHTML(target.country)} • ${safeHTML(target.league)} • موسم ${safeHTML(target.season)}<br>قوة محاكاة: ${target.power}/100 • ملاءمة المركز داخل اللعبة: ${fit.positionFit}%<br>العمر ${state.age} • الدور الحالي ${safeHTML(state.role)} • الدور المتوقع: ${safeHTML(fit.targetRole)} • العقد ${state.contractSeasons} موسم<br>راتب مقترح: ${transferWage(target)} جنيه/أسبوع</p><button class="btn ${eligible?"primary":""}" data-transfer-country="${safeHTML(target.country)}" data-transfer-club="${safeHTML(target.club)}" ${eligible?"":"disabled"}>${eligible?`اطلب انتقالًا • قبول متوقع ${transferChance(target)}%`:target.club===state.clubName?"ناديك الحالي":!transferWindow().open&&!state.freeAgent?"السوق مغلق":state.apps<2?"العب مباراتين أولًا":"تحتاج أداءً أو ملاءمة أفضل"}</button></div>`;}).join("")||'<div class="empty">لا توجد نتائج مطابقة.</div>';
- if(targets.length>shown.length)box.insertAdjacentHTML("beforeend",`<div class="sectionNote">يعرض حاليًا ${shown.length} ناديًا من أصل ${targets.length}. استخدم البحث للوصول إلى بقية الأندية.</div>`);
+ box.innerHTML=shown.map(target=>{
+  const eligible=transferEligible(target),fit=transferFactors(target);
+  const reason=eligible?"":transferEligibilityReason(target);
+  return '<div class="dataCard"><h4>'+safeHTML(target.club)+'</h4><p>'+safeHTML(target.country)+' • '+safeHTML(target.league)+' • موسم '+safeHTML(target.season)+'<br>قوة محاكاة: '+target.power+'/100 • ملاءمة المركز داخل اللعبة: '+fit.positionFit+'%<br>العمر '+state.age+' • الدور الحالي '+safeHTML(state.role)+' • الدور المتوقع: '+safeHTML(fit.targetRole)+' • العقد '+state.contractSeasons+' موسم<br>راتب مقترح: '+transferWage(target)+' جنيه/أسبوع</p><button class="btn '+(eligible?"primary":"")+'" data-transfer-country="'+safeHTML(target.country)+'" data-transfer-club="'+safeHTML(target.club)+'" '+(eligible?"":"disabled")+'> '+(eligible?"اطلب انتقالًا • قبول متوقع "+transferChance(target)+"%":safeHTML(reason))+'</button></div>';
+ }).join("")||'<div class="empty">لا توجد نتائج مطابقة.</div>';
+ if(targets.length>shown.length)box.insertAdjacentHTML("beforeend",'<div class="sectionNote">يعرض حاليًا '+shown.length+' ناديًا من أصل '+targets.length+'. استخدم البحث للوصول إلى بقية الأندية.</div>');
 }
+
 function renderSquadCompetition(){
  const root=$("squadCompetition");if(!root)return;
  const recent=(state.seasonLog||[]).filter(r=>Number(r.minutes)>0&&Number.isFinite(Number(r.rating))).slice(-5);
@@ -2687,7 +2725,7 @@ function requestTransferToClub(country,clubName){
  if(state.retired){toast("المسيرة انتهت بالاعتزال؛ لا يمكن طلب انتقال.");return;}
  const league=window.LWCatalog?.clubsForCountry(country);const target=league&&league.clubs.includes(clubName)?{country,club:clubName,league:league.competition,season:league.season,sourceUrl:league.sourceUrl,power:clubPowerFor(clubName,country)}:null;
  if(!target){toast("تعذر التحقق من النادي في ملف المصدر.");return;}
- if(!transferEligible(target)){toast("الانتقال غير متاح الآن: راجع نافذة الانتقالات وشرط الأداء أو الثقة.");return;}
+ const transferBlockReason=transferEligibilityReason(target);if(transferBlockReason){toast(transferBlockReason);return;}
  const chance=transferChance(target);const wage=transferWage(target);const fit=transferFactors(target);
  openModal("طلب انتقال إلى "+target.club,`المسابقة: ${target.league} • موسم القائمة ${target.season}
 قوة النادي داخل اللعبة تقديرية: ${target.power}/100.
@@ -2819,7 +2857,7 @@ function calendarHasConflict(day, excludeKind=""){
  return (state.calendarEvents||[]).some(e=>Number(e.day)===Number(day)&&e.kind!==excludeKind&&["league-match","cup-match","international-match"].includes(e.kind));
 }
 function nextAvailableMatchDay(start,kind){let d=Number(start)||state.calendarDay;while(calendarHasConflict(d,kind))d++;return d;}
-function transferWindow(){const d=((state.calendarDay-1)%365)+1;const year=Math.floor((state.calendarDay-1)/365);if(state.winterBreakPending&&state.seasonApps<seasonMatchTotal())return {open:true,id:"winter-season-"+state.season,name:"انتقالات منتصف الموسم",days:0};if(d<=62&&Number(state.seasonApps)===0)return {open:true,id:"summer-"+year,name:"الانتقالات الصيفية",days:62-d};if(d>=154&&d<=215)return {open:true,id:"winter-"+year,name:"الانتقالات الشتوية",days:215-d};return {open:false,id:"closed-"+year,name:"السوق مغلق",days:d<154?154-d:365-d+1};}
+function transferWindow(){const d=((state.calendarDay-1)%365)+1;const year=Math.floor((state.calendarDay-1)/365);if(state.winterBreakPending&&state.seasonApps<seasonMatchTotal())return {open:true,id:"winter-season-"+state.season,name:"انتقالات منتصف الموسم",days:0};if(d<=62)return {open:true,id:"summer-"+year,name:"الانتقالات الصيفية",days:62-d};if(d>=154&&d<=215)return {open:true,id:"winter-"+year,name:"الانتقالات الشتوية",days:215-d};return {open:false,id:"closed-"+year,name:"السوق مغلق",days:d<154?154-d:365-d+1};}
 function cupParticipants(comp,count){
  const base=[...(comp.teams||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[1]||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[2]||[]),...Object.values(LEAGUE_ROSTERS).flatMap(x=>[...(x[1]||[]),...(x[2]||[])])];
  const unique=[...new Set(base.filter(n=>n&&n!==clubNameForLeague()))];
@@ -2975,43 +3013,50 @@ function renderEurope(){
 function renderSeasonJourney(){
  const apps=Number(state.seasonApps)||0;
  const totalMatches=seasonMatchTotal();
- const midpoint=seasonMidpoint();
  const contributions=Number(state.seasonGoals||0)+Number(state.seasonAssists||0);
  const missionsDone=contributions>=3;
  const windowInfo=transferWindow();
- const eventSeen=!!state.journeyEventSeen || (state.diary||[]).some(x=>Number(x.season)===Number(state.season)&&String(x.text||'').includes('حدث يومي'));
+ const eventSeen=!!state.journeyEventSeen||(state.diary||[]).some(x=>Number(x.season)===Number(state.season)&&String(x.text||"").includes("حدث يومي"));
  const stages=[
-  {name:"المباريات والأداء",icon:"⚽",short:"المباريات",desc:`لعب فريقك ${apps} من ${totalMatches} مباراة دوري. سجلت ${state.seasonGoals||0} هدف وصنعت ${state.seasonAssists||0}، وجمعت ${state.seasonPoints||0} نقطة لفريقك.`,done:apps>=2,action:"home",button:apps>=2?"راجع أداءك":"كمّل لعب"},
-  {name:"قرار الانتقالات",icon:"🔄",short:"الانتقالات",desc:state.journeyTransferReviewed?"راجعت موقف عقدك وسوق الانتقالات للموسم الحالي.":(windowInfo.open?`${windowInfo.name} مفتوحة. راجع العروض أو قرر الاستمرار مع ناديك.`:`${windowInfo.name}. راجع عقدك وخططك، وتقدر تسجل قرارك بالاستمرار لحد ما السوق يفتح.`),done:!!state.journeyTransferReviewed,action:"contract",button:state.journeyTransferReviewed?"راجع عقدك":"راجع السوق وخد قرار"},
-  {name:"المهمة والتحدي",icon:"🎯",short:"المهمة",desc:missionsDone?`أنجزت التحدي: ${contributions} مساهمة تهديفية هذا الموسم.`:`التحدي: حقق 3 مساهمات تهديفية (أهداف + صناعات). تقدّمك ${contributions}/3.`,done:missionsDone,action:"home",button:missionsDone?"راجع أداءك":"كمّل تحدي المساهمات"},
-  {name:"أحداث المسيرة",icon:"🗞️",short:"الأحداث",desc:eventSeen?"سجلت حدثًا واحدًا على الأقل في مذكرات الموسم الحالي.":"قدّم يومًا داخل المسيرة عشان يظهر حدث الموسم، وبعدها راجع اختياراتك وتأثيرها.",done:eventSeen,action:"diary",button:eventSeen?"راجع المذكرات":"افتح المذكرات"},
-  {name:"تقييم الموسم",icon:"🏆",short:"التقييم",desc:apps>=totalMatches?(state.seasonSummary||`اكتملت مباريات الدوري الـ${totalMatches}. راجع التقرير النهائي ثم ابدأ الموسم الجديد.`):`باقي ${totalMatches-apps} مباراة على تقرير الموسم النهائي.`,done:!!state.journeySeasonReviewed,action:"league",button:apps>=totalMatches?"عرض تقييم الموسم":"تابع جدول الدوري"}
+  {name:"المباريات والأداء",icon:"⚽",short:"المباريات",desc:"لعب فريقك "+apps+" من "+totalMatches+" مباراة دوري. سجلت "+(state.seasonGoals||0)+" هدف وصنعت "+(state.seasonAssists||0)+"، وجمعت "+(state.seasonPoints||0)+" نقطة لفريقك.",done:apps>=2,action:"home",button:apps>=2?"راجع أداءك":"كمّل لعب"},
+  {name:"قرار الانتقالات",icon:"🔄",short:"الانتقالات",desc:state.journeyTransferReviewed?"راجعت موقف عقدك وسوق الانتقالات للموسم الحالي.":(windowInfo.open?windowInfo.name+" مفتوحة. راجع العروض أو قرر الاستمرار مع ناديك.":windowInfo.name+". راجع عقدك وخططك، والسوق القادم بعد "+windowInfo.days+" يوم."),done:!!state.journeyTransferReviewed,action:"contract",button:state.journeyTransferReviewed?"راجع عقدك":"راجع الانتقالات"},
+  {name:"المهمة والتحدي",icon:"🎯",short:"المهمة",desc:missionsDone?"أنجزت التحدي: "+contributions+" مساهمة تهديفية هذا الموسم.":"التحدي: حقق 3 مساهمات تهديفية (أهداف + صناعات). تقدمك "+contributions+"/3.",done:missionsDone,action:"stats",button:missionsDone?"راجع إحصائياتك":"كمّل تحدي المساهمات"},
+  {name:"أحداث المسيرة",icon:"🗞️",short:"الأحداث",desc:eventSeen?"سجلت حدثًا واحدًا على الأقل في مذكرات الموسم الحالي.":"مرّر يومًا داخل المسيرة عشان يظهر حدث الموسم، وبعدها راجع اختياراتك وتأثيرها.",done:eventSeen,action:"diary",button:eventSeen?"راجع المذكرات":"سجّل حدث اليوم"},
+  {name:"تقييم الموسم",icon:"🏆",short:"التقييم",desc:apps>=totalMatches?(state.seasonSummary||"اكتملت مباريات الدوري الـ"+totalMatches+". راجع التقرير النهائي ثم ابدأ الموسم الجديد."):"باقي "+Math.max(0,totalMatches-apps)+" مباراة على تقرير الموسم النهائي.",done:!!state.journeySeasonReviewed,action:"league",button:apps>=totalMatches?"عرض تقييم الموسم":"تابع الموسم"}
  ];
  let active=0;
- if(apps>=2) active=1;
- if(state.journeyTransferReviewed) active=2;
- if(state.journeyTransferReviewed&&missionsDone) active=3;
- if(state.journeyTransferReviewed&&missionsDone&&eventSeen) active=4;
- if(apps>=totalMatches) active=4;
+ if(apps>=2)active=1;
+ if(state.journeyTransferReviewed)active=2;
+ if(state.journeyTransferReviewed&&missionsDone)active=3;
+ if(state.journeyTransferReviewed&&missionsDone&&eventSeen)active=4;
+ if(apps>=totalMatches)active=4;
  const root=$("seasonJourney");if(!root)return;
- root.innerHTML=stages.map((st,i)=>`<div class="seasonStage ${i===active?'active':''} ${st.done?'done':''}"><div class="stageNum">${st.done?'✓':st.icon}</div><div><b>${i+1}. ${st.name}</b><small>${st.short}</small></div><span class="seasonStageStatus">${st.done?'اكتملت':i===active?'المحطة الحالية':'قادمة'}</span></div>`).join('');
- setText("seasonStageBadge",`المحطة ${active+1} من 5`);setText("seasonStageTitle",stages[active].name);setText("seasonStageDesc",stages[active].desc);
- const btn=$("seasonStageAction");if(btn){btn.textContent=state.winterBreakPending?"كمّل النصف التاني":state.seasonApps>=seasonMatchTotal()?"راجع الموسم":state.seasonApps>=seasonMidpoint()?"العب باقي الموسم":"العب الموسم لحد الشتاء";btn.onclick=()=>playSeasonBlock();}
- const transferBtn=$("seasonTransferAction");if(transferBtn){transferBtn.textContent=state.winterBreakPending?"راجع انتقالات الشتاء":"سوق الانتقالات";transferBtn.disabled=state.seasonApps<seasonMidpoint()&&!state.winterBreakPending;}
- /* legacy stage-specific action is handled by the season block controls above */
- if(false){const btnLegacy=$("seasonStageAction");if(btnLegacy){btnLegacy.textContent=stages[active].button;btnLegacy.onclick=()=>{
-  if(active===1&&!state.journeyTransferReviewed){
-   openModal("قرار الانتقالات","راجع موقف عقدك وسوق الانتقالات. لو مش ناوي تنتقل دلوقتي، تقدر تسجل قرار الاستمرار؛ ده مش هيقفل عليك أي انتقال لاحقًا.",[
-    {label:"مراجعة العقد والسوق",className:"primary",action:()=>{showPage("contract");}},
-    {label:"قررت الاستمرار حاليًا",action:()=>{state.journeyTransferReviewed=true;log("راجعت سوق الانتقالات وقررت الاستمرار مع النادي حاليًا.");saveGame(true);render();toast("اتسجل قرارك في خريطة الموسم.");}}
-   ]);return;
-  }
-  if(active===4&&apps>=totalMatches){state.journeySeasonReviewed=true;saveGame(true);showPage("league");toast("تقرير الموسم جاهز للمراجعة.");return;}
-  if(active===3&&!eventSeen){showPage("diary");toast("كمّل يومًا داخل المسيرة عشان يتسجل حدث الموسم.");return;}
-  showPage(stages[active].action);if(stages[active].action==='home')window.scrollTo({top:0,behavior:'smooth'});
- };}
+ root.innerHTML=stages.map((st,i)=>'<div class="seasonStage '+(i===active?"active":"")+' '+(st.done?"done":"")+'"><div class="stageNum">'+(st.done?"✓":st.icon)+'</div><div><b>'+(i+1)+". "+st.name+'</b><small>'+st.short+'</small></div><span class="seasonStageStatus">'+(st.done?"اكتملت":i===active?"المحطة الحالية":"قادمة")+'</span></div>').join("");
+ setText("seasonStageBadge","المحطة "+(active+1)+" من 5");setText("seasonStageTitle",stages[active].name);setText("seasonStageDesc",stages[active].desc);
+ const btn=$("seasonStageAction");
+ if(btn){
+  btn.disabled=!!state.retired;
+  if(state.retired){btn.textContent="المسيرة انتهت";btn.onclick=()=>toast("المسيرة انتهت بالاعتزال.");}
+  else if(state.winterBreakPending){btn.textContent="راجع انتقالات الشتاء";btn.onclick=()=>openWinterMarket();}
+  else if(apps>=totalMatches){btn.textContent=state.journeySeasonReviewed?"افتح جدول الدوري":"عرض تقييم الموسم";btn.onclick=()=>{
+   if(!state.journeySeasonReviewed){state.journeySeasonReviewed=true;log("راجعت تقرير الموسم "+state.season+".");saveGame(true);}
+   showPage("league");toast("تقرير الموسم متاح في صفحة الدوري.");
+  };}
+  else if(active===1&&!state.journeyTransferReviewed){btn.textContent="راجع الانتقالات";btn.onclick=()=>openWinterMarket();}
+  else if(active===2){btn.textContent=missionsDone?"راجع إحصائياتك":"كمّل تحدي المساهمات";btn.onclick=()=>missionsDone?showPage("stats"):playSeasonBlock();}
+  else if(active===3&&!eventSeen){btn.textContent="سجّل حدث اليوم";btn.onclick=()=>nextDay();}
+  else if(active===3){btn.textContent="افتح المذكرات";btn.onclick=()=>showPage("diary");}
+  else {btn.textContent=active===0?"العب الموسم لحد الشتاء":"تابع مباريات الموسم";btn.onclick=()=>playSeasonBlock();}
+ }
+ const transferBtn=$("seasonTransferAction");
+ if(transferBtn){
+  transferBtn.disabled=!!state.retired;
+  transferBtn.textContent=state.retired?"المسيرة انتهت":state.winterBreakPending?"راجع انتقالات الشتاء":windowInfo.open||state.freeAgent?"راجع سوق الانتقالات":"راجع العقد والسوق";
+  transferBtn.onclick=()=>openWinterMarket();
  }
 }
+
+
 function renderPerformanceInsights(){
  const root=$("performanceInsights");if(!root)return;
  const records=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[];
@@ -3065,7 +3110,7 @@ function render(){
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
  renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
  document.querySelectorAll('[data-action="match"]').forEach(b=>b.disabled=state.retired||state.playedToday||state.injuryDays>0);
- document.querySelectorAll("[data-action]").forEach(b=>{if(state.retired)b.disabled=true;});if($("heroMatch"))$("heroMatch").disabled=!!state.retired;if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
+ document.querySelectorAll("[data-action]").forEach(b=>{const action=b.dataset.action||"";if(action==="match")b.disabled=!!state.retired||!!state.playedToday||Number(state.injuryDays)>0;else if(action.startsWith("train-"))b.disabled=!!state.retired||Number(state.injuryDays)>0||!!state.playedToday||!!state.trainedToday;else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();else b.disabled=!!state.retired;});if($("heroMatch"))$("heroMatch").disabled=!!state.retired;if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
  document.querySelectorAll('[data-action^="train-"]').forEach(b=>b.disabled=state.retired||state.injuryDays>0||state.playedToday||state.trainedToday);
  document.querySelectorAll('[data-action="train-goalkeeping"]').forEach(b=>{b.disabled=b.disabled||state.pos!=="حارس مرمى";b.title=state.pos!=="حارس مرمى"?"هذا التمرين متاح لمركز حارس المرمى فقط":"";});
  if($("trainingIntensity"))$("trainingIntensity").value=state.trainingIntensity||"normal";
@@ -3120,14 +3165,38 @@ function rest(){
  toast("راحة يوم كامل: الطاقة +"+energyGain+"، الإجهاد -"+fatigueRelief+(injuryRelief>0?"، الإصابة -"+injuryRelief+" يوم":"")+".");
 }
 function openWinterMarket(){
- if(!state.winterBreakPending && state.seasonApps<seasonMidpoint()){toast("سوق الشتاء هيفتح بعد الوصول لنصف الموسم.");return;}
- const w=transferWindow();
- openModal("فترة الانتقالات الشتوية",`وصلت لنص الموسم بعد ${state.seasonApps} مباريات. ${w.open?"سوق الانتقالات مفتوح دلوقتي.":"السوق مش مفتوح حسب تقويم المسيرة الحالي."} تقدر تراجع عقدك، ولو عندك عرض متاح تفاوض عليه، وبعدها تكمل النصف التاني.`,[
-  {label:"مراجعة العقد والسوق",className:"primary",action:()=>{showPage("contract");if(w.open)maybeOfferTransfer();}},
-  {label:"كمّل بالمباريات اليدوية",action:()=>resumeManualSeason()},
-  {label:"كمّل الموسم بعدين",action:()=>{closeModal();}}
- ]);
+ const windowInfo=transferWindow();
+ const winterBreak=!!state.winterBreakPending;
+ const marketSummary=windowInfo.open
+  ?"نافذة "+windowInfo.name+" مفتوحة الآن."
+  :state.freeAgent
+   ?"أنت لاعب حر؛ تقدر تراجع الأندية حتى والسوق المعتاد مغلق."
+   :"السوق مغلق حاليًا. "+windowInfo.name+" بعد "+windowInfo.days+" يوم.";
+ const message=marketSummary+"\n"+"مرتبك الحالي "+(Number(state.weeklyWage)||0)+" جنيه أسبوعيًا • العقد "+(state.freeAgent?0:Math.max(0,Number(state.contractSeasons)||0))+" موسم • المشاركات "+(Number(state.apps)||0)+".\n"+"تقدر تفتح مركز العقد والسوق حتى لو النافذة مغلقة؛ هتظهر أسباب قفل الطلبات بوضوح، وقرار الاستمرار مش هيمنعك من الانتقال لاحقًا.";
+ const choices=[
+  {label:"مراجعة العقد والسوق",className:"primary",action:()=>{
+   if(!state.retired){
+    state.journeyTransferReviewed=true;
+    log("راجعت عقدي وسوق الانتقالات ("+windowInfo.name+"). مراجعة السوق لا تمنع طلب انتقال لاحقًا.");
+    saveGame(true);
+   }
+   showPage("contract");
+  }}
+ ];
+ if(winterBreak){
+  choices.push({label:"أكمل بالمباريات اليدوية",action:()=>resumeManualSeason()});
+  choices.push({label:"حاكي آخر "+Math.max(0,seasonMatchTotal()-state.seasonApps)+" مباراة",action:()=>simulateSeasonBlock(seasonMatchTotal())});
+ }else{
+  choices.push({label:"قررت الاستمرار مع النادي حاليًا",action:()=>{
+   state.journeyTransferReviewed=true;
+   log("راجعت سوق الانتقالات وقررت الاستمرار مع النادي حاليًا. القرار لا يمنع انتقالًا لاحقًا.");
+   saveGame(true);render();toast("اتسجل قرار الاستمرار في خريطة الموسم.");
+  }});
+ }
+ choices.push({label:"إغلاق",action:()=>{}});
+ openModal(winterBreak?"انتقالات منتصف الموسم":"مراجعة الانتقالات",message,choices);
 }
+
 function resumeManualSeason(){
  if(state.retired||state.seasonFinished)return;
  state.winterBreakPending=false;state.seasonPhase="secondHalf";state.journeyTransferReviewed=true;saveGame(true);render();closeModal();toast("كملت المسيرة بالمباريات اليدوية.");

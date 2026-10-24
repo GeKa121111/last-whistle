@@ -1008,7 +1008,7 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
           <p class="hub-definition">الثقة الفنية <b>هي فرصتك في كسب دور أكبر</b>؛ بتتأثر خصوصًا بتقييمات المباريات، وبالالتزام بالتدريب وبعض قرارات المدرب.</p>
           <div class="hub-meter-row"><div><span>العلاقة بالمدرب</span><b id="wellnessCoachRelationshipValue">35/100</b></div><div class="bar"><i id="wellnessCoachRelationshipBar"></i></div><small id="wellnessCoachRelationshipLabel">العلاقة لسه بتتبني</small></div>
           <p class="hub-definition">العلاقة <b>هي جودة التواصل والثقة المتبادلة خارج الملعب</b>؛ بتتأثر بكلامك مع المدرب وقراراتك المهنية، ومش ضمان للتشكيل الأساسي.</p>
-          <div class="hub-coach-foot"><span id="wellnessDailyActionLabel">النشاط الجانبي متاح النهارده</span><button class="btn primary" id="wellnessCoachButton" data-action="coach">جلسة مع المدرب</button></div>
+          <div class="hub-coach-foot"><span id="wellnessDailyActionLabel">النشاط الجانبي متاح النهارده</span><span class="pill">نشاط جانبي واحد في اليوم</span></div>
         </article>
         <article class="card span12">
           <div class="cardHead"><div><h2>اختار الخطوة المناسبة</h2><div class="subline">كل اختيار له تكلفة واضحة، وتقدم يوم اللعبة يمرّر التقويم يومًا كاملًا.</div></div><span class="pill gold" id="wellnessDayStatus">اليوم 1</span></div>
@@ -3048,7 +3048,7 @@ function train(type){
   else toast(result.message);
   return;
  }
- state.trust=clamp(state.trust+1);if(state.trainingIntensity!=="intense")state.coachRelationship=clamp((Number(state.coachRelationship)||35)+1);
+ state.trust=clamp(state.trust+1);if(state.trainingIntensity!=="intense")state.coachRelationship=clamp((Number(state.coachRelationship??35))+1);
  const title="تدريب "+(titles[type]||type);
  const learned=result.gain?` ارتفعت ${SKILL_AR[type]} ${result.gain} نقطة.`:` تراكمت ${result.xp} خبرة تدريبية باتجاه سقف الإمكانات ${state.playerPotential}.`;
  const secondary=result.secondaryGains.length?` تطورت أيضًا: ${result.secondaryGains.map(key=>SKILL_AR[key]||key).join("، ")}.`:"";
@@ -3515,9 +3515,9 @@ function social(){
 function talkCoach(){
  if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return;}
  openModal("مكتب الكابتن شريف 🗣️","جلسة قصيرة واحدة في اليوم؛ نتيجتها لا تتجاوز أثر العمل الفعلي.",[
-  {label:"أوعده بالالتزام",className:"primary",action:()=>{if(!useDailyAction("حديث المدرب"))return;state.energy=clamp(state.energy-3);state.trust=clamp(state.trust+2);state.coachRelationship=clamp((Number(state.coachRelationship)||35)+4);state.professionalism=clamp((Number(state.professionalism)||65)+1);state.morale=clamp(state.morale+1);setStory("كلمة ووعد","المدرب سجل التزامك؛ الأداء القادم هو ما يحول الوعد إلى دقائق لعب.");log("تحدثت مع المدرب مرة واحدة؛ الثقة زادت قليلًا مع استهلاك وقت وطاقة.");saveGame(true);render();}},
-  {label:"أطلب فرصة في الماتش الجاي",action:()=>{if(!useDailyAction("طلب فرصة من المدرب"))return;state.energy=clamp(state.energy-3);if(state.trust>=45&&Number(state.lastRating)>=6.5){state.role="بديل أساسي";state.trust=clamp(state.trust+2);state.coachRelationship=clamp((Number(state.coachRelationship)||35)+3);setStory("فرصة قريبة","بناءً على ثقتك وتقييمك الأخير، المدرب سيمنحك دورًا أكبر.");}else{state.morale=clamp(state.morale-1);state.coachRelationship=clamp((Number(state.coachRelationship)||35)-1);setStory("لسه بدري","المدرب طلب منك إثبات نفسك في الملعب قبل زيادة الدقائق.");}log("طلبت فرصة من المدرب مرة واحدة اليوم، والقرار مرتبط بالثقة والتقييم.");saveGame(true);render();}},
-  {label:"أشتكي من قلة اللعب",action:()=>{if(!useDailyAction("شكوى للمدرب"))return;state.energy=clamp(state.energy-2);state.trust=clamp(state.trust-4);state.coachRelationship=clamp((Number(state.coachRelationship)||35)-4);state.professionalism=clamp((Number(state.professionalism)||65)-2);setStory("مش وقته","المدرب طلب منك التركيز على الأداء. الشكوى أثرت على الثقة الفنية والعلاقة مع الجهاز الفني.");log("اشتكت من قلة المشاركة مرة واحدة؛ انخفضت الثقة.");saveGame(true);render();}}
+  {label:"أوعده بالالتزام",className:"primary",action:()=>{if(!useDailyAction("حديث المدرب"))return;state.energy=clamp(state.energy-3);state.trust=clamp(state.trust+2);state.coachRelationship=clamp((Number(state.coachRelationship??35))+4);state.professionalism=clamp((Number(state.professionalism)||65)+1);state.morale=clamp(state.morale+1);setStory("كلمة ووعد","المدرب سجل التزامك؛ الأداء القادم هو ما يحول الوعد إلى دقائق لعب.");log("تحدثت مع المدرب مرة واحدة؛ الثقة زادت قليلًا مع استهلاك وقت وطاقة.");saveGame(true);render();}},
+  {label:"أطلب فرصة في الماتش الجاي",action:()=>{if(!useDailyAction("طلب فرصة من المدرب"))return;state.energy=clamp(state.energy-3);if(state.trust>=45&&Number(state.lastRating)>=6.5){state.role="بديل أساسي";state.trust=clamp(state.trust+2);state.coachRelationship=clamp((Number(state.coachRelationship??35))+3);setStory("فرصة قريبة","بناءً على ثقتك وتقييمك الأخير، المدرب سيمنحك دورًا أكبر.");}else{state.morale=clamp(state.morale-1);state.coachRelationship=clamp((Number(state.coachRelationship??35))-1);setStory("لسه بدري","المدرب طلب منك إثبات نفسك في الملعب قبل زيادة الدقائق.");}log("طلبت فرصة من المدرب مرة واحدة اليوم، والقرار مرتبط بالثقة والتقييم.");saveGame(true);render();}},
+  {label:"أشتكي من قلة اللعب",action:()=>{if(!useDailyAction("شكوى للمدرب"))return;state.energy=clamp(state.energy-2);state.trust=clamp(state.trust-4);state.coachRelationship=clamp((Number(state.coachRelationship??35))-4);state.professionalism=clamp((Number(state.professionalism)||65)-2);setStory("مش وقته","المدرب طلب منك التركيز على الأداء. الشكوى أثرت على الثقة الفنية والعلاقة مع الجهاز الفني.");log("اشتكت من قلة المشاركة مرة واحدة؛ انخفضت الثقة.");saveGame(true);render();}}
  ]);
 }
 function buyItem(id){

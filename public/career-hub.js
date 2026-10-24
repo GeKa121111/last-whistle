@@ -72,7 +72,7 @@
     var used=!!s.dailyActionUsed&&Number(s.dailyActionDay)===today;
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
-    var coach=$("wellnessCoachButton");if(coach)coach.disabled=!!s.retired||used;
+    document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});
     text("statsCareerApps",Math.max(Number(s.apps)||0,Number(s.totalCareerAppearances)||0));
     text("statsCareerGoals",Number(s.goals)||0);text("statsCareerAssists",Number(s.assists)||0);text("statsSeasonApps",Number(s.seasonApps)||0);
     var hint=$("homeReadinessHint");

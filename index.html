@@ -749,6 +749,22 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 /* End UI 4.0 */
 
+
+/* Fix mobile career-setup scroll and name entry */
+.startNameField{display:grid;gap:7px;margin:14px 0 12px;padding:13px;border:1px solid #d8e1f0;border-radius:15px;background:#f7f9fd}
+.startNameField label{display:flex;align-items:center;gap:8px;color:#1b2b48;font-size:13px;font-weight:900}
+.requiredTag{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#eff8df;border:1px solid #d2e7ad;color:#36551a;font-size:9px;font-weight:900}
+#startName{display:block;width:100%;min-height:54px;padding:13px 14px;border:2px solid #8da5ff;border-radius:12px;background:#fff;color:#17253e;font-size:17px;font-weight:750;line-height:1.4;direction:auto;caret-color:#3458ed;touch-action:manipulation}
+#startName::placeholder{color:#8390a5;font-size:14px;font-weight:500;opacity:1}
+#startName:focus{outline:3px solid #3458ed28;border-color:#3458ed;background:#fff}
+#startNameHelp{display:block;color:#697b94;font-size:10px;line-height:1.7}
+@media(max-width:760px){
+ .startScreen{align-items:flex-start;justify-content:center;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;padding:12px 10px calc(18px + env(safe-area-inset-bottom))}
+ .startCard{flex:0 0 auto;width:100%;max-width:620px;margin:0 auto}
+ .startNameField{margin:10px 0 12px;padding:12px;border-color:#aabaf0;background:#f7f9fd}
+ #startName{min-height:56px;font-size:17px;padding:14px}
+}
+
 </style>
 </head>
 <body>
@@ -758,8 +774,12 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
   <div class="startBrand">LAST WHISTLE • PLAYER CAREER</div>
   <h1>ابدأ حكايتك الكروية</h1>
   <p>جهّز لاعبك، اختار مركزه والدوري اللي هتبدأ فيه. كل مركز ليه قصة ومميزات مختلفة. تقدمك بيتحفظ على نفس الجهاز والمتصفح.</p>
+  <div class="startNameField startField">
+   <label for="startName">اسم اللاعب <span class="requiredTag">مطلوب</span></label>
+   <input id="startName" type="text" maxlength="24" value="" placeholder="اكتب اسمك هنا — مثال: محمد أحمد" dir="auto" inputmode="text" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" aria-describedby="startNameHelp" required>
+   <small class="muted tiny" id="startNameHelp">اكتب الاسم اللي عايز يظهر في مسيرتك (حتى 24 حرفًا).</small>
+  </div>
   <div class="startGrid">
-   <div class="startField"><label for="startName">اسم اللاعب</label><input id="startName" maxlength="24" value="يوسف حسن" autocomplete="nickname"></div>
    <div class="startField"><label for="startAge">العمر عند البداية</label><select id="startAge"><option value="16">16 سنة</option><option value="17" selected>17 سنة</option><option value="18">18 سنة</option><option value="19">19 سنة</option><option value="20">20 سنة</option></select></div>
    <div class="startField"><label for="startCountry">الدوري / الدولة</label><select id="startCountry"></select></div>
    <div class="startField"><label for="startClub">نادي البداية</label><select id="startClub"></select><small class="muted tiny" id="startClubSource"></small></div>
@@ -3394,7 +3414,7 @@ function populateStartScreen(){
  $("positionGrid").innerHTML=POSITIONS.map(p=>`<button type="button" class="positionChoice ${p.id==="جناح"?"selected":""}" data-position="${safeHTML(p.id)}"><span class="posIcon">${p.icon}</span><b>${safeHTML(p.id)}</b><small>${safeHTML(p.short)}</small></button>`).join("");
  selectedPosition=state.careerStarted?(state.pos||"جناح"):"جناح";
  updatePositionStory();updateStartClubOptions();
- if(state.careerStarted){$("continueSavedBtn").style.display="block";if($("startNationalTeam"))$("startNationalTeam").value=state.nationalTeam||"مصر";$("startName").value=state.name;$("startAge").value=String(state.age);$("startCountry").value=state.leagueCountry||"مصر";$("startDivision").value=String(state.leagueDivision||2);updateStartClubOptions();$("startClub").value=state.clubName||"";document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();}
+ const nameInput=$("startName");if(!nameInput.dataset.bound){nameInput.addEventListener("input",()=>nameInput.setCustomValidity(""));nameInput.dataset.bound="1";}if(state.careerStarted){$("continueSavedBtn").style.display="block";if($("startNationalTeam"))$("startNationalTeam").value=state.nationalTeam||"مصر";nameInput.value=String(state.name||"");$("startAge").value=String(state.age);$("startCountry").value=state.leagueCountry||"مصر";$("startDivision").value=String(state.leagueDivision||2);updateStartClubOptions();$("startClub").value=state.clubName||"";document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();}else{$("continueSavedBtn").style.display="none";nameInput.value="";$("startAge").value="17";if($("startNationalTeam"))$("startNationalTeam").value="مصر";$("startDivision").value="2";}const setupScreen=$("startScreen");if(setupScreen)setupScreen.scrollTop=0;
 }
 function updateStartClubOptions(){
  const country=$("startCountry").value||"مصر";const division=country==="مصر"?Number($("startDivision").value||2):1;
@@ -3409,8 +3429,12 @@ function updateStartClubOptions(){
  setText("startClubSource",sourceText);
 }
 function updatePositionStory(){const p=positionById(selectedPosition);$("positionStory").textContent=p.icon+" "+p.story;}
+function normalizePlayerName(raw){return String(raw??"").replace(/\s+/g," ").trim().slice(0,24);}
 function startCareerFromSetup(){
- const name=$("startName").value.trim().slice(0,24)||"يوسف حسن";const age=clamp(Number($("startAge").value)||17,16,20);const country=$("startCountry").value||"مصر";const division=country==="مصر"?(Number($("startDivision").value)||2):1;const p=positionById(selectedPosition);
+ const nameInput=$("startName");const name=normalizePlayerName(nameInput?.value);
+ if(!name){const message="اكتب اسمك في خانة «اسم اللاعب» أعلى النموذج قبل ما تبدأ المسيرة.";nameInput?.setCustomValidity(message);nameInput?.reportValidity?.();if($("startScreen"))$("startScreen").scrollTop=0;nameInput?.focus({preventScroll:true});toast(message);return;}
+ nameInput.setCustomValidity("");
+ const age=clamp(Number($("startAge").value)||17,16,20);const country=$("startCountry").value||"مصر";const division=country==="مصر"?(Number($("startDivision").value)||2):1;const p=positionById(selectedPosition);
  const fresh=structuredCloneSafe(INITIAL);state=fresh;if(window.LWCareer)window.LWCareer.ensureState(state);
  state.name=name;state.age=age;state.pos=p.id;state.nationalTeam=$("startNationalTeam")?.value||"مصر";state.leagueCountry=country;state.leagueDivision=division;state.careerStarted=true;state.playerPotential=rand(78,96);state.randomSeed=stableHash(`${name}|${age}|${country}|${state.nationalTeam}|${Date.now()}`)||1831565813;state.trainingIntensity=$("trainingIntensity")?.value||"normal";
  Object.entries(p.boost).forEach(([k,v])=>state[k]=clamp(state[k]+v));state.role=p.role;state.trust=division===1?32:25;state.energy=85;state.morale=70;state.calendarDay=1;

@@ -22,6 +22,8 @@ const functions = [
   "advanceCalendarDays",
   "rest",
   "talkCoach",
+  "normalizePlayerName",
+  "startCareerFromSetup",
   "openTransferMarketPage"
 ].map(extractFunction).join("\n");
 const notices = [];
@@ -32,11 +34,23 @@ let saveCount = 0;
 let renderCount = 0;
 let winterMarketCalls = 0;
 let transferMarketNode = { scrollIntoView: (options) => transferScrolls.push(options) };
+const startNameNode = {
+  value: "",
+  validityMessages: [],
+  reportCount: 0,
+  focusCount: 0,
+  scrollOptions: [],
+  setCustomValidity: (message) => startNameNode.validityMessages.push(String(message)),
+  reportValidity: () => { startNameNode.reportCount++; },
+  scrollIntoView: (options) => startNameNode.scrollOptions.push(options),
+  focus: () => { startNameNode.focusCount++; }
+};
+const startScreenNode = { scrollTop: 25 };
 const pageCalls = [];
 const transferScrolls = [];
 const sandbox = {
   state: {},
-  $: (id) => id === "transferMarket" ? transferMarketNode : null,
+  $: (id) => id === "transferMarket" ? transferMarketNode : id === "startName" ? startNameNode : id === "startScreen" ? startScreenNode : null,
   showPage: (...args) => pageCalls.push(args),
   transferWindow: () => ({ name: "الانتقالات الصيفية" }),
   window: { LWAgentRuntime: null },
@@ -51,6 +65,28 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(functions, sandbox, { filename: "actual-career-actions" });
+
+
+// Player setup must normalize names and keep the career from starting when the name is empty.
+assert.equal(sandbox.normalizePlayerName("  Mohamed  \\n Ahmed   "), "Mohamed Ahmed",
+  "player names must collapse whitespace and trim edges");
+assert.equal(sandbox.normalizePlayerName("123456789012345678901234567890").length, 24,
+  "player names must respect the 24-character limit");
+startNameNode.value = "   ";
+startNameNode.validityMessages.length = 0;
+startNameNode.reportCount = 0;
+startNameNode.focusCount = 0;
+startNameNode.scrollOptions.length = 0;
+startScreenNode.scrollTop = 25;
+notices.length = 0;
+sandbox.startCareerFromSetup();
+assert.equal(startNameNode.reportCount, 1, "empty player name must trigger browser validation");
+assert.equal(startNameNode.focusCount, 1, "empty player name must focus the input");
+assert.equal(startScreenNode.scrollTop, 0, "empty player name must scroll setup to the name field");
+assert.ok(startNameNode.validityMessages.at(-1).includes("اسم اللاعب"),
+  "empty player name must explain how to fix the form");
+assert.ok(notices.some(message => message.includes("اسم اللاعب")),
+  "empty player name must show a helpful notice");
 
 const makeState = (overrides = {}) => ({
   retired: false, winterBreakPending: false,

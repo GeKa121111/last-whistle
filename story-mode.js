@@ -322,6 +322,7 @@ function chooseStory(id,index){
 }
 function renderOverview(s){
   var api=API();if(!s)return;
+  var overview=document.getElementById("lw-command-center");if(overview)overview.style.display=(s.currentPage||"home")==="home"?"":"none";
   var set=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value);};
   var val=api&&typeof api.overall==="function"?api.overall():(typeof s.overall==="number"?s.overall:null);
   if(val==null){

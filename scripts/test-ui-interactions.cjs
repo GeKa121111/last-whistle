@@ -10,7 +10,7 @@ const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const extractFunction = (name) => {
   const start = html.indexOf("function " + name + "(");
   if (start < 0) throw new Error("Missing game function: " + name);
-  const next = html.indexOf("\\nfunction ", start + 1);
+  const next = html.indexOf("\nfunction ", start + 1);
   return html.slice(start, next < 0 ? html.length : next);
 };
 
@@ -22,7 +22,7 @@ const functions = [
   "advanceCalendarDays",
   "rest",
   "talkCoach"
-].map(extractFunction).join("\\n");
+].map(extractFunction).join("\n");
 const notices = [];
 const logs = [];
 const stories = [];

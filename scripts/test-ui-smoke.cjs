@@ -45,15 +45,15 @@ const required = [
   "state.dailyActionDay=Math.max(1,Number(state.day)||1);"
 ];
 const missing = required.filter((token) => !html.includes(token));
-const staticMarkupForRefs = html.replace(/<script\\b[\\s\\S]*?<\\/script>/gi, "")
-  .replace(/<style\\b[\\s\\S]*?<\\/style>/gi, "")
-  .replace(/<!--[\\s\\S]*?-->/g, "");
-const staticIdsForRefs = new Set([...staticMarkupForRefs.matchAll(/\\bid\\s*=\\s*["']([^"']+)["']/gi)].map((match) => match[1]));
+const staticMarkupForRefs = html.replace(/<script\b[\s\S]*?<\/script>/gi, "")
+  .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+  .replace(/<!--[\s\S]*?-->/g, "");
+const staticIdsForRefs = new Set([...staticMarkupForRefs.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)].map((match) => match[1]));
 const literalDomRefs = new Set();
 for (const pattern of [
-  /\\$\\(["']([^"']+)["']\\)/g,
-  /setText\\(["']([^"']+)["']/g,
-  /setBar\\(["']([^"']+)["']/g
+  /\$\(["']([^"']+)["']\)/g,
+  /setText\(["']([^"']+)["']/g,
+  /setBar\(["']([^"']+)["']/g
 ]) {
   for (const match of html.matchAll(pattern)) literalDomRefs.add(match[1]);
 }

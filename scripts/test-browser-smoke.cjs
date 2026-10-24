@@ -157,6 +157,29 @@ async function main() {
     assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
       "header, player summary, and store must use the Egyptian currency for an Egyptian league");
     assert.ok(startingContext.commandBalance.includes("ج.م"), "the main career command center shows the wallet currency");
+    const countryCurrencyChecks = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const originalCountry = state.leagueCountry;
+      const checks = [];
+      for (const [country, expected] of [["إنجلترا", "£"], ["ألمانيا", "€"], ["الولايات المتحدة", "$"], ["مصر", "ج.م"]]) {
+        state.leagueCountry = country;
+        window.LWStoryRuntime.render();
+        checks.push({
+          country,
+          expected,
+          header: document.querySelector("#headCurrency")?.textContent.trim(),
+          summary: document.querySelector("#kpiCurrency")?.textContent.trim(),
+          store: document.querySelector("#storeCurrency")?.textContent.trim()
+        });
+      }
+      state.leagueCountry = originalCountry;
+      window.LWStoryRuntime.render();
+      return checks;
+    });
+    for (const check of countryCurrencyChecks) {
+      assert.deepEqual([check.header, check.summary, check.store], [check.expected, check.expected, check.expected],
+        "header, summary and store currency should match " + check.country);
+    }
     assert.ok(startingContext.nextMatchCountdown.length > 0 && startingContext.nextMatchMeta.includes("22"),
       "the dashboard shows the upcoming fixture and dynamic season length");
     results.push("position-based starting stats, youth contract, dynamic league length, currency and match countdown");

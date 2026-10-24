@@ -2330,10 +2330,12 @@ function clubTierForPower(power){return power>=77?3:power>=68?2:power>=58?1:0;}
 function catalogLeague(country){return window.LWCatalog?.clubsForCountry(country)||null;}
 function safeHTML(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));}
 function overall(s=state){return window.LWCareer?window.LWCareer.overall(s):Math.round(SKILLS.slice(0,6).reduce((sum,k)=>sum+(Number(s[k])||0),0)/6);}
-const EURO_COUNTRIES=new Set(EUROPE_LEAGUES.map(row=>row.country));
+const EURO_COUNTRIES=new Set(EUROPE_LEAGUES.map(row=>row[0]));
+function europeanLeagueRow(country){return EUROPE_LEAGUES.find(row=>row[0]===country)||null;}
+function sampleClubsForCountry(country,division){const row=europeanLeagueRow(country);return String(row?.[Number(division)===1?4:5]||"").split(/[،,]/).map(name=>name.trim()).filter(Boolean);}
 function currencyLabel(country=state.leagueCountry){
  if(country==="مصر")return "ج.م";
- if(country==="إنجلترا")return "£";
+ if(country==="إنجلترا"||country==="England")return "£";
  if(EURO_COUNTRIES.has(country))return "€";
  return "$";
 }
@@ -2532,8 +2534,8 @@ function leaguePeerNames(){
 }
 function createLeague(){
  const ours=clubNameForLeague(),country=state.leagueCountry||"مصر",division=Number(state.leagueDivision)||2;
- const sourced=division===1?catalogLeague(country):null,legacy=LEAGUE_ROSTERS[country]?.[division],countryRow=EUROPE_LEAGUES.find(row=>row.country===country);
- let names=sourced?[...sourced.clubs]:legacy?[...legacy]:(division===2?[...(countryRow?.secondClubs||TEAM_NAMES)]:[...(countryRow?.clubs||TEAM_NAMES)]);
+ const sourced=division===1?catalogLeague(country):null,legacy=LEAGUE_ROSTERS[country]?.[division];
+ let names=sourced?[...sourced.clubs]:legacy?[...legacy]:sampleClubsForCountry(country,division);
  names=[...new Set(names.filter(Boolean))];names=[ours,...names.filter(name=>name!==ours)];
  const targetCount=division===2?12:country==="مصر"?16:(sourced?.clubs?.length||legacy?.length||(country==="ألمانيا"||country==="فرنسا"?18:20));
  const prefix=division===2?(country==="مصر"?"أكاديمية ناشئين":"أكاديمية "+country):"نادي "+country;
@@ -3876,8 +3878,8 @@ function updateStartClubOptions(){
  const division=youth?2:clamp(Number($("startDivision").value)||2,1,2),divisionSelect=$("startDivision");
  const first=divisionSelect.querySelector('option[value="1"]'),second=divisionSelect.querySelector('option[value="2"]');
  if(first)first.disabled=youth;if(second)second.disabled=false;divisionSelect.disabled=youth;if(youth)divisionSelect.value="2";
- const sourced=division===1?catalogLeague(country):null,countryRow=EUROPE_LEAGUES.find(row=>row.country===country);
- let roster=sourced?.clubs||LEAGUE_ROSTERS[country]?.[division]||(division===2?(countryRow?.secondClubs||[]):countryRow?.clubs||[]);
+ const sourced=division===1?catalogLeague(country):null;
+ let roster=sourced?.clubs||LEAGUE_ROSTERS[country]?.[division]||sampleClubsForCountry(country,division);
  roster=[...new Set(roster.filter(Boolean))];
  if(division===2){const prefix=country==="مصر"?"أكاديمية ناشئين":"أكاديمية "+country;while(roster.length<12)roster.push(prefix+" "+(roster.length+1));}
  const clubSelect=$("startClub"),previous=clubSelect.value||state.clubName;
@@ -3902,8 +3904,8 @@ function startCareerFromSetup(){
  state.role=age<=18?"ناشئ / بديل":p.role;state.contractType=age<=18?"youth-amateur":division===1?"professional":"amateur";
  state.trust=age<=18?22:division===1?32:25;state.energy=85;state.morale=70;state.calendarDay=1;state.day=1;
  state.clubName=$("startClub").value||LEAGUE_ROSTERS[country]?.[division]?.[0]||"مركز شباب النور";
- const source=division===1?catalogLeague(country):null;const countryRow=EUROPE_LEAGUES.find(row=>row.country===country);
- state.leagueCompetition=source?.competition||(country==="مصر"?(division===2?"دوري مراكز الشباب والدرجة الثانية — محاكاة":"الدوري المصري — محاكاة محلية"):(countryRow?.[division===1?"top":"second"]||"الدوري المحفوظ"));state.leagueSource=source?`OpenFootball • ${source.season}`:"قائمة أكاديميات/درجة ثانية محلية";
+ const source=division===1?catalogLeague(country):null;const countryRow=europeanLeagueRow(country);
+ state.leagueCompetition=source?.competition||(country==="مصر"?(division===2?"دوري مراكز الشباب والدرجة الثانية — محاكاة":"الدوري المصري — محاكاة محلية"):(countryRow?.[division===1?2:3]||"الدوري المحلي"));state.leagueSource=source?`OpenFootball • ${source.season}`:"قائمة أكاديميات/درجة ثانية محلية";
  state.clubPower=division===2?48+rand(0,7):clubPowerFor(state.clubName,country);state.clubIndex=division===2?0:clubTierForPower(state.clubPower);state.clubTier=state.clubIndex;
  state.weeklyWage=startingWeeklyWage(country,division,age,state.clubIndex);state.contractSeasons=age<=18?1:division===2?2:3;
  state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.seasonAppsTarget=window.LWCareer?.leagueMatchTarget(state.league.length)||seasonMatchTotal();state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);setStory("الفصل الأول: "+p.id,p.story+" دي بدايتك يا "+name+". أول هدف ليك إنك تكسب ثقة المدرب وتثبت إنك تستحق فرصة أكبر.");log(`بدأت مسيرتك في مركز ${p.id} مع ${state.clubName} في ${country}.`);

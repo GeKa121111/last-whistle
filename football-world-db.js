@@ -232,7 +232,7 @@
     if (!profile) return [];
     context = context || {};
     var division = Math.max(1, Number(context.division) || 1);
-    var qualifiedWorld = !!(context.worldClubQualified || context.continentalChampion || context.worldClubQualifiedSeason === context.season);
+    var qualifiedWorld = !!(context.worldClubQualified || context.continentalChampion || (context.worldClubQualifiedSeason != null && context.season != null && context.worldClubQualifiedSeason === context.season));
     var ids = ["league"].concat(profile.cups).concat(profile.superCup ? [profile.superCup] : [])
       .concat(profile.continental)
       .concat(profile.confederation === "UEFA" ? ["uefa-super-cup"] : profile.confederation === "CAF" ? ["caf-super-cup"] : [])

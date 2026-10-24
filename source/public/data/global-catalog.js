@@ -2,10 +2,10 @@
 (() => {
   "use strict";
   const DATA_FILES = {
-    fifa: "data/fifa-global-2023.json",
-    clubs: "data/openfootball-clubs.json",
-    football: "data/football-reference.json",
-    awards: "data/awards.json"
+    fifa: "data/snapshots/fifa-global-2023.json.gz.b64",
+    clubs: "data/snapshots/openfootball-clubs.json.gz.b64",
+    football: "data/snapshots/football-reference.json.gz.b64",
+    awards: "data/snapshots/awards.json.gz.b64"
   };
   const DIRECTORY_TO_ARABIC = {
     "Austria": "النمسا", "Belgium": "بلجيكا", "Germany": "ألمانيا", "England": "إنجلترا",
@@ -16,11 +16,23 @@
     "USA": "الولايات المتحدة وكندا"
   };
   let fifa = null, clubSnapshot = null, footballReference = null, awardReference = null, loadError = "";
+
   async function readJSON(path) {
     const response = await fetch(path, { cache: "force-cache" });
     if (!response.ok) throw new Error(path + ": HTTP " + response.status);
-    return response.json();
+    const encoded = (await response.text()).trim();
+    if (!encoded || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {
+      throw new Error(path + ": invalid base64 snapshot");
+    }
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("This browser does not support gzip snapshot decompression.");
+    }
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return JSON.parse(await new Response(stream).text());
   }
+
   async function load() {
     const results = await Promise.allSettled([
       readJSON(DATA_FILES.fifa), readJSON(DATA_FILES.clubs),
@@ -31,9 +43,12 @@
     );
     const rejected = results.filter(result => result.status === "rejected");
     loadError = rejected.map(result => String(result.reason?.message || result.reason)).join("; ");
-    if (!fifa || !Array.isArray(fifa.associations)) throw new Error(loadError || "FIFA directory data is unavailable");
+    if (!fifa || !Array.isArray(fifa.associations)) {
+      throw new Error(loadError || "FIFA directory data is unavailable");
+    }
     return summary();
   }
+
   function latestDomesticCompetitions() {
     return Array.isArray(clubSnapshot?.latestDomesticCompetitions) ? clubSnapshot.latestDomesticCompetitions : [];
   }

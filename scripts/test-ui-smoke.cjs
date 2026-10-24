@@ -26,9 +26,18 @@ const required = [
   "positionDevelopmentPlan",
   "trainingFocusMultiplier",
   "positionDevelopmentCard",
+  "function startingStatsForPosition",
+  "const OVR_WEIGHTS",
+  'id="skill-physical"',
+  'data-action="train-physical"',
+  'id="storeCurrency"',
+  'id="headCurrency"',
+  'id="kpiCurrency"',
+  "currency: () => currencyLabel()",
+  "schemaVersion:9",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=2",
+  "story-mode.js?v=3",
   "career-experience.js?v=1",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
@@ -45,8 +54,8 @@ const required = [
   "window.LWStoryRuntime =",
   'class="page active"',
   "saved.calendarDay",
-  "restored.schemaVersion=8;",
-  "state.schemaVersion=8;",
+  "restored.schemaVersion=9;",
+  "state.schemaVersion=9;",
   "state.dailyActionDay=Math.max(1,Number(state.day)||1);"
 ];
 const missing = required.filter((token) => !html.includes(token));
@@ -149,8 +158,8 @@ for (const asset of ["story-ui.css", "story-mode.js", "career-experience.css", "
   if (rootAsset !== publicAsset) { console.error("Root/public asset mirror mismatch:", asset); process.exit(1); }
 }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v17")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=2", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "redesign.css?v=2", "redesign.css?v=2"]) {
+if (!workerSource.includes("last-whistle-static-v18")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=3", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "redesign.css?v=3", "redesign.css?v=3"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

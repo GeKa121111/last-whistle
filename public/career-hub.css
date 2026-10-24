@@ -151,3 +151,18 @@ body.lw-rebuild .transfer-card-actions{display:flex;gap:7px;flex-wrap:wrap;margi
 body.lw-rebuild .transfer-card-actions .btn{flex:1 1 135px;min-width:0}
 body.lw-rebuild .transfer-card-actions .btn:disabled{opacity:.45}
 @media(max-width:520px){body.lw-rebuild .transferShortlistRow{grid-template-columns:minmax(0,1fr) auto;gap:8px}body.lw-rebuild .transferShortlistRow .btn{grid-column:1/-1;width:100%}body.lw-rebuild .transferShortlistNumbers{text-align:right}}
+
+/* Position-aware development plan */
+body.lw-rebuild .positionDevelopmentCard{grid-column:1/-1;padding:15px 16px;margin:2px 0 12px;border:1px solid #375d56;border-radius:16px;background:radial-gradient(ellipse at 90% 0%,#1b4a3b55,transparent 58%),linear-gradient(145deg,#122b2a,#111a2c)}
+body.lw-rebuild .positionDevelopmentHead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+body.lw-rebuild .positionDevelopmentHead span{font-size:10px;font-weight:900;color:#8fcbb5}
+body.lw-rebuild .positionDevelopmentHead strong{font-size:16px;color:#e8fff5}
+body.lw-rebuild #positionPlanSummary{margin:7px 0 10px;color:#b5c8c4;font-size:12px;line-height:1.8}
+body.lw-rebuild .positionPlanMeta{display:flex;flex-wrap:wrap;gap:7px}
+body.lw-rebuild .positionPlanMeta span{padding:6px 9px;border:1px solid #2c5049;border-radius:9px;background:#0c1d20;color:#8db9ac;font-size:10px}
+body.lw-rebuild .positionPlanMeta b{color:#d9ff62;font-weight:850}
+body.lw-rebuild .positionPlanHint{margin:10px 0 0;color:#849f9b;font-size:10px;line-height:1.8}
+body.lw-rebuild #page-training [data-action^="train-"].position-recommended{border-color:#416e5c;background:linear-gradient(130deg,#193c36,#1b2b42);box-shadow:inset 0 0 0 1px #57e6ae12}
+body.lw-rebuild #page-training [data-action^="train-"].position-primary{border-color:#a0c94b;box-shadow:inset 0 0 0 1px #d9ff6230}
+body.lw-rebuild #page-training [data-action^="train-"].position-recommended .actionTitle:after{content:" • مناسب لمركزك";display:inline-block;color:#d9ff62;font-size:9px;font-weight:850}
+@media(max-width:760px){body.lw-rebuild .positionDevelopmentCard{padding:13px;border-radius:14px}body.lw-rebuild .positionDevelopmentHead strong{font-size:14px}body.lw-rebuild #positionPlanSummary{font-size:11px}}

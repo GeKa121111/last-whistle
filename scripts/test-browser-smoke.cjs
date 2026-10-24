@@ -245,7 +245,7 @@ async function main() {
       const state = window.LWStoryRuntime.getState();
       const title = document.querySelector("#modalTitle");
       return state.winterBreakPending === true
-        && Number(state.seasonApps) >= 19
+        && Number(state.seasonApps) >= Math.ceil((Number(state.seasonAppsTarget) || 34) / 2)
         && title && title.textContent.includes("ملخص منتصف الموسم");
     }, null, { timeout: 30000 });
     results.push("first-half simulation reaches the winter break");

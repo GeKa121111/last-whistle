@@ -751,7 +751,7 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
 
 
 /* Fix mobile career-setup scroll and name entry */
-.startNameField{display:grid;gap:7px;margin:14px 0 12px;padding:13px;border:1px solid #d8e1f0;border-radius:15px;background:#f7f9fd}
+.startNameField{display:grid;gap:7px;margin:14px 0 12px;padding:13px;border:1px solid #d8e1f0;border-radius:15px;background:#f7f9fd;position:sticky;top:0;z-index:8;box-shadow:0 8px 18px #172b4812}
 .startNameField label{display:flex;align-items:center;gap:8px;color:#1b2b48;font-size:13px;font-weight:900}
 .requiredTag{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#eff8df;border:1px solid #d2e7ad;color:#36551a;font-size:9px;font-weight:900}
 #startName{display:block;width:100%;min-height:54px;padding:13px 14px;border:2px solid #8da5ff;border-radius:12px;background:#fff;color:#17253e;font-size:17px;font-weight:750;line-height:1.4;direction:auto;caret-color:#3458ed;touch-action:manipulation}
@@ -3414,7 +3414,7 @@ function populateStartScreen(){
  $("positionGrid").innerHTML=POSITIONS.map(p=>`<button type="button" class="positionChoice ${p.id==="جناح"?"selected":""}" data-position="${safeHTML(p.id)}"><span class="posIcon">${p.icon}</span><b>${safeHTML(p.id)}</b><small>${safeHTML(p.short)}</small></button>`).join("");
  selectedPosition=state.careerStarted?(state.pos||"جناح"):"جناح";
  updatePositionStory();updateStartClubOptions();
- const nameInput=$("startName");if(!nameInput.dataset.bound){nameInput.addEventListener("input",()=>nameInput.setCustomValidity(""));nameInput.dataset.bound="1";}if(state.careerStarted){$("continueSavedBtn").style.display="block";if($("startNationalTeam"))$("startNationalTeam").value=state.nationalTeam||"مصر";nameInput.value=String(state.name||"");$("startAge").value=String(state.age);$("startCountry").value=state.leagueCountry||"مصر";$("startDivision").value=String(state.leagueDivision||2);updateStartClubOptions();$("startClub").value=state.clubName||"";document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();}else{$("continueSavedBtn").style.display="none";nameInput.value="";$("startAge").value="17";if($("startNationalTeam"))$("startNationalTeam").value="مصر";$("startDivision").value="2";}const setupScreen=$("startScreen");if(setupScreen)setupScreen.scrollTop=0;
+ const nameInput=$("startName");if(!nameInput.dataset.bound){nameInput.addEventListener("input",()=>nameInput.setCustomValidity(""));nameInput.addEventListener("focus",()=>{const screen=$("startScreen");if(screen?.classList.contains("show"))nameInput.scrollIntoView({block:"center",behavior:"smooth"});});nameInput.addEventListener("click",()=>{const screen=$("startScreen");if(screen?.classList.contains("show"))nameInput.scrollIntoView({block:"center",behavior:"smooth"});});nameInput.dataset.bound="1";}if(state.careerStarted){$("continueSavedBtn").style.display="block";if($("startNationalTeam"))$("startNationalTeam").value=state.nationalTeam||"مصر";nameInput.value=String(state.name||"");$("startAge").value=String(state.age);$("startCountry").value=state.leagueCountry||"مصر";$("startDivision").value=String(state.leagueDivision||2);updateStartClubOptions();$("startClub").value=state.clubName||"";document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();}else{$("continueSavedBtn").style.display="none";nameInput.value="";$("startAge").value="17";if($("startNationalTeam"))$("startNationalTeam").value="مصر";$("startDivision").value="2";}const setupScreen=$("startScreen");if(setupScreen)setupScreen.scrollTop=0;
 }
 function updateStartClubOptions(){
  const country=$("startCountry").value||"مصر";const division=country==="مصر"?Number($("startDivision").value||2):1;
@@ -3432,7 +3432,7 @@ function updatePositionStory(){const p=positionById(selectedPosition);$("positio
 function normalizePlayerName(raw){return String(raw??"").replace(/\s+/g," ").trim().slice(0,24);}
 function startCareerFromSetup(){
  const nameInput=$("startName");const name=normalizePlayerName(nameInput?.value);
- if(!name){const message="اكتب اسمك في خانة «اسم اللاعب» أعلى النموذج قبل ما تبدأ المسيرة.";nameInput?.setCustomValidity(message);nameInput?.reportValidity?.();if($("startScreen"))$("startScreen").scrollTop=0;nameInput?.focus({preventScroll:true});toast(message);return;}
+ if(!name){const message="اكتب اسمك في خانة «اسم اللاعب» أعلى النموذج قبل ما تبدأ المسيرة.";nameInput?.setCustomValidity(message);nameInput?.reportValidity?.();if($("startScreen"))$("startScreen").scrollTop=0;nameInput?.scrollIntoView?.({block:"center",behavior:"smooth"});nameInput?.focus();toast(message);return;}
  nameInput.setCustomValidity("");
  const age=clamp(Number($("startAge").value)||17,16,20);const country=$("startCountry").value||"مصر";const division=country==="مصر"?(Number($("startDivision").value)||2):1;const p=positionById(selectedPosition);
  const fresh=structuredCloneSafe(INITIAL);state=fresh;if(window.LWCareer)window.LWCareer.ensureState(state);

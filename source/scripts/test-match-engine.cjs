@@ -12,7 +12,7 @@ assert.ok(engine && typeof engine.simulateMatch === "function", "match engine mu
 
 // Exercise the engine shipped to players inside index.html as well as the source module.
 const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
-const inlineScripts = [...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(match => match[1]);
+const inlineScripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const matchBundle = inlineScripts.find(script => script.includes("window.LWMatch ="));
 assert.ok(matchBundle, "deployed HTML must contain the match engine");
 const browserContext = { window: {} };

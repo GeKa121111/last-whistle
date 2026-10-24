@@ -1,5 +1,5 @@
-const CACHE_NAME = "last-whistle-static-v16";
-const APP_SHELL = ["./index.html", "./manifest.webmanifest", "./app-icon.svg", "./story-ui.css?v=1", "./story-mode.js?v=1", "./career-experience.css?v=1", "./career-experience.js?v=1", "./agent-system.css?v=1", "./agent-system.js?v=1", "./career-hub.css?v=1", "./career-hub.js?v=1", "./player-store.css?v=2", "./redesign.css?v=1"];
+const CACHE_NAME = "last-whistle-static-v17";
+const APP_SHELL = ["./index.html", "./manifest.webmanifest", "./app-icon.svg", "./story-ui.css?v=1", "./story-mode.js?v=2", "./career-experience.css?v=1", "./career-experience.js?v=1", "./agent-system.css?v=1", "./agent-system.js?v=1", "./career-hub.css?v=1", "./career-hub.js?v=1", "./player-store.css?v=2", "./redesign.css?v=2"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });

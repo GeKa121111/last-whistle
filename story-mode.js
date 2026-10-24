@@ -177,22 +177,23 @@ function ensureShell(){
     shell.id="lw-command-center";
     shell.setAttribute("aria-labelledby","lw-career-title");
     shell.innerHTML=
-      '<div class="lw-eyebrow"><span class="eyebrowLive"></span> LAST WHISTLE <span style="color:#7d9275">/</span> مسيرة اللاعب</div>'+
-      '<div class="lw-overview-head"><div class="lw-overview-copy"><h1 id="lw-career-title">كل مباراة تقرّبك من <span>الحلم.</span></h1><p id="lw-overview-sub">تابع جاهزيتك، اختار خطوتك الجاية، وابني مسيرتك مباراة بعد مباراة.</p></div><div class="lw-rating"><strong id="lw-overall">—</strong><small>التقييم العام</small></div></div>'+
+      '<div class="lw-console-top"><div class="lw-eyebrow"><span class="eyebrowLive"></span> LAST WHISTLE <span class="lw-eyebrow-divider">/</span> CAREER TERMINAL</div><span class="lw-season-chip">المسيرة <b id="lw-console-season">01</b></span></div>'+
+      '<div class="lw-overview-head"><div class="lw-overview-copy"><h1 id="lw-career-title">الطريق <span>للقمة.</span></h1><p id="lw-overview-sub">كل قرار بيصنع فرق. حضّر للمباراة، طوّر مستواك، وابدأ كتابة تاريخك.</p></div><div class="lw-rating"><strong id="lw-overall">—</strong><small>OVERALL</small></div></div>'+
       '<div class="lw-overview-strip">'+
-      '<div class="lw-overview-stat"><small>اللاعب</small><strong id="lw-hub-name">لاعب جديد</strong></div>'+
-      '<div class="lw-overview-stat"><small>النادي</small><strong id="lw-hub-club">—</strong></div>'+
-      '<div class="lw-overview-stat"><small>الموسم / المشاركات</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
-      '<div class="lw-overview-stat"><small>الطاقة</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div>'+
+      '<div class="lw-overview-stat"><small>PLAYER / اللاعب</small><strong id="lw-hub-name">لاعب جديد</strong></div>'+
+      '<div class="lw-overview-stat"><small>CLUB / النادي</small><strong id="lw-hub-club">—</strong></div>'+
+      '<div class="lw-overview-stat"><small>SEASON / المشاركات</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
+      '<div class="lw-overview-stat"><small>ENERGY / الطاقة</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div>'+
       '</div>'+
-      '<div class="lw-progress-block"><div class="lw-progress-head"><span id="lw-hub-progress-label">تقدم الموسم</span><b id="lw-hub-progress-value">0%</b></div><div class="lw-progress-line"><i id="lw-hub-progress-bar" style="width:0%"></i></div></div>'+
+      '<div class="lw-progress-block"><div class="lw-progress-head"><span id="lw-hub-progress-label">مؤشر الموسم</span><b id="lw-hub-progress-value">0%</b></div><div class="lw-progress-line"><i id="lw-hub-progress-bar" style="width:0%"></i></div></div>'+
+      '<div class="lw-action-heading"><span>اختار خطوتك الجاية</span><small>QUICK ACTIONS</small></div>'+
       '<div class="lw-overview-actions">'+
-      '<button type="button" class="btn primary" id="lw-cta-match">استعد للمباراة</button>'+
-      '<button type="button" class="btn" id="lw-cta-season">العب الموسم لحد الشتاء</button>'+
-      '<button type="button" class="btn" id="lw-cta-training">مركز التدريب</button>'+
-      '<button type="button" class="btn ghost" id="lw-cta-transfers">سوق الانتقالات</button>'+
+      '<button type="button" class="btn primary" id="lw-cta-match"><i>▶</i> استعد للمباراة</button>'+
+      '<button type="button" class="btn season" id="lw-cta-season"><i>◷</i> العب الموسم لحد الشتاء</button>'+
+      '<button type="button" class="btn" id="lw-cta-training"><i>↗</i> مركز التدريب</button>'+
+      '<button type="button" class="btn ghost" id="lw-cta-transfers"><i>⇄</i> سوق الانتقالات</button>'+
       '</div>'+
-      '<div class="lw-next-match"><div><small>المباراة القادمة</small><strong id="lw-next-opponent">منافسك القادم</strong></div><span class="lw-match-day" id="lw-next-match-meta">الموسم 1</span></div>';
+      '<div class="lw-next-match"><div><small>NEXT FIXTURE <span>•</span> المباراة القادمة</small><strong id="lw-next-opponent">منافسك القادم</strong></div><span class="lw-match-day"><b id="lw-console-round">1</b><small id="lw-next-match-meta">جولة الموسم</small></span></div>';
     header.insertAdjacentElement("afterend",shell);
     var story=document.createElement("section");
     story.id="lw-story-panel";
@@ -331,6 +332,7 @@ function renderOverview(s){
     val=Math.round(sum/keys.length);
   }
   set("lw-overall",val);
+  set("lw-console-season",String(Math.max(1,Number(s.season)||1)).padStart(2,"0"));
   set("lw-hub-name",(s.name||"لاعب جديد")+" • "+(s.pos||"مركز اللاعب"));
   set("lw-hub-club",s.clubName||"اختار نادي البداية");
   var current=Number(s.seasonApps)||0;
@@ -343,7 +345,8 @@ function renderOverview(s){
   set("lw-hub-progress-value",pct+"%");
   var bar=document.getElementById("lw-hub-progress-bar");if(bar)bar.style.width=pct+"%";
   set("lw-next-opponent",getNextFixture(s));
-  set("lw-next-match-meta",(s.leagueRoundIndex||0)+1+" / "+total+" جولة");
+  set("lw-console-round",(Number(s.leagueRoundIndex)||0)+1);
+  set("lw-next-match-meta","من "+total+" جولة");
   var desc=" "+(s.age||17)+" سنة • "+(s.leagueCountry||"مصر")+" • "+(s.role||"بديل");
   set("lw-overview-sub","مسيرة "+(s.name||"لاعب جديد")+" — "+(s.clubName||"ناديك")+" / "+desc+". كل قرار بيغير طريقك.");
   var cta=document.getElementById("lw-cta-match");if(cta)cta.disabled=!!s.retired;

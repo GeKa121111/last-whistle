@@ -28,6 +28,12 @@ const required = [
   "agent-system.css?v=1",
   "career-hub.js?v=1",
   "career-hub.css?v=1",
+  "player-store.css?v=2",
+  'id="shopFilters"',
+  'id="storeBalance"',
+  'function applyStorePurchaseBonus',
+  'id:"creatorStudio"',
+  'id:"sleepCoach"',
   "storyPendingId",
   "window.LWStoryRuntime =",
   'class="page active"'
@@ -54,7 +60,7 @@ if (!inlineCount) {
   console.error("UI smoke test failed: no inline application script found.");
   process.exit(1);
 }
-for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js"]) {
+for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css"]) {
   if (!fs.existsSync(path.join(root, "public", asset))) {
     console.error("Missing public asset:", asset);
     process.exit(1);
@@ -86,6 +92,15 @@ for (const marker of ["data-lwcx-action", "careerWorld", "open-penalty", "open-t
     console.error("Career experience test failed. Missing marker:", marker);
     process.exit(1);
   }
+}
+
+for (const marker of ["id:\"speedBoots\"", "id:\"strengthProgram\"", "id:\"videoAnalyst\"", "id:\"homeGym\"", "id:\"physio\"", "id:\"recoveryRoom\"", "id:\"privateChef\"", "id:\"homeUpgrade\"", "id:\"sportsPsych\"", "id:\"mediaTraining\"", "id:\"stylist\"", "id:\"charityFoundation\"", "data-shop-category=\"field\"", "data-shop-category=\"development\"", "data-shop-category=\"recovery\"", "data-shop-category=\"life\""]) {
+  if (!html.includes(marker)) { console.error("Player store smoke test failed. Missing marker:", marker); process.exit(1); }
+}
+const storeCssPath = path.join(root, "public", "player-store.css");
+if (!fs.existsSync(storeCssPath) || fs.statSync(storeCssPath).size < 1000) {
+  console.error("Player store smoke test failed: player-store.css is missing or unexpectedly small.");
+  process.exit(1);
 }
 
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

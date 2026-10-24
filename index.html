@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=1">
 <link rel="stylesheet" href="./career-hub.css?v=1">
+<link rel="stylesheet" href="./player-store.css?v=2">
 <style>
 :root{--bg:#0a1020;--panel:#121a32;--panel2:#192342;--line:#2c3659;--text:#eef2ff;--muted:#a5afd0;--green:#4ee0a1;--green2:#1e9e78;--indigo:#7779ff;--gold:#ffd166;--red:#ff7185;--shadow:0 16px 40px #0004}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% -10%,#25345f 0,transparent 42%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.55;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -813,13 +814,6 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
     <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
   </nav>
-  <div class="sidebarStatus">
-    <div class="sidebarStatusTop"><span class="sidebarStatusDot"></span> مساحة المسيرة</div>
-    <strong>كل يوم بيقرّبك من الاحتراف</strong>
-    <p>تابع تطورك، خُد قراراتك، واحفظ تقدمك على جهازك.</p>
-    <div class="sidebarStatusFoot"><span>CAREER SAVE</span><b>LOCAL</b></div>
-  </div>
-  <div class="sectionNote" style="margin-top:18px">نصيحة الكابتن: ما تتمرنش وإنت مرهق، والنجومية محتاجة نفس طويل.</div>
   <button class="btn primary block" id="drawerSave">حفظ التقدم</button>
   <button class="btn block" id="exportSaveBtn" style="margin-top:8px">تنزيل نسخة احتياطية للحفظ</button>
   <input type="file" id="importSaveInput" accept="application/json,.json" hidden aria-label="اختيار ملف نسخة احتياطية">
@@ -910,7 +904,6 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
           <div class="storyBox"><div class="storyLabel" id="storyTitle">الفصل الأول: فرصة العمر</div><p class="storyText" id="storyText">النهارده أول يوم ليك في مركز شباب النور...</p></div>
           <div class="pills"><span class="pill">الأهداف <b id="goalsVal">0</b></span><span class="pill">الأسيستات <b id="assistsVal">0</b></span><span class="pill">آخر تقييم <b id="ratingVal">—</b></span></div>
           <div class="btnRow" style="margin-top:12px"><button class="btn block" data-page="diary">افتح مذكراتي ←</button></div>
-          <h3 style="margin-top:17px">آخر حدث</h3><div class="muted small" id="latestEvent">وصلت مركز شباب النور لأول مرة.</div>
         </article>
         <article class="card span12 seasonJourneyCard">
           <div class="cardHead"><div><h2>خريطة الموسم</h2><div class="subline">خمس محطات مترابطة — تقدمك وقراراتك بيتسجلوا في مسيرتك</div></div><span class="pill gold" id="seasonStageBadge">المحطة 1 من 5</span></div>
@@ -1050,9 +1043,22 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     </section>
 
     <section class="page" id="page-shop">
+      <div class="store-heading">
+        <div><span class="hub-overline">PLAYER LIFESTYLE / PERFORMANCE</span><h1>متجر اللاعب</h1><p>كل حاجة هنا لها أثر واضح: على الملعب، الاستشفاء، الفلوس، أو حياتك وشهرتك خارج الملعب.</p></div>
+        <div class="store-wallet"><span>رصيد مسيرتك</span><strong><b id="storeBalance">450</b> <small>جنيه</small></strong><span id="storeOwnedCount">0 من 17 عنصر مملوك</span></div>
+      </div>
+      <div class="store-toolbar">
+        <div class="store-filters" id="shopFilters" role="group" aria-label="تصنيفات متجر اللاعب">
+          <button class="store-filter active" data-shop-category="all" aria-pressed="true">الكل</button>
+          <button class="store-filter" data-shop-category="field" aria-pressed="false">داخل الملعب</button>
+          <button class="store-filter" data-shop-category="development" aria-pressed="false">التطوير</button>
+          <button class="store-filter" data-shop-category="recovery" aria-pressed="false">الاستشفاء</button>
+          <button class="store-filter" data-shop-category="life" aria-pressed="false">الحياة والشهرة</button>
+        </div>
+      </div>
       <div class="grid">
-        <article class="card span12"><div class="cardHead"><h2>🛍️ متجر اللاعب</h2><span class="pill gold">استثمر في نفسك</span></div><p class="muted small">المشتريات بتفضل معاك طول المسيرة. اختار اللي يناسب أسلوب لعبك وميزانيتك.</p><div class="shopGrid" id="shopItems"></div></article>
-        <article class="card span12"><h2>🎒 حاجاتك الحالية</h2><div id="inventory" class="pills"></div></article>
+        <article class="card span12"><div class="cardHead"><div><h2>العناصر المتاحة</h2><div class="subline">اشتري على قد ميزانيتك؛ بعض المزايا دائمة وبعضها بيتجدد مع كل يوم أو مباراة.</div></div><span class="pill gold">اختار بذكاء</span></div><div class="shopGrid" id="shopItems"></div></article>
+        <article class="card span12"><div class="cardHead"><div><h2>ممتلكاتك وتأثيرها الحالي</h2><div class="subline">هنا هتظهر الحاجات اللي اشتريتها بس، ومع كل واحدة تأثيرها الفعّال.</div></div><span class="pill green" id="inventoryCount">0 عنصر</span></div><div id="inventory" class="store-owned-list"></div></article>
       </div>
     </section>
 
@@ -2245,7 +2251,7 @@ const INITIAL = {
  schemaVersion:7,randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
- boots:false,privateCoach:false,diet:false,agent:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,
+ boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,
  nationalCalled:false,nationalCaps:0,nationalGoals:0,nationalRating:0,nationalCallups:[],nationalSeasonStats:{},totalCareerAppearances:0,nationalTournamentMatches:0,nationalTournamentPoints:0,nationalTournamentQualified:false,nationalTournamentDone:false,
  trophies:0,topScorerAwards:0,achievements:[],diary:[],storyTitle:"الفصل الأول: فرصة العمر",
  storyText:"النهارده أول يوم ليك في مركز شباب النور. الكابتن شريف بصّلك وقال: «الموهبة مهمة، بس الالتزام هو اللي بيخلي اللاعب يكمل». قدامك موسم طويل، وكل يوم ممكن يغيّر مستقبلك.",
@@ -2535,16 +2541,16 @@ function professionalLifeAction(kind){
  if(!useDailyAction(kind))return;
  const p=clamp(state.professionalism??65),r=clamp(state.mediaReputation??20),c=clamp(state.teamChemistry??50),coach=clamp(state.coachRelationship??35);
  if(kind==="press-humble"){
-  state.professionalism=clamp(p+4);state.mediaReputation=clamp(r+2);state.coachRelationship=clamp(coach+2);state.trust=clamp(state.trust+1);state.morale=clamp(state.morale+1);
+  state.professionalism=clamp(p+(state.charityFoundation?5:4));state.mediaReputation=clamp(r+(state.mediaTraining?4:2));state.coachRelationship=clamp(coach+2);state.trust=clamp(state.trust+1);state.morale=clamp(state.morale+1);
   recordLifeEvent("pressHistory","مقابلة صحفية — تواضع","شكرت زملاءك والمدرب، وركزت على العمل الجماعي. صورتك المهنية اتحسنت.");setStory("كلام موزون","الموهبة تلفت النظر، لكن التواضع والاستمرارية بيخلوا الناس تثق فيك.");
  }else if(kind==="press-confident"){
-  state.mediaReputation=clamp(r+6);state.professionalism=clamp(p-1);state.followers+=rand(12,28);state.morale=clamp(state.morale+2);
+  state.mediaReputation=clamp(r+(state.mediaTraining?8:6));state.professionalism=clamp(p-(state.mediaTraining?0:1));state.followers+=Math.round(rand(12,28)*(state.creatorStudio?1.35:1)*(state.stylist?1.1:1));state.morale=clamp(state.morale+2);
   recordLifeEvent("pressHistory","مقابلة صحفية — ثقة","أكدت إنك مستعد للمنافسة على مكان أساسي. زاد الاهتمام بيك، لكن عليك تثبت كلامك في الملعب.");setStory("ثقة ولا غرور؟","التصريحات رفعت الاهتمام بيك؛ الأداء القادم هو اللي هيحدد إذا كانت ثقة مستحقة.");
  }else if(kind==="press-controversial"){
-  state.mediaReputation=clamp(r+9);state.followers+=rand(25,55);state.professionalism=clamp(p-7);state.coachRelationship=clamp(coach-6);state.trust=clamp(state.trust-3);state.morale=clamp(state.morale-2);
+  state.mediaReputation=clamp(r+(state.mediaTraining?11:9));state.followers+=Math.round(rand(25,55)*(state.creatorStudio?1.35:1)*(state.stylist?1.1:1));state.professionalism=clamp(p-(state.mediaTraining?4:7));state.coachRelationship=clamp(coach-(state.mediaTraining?4:6));state.trust=clamp(state.trust-(state.mediaTraining?2:3));state.morale=clamp(state.morale-2);
   recordLifeEvent("pressHistory","مقابلة صحفية — جدل","تصريحك عمل ضجة وزود المتابعين، لكنه أزعج المدرب وقلل من صورتك المهنية.");setStory("الشهرة ليها تمن","التفاعل زاد، لكن العلاقة مع النادي اتأثرت. هتحتاج شغلك في الملعب يصلح الصورة.");
  }else if(kind==="support-teammate"){
-  state.teamChemistry=clamp(c+7);state.morale=clamp(state.morale+3);state.professionalism=clamp(p+2);state.energy=clamp(state.energy-3);
+  state.teamChemistry=clamp(c+(state.charityFoundation?9:7));state.morale=clamp(state.morale+3);state.professionalism=clamp(p+2);state.energy=clamp(state.energy-3);
   recordLifeEvent("relationshipHistory","دعم زميل","خصصت وقت لزميل محبط بعد التدريب. الانسجام والمعنويات اتحسنوا.");setStory("الفريق قبل الفرد","المساندة بتبني ثقة متبادلة، لكن الانسجام الحقيقي بيتثبت في الملعب.");
  }else if(kind==="professional-commitment"){
   state.professionalism=clamp(p+6);state.coachRelationship=clamp(coach+4);state.trust=clamp(state.trust+2);state.energy=clamp(state.energy-2);
@@ -2722,29 +2728,61 @@ function renderNational(){
 }
 
 const SHOP=[
- {id:"boots",icon:"👟",name:"حذاء احترافي",price:700,desc:"يزود التسديد والمراوغة +3 بشكل دائم.",effect:"تسديد +3 ومراوغة +3"},
- {id:"privateCoach",icon:"🧑‍🏫",name:"مدرب خاص",price:1200,desc:"كل حصة تدريب تضيف خبرة تدريبية إضافية، وقد تساعدك على تطوير المهارة تدريجيًا.",effect:"+8 خبرة تدريبية لكل حصة"},
- {id:"diet",icon:"🥗",name:"نظام غذائي",price:900,desc:"تستعيد طاقة إضافية مع بداية كل يوم.",effect:"+8 طاقة كل يوم"},
- {id:"agent",icon:"🤵",name:"وكيل أعمال",price:1500,desc:"مكافآت المباريات تزيد 50%، ويساعدك في إدارة مسيرتك.",effect:"فلوس المباريات ×1.5"}
+ {id:"boots",category:"field",icon:"👟",name:"حذاء احترافي",price:400,desc:"حذاء مناسب للمباريات والتدريب؛ يحسن اللمسة والتسديد بشكل دائم.",effect:"التسديد +3 • المراوغة +3"},
+ {id:"speedBoots",category:"field",icon:"⚡",name:"حذاء سرعة وانطلاق",price:1600,desc:"حذاء خفيف يساعدك على التسارع والتحكم في المساحات الضيقة.",effect:"السرعة +4 • المراوغة +2 بشكل دائم"},
+ {id:"strengthProgram",category:"field",icon:"🏋️",name:"برنامج قوة بدنية",price:2100,desc:"برنامج تدريجي لبناء القوة والتحمل بدل الاعتماد على السرعة وحدها.",effect:"اللياقة +5 • السرعة +2 بشكل دائم"},
+ {id:"privateCoach",category:"development",icon:"🧑‍🏫",name:"مدرب مهارات خاص",price:1200,desc:"جلسات فردية تساعدك على تطوير مهاراتك بصورة أسرع مع كل حصة.",effect:"+8 خبرة تدريبية لكل حصة"},
+ {id:"homeGym",category:"development",icon:"🏠",name:"ركن تدريب منزلي",price:2600,desc:"معدات بسيطة تخلّيك تتدرب بكفاءة من غير استنزاف طاقتك بالكامل.",effect:"استرداد حتى 4 نقاط طاقة بعد كل حصة تدريب"},
+ {id:"videoAnalyst",category:"development",icon:"🎥",name:"محلل أداء بالفيديو",price:1900,desc:"تحليل تمركزك وقراراتك يساعدك على قراءة اللعب وصناعة الفرص.",effect:"التمرير +3 • الرؤية +4 بشكل دائم"},
+ {id:"diet",category:"recovery",icon:"🥗",name:"خطة تغذية رياضية",price:900,desc:"وجبات منظمة تساعد جسمك على استعادة الطاقة يومًا بعد يوم.",effect:"+8 طاقة عند مرور كل يوم"},
+ {id:"sleepCoach",category:"recovery",icon:"😴",name:"برنامج نوم واستشفاء",price:1100,desc:"تنظيم النوم يقلل تراكم الإرهاق ويساعدك تدخل التدريب والمباراة بطاقة أفضل.",effect:"+4 طاقة و-2 إجهاد يوميًا"},
+ {id:"physio",category:"recovery",icon:"🩹",name:"أخصائي علاج طبيعي",price:1800,desc:"جلسات تعافٍ تساعدك على إدارة الإصابات؛ الاستفادة الإضافية مرتبطة بيوم الراحة الكامل.",effect:"في يوم الراحة: يوم إضافي من التعافي و-3 إجهاد"},
+ {id:"recoveryRoom",category:"recovery",icon:"🧊",name:"غرفة استشفاء",price:2300,desc:"تجهيزات استشفاء في البيت تخلي يوم الراحة أكثر فاعلية.",effect:"في يوم الراحة: +5 طاقة • -2 إجهاد • +3 معنويات"},
+ {id:"privateChef",category:"recovery",icon:"🍲",name:"طباخ رياضي خاص",price:1500,desc:"وجبات جاهزة ومتوازنة تقلل ضغط الحياة اليومية وتدعم روتينك.",effect:"+4 طاقة يوميًا • +1 معنويات في يوم الراحة"},
+ {id:"homeUpgrade",category:"life",icon:"🛋️",name:"تطوير السكن",price:3200,desc:"مساحة أهدى للراحة والتركيز بعيدًا عن ضغط التدريب والمباريات.",effect:"+1 معنويات كل يوم • +3 إضافية في يوم الراحة"},
+ {id:"sportsPsych",category:"life",icon:"🧠",name:"أخصائي نفسي رياضي",price:1700,desc:"يساعدك في الثبات الذهني والتعامل مع ضغط النتائج والمنافسة.",effect:"الهدوء تحت الضغط +5 • يقلل هبوط المعنويات بعد الخسارة"},
+ {id:"mediaTraining",category:"life",icon:"🎙️",name:"تدريب إعلامي",price:1400,desc:"تتعلم تتعامل مع الصحافة وتختار كلماتك بدون ما تضر صورتك أو علاقتك بالمدرب.",effect:"احترافية +5 • سمعة إعلامية +8 • يقلل ضرر التصريحات المثيرة للجدل"},
+ {id:"creatorStudio",category:"life",icon:"📱",name:"استوديو محتوى شخصي",price:2500,desc:"تطوّر حضورك الرقمي وتستفيد من الأداء الجيد لبناء جمهور أكبر.",effect:"+25 متابع عند الشراء • متابعون إضافيون بعد مباريات النادي • عروض رعاية أعلى"},
+ {id:"stylist",category:"life",icon:"🧥",name:"مستشار مظهر وإطلالة",price:1300,desc:"يحسّن صورتك العامة وظهورك الإعلامي من غير ما يغيّر مستواك داخل الملعب.",effect:"سمعة إعلامية +10 • +15 متابع • عروض رعاية أفضل"},
+ {id:"charityFoundation",category:"life",icon:"🤝",name:"مبادرة مجتمعية",price:2200,desc:"تستثمر جزءًا من دخلك في مبادرة محلية، فتقوي صورتك المهنية وعلاقتك بالفريق.",effect:"احترافية +5 • انسجام الفريق +8 • أثر أقوى لدعم الزملاء"}
 ];
+let activeShopCategory="all";
+function shopCategoryName(category){
+ const names={field:"داخل الملعب",development:"التطوير",recovery:"الاستشفاء",life:"الحياة والشهرة"};
+ return names[category]||"كل العناصر";
+}
 function renderSponsorship(){
  const c=state.sponsorContract;setText("sponsorStatus",c&&Number(c.matchesRemaining)>0?`${c.brand}: ${c.matchesRemaining} مشاركة متبقية • ${c.payPerMatch} جنيه لكل مشاركة. العقد محاكاة داخل اللعبة.`:"مفيش عقد رعاية نشط. سمعتك ومتابعينك بيساعدوا في تحسين العرض.");
  const b=$("sponsorBtn");if(b){b.disabled=!!(c&&Number(c.matchesRemaining)>0)||!!state.retired;b.textContent=c&&Number(c.matchesRemaining)>0?"عقد الرعاية نشط":"تفاوض على عقد رعاية";}
 }
 function negotiateSponsorship(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}if(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){toast("عندك عقد رعاية نشط بالفعل.");return;}
- const sponsorMultiplier=window.LWAgentRuntime?.sponsorshipMultiplier(state)??(state.agent?1.15:1);const offer=Math.max(100,Math.round(((Number(state.followers)||0)*0.3+overall()*8)*sponsorMultiplier));
+ const sponsorMultiplier=(window.LWAgentRuntime?.sponsorshipMultiplier(state)??(state.agent?1.15:1))*(state.creatorStudio?1.2:1)*(state.stylist?1.08:1)*(state.mediaTraining?1.05:1);const offer=Math.max(100,Math.round(((Number(state.followers)||0)*0.3+overall()*8)*sponsorMultiplier));
  openModal("عرض رعاية إعلاني",`شركة رياضية افتراضية بتعرض ${offer} جنيه عن كل مشاركة مؤهلة، لمدة 12 مشاركة. المقابل تقديري داخل اللعبة، ومش إعلان أو تعاقد حقيقي من علامة تجارية.`,[
   {label:"أقبل عقد الرعاية",className:"primary",action:()=>{if(state.retired||(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0)){toast("لم يعد عرض الرعاية متاحًا؛ راجع حالة عقدك.");return;}state.sponsorContract={brand:"راعي رياضي افتراضي",payPerMatch:offer,matchesRemaining:12,signedSeason:state.season};log(`وقعت عقد رعاية افتراضي بقيمة ${offer} جنيه لكل مشاركة لمدة 12 مشاركة.`);saveGame(true);render();toast("تم توقيع عقد الرعاية داخل اللعبة.");}},
   {label:"أرفض العرض",action:()=>{}}
  ]);
 }
 function renderShop(){
- $("shopItems").innerHTML=SHOP.map(item=>{
+ const visibleItems=activeShopCategory==="all"?SHOP:SHOP.filter(item=>item.category===activeShopCategory);
+ const ownedItems=SHOP.filter(item=>!!state[item.id]);
+ document.querySelectorAll("#shopFilters [data-shop-category]").forEach(button=>{
+  const active=button.dataset.shopCategory===activeShopCategory;
+  button.classList.toggle("active",active);button.setAttribute("aria-pressed",active?"true":"false");
+ });
+ setText("storeBalance",(Number(state.money)||0).toLocaleString("en-US"));
+ setText("storeOwnedCount",ownedItems.length+" من "+SHOP.length+" عنصر مملوك");
+ setText("inventoryCount",ownedItems.length+" عنصر");
+ $("shopItems").innerHTML=visibleItems.map(item=>{
   const owned=!!state[item.id];
-  return `<div class="shopItem"><div class="shopIcon">${item.icon}</div><h3>${item.name}</h3><p>${item.desc}</p><div class="muted tiny">${item.effect}</div><div class="price">${owned?"مملوك ✓":item.price+" جنيه"}</div><button class="btn ${owned?"":"primary"}" data-buy="${item.id}" ${owned?"disabled":""}>${owned?"اشتريته":"شراء"}</button></div>`;
- }).join("");
- $("inventory").innerHTML=SHOP.map(i=>`<span class="pill ${state[i.id]?"green":""}">${i.icon} ${i.name}: ${state[i.id]?"مملوك":"مش معاك"}</span>`).join("");
+  return '<article class="shopItem'+(owned?' is-owned':'')+'">'
+   +'<div class="shop-card-top"><span class="shopIcon">'+item.icon+'</span><span class="shop-category">'+shopCategoryName(item.category)+'</span></div>'
+   +'<h3>'+item.name+'</h3><p>'+item.desc+'</p>'
+   +'<div class="shop-effects"><b>التأثير</b><span>'+item.effect+'</span></div>'
+   +'<div class="shop-card-bottom"><strong class="price">'+(owned?"مملوك ✓":item.price.toLocaleString("en-US")+" جنيه")+'</strong>'
+   +'<button class="btn '+(owned?"":"primary")+'" data-buy="'+item.id+'" '+(owned?'disabled aria-disabled="true"':'')+'>'+(owned?"تم الشراء":"شراء العنصر")+'</button></div></article>';
+ }).join("")||'<div class="store-empty">مفيش عناصر في التصنيف ده.</div>';
+ $("inventory").innerHTML=ownedItems.length?ownedItems.map(item=>'<div class="store-owned-item"><span class="owned-icon">'+item.icon+'</span><div><b>'+item.name+'</b><small>'+shopCategoryName(item.category)+'</small><p>'+item.effect+'</p></div><span class="owned-check">مملوك</span></div>').join(""):'<div class="store-empty">لسه مشتريتش حاجة. ابدأ بعنصر يناسب احتياجك الحالي، وبعدها هتشوف تأثيره هنا.</div>';
 }
 function renderDiary(){
  setText("diaryCount",state.diary.length+" حدث");
@@ -2767,10 +2805,13 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
  const wages=Math.max(0,newWeek-oldWeek);if(wages&&state.weeklyWage>0){state.money+=wages*(Number(state.weeklyWage)||0);log(`استلمت ${wages} مرتب أسبوعي أثناء ${reason}: ${wages*(Number(state.weeklyWage)||0)} جنيه.`);}
- const dailyRecovery=12+(state.diet?8:0)+(options.rest?12:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
+ const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
  state.energy=clamp(state.energy+n*dailyRecovery);
- state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8));
- state.injuryDays=Math.max(0,(state.injuryDays||0)-n);if(!state.injuryDays)state.injuryName="";
+ state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8)-n*(state.sleepCoach?2:0)-(options.rest&&state.physio?n*3:0)-(options.rest&&state.recoveryRoom?n*2:0));
+ state.injuryDays=Math.max(0,(state.injuryDays||0)-n-(options.rest&&state.physio?n:0));if(!state.injuryDays)state.injuryName="";
+ if(state.homeUpgrade)state.morale=clamp(state.morale+n+(options.rest?3:0));
+ if(options.rest&&state.recoveryRoom)state.morale=clamp(state.morale+3);
+ if(options.rest&&state.privateChef)state.morale=clamp(state.morale+1);
  resetDailyActions();
 }
 function calendarHasConflict(day, excludeKind=""){
@@ -3042,12 +3083,15 @@ function train(type){
  if(!window.LWCareer){toast("محرك التطوير غير متاح حاليًا.");return;}
  state.trainingIntensity=$("trainingIntensity")?.value||state.trainingIntensity||"normal";
  if(state.injuryDays>0){checkAction("train",costs[type]||18);return;}
+ const energyBeforeTraining=Number(state.energy)||0;
  const result=window.LWCareer.train(state,type);
  if(!result.ok){
   if(String(result.message).includes("طاقتك"))openModal("طاقة التدريب غير كافية",result.message,[{label:"راحة واستشفاء",className:"primary",action:rest},{label:"رجوع",action:()=>{}}]);
   else toast(result.message);
   return;
  }
+ const trainingEnergySpent=Math.max(0,energyBeforeTraining-(Number(state.energy)||0));
+ if(state.homeGym&&trainingEnergySpent>0)state.energy=clamp(state.energy+Math.min(4,trainingEnergySpent));
  state.trust=clamp(state.trust+1);if(state.trainingIntensity!=="intense")state.coachRelationship=clamp((Number(state.coachRelationship??35))+1);
  const title="تدريب "+(titles[type]||type);
  const learned=result.gain?` ارتفعت ${SKILL_AR[type]} ${result.gain} نقطة.`:` تراكمت ${result.xp} خبرة تدريبية باتجاه سقف الإمكانات ${state.playerPotential}.`;
@@ -3151,7 +3195,7 @@ function applyMatchResult(result,meta){
   state.energy=clamp(state.energy-Math.round(10+minutes*.24+(meta.tactic==="attack"?3:0)+(Number(state.fatigue)||0)/20));
   state.fatigue=clamp((Number(state.fatigue)||0)+Math.round(minutes*.19));
   const resultDelta=outcome==="فوز"?4:outcome==="تعادل"?1:-3;
-  state.morale=clamp(state.morale+resultDelta+(rating>=7.5?1:0));
+  state.morale=clamp(state.morale+resultDelta+(rating>=7.5?1:0)+(state.sportsPsych&&resultDelta<0?2:0));
   state.trust=clamp(state.trust+(rating>=7.5?4:rating>=6.4?2:-2));
   if(scope==="international"){state.nationalRating=rating;}
   if(scope!=="international"){
@@ -3168,6 +3212,7 @@ function applyMatchResult(result,meta){
   else if(state.role==="بديل أساسي"&&(rating<5.5||state.trust<24))state.role="بديل";
  }else if(scope==="league")state.morale=clamp(state.morale-1);
  if(scope==="league"){if(outcome==="فوز"){state.seasonW++;state.seasonPoints+=3;}else if(outcome==="تعادل"){state.seasonD++;state.seasonPoints++;}else state.seasonL++;}
+ if(participated&&scope!=="international"&&state.creatorStudio){const audienceGain=6+(rating>=7.5?3:rating>=6.5?1:0);state.followers=(Number(state.followers)||0)+audienceGain;log("زاد جمهورك "+audienceGain+" متابع بعد أداء النادي.");}
  state.playedToday=true;
  const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
  state.careerMatchHistory.unshift(record);state.careerMatchHistory=state.careerMatchHistory.slice(0,800);
@@ -3507,8 +3552,8 @@ function nightOut(){
 function social(){
  if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return;}
  openModal("السوشيال ميديا 📱","اختيار واحد اليوم؛ التفاعل يستهلك وقتًا وطاقة، والسمعة تتغير تدريجيًا.",[
-  {label:"أرد بهدوء واحترام",className:"primary",action:()=>{if(!useDailyAction("تفاعل اجتماعي"))return;state.followers+=rand(6,15);state.energy=clamp(state.energy-4);state.composure=clamp(state.composure+1);state.morale=clamp(state.morale+1);setStory("رد محسوب","ردك الهادئ أكسبك بعض التفاعل، مع تكلفة وقت وطاقة.");log("تفاعل اجتماعي واحد: متابعون قليلون مقابل طاقة ووقت.");saveGame(true);render();}},
-  {label:"أدخل في خناقة",action:()=>{if(!useDailyAction("جدال اجتماعي"))return;state.followers+=rand(8,20);state.energy=clamp(state.energy-6);state.trust=clamp(state.trust-4);state.morale=clamp(state.morale-3);setStory("شهرة بطعم المشاكل","زاد التفاعل مؤقتًا لكن المدرب لم يعجبه الجدل.");log("دخلت جدالًا مرة واحدة اليوم؛ خسرت بعض الطاقة وثقة المدرب.");saveGame(true);render();}},
+  {label:"أرد بهدوء واحترام",className:"primary",action:()=>{if(!useDailyAction("تفاعل اجتماعي"))return;state.followers+=Math.round(rand(6,15)*(state.creatorStudio?1.35:1)*(state.stylist?1.1:1));state.energy=clamp(state.energy-4);state.composure=clamp(state.composure+1);state.morale=clamp(state.morale+1);setStory("رد محسوب","ردك الهادئ أكسبك بعض التفاعل، مع تكلفة وقت وطاقة.");log("تفاعل اجتماعي واحد: متابعون قليلون مقابل طاقة ووقت.");saveGame(true);render();}},
+  {label:"أدخل في خناقة",action:()=>{if(!useDailyAction("جدال اجتماعي"))return;state.followers+=Math.round(rand(8,20)*(state.creatorStudio?1.35:1)*(state.stylist?1.1:1));state.energy=clamp(state.energy-6);state.trust=clamp(state.trust-4);state.morale=clamp(state.morale-3);setStory("شهرة بطعم المشاكل","زاد التفاعل مؤقتًا لكن المدرب لم يعجبه الجدل.");log("دخلت جدالًا مرة واحدة اليوم؛ خسرت بعض الطاقة وثقة المدرب.");saveGame(true);render();}},
   {label:"أتجاهل التعليق",action:()=>{if(!useDailyAction("تجاهل التفاعل"))return;state.energy=clamp(state.energy-1);state.composure=clamp(state.composure+1);setStory("تركيزك أهم","وفرت طاقتك للملعب وتجنبت الاستفزاز.");log("تجاهلت الاستفزاز كنشاط جانبي اليوم.");saveGame(true);render();}}
  ]);
 }
@@ -3520,13 +3565,28 @@ function talkCoach(){
   {label:"أشتكي من قلة اللعب",action:()=>{if(!useDailyAction("شكوى للمدرب"))return;state.energy=clamp(state.energy-2);state.trust=clamp(state.trust-4);state.coachRelationship=clamp((Number(state.coachRelationship??35))-4);state.professionalism=clamp((Number(state.professionalism)||65)-2);setStory("مش وقته","المدرب طلب منك التركيز على الأداء. الشكوى أثرت على الثقة الفنية والعلاقة مع الجهاز الفني.");log("اشتكت من قلة المشاركة مرة واحدة؛ انخفضت الثقة.");saveGame(true);render();}}
  ]);
 }
+function applyStorePurchaseBonus(id){
+ const add=(key,amount)=>{state[key]=clamp((Number(state[key])||0)+amount);};
+ if(id==="speedBoots"){add("speed",4);add("dribbling",2);}
+ else if(id==="strengthProgram"){add("fitness",5);add("speed",2);}
+ else if(id==="videoAnalyst"){add("passing",3);add("vision",4);}
+ else if(id==="homeUpgrade"){add("morale",5);}
+ else if(id==="sportsPsych"){add("composure",5);add("morale",4);add("professionalism",2);}
+ else if(id==="privateChef"){add("energy",5);}
+ else if(id==="sleepCoach"){add("energy",5);}
+ else if(id==="physio"&&Number(state.injuryDays)>0){state.injuryDays=Math.max(0,Number(state.injuryDays)-1);if(!state.injuryDays)state.injuryName="";}
+ else if(id==="mediaTraining"){add("professionalism",5);add("mediaReputation",8);}
+ else if(id==="creatorStudio"){state.followers=(Number(state.followers)||0)+25;}
+ else if(id==="stylist"){add("mediaReputation",10);state.followers=(Number(state.followers)||0)+15;}
+ else if(id==="charityFoundation"){add("professionalism",5);add("teamChemistry",8);}
+}
 function buyItem(id){
  const item=SHOP.find(i=>i.id===id);if(!item||state[id])return;
  if(state.retired){toast("المسيرة انتهت؛ المتجر غير متاح بعد الاعتزال.");return;}
  if(state.money<item.price){toast("فلوسك مش كفاية. محتاج "+item.price+" جنيه.");return;}
  let committed=false;
  openModal("تأكيد الشراء",`هتشتري ${item.name} مقابل ${item.price} جنيه. ${item.desc}`,[
-  {label:"اشتري دلوقتي",className:"primary",action:()=>{if(committed)return;committed=true;const result=window.LWCareer?.purchaseItem(state,item);if(!result?.ok){const messages={retired:"المسيرة انتهت؛ المتجر غير متاح.","already-owned":"العنصر اتشترى بالفعل.","insufficient-funds":"فلوسك مش كفاية.","invalid-item":"العنصر غير صالح."};toast(messages[result?.status]||"تعذر إتمام الشراء.");render();return;}log("اشتريت "+item.name+".");setStory("استثمار في مستقبلك","اشتريت "+item.name+". دلوقتي عندك ميزة جديدة تساعدك في مشوار الاحتراف.");saveGame(true);render();toast("مبروك الشراء يا كابتن!");}},
+  {label:"اشتري دلوقتي",className:"primary",action:()=>{if(committed)return;committed=true;const result=window.LWCareer?.purchaseItem(state,item);if(!result?.ok){const messages={retired:"المسيرة انتهت؛ المتجر غير متاح.","already-owned":"العنصر اتشترى بالفعل.","insufficient-funds":"فلوسك مش كفاية.","invalid-item":"العنصر غير صالح."};toast(messages[result?.status]||"تعذر إتمام الشراء.");render();return;}applyStorePurchaseBonus(id);log("اشتريت "+item.name+".");setStory("استثمار في مستقبلك","اشتريت "+item.name+". التأثير: "+item.effect);saveGame(true);render();toast("مبروك الشراء يا كابتن!");}},
   {label:"هفكر شوية",action:()=>{}}
  ]);
 }
@@ -3631,6 +3691,7 @@ function bind(){
  $("heroMatch").addEventListener("click",()=>match());$("heroTrain").addEventListener("click",()=>showPage("training"));$("heroStory").addEventListener("click",heroStory);
  $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة الجهاز الفني: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
  $("nationalMatchBtn").addEventListener("click",nationalMatch);$("sponsorBtn").addEventListener("click",negotiateSponsorship);
+ $("shopFilters").addEventListener("click",e=>{const b=e.target.closest("[data-shop-category]");if(!b)return;activeShopCategory=b.dataset.shopCategory||"all";renderShop();});
  $("shopItems").addEventListener("click",e=>{const b=e.target.closest("[data-buy]");if(b)buyItem(b.dataset.buy);});
  $("pressHumble").addEventListener("click",()=>professionalLifeAction("press-humble"));
  $("pressConfident").addEventListener("click",()=>professionalLifeAction("press-confident"));

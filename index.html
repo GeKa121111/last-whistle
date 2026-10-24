@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="./story-ui.css?v=1">
 <link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=1">
+<link rel="stylesheet" href="./career-hub.css?v=1">
 <style>
 :root{--bg:#0a1020;--panel:#121a32;--panel2:#192342;--line:#2c3659;--text:#eef2ff;--muted:#a5afd0;--green:#4ee0a1;--green2:#1e9e78;--indigo:#7779ff;--gold:#ffd166;--red:#ff7185;--shadow:0 16px 40px #0004}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% -10%,#25345f 0,transparent 42%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.55;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -800,11 +801,14 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
 <aside class="drawer" id="drawer" aria-label="قائمة الصفحات">
   <div class="drawerHead"><div><div class="brand">LAST <span>WHISTLE</span></div><div class="muted tiny">قائمة المسيرة</div></div><button class="iconBtn" id="menuClose" aria-label="إغلاق القائمة">×</button></div>
   <nav class="navList">
-    <button class="navBtn active" data-page="home"><span class="ico">🏠</span> الرئيسية</button>
+    <button class="navBtn active" data-page="home"><span class="ico">⌂</span> الرئيسية</button>
+    <button class="navBtn" data-page="training"><span class="ico">🏋️</span> التدريب</button>
+    <button class="navBtn" data-page="stats"><span class="ico">📊</span> الإحصائيات</button>
+    <button class="navBtn" data-page="wellness"><span class="ico">🩺</span> الجاهزية والراحة</button>
     <button class="navBtn" data-page="league"><span class="ico">🏆</span> الدوري المحلي</button>
-    <button class="navBtn" data-page="europe"><span class="ico">🌍</span> العالم: الدوريات والبطولات</button>
-    <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقد والانتقالات</button>
-    <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> منتخب مصر</button>
+    <button class="navBtn" data-page="europe"><span class="ico">🌍</span> عالم الكرة</button>
+    <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقد والانتقالات والوكلاء</button>
+    <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> المنتخب</button>
     <button class="navBtn" data-page="life"><span class="ico">🎙️</span> الحياة والسمعة</button>
     <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
     <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
@@ -845,7 +849,7 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
       <p id="heroDescription">كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك، اكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.</p>
       <div class="heroActions">
         <button class="btn primary" id="heroMatch"><span class="buttonGlyph">▶</span> استعد للمباراة</button>
-        <button class="btn indigo" id="heroTrain"><span class="buttonGlyph">↗</span> اختار تدريب</button>
+        <button class="btn indigo" id="heroTrain"><span class="buttonGlyph">↗</span> مركز التدريب</button>
         <button class="btn ghost" id="heroStory"><span class="buttonGlyph">▤</span> حكاية النهارده</button>
       </div>
       <div class="heroUnderbar"><span>YOUR STORY STARTS HERE</span><span class="heroUnderbarLine"></span><span>01 <b>/ CAREER</b></span></div>
@@ -863,27 +867,94 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
   </section>
 
   <main>    <section class="page active" id="page-home">
-      <div class="grid">
+      <div class="hub-launch-panel">
+        <div class="hub-launch-header">
+          <div><span class="hub-overline">YOUR CAREER / QUICK ACCESS</span><h2>كل جزء من مسيرتك في مكانه</h2><p>اختار القسم من الأيقونة بدل ما تدور على التدريب والإحصائيات وسط الرئيسية.</p></div>
+          <div class="hub-shortcut-mark" aria-hidden="true">LW<span>+</span></div>
+        </div>
+        <div class="hub-app-grid" aria-label="أقسام المسيرة">
+          <button class="hub-tile" data-page="training"><span class="hub-tile-icon">🏋️</span><span class="hub-tile-title">التدريب</span><span class="hub-tile-desc">طوّر مهاراتك واختر شدة الحصة</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="stats"><span class="hub-tile-icon">📊</span><span class="hub-tile-title">الإحصائيات</span><span class="hub-tile-desc">المهارات والأداء والإنجازات</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="wellness"><span class="hub-tile-icon">🩺</span><span class="hub-tile-title">الجاهزية والراحة</span><span class="hub-tile-desc">الطاقة والإجهاد وثقة الجهاز الفني</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="league"><span class="hub-tile-icon">🏆</span><span class="hub-tile-title">المسابقات</span><span class="hub-tile-desc">الجدول والنتائج والبطولات</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="contract"><span class="hub-tile-icon">📄</span><span class="hub-tile-title">العقد والوكلاء</span><span class="hub-tile-desc">الراتب والانتقالات والتمثيل</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="national"><span class="hub-tile-icon">🌍</span><span class="hub-tile-title">المنتخب</span><span class="hub-tile-desc">الاستدعاءات والمشاركات الدولية</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="life"><span class="hub-tile-icon">🎙️</span><span class="hub-tile-title">الحياة والسمعة</span><span class="hub-tile-desc">الإعلام والعلاقات والقرارات اليومية</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="europe"><span class="hub-tile-icon">🌐</span><span class="hub-tile-title">عالم الكرة</span><span class="hub-tile-desc">الدوريات والأندية والبطولات</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="shop"><span class="hub-tile-icon">🛍️</span><span class="hub-tile-title">المتجر</span><span class="hub-tile-desc">معدات وتطويرات داخل اللعبة</span><span class="hub-tile-arrow">←</span></button>
+          <button class="hub-tile" data-page="diary"><span class="hub-tile-icon">📔</span><span class="hub-tile-title">المذكرات</span><span class="hub-tile-desc">قراراتك وأحداث مسيرتك</span><span class="hub-tile-arrow">←</span></button>
+        </div>
+      </div>
+      <div class="grid hub-home-grid">
+        <article class="card span5 hub-player-card">
+          <div class="cardHead"><div><h2>ملخص اللاعب</h2><div class="subline">نظرة سريعة على وضعك الحالي</div></div><span class="pill green" id="clubPill">مركز شباب النور</span></div>
+          <div class="big" id="playerName">يوسف حسن</div>
+          <div class="subline" id="playerMeta">17 سنة • جناح أيمن • مصر</div>
+          <div class="pills"><span class="pill" id="squadRole">بديل</span><span class="pill" id="injuryPill">سليم</span><span class="pill" id="contractPill">عقد 2 موسم</span></div>
+          <div class="hub-home-meters">
+            <div class="progressRow"><span>التقييم العام</span><div class="bar indigo"><i id="ovBar"></i></div><b id="ovVal">54</b></div>
+            <div class="progressRow"><span>الطاقة</span><div class="bar"><i id="energyBar"></i></div><b id="energyVal">80</b></div>
+            <div class="progressRow"><span>المعنويات</span><div class="bar gold"><i id="moraleBar"></i></div><b id="moraleVal">65</b></div>
+            <div class="progressRow"><span>ثقة الجهاز الفني</span><div class="bar indigo"><i id="trustBar"></i></div><b id="trustVal">25</b></div>
+          </div>
+          <div class="kpiGrid" style="margin-top:13px">
+            <div class="kpi"><div class="kpiNum" id="kpiMoney">450</div><div class="kpiLabel">جنيه</div></div>
+            <div class="kpi"><div class="kpiNum" id="kpiFollowers">120</div><div class="kpiLabel">متابع</div></div>
+            <div class="kpi"><div class="kpiNum" id="kpiApps">0</div><div class="kpiLabel">مباراة</div></div>
+          </div>
+          <div class="hub-readiness-hint" id="homeReadinessHint">جارٍ تقييم جاهزيتك لليوم…</div>
+          <button class="btn primary block" data-page="wellness" style="margin-top:10px">راجع الجاهزية والراحة ←</button>
+        </article>
+        <article class="card span5">
+          <div class="cardHead"><h2>حكاية اليوم</h2><span class="pill gold">قصة مستمرة</span></div>
+          <div class="storyBox"><div class="storyLabel" id="storyTitle">الفصل الأول: فرصة العمر</div><p class="storyText" id="storyText">النهارده أول يوم ليك في مركز شباب النور...</p></div>
+          <div class="pills"><span class="pill">الأهداف <b id="goalsVal">0</b></span><span class="pill">الأسيستات <b id="assistsVal">0</b></span><span class="pill">آخر تقييم <b id="ratingVal">—</b></span></div>
+          <div class="btnRow" style="margin-top:12px"><button class="btn block" data-page="diary">افتح مذكراتي ←</button></div>
+          <h3 style="margin-top:17px">آخر حدث</h3><div class="muted small" id="latestEvent">وصلت مركز شباب النور لأول مرة.</div>
+        </article>
         <article class="card span12 seasonJourneyCard">
           <div class="cardHead"><div><h2>خريطة الموسم</h2><div class="subline">خمس محطات مترابطة — تقدمك وقراراتك بيتسجلوا في مسيرتك</div></div><span class="pill gold" id="seasonStageBadge">المحطة 1 من 5</span></div>
           <div class="seasonJourney" id="seasonJourney"></div>
           <div class="seasonJourneyFoot"><div><strong id="seasonStageTitle">المباريات والأداء</strong><p id="seasonStageDesc" class="muted small">العب مبارياتك وسجّل أهدافك وصناعاتك وارفع تقييمك.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="seasonTransferAction" onclick="openWinterMarket()">سوق الانتقالات</button><button class="btn primary" id="seasonStageAction" onclick="showPage('home')">العب الموسم</button></div></div>
         </article>
-        <article class="card span4">
-          <div class="cardHead"><h2>بطاقة اللاعب</h2><span class="pill green" id="clubPill">مركز شباب النور</span></div>
-          <div class="big" id="playerName">يوسف حسن</div>
-          <div class="subline" id="playerMeta">17 سنة • جناح أيمن • مصر</div>
-          <div class="pills"><span class="pill" id="squadRole">بديل</span><span class="pill" id="injuryPill">سليم</span><span class="pill" id="contractPill">عقد 2 موسم</span></div>
-          <div style="margin-top:13px">
-            <div class="progressRow"><span>التقييم العام</span><div class="bar indigo"><i id="ovBar"></i></div><b id="ovVal">54</b></div>
-            <div class="progressRow"><span>الطاقة</span><div class="bar"><i id="energyBar"></i></div><b id="energyVal">80</b></div>
-            <div class="progressRow"><span>المعنويات</span><div class="bar gold"><i id="moraleBar"></i></div><b id="moraleVal">65</b></div>
-            <div class="progressRow"><span>ثقة المدرب</span><div class="bar indigo"><i id="trustBar"></i></div><b id="trustVal">25</b></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-training">
+      <div class="hub-page-heading"><span class="hub-overline">PLAYER DEVELOPMENT</span><h1>مركز التدريب</h1><p>اختار مهارة واحدة في اليوم، ووازن بين التطور والطاقة والإجهاد. يوم المباراة والإصابة بيوقفوا التدريب.</p></div>
+      <div class="grid">
+        <article class="card span12 hub-training-card">
+          <div class="cardHead"><div><h2>اختار حصتك</h2><div class="subline">التدريب يستهلك طاقة ويرفع الإجهاد؛ الشدة المكثفة أسرع لكنها أعلى مخاطرة.</div></div><span class="pill indigo" id="trainingPageBadge">حصة واحدة في اليوم</span></div>
+          <div class="trainingControls"><label for="trainingIntensity">شدة التدريب</label><select id="trainingIntensity"><option value="light">خفيف — إجهاد أقل وخبرة أبطأ</option><option value="normal" selected>عادي — توازن بين الجهد والتطوير</option><option value="intense">مكثف — خبرة أعلى ومخاطر إصابة أكبر</option></select><p class="trainingNote">شدة الحصة بتغيّر تكلفة الطاقة وسرعة اكتساب الخبرة. التدريب المكثف يزيد فرصة الإصابة؛ لو طاقتك منخفضة أو الإجهاد مرتفع، راجع قسم الجاهزية الأول.</p></div>
+          <div class="hub-drill-grid">
+            <button class="btn actionBtn" data-action="train-shooting"><span class="actionTitle">🎯 تدريب التسديد</span><span class="actionDesc">التسديد والإنهاء • تكلفة الطاقة حسب الشدة</span></button>
+            <button class="btn actionBtn" data-action="train-dribbling"><span class="actionTitle">🌀 تدريب المراوغة</span><span class="actionDesc">التحكم بالكرة والسرعة</span></button>
+            <button class="btn actionBtn" data-action="train-fitness"><span class="actionTitle">🏃 لياقة وسرعة</span><span class="actionDesc">اللياقة والانطلاق • إجهاد بدني أكبر</span></button>
+            <button class="btn actionBtn" data-action="train-passing"><span class="actionTitle">🤝 تمرير جماعي</span><span class="actionDesc">التمرير والرؤية</span></button>
+            <button class="btn actionBtn" data-action="train-defending"><span class="actionTitle">🛡️ تمركز ودفاع</span><span class="actionDesc">التمركز وقراءة اللعب</span></button>
+            <button class="btn actionBtn" data-action="train-goalkeeping"><span class="actionTitle">🧤 تدريب الحراسة</span><span class="actionDesc">متاح لحارس المرمى فقط</span></button>
+            <button class="btn actionBtn" data-action="train-vision"><span class="actionTitle">👁️ رؤية وصناعة لعب</span><span class="actionDesc">قراءة المساحات والقرار</span></button>
+            <button class="btn actionBtn" data-action="train-composure"><span class="actionTitle">🧠 هدوء تحت الضغط</span><span class="actionDesc">الاتزان والتركيز وقت الحسم</span></button>
+            <button class="btn actionBtn" data-action="train-speed"><span class="actionTitle">⚡ سرعة وانطلاق</span><span class="actionDesc">السرعة القصوى والتسارع</span></button>
           </div>
-          <div class="kpiGrid" style="margin-top:14px">
-            <div class="kpi"><div class="kpiNum" id="kpiMoney">450</div><div class="kpiLabel">جنيه</div></div>
-            <div class="kpi"><div class="kpiNum" id="kpiFollowers">120</div><div class="kpiLabel">متابع</div></div>
-            <div class="kpi"><div class="kpiNum" id="kpiApps">0</div><div class="kpiLabel">مباراة</div></div>
+          <div class="hub-card-foot"><span>مؤشر حالتك بيتحدث بعد الحصة</span><button class="btn" data-page="wellness">افتح الجاهزية والاستشفاء ←</button></div>
+        </article>
+        <article class="card span12">
+          <div class="cardHead"><h2>إيه اللي يحصل بعد التدريب؟</h2><span class="pill gold">نظام التطور</span></div>
+          <div class="hub-training-rules"><div><b>01 / تطور</b><p>الحصة تمنح خبرة للمهارة الأساسية وبعض المهارات المرتبطة.</p></div><div><b>02 / إجهاد</b><p>الإجهاد بيتراكم؛ تكرار الأيام المكثفة مش حل أفضل دائمًا.</p></div><div><b>03 / ثقة</b><p>الالتزام ببرنامج التدريب يساعد على بناء ثقة الجهاز الفني؛ الأداء الفعلي في المباريات يظل الأهم.</p></div></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="page" id="page-stats">
+      <div class="hub-page-heading"><span class="hub-overline">PLAYER DATA / MATCH FORM</span><h1>إحصائيات مسيرتك</h1><p>كل رقم هنا مبني على حالة الحفظ وسجل المباريات؛ فصلنا الإحصائيات عن الشاشة الرئيسية عشان تبقى أسهل في المتابعة.</p></div>
+      <div class="grid">
+        <article class="card span12 hub-stats-summary">
+          <div class="kpiGrid">
+            <div class="kpi"><div class="kpiNum" id="statsCareerApps">0</div><div class="kpiLabel">مشاركات المسيرة</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsCareerGoals">0</div><div class="kpiLabel">أهداف</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsCareerAssists">0</div><div class="kpiLabel">صناعات</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsSeasonApps">0</div><div class="kpiLabel">مباريات الموسم</div></div>
           </div>
         </article>
         <article class="card span8">
@@ -909,34 +980,6 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
           <div class="sectionNote" id="seasonProgress">الموسم 1 • المباراة 0 من 38 • النقاط 0</div>
           <h3>إنجازاتك</h3><div class="badgeGrid" id="achievements"></div>
         </article>
-        <article class="card span7">
-          <div class="cardHead"><h2>اختار نشاطك</h2><span class="pill">إدارة يومك</span></div>
-          <div class="trainingControls"><label for="trainingIntensity">شدة التدريب</label><select id="trainingIntensity"><option value="light">خفيف — إجهاد أقل وخبرة أبطأ</option><option value="normal" selected>عادي — توازن بين الجهد والتطوير</option><option value="intense">مكثف — خبرة أعلى ومخاطر إصابة أكبر</option></select><p class="trainingNote">حصة تدريب واحدة في اليوم. يتدرج اكتساب المهارات بالخبرة ويتوقف عند سقف الإمكانات؛ التدريب المكثف قد يسبب إصابة.</p></div>
-          <div class="actionGrid">
-            <button class="btn actionBtn" data-action="train-shooting"><span class="actionTitle">🎯 تدريب التسديد</span><span class="actionDesc">تسديد وهدوء • طاقة -18</span></button>
-            <button class="btn actionBtn" data-action="train-dribbling"><span class="actionTitle">🌀 تدريب المراوغة</span><span class="actionDesc">مراوغة وسرعة • طاقة -16</span></button>
-            <button class="btn actionBtn" data-action="train-fitness"><span class="actionTitle">🏃 لياقة وسرعة</span><span class="actionDesc">لياقة وسرعة • طاقة -22</span></button>
-            <button class="btn actionBtn" data-action="train-passing"><span class="actionTitle">🤝 تمرير جماعي</span><span class="actionDesc">تمرير ورؤية • خبرة تدريجية</span></button>
-            <button class="btn actionBtn" data-action="train-defending"><span class="actionTitle">🛡️ تمركز ودفاع</span><span class="actionDesc">افتكاك وقراءة اللعب</span></button>
-            <button class="btn actionBtn" data-action="train-goalkeeping"><span class="actionTitle">🧤 تدريب الحراسة</span><span class="actionDesc">للحراس فقط • رد فعل وتمركز</span></button>
-            <button class="btn actionBtn" data-action="train-vision"><span class="actionTitle">👁️ رؤية وصناعة لعب</span><span class="actionDesc">قراءة المساحات والقرار</span></button>
-            <button class="btn actionBtn" data-action="train-composure"><span class="actionTitle">🧠 هدوء تحت الضغط</span><span class="actionDesc">اتزان وتركيز في الحسم</span></button>
-            <button class="btn actionBtn" data-action="train-speed"><span class="actionTitle">⚡ سرعة وانطلاق</span><span class="actionDesc">سرعة قصوى وتسارع</span></button>
-            <button class="btn actionBtn" data-action="rest"><span class="actionTitle">🛌 راحة واستشفاء</span><span class="actionDesc">طاقة أعلى وتسريع التعافي</span></button>
-            <button class="btn actionBtn" data-action="night"><span class="actionTitle">🌙 خروجة بالليل</span><span class="actionDesc">تغيير جو أو نوم بدري</span></button>
-            <button class="btn actionBtn" data-action="social"><span class="actionTitle">📱 السوشيال ميديا</span><span class="actionDesc">3 اختيارات وتأثير على سمعتك</span></button>
-            <button class="btn actionBtn" data-action="coach"><span class="actionTitle">🗣️ اتكلم مع المدرب</span><span class="actionDesc">3 طرق تكسب بيها ثقته</span></button>
-            <button class="btn actionBtn primary" data-action="match"><span class="actionTitle">🏟️ لعب المباراة</span><span class="actionDesc">نتيجة، دقائق، أهداف وتقييم</span></button>
-            <button class="btn actionBtn" data-action="next-day"><span class="actionTitle">⏭️ اليوم التالي</span><span class="actionDesc">تقدم في الجدول والأحداث</span></button>
-          </div>
-        </article>
-        <article class="card span5">
-          <div class="cardHead"><h2>حكاية اليوم</h2><span class="pill gold">قصة مستمرة</span></div>
-          <div class="storyBox"><div class="storyLabel" id="storyTitle">الفصل الأول: فرصة العمر</div><p class="storyText" id="storyText">النهارده أول يوم ليك في مركز شباب النور...</p></div>
-          <div class="pills"><span class="pill">الأهداف <b id="goalsVal">0</b></span><span class="pill">الأسيستات <b id="assistsVal">0</b></span><span class="pill">آخر تقييم <b id="ratingVal">—</b></span></div>
-          <div class="btnRow" style="margin-top:12px"><button class="btn block" data-page="diary">افتح مذكراتي ←</button></div>
-          <h3 style="margin-top:17px">آخر حدث</h3><div class="muted small" id="latestEvent">وصلت مركز شباب النور لأول مرة.</div>
-        </article>
         <article class="card span12">
           <div class="cardHead"><h2>📈 تحليل آخر مبارياتك</h2><span class="pill indigo" id="formTrendBadge">في انتظار أول مباراة</span></div>
           <p class="muted small">قراءة مبنية على مبارياتك المسجلة فعلًا، مش أرقام عشوائية. تابع متوسط تقييمك ومساهماتك وأفضل خطوة تساعدك تطور مستواك.</p>
@@ -945,6 +988,39 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
       </div>
     </section>
 
+    <section class="page" id="page-wellness">
+      <div class="hub-page-heading"><span class="hub-overline">CONDITION / TRUST / RECOVERY</span><h1>الجاهزية والراحة</h1><p>هنا هتفهم حالتك البدنية وموقفك مع الجهاز الفني، وهتعرف هل الأفضل تتمرن، ترتاح، أو تتكلم مع المدرب.</p></div>
+      <div class="grid">
+        <article class="card span12 hub-readiness-feature">
+          <div class="hub-readiness-main"><div><span class="hub-overline">MATCH READINESS</span><h2 id="wellnessStatusTitle">جارٍ تقييم الجاهزية</h2><p id="wellnessStatusText">بيتم حساب الحالة من الطاقة والإجهاد والإصابة والمعنويات والثقة.</p></div><div class="hub-readiness-score"><strong id="wellnessReadinessScore">—</strong><span>جاهزية تقديرية / 100</span></div></div>
+          <div class="hub-readiness-note" id="wellnessAdvice">هنا هتظهر توصية مناسبة لحالتك الحالية.</div>
+        </article>
+        <article class="card span6">
+          <div class="cardHead"><div><h2>حالتك البدنية</h2><div class="subline">الطاقة الأعلى أفضل، والإجهاد الأقل أفضل.</div></div><span class="pill" id="wellnessBodyBadge">جاهزية بدنية</span></div>
+          <div class="hub-meter-row"><div><span>الطاقة</span><b id="wellnessEnergyValue">80/100</b></div><div class="bar"><i id="wellnessEnergyBar"></i></div><small id="wellnessEnergyLabel">طاقة مناسبة</small></div>
+          <div class="hub-meter-row"><div><span>الإجهاد المتراكم</span><b id="wellnessFatigueValue">0/100</b></div><div class="bar hub-fatigue-bar"><i id="wellnessFatigueBar"></i></div><small id="wellnessFatigueLabel">إجهاد منخفض</small></div>
+          <div class="hub-injury-panel" id="wellnessInjuryPanel"><span>الإصابة</span><strong id="wellnessInjuryValue">لا توجد إصابة</strong><small id="wellnessInjuryLabel">مسموح بالتدريب والمشاركة حسب باقي حالتك.</small></div>
+          <div class="hub-meter-row"><div><span>المعنويات</span><b id="wellnessMoraleValue">65/100</b></div><div class="bar gold"><i id="wellnessMoraleBar"></i></div><small id="wellnessMoraleLabel">معنويات مستقرة</small></div>
+        </article>
+        <article class="card span6">
+          <div class="cardHead"><div><h2>موقفك داخل النادي</h2><div class="subline">الثقة الفنية والعلاقة الشخصية مش نفس المؤشر.</div></div><span class="pill indigo">تطور تدريجي</span></div>
+          <div class="hub-meter-row"><div><span>ثقة الجهاز الفني</span><b id="wellnessTrustValue">25/100</b></div><div class="bar indigo"><i id="wellnessTrustBar"></i></div><small id="wellnessTrustLabel">محتاج تثبت نفسك</small></div>
+          <p class="hub-definition">الثقة الفنية <b>هي فرصتك في كسب دور أكبر</b>؛ بتتأثر خصوصًا بتقييمات المباريات، وبالالتزام بالتدريب وبعض قرارات المدرب.</p>
+          <div class="hub-meter-row"><div><span>العلاقة بالمدرب</span><b id="wellnessCoachRelationshipValue">35/100</b></div><div class="bar"><i id="wellnessCoachRelationshipBar"></i></div><small id="wellnessCoachRelationshipLabel">العلاقة لسه بتتبني</small></div>
+          <p class="hub-definition">العلاقة <b>هي جودة التواصل والثقة المتبادلة خارج الملعب</b>؛ بتتأثر بكلامك مع المدرب وقراراتك المهنية، ومش ضمان للتشكيل الأساسي.</p>
+          <div class="hub-coach-foot"><span id="wellnessDailyActionLabel">النشاط الجانبي متاح النهارده</span><button class="btn primary" id="wellnessCoachButton" data-action="coach">جلسة مع المدرب</button></div>
+        </article>
+        <article class="card span12">
+          <div class="cardHead"><div><h2>اختار الخطوة المناسبة</h2><div class="subline">كل اختيار له تكلفة واضحة، وتقدم يوم اللعبة يمرّر التقويم يومًا كاملًا.</div></div><span class="pill gold" id="wellnessDayStatus">اليوم 1</span></div>
+          <div class="hub-recovery-grid">
+            <div class="hub-recovery-action"><div class="hub-recovery-icon">🛌</div><h3>راحة واستشفاء كامل</h3><p>يمرّ يوم داخل المسيرة، والطاقة تزيد حتى 24 نقطة أساسية، والإجهاد يقل 12 نقطة، والإصابة تنقص يومًا، والمعنويات تزيد 4. قد تختلف زيادة الطاقة لو عندك نظام غذائي أو ميزة استشفاء.</p><button class="btn primary block" data-action="rest">أخد يوم راحة</button></div>
+            <div class="hub-recovery-action"><div class="hub-recovery-icon">🗣️</div><h3>تواصل مع المدرب</h3><p>جلسة واحدة في اليوم. الالتزام يعزّز الثقة والعلاقة؛ طلب فرصة يعتمد على أدائك السابق، والشكوى ممكن تقلل الثقة.</p><button class="btn block" data-action="coach">افتح خيارات المدرب</button></div>
+            <div class="hub-recovery-action"><div class="hub-recovery-icon">⏭️</div><h3>اليوم التالي</h3><p>يمرّ يوم تقويمي عادي، وتستعيد طاقة أقل من يوم الراحة، ويقل الإجهاد تدريجيًا وتتراجع مدة الإصابة يومًا.</p><button class="btn block" data-action="next-day">تقدّم لليوم التالي</button></div>
+          </div>
+          <div class="hub-card-foot"><span>اختيار الراحة لا يحذف مسيرتك؛ إنه يمرّر يومًا واحدًا في التقويم.</span><button class="btn" data-page="training">ارجع للتدريب ←</button></div>
+        </article>
+      </div>
+    </section>
     <section class="page" id="page-league">
       <div class="grid">
         <article class="card span12"><div class="cardHead"><h2>🏆 جدول الدوري</h2><span class="pill" id="leagueSeason">الموسم 1</span></div><p class="muted small">ترتيب الفرق بيتحدّث بعد كل مباراة، ونتائج بقية المواجهات بتتحسب مع جولتك. بطل الموسم بياخد مكافأة داخل اللعبة.</p><div class="tableWrap"><table><thead><tr><th>#</th><th>الفريق</th><th>لعب</th><th>ف</th><th>ت</th><th>خ</th><th>له</th><th>عليه</th><th>فارق</th><th>نقاط</th></tr></thead><tbody id="leagueBody"></tbody></table></div></article>
@@ -1040,10 +1116,10 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
 </div>
 <nav class="bottomNav" aria-label="التنقل السريع">
   <button class="active" data-page="home" aria-label="الرئيسية"><span>⌂</span>الرئيسية</button>
+  <button data-page="training" aria-label="التدريب"><span>🏋️</span>التدريب</button>
+  <button data-page="stats" aria-label="الإحصائيات"><span>📊</span>الإحصائيات</button>
+  <button data-page="wellness" aria-label="الجاهزية والراحة"><span>🩺</span>الجاهزية</button>
   <button data-page="league" aria-label="الدوري"><span>🏆</span>الدوري</button>
-  <button data-page="contract" aria-label="العقد"><span>📄</span>العقد</button>
-  <button data-page="shop" aria-label="المتجر"><span>🛍️</span>المتجر</button>
-  <button data-page="diary" aria-label="المذكرات"><span>📔</span>المذكرات</button>
 </nav>
 
 <div class="drawerShade" id="drawerShade"></div>
@@ -2422,12 +2498,14 @@ function openModal(title,text,choices,options={}){
 }
 function closeModal(){$("modalShade").classList.remove("open");}
 function showPage(page){
- const valid=["home","league","europe","contract","national","shop","life","diary"].includes(page)?page:"home";
+ const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","diary"].includes(page)?page:"home";
  state.currentPage=valid;
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+valid));
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
- const labels={home:"الرئيسية",league:"الدوري المحلي",europe:"الدوريات الأوروبية",contract:"العقد والانتقالات",national:"منتخب مصر",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
- $("pageName").textContent=labels[valid];closeDrawer();render();
+ document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
+ const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
+ $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);closeDrawer();render();
+ window.scrollTo({top:0,behavior:"smooth"});
 }
 function openDrawer(){$("drawer").classList.add("open");$("drawerShade").classList.add("open");}
 function closeDrawer(){$("drawer").classList.remove("open");$("drawerShade").classList.remove("open");}
@@ -2970,7 +3048,7 @@ function train(type){
   else toast(result.message);
   return;
  }
- if(type==="passing"||type==="vision")state.trust=clamp(state.trust+1);
+ state.trust=clamp(state.trust+1);if(state.trainingIntensity!=="intense")state.coachRelationship=clamp((Number(state.coachRelationship)||35)+1);
  const title="تدريب "+(titles[type]||type);
  const learned=result.gain?` ارتفعت ${SKILL_AR[type]} ${result.gain} نقطة.`:` تراكمت ${result.xp} خبرة تدريبية باتجاه سقف الإمكانات ${state.playerPotential}.`;
  const secondary=result.secondaryGains.length?` تطورت أيضًا: ${result.secondaryGains.map(key=>SKILL_AR[key]||key).join("، ")}.`:"";
@@ -3437,9 +3515,9 @@ function social(){
 function talkCoach(){
  if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return;}
  openModal("مكتب الكابتن شريف 🗣️","جلسة قصيرة واحدة في اليوم؛ نتيجتها لا تتجاوز أثر العمل الفعلي.",[
-  {label:"أوعده بالالتزام",className:"primary",action:()=>{if(!useDailyAction("حديث المدرب"))return;state.energy=clamp(state.energy-3);state.trust=clamp(state.trust+2);state.morale=clamp(state.morale+1);setStory("كلمة ووعد","المدرب سجل التزامك؛ الأداء القادم هو ما يحول الوعد إلى دقائق لعب.");log("تحدثت مع المدرب مرة واحدة؛ الثقة زادت قليلًا مع استهلاك وقت وطاقة.");saveGame(true);render();}},
-  {label:"أطلب فرصة في الماتش الجاي",action:()=>{if(!useDailyAction("طلب فرصة من المدرب"))return;state.energy=clamp(state.energy-3);if(state.trust>=45&&Number(state.lastRating)>=6.5){state.role="بديل أساسي";state.trust=clamp(state.trust+2);setStory("فرصة قريبة","بناءً على ثقتك وتقييمك الأخير، المدرب سيمنحك دورًا أكبر.");}else{state.morale=clamp(state.morale-1);setStory("لسه بدري","المدرب طلب منك إثبات نفسك في الملعب قبل زيادة الدقائق.");}log("طلبت فرصة من المدرب مرة واحدة اليوم، والقرار مرتبط بالثقة والتقييم.");saveGame(true);render();}},
-  {label:"أشتكي من قلة اللعب",action:()=>{if(!useDailyAction("شكوى للمدرب"))return;state.energy=clamp(state.energy-2);state.trust=clamp(state.trust-4);setStory("مش وقته","المدرب طلب منك التركيز على الأداء. الشكوى لها أثر على الثقة.");log("اشتكت من قلة المشاركة مرة واحدة؛ انخفضت الثقة.");saveGame(true);render();}}
+  {label:"أوعده بالالتزام",className:"primary",action:()=>{if(!useDailyAction("حديث المدرب"))return;state.energy=clamp(state.energy-3);state.trust=clamp(state.trust+2);state.coachRelationship=clamp((Number(state.coachRelationship)||35)+4);state.professionalism=clamp((Number(state.professionalism)||65)+1);state.morale=clamp(state.morale+1);setStory("كلمة ووعد","المدرب سجل التزامك؛ الأداء القادم هو ما يحول الوعد إلى دقائق لعب.");log("تحدثت مع المدرب مرة واحدة؛ الثقة زادت قليلًا مع استهلاك وقت وطاقة.");saveGame(true);render();}},
+  {label:"أطلب فرصة في الماتش الجاي",action:()=>{if(!useDailyAction("طلب فرصة من المدرب"))return;state.energy=clamp(state.energy-3);if(state.trust>=45&&Number(state.lastRating)>=6.5){state.role="بديل أساسي";state.trust=clamp(state.trust+2);state.coachRelationship=clamp((Number(state.coachRelationship)||35)+3);setStory("فرصة قريبة","بناءً على ثقتك وتقييمك الأخير، المدرب سيمنحك دورًا أكبر.");}else{state.morale=clamp(state.morale-1);state.coachRelationship=clamp((Number(state.coachRelationship)||35)-1);setStory("لسه بدري","المدرب طلب منك إثبات نفسك في الملعب قبل زيادة الدقائق.");}log("طلبت فرصة من المدرب مرة واحدة اليوم، والقرار مرتبط بالثقة والتقييم.");saveGame(true);render();}},
+  {label:"أشتكي من قلة اللعب",action:()=>{if(!useDailyAction("شكوى للمدرب"))return;state.energy=clamp(state.energy-2);state.trust=clamp(state.trust-4);state.coachRelationship=clamp((Number(state.coachRelationship)||35)-4);state.professionalism=clamp((Number(state.professionalism)||65)-2);setStory("مش وقته","المدرب طلب منك التركيز على الأداء. الشكوى أثرت على الثقة الفنية والعلاقة مع الجهاز الفني.");log("اشتكت من قلة المشاركة مرة واحدة؛ انخفضت الثقة.");saveGame(true);render();}}
  ]);
 }
 function buyItem(id){
@@ -3550,10 +3628,8 @@ function bind(){
   if(a.startsWith("train-"))train(a.slice(6));
   else if(a==="rest")rest();else if(a==="night")nightOut();else if(a==="social")social();else if(a==="coach")talkCoach();else if(a==="match")match();else if(a==="next-day")nextDay();
  }));
- $("heroMatch").addEventListener("click",()=>match());$("heroTrain").addEventListener("click",()=>openModal("اختار التدريب","حدد المهارة اللي عايز تطورها النهارده.",[
-  {label:"🎯 التسديد",action:()=>train("shooting")},{label:"🌀 المراوغة",action:()=>train("dribbling")},{label:"🏃 اللياقة",action:()=>train("fitness")},{label:"🤝 التمرير",action:()=>train("passing")},{label:"🛡️ الدفاع",action:()=>train("defending")},{label:"👁️ الرؤية",action:()=>train("vision")},{label:"🧠 الهدوء",action:()=>train("composure")},{label:"⚡ السرعة",action:()=>train("speed")},...(state.pos==="حارس مرمى"?[{label:"🧤 الحراسة",action:()=>train("goalkeeping")}]:[])
- ]));$("heroStory").addEventListener("click",heroStory);
- $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة المدرب: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
+ $("heroMatch").addEventListener("click",()=>match());$("heroTrain").addEventListener("click",()=>showPage("training"));$("heroStory").addEventListener("click",heroStory);
+ $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة الجهاز الفني: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
  $("nationalMatchBtn").addEventListener("click",nationalMatch);$("sponsorBtn").addEventListener("click",negotiateSponsorship);
  $("shopItems").addEventListener("click",e=>{const b=e.target.closest("[data-buy]");if(b)buyItem(b.dataset.buy);});
  $("pressHumble").addEventListener("click",()=>professionalLifeAction("press-humble"));
@@ -3591,5 +3667,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./story-mode.js?v=1"></script>
 <script src="./career-experience.js?v=1"></script>
 <script src="./agent-system.js?v=1"></script>
+<script src="./career-hub.js?v=1"></script>
 </body>
 </html>

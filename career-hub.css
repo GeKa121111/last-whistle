@@ -1,0 +1,138 @@
+/* CAREER HUB — app-style navigation, focused training/stats, and clearer readiness */
+body.lw-rebuild .app[data-active-page]:not([data-active-page="home"])>.hero{display:none}
+body.lw-rebuild .app>.hero{min-height:245px;grid-template-columns:minmax(0,1.2fr) minmax(210px,.62fr);gap:15px;padding:24px 27px;margin-bottom:15px;border-radius:22px}
+body.lw-rebuild .app>.hero h1{font-size:clamp(27px,3.4vw,40px);margin:10px 0}
+body.lw-rebuild .app>.hero p{font-size:12px;line-height:1.75}
+body.lw-rebuild .heroActions{margin-top:14px}
+body.lw-rebuild .heroUnderbar{margin-top:13px}
+body.lw-rebuild .heroVisual{min-height:192px;padding:10px 12px;border-radius:15px}
+body.lw-rebuild .stadiumGraphic{min-height:110px}
+body.lw-rebuild .stadiumHalo{width:130px;height:130px}
+body.lw-rebuild .pitchFrame{width:125px;height:155px}
+body.lw-rebuild .heroOrb{width:78px;height:78px;border-radius:23px;font-size:23px}
+body.lw-rebuild .heroOrb:before{width:52px;height:52px}
+body.lw-rebuild .heroOrb:after{width:34px;height:34px}
+body.lw-rebuild .heroVisualFoot strong{font-size:18px}
+body.lw-rebuild .hub-launch-panel{padding:20px;border:1px solid #d7e0ec;border-radius:21px;background:linear-gradient(145deg,#fff,#f7f9fc);box-shadow:0 10px 28px #1b33500b;margin-bottom:17px}
+body.lw-rebuild .hub-launch-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:15px}
+body.lw-rebuild .hub-overline{display:block;color:#657893;font-size:8px;letter-spacing:.15em;font-weight:1000}
+body.lw-rebuild .hub-launch-header h2{font-size:20px;color:#182a45;margin:6px 0 5px;font-weight:1000;letter-spacing:-.025em}
+body.lw-rebuild .hub-launch-header p{font-size:11px;line-height:1.8;color:#70819a;margin:0}
+body.lw-rebuild .hub-shortcut-mark{display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:14px;background:#caff43;color:#213149;font-size:12px;font-weight:1000;line-height:1.2}
+body.lw-rebuild .hub-shortcut-mark span{color:#3558ed}
+body.lw-rebuild .hub-app-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+body.lw-rebuild .hub-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;min-width:0;min-height:126px;padding:13px;text-align:right;border:1px solid #e0e7f0;border-radius:15px;background:#fff;color:#1d2e49;cursor:pointer;transition:transform .16s,border-color .16s,background .16s,box-shadow .16s}
+body.lw-rebuild .hub-tile:hover,body.lw-rebuild .hub-tile.active{transform:translateY(-2px);border-color:#a9bdf0;background:#f3f6ff;box-shadow:0 8px 18px #3458ed0b}
+body.lw-rebuild .hub-tile.active{box-shadow:inset 0 0 0 1px #3458ed20}
+body.lw-rebuild .hub-tile-icon{display:grid;place-items:center;width:39px;height:39px;border:1px solid #e1e8f1;border-radius:12px;background:#f5f7fb;font-size:21px;line-height:1}
+body.lw-rebuild .hub-tile-title{display:block;margin-top:10px;font-size:11px;line-height:1.4;font-weight:1000;color:#20344f}
+body.lw-rebuild .hub-tile-desc{display:block;margin-top:4px;color:#78869c;font-size:8px;line-height:1.7}
+body.lw-rebuild .hub-tile-arrow{position:absolute;top:15px;left:13px;color:#9aa9bd;font-size:14px}
+body.lw-rebuild .hub-home-grid{align-items:start}
+body.lw-rebuild .hub-player-card .progressRow{grid-template-columns:94px minmax(25px,1fr) 26px;gap:7px;font-size:10px;margin:10px 0}
+body.lw-rebuild .hub-home-meters{margin-top:10px;padding-top:2px}
+body.lw-rebuild .hub-readiness-hint{margin-top:13px;padding:10px 11px;border:1px solid #e3e9d2;border-radius:11px;background:#f6f9ec;color:#586c35;font-size:9px;line-height:1.8}
+body.lw-rebuild .hub-page-heading{margin:2px 0 15px;padding:2px 1px 12px;border-bottom:1px solid #dbe3ee}
+body.lw-rebuild .hub-page-heading h1{margin:5px 0 4px;color:#182840;font-size:clamp(23px,3vw,34px);line-height:1.2;font-weight:1000;letter-spacing:-.035em}
+body.lw-rebuild .hub-page-heading p{margin:0;max-width:780px;color:#6b7b92;font-size:11px;line-height:1.85}
+body.lw-rebuild .hub-training-card .trainingControls{max-width:690px;margin-bottom:16px;padding:14px;border:1px solid #e0e7f0;border-radius:14px;background:#f8fafc}
+body.lw-rebuild .hub-training-card .trainingControls label{display:block;font-size:11px;font-weight:950;color:#273b57;margin-bottom:6px}
+body.lw-rebuild .hub-training-card #trainingIntensity{width:100%;padding:10px 12px;border:1px solid #d0daea;border-radius:10px;background:#fff;color:#263a57}
+body.lw-rebuild .hub-training-card .trainingNote{margin:8px 0 0;color:#6c7c91;font-size:9px;line-height:1.8}
+body.lw-rebuild .hub-drill-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+body.lw-rebuild .hub-drill-grid .actionBtn{min-width:0;min-height:90px;text-align:right;justify-content:flex-start}
+body.lw-rebuild .hub-drill-grid .actionBtn:disabled{opacity:.43}
+body.lw-rebuild .hub-card-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:15px;padding-top:13px;border-top:1px solid #e8edf4;color:#71819a;font-size:9px}
+body.lw-rebuild .hub-training-rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+body.lw-rebuild .hub-training-rules>div{padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc}
+body.lw-rebuild .hub-training-rules b{display:block;color:#304766;font-size:10px}
+body.lw-rebuild .hub-training-rules p{margin:5px 0 0;color:#718099;font-size:9px;line-height:1.8}
+body.lw-rebuild .hub-stats-summary .kpiGrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+body.lw-rebuild .hub-readiness-feature{border-color:#cfddf0;background:radial-gradient(ellipse at 95% 0%,#e7f0ff 0,transparent 42%),linear-gradient(145deg,#fff,#f8fbff)}
+body.lw-rebuild .hub-readiness-main{display:flex;align-items:center;justify-content:space-between;gap:18px}
+body.lw-rebuild .hub-readiness-main h2{margin:5px 0 5px;font-size:20px;font-weight:1000;color:#1c304c}
+body.lw-rebuild .hub-readiness-main p{max-width:780px;margin:0;color:#637790;font-size:10px;line-height:1.9}
+body.lw-rebuild .hub-readiness-score{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 105px;min-height:94px;border:1px solid #d8e2f1;border-radius:16px;background:#fff}
+body.lw-rebuild .hub-readiness-score strong{font-size:31px;font-weight:1000;color:#2848cc;line-height:1.1}
+body.lw-rebuild .hub-readiness-score span{margin-top:5px;color:#75849c;font-size:8px;text-align:center}
+body.lw-rebuild .hub-readiness-note{margin-top:14px;padding:10px 12px;border:1px solid #e2e9d4;border-radius:11px;background:#f7faed;color:#5e7139;font-size:9px;line-height:1.8}
+body.lw-rebuild .hub-meter-row{margin:13px 0}
+body.lw-rebuild .hub-meter-row>div:first-child{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+body.lw-rebuild .hub-meter-row>div:first-child span{color:#536783;font-size:10px;font-weight:850}
+body.lw-rebuild .hub-meter-row>div:first-child b{color:#243953;font-size:10px;font-weight:1000;font-variant-numeric:tabular-nums}
+body.lw-rebuild .hub-meter-row small{display:block;margin-top:5px;color:#7b8aa0;font-size:8px;line-height:1.7}
+body.lw-rebuild .hub-fatigue-bar i{background:linear-gradient(90deg,#d2a552,#e26960)}
+body.lw-rebuild .hub-injury-panel{display:flex;flex-direction:column;gap:4px;padding:11px;border:1px solid #dbe7d0;border-radius:12px;background:#f5faef;margin:14px 0}
+body.lw-rebuild .hub-injury-panel span{font-size:9px;color:#748561;font-weight:850}
+body.lw-rebuild .hub-injury-panel strong{font-size:12px;color:#42572d}
+body.lw-rebuild .hub-injury-panel small{font-size:9px;color:#748561;line-height:1.7}
+body.lw-rebuild .hub-injury-panel.is-injured{background:#fff0f2;border-color:#efcbd0}
+body.lw-rebuild .hub-injury-panel.is-injured span,body.lw-rebuild .hub-injury-panel.is-injured strong,body.lw-rebuild .hub-injury-panel.is-injured small{color:#a63849}
+body.lw-rebuild .hub-definition{margin:7px 0 13px;padding:9px 10px;border:1px solid #e8edf4;border-radius:10px;color:#738198;background:#fafbfd;font-size:9px;line-height:1.8}
+body.lw-rebuild .hub-definition b{color:#304968}
+body.lw-rebuild .hub-coach-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:11px;border-top:1px solid #e8edf4}
+body.lw-rebuild .hub-coach-foot span{font-size:9px;color:#718099;line-height:1.7}
+body.lw-rebuild .hub-coach-foot button:disabled{opacity:.4;cursor:not-allowed}
+body.lw-rebuild .hub-recovery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+body.lw-rebuild .hub-recovery-action{min-width:0;display:flex;flex-direction:column;align-items:flex-start;padding:14px;border:1px solid #dfe7f0;border-radius:14px;background:linear-gradient(145deg,#fff,#f8fafc)}
+body.lw-rebuild .hub-recovery-icon{display:grid;place-items:center;width:39px;height:39px;border:1px solid #e0e8f1;border-radius:12px;background:#f1f5fa;font-size:20px}
+body.lw-rebuild .hub-recovery-action h3{margin:10px 0 5px;font-size:12px;color:#253b59}
+body.lw-rebuild .hub-recovery-action p{flex:1;margin:0 0 12px;color:#74829a;font-size:9px;line-height:1.9}
+body.lw-rebuild .hub-recovery-action button{width:100%}
+body.lw-rebuild .hub-recovery-action button:disabled{opacity:.42}
+@media(max-width:1050px){
+ body.lw-rebuild .hub-app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+ body.lw-rebuild .hub-drill-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ body.lw-rebuild .app>.hero{display:block;min-height:0;padding:17px 16px;margin-bottom:12px}
+ body.lw-rebuild .app[data-active-page]:not([data-active-page="home"])>.hero{display:none}
+ body.lw-rebuild .heroVisual{display:none}
+ body.lw-rebuild .hero h1{font-size:28px;max-width:100%;margin:9px 0 7px}
+ body.lw-rebuild .hero p{font-size:11px}
+ body.lw-rebuild .heroActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ body.lw-rebuild .heroActions .btn{min-width:0;padding:9px 10px;font-size:10px}
+ body.lw-rebuild .heroActions .btn:last-child{grid-column:1/-1}
+ body.lw-rebuild .heroUnderbar{margin-top:11px;font-size:7px}
+ body.lw-rebuild .hub-launch-panel{padding:14px;border-radius:17px;margin-bottom:12px}
+ body.lw-rebuild .hub-launch-header h2{font-size:17px}
+ body.lw-rebuild .hub-launch-header p{font-size:9px}
+ body.lw-rebuild .hub-shortcut-mark{flex-basis:40px;height:40px;border-radius:11px}
+ body.lw-rebuild .hub-app-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ body.lw-rebuild .hub-tile{min-height:116px;padding:10px;border-radius:13px}
+ body.lw-rebuild .hub-tile-icon{width:35px;height:35px;border-radius:10px;font-size:19px}
+ body.lw-rebuild .hub-tile-title{margin-top:8px;font-size:10px}
+ body.lw-rebuild .hub-tile-desc{font-size:8px}
+ body.lw-rebuild .hub-tile-arrow{top:11px;left:10px}
+ body.lw-rebuild .hub-page-heading{margin-bottom:11px;padding-bottom:10px}
+ body.lw-rebuild .hub-page-heading h1{font-size:24px}
+ body.lw-rebuild .hub-page-heading p{font-size:9px}
+ body.lw-rebuild .hub-drill-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ body.lw-rebuild .hub-drill-grid .actionBtn{min-height:82px;padding:9px}
+ body.lw-rebuild .hub-drill-grid .actionTitle{font-size:10px}
+ body.lw-rebuild .hub-drill-grid .actionDesc{font-size:8px}
+ body.lw-rebuild .hub-training-rules{grid-template-columns:1fr;gap:7px}
+ body.lw-rebuild .hub-training-rules>div{padding:10px}
+ body.lw-rebuild .hub-stats-summary .kpiGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.lw-rebuild .hub-readiness-main{align-items:flex-start;gap:9px}
+ body.lw-rebuild .hub-readiness-main h2{font-size:16px}
+ body.lw-rebuild .hub-readiness-main p{font-size:9px}
+ body.lw-rebuild .hub-readiness-score{flex-basis:75px;min-height:74px;border-radius:12px}
+ body.lw-rebuild .hub-readiness-score strong{font-size:26px}
+ body.lw-rebuild .hub-readiness-score span{font-size:7px}
+ body.lw-rebuild .hub-readiness-note{font-size:8px}
+ body.lw-rebuild .hub-recovery-grid{grid-template-columns:1fr;gap:8px}
+ body.lw-rebuild .hub-recovery-action{padding:12px}
+ body.lw-rebuild .hub-recovery-action p{font-size:9px}
+ body.lw-rebuild .hub-card-foot{align-items:stretch;flex-direction:column}
+ body.lw-rebuild .hub-card-foot .btn{width:100%}
+ body.lw-rebuild .hub-player-card .progressRow{grid-template-columns:84px minmax(20px,1fr) 25px;font-size:9px}
+}
+@media(max-width:380px){
+ body.lw-rebuild .hub-launch-header{gap:8px}
+ body.lw-rebuild .hub-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.lw-rebuild .hub-drill-grid{grid-template-columns:1fr}
+ body.lw-rebuild .hub-readiness-main{flex-direction:column}
+ body.lw-rebuild .hub-readiness-score{align-self:flex-end;min-height:60px}
+}
+@media(prefers-reduced-motion:reduce){body.lw-rebuild .hub-tile{transition:none}}

@@ -138,19 +138,22 @@ async function main() {
       const seasonRoadmap = document.querySelector("#page-home .seasonJourneyCard");
       if (!playerCard || !readinessHint || !readinessActions || !transferButton || !seasonButton || !seasonRoadmap) return null;
       return {
-        actionsInsidePlayerCard: playerCard.contains(readinessActions),
+        actionsOutsidePlayerCard: !playerCard.contains(readinessActions),
+        actionsAreFirstHomeBlock: readinessActions.compareDocumentPosition(playerCard) & Node.DOCUMENT_POSITION_FOLLOWING,
         bothButtonsInsideActions: readinessActions.contains(transferButton) && readinessActions.contains(seasonButton),
-        actionsNearReadiness: !!(readinessHint.compareDocumentPosition(readinessActions) & Node.DOCUMENT_POSITION_FOLLOWING),
+        actionsAbovePlayerSummary: readinessActions.getBoundingClientRect().top < playerCard.getBoundingClientRect().top,
         actionsAboveSeasonRoadmap: readinessActions.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top
       };
     });
     assert.ok(homeActionPlacement, "home season action panel must exist");
-    assert.equal(homeActionPlacement.actionsInsidePlayerCard, true,
-      "season actions should live beside player readiness, not under the season roadmap");
+    assert.equal(homeActionPlacement.actionsOutsidePlayerCard, true,
+      "season actions must be outside the player summary card");
     assert.equal(homeActionPlacement.bothButtonsInsideActions, true,
       "both season buttons must be inside the new action panel");
-    assert.equal(homeActionPlacement.actionsNearReadiness, true,
-      "season actions should follow the readiness summary");
+    assert.ok(homeActionPlacement.actionsAreFirstHomeBlock,
+      "season actions must be the first block in the home dashboard");
+    assert.equal(homeActionPlacement.actionsAbovePlayerSummary, true,
+      "season actions must render above player stats and readiness");
     assert.equal(homeActionPlacement.actionsAboveSeasonRoadmap, true,
       "season buttons must render above the season roadmap on mobile");
     results.push("season actions placed beside readiness above season roadmap");

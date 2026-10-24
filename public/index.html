@@ -780,13 +780,14 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
  #startName{min-height:56px;font-size:17px;padding:14px}
 }
 
-/* Final home ordering override: show readiness and next actions before the season roadmap on every screen size. */
+/* The season controls are a full-width first block, before player stats and story cards. */
+body.lw-rebuild #page-home .grid.hub-home-grid>.hub-home-season-actions{order:-1!important;grid-column:span 12!important;align-self:start}
 body.lw-rebuild #page-home .grid.hub-home-grid>.hub-player-card{order:0!important;grid-column:span 5!important}
-body.lw-rebuild #page-home .grid.hub-home-grid>article:nth-child(2){order:1!important;grid-column:span 5!important}
+body.lw-rebuild #page-home .grid.hub-home-grid>article:nth-child(3){order:1!important;grid-column:span 5!important}
 body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!important;grid-column:span 12!important}
 @media(max-width:760px){
  body.lw-rebuild #page-home .grid.hub-home-grid>.hub-player-card,
- body.lw-rebuild #page-home .grid.hub-home-grid>article:nth-child(2),
+ body.lw-rebuild #page-home .grid.hub-home-grid>article:nth-child(3),
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
 </style>
@@ -899,6 +900,13 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         </div>
       </div>
       <div class="grid hub-home-grid">
+        <div class="hub-home-season-actions" aria-label="إجراءات الموسم">
+            <div class="hub-home-season-actions-head"><strong>خطوتك الجاية</strong><span>استعداد للمباريات وإدارة الموسم</span></div>
+            <div class="hub-home-season-actions-buttons">
+              <button type="button" class="btn ghost" id="seasonTransferAction" data-season-action="transfer-review">راجع سوق الانتقالات</button>
+              <button type="button" class="btn primary" id="seasonStageAction" data-season-action="season-block">العب الموسم لحد الشتاء</button>
+            </div>
+          </div>
         <article class="card span5 hub-player-card">
           <div class="cardHead"><div><h2>ملخص اللاعب</h2><div class="subline">نظرة سريعة على وضعك الحالي</div></div><span class="pill green" id="clubPill">مركز شباب النور</span></div>
           <div class="big" id="playerName">يوسف حسن</div>

@@ -205,6 +205,80 @@ async function main() {
     }, null, { timeout: 10000 });
     results.push("season transfer-market navigation");
 
+    // Exercise the complete league season lifecycle, not just a single match.
+    await page.locator("#menuOpen").click();
+    await page.locator('#drawer .navBtn[data-page="home"]').click();
+    await page.locator("#seasonStageAction").click();
+    await page.waitForFunction(() => {
+      const title = document.querySelector("#modalTitle");
+      return document.querySelector("#modalShade").classList.contains("open")
+        && title && title.textContent.includes("تكملة النصف الأول");
+    }, null, { timeout: 10000 });
+    await page.locator("#modalChoices button").filter({ hasText: "كمّل لحد الشتاء" }).click();
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime.getState();
+      const title = document.querySelector("#modalTitle");
+      return state.winterBreakPending === true
+        && Number(state.seasonApps) >= 19
+        && title && title.textContent.includes("ملخص منتصف الموسم");
+    }, null, { timeout: 30000 });
+    results.push("first-half simulation reaches the winter break");
+
+    await page.locator("#modalChoices button").filter({ hasText: "راجع انتقالات الشتاء" }).click();
+    await page.waitForFunction(() => {
+      const title = document.querySelector("#modalTitle");
+      return document.querySelector("#modalShade").classList.contains("open")
+        && title && title.textContent.includes("انتقالات منتصف الموسم");
+    });
+    await page.locator("#modalChoices button").filter({ hasText: "مراجعة العقد والسوق" }).click();
+    await page.waitForFunction(() => {
+      const active = document.querySelector(".page.active");
+      return active && active.id === "page-contract";
+    }, null, { timeout: 10000 });
+    assert.equal(
+      await page.evaluate(() => window.LWStoryRuntime.getState().journeyTransferReviewed),
+      true,
+      "winter market review must be persisted in the season journey"
+    );
+    results.push("winter transfer review is recorded");
+
+    await page.locator("#menuOpen").click();
+    await page.locator('#drawer .navBtn[data-page="home"]').click();
+    await page.locator("#seasonStageAction").click();
+    await page.waitForFunction(() => {
+      const title = document.querySelector("#modalTitle");
+      return document.querySelector("#modalShade").classList.contains("open")
+        && title && title.textContent.includes("جاهز للنصف التاني");
+    }, null, { timeout: 10000 });
+    await page.locator("#modalChoices button").filter({ hasText: "حاكي آخر" }).click();
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime.getState();
+      const title = document.querySelector("#modalTitle");
+      return state.seasonFinished === true
+        && Number(state.seasonApps) === Number(state.seasonAppsTarget)
+        && Array.isArray(state.seasonHistory)
+        && state.seasonHistory.some(row => Number(row.season) === Number(state.season))
+        && title && title.textContent.includes("نهاية الموسم");
+    }, null, { timeout: 45000 });
+    results.push("full season completion archives a final season record");
+
+    const completedSeason = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        season: Number(state.season),
+        apps: Number(state.seasonApps),
+        target: Number(state.seasonAppsTarget),
+        finished: state.seasonFinished,
+        historyCount: Array.isArray(state.seasonHistory) ? state.seasonHistory.length : 0,
+        hasSummary: Boolean(state.seasonSummary)
+      };
+    });
+    assert.equal(completedSeason.finished, true);
+    assert.equal(completedSeason.apps, completedSeason.target, "a season cannot be marked complete before all scheduled matches are played");
+    assert.ok(completedSeason.historyCount > 0, "the completed season must be archived");
+    assert.equal(completedSeason.hasSummary, true, "the season report must be saved");
+    results.push("season totals and report reconcile");
+
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");
     assert.deepEqual(badResponses, [], "all local page assets must return successful responses");

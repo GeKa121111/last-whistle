@@ -1,3 +1,4 @@
+const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -212,10 +213,20 @@ const journeySource = html.slice(journeyStart, journeyEnd);
 if (journeyStart < 0 || journeyEnd < 0 || journeySource.includes("if(false)")) {
   console.error("Journey test failed: journey renderer is missing or dead CTA code remains."); process.exit(1);
 }
-for (const marker of ['btn.onclick=()=>state.winterBreakPending?openWinterMarket():openTransferMarketPage()', 'transferBtn.disabled=!!state.retired', 'btn.textContent="راجع الانتقالات"']) {
-  if (!journeySource.includes(marker)) { console.error("Journey test failed: missing transfer CTA behavior:", marker); process.exit(1); }
+for (const marker of ['setJourneyAction(stageButton,"transfer-review","راجع الانتقالات")', 'setJourneyAction(transferButton,state.retired?"retired":state.winterBreakPending?"winter":"transfer-review"']) {
+  if (!journeySource.includes(marker)) { console.error("Journey test failed: missing stable transfer CTA behavior:", marker); process.exit(1); }
 }
-if (!html.includes("function openTransferMarketPage(){") || !html.includes('market.scrollIntoView({behavior:"smooth",block:"start"})')) { console.error("Transfer CTA test failed: review button must open and scroll to the transfer market."); process.exit(1); }
+if (!html.includes("function runSeasonJourneyAction(action)")) { console.error("Journey action router is missing."); process.exit(1); }
+if (html.includes('id="seasonStageAction" onclick=') || html.includes('id="seasonTransferAction" onclick=')) {
+  console.error("Journey test failed: season CTAs must use stable registered handlers, not inline/dynamic onclick properties."); process.exit(1);
+}
+if (!html.includes('$("seasonStageAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonStageAction").dataset.seasonAction||"season-block"))')
+  || !html.includes('$("seasonTransferAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonTransferAction").dataset.seasonAction||"transfer-review"))')) {
+  console.error("Journey interaction test failed: stable button listeners are not registered."); process.exit(1);
+}
+if (!html.includes("function openTransferMarketPage(){") || !html.includes('market.scrollIntoView({behavior:"smooth",block:"start"})')) {
+  console.error("Transfer CTA test failed: review button must open and scroll to the transfer market."); process.exit(1);
+}
 if (!html.includes("function toggleTransferShortlist(country,clubName){") || !html.includes("transferShortlist") || !html.includes("data-watch-club")) { console.error("Transfer shortlist test failed: compare-list controls are missing."); process.exit(1); }
 const favoriteBindingCount = (html.match(/\$\("leagueCatalog"\)\.addEventListener\("click",favoriteHandler\)/g) || []).length;
 if (favoriteBindingCount !== 1) { console.error("Event binding test failed: league favorite handler should be registered exactly once."); process.exit(1); }
@@ -225,5 +236,93 @@ if (!html.includes("function transferEligibilityReason(target){") || !html.inclu
 if (!html.includes('else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();') || !html.includes("else b.disabled=!!state.retired;")) {
   console.error("Action reset test failed: non-match actions must be re-enabled after starting a new career."); process.exit(1);
 }
+
+
+const extractTopLevelFunction = (source, functionName) => {
+  const start = source.indexOf("function " + functionName + "(");
+  if (start < 0) throw new Error("Missing function for interaction test: " + functionName);
+  const next = source.indexOf("\nfunction ", start + 1);
+  return source.slice(start, next < 0 ? source.length : next);
+};
+const transferJourneyFunctions = [
+  "setJourneyAction", "runSeasonJourneyAction", "renderSeasonJourney", "openTransferMarketPage"
+].map((name) => extractTopLevelFunction(html, name)).join("\n");
+const interactionState = {
+  careerStarted: true, retired: false, day: 3, season: 1, seasonApps: 2,
+  seasonGoals: 0, seasonAssists: 0, seasonPoints: 3, journeyTransferReviewed: false,
+  journeySeasonReviewed: false, journeyEventSeen: false, winterBreakPending: false,
+  freeAgent: false, diary: [], currentPage: "home", seasonSummary: ""
+};
+const interactionNodes = Object.create(null);
+let interactionSaveCount = 0;
+let marketScrollCount = 0;
+let winterModalCount = 0;
+let missingMarket = false;
+const interactionMessages = [];
+const interactionLogs = [];
+function interactionNode(id) {
+  if (!interactionNodes[id]) interactionNodes[id] = {
+    id, textContent: "", innerHTML: "", title: "", disabled: false,
+    dataset: Object.create(null), attributes: Object.create(null), scrollIntoView() { if (id === "transferMarket") marketScrollCount++; },
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+  };
+  return interactionNodes[id];
+}
+const interactionSandbox = {
+  state: interactionState,
+  $: (id) => id === "transferMarket" && missingMarket ? null : interactionNode(id),
+  setText: (id, value) => { interactionNode(id).textContent = String(value); },
+  seasonMatchTotal: () => 38,
+  seasonMidpoint: () => 19,
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 0 }),
+  saveGame: () => { interactionSaveCount++; return true; },
+  showPage: (page) => { interactionState.currentPage = page; },
+  log: (message) => interactionLogs.push(String(message)),
+  toast: (message) => interactionMessages.push(String(message)),
+  openWinterMarket: () => { winterModalCount++; },
+  playSeasonBlock: () => { interactionState.playSeasonBlockCalled = true; },
+  nextDay: () => { interactionState.nextDayCalled = true; },
+  console
+};
+vm.createContext(interactionSandbox);
+vm.runInContext(transferJourneyFunctions, interactionSandbox, { filename: "season-journey-interactions" });
+interactionSandbox.renderSeasonJourney();
+const transferCta = interactionNode("seasonStageAction");
+assert.equal(transferCta.textContent, "راجع الانتقالات", "the transfer CTA should be visible after the first two appearances");
+assert.equal(transferCta.dataset.seasonAction, "transfer-review", "the CTA must expose the transfer route");
+interactionSandbox.runSeasonJourneyAction(transferCta.dataset.seasonAction);
+assert.equal(interactionState.currentPage, "contract", "pressing review transfers must route to the contract/market page");
+assert.equal(interactionState.journeyTransferReviewed, true, "opening the market must persist the journey review milestone");
+assert.equal(marketScrollCount, 1, "the transfer route must scroll the market into view");
+assert.equal(interactionSaveCount, 1, "reviewing transfers must save the career state");
+assert.ok(interactionMessages.some((message) => message.includes("فتحت سوق الانتقالات")), "the user must get visible confirmation after navigation");
+
+interactionState.winterBreakPending = true;
+interactionSandbox.renderSeasonJourney();
+assert.equal(transferCta.dataset.seasonAction, "winter", "the winter break must switch the action to the explicit winter-decision flow");
+interactionSandbox.runSeasonJourneyAction(transferCta.dataset.seasonAction);
+assert.equal(winterModalCount, 1, "the winter CTA must open the winter choices rather than silently advancing the calendar");
+
+interactionState.winterBreakPending = false;
+interactionState.journeyTransferReviewed = false;
+interactionState.retired = true;
+interactionSandbox.renderSeasonJourney();
+assert.equal(transferCta.disabled, true, "retired careers must disable the season CTA");
+assert.equal(interactionNode("seasonTransferAction").disabled, true, "retired careers must disable the transfer CTA");
+
+interactionState.retired = false;
+interactionState.careerStarted = false;
+interactionSandbox.runSeasonJourneyAction("transfer-review");
+assert.ok(interactionMessages.some((message) => message.includes("ابدأ مسيرتك")), "transfer actions should explain why there is no career to open");
+
+interactionState.careerStarted = true;
+missingMarket = true;
+const brokenMarketState = { ...interactionState, journeyTransferReviewed: false, retired: false };
+interactionSandbox.state = brokenMarketState;
+const routeResult = interactionSandbox.openTransferMarketPage();
+assert.equal(routeResult, false, "a missing market section must fail safely");
+assert.equal(brokenMarketState.journeyTransferReviewed, false, "a missing market section must not falsely complete the transfer milestone");
+assert.ok(interactionMessages.some((message) => message.includes("صفحة السوق غير متاحة")), "missing market markup must produce an actionable error message");
+missingMarket = false;
 
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

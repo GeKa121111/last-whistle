@@ -21,7 +21,8 @@ const functions = [
   "useDailyAction",
   "advanceCalendarDays",
   "rest",
-  "talkCoach"
+  "talkCoach",
+  "openTransferMarketPage"
 ].map(extractFunction).join("\n");
 const notices = [];
 const logs = [];
@@ -30,8 +31,14 @@ const modalCalls = [];
 let saveCount = 0;
 let renderCount = 0;
 let winterMarketCalls = 0;
+let transferMarketNode = { scrollIntoView: (options) => transferScrolls.push(options) };
+const pageCalls = [];
+const transferScrolls = [];
 const sandbox = {
   state: {},
+  $: (id) => id === "transferMarket" ? transferMarketNode : null,
+  showPage: (...args) => pageCalls.push(args),
+  transferWindow: () => ({ name: "الانتقالات الصيفية" }),
   window: { LWAgentRuntime: null },
   toast: (message) => notices.push(String(message)),
   log: (message) => logs.push(String(message)),
@@ -40,7 +47,7 @@ const sandbox = {
   render: () => { renderCount++; },
   openWinterMarket: () => { winterMarketCalls++; },
   openModal: (title, text, choices) => { modalCalls.push({ title, text, choices }); },
-  console
+  console: { error: (message) => logs.push(String(message)) }
 };
 vm.createContext(sandbox);
 vm.runInContext(functions, sandbox, { filename: "actual-career-actions" });
@@ -141,4 +148,32 @@ assert.equal(sandbox.state.professionalism, 63);
 assert.equal(sandbox.state.energy, 78);
 assert.equal(sandbox.state.dailyActionUsed, true);
 
-console.log("PASS: actual rest, injury recovery, daily reset, winter pause, weekly wage boundary, coach trust/relationship choices, and once-per-day side-action guard.");
+// Transfer-market navigation must land on the real contract page and scroll to its market container.
+notices.length = 0; pageCalls.length = 0; transferScrolls.length = 0; saveCount = 0;
+transferMarketNode = { scrollIntoView: (options) => transferScrolls.push(options) };
+sandbox.state = makeState({ careerStarted: true, retired: false, journeyTransferReviewed: false });
+assert.equal(sandbox.openTransferMarketPage(), true, "eligible career should open the transfer market");
+assert.equal(sandbox.state.journeyTransferReviewed, true, "opening the market should record review state");
+assert.deepEqual(pageCalls, [["contract", false]], "transfer market must route to the contract screen without resetting scroll before the market");
+assert.equal(transferScrolls.length, 1, "market container should be brought into view");
+assert.equal(saveCount, 1, "opening the market should persist the review state");
+assert.ok(notices.some(message => message.includes("فتحت سوق الانتقالات")), "market opening should explain the successful route");
+
+// A missing market target or retired/new career must fail safely without navigating to a dead screen.
+transferMarketNode = null;
+notices.length = 0; saveCount = 0;
+const routesBeforeMissingMarket = pageCalls.length;
+sandbox.state = makeState({ careerStarted: true, retired: false });
+assert.equal(sandbox.openTransferMarketPage(), false, "missing market DOM must be rejected");
+assert.equal(pageCalls.length, routesBeforeMissingMarket, "missing market must not navigate");
+assert.equal(saveCount, 0, "missing market must not save a false review");
+assert.ok(notices.some(message => message.includes("صفحة السوق غير متاحة")), "missing market must produce a useful explanation");
+
+transferMarketNode = { scrollIntoView: () => {} };
+notices.length = 0; saveCount = 0;
+sandbox.state = makeState({ careerStarted: false, retired: false });
+assert.equal(sandbox.openTransferMarketPage(), false, "new career without a player must not open transfers");
+sandbox.state = makeState({ careerStarted: true, retired: true });
+assert.equal(sandbox.openTransferMarketPage(), false, "retired career must not reopen transfers");
+
+console.log("PASS: rest/recovery, daily reset, winter pause, weekly wages, coach actions, and transfer-market navigation guards.");

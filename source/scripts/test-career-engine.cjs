@@ -110,7 +110,7 @@ console.log("PASS: career progression, match-history deduplication, loan contrac
 const fs = require("node:fs");
 const vm = require("node:vm");
 const deployedHtml = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
-const inlineScripts = [...deployedHtml.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(match => match[1]);
+const inlineScripts = deployedHtml.split("<script").slice(1).map(part => part.slice(part.indexOf(">") + 1, part.indexOf("</script>")));
 const careerBundle = inlineScripts.find(script => script.includes("window.LWCareer ="));
 assert.ok(careerBundle, "deployed HTML must contain the career engine");
 const deployedContext = { window: {} };

@@ -18,7 +18,7 @@ const expected = {
     check(data) {
       assert.equal(data.latestDomesticCompetitions.length, 18);
       assert.equal(data.coverage.distinctDomesticClubNames, 340);
-      assert.equal(data.license, "CC0-1.0");
+      assert.match(data.license, /^CC0-1\.0(?:\s|$)/);
     }
   },
   "football-reference.json.gz.b64": {

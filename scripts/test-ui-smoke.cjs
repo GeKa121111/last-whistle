@@ -170,4 +170,56 @@ if (!fs.existsSync(storeCssPath) || fs.statSync(storeCssPath).size < 1000) {
   process.exit(1);
 }
 
+
+
+const pageIds = [...html.matchAll(/<section class="page(?: active)?" id="page-([^"]+)"/g)].map((match) => match[1]);
+const routeBlockStart = html.indexOf("function showPage(page){");
+const routeBlockEnd = html.indexOf("\nfunction openDrawer", routeBlockStart);
+if (routeBlockStart < 0 || routeBlockEnd < 0) { console.error("Navigation test failed: showPage route handler is missing."); process.exit(1); }
+const routeBlock = html.slice(routeBlockStart, routeBlockEnd);
+const routeMatch = routeBlock.match(/const valid=\[(.*?)\]\.includes\(page\)/);
+if (!routeMatch) { console.error("Navigation test failed: allowed-page list could not be read."); process.exit(1); }
+const allowedPages = [...routeMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+for (const page of pageIds) {
+  if (!allowedPages.includes(page)) { console.error("Navigation test failed: page is not accepted by showPage:", page); process.exit(1); }
+}
+for (const page of new Set([...html.matchAll(/data-page=["']([^"']+)["']/g)].map((match) => match[1]))) {
+  if (!pageIds.includes(page)) { console.error("Navigation test failed: data-page button points to missing page:", page); process.exit(1); }
+}
+
+const transferWindowStart = html.indexOf("function transferWindow(){");
+const transferWindowEnd = html.indexOf("\nfunction cupParticipants", transferWindowStart);
+if (transferWindowStart < 0 || transferWindowEnd < 0) { console.error("Transfer test failed: transferWindow function is missing."); process.exit(1); }
+const transferWindowSource = html.slice(transferWindowStart, transferWindowEnd).trim();
+function evaluateTransferWindow(state) {
+  const sandbox = { state, seasonMatchTotal: () => 38 };
+  vm.createContext(sandbox);
+  vm.runInContext(transferWindowSource, sandbox, { filename: "transferWindow" });
+  return sandbox.transferWindow();
+}
+const summerAfterAppearances = evaluateTransferWindow({ calendarDay: 15, season: 1, seasonApps: 2, winterBreakPending: false, freeAgent: false });
+if (!summerAfterAppearances.open || summerAfterAppearances.name !== "الانتقالات الصيفية") {
+  console.error("Transfer test failed: summer window must remain open after the first appearances.", JSON.stringify(summerAfterAppearances)); process.exit(1);
+}
+const closedWindow = evaluateTransferWindow({ calendarDay: 100, season: 1, seasonApps: 12, winterBreakPending: false, freeAgent: false });
+if (closedWindow.open || closedWindow.days !== 54) { console.error("Transfer test failed: closed-window countdown is incorrect.", JSON.stringify(closedWindow)); process.exit(1); }
+const winterPause = evaluateTransferWindow({ calendarDay: 100, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
+if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open the transfer window.", JSON.stringify(winterPause)); process.exit(1); }
+
+const journeyStart = html.indexOf("function renderSeasonJourney(){");
+const journeyEnd = html.indexOf("\nfunction renderPerformanceInsights", journeyStart);
+const journeySource = html.slice(journeyStart, journeyEnd);
+if (journeyStart < 0 || journeyEnd < 0 || journeySource.includes("if(false)")) {
+  console.error("Journey test failed: journey renderer is missing or dead CTA code remains."); process.exit(1);
+}
+for (const marker of ['btn.onclick=()=>openWinterMarket()', 'transferBtn.disabled=!!state.retired', 'btn.textContent="راجع الانتقالات"']) {
+  if (!journeySource.includes(marker)) { console.error("Journey test failed: missing transfer CTA behavior:", marker); process.exit(1); }
+}
+if (!html.includes("function transferEligibilityReason(target){") || !html.includes("transferMarketNotice")) {
+  console.error("Transfer test failed: actionable eligibility reasons or market status are missing."); process.exit(1);
+}
+if (!html.includes('else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();') || !html.includes("else b.disabled=!!state.retired;")) {
+  console.error("Action reset test failed: non-match actions must be re-enabled after starting a new career."); process.exit(1);
+}
+
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

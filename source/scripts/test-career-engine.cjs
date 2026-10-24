@@ -104,3 +104,54 @@ assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, 
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "tournament-closed");
 
 console.log("PASS: career progression, match-history deduplication, loan contracts, purchase gates, renewal, retirement, training guard, and international tournament lifecycle.");
+
+
+// The career engine embedded in the deployed HTML must stay behaviorally aligned with source.
+const fs = require("node:fs");
+const vm = require("node:vm");
+const deployedHtml = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
+const inlineScripts = [...deployedHtml.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(match => match[1]);
+const careerBundle = inlineScripts.find(script => script.includes("window.LWCareer ="));
+assert.ok(careerBundle, "deployed HTML must contain the career engine");
+const deployedContext = { window: {} };
+vm.createContext(deployedContext);
+vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
+const deployedCareer = deployedContext.window.LWCareer;
+assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+for (const position of Object.keys(expectedPlans)) {
+  assert.equal(JSON.stringify(deployedCareer.positionDevelopmentPlan({ pos: position })),
+    JSON.stringify(career.positionDevelopmentPlan({ pos: position })),
+    "deployed/source development plan drift for " + position);
+  for (const skill of ["goalkeeping", "defending", "speed", "fitness", "passing", "vision", "composure", "dribbling", "shooting"]) {
+    assert.equal(deployedCareer.trainingFocusMultiplier({ pos: position }, skill),
+      career.trainingFocusMultiplier({ pos: position }, skill),
+      "deployed/source training multiplier drift for " + position + "/" + skill);
+  }
+}
+
+const parityState = () => ({
+  pos: "مهاجم", age: 24, season: 2, apps: 0, money: 1000, weeklyWage: 500,
+  contractSeasons: 3, freeAgent: false, daysSinceNegotiation: 7,
+  shooting: 65, dribbling: 60, passing: 58, speed: 62, fitness: 64, composure: 65,
+  vision: 60, goalkeeping: 45, defending: 45, energy: 100, fatigue: 0,
+  playerPotential: 88, randomSeed: 1234, careerAwards: [], seasonLog: [], careerMatchHistory: [],
+  playedToday: false, trainedToday: false, injuryDays: 0, trainingIntensity: "normal", progressionMatchIds: []
+});
+const sourceParityState = parityState();
+const deployedParityState = parityState();
+const parityMatch = { matchId: "deployed-parity-001", minutes: 83, rating: 7.6, goals: 1, assists: 0, competitionKey: "league|parity" };
+assert.equal(JSON.stringify(deployedCareer.matchDevelopment(deployedParityState, parityMatch)),
+  JSON.stringify(career.matchDevelopment(sourceParityState, parityMatch)),
+  "deployed/source match progression result must match");
+assert.equal(JSON.stringify(deployedParityState), JSON.stringify(sourceParityState),
+  "deployed/source match progression state must match");
+
+const sourcePurchaseState = { money: 1000, retired: false, speed: 60, dribbling: 60 };
+const deployedPurchaseState = { ...sourcePurchaseState };
+const purchaseItem = { id: "speedBoots", price: 250 };
+assert.equal(JSON.stringify(deployedCareer.purchaseItem(deployedPurchaseState, purchaseItem)),
+  JSON.stringify(career.purchaseItem(sourcePurchaseState, purchaseItem)),
+  "deployed/source purchase result must match");
+assert.equal(JSON.stringify(deployedPurchaseState), JSON.stringify(sourcePurchaseState),
+  "deployed/source purchase state must match");

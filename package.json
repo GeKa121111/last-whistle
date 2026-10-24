@@ -4,7 +4,7 @@
   "private": true,
   "description": "Last Whistle static game with UI and match/career/data regression checks",
   "scripts": {
-    "test": "node scripts/test-ui-smoke.cjs && node scripts/test-ui-interactions.cjs && node source/scripts/test-match-engine.cjs && node source/scripts/test-career-engine.cjs && node source/scripts/test-data-snapshots.cjs",
+    "test": "node scripts/test-ui-smoke.cjs && node scripts/test-ui-interactions.cjs && node scripts/test-world-db.cjs && node source/scripts/test-match-engine.cjs && node source/scripts/test-career-engine.cjs && node source/scripts/test-data-snapshots.cjs",
     "build": "node scripts/build-static.cjs"
   },
   "engines": {

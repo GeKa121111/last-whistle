@@ -10,10 +10,10 @@ assert.ok(career, "career engine must export LWCareer");
 const expectedPlans = {
   "حارس مرمى": { primary: "goalkeeping", secondary: ["composure", "passing", "fitness"] },
   "قلب دفاع": { primary: "defending", secondary: ["composure", "fitness", "passing"] },
-  "ظهير": { primary: "speed", secondary: ["fitness", "passing", "defending"] },
-  "وسط دفاعي": { primary: "defending", secondary: ["passing", "vision", "fitness", "composure"] },
-  "وسط مهاجم": { primary: "vision", secondary: ["passing", "composure", "dribbling", "shooting"] },
-  "جناح": { primary: "dribbling", secondary: ["speed", "shooting", "vision", "fitness"] },
+  "ظهير": { primary: "speed", secondary: ["passing", "defending"] },
+  "وسط دفاعي": { primary: "defending", secondary: ["vision", "fitness", "composure"] },
+  "وسط مهاجم": { primary: "vision", secondary: ["composure", "dribbling", "shooting"] },
+  "جناح": { primary: "dribbling", secondary: ["shooting", "vision", "fitness"] },
   "مهاجم": { primary: "shooting", secondary: ["composure", "speed", "vision"] }
 };
 for (const [position, expected] of Object.entries(expectedPlans)) {

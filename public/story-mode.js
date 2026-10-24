@@ -142,7 +142,7 @@ function eligibleEvents(s){
       var injuryDef=eventDefs.filter(function(d){return d.id==="injury-choice";})[0];
       if(injuryDef){
         var custom=actualEvent(injuryDef,s);custom.id=injuryId;
-        list.push(custom);
+        list.unshift(custom);
       }
     }
   }

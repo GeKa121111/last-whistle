@@ -50,6 +50,12 @@ const wingerStats = career.startingStatsForPosition("جناح", () => 0.5);
 const keeperStats = career.startingStatsForPosition("حارس مرمى", () => 0.5);
 assert.ok(keeperStats.goalkeeping > wingerStats.goalkeeping, "keeper OVR should reward goalkeeping instead of averaging all skills equally");
 assert.ok(wingerStats.shooting > wingerStats.goalkeeping, "winger must not start with goalkeeper-level stats");
+const wingerBase = { ...wingerStats, pos: "جناح", trainingXP: {}, randomSeed: 1, playerPotential: 85 };
+const wingerWithEliteKeeping = { ...wingerBase, goalkeeping: 99 };
+assert.equal(career.overall(wingerBase), career.overall(wingerWithEliteKeeping), "irrelevant goalkeeper stats must not inflate a winger's OVR");
+const keeperBase = { ...keeperStats, pos: "حارس مرمى", trainingXP: {}, randomSeed: 1, playerPotential: 85 };
+const keeperWithEliteShooting = { ...keeperBase, shooting: 99 };
+assert.equal(career.overall(keeperBase), career.overall(keeperWithEliteShooting), "irrelevant shooting stats must not inflate a goalkeeper's OVR");
 assert.equal(career.trainingFocusMultiplier({ pos: "قلب دفاع" }, "physical"), 1.2, "physical training is a primary defender focus");
 assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "physical"), 1);
 
@@ -59,7 +65,9 @@ const deduped = career.uniqueMatchRows([
   { id: "match-2", minutes: 30 }
 ]);
 assert.equal(deduped.length, 2, "match history must deduplicate explicit match IDs");
-assert.equal(career.leagueMatchTarget(20), 38);
+assert.equal(career.leagueMatchTarget(16), 30, "a 16-team league must schedule 30 matches");
+assert.equal(career.leagueMatchTarget(18), 34, "an 18-team league must schedule 34 matches");
+assert.equal(career.leagueMatchTarget(20), 38, "a 20-team league must schedule 38 matches");
 assert.equal(career.leagueMatchDaysRemaining(10, 14, 7), 3);
 assert.equal(career.leagueMatchDaysRemaining(10, 14, 5), 1, "the new calendar enforces a 5-day league gap");
 assert.equal(career.leagueMatchDaysRemaining(10, 14), 1, "the default league match gap is five days");

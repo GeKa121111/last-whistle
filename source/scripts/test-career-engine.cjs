@@ -61,6 +61,8 @@ const deduped = career.uniqueMatchRows([
 assert.equal(deduped.length, 2, "match history must deduplicate explicit match IDs");
 assert.equal(career.leagueMatchTarget(20), 38);
 assert.equal(career.leagueMatchDaysRemaining(10, 14, 7), 3);
+assert.equal(career.leagueMatchDaysRemaining(10, 14, 5), 1, "the new calendar enforces a 5-day league gap");
+assert.equal(career.leagueMatchDaysRemaining(10, 15, 5), 0, "a league match is available after five elapsed days");
 assert.equal(career.normalizeLeagueRoundIndex(undefined, [{ matchday: 7 }, { matchday: 9 }], 8, 30), 9);
 assert.equal(career.normalizeLeagueRoundIndex(99, [], 0, 12), 12);
 

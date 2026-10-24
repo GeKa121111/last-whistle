@@ -553,6 +553,6 @@
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
-    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
+    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
   };
 })();

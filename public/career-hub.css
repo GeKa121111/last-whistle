@@ -136,3 +136,18 @@ body.lw-rebuild .hub-recovery-action button:disabled{opacity:.42}
  body.lw-rebuild .hub-readiness-score{align-self:flex-end;min-height:60px}
 }
 @media(prefers-reduced-motion:reduce){body.lw-rebuild .hub-tile{transition:none}}
+/* Transfer market: reliable deep-link target and clear compare actions. */
+body.lw-rebuild #transferMarket{scroll-margin-top:104px}
+body.lw-rebuild .transferShortlistCard{grid-column:1/-1;border-color:#b8c9ed;background:linear-gradient(145deg,#f8fbff,#eef4ff)}
+body.lw-rebuild .transferShortlistHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:9px}
+body.lw-rebuild .transferShortlistHead h4{margin:0;color:#1e3453;font-size:13px}
+body.lw-rebuild .transferShortlistHead p{margin:4px 0 0;color:#6f8098;font-size:10px}
+body.lw-rebuild .transferShortlistRow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #dbe5f4}
+body.lw-rebuild .transferShortlistRow>div:first-child{min-width:0}
+body.lw-rebuild .transferShortlistRow b{display:block;color:#253c5b;font-size:11px}
+body.lw-rebuild .transferShortlistRow small{display:block;color:#7787a0;font-size:9px;margin-top:3px}
+body.lw-rebuild .transferShortlistNumbers{text-align:left;white-space:nowrap}
+body.lw-rebuild .transfer-card-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+body.lw-rebuild .transfer-card-actions .btn{flex:1 1 135px;min-width:0}
+body.lw-rebuild .transfer-card-actions .btn:disabled{opacity:.45}
+@media(max-width:520px){body.lw-rebuild .transferShortlistRow{grid-template-columns:minmax(0,1fr) auto;gap:8px}body.lw-rebuild .transferShortlistRow .btn{grid-column:1/-1;width:100%}body.lw-rebuild .transferShortlistNumbers{text-align:right}}

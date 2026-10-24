@@ -173,7 +173,7 @@ if (!fs.existsSync(storeCssPath) || fs.statSync(storeCssPath).size < 1000) {
 
 
 const pageIds = [...html.matchAll(/<section class="page(?: active)?" id="page-([^"]+)"/g)].map((match) => match[1]);
-const routeBlockStart = html.indexOf("function showPage(page){");
+const routeBlockStart = html.indexOf("function showPage(page, scrollTop=true){");
 const routeBlockEnd = html.indexOf("\nfunction openDrawer", routeBlockStart);
 if (routeBlockStart < 0 || routeBlockEnd < 0) { console.error("Navigation test failed: showPage route handler is missing."); process.exit(1); }
 const routeBlock = html.slice(routeBlockStart, routeBlockEnd);
@@ -212,9 +212,13 @@ const journeySource = html.slice(journeyStart, journeyEnd);
 if (journeyStart < 0 || journeyEnd < 0 || journeySource.includes("if(false)")) {
   console.error("Journey test failed: journey renderer is missing or dead CTA code remains."); process.exit(1);
 }
-for (const marker of ['btn.onclick=()=>openWinterMarket()', 'transferBtn.disabled=!!state.retired', 'btn.textContent="راجع الانتقالات"']) {
+for (const marker of ['btn.onclick=()=>state.winterBreakPending?openWinterMarket():openTransferMarketPage()', 'transferBtn.disabled=!!state.retired', 'btn.textContent="راجع الانتقالات"']) {
   if (!journeySource.includes(marker)) { console.error("Journey test failed: missing transfer CTA behavior:", marker); process.exit(1); }
 }
+if (!html.includes("function openTransferMarketPage(){") || !html.includes('market.scrollIntoView({behavior:"smooth",block:"start"})')) { console.error("Transfer CTA test failed: review button must open and scroll to the transfer market."); process.exit(1); }
+if (!html.includes("function toggleTransferShortlist(country,clubName){") || !html.includes("transferShortlist") || !html.includes("data-watch-club")) { console.error("Transfer shortlist test failed: compare-list controls are missing."); process.exit(1); }
+const favoriteBindingCount = (html.match(/\$\("leagueCatalog"\)\.addEventListener\("click",favoriteHandler\)/g) || []).length;
+if (favoriteBindingCount !== 1) { console.error("Event binding test failed: league favorite handler should be registered exactly once."); process.exit(1); }
 if (!html.includes("function transferEligibilityReason(target){") || !html.includes("transferMarketNotice")) {
   console.error("Transfer test failed: actionable eligibility reasons or market status are missing."); process.exit(1);
 }

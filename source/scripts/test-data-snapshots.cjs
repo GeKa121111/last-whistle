@@ -39,9 +39,14 @@ for (const [filename, definition] of Object.entries(expected)) {
   assert.ok(encoded.length > 0, filename + " must not be empty");
   assert.match(encoded, /^[A-Za-z0-9+/]+={0,2}$/, filename + " must be base64");
   const bytes = Buffer.from(encoded, "base64");
-  const jsonText = zlib.gunzipSync(bytes).toString("utf8");
-  const data = JSON.parse(jsonText);
-  definition.check(data);
+  let jsonText;
+  try { jsonText = zlib.gunzipSync(bytes).toString("utf8"); }
+  catch (error) { throw new Error(filename + " failed gzip integrity: " + error.message); }
+  let data;
+  try { data = JSON.parse(jsonText); }
+  catch (error) { throw new Error(filename + " decompressed but is not JSON: " + error.message); }
+  try { definition.check(data); }
+  catch (error) { throw new Error(filename + " failed data checks: " + error.message); }
 }
 
 global.window = global;

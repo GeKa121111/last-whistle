@@ -122,7 +122,7 @@
     {name:"ريفر بليت",aliases:["River Plate","Club Atlético River Plate"],country:"الأرجنتين",leagueId:"argentina",ovr:82,prestige:94,stars:["أنخيل كوريا","تياغو ألمادا","سيباستيان دروسي","غونزالو مونتييل","ماركوس أكونيا","نيكولاس أوتاميندي","فاوستو فيرا","أنبال مورينو","لوكاس بيلتران","رافائيل بوري"]},
     {name:"بوكا جونيورز",aliases:["Boca Juniors","CA Boca Juniors"],country:"الأرجنتين",leagueId:"argentina",ovr:81,prestige:96,stars:["لياندرو باريديس","ميغيل ميرينتييل","ميلتون خيمينيز","كيفن زينون","رودريغو باتاغليا","آلان فيلاسكو","آلفارو مونتيرو","أنخل روميرو","سيباستيان فيا"]},
     {name:"راسينغ كلوب",aliases:["Racing Club","Racing Club de Avellaneda"],country:"الأرجنتين",leagueId:"argentina",ovr:78,prestige:85,stars:["أدريان مارتينيز","خوان فيرنانديز"]},
-    {name:"إنديبندينتي",aliases:["Independiente","CA Independiente"],country:"الأرجنتين",leagueId:"argentina",ovr:76,prestige:89,stars:["إيفان ماركوني","غابرييل أفيليس"]}
+    {name:"إنديبندينتي",aliases:["Independiente","CA Independiente"],country:"الأرجنتين",leagueId:"argentina",ovr:76,prestige:89,stars:["إيفان ماركوني","غابرييل أفيليس"]},
     {name:"كوفنتري سيتي",aliases:["Coventry City"],country:"إنجلترا",leagueId:"england",division:2,ovr:68,prestige:66,stars:[]},
     {name:"برمنغهام سيتي",aliases:["Birmingham City"],country:"إنجلترا",leagueId:"england",division:2,ovr:65,prestige:69,stars:[]},
     {name:"ريكسهام",aliases:["Wrexham AFC","Wrexham"],country:"إنجلترا",leagueId:"england",division:2,ovr:63,prestige:58,stars:[]},

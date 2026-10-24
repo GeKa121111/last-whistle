@@ -139,7 +139,7 @@
           if (!isGoal) {
             if (!isOurs && keeperActive && minute <= minutes && shotEvent.onTarget) {
               stats.saves++;
-              events.push({ type: "save", minute, side: "team", actor: String(player.name || "حارس اللاعب") });
+              events.push({ type: "save", minute, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
             }
             continue;
           }
@@ -151,7 +151,7 @@
           if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.12, 0.07, 0.34)) {
             stats.assists++;
             stats.keyPasses++;
-            events.push({ type: "assist", minute: Math.max(1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute });
+            events.push({ type: "assist", minute: Math.max(1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
           }
         }
       }
@@ -205,7 +205,10 @@
     if (minutes > 0 && minutes < 90 && !redCard && !injured) events.push({ type: "substitution", minute: minutes, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
     if (redCard) events.push({ type: "substitution", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد" });
-    events.sort((a, b) => a.minute - b.minute);
+    const sameMinutePriority = event =>
+      event.type === "red-card" || event.type === "injury" ? 1
+        : event.type === "substitution" && event.side === "player" ? 2 : 0;
+    events.sort((a, b) => a.minute - b.minute || sameMinutePriority(a) - sameMinutePriority(b));
     return {
       home: Boolean(options.home), teamName, opponentName, tactic, regulation, extraTime, shootout,
       score: { for: finalFor, against: finalAgainst },
@@ -225,6 +228,14 @@
       && ["red-card", "injury", "yellow-card", "tackle", "interception"].includes(event.type));
     const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
       && Number(event.minute) <= Number(result.player.minutes));
+    const eventsChronological = result.events.every((event, index) => index === 0
+      || Number(result.events[index - 1].minute) <= Number(event.minute));
+    const exitIndex = result.events.findIndex(event => event.side === "player"
+      && ["red-card", "injury", "substitution"].includes(event.type));
+    const isPlayerActivityEvent = event => event.creditedToPlayer === true
+      || (event.side === "player" && ["yellow-card", "tackle", "interception"].includes(event.type));
+    const noPlayerActivityAfterExit = exitIndex < 0
+      || !result.events.slice(exitIndex + 1).some(isPlayerActivityEvent);
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;
     const yellowCards = result.events.filter(event => event.type === "yellow-card" && event.side === "player").length;
     const injuries = result.events.filter(event => event.type === "injury" && event.side === "player").length;
@@ -233,10 +244,11 @@
       && result.player.goals <= shots && result.player.assists <= teamGoals
       && (!positionProfile(result.metadata?.position || "").goalkeeper || result.player.goals === 0)
       && result.player.shots === shots && playerEventsInBounds
+      && eventsChronological && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, playerEventsInBounds, redCards, yellowCards, injuries };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries };
   }
   window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile };
 })();

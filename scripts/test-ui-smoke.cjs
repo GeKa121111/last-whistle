@@ -215,6 +215,8 @@ if (journeyStart < 0 || journeyEnd < 0 || journeySource.includes("if(false)")) {
 for (const marker of ['btn.onclick=()=>openWinterMarket()', 'transferBtn.disabled=!!state.retired', 'btn.textContent="راجع الانتقالات"']) {
   if (!journeySource.includes(marker)) { console.error("Journey test failed: missing transfer CTA behavior:", marker); process.exit(1); }
 }
+if (!html.includes("transferRecommendations") || !html.includes("transferRecommendationStatus") || !html.includes("prioritizeTargets(state,candidates)")) { console.error("Transfer shortlist test failed: recommendation panel and agent strategy integration must remain available."); process.exit(1); }
+if (!html.includes('$("transferRecommendations").addEventListener("click",transferClickHandler)')) { console.error("Transfer shortlist test failed: recommendation buttons must route into the transfer request handler."); process.exit(1); }
 if (!html.includes("function transferEligibilityReason(target){") || !html.includes("transferMarketNotice")) {
   console.error("Transfer test failed: actionable eligibility reasons or market status are missing."); process.exit(1);
 }

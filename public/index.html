@@ -1030,7 +1030,8 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
         <article class="card span6"><h2>⚽ المنافسة على مركزك</h2><p class="muted small">تقييم افتراضي للمنافسة على دورك حسب مستواك وفورمتك وثقة المدرب، وليس قائمة أسماء حقيقية.</p><div id="squadCompetition" class="eventFeed"></div></article>
         <article class="card span6"><h2>🤝 الرعاية والإعلانات</h2><p class="muted small" id="sponsorStatus">تقدر تفاوض على عقد رعاية مرتبط بمشاركاتك وسمعتك.</p><button class="btn primary" id="sponsorBtn" type="button">تفاوض على عقد رعاية</button></article>
         <article class="card span6"><h2>📈 سلم الأندية</h2><p class="muted small">كل نقلة أصعب من اللي قبلها. لازم تثبت إنك جاهز، والعروض مش بتتكرر كل يوم.</p><div id="clubLadder"></div></article>
-        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p><div class="marketTools"><input id="transferSearch" placeholder="ابحث عن نادي أو دوري أو دولة"><span class="pill" id="transferMarketCount">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid"></div></article>
+        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p>
+<div class="sectionNote" style="margin:12px 0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>ترشيحات مناسبة لمسيرتك</b><span class="pill indigo" id="transferRecommendationStatus">بيتم تحليل السوق</span></div><p class="muted tiny" style="margin:6px 0 9px">أفضل 3 وجهات حسب مستواك وملاءمة المركز؛ ولو عندك وكيل، هنراعي طريقته في ترتيب الأندية. الترشيح تقدير داخل اللعبة وليس عرض انتقال حقيقي.</p><div id="transferRecommendations" class="dataGrid"></div></div><div class="marketTools"><input id="transferSearch" placeholder="ابحث عن نادي أو دوري أو دولة"><span class="pill" id="transferMarketCount">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid"></div></article>
         <article class="card span12"><h2>📑 تاريخ العقود والانتقالات</h2><div id="transferHistory" class="eventFeed"></div></article>
       </div>
     </section>
@@ -2630,6 +2631,29 @@ function renderTransferMarket(){
  const box=$("transferMarket");if(!box||!window.LWCatalog)return;
  const q=($("transferSearch")?.value||"").trim().toLocaleLowerCase();
  const targets=transferTargets().filter(target=>!q||[target.country,target.club,target.league,target.season].join(" ").toLocaleLowerCase().includes(q));
+ const recoStatus=$("transferRecommendationStatus"),recoBox=$("transferRecommendations");
+ const candidates=targets.filter(target=>!(target.club===state.clubName&&target.country===state.leagueCountry));
+ let recommendationPool=candidates;
+ if(state.agent&&state.agentProfile&&window.LWAgentRuntime?.prioritizeTargets){
+  const agentTargets=window.LWAgentRuntime.prioritizeTargets(state,candidates);
+  if(Array.isArray(agentTargets)&&agentTargets.length)recommendationPool=agentTargets;
+ }else{
+  recommendationPool=candidates.slice().sort((a,b)=>transferChance(b)-transferChance(a)
+    ||transferFactors(b).positionFit-transferFactors(a).positionFit
+    ||a.club.localeCompare(b.club));
+ }
+ const recommendations=recommendationPool.slice(0,3);
+ if(recoStatus)recoStatus.textContent=recommendations.length
+   ?(state.agent&&state.agentProfile?"مرتبة حسب خطة الوكيل":"مرتبة حسب فرص القبول والملاءمة")
+   :"لا توجد وجهات مطابقة للبحث";
+ if(recoBox)recoBox.innerHTML=recommendations.map(target=>{
+  const eligible=transferEligible(target),fit=transferFactors(target),chance=transferChance(target);
+  const gap=(Number(target.power)||50)-overall();
+  const stepLabel=gap<=-8?"تحدٍ أقرب لمستواك":gap<=8?"خطوة مناسبة":gap<=18?"قفزة طموحة":"تحدٍ مرتفع";
+  const fitLabel=fit.positionFit>=85?"ملاءمة مركز مرتفعة":fit.positionFit>=70?"ملاءمة مركز جيدة":"ملاءمة مركز محدودة";
+  const reason=eligible?"جاهز لطلب الانتقال الآن":transferEligibilityReason(target);
+  return '<div class="dataCard transferRecommendation"><h4>'+safeHTML(target.club)+'</h4><p>'+safeHTML(target.country)+' • '+safeHTML(target.league)+'<br>قوة النادي '+target.power+'/100 • فرصة قبول تقديرية '+chance+'%<br>'+fitLabel+' • '+stepLabel+'<br>راتب مقترح '+transferWage(target)+' جنيه/أسبوع</p><button class="btn '+(eligible?"primary":"")+'" data-transfer-country="'+safeHTML(target.country)+'" data-transfer-club="'+safeHTML(target.club)+'" '+(eligible?"":"disabled")+'>'+(eligible?"اطلب انتقالًا الآن":"غير متاح حاليًا")+'</button><p class="muted tiny" style="margin:7px 0 0">'+safeHTML(reason)+'</p></div>';
+ }).join("")||'<div class="empty">استخدم البحث باسم نادٍ أو دولة، أو انتظر حتى تتوفر وجهات في الكتالوج.</div>';
  const windowInfo=transferWindow();
  const availableCount=targets.filter(transferEligible).length;
  const marketStatus=state.retired?"المسيرة انتهت":windowInfo.open?windowInfo.name+" مفتوحة":state.freeAgent?"لاعب حر — السوق متاح":windowInfo.name+" بعد "+windowInfo.days+" يوم";
@@ -3751,7 +3775,7 @@ function bind(){
  $("trainingIntensity").addEventListener("change",e=>{state.trainingIntensity=e.target.value;saveGame(true);toast("اتحفظت شدة التدريب للمسيرة.");});
  const favoriteHandler=e=>{const b=e.target.closest("[data-favorite-league]");if(!b)return;state.favoriteLeague=b.dataset.favoriteLeague;saveGame(true);toast("اتسجل "+state.favoriteLeague+" كدوري مفضل.");};
  $("leagueCatalog").addEventListener("click",favoriteHandler);$("playableLeagueCatalog").addEventListener("click",favoriteHandler);
- $("transferMarket").addEventListener("click",e=>{const b=e.target.closest("[data-transfer-club]");if(b)requestTransferToClub(b.dataset.transferCountry,b.dataset.transferClub);});$("requestLoanBtn").addEventListener("click",requestLoan);
+ const transferClickHandler=e=>{const b=e.target.closest("[data-transfer-club]");if(b)requestTransferToClub(b.dataset.transferCountry,b.dataset.transferClub);};$("transferMarket").addEventListener("click",transferClickHandler);$("transferRecommendations").addEventListener("click",transferClickHandler);$("requestLoanBtn").addEventListener("click",requestLoan);
  $("cupCatalog").addEventListener("click",e=>{const b=e.target.closest("[data-enter-cup]");if(b)enterCup(b.dataset.enterCup);});
  $("cupActive").addEventListener("click",e=>{if(e.target.closest("[data-play-cup]"))playCupMatch();});
 

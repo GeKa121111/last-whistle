@@ -173,7 +173,7 @@ if (!fs.existsSync(storeCssPath) || fs.statSync(storeCssPath).size < 1000) {
 
 
 const pageIds = [...html.matchAll(/<section class="page(?: active)?" id="page-([^"]+)"/g)].map((match) => match[1]);
-const routeBlockStart = html.indexOf("function showPage(page){");
+const routeBlockStart = html.indexOf("function showPage(page, scrollTop=true){");
 const routeBlockEnd = html.indexOf("\nfunction openDrawer", routeBlockStart);
 if (routeBlockStart < 0 || routeBlockEnd < 0) { console.error("Navigation test failed: showPage route handler is missing."); process.exit(1); }
 const routeBlock = html.slice(routeBlockStart, routeBlockEnd);

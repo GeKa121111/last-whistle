@@ -2377,7 +2377,7 @@ function competitionLockReason(comp) {
    "uefa-super-cup":["UEFA Champions League","UEFA Europa League"],
    "caf-super-cup":["CAF Champions League","CAF Confederation Cup"]
   };
-  if (rank === 1 || hasPreviousSeasonClubTitle(winners[comp.id] || [])) return "";
+  if (((comp.id !== "uefa-super-cup" && comp.id !== "caf-super-cup") && rank === 1) || hasPreviousSeasonClubTitle(winners[comp.id] || [])) return "";
   return "السوبر بطولة مشروطة: لازم تكون بطل الدوري أو أحد البطولات المؤهلة في الموسم السابق.";
  }
  if (comp.kind === "world") {
@@ -3227,7 +3227,7 @@ function renderEurope(){
  const w=transferWindow();
  $("transferWindowBanner").textContent=w.open?`🟢 ${w.name} مفتوحة — ${calendarDateLabel()}. عروض المحاكاة مرتبطة بالأداء.`:`🔒 ${w.name} — ${calendarDateLabel()}. أقرب نافذة بعد حوالي ${w.days} يوم.`;
  renderGlobalCatalog();
- const cups=$("cupCatalog");if(cups)cups.innerHTML=competitionsForCurrentClub().map(c=>{const lock=competitionLockReason(c);return `<div class="leagueCountry"><h3>🏆 ${safeHTML(c.name)}</h3><p>${safeHTML(c.region)} • ${safeHTML(c.format)}</p><p>أندية مستخدمة في المحاكاة: ${(Array.isArray(c.teams)?c.teams:[]).map(safeHTML).join("، ")}</p><p class="muted small">${safeHTML(c.qualification||"تتحدد المشاركة وفق لائحة البطولة والموسم.")}</p>${c.officialUrl?`<p><a href="${safeHTML(c.officialUrl)}" target="_blank" rel="noopener noreferrer">الموقع الرسمي للبطولة</a></p>`:""}<p class="muted small">${safeHTML(c.simulationRatingNote||"المباريات داخل اللعبة محاكاة، وليست جدولًا أو قرعة رسمية حية.")}</p>${lock?`<p class="muted small">${safeHTML(lock)}</p>`:""}<button class="btn" data-enter-cup="${safeHTML(c.name)}" ${lock?'disabled aria-disabled="true" title="'+ ' ${safeHTML(lock)} ' +'"':''}>${lock?"مقفولة حاليًا":"ابدأ محاكاة البطولة"}</button></div>`}).join("");
+ const cups=$("cupCatalog");if(cups)cups.innerHTML=competitionsForCurrentClub().map(c=>{const lock=competitionLockReason(c);return `<div class="leagueCountry"><h3>🏆 ${safeHTML(c.name)}</h3><p>${safeHTML(c.region)} • ${safeHTML(c.format)}</p><p>أندية مستخدمة في المحاكاة: ${(Array.isArray(c.teams)?c.teams:[]).map(safeHTML).join("، ")}</p><p class="muted small">${safeHTML(c.qualification||"تتحدد المشاركة وفق لائحة البطولة والموسم.")}</p>${c.officialUrl?`<p><a href="${safeHTML(c.officialUrl)}" target="_blank" rel="noopener noreferrer">الموقع الرسمي للبطولة</a></p>`:""}<p class="muted small">${safeHTML(c.simulationRatingNote||"المباريات داخل اللعبة محاكاة، وليست جدولًا أو قرعة رسمية حية.")}</p>${lock?`<p class="muted small">${safeHTML(lock)}</p>`:""}<button class="btn" data-enter-cup="${safeHTML(c.name)}" ${lock?'disabled aria-disabled="true" title="'+safeHTML(lock)+'"':''}>${lock?"مقفولة حاليًا":"ابدأ محاكاة البطولة"}</button></div>`}).join("");
  renderActiveCup();
  const box=$("realPlayerCatalog");if(box){box.innerHTML=`<label for="realPlayerTeam">اختار نادي</label><select id="realPlayerTeam">${Object.keys(REAL_PLAYERS).map(n=>`<option>${safeHTML(n)}</option>`).join("")}</select><div id="realPlayerNames" class="playerNames"></div>`;const sel=$("realPlayerTeam");const paint=()=>{$("realPlayerNames").innerHTML=(REAL_PLAYERS[sel.value]||[]).map((n,i)=>`<span class="pill">${i+1}. ${safeHTML(n)}</span>`).join("");};sel.addEventListener("change",paint);paint();}
 }

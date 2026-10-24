@@ -22,8 +22,6 @@ const required = [
   "career-experience.js?v=1",
   "career-experience.css?v=1",
   "storyPendingId",
-  "data-lwcx-action",
-  "careerWorld",
   "window.LWStoryRuntime =",
   'class="page active"'
 ];
@@ -70,7 +68,7 @@ try {
   console.error("Career experience JavaScript syntax error:", error.message);
   process.exit(1);
 }
-for (const marker of ["open-penalty", "open-timing", "open-memory", "invest-safe", "invest-risky", "mentor-coach", "open-legacy", "settleInvestments"]) {
+for (const marker of ["data-lwcx-action", "careerWorld", "open-penalty", "open-timing", "open-memory", "invest-safe", "invest-risky", "mentor-coach", "open-legacy", "settleInvestments"]) {
   if (!experienceSource.includes(marker)) {
     console.error("Career experience test failed. Missing marker:", marker);
     process.exit(1);

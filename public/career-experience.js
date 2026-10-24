@@ -72,8 +72,7 @@
       s.diary.unshift({ season: row.season, day: row.day, type: row.title, text: row.text });
       s.diary = s.diary.slice(0, 40);
     }
-    var api = API();
-    if (api && api.log) api.log(row.title + ": " + row.text);
+    // The game diary entry above is the source of truth; avoid logging it twice.
   }
 
   function save(s, message) {
@@ -132,9 +131,9 @@
     var actions = panel.querySelectorAll("button[data-lwcx-action]");
     actions.forEach(function (button) {
       var action = button.getAttribute("data-lwcx-action");
-      if (action === "open-challenges") button.disabled = !!s.retired;
-      if (action === "open-mentor") button.disabled = !!s.retired;
-      if (action === "open-finance") button.disabled = !!s.retired;
+      if (action === "open-challenges") button.disabled = !!s.retired || !s.careerStarted;
+      if (action === "open-mentor") button.disabled = !!s.retired || !s.careerStarted;
+      if (action === "open-finance") button.disabled = !!s.retired || !s.careerStarted;
     });
   }
 
@@ -369,8 +368,8 @@
     frame("إدارة المال والاستثمار", "IN-GAME ECONOMY",
       '<div class="lwcx-balance"><span>رصيدك الحالي</span><strong>' + Math.max(0, Number(s.money) || 0).toLocaleString("en-US") + ' <small>جنيه</small></strong><p>كل المبالغ افتراضية داخل اللعبة فقط.</p></div>' +
       '<div class="lwcx-options">' +
-        actionButton("invest-safe", "ادخار آمن", "حجز 100 جنيه لمدة 7 أيام؛ تسترد 118 جنيهًا عند الاستحقاق.", (Number(s.money) < 100 || s.retired) ? ' disabled' : '') +
-        actionButton("invest-risky", "استثمار عالي المخاطرة", "حجز 200 جنيه لمدة 10 أيام؛ العائد أعلى أو أقل من المبلغ حسب النتيجة.", (Number(s.money) < 200 || s.retired) ? ' disabled' : '') +
+        actionButton("invest-safe", "ادخار آمن", "حجز 100 جنيه لمدة 7 أيام؛ تسترد 118 جنيهًا عند الاستحقاق.", (Number(s.money) < 100 || s.retired || !s.careerStarted || open.length >= 5) ? ' disabled' : '') +
+        actionButton("invest-risky", "استثمار عالي المخاطرة", "حجز 200 جنيه لمدة 10 أيام؛ العائد أعلى أو أقل من المبلغ حسب النتيجة.", (Number(s.money) < 200 || s.retired || !s.careerStarted || open.length >= 5) ? ' disabled' : '') +
         actionButton("training-skill", "حصة مدرب متخصص", "تكلفة 180 جنيهًا و8 طاقة؛ تطوّر مهارة تختارها فورًا.", (Number(s.money) < 180 || s.energy < 8 || s.injuryDays > 0 || s.retired) ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>محفظة الاستثمار</strong><span>' + open.length + ' عملية مفتوحة</span></div>' + list,
       "العوائد تتسجل داخل الحفظ؛ الادخار والاستثمار مش مربوطين بفلوس حقيقية أو مدفوعات.");
@@ -553,6 +552,10 @@
     var s = api.getState();
     if (!s) return;
     world(s);
+    if (!s.careerStarted && action !== "close" && action !== "open-legacy") {
+      if (api.toast) api.toast("ابدأ مسيرتك الأول علشان تستخدم النظام ده.");
+      return;
+    }
     if (action === "close") { closeModal(); return; }
     if (action === "open-challenges") { openChallenges(); return; }
     if (action === "open-finance") { currentView = "finance"; renderFinance(); return; }

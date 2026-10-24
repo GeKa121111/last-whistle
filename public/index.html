@@ -2369,7 +2369,7 @@ function randomUnit(){
 function rand(min,max){return Math.floor(randomUnit()*(max-min+1))+min;}
 function pick(arr){return arr[Math.floor(randomUnit()*arr.length)];}
 function stableHash(value){let h=2166136261;for(const ch of String(value))h=Math.imul(h^ch.charCodeAt(0),16777619);return h>>>0;}
-function clubPowerFor(name,country){const rating=window.LWWorldDB?.clubPower?.(name,country);return Number.isFinite(Number(rating))?Number(rating):48+(stableHash(`${country}|${name}`)%38);}
+function clubPowerFor(name,country){const rating=window.LWWorldDB?.clubPower?.(name,country);return rating!==null&&rating!==undefined&&Number.isFinite(Number(rating))?Number(rating):48+(stableHash(`${country}|${name}`)%38);}
 function clubTierForPower(power){return power>=77?3:power>=68?2:power>=58?1:0;}
 function catalogLeague(country){return window.LWCatalog?.clubsForCountry(country)||null;}
 function safeHTML(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));}
@@ -3013,6 +3013,8 @@ function cupParticipants(comp,count){
  return teams.slice(0,count);
 }
 function cupConfig(comp){
+ if(comp.system==='supercup')return {teams:2,phase:'knockout',phaseGames:0,rounds:['النهائي'],twoLegs:[false]};
+ if(comp.system==='conmebol')return {teams:32,phase:'groups',phaseGames:6,rounds:['ملحق التأهل','دور الـ16','ربع النهائي','نصف النهائي','النهائي'],twoLegs:[true,true,true,true,false]};
  if(comp.system==='uefa36')return {teams:36,phase:'league',phaseGames:8,rounds:['الملحق','دور الـ16','ربع النهائي','نصف النهائي','النهائي'],twoLegs:[true,true,true,true,false]};
  if(comp.system==='uefa36conference')return {teams:36,phase:'league',phaseGames:6,rounds:['الملحق','دور الـ16','ربع النهائي','نصف النهائي','النهائي'],twoLegs:[true,true,true,true,false]};
  if(comp.system==='caf')return {teams:16,phase:'groups',phaseGames:6,rounds:['ربع النهائي','نصف النهائي','النهائي'],twoLegs:[true,true,false]};
@@ -3035,7 +3037,7 @@ function enterCup(name){
  if(activeCupInProgress()){toast('عندك بطولة شغالة بالفعل؛ خلّصها الأول.');render();return;}
  if(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&Number(state.cupState.createdSeason||state.season)<Number(state.season))closeUnfinishedCupAtSeasonEnd();
  const cfg=cupConfig(comp),teams=cupParticipants(comp,cfg.teams);
- const groupSize=comp.system==='caf'?4:comp.system==='world32'?4:0;
+ const groupSize=(comp.system==='caf'||comp.system==='conmebol'||comp.system==='world32')?4:0;
  const groups=groupSize?Array.from({length:Math.ceil(teams.length/groupSize)},(_,i)=>teams.slice(i*groupSize,(i+1)*groupSize)):[];
  state.cupState={name:comp.name,system:comp.system||'knockout',teams,stage:0,phase:cfg.phase,phaseGames:cfg.phaseGames,phasePlayed:0,points:0,gd:0,gf:0,rounds:cfg.rounds,twoLegs:cfg.twoLegs||[],tieLeg:1,tieAggregate:0,tieOpponent:'',eliminated:false,champion:false,history:[],matchesPlayed:0,createdSeason:state.season,createdCalendarDay:state.calendarDay,rank:null,opponent:teams[1],bracketWins:0,leagueOpponents:[],phaseResults:[],standings:teams.map(name=>({name,played:0,w:0,d:0,l:0,gf:0,ga:0,pts:0})),groups,playerGroup:groups.findIndex(g=>g.includes(clubNameForLeague()))};
  calendarEvent('cup-start',`بداية ${name}`,`${teams.length} ناديًا`);log(`بدأت ${name} بنظام ${cfg.phase==='league'?'مرحلة دوري':cfg.phase==='groups'?'مجموعات':'خروج مغلوب'} وبمشاركة ${teams.length} ناديًا.`);

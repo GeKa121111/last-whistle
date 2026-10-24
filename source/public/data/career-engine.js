@@ -17,6 +17,28 @@
     "حارس مرمى": "goalkeeping", "قلب دفاع": "defending", "ظهير": "speed",
     "وسط دفاعي": "defending", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "shooting"
   };
+
+  const DEVELOPMENT_PLANS = {
+    "حارس مرمى": { title: "حارس متكامل", summary: "رد الفعل والتمركز والهدوء بالكرة. ارفع الحراسة أولًا، وادعمها بالاتزان والتمرير واللياقة.", primary: ["goalkeeping"], secondary: ["composure", "passing", "fitness"], matchSkill: "goalkeeping" },
+    "قلب دفاع": { title: "قلب دفاع قارئ للعب", summary: "اكسب المواجهات والكرات الهوائية، وطوّر التمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
+    "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والعودة الدفاعية، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending"], matchSkill: "speed" },
+    "وسط دفاعي": { title: "محور ارتكاز", summary: "اقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية قبل اللمسات الهجومية.", primary: ["defending", "passing"], secondary: ["vision", "fitness", "composure"], matchSkill: "defending" },
+    "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
+    "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ثم حسّن إنهاء الهجمة وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness"], matchSkill: "dribbling" },
+    "مهاجم": { title: "مهاجم هدّاف", summary: "حوّل الفرص لأهداف بالتسديد والهدوء، وادعمهم بالتحرك والسرعة والرؤية داخل المنطقة.", primary: ["shooting"], secondary: ["composure", "speed", "vision"], matchSkill: "shooting" }
+  };
+  function positionDevelopmentPlan(state) {
+    const position = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const plan = DEVELOPMENT_PLANS[position] || DEVELOPMENT_PLANS["جناح"];
+    return { position, title: plan.title, summary: plan.summary, primary: plan.primary.slice(), secondary: plan.secondary.slice(), matchSkill: plan.matchSkill };
+  }
+  function trainingFocusMultiplier(state, type) {
+    const plan = positionDevelopmentPlan(state);
+    if (plan.primary.includes(type)) return 1.2;
+    if (plan.secondary.includes(type)) return 1.08;
+    return 1;
+  }
+
   const APPEARANCE_MILESTONES = [5, 10, 20, 30];
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
@@ -169,7 +191,8 @@
     const coachBonus = state.privateCoach ? 8 : 0;
     const trainingAgeFactor = Number(state.age) >= 30 ? 0.78 : 1;
     const fatiguePenalty = 1 - clamp(state.fatigue, 0, 100) * 0.0035;
-    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty));
+    const focusMultiplier = trainingFocusMultiplier(state, type);
+    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier));
     const primaryGain = addTrainingXP(state, type, baseXP);
     const secondaryGains = [];
     for (const [skill, share] of Object.entries(setup.secondary)) {
@@ -193,7 +216,7 @@
       state.morale = clamp(state.morale - 3);
     }
     return {
-      ok: true, cost, xp: baseXP, gain: primaryGain, secondaryGains, levels, injured,
+      ok: true, cost, xp: baseXP, gain: primaryGain, secondaryGains, levels, injured, focusMultiplier,
       message: primaryGain
         ? "زادت " + type + " نقطة" + (primaryGain > 1 ? "ين" : " واحدة") + " بعد تراكم الخبرة."
         : "اتسجلت " + baseXP + " نقطة خبرة في " + type + ". كل "
@@ -232,7 +255,8 @@
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
     const levels = addCareerXP(state, xp);
-    const gained = addTrainingXP(state, skill, Math.round(xp * 0.75));
+    const focusMultiplier = trainingFocusMultiplier(state, skill);
+    const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
     const milestones = [];
     if (qualifying) {
       for (const threshold of APPEARANCE_MILESTONES) {
@@ -499,6 +523,6 @@
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
-    resolveContractDecision, recordNationalTournamentMatch, trainingTypes: Object.keys(CONFIG)
+    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
   };
 })();

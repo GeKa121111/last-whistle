@@ -7,6 +7,29 @@ require(path.join(__dirname, "..", "public", "data", "career-engine.js"));
 const career = global.LWCareer;
 assert.ok(career, "career engine must export LWCareer");
 
+const expectedPlans = {
+  "حارس مرمى": { primary: "goalkeeping", secondary: ["composure", "passing", "fitness"] },
+  "قلب دفاع": { primary: "defending", secondary: ["composure", "fitness", "passing"] },
+  "ظهير": { primary: "speed", secondary: ["passing", "defending"] },
+  "وسط دفاعي": { primary: "defending", secondary: ["vision", "fitness", "composure"] },
+  "وسط مهاجم": { primary: "vision", secondary: ["composure", "dribbling", "shooting"] },
+  "جناح": { primary: "dribbling", secondary: ["shooting", "vision", "fitness"] },
+  "مهاجم": { primary: "shooting", secondary: ["composure", "speed", "vision"] }
+};
+for (const [position, expected] of Object.entries(expectedPlans)) {
+  const plan = career.positionDevelopmentPlan({ pos: position });
+  assert.equal(plan.position, position, "development plan must match selected position");
+  assert.ok(plan.title && plan.summary, "every position must have an explanatory plan");
+  assert.ok(plan.primary.includes(expected.primary), "wrong primary focus for " + position);
+  for (const skill of expected.secondary) assert.ok(plan.secondary.includes(skill), "missing support skill " + skill + " for " + position);
+  assert.equal(career.trainingFocusMultiplier({ pos: position }, expected.primary), 1.2, "primary focus should grant 20% bonus");
+  assert.equal(career.trainingFocusMultiplier({ pos: position }, expected.secondary[0]), 1.08, "support focus should grant 8% bonus");
+  assert.equal(career.trainingFocusMultiplier({ pos: position }, "not-a-skill"), 1, "off-plan skills remain trainable without a bonus");
+}
+assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "goalkeeping"), 1.2);
+assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"), 1);
+
+
 const deduped = career.uniqueMatchRows([
   { id: "match-1", minutes: 90 }, { id: "match-1", minutes: 90 },
   { id: "match-2", minutes: 30 }

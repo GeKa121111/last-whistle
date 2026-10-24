@@ -919,6 +919,12 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
         <article class="card span12 hub-training-card">
           <div class="cardHead"><div><h2>اختار حصتك</h2><div class="subline">التدريب يستهلك طاقة ويرفع الإجهاد؛ الشدة المكثفة أسرع لكنها أعلى مخاطرة.</div></div><span class="pill indigo" id="trainingPageBadge">حصة واحدة في اليوم</span></div>
           <div class="trainingControls"><label for="trainingIntensity">شدة التدريب</label><select id="trainingIntensity"><option value="light">خفيف — إجهاد أقل وخبرة أبطأ</option><option value="normal" selected>عادي — توازن بين الجهد والتطوير</option><option value="intense">مكثف — خبرة أعلى ومخاطر إصابة أكبر</option></select><p class="trainingNote">شدة الحصة بتغيّر تكلفة الطاقة وسرعة اكتساب الخبرة. التدريب المكثف يزيد فرصة الإصابة؛ لو طاقتك منخفضة أو الإجهاد مرتفع، راجع قسم الجاهزية الأول.</p></div>
+          <section class="positionDevelopmentCard" id="positionDevelopmentCard" aria-live="polite">
+            <div class="positionDevelopmentHead"><span>خطة التطوير حسب المركز</span><strong id="positionPlanTitle">خطة مركزك</strong></div>
+            <p id="positionPlanSummary">كل مركز له أولويات مختلفة؛ التدريبات الموصى بها تمنح خبرة إضافية، لكن تقدر تختار أي مهارة.</p>
+            <div class="positionPlanMeta"><span>التركيز الأساسي <b id="positionPlanPrimary">—</b></span><span>مهارات مساندة <b id="positionPlanSecondary">—</b></span></div>
+            <p class="positionPlanHint">المهارات الأساسية: خبرة تدريب ومباراة إضافية 20%. المهارات المساندة: 8%. باقي المهارات تظل متاحة بدون مكافأة مركز.</p>
+          </section>
           <div class="hub-drill-grid">
             <button class="btn actionBtn" data-action="train-shooting"><span class="actionTitle">🎯 تدريب التسديد</span><span class="actionDesc">التسديد والإنهاء • تكلفة الطاقة حسب الشدة</span></button>
             <button class="btn actionBtn" data-action="train-dribbling"><span class="actionTitle">🌀 تدريب المراوغة</span><span class="actionDesc">التحكم بالكرة والسرعة</span></button>
@@ -1169,6 +1175,28 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     "مهاجم": "shooting"
   };
 
+
+  const DEVELOPMENT_PLANS = {
+    "حارس مرمى": { title: "حارس متكامل", summary: "رد الفعل والتمركز والهدوء بالكرة. ارفع الحراسة أولًا، وادعمها بالاتزان والتمرير واللياقة.", primary: ["goalkeeping"], secondary: ["composure", "passing", "fitness"], matchSkill: "goalkeeping" },
+    "قلب دفاع": { title: "قلب دفاع قارئ للعب", summary: "اكسب المواجهات والكرات الهوائية، وطوّر التمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
+    "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والعودة الدفاعية، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending"], matchSkill: "speed" },
+    "وسط دفاعي": { title: "محور ارتكاز", summary: "اقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية قبل اللمسات الهجومية.", primary: ["defending", "passing"], secondary: ["vision", "fitness", "composure"], matchSkill: "defending" },
+    "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
+    "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ثم حسّن إنهاء الهجمة وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness"], matchSkill: "dribbling" },
+    "مهاجم": { title: "مهاجم هدّاف", summary: "حوّل الفرص لأهداف بالتسديد والهدوء، وادعمهم بالتحرك والسرعة والرؤية داخل المنطقة.", primary: ["shooting"], secondary: ["composure", "speed", "vision"], matchSkill: "shooting" }
+  };
+  function positionDevelopmentPlan(state) {
+    const position = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const plan = DEVELOPMENT_PLANS[position] || DEVELOPMENT_PLANS["جناح"];
+    return { position, title: plan.title, summary: plan.summary, primary: plan.primary.slice(), secondary: plan.secondary.slice(), matchSkill: plan.matchSkill };
+  }
+  function trainingFocusMultiplier(state, type) {
+    const plan = positionDevelopmentPlan(state);
+    if (plan.primary.includes(type)) return 1.2;
+    if (plan.secondary.includes(type)) return 1.08;
+    return 1;
+  }
+
   const APPEARANCE_MILESTONES = [5, 10, 20, 30];
 
   const clamp = (value, min = 0, max = 100) =>
@@ -1326,7 +1354,8 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     const coachBonus = state.privateCoach ? 8 : 0;
     const trainingAgeFactor = Number(state.age) >= 30 ? 0.78 : 1;
     const fatiguePenalty = 1 - clamp(state.fatigue, 0, 100) * 0.0035;
-    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty));
+    const focusMultiplier = trainingFocusMultiplier(state, type);
+    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier));
     const primaryGain = addTrainingXP(state, type, baseXP);
     const secondaryGains = [];
     for (const [skill, share] of Object.entries(setup.secondary)) {
@@ -1357,6 +1386,7 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
       secondaryGains,
       levels,
       injured,
+      focusMultiplier,
       message: primaryGain
         ? `زادت ${type} نقطة${primaryGain > 1 ? "ين" : " واحدة"} بعد تراكم الخبرة.`
         : `اتسجلت ${baseXP} نقطة خبرة في ${type}. كل ${Number(state.age) <= 21 ? 92 : Number(state.age) >= 30 ? 125 : 108} نقطة ترفع المهارة نقطة حتى سقف إمكاناتك.`
@@ -1393,7 +1423,8 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
     const levels = addCareerXP(state, xp);
-    const gained = addTrainingXP(state, skill, Math.round(xp * 0.75));
+    const focusMultiplier = trainingFocusMultiplier(state, skill);
+    const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
     const milestones = [];
     if (qualifying) {
       for (const threshold of APPEARANCE_MILESTONES) {
@@ -1695,6 +1726,8 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     makeContractOffer,
     resolveContractDecision,
     recordNationalTournamentMatch,
+    positionDevelopmentPlan,
+    trainingFocusMultiplier,
     trainingTypes: Object.keys(CONFIG)
   };
 })();
@@ -3139,7 +3172,26 @@ function renderPerformanceInsights(){
  root.innerHTML=`<div class="kpiGrid" style="margin:10px 0 14px"><div class="kpi"><div class="kpiNum">${avg.toFixed(2)}</div><div class="kpiLabel">متوسط التقييم • آخر ${recent.length}</div></div><div class="kpi"><div class="kpiNum">${goals}</div><div class="kpiLabel">أهداف</div></div><div class="kpi"><div class="kpiNum">${assists}</div><div class="kpiLabel">صناعات</div></div><div class="kpi"><div class="kpiNum">${contributions}</div><div class="kpiLabel">مساهمات تهديفية</div></div></div><div class="sectionNote"><b>نصيحة الكابتن:</b> ${tip}</div><div class="dataGrid" style="margin-top:12px">${rows}</div>`;
 }
 
+function renderPositionDevelopment(){
+ const root=$("positionDevelopmentCard");
+ if(!root||!window.LWCareer?.positionDevelopmentPlan)return;
+ const plan=window.LWCareer.positionDevelopmentPlan(state);
+ const label={goalkeeping:"حراسة المرمى",defending:"الدفاع",speed:"السرعة",fitness:"اللياقة",passing:"التمرير",vision:"الرؤية",composure:"الهدوء",dribbling:"المراوغة",shooting:"التسديد"};
+ setText("positionPlanTitle",plan.title);
+ setText("positionPlanSummary",plan.summary);
+ setText("positionPlanPrimary",plan.primary.map(k=>label[k]||k).join(" • "));
+ setText("positionPlanSecondary",plan.secondary.map(k=>label[k]||k).join(" • "));
+ document.querySelectorAll('#page-training [data-action^="train-"]').forEach(button=>{
+  const type=button.dataset.action.slice(6);
+  const primary=plan.primary.includes(type),secondary=plan.secondary.includes(type);
+  button.classList.toggle("position-recommended",primary||secondary);
+  button.classList.toggle("position-primary",primary);
+  button.title=primary?"تدريب أساسي لمركزك — مكافأة خبرة 20%":secondary?"تدريب مساند لمركزك — مكافأة خبرة 8%":"تدريب متاح لكل المراكز";
+  button.setAttribute("aria-label",button.querySelector(".actionTitle")?.textContent+"؛ "+(primary?"تدريب أساسي لمركزك":secondary?"تدريب مساند لمركزك":"تدريب عام"));
+ });
+}
 function render(){
+ renderPositionDevelopment();
  const ov=overall();
  const homeCountry=state.leagueCountry||"مصر";
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");

@@ -23,6 +23,10 @@ const required = [
   "function professionalLifeAction",
   "function startCareerFromSetup",
   "function simulateCareerMatch",
+  "positionDevelopmentPlan",
+  "trainingFocusMultiplier",
+  "positionDevelopmentCard",
+  "renderPositionDevelopment",
   "story-ui.css?v=1",
   "story-mode.js?v=1",
   "career-experience.js?v=1",
@@ -145,6 +149,7 @@ for (const asset of ["story-ui.css", "story-mode.js", "career-experience.css", "
   if (rootAsset !== publicAsset) { console.error("Root/public asset mirror mismatch:", asset); process.exit(1); }
 }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
+if (!workerSource.includes("last-whistle-static-v14")) { console.error("Position development release must refresh the service-worker cache."); process.exit(1); }
 for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=1", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }

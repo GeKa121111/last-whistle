@@ -148,6 +148,31 @@ async function main() {
     results.push("11-section navigation and store rendering");
 
     await page.locator("#menuOpen").click();
+    await page.locator('#drawer .navBtn[data-page="shop"]').click();
+    await page.locator('#shopItems [data-buy="boots"]').click();
+    await page.waitForFunction(() => {
+      const title = document.querySelector("#modalTitle");
+      return document.querySelector("#modalShade").classList.contains("open")
+        && title && title.textContent.includes("تأكيد الشراء");
+    });
+    await page.locator("#modalChoices button").filter({ hasText: "اشتري دلوقتي" }).click();
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime.getState();
+      return state.boots === true && Number(state.money) === 50
+        && document.querySelector("#inventory").textContent.includes("حذاء احترافي");
+    }, null, { timeout: 15000 });
+    results.push("store purchase changes balance and inventory");
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime && window.LWStoryRuntime.getState();
+      return state && state.careerStarted && state.name === "Mohamed Ahmed"
+        && state.boots === true && Number(state.money) === 50
+        && !document.querySelector("#startScreen").classList.contains("show");
+    }, null, { timeout: 20000 });
+    results.push("career and store ownership persist after reload");
+
+    await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     const beforeApps = await page.evaluate(() => Number(window.LWStoryRuntime.getState().seasonApps) || 0);
     assert.equal(await page.locator("#heroMatch").isVisible(), false,

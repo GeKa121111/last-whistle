@@ -19,6 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LAST WHISTLE | مسيرة لاعب</title>
 <link rel="stylesheet" href="./story-ui.css?v=1">
+<link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=1">
 <style>
 :root{--bg:#0a1020;--panel:#121a32;--panel2:#192342;--line:#2c3659;--text:#eef2ff;--muted:#a5afd0;--green:#4ee0a1;--green2:#1e9e78;--indigo:#7779ff;--gold:#ffd166;--red:#ff7185;--shadow:0 16px 40px #0004}
@@ -2654,7 +2655,7 @@ function renderSponsorship(){
 }
 function negotiateSponsorship(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}if(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){toast("عندك عقد رعاية نشط بالفعل.");return;}
- const offer=Math.max(100,Math.round(((Number(state.followers)||0)*0.3+overall()*8)*(state.agent?1.35:1)));
+ const sponsorMultiplier=window.LWAgentRuntime?.sponsorshipMultiplier(state)??(state.agent?1.15:1);const offer=Math.max(100,Math.round(((Number(state.followers)||0)*0.3+overall()*8)*sponsorMultiplier));
  openModal("عرض رعاية إعلاني",`شركة رياضية افتراضية بتعرض ${offer} جنيه عن كل مشاركة مؤهلة، لمدة 12 مشاركة. المقابل تقديري داخل اللعبة، ومش إعلان أو تعاقد حقيقي من علامة تجارية.`,[
   {label:"أقبل عقد الرعاية",className:"primary",action:()=>{if(state.retired||(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0)){toast("لم يعد عرض الرعاية متاحًا؛ راجع حالة عقدك.");return;}state.sponsorContract={brand:"راعي رياضي افتراضي",payPerMatch:offer,matchesRemaining:12,signedSeason:state.season};log(`وقعت عقد رعاية افتراضي بقيمة ${offer} جنيه لكل مشاركة لمدة 12 مشاركة.`);saveGame(true);render();toast("تم توقيع عقد الرعاية داخل اللعبة.");}},
   {label:"أرفض العرض",action:()=>{}}
@@ -2688,7 +2689,7 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
  const wages=Math.max(0,newWeek-oldWeek);if(wages&&state.weeklyWage>0){state.money+=wages*(Number(state.weeklyWage)||0);log(`استلمت ${wages} مرتب أسبوعي أثناء ${reason}: ${wages*(Number(state.weeklyWage)||0)} جنيه.`);}
- const dailyRecovery=12+(state.diet?8:0)+(options.rest?12:0);
+ const dailyRecovery=12+(state.diet?8:0)+(options.rest?12:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
  state.energy=clamp(state.energy+n*dailyRecovery);
  state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8));
  state.injuryDays=Math.max(0,(state.injuryDays||0)-n);if(!state.injuryDays)state.injuryName="";
@@ -3076,7 +3077,7 @@ function applyMatchResult(result,meta){
   state.trust=clamp(state.trust+(rating>=7.5?4:rating>=6.4?2:-2));
   if(scope==="international"){state.nationalRating=rating;}
   if(scope!=="international"){
-   matchPay=Math.round((40+rating*22*(minutes/90)+goals*70+assists*42)*(state.agent?1.5:1));
+   const agentMatchPay=window.LWAgentRuntime?.matchPayMultiplier(state)??(state.agent?1.08:1);matchPay=Math.round((40+rating*22*(minutes/90)+goals*70+assists*42)*agentMatchPay);
    state.money=(Number(state.money)||0)+matchPay;
    if(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){const sponsorPay=Math.max(0,Number(state.sponsorContract.payPerMatch)||0);state.money+=sponsorPay;state.sponsorContract.matchesRemaining--;log(`مكافأة الرعاية: ${sponsorPay} جنيه. المتبقي من العقد ${state.sponsorContract.matchesRemaining} مشاركة.`);if(state.sponsorContract.matchesRemaining<=0)log("انتهى عقد الرعاية الإعلاني.");}
   }
@@ -3252,10 +3253,10 @@ function proceedSeasonTransition(viewLeague=false){
  const contractState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
  const expiring=Number(contractState.contractSeasons)<=1&&!contractState.freeAgent;
  if(expiring){
-  const offer=window.LWCareer?.makeContractOffer(contractState,!!state.agent)||{club:contractState.clubName||club().name,wage:Math.max(Number(contractState.weeklyWage)||250,Math.round((Number(contractState.weeklyWage)||250)*1.1)),seasons:3,season:Number(state.season)||1};
+  const agentTerms=state.agent?(window.LWAgentRuntime?.contractTerms(state)||state.agentProfile||true):false;const offer=window.LWCareer?.makeContractOffer(contractState,agentTerms)||{club:contractState.clubName||club().name,wage:Math.max(Number(contractState.weeklyWage)||250,Math.round((Number(contractState.weeklyWage)||250)*(agentTerms&&typeof agentTerms==="object"?Number(agentTerms.contractMultiplier)||1.08:agentTerms?1.1:1))),seasons:3,season:Number(state.season)||1};
   state.contractOffer={...offer,club:String(contractState.clubName||offer.club||club().name),season:Number(state.season)||1};const offerWage=state.contractOffer.wage;
   openModal("عرض تجديد العقد",`عقدك مع ${state.contractOffer.club} هينتهي. النادي بيعرض ${offerWage} جنيه أسبوعيًا لمدة 3 مواسم. تقدر تقبل أو ترفض وتدخل سوق اللاعبين الأحرار.`,[
-   {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} جنيه أسبوعيًا.`);advanceAfterContractDecision(viewLeague);}},
+   {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;const agentRenewalFee=window.LWAgentRuntime?.onContractRenewal(state,o)||0;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} جنيه أسبوعيًا${agentRenewalFee?`، وأتعاب الوكيل ${agentRenewalFee} جنيه`:""}.`);advanceAfterContractDecision(viewLeague);}},
    {label:"أرفض وأصبح لاعب حر",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();window.LWCareer?.resolveContractDecision(state,"decline",o);state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهى عقدك مع ${club().name} واخترت دخول سوق اللاعبين الأحرار.`});log(`انتهى عقدك مع ${club().name} وبدأت المسيرة كلاعب حر.`);advanceAfterContractDecision(viewLeague);}}
   ]);return;
  }
@@ -3323,7 +3324,7 @@ function startNewSeason(showStory=true){
  // Some legacy end-of-season buttons call startNewSeason directly. Honor the
  // one-season loan boundary on that path too, after the expiring-contract guard.
  if(state.loan)returnFromLoan();
- state.season++;state.age++;const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);
+ state.season++;state.age++;if(window.LWAgentRuntime?.ensureState)window.LWAgentRuntime.ensureState(state);const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);
  state.seasonApps=0;state.seasonAppsTarget=0;state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.seasonGoals=0;state.seasonAssists=0;state.seasonPoints=0;state.seasonW=0;state.seasonD=0;state.seasonL=0;
  state.seasonLog=[];state.journeyTransferReviewed=false;state.journeyEventSeen=false;state.journeySeasonReviewed=false;state.seasonFinished=false;state.seasonPhase="firstHalf";state.winterBreakPending=false;state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=false;state.dailyActionType="";state.internationalPlayed=false;state.nationalCalled=false;state.nationalTournamentMatches=0;state.nationalTournamentPoints=0;state.nationalTournamentQualified=false;state.nationalTournamentDone=false;
  state.contractSeasons=Math.max(0,state.contractSeasons-1);
@@ -3361,10 +3362,11 @@ function maybeOfferTransfer(){
  if(!w.open||state.lastOfferWindow===w.id||state.transferCooldown>0||state.daysSinceTransfer<7)return;
  if(state.apps<2||overall()<52||state.trust<30)return;
  const average=transferAverageRating();
- if(average<6.1||randomUnit()>.45)return;
- const targets=transferTargets().filter(target=>transferEligible(target));
- if(!targets.length)return;
- const target=pick(targets);const wage=transferWage(target);
+ const agentOfferChance=window.LWAgentRuntime?.transferOfferChance(state,.45)??(state.agent?.5:.45);if(average<6.1||randomUnit()>agentOfferChance)return;
+ const eligibleTargets=transferTargets().filter(target=>transferEligible(target));
+ if(!eligibleTargets.length)return;
+ const targets=window.LWAgentRuntime?.prioritizeTargets(state,eligibleTargets)||eligibleTargets;
+ const target=pick(targets);const baseWage=transferWage(target);const wage=window.LWAgentRuntime?.adjustTransferWage(state,baseWage)??baseWage;
  state.pendingTransfer={...target,division:1,tier:clubTierForPower(target.power),wage};state.lastOfferWindow=w.id;
  openModal("عرض انتقال من سوق الأندية ✉️",`${target.club} من ${target.country} يتابعك بعد أدائك الأخير.
 المسابقة: ${target.league} • قائمة موسم ${target.season}.
@@ -3386,7 +3388,7 @@ function transferTo(){
  const previousTarget=seasonMatchTotal(),matchesAlreadyPlayed=Number(state.seasonApps)||0;
  const wasSecondHalf=state.seasonPhase==="secondHalf"||state.seasonPhase==="winterBreak"||!!state.winterBreakPending||matchesAlreadyPlayed>=Math.ceil(previousTarget/2);
  if(!transferWindow().open&&!state.freeAgent){state.pendingTransfer=null;toast("نافذة الانتقالات قفلت. استنى الصيف أو الشتاء.");saveGame(true);render();return;}
- const old=club().name;const oldCountry=state.leagueCountry;archiveLeagueSegment("transfer");state.clubName=p.club;state.leagueCountry=p.country;state.leagueDivision=1;state.leagueCompetition=p.league;state.leagueSource=`OpenFootball • ${p.season}`;state.clubPower=p.power||clubPowerFor(p.club,p.country);state.clubTier=clubTierForPower(state.clubPower);state.clubIndex=state.clubTier;state.weeklyWage=p.wage;state.contractSeasons=3;state.freeAgent=false;state.loan=null;state.money+=p.wage*2;state.followers+=150*Math.max(1,state.clubTier);state.trust=clamp(state.trust-5);state.role="بديل";state.contractSeasons=3;state.daysSinceTransfer=0;state.transferCooldown=14;state.pendingTransfer=null;
+ const old=club().name;const oldCountry=state.leagueCountry;archiveLeagueSegment("transfer");state.clubName=p.club;state.leagueCountry=p.country;state.leagueDivision=1;state.leagueCompetition=p.league;state.leagueSource=`OpenFootball • ${p.season}`;state.clubPower=p.power||clubPowerFor(p.club,p.country);state.clubTier=clubTierForPower(state.clubPower);state.clubIndex=state.clubTier;state.weeklyWage=p.wage;state.contractSeasons=3;state.freeAgent=false;state.loan=null;state.money+=p.wage*2;window.LWAgentRuntime?.chargeFee(state,"إتمام الانتقال",p.wage*2);state.followers+=150*Math.max(1,state.clubTier);state.trust=clamp(state.trust-5);state.role="بديل";state.contractSeasons=3;state.daysSinceTransfer=0;state.transferCooldown=14;state.pendingTransfer=null;
  state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=matchesAlreadyPlayed>0;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed);state.winterBreakPending=false;state.seasonPhase=wasSecondHalf?"secondHalf":"firstHalf";
  state.transferHistory.unshift({season:state.season,day:state.day,text:`انتقلت داخل المحاكاة من ${old} (${oldCountry}) إلى ${state.clubName} في ${state.leagueCountry} — ${state.leagueCompetition} (${p.season}). عقد 3 مواسم، قوة الفريق التقديرية ${state.clubPower}/100، وراتب ${state.weeklyWage} جنيه أسبوعيًا. إحصاءات اللاعب استمرت دون تصفير.`});
  setStory("فصل جديد في مسيرتك",`انضممت داخل اللعبة إلى ${state.clubName} في ${state.leagueCountry}. المنافسة الجديدة ستختبر مستواك؛ حافظ على التدريب والاستشفاء لتنافس على مكانك.`);log(`انتقال داخل اللعبة إلى ${state.clubName} في ${state.leagueCountry}.`);saveGame(true);render();showPage("contract");toast("تم الانتقال داخل المسيرة مع الاحتفاظ بإحصاءاتك!");
@@ -3395,7 +3397,7 @@ function negotiate(){
  const status=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال؛ لا توجد مفاوضات جديدة.","free-agent":"أنت لاعب حر؛ اطلب عقدًا من سوق الانتقالات بدل التفاوض على عقد غير موجود.","contract-expiring":"عقدك يقترب من النهاية؛ عرض التجديد الرسمي هيظهر في نهاية الموسم.",cooldown:`استنى ${Math.max(1,7-(Number(state.daysSinceNegotiation)||0))} أيام قبل تفاوض جديد.`};
  if(status!=="ready"){toast(messages[status]||"التفاوض غير متاح حاليًا.");return;}
- const chance=clamp(20+state.trust*.45+(overall()-50)*1.2+Math.min(15,state.followers/300),10,90);
+ const agentChanceBonus=window.LWAgentRuntime?.negotiationChanceBonus(state)||0;const chance=clamp(20+state.trust*.45+(overall()-50)*1.2+Math.min(15,state.followers/300)+agentChanceBonus,10,90);
  openModal("تفاوض على العقد","وكيل النادي بيسألك عن طلبك. نجاح التفاوض بيعتمد على ثقة المدرب، تقييمك، وجمهورك. فرصة النجاح الحالية تقريبًا "+Math.round(chance)+"%.",[
   {label:"أطلب زيادة معقولة (+15%)",className:"primary",action:()=>resolveNegotiation(chance,1)},
   {label:"أطلب زيادة كبيرة (+35%)",action:()=>resolveNegotiation(chance-20,2)},
@@ -3406,9 +3408,11 @@ function resolveNegotiation(chance,level){
  const result=window.LWCareer?.resolveWageNegotiation(state,chance,level);
  if(!result?.ok){const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يوجد عقد حالي للتفاوض عليه.","contract-expiring":"انتظر عرض التجديد الرسمي في نهاية الموسم.",cooldown:"تم تسجيل محاولة تفاوض بالفعل؛ استنى 7 أيام للمحاولة التالية.","invalid-level":"اختيار تفاوض غير صالح."};toast(messages[result?.status]||"التفاوض غير متاح حاليًا.");return;}
  if(result.status==="success"){
+  const agentOutcome=window.LWAgentRuntime?.afterNegotiation(state,result);
   state.transferHistory.unshift({season:state.season,day:state.day,text:`نجحت المفاوضات: المرتب زاد من ${result.oldWage} إلى ${result.wage} جنيه أسبوعيًا.`});
   setStory("مفاوضات ناجحة","عرفت تتكلم في الوقت المناسب، والنادي وافق على تحسين عقدك. حافظ على مستواك عشان تستحق الزيادة.");log("نجحت مفاوضات العقد. المرتب الأسبوعي "+state.weeklyWage+" جنيه.");toast("مبروك! المفاوضات نجحت.");
  }else{
+  window.LWAgentRuntime?.afterNegotiation(state,result);
   state.transferHistory.unshift({season:state.season,day:state.day,text:"فشلت مفاوضات العقد. لازم تستنى 7 أيام قبل المحاولة مرة تانية."});
   setStory("المفاوضات اتأجلت","النادي مش مقتنع بطلبك حاليًا. ركّز في التدريبات والمباريات، وجرب بعد 7 أيام.");log("فشلت مفاوضات العقد. فترة انتظار 7 أيام.");toast("المفاوضات فشلت. حاول تاني بعد 7 أيام.");
  }
@@ -3586,5 +3590,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 </script>
 <script src="./story-mode.js?v=1"></script>
 <script src="./career-experience.js?v=1"></script>
+<script src="./agent-system.js?v=1"></script>
 </body>
 </html>

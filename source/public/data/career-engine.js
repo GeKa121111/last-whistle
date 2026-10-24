@@ -445,8 +445,11 @@
 
   function makeContractOffer(state, withAgent = false) {
     const currentWage = Math.max(0, Number(state?.weeklyWage) || 250);
+    const contractMultiplier = withAgent && typeof withAgent === "object"
+      ? Math.max(0.96, Math.min(1.18, Number(withAgent.contractMultiplier) || 1.08))
+      : withAgent ? 1.1 : 1;
     const wage = Math.max(currentWage, Math.round(currentWage * (0.9 + overall(state) / 500
-      + (Number(state?.trust) || 0) / 1000) * (withAgent ? 1.1 : 1)));
+      + (Number(state?.trust) || 0) / 1000) * contractMultiplier));
     return { club: String(state?.clubName || ""), wage, seasons: 3, season: Number(state?.season) || 1 };
   }
 

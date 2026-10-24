@@ -62,6 +62,270 @@ body{background:radial-gradient(ellipse at 90% -8%,#1d554a 0,transparent 32%),ra
 
 .globalFilters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:8px 0 14px}.globalFilters label{display:grid;gap:5px;font-size:11px;color:var(--muted)}.globalFilters select,.globalFilters input{width:100%;min-width:0;background:#0b1327;border:1px solid #344064;border-radius:11px;padding:10px;color:var(--text)}.dataSummary{line-height:1.8}.dataGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.dataCard{min-width:0;border:1px solid #303b5e;background:#17213b;border-radius:12px;padding:10px}.dataCard h4{margin:0 0 6px;font-size:12px;line-height:1.55}.dataCard p{margin:4px 0;font-size:10px;color:var(--muted);line-height:1.65}.dataCard a{display:inline-block;color:#8debc4;font-size:10px;margin-top:5px}.dataCard details{margin-top:7px;border-top:1px solid #ffffff12;padding-top:7px;font-size:10px;color:#cbd5f4}.dataCard summary{cursor:pointer;color:var(--green)}.dataCard .pills{margin-top:7px}.dataCard .btn{min-height:34px;padding:6px 8px;margin-top:7px;font-size:10px}.trainingControls{margin:8px 0 12px;max-width:380px}.trainingControls select{width:100%;background:#0b1327;border:1px solid #344064;border-radius:11px;padding:10px;color:var(--text)}.trainingNote{font-size:10px;color:var(--muted);line-height:1.6;margin:6px 0}.advancedSkillGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}.careerMeter{margin-top:12px;padding:10px 12px;border:1px solid #33425f;background:#111d31;border-radius:13px}.careerMeter .progressRow{margin:3px 0}.careerMeta{font-size:10px;color:var(--muted);line-height:1.7}.marketTools{display:flex;gap:8px;align-items:center;margin:10px 0}.marketTools input{flex:1;min-width:0;background:#0b1327;border:1px solid #344064;border-radius:11px;padding:10px;color:var(--text)}.officialList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.officialList .dataCard{display:flex;flex-direction:column;align-items:flex-start}.clubRoster{display:flex;flex-wrap:wrap;gap:5px}.clubRoster .pill{font-size:9px;padding:3px 7px}.dataDisclaimer{font-size:10px;color:var(--muted);line-height:1.7}
 @media(max-width:520px){.globalFilters,.dataGrid,.officialList,.advancedSkillGrid{grid-template-columns:1fr}.marketTools{align-items:stretch;flex-direction:column}}
+
+/* ===== LAST WHISTLE UI 2.0 — Matchday Studio ===== */
+:root{
+  color-scheme:dark;
+  --bg:#0a0f0e;
+  --panel:#121a17;
+  --panel2:#1a2520;
+  --line:#2d3b32;
+  --text:#f2f6e9;
+  --muted:#a6b4a8;
+  --green:#d7ff62;
+  --green2:#8fc43f;
+  --indigo:#86aaff;
+  --gold:#ffc978;
+  --red:#ff7182;
+  --shadow:0 18px 48px #0006;
+}
+html{background:var(--bg);scroll-padding-top:90px}
+body{
+  background:
+    radial-gradient(ellipse at 88% -8%,#29452c 0,transparent 30%),
+    radial-gradient(ellipse at -10% 35%,#1c2924 0,transparent 34%),
+    repeating-linear-gradient(135deg,#ffffff00 0 42px,#ffffff03 42px 43px),
+    var(--bg);
+  color:var(--text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;
+  letter-spacing:.005em;
+}
+button,input,select,textarea{font:inherit}
+button{ -webkit-tap-highlight-color:transparent; }
+.app{max-width:1320px;padding:12px 18px 108px}
+.header{
+  top:8px;gap:12px;padding:11px 13px;margin:0 0 18px;
+  border:1px solid #394b3d;border-radius:19px;
+  background:rgba(11,17,14,.94);backdrop-filter:blur(22px);
+  box-shadow:0 10px 34px #0005;
+}
+.menuBtn,.iconBtn{
+  width:44px;height:44px;border-radius:14px;
+  border:1px solid #536541;background:#202b1e;color:var(--green);
+  box-shadow:inset 0 1px #ffffff12;transition:background .18s,transform .18s;
+}
+.menuBtn:hover,.iconBtn:hover{background:#2c3a27;transform:translateY(-1px)}
+.brand{font-size:16px;font-weight:950;letter-spacing:1.2px;color:#f4f7ed}
+.brand span{color:var(--green)}
+.pageName{font-size:12px;color:#b7c6b8;letter-spacing:.03em}
+.headStats{gap:7px}
+.miniStat{
+  border:1px solid #2b392d;border-radius:12px;padding:7px 10px;
+  background:#131d16;color:#c8d6c6;font-size:11px;
+}
+.miniStat b{color:var(--green);font-size:12px}
+.hero{
+  border:1px solid #d9ff86;border-radius:26px;
+  padding:clamp(23px,4vw,38px);
+  background:
+    radial-gradient(circle at 91% 15%,#ffffff60 0 1px,transparent 2px),
+    radial-gradient(circle at 82% 31%,#ffffff50 0 1px,transparent 2px),
+    linear-gradient(118deg,#e4ff83 0%,#c8f977 45%,#91e2a2 100%);
+  color:#172315;position:relative;isolation:isolate;overflow:hidden;
+  box-shadow:0 24px 65px #0005,inset 0 1px #fff9;
+}
+.hero:before{
+  content:"";position:absolute;z-index:-1;right:-8%;top:-72%;width:68%;aspect-ratio:1;
+  border:1px solid #173a2727;border-radius:50%;
+  box-shadow:0 0 0 28px #173a2710,0 0 0 64px #173a270a,0 0 0 108px #173a2706;
+}
+.hero:after{
+  content:"";position:absolute;z-index:-1;left:3%;bottom:-52px;width:160px;height:110px;
+  border:1px solid #173a2728;border-radius:50%;transform:rotate(-22deg);
+  box-shadow:0 0 0 18px #173a2709,0 0 0 38px #173a2707;
+  font-size:0;opacity:1;
+}
+.eyebrow{color:#3d5b2a;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.hero h1{color:#142315;font-size:clamp(30px,5vw,48px);font-weight:1000;letter-spacing:-.04em;line-height:1.1;max-width:800px;margin:13px 0}
+.hero p{color:#334c35;font-size:14px;line-height:1.9;max-width:700px}
+.heroActions{gap:9px;margin-top:20px}
+.hero .btn{min-height:46px;border-radius:13px;padding:11px 15px;font-weight:850}
+.hero .btn.primary{background:#14281b;border-color:#14281b;color:#e5ff9a;box-shadow:0 8px 18px #14281b25}
+.hero .btn.indigo{background:#32452d;border-color:#32452d;color:#f5ffe8}
+.hero .btn.ghost{background:#f5ffe270;border-color:#54783c65;color:#243e23}
+.hero .btn:hover{transform:translateY(-2px);filter:brightness(1.04)}
+main{min-width:0}
+.page{padding-top:4px}
+.grid{gap:14px;margin-top:16px}
+.card{
+  min-width:0;padding:18px;border:1px solid #2c3b30;border-radius:20px;
+  background:linear-gradient(155deg,#17211b 0%,#101713 100%);
+  box-shadow:0 12px 30px #0002;transition:border-color .18s,box-shadow .18s,transform .18s;
+}
+.card:hover{border-color:#536748;box-shadow:0 15px 34px #0003}
+.cardHead{align-items:flex-start;gap:12px;margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid #ffffff10}
+.card h2{font-size:16px;line-height:1.45;font-weight:900;letter-spacing:-.015em}
+.card h3{font-size:13px;font-weight:850}
+.subline{color:#aebead;font-size:11px;line-height:1.65;margin-top:4px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.tiny{font-size:10px}
+.span12.seasonJourneyCard{
+  background:linear-gradient(145deg,#18251b,#121914 72%);
+  border-color:#4e6540;position:relative;overflow:hidden;
+}
+.seasonJourneyCard:before{
+  content:"SEASON / 01";position:absolute;top:13px;left:18px;
+  color:#d7ff6210;font-size:35px;line-height:1;font-weight:1000;letter-spacing:.06em;pointer-events:none;
+}
+.seasonJourneyCard .cardHead{position:relative}
+.seasonStage{border-radius:14px;background:#111a14;border-color:#304333}
+.seasonStage.active{background:linear-gradient(145deg,#263820,#1c2a1b);border-color:var(--green);box-shadow:inset 0 0 0 1px #d7ff6230}
+.seasonStage .stageNum{border-radius:10px;background:#2a3a2b;color:#e0ebd6}
+.seasonStage.active .stageNum{background:var(--green);color:#162114}
+.seasonStage.done{background:#14271b;border-color:#527b45}
+.sectionNote,.storyBox,.kpi,.careerMeter,.dataCard,.leagueCountry,.shopItem,.achievement{
+  border-color:#314135;background:#17231a;color:var(--text);border-radius:14px;
+}
+.storyBox{background:linear-gradient(145deg,#15271b,#151c18)}
+.storyLabel{color:var(--green)}
+.pill{
+  border:1px solid #3a4b37;background:#1b281b;color:#d1dfcb;
+  border-radius:9px;font-size:10px;font-weight:750;padding:5px 9px;
+}
+.pill.green{color:#e0ff9a;border-color:#536d34;background:#28351c}
+.pill.gold{color:#ffda9b;border-color:#785e34;background:#342919}
+.pill.red{color:#ff9baa;border-color:#703d43;background:#351d21}
+.btn{
+  min-height:44px;padding:10px 14px;border:1px solid #3b4c3c;border-radius:12px;
+  background:#202d23;color:#e8f1e4;font-weight:800;
+  transition:transform .16s,border-color .16s,background .16s,box-shadow .16s;
+}
+.btn:hover{transform:translateY(-2px);border-color:#b6e867;box-shadow:0 8px 20px #0002}
+.btn:active{transform:scale(.985)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#172114;box-shadow:0 8px 18px #d7ff6215}
+.btn.indigo{background:#202c48;border-color:#3d5278;color:#dbe7ff}
+.btn.gold{background:#382b17;border-color:#735b2d;color:#ffdc99}
+.btn.danger{background:#3b2023;border-color:#784148;color:#ffc2c8}
+.btn.ghost{background:transparent;border-color:#536148;color:#d1e0ca}
+.btn:disabled{opacity:.38}
+.actionBtn{border-radius:15px;background:#18251b;border-color:#304332}
+.actionBtn:hover{background:#253523;border-color:#65874a}
+.actionBtn .actionTitle{font-size:13px;font-weight:900}
+.actionBtn .actionDesc{font-size:10px;line-height:1.55;color:#aebdac}
+.big{font-size:31px;font-weight:1000;letter-spacing:-.045em}
+.bar{height:9px;background:#27352a}
+.bar i{background:linear-gradient(90deg,#91bd3c,#d7ff62)}
+.bar.indigo i{background:linear-gradient(90deg,#5e85db,#9ebaff)}
+.bar.gold i{background:linear-gradient(90deg,#c28a37,#ffcf7c)}
+.progressRow{gap:10px;margin:12px 0}
+.tableWrap{border-color:#334336;border-radius:14px;background:#101713}
+table{font-size:12px}
+th{background:#d7ff62;color:#1b2615;font-weight:950}
+td{border-color:#26342a;color:#dce6d7}
+tr:nth-child(even) td{background:#ffffff04}
+tr.me td{background:#283a21;color:#f2ffd6}
+.shopGrid,.badgeGrid,.dataGrid{gap:10px}
+.shopItem{padding:15px;border-radius:16px;transition:transform .18s,border-color .18s}
+.shopItem:hover{transform:translateY(-3px);border-color:#718e45}
+.shopItem .price{color:var(--green)}
+.achievement{opacity:.58}
+.achievement.unlocked{background:#1d3020;border-color:#6c9651}
+.achievement .medal{filter:saturate(.85)}
+.kpi{padding:13px;background:linear-gradient(145deg,#1d2a1e,#151e17)}
+.kpi .kpiNum{font-size:23px;color:#e9ffab;font-weight:1000}
+.kpi .kpiLabel{font-size:10px;line-height:1.5}
+.field input,.field select,.startField input,.startField select,.globalFilters select,.globalFilters input,.trainingControls select,.marketTools input{
+  background:#0d1410;border-color:#344737;color:#f0f6e8;border-radius:12px;min-height:44px;
+}
+.field input:focus,.field select:focus,.startField input:focus,.startField select:focus,
+.globalFilters select:focus,.globalFilters input:focus{outline:2px solid #d7ff6270;border-color:var(--green)}
+.startScreen{background:radial-gradient(ellipse at 85% 0%,#314d28 0,transparent 38%),#090f0c}
+.startCard{border-color:#526642;border-radius:24px;background:linear-gradient(145deg,#18251b,#101712);box-shadow:0 30px 100px #0009}
+.startBrand{color:var(--green);letter-spacing:.15em}
+.startCard h1{font-weight:1000;letter-spacing:-.035em}
+.positionChoice{background:#141e16;border-color:#354935;border-radius:14px;transition:background .16s,border-color .16s,transform .16s}
+.positionChoice:hover{transform:translateY(-2px)}
+.positionChoice.selected{border-color:var(--green);background:#23351c;box-shadow:inset 0 0 0 1px #d7ff6240}
+.positionStory{background:#111a14;border-color:#364835;border-radius:14px}
+.modalShade{backdrop-filter:blur(7px)}
+.modal{border-color:#475a40;border-radius:22px;background:linear-gradient(150deg,#1a291c,#101713);box-shadow:0 28px 80px #0009}
+.modal h2{font-weight:950}
+.modal p{color:#c0cfbf;line-height:1.8}
+.modalChoices .btn{text-align:right}
+.toast{background:#1c2b1d;border-color:#617d41;color:#efffdf}
+.eventFeed .feedItem{border-color:#2c3b2f;line-height:1.7}
+.dataCard h4{font-weight:900}
+.dataCard a,.ruleLinks a{color:#d7ff62}
+.ruleLinks a{background:#1a281b;border-color:#3d5431;border-radius:9px}
+.drawer{
+  background:linear-gradient(160deg,#18241a,#0d140f);
+  border-left-color:#354735;box-shadow:-20px 0 60px #0008;backdrop-filter:blur(22px);
+}
+.drawerHead{padding-bottom:14px;border-bottom:1px solid #ffffff12}
+.navList{gap:5px}
+.navBtn{border-radius:12px;padding:12px 11px;color:#b8c7b6;border-color:transparent;transition:background .16s,color .16s,border-color .16s}
+.navBtn .ico{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;background:#202d22;font-size:16px}
+.navBtn.active,.navBtn:hover{background:#25351e;border-color:#4b653b;color:#e9ffb7}
+.navBtn.active .ico{background:var(--green);color:#182415}
+.bottomNav{
+  gap:5px;bottom:max(10px,env(safe-area-inset-bottom));left:10px;right:10px;
+  padding:7px;border-radius:20px;border:1px solid #354735;
+  background:rgba(10,16,12,.95);box-shadow:0 14px 38px #0009;backdrop-filter:blur(22px);
+}
+.bottomNav button{
+  min-height:54px;border-radius:13px;color:#a9b9a8;
+  font-size:10px;letter-spacing:.005em;transition:background .16s,color .16s,transform .16s;
+}
+.bottomNav button span{font-size:19px;line-height:1.1}
+.bottomNav button.active{background:var(--green);color:#192416;border-color:transparent;box-shadow:0 6px 16px #d7ff621e}
+.bottomNav button:active{transform:scale(.97)}
+a{color:#d7ff62}
+a:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+hr{border-color:#2c3c2e}
+@media(min-width:761px){
+  .app{padding:14px 24px 42px}
+  .header{margin-bottom:20px}
+  .hero{margin-bottom:20px}
+  .grid{gap:16px}
+  .bottomNav{left:50%;right:auto;transform:translateX(-50%);width:min(650px,calc(100vw - 40px))}
+  .bottomNav button{font-size:11px}
+}
+@media(max-width:760px){
+  .app{padding:7px 10px 100px}
+  .header{top:6px;margin-bottom:12px;padding:9px 10px;border-radius:16px}
+  .brand{font-size:14px;letter-spacing:.8px}
+  .pageName{font-size:11px}
+  .miniStat{padding:6px 7px;border-radius:10px}
+  .hero{padding:22px 17px;border-radius:21px;margin-bottom:14px}
+  .hero h1{font-size:clamp(28px,7vw,36px);margin:11px 0}
+  .hero p{font-size:13px;line-height:1.8}
+  .heroActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+  .heroActions .btn{width:100%;font-size:12px;padding:10px 9px}
+  .heroActions .btn:last-child{grid-column:1/-1}
+  .grid{gap:10px;margin-top:11px}
+  .card{padding:14px;border-radius:17px}
+  .cardHead{margin-bottom:12px;padding-bottom:10px}
+  .card h2{font-size:15px}
+  .subline{font-size:10px}
+  .seasonJourneyCard:before{font-size:25px;top:14px;left:12px}
+  .bottomNav{gap:3px;left:7px;right:7px;bottom:max(7px,env(safe-area-inset-bottom));padding:6px;border-radius:17px}
+  .bottomNav button{min-height:51px;font-size:9px;gap:4px}
+  .bottomNav button span{font-size:18px}
+  .actionGrid{gap:7px}
+  .actionBtn{min-height:76px;padding:10px}
+  .kpiGrid{gap:6px}
+  .kpi{padding:10px}
+  .kpi .kpiNum{font-size:20px}
+  .modal{padding:17px}
+}
+@media(max-width:390px){
+  .app{padding-inline:8px}
+  .header{gap:6px}
+  .menuBtn,.iconBtn{width:39px;height:39px}
+  .miniStat{font-size:10px;padding:5px 6px}
+  .heroActions{grid-template-columns:1fr}
+  .heroActions .btn:last-child{grid-column:auto}
+  .hero h1{font-size:27px}
+  .bottomNav{left:5px;right:5px}
+  .bottomNav button{font-size:8px;min-height:48px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+/* End Matchday Studio refresh */
+
 </style>
 </head>
 <body>

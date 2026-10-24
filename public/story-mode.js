@@ -51,9 +51,9 @@ var eventDefs = [
     id:"agent-offer",chapter:"05 / OFF THE PITCH",title:"وكيل أعمال عند باب النادي",tag:"فرصة ولا استعجال؟",
     body:"وكيل أعمال قال إنه شايف إمكانياتك، وعرض يساعدك في الظهور الإعلامي ومتابعة العروض. مفيش انتقال مضمون، والكلام مش عقد رسمي مع أي نادي؛ دي خطوة في إدارة مسيرتك.",
     consequence:"التأثير: المتابعون والسمعة والالتزام وعلاقتك بالنادي.",
-    when:function(s){return Number(s.apps||0)>=4 && Number(s.playerPotential||0)>=65;},
+    when:function(s){return !s.agent && !s.agentProfile && Number(s.apps||0)>=4 && Number(s.playerPotential||0)>=65;},
     choices:[
-      {label:"أوافق على التمثيل",detail:"شبكة علاقات أوسع مقابل وقت وفلوس.",effects:{followers:70,mediaReputation:7,money:-75,professionalism:1},set:{agent:true},outcome:"وافقت على تمثيل الوكيل داخل اللعبة. هيهتم بصورتك وفرصك، لكن خليك فاكر إن مفيش عرض مضمون."},
+      {label:"أفتح باب التمثيل وأقابل الوكلاء",detail:"أدخل سوق الوكلاء وأختار شخصية تناسب خطتي بدل ما أوقّع من غير مقارنة.",effects:{followers:70,mediaReputation:7,professionalism:2},set:{agentLead:true},outcome:"قررت تبدأ مفاوضات مع وكلاء مختلفين. لسه موقّعتش مع حد؛ افتح صفحة العقد والانتقالات واسمع قصص الوكلاء وشروطهم."},
       {label:"أأجل القرار لحد نهاية الموسم",detail:"تركيز أعلى على الملعب وعلاقة مستقرة مع المدرب.",effects:{professionalism:4,coachRelationship:3,trust:2},outcome:"طلبت تأجيل النقاش. الوكيل احترم قرارك، وبقيت مركز على إثبات نفسك."}
     ]
   },

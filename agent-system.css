@@ -1,0 +1,134 @@
+/* LAST WHISTLE — story-driven football agents */
+body.lw-rebuild .lwa-agent-panel{grid-column:1/-1;min-width:0;margin:0 0 4px;padding:22px;border:1px solid #344538;border-radius:22px;background:linear-gradient(145deg,#151f18f5,#0c120f);color:#f0f5e9;direction:rtl;overflow:hidden;position:relative;box-shadow:0 18px 48px #0003}
+body.lw-rebuild .lwa-agent-panel:before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,#d9ff62,#6c983f,#d9ff6210)}
+body.lw-rebuild .lwa-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:17px;border-bottom:1px solid #ffffff12}
+body.lw-rebuild .lwa-eyebrow,body.lw-rebuild .lwa-market-kicker{font-size:9px;letter-spacing:.14em;font-weight:950;color:#99ae92}
+body.lw-rebuild .lwa-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#d9ff62;margin-inline-end:7px;box-shadow:0 0 0 4px #d9ff6215}
+body.lw-rebuild .lwa-header h2{margin:8px 0 5px;font-size:24px;line-height:1.4;font-weight:1000;color:#f2f6ea}
+body.lw-rebuild .lwa-header p{max-width:790px;margin:0;color:#9eae9a;font-size:11px;line-height:1.95}
+body.lw-rebuild .lwa-header-mark{flex:0 0 auto;min-width:92px;padding:11px 13px;border:1px solid #3e5235;border-radius:14px;background:#1d2a19;color:#d9ff62;text-align:center;font-size:9px;line-height:1.6;font-weight:1000;letter-spacing:.08em}
+body.lw-rebuild .lwa-current-summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,.42fr);gap:15px;margin:17px 0;padding:16px;border:1px solid #3c5034;border-radius:17px;background:radial-gradient(ellipse at 90% 0%,#2b3d21 0,transparent 55%),#101811}
+body.lw-rebuild .lwa-current-left{min-width:0}
+body.lw-rebuild .lwa-current-label{font-size:8px;letter-spacing:.14em;color:#9fb495;font-weight:950}
+body.lw-rebuild .lwa-current-left h3{margin:5px 0;font-size:17px;line-height:1.5;color:#eff5e6;font-weight:950}
+body.lw-rebuild .lwa-current-left h3 span{font-size:10px;color:#b0c2a4;font-weight:650}
+body.lw-rebuild .lwa-current-left>p{margin:0;color:#9fae99;font-size:10px;line-height:1.8}
+body.lw-rebuild .lwa-rel-row{display:flex;justify-content:space-between;gap:10px;margin-top:13px;color:#a1b29a;font-size:9px}
+body.lw-rebuild .lwa-rel-row b{color:#d9ff62}
+body.lw-rebuild .lwa-rel-bar{height:5px;margin-top:6px;background:#2a3828;border-radius:99px;overflow:hidden}
+body.lw-rebuild .lwa-rel-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#80b345,#d9ff62)}
+body.lw-rebuild .lwa-current-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+body.lw-rebuild .lwa-current-meta span{padding:5px 7px;border:1px solid #2d3d2c;border-radius:8px;background:#0d140e;color:#90a28a;font-size:8px}
+body.lw-rebuild .lwa-current-right{padding:10px 12px;border:1px solid #33442e;border-radius:13px;background:#0c130dba;align-self:stretch}
+body.lw-rebuild .lwa-arc-mark{display:grid;place-items:center;width:37px;height:37px;border:1px solid #5a713d;border-radius:11px;background:#23351c;color:#d9ff62;font-weight:1000;font-size:13px}
+body.lw-rebuild .lwa-current-right>strong{display:block;margin-top:8px;font-size:12px;color:#e9f2e0}
+body.lw-rebuild .lwa-current-right>p{margin:4px 0 10px;color:#8fa08a;font-size:9px;line-height:1.8}
+body.lw-rebuild .lwa-agent-action{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:40px;padding:9px 12px;border:1px solid #3b5034;border-radius:10px;background:#1b281a;color:#dce9d3;text-align:right;font-size:10px;font-weight:950;cursor:pointer;transition:transform .15s,border-color .15s,background .15s}
+body.lw-rebuild .lwa-agent-action:hover:not(:disabled){transform:translateY(-1px);border-color:#d9ff62;background:#26351e}
+body.lw-rebuild .lwa-agent-action b{color:#d9ff62;font-size:14px}
+body.lw-rebuild .lwa-agent-action-light{margin-top:6px;border-color:#d9ff62;background:#d9ff62;color:#192311}
+body.lw-rebuild .lwa-agent-action-light b{color:#192311}
+body.lw-rebuild .lwa-agent-action:disabled{opacity:.45;cursor:not-allowed}
+body.lw-rebuild .lwa-market-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:18px 0 10px}
+body.lw-rebuild .lwa-market-head h3{margin:4px 0 0;font-size:16px;color:#eff4e7;font-weight:950}
+body.lw-rebuild .lwa-count{padding:6px 9px;border:1px solid #334530;border-radius:999px;color:#a9bc9c;background:#151f15;font-size:9px;white-space:nowrap}
+body.lw-rebuild .lwa-agent-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+body.lw-rebuild .lwa-agent-card{display:flex;flex-direction:column;min-width:0;gap:11px;padding:14px;border:1px solid #2f3d31;border-radius:16px;background:linear-gradient(145deg,#141d16,#0e140f);transition:border-color .16s,transform .16s}
+body.lw-rebuild .lwa-agent-card:hover{border-color:#4b6641}
+body.lw-rebuild .lwa-agent-card.is-current{border-color:#718e4a;box-shadow:inset 0 0 0 1px #d9ff6212;background:linear-gradient(145deg,#1b2919,#0e140f)}
+body.lw-rebuild .lwa-agent-card-top{display:flex;align-items:center;gap:10px;min-width:0}
+body.lw-rebuild .lwa-agent-monogram{display:grid;place-items:center;flex:0 0 43px;width:43px;height:43px;border:1px solid #41563b;border-radius:12px;background:#22311e;color:#d9ff62;font-size:8px;line-height:1.3;font-weight:1000;letter-spacing:.05em;text-align:center}
+body.lw-rebuild .lwa-agent-name-wrap{flex:1;min-width:0}
+body.lw-rebuild .lwa-agent-kicker{display:block;color:#8fa78a;font-size:8px;font-weight:900}
+body.lw-rebuild .lwa-agent-name-wrap h3{margin:3px 0 0;color:#f0f5e9;font-size:15px;font-weight:950;line-height:1.4}
+body.lw-rebuild .lwa-agent-name-wrap p{margin:2px 0 0;color:#a0b19a;font-size:9px}
+body.lw-rebuild .lwa-agent-active-badge{flex:0 0 auto;padding:5px 7px;border:1px solid #5c753e;border-radius:999px;background:#26381d;color:#d9ff62;font-size:8px;font-weight:900}
+body.lw-rebuild .lwa-agent-fee{flex:0 0 auto;padding:5px 7px;border:1px solid #344533;border-radius:999px;color:#d5e5cb;background:#151f15;font-size:9px;font-weight:900}
+body.lw-rebuild .lwa-agent-origin{margin:0;color:#a1b09b;font-size:10px;line-height:1.9}
+body.lw-rebuild .lwa-agent-quote{padding:10px 11px;border-right:2px solid #d9ff62;border-radius:6px 10px 10px 6px;background:#d9ff6209;color:#d9e8cc;font-size:10px;font-weight:750;line-height:1.8}
+body.lw-rebuild .lwa-agent-tradeoffs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+body.lw-rebuild .lwa-agent-tradeoffs>div{padding:8px;border:1px solid #29382b;border-radius:10px;background:#0b120d}
+body.lw-rebuild .lwa-agent-tradeoffs small{display:block;color:#8da387;font-size:8px;font-weight:950}
+body.lw-rebuild .lwa-agent-tradeoffs p{margin:4px 0 0;color:#9eae99;font-size:9px;line-height:1.8}
+body.lw-rebuild .lwa-agent-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+body.lw-rebuild .lwa-agent-tags span{padding:5px 7px;border:1px solid #29392b;border-radius:8px;background:#101811;color:#8fa28a;font-size:8px}
+body.lw-rebuild .lwa-history-wrap{margin-top:17px;padding-top:14px;border-top:1px solid #ffffff12}
+body.lw-rebuild .lwa-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+body.lw-rebuild .lwa-history-head strong{color:#dfe9d8;font-size:11px}
+body.lw-rebuild .lwa-history-head span{color:#80957d;font-size:9px}
+body.lw-rebuild .lwa-agent-history{display:grid;gap:6px}
+body.lw-rebuild .lwa-history-item{display:flex;gap:9px;padding:9px;border:1px solid #2a392b;border-radius:10px;background:#0d150f}
+body.lw-rebuild .lwa-history-marker{flex:0 0 6px;width:6px;height:6px;margin-top:6px;border-radius:50%;background:#d9ff62}
+body.lw-rebuild .lwa-history-item strong{display:block;color:#deead7;font-size:10px}
+body.lw-rebuild .lwa-history-item p{margin:3px 0 0;color:#96a691;font-size:9px;line-height:1.8}
+body.lw-rebuild .lwa-history-item small{color:#6e806c;font-size:8px}
+body.lw-rebuild .lwa-empty-history{padding:10px;border:1px dashed #334531;border-radius:10px;color:#80917e;font-size:10px}
+body.lw-rebuild .lwa-agent-disclaimer{margin-top:12px;padding-top:10px;border-top:1px solid #ffffff0e;color:#6f816e;font-size:8px;line-height:1.8}
+body.lw-rebuild .lwa-agent-overlay[hidden]{display:none}
+body.lw-rebuild .lwa-agent-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:#020603e0;backdrop-filter:blur(9px);direction:rtl}
+body.lw-rebuild .lwa-dialog{width:min(660px,100%);max-height:min(92vh,920px);overflow:auto;border:1px solid #3d503b;border-radius:20px;background:linear-gradient(150deg,#18231a,#0b110d);box-shadow:0 28px 100px #000c;color:#eff5e8;padding:19px}
+body.lw-rebuild .lwa-dialog-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding-bottom:13px;border-bottom:1px solid #ffffff12}
+body.lw-rebuild .lwa-dialog-top h2{margin:5px 0 0;color:#f2f6ea;font-size:21px;line-height:1.4;font-weight:1000}
+body.lw-rebuild .lwa-dialog-close{flex:0 0 36px;width:36px;height:36px;border:1px solid #3d4e3a;border-radius:10px;background:#1b281b;color:#e0ead7;font-size:24px;cursor:pointer}
+body.lw-rebuild .lwa-dialog-body{padding-top:15px}
+body.lw-rebuild .lwa-dialog-note{margin-top:13px;padding-top:10px;border-top:1px solid #ffffff12;color:#82967e;font-size:9px;line-height:1.9}
+body.lw-rebuild .lwa-meeting-card{padding:12px;border:1px solid #33432f;border-radius:14px;background:#101711}
+body.lw-rebuild .lwa-meeting-card-top{display:flex;gap:10px;align-items:center}
+body.lw-rebuild .lwa-meeting-card-top h3{margin:2px 0 0;font-size:16px;color:#f0f6e8;font-weight:950}
+body.lw-rebuild .lwa-meeting-card-top p{margin:3px 0 0;color:#94a68e;font-size:9px}
+body.lw-rebuild .lwa-meeting-quote{margin:12px 0;padding:10px 12px;border-right:2px solid #d9ff62;border-radius:5px 10px 10px 5px;background:#d9ff620b;color:#d7e9cc;font-size:11px;line-height:1.8}
+body.lw-rebuild .lwa-meeting-story{margin:0;color:#a5b49f;font-size:10px;line-height:2}
+body.lw-rebuild .lwa-meeting-terms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:13px 0}
+body.lw-rebuild .lwa-meeting-terms>div{padding:10px;border:1px solid #2e3f2b;border-radius:10px;background:#0c140d}
+body.lw-rebuild .lwa-meeting-terms small{display:block;color:#8ca285;font-size:9px}
+body.lw-rebuild .lwa-meeting-terms strong{display:block;margin:4px 0;color:#d9ff62;font-size:22px}
+body.lw-rebuild .lwa-meeting-terms span{display:block;color:#82947d;font-size:8px;line-height:1.7}
+body.lw-rebuild .lwa-dialog-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+body.lw-rebuild .lwa-button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:9px 13px;border:1px solid #3b4d38;border-radius:10px;background:#18241a;color:#e1ecd7;font-size:10px;font-weight:950;cursor:pointer;flex:1 1 130px}
+body.lw-rebuild .lwa-button:hover:not(:disabled){border-color:#d9ff62;background:#24351d}
+body.lw-rebuild .lwa-button-primary{border-color:#d9ff62;background:#d9ff62;color:#182111}
+body.lw-rebuild .lwa-button-primary:hover:not(:disabled){background:#eaffaa}
+body.lw-rebuild .lwa-button:disabled{opacity:.4;cursor:not-allowed}
+body.lw-rebuild .lwa-intro{margin:12px 0;color:#9eaf98;font-size:10px;line-height:1.9}
+body.lw-rebuild .lwa-change-notice,body.lw-rebuild .lwa-result{margin-top:12px;padding:11px;border:1px solid #3b4b31;border-radius:11px;background:#172116}
+body.lw-rebuild .lwa-change-notice strong,body.lw-rebuild .lwa-result strong{display:block;color:#e5f0d8;font-size:11px}
+body.lw-rebuild .lwa-change-notice p,body.lw-rebuild .lwa-result p{margin:5px 0 0;color:#96a691;font-size:10px;line-height:1.9}
+body.lw-rebuild .lwa-result-good{border-color:#546e37;background:#1a2b19}
+body.lw-rebuild .lwa-result-neutral{border-color:#4b5035;background:#201f13}
+body.lw-rebuild .lwa-current-story-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px}
+body.lw-rebuild .lwa-current-story-status>div{padding:10px;border:1px solid #2b3b2a;border-radius:10px;background:#0c140d}
+body.lw-rebuild .lwa-current-story-status small{display:block;color:#8fa28a;font-size:8px}
+body.lw-rebuild .lwa-current-story-status strong{display:block;margin-top:5px;color:#d9ff62;font-size:14px}
+body.lw-rebuild .lwa-current-chapter{margin-top:14px;padding:12px;border:1px solid #3a4c33;border-radius:14px;background:#141e13}
+body.lw-rebuild .lwa-current-chapter h3{margin:5px 0 8px;color:#f1f5e9;font-size:16px}
+body.lw-rebuild .lwa-current-chapter>p{margin:0 0 12px;color:#a6b59f;font-size:10px;line-height:2}
+body.lw-rebuild .lwa-options{display:grid;gap:7px}
+body.lw-rebuild .lwa-option{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #344630;border-radius:11px;background:#0d150e;color:#e3ecdb;text-align:right;cursor:pointer}
+body.lw-rebuild .lwa-option:hover:not(:disabled){border-color:#d9ff62;background:#1b2918}
+body.lw-rebuild .lwa-option strong{display:block;font-size:10px;color:#edf4e6}
+body.lw-rebuild .lwa-option small{display:block;margin-top:4px;color:#93a58d;font-size:9px;line-height:1.8}
+body.lw-rebuild .lwa-option>b{color:#d9ff62}
+body.lw-rebuild .lwa-option:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:760px){
+ body.lw-rebuild .lwa-agent-panel{padding:16px 12px;border-radius:17px}
+ body.lw-rebuild .lwa-header h2{font-size:19px}
+ body.lw-rebuild .lwa-header p{font-size:10px}
+ body.lw-rebuild .lwa-header-mark{min-width:60px;padding:8px 7px;font-size:8px}
+ body.lw-rebuild .lwa-current-summary{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px}
+ body.lw-rebuild .lwa-current-right{display:grid;grid-template-columns:40px 1fr;column-gap:9px;align-items:center}
+ body.lw-rebuild .lwa-current-right .lwa-arc-mark{grid-row:span 2}
+ body.lw-rebuild .lwa-current-right>strong{margin-top:0}
+ body.lw-rebuild .lwa-current-right>p{margin:3px 0 0}
+ body.lw-rebuild .lwa-current-right .lwa-agent-action{grid-column:1/-1;margin-top:8px}
+ body.lw-rebuild .lwa-agent-grid{grid-template-columns:minmax(0,1fr)}
+ body.lw-rebuild .lwa-agent-card{padding:12px}
+ body.lw-rebuild .lwa-agent-origin{font-size:10px}
+ body.lw-rebuild .lwa-agent-tradeoffs{gap:6px}
+ body.lw-rebuild .lwa-agent-fee,body.lw-rebuild .lwa-agent-active-badge{font-size:7px;padding:5px}
+ body.lw-rebuild .lwa-dialog{padding:14px;border-radius:16px}
+ body.lw-rebuild .lwa-dialog-top h2{font-size:18px}
+ body.lw-rebuild .lwa-agent-monogram{flex-basis:38px;width:38px;height:38px}
+ body.lw-rebuild .lwa-dialog-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+ body.lw-rebuild .lwa-button{width:100%}
+}
+@media(prefers-reduced-motion:reduce){body.lw-rebuild .lwa-agent-action{transition:none}}

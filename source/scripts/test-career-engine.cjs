@@ -56,6 +56,14 @@ assert.equal(player.money, beforeMoney - 100);
 assert.equal(career.purchaseItem(player, { id: "boots", price: 100 }).status, "already-owned");
 
 const renewal = { weeklyWage: 500, contractSeasons: 1, freeAgent: false, clubName: "Test FC" };
+const renewalBase = { weeklyWage: 500, contractSeasons: 1, freeAgent: false, clubName: "Test FC", trust: 70,
+  shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70, composure: 70, vision: 70, defending: 50, goalkeeping: 45, pos: "مهاجم" };
+const ordinaryOffer = career.makeContractOffer(renewalBase, false);
+const legacyAgentOffer = career.makeContractOffer(renewalBase, true);
+const specialistAgentOffer = career.makeContractOffer(renewalBase, { contractMultiplier: 1.16 });
+assert.ok(legacyAgentOffer.wage > ordinaryOffer.wage, "legacy agent should preserve a modest boost");
+assert.ok(specialistAgentOffer.wage > legacyAgentOffer.wage, "agent multiplier should affect offer");
+assert.equal(career.makeContractOffer(renewalBase, { contractMultiplier: 4 }).wage, career.makeContractOffer(renewalBase, { contractMultiplier: 1.18 }).wage, "agent multiplier must be capped");
 assert.equal(career.resolveContractDecision(renewal, "accept", { wage: 650, seasons: 3 }).status, "renewed");
 assert.equal(renewal.weeklyWage, 650);
 assert.equal(renewal.contractSeasons, 4);

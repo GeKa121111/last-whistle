@@ -21,6 +21,8 @@ const required = [
   "story-mode.js?v=1",
   "career-experience.js?v=1",
   "career-experience.css?v=1",
+  "agent-system.js?v=1",
+  "agent-system.css?v=1",
   "storyPendingId",
   "window.LWStoryRuntime =",
   'class="page active"'
@@ -47,7 +49,7 @@ if (!inlineCount) {
   console.error("UI smoke test failed: no inline application script found.");
   process.exit(1);
 }
-for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js"]) {
+for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js"]) {
   if (!fs.existsSync(path.join(root, "public", asset))) {
     console.error("Missing public asset:", asset);
     process.exit(1);
@@ -61,6 +63,9 @@ try {
   process.exit(1);
 }
 
+const agentSource = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
+try { new vm.Script(agentSource, { filename: "public/agent-system.js" }); } catch (error) { console.error("Agent system JavaScript syntax error:", error.message); process.exit(1); }
+for (const marker of ["حسام الجندي", "نادين فريد", "سيف مراد", "كريم منصور", "رامي رأفت", "سليم فوزي", "currentChapter", "contractTerms", "prioritizeTargets", "chargeFee"]) { if (!agentSource.includes(marker)) { console.error("Agent-system smoke test failed. Missing marker:", marker); process.exit(1); } }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
 try {
   new vm.Script(experienceSource, { filename: "public/career-experience.js" });

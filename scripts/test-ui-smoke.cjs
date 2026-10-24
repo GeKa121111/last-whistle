@@ -19,6 +19,8 @@ const required = [
   "function simulateCareerMatch",
   "story-ui.css?v=1",
   "story-mode.js?v=1",
+  "career-experience.js?v=1",
+  "career-experience.css?v=1",
   "storyPendingId",
   "window.LWStoryRuntime =",
   'class="page active"'
@@ -45,7 +47,7 @@ if (!inlineCount) {
   console.error("UI smoke test failed: no inline application script found.");
   process.exit(1);
 }
-for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js"]) {
+for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js"]) {
   if (!fs.existsSync(path.join(root, "public", asset))) {
     console.error("Missing public asset:", asset);
     process.exit(1);
@@ -58,4 +60,19 @@ try {
   console.error("Story JavaScript syntax error:", error.message);
   process.exit(1);
 }
-console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life UI, and JavaScript syntax.");
+
+const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
+try {
+  new vm.Script(experienceSource, { filename: "public/career-experience.js" });
+} catch (error) {
+  console.error("Career experience JavaScript syntax error:", error.message);
+  process.exit(1);
+}
+for (const marker of ["data-lwcx-action", "careerWorld", "open-penalty", "open-timing", "open-memory", "invest-safe", "invest-risky", "mentor-coach", "open-legacy", "settleInvestments"]) {
+  if (!experienceSource.includes(marker)) {
+    console.error("Career experience test failed. Missing marker:", marker);
+    process.exit(1);
+  }
+}
+
+console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

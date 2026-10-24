@@ -11,20 +11,21 @@
     goalkeeping: { cost: 19, xp: 28, secondary: { composure: 6 }, goalkeeperOnly: true },
     vision: { cost: 12, xp: 24, secondary: { passing: 6 } },
     composure: { cost: 10, xp: 22, secondary: { passing: 4 } },
-    speed: { cost: 20, xp: 24, secondary: { fitness: 7 } }
+    speed: { cost: 20, xp: 24, secondary: { fitness: 7 } },
+    physical: { cost: 20, xp: 26, secondary: { defending: 5, fitness: 4 } }
   };
   const CAREER_ATTRIBUTE = {
-    "حارس مرمى": "goalkeeping", "قلب دفاع": "defending", "ظهير": "speed",
-    "وسط دفاعي": "defending", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "shooting"
+    "حارس مرمى": "goalkeeping", "قلب دفاع": "physical", "ظهير": "speed",
+    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "shooting"
   };
 
   const DEVELOPMENT_PLANS = {
     "حارس مرمى": { title: "حارس متكامل", summary: "رد الفعل والتمركز والهدوء بالكرة. ارفع الحراسة أولًا، وادعمها بالاتزان والتمرير واللياقة.", primary: ["goalkeeping"], secondary: ["composure", "passing", "fitness"], matchSkill: "goalkeeping" },
-    "قلب دفاع": { title: "قلب دفاع قارئ للعب", summary: "اكسب المواجهات والكرات الهوائية، وطوّر التمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
-    "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والعودة الدفاعية، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending"], matchSkill: "speed" },
-    "وسط دفاعي": { title: "محور ارتكاز", summary: "اقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية قبل اللمسات الهجومية.", primary: ["defending", "passing"], secondary: ["vision", "fitness", "composure"], matchSkill: "defending" },
+    "قلب دفاع": { title: "قلب دفاع قوي وقارئ للعب", summary: "اكسب الالتحامات والكرات الهوائية، وادعم قوتك بالتمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending", "physical"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
+    "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والقوة في الالتحامات، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending", "physical"], matchSkill: "speed" },
+    "وسط دفاعي": { title: "محور ارتكاز", summary: "اكسب الالتحامات واقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية.", primary: ["defending", "physical"], secondary: ["vision", "fitness", "composure", "passing"], matchSkill: "defending" },
     "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
-    "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ثم حسّن إنهاء الهجمة وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness"], matchSkill: "dribbling" },
+    "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ووازن ده بالقوة وقت الالتحام ثم حسّن الإنهاء وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness", "physical"], matchSkill: "dribbling" },
     "مهاجم": { title: "مهاجم هدّاف", summary: "حوّل الفرص لأهداف بالتسديد والهدوء، وادعمهم بالتحرك والسرعة والرؤية داخل المنطقة.", primary: ["shooting"], secondary: ["composure", "speed", "vision"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
@@ -42,6 +43,26 @@
   const APPEARANCE_MILESTONES = [5, 10, 20, 30];
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
+
+  const STARTING_RANGES = {
+    "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
+    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[40,50], physical:[55,66] },
+    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[45,55], physical:[52,62] },
+    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
+    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
+    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
+    "مهاجم": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[48,60] }
+  };
+  function startingStatsForPosition(position, random = Math.random) {
+    const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
+    const stats = {};
+    for (const [key, range] of Object.entries(ranges)) {
+      const roll = Math.max(0, Math.min(0.999999999, Number(random()) || 0));
+      stats[key] = range[0] + Math.floor(roll * (range[1] - range[0] + 1));
+    }
+    return stats;
+  }
+
 
   function uniqueMatchRows(rows) {
     const seen = new Set();
@@ -120,16 +141,25 @@
     return state;
   }
 
+  const OVR_WEIGHTS = {
+    "حارس مرمى": { goalkeeping:.48,composure:.12,vision:.08,fitness:.08,passing:.07,physical:.05,speed:.04,defending:.03,dribbling:.025,shooting:.025 },
+    "قلب دفاع": { defending:.23,physical:.17,fitness:.12,speed:.10,composure:.10,passing:.08,vision:.06,dribbling:.05,shooting:.06,goalkeeping:.03 },
+    "ظهير": { speed:.17,defending:.17,fitness:.14,physical:.12,passing:.11,dribbling:.09,vision:.06,composure:.06,shooting:.05,goalkeeping:.03 },
+    "وسط دفاعي": { defending:.18,passing:.16,vision:.13,physical:.12,fitness:.12,composure:.10,speed:.07,dribbling:.04,shooting:.05,goalkeeping:.03 },
+    "وسط مهاجم": { vision:.19,passing:.19,composure:.12,dribbling:.11,shooting:.10,speed:.08,fitness:.08,physical:.04,defending:.06,goalkeeping:.03 },
+    "جناح": { shooting:.16,dribbling:.18,speed:.16,passing:.12,vision:.10,fitness:.10,composure:.08,physical:.04,defending:.04,goalkeeping:.02 },
+    "مهاجم": { shooting:.26,dribbling:.10,speed:.13,composure:.12,fitness:.10,vision:.10,passing:.08,physical:.05,defending:.04,goalkeeping:.02 }
+  };
   function overall(state) {
     ensureState(state);
-    const core = ["shooting", "dribbling", "passing", "speed", "fitness", "composure"];
-    const base = core.reduce((sum, key) => sum + Number(state[key] || 0), 0) / core.length;
-    const special = {
-      "حارس مرمى": ["goalkeeping", 0.25], "قلب دفاع": ["defending", 0.20],
-      "ظهير": ["speed", 0.12], "وسط دفاعي": ["defending", 0.16],
-      "وسط مهاجم": ["vision", 0.14], "جناح": ["dribbling", 0.16], "مهاجم": ["shooting", 0.16]
-    }[state.pos] || ["vision", 0.08];
-    return Math.round(base * (1 - special[1]) + Number(state[special[0]] || 50) * special[1]);
+    const weights = OVR_WEIGHTS[state.pos] || OVR_WEIGHTS["جناح"];
+    let weighted = 0, totalWeight = 0;
+    for (const [key, weight] of Object.entries(weights)) {
+      const value = Number(state[key]);
+      weighted += (Number.isFinite(value) ? value : 0) * weight;
+      totalWeight += weight;
+    }
+    return Math.round(weighted / (totalWeight || 1));
   }
 
   function limitFor(state, key) {

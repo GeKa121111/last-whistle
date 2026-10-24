@@ -29,6 +29,30 @@ for (const [position, expected] of Object.entries(expectedPlans)) {
 assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "goalkeeping"), 1.2);
 assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"), 1);
 
+// New-position baseline matrix: specialisms must no longer start at a universal 50.
+const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);
+const startRanges = {
+  "مهاجم": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[5,12] },
+  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[5,12] },
+  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[5,12] },
+  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[5,12] },
+  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[5,12] },
+  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[5,12] },
+  "حارس مرمى": { goalkeeping:[58,68], composure:[58,68], vision:[58,68], shooting:[15,35], defending:[15,35] }
+};
+for (const [position, ranges] of Object.entries(startRanges)) {
+  const stats = career.startingStatsForPosition(position, () => 0.5);
+  assert.equal(Object.keys(stats).length, 10, "all 10 skills must be initialized for " + position);
+  for (const [skill, range] of Object.entries(ranges)) between(stats[skill], range[0], range[1], position + "/" + skill);
+  assert.ok(Number.isFinite(career.overall({ ...stats, pos: position, trainingXP: {}, randomSeed: 1, playerPotential: 85 })), "weighted OVR must exist for " + position);
+}
+const wingerStats = career.startingStatsForPosition("جناح", () => 0.5);
+const keeperStats = career.startingStatsForPosition("حارس مرمى", () => 0.5);
+assert.ok(keeperStats.goalkeeping > wingerStats.goalkeeping, "keeper OVR should reward goalkeeping instead of averaging all skills equally");
+assert.ok(wingerStats.shooting > wingerStats.goalkeeping, "winger must not start with goalkeeper-level stats");
+assert.equal(career.trainingFocusMultiplier({ pos: "قلب دفاع" }, "physical"), 1.2, "physical training is a primary defender focus");
+assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "physical"), 1);
+
 
 const deduped = career.uniqueMatchRows([
   { id: "match-1", minutes: 90 }, { id: "match-1", minutes: 90 },

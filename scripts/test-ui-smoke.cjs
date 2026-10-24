@@ -13,9 +13,6 @@ const required = [
   'id="page-training"',
   'id="page-stats"',
   'id="page-wellness"',
-  'id="page-training"',
-  'id="page-stats"',
-  'id="page-wellness"',
   'id="page-life"',
   'id="page-league"',
   'id="page-contract"',
@@ -34,17 +31,18 @@ const required = [
   "player-store.css?v=2",
   "agent-system.js?v=1",
   "agent-system.css?v=1",
-  "career-hub.js?v=1",
-  "career-hub.css?v=1",
-  "player-store.css?v=2",
   'id="shopFilters"',
   'id="storeBalance"',
-  'function applyStorePurchaseBonus',
+  "function applyStorePurchaseBonus",
   'id:"creatorStudio"',
   'id:"sleepCoach"',
   "storyPendingId",
   "window.LWStoryRuntime =",
-  'class="page active"'
+  'class="page active"',
+  "saved.calendarDay",
+  "restored.schemaVersion=8;",
+  "state.schemaVersion=8;",
+  "state.dailyActionDay=Math.max(1,Number(state.day)||1);"
 ];
 const missing = required.filter((token) => !html.includes(token));
 const staticMarkup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "")

@@ -2319,7 +2319,8 @@ async function importSaveFile(file){
   const legacySeasonApps=Math.max(0,Number(clean.seasonApps)||0),savedLeagueApps=Number(clean.leagueApps),trustedLeagueCounter=Object.prototype.hasOwnProperty.call(clean,"leagueApps")&&(savedLeagueApps>0||legacySeasonApps===0||clean.leagueSegmentIsPartial===true);restored.leagueApps=trustedLeagueCounter?Math.max(0,savedLeagueApps):legacySeasonApps;const legacyTransferThisSeason=legacySeasonApps>0&&Array.isArray(clean.transferHistory)&&clean.transferHistory.some(row=>Number(row?.season)===Number(clean.season)&&String(row?.text||"").includes(String(clean.clubName||"")));restored.leagueSegmentIsPartial=!!clean.leagueSegmentIsPartial||(!trustedLeagueCounter&&legacyTransferThisSeason);
   const importedRoundHistory=Array.isArray(restored.leagueRoundHistory)?restored.leagueRoundHistory:[];
   restored.leagueRoundIndex=Number.isInteger(Number(clean.leagueRoundIndex))?Math.max(0,Number(clean.leagueRoundIndex)):(importedRoundHistory.length?Math.max(...importedRoundHistory.map(row=>Number(row?.matchday)||0)):Math.max(0,Number(restored.leagueApps)||0));
-  restored.schemaVersion=7;
+  if(!Object.prototype.hasOwnProperty.call(clean,"calendarDay")||!Number.isFinite(Number(clean.calendarDay))||Number(clean.calendarDay)<1)restored.calendarDay=Math.max(1,Number(restored.day)||1);
+  restored.schemaVersion=8;
   if(window.LWCareer)window.LWCareer.ensureState(restored);
   if(typeof restored.name!=="string"||restored.name.length<1||restored.name.length>50)throw new Error("invalid player name");
   if(restored.league!==null&&!Array.isArray(restored.league))throw new Error("invalid league");

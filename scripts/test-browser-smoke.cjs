@@ -273,11 +273,12 @@ async function main() {
 
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
+    // At the winter break, the primary season action correctly reopens the winter-market decision.
     await page.locator("#seasonStageAction").click();
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
-        && title && title.textContent.includes("جاهز للنصف التاني");
+        && title && title.textContent.includes("انتقالات منتصف الموسم");
     }, null, { timeout: 10000 });
     await page.locator("#modalChoices button").filter({ hasText: "حاكي آخر" }).click();
     await page.waitForFunction(() => {

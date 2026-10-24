@@ -129,6 +129,32 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "يلا نبدأ" }).click();
     results.push("career creation");
 
+    const homeActionPlacement = await page.evaluate(() => {
+      const playerCard = document.querySelector("#page-home .hub-player-card");
+      const readinessHint = document.querySelector("#homeReadinessHint");
+      const readinessActions = document.querySelector("#page-home .hub-home-season-actions");
+      const transferButton = document.querySelector("#seasonTransferAction");
+      const seasonButton = document.querySelector("#seasonStageAction");
+      const seasonRoadmap = document.querySelector("#page-home .seasonJourneyCard");
+      if (!playerCard || !readinessHint || !readinessActions || !transferButton || !seasonButton || !seasonRoadmap) return null;
+      return {
+        actionsInsidePlayerCard: playerCard.contains(readinessActions),
+        bothButtonsInsideActions: readinessActions.contains(transferButton) && readinessActions.contains(seasonButton),
+        actionsNearReadiness: !!(readinessHint.compareDocumentPosition(readinessActions) & Node.DOCUMENT_POSITION_FOLLOWING),
+        actionsAboveSeasonRoadmap: readinessActions.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top
+      };
+    });
+    assert.ok(homeActionPlacement, "home season action panel must exist");
+    assert.equal(homeActionPlacement.actionsInsidePlayerCard, true,
+      "season actions should live beside player readiness, not under the season roadmap");
+    assert.equal(homeActionPlacement.bothButtonsInsideActions, true,
+      "both season buttons must be inside the new action panel");
+    assert.equal(homeActionPlacement.actionsNearReadiness, true,
+      "season actions should follow the readiness summary");
+    assert.equal(homeActionPlacement.actionsAboveSeasonRoadmap, true,
+      "season buttons must render above the season roadmap on mobile");
+    results.push("season actions placed beside readiness above season roadmap");
+
     const sections = ["home", "training", "stats", "wellness", "league", "europe", "contract", "national", "shop", "life", "diary"];
     for (const section of sections) {
       await page.locator("#menuOpen").click();

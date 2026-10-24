@@ -411,7 +411,7 @@
     s.money=available-paid;
     if(paid<requested){s.agentProfile.feeDebt=Math.max(0,Number(s.agentProfile.feeDebt)||0)+requested-paid;addTrust(s,-2);}else addTrust(s,1);
     var cfg=agentConfig(s)||LEGACY_AGENT;
-    record(s,"أتعاب "+cfg.name,"دفع الوكيل مقابل خدمة "+String(reason||"تمثيل")+" أتعابًا قدرها "+paid+" جنيه داخل اللعبة"+(paid<requested+" جنيه غير مكتمل"?"":"")+(paid<requested?"، والمتبقي المسجل "+(requested-paid)+" جنيه.":"."));
+    record(s,"أتعاب "+cfg.name,"دفع الوكيل مقابل خدمة "+String(reason||"تمثيل")+" أتعابًا قدرها "+paid+" جنيه داخل اللعبة"+(paid<requested?"، والمتبقي المسجل "+(requested-paid)+" جنيه.":"."));
     return paid;
   }
   function afterNegotiation(s,result){

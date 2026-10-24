@@ -2789,7 +2789,6 @@ function renderShop(){
 function renderDiary(){
  setText("diaryCount",state.diary.length+" حدث");
  $("diaryList").innerHTML=state.diary.length?state.diary.map(e=>`<div class="feedItem"><b>الموسم ${e.season||state.season} • اليوم ${e.day||state.day}</b>${e.text}</div>`).join(""):'<div class="empty">المذكرات لسه فاضية.</div>';
- setText("latestEvent",state.diary[0]?.text||"وصلت مركز شباب النور لأول مرة.");
  const seasons=Array.isArray(state.seasonHistory)?state.seasonHistory:[],archives=Array.isArray(state.leagueArchives)?state.leagueArchives:[];
  setText("seasonArchiveCount",`${seasons.length} موسم`);setText("leagueArchiveCount",`${archives.length} مرحلة`);
  $("seasonArchiveList").innerHTML=seasons.length?seasons.map(row=>`<details class="feedItem"><summary><b>الموسم ${Number(row.season)||"—"} • ${safeHTML(row.club||"النادي غير محفوظ")}</b><span class="muted small"> ${safeHTML(row.country||"")} • ${safeHTML(row.competition||"")}</span></summary><p>${safeHTML(row.summary||"لا يوجد ملخص محفوظ.")}</p><div class="muted small">مباريات النادي في الموسم: ${Number(row.apps)||0} • أهداف: ${Number(row.goals)||0} • صناعات: ${Number(row.assists)||0} • فوز/تعادل/خسارة: ${Number(row.wins)||0}/${Number(row.draws)||0}/${Number(row.losses)||0} • نقاط: ${Number(row.points)||0} • مباريات مسجلة: ${Number(row.matchCount)||0}</div>${row.awards?.length?`<p>الجوائز: ${row.awards.map(a=>safeHTML(a.title||a.id||"جائزة")).join("، ")}</p>`:""}</details>`).join(""):'<div class="empty">سجل المواسم هيظهر بعد نهاية أول موسم مكتمل.</div>';

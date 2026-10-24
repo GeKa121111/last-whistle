@@ -177,22 +177,22 @@ function ensureShell(){
     shell.id="lw-command-center";
     shell.setAttribute("aria-labelledby","lw-career-title");
     shell.innerHTML=
-      '<div class="lw-eyebrow"><span class="eyebrowLive"></span> LAST WHISTLE <span style="color:#647563">/</span> PLAYER DOSSIER</div>'+
-      '<div class="lw-overview-head"><div class="lw-overview-copy"><h1 id="lw-career-title">الموهبة بداية، <span>والقرار هو الفارق.</span></h1><p id="lw-overview-sub">مسيرتك مش مجرد مباريات؛ كل اختيار بيغير علاقتك بالنادي، وصورتك قدام الناس، والطريق اللي قدامك.</p></div><div class="lw-rating"><strong id="lw-overall">—</strong><small>OVERALL</small></div></div>'+
+      '<div class="lw-eyebrow"><span class="eyebrowLive"></span> LAST WHISTLE <span style="color:#7d9275">/</span> مسيرة اللاعب</div>'+
+      '<div class="lw-overview-head"><div class="lw-overview-copy"><h1 id="lw-career-title">كل مباراة تقرّبك من <span>الحلم.</span></h1><p id="lw-overview-sub">تابع جاهزيتك، اختار خطوتك الجاية، وابني مسيرتك مباراة بعد مباراة.</p></div><div class="lw-rating"><strong id="lw-overall">—</strong><small>التقييم العام</small></div></div>'+
       '<div class="lw-overview-strip">'+
-      '<div class="lw-overview-stat"><small>PLAYER</small><strong id="lw-hub-name">لاعب جديد</strong></div>'+
-      '<div class="lw-overview-stat"><small>CLUB</small><strong id="lw-hub-club">—</strong></div>'+
-      '<div class="lw-overview-stat"><small>CAREER / SEASON</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
-      '<div class="lw-overview-stat"><small>ENERGY</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div>'+
+      '<div class="lw-overview-stat"><small>اللاعب</small><strong id="lw-hub-name">لاعب جديد</strong></div>'+
+      '<div class="lw-overview-stat"><small>النادي</small><strong id="lw-hub-club">—</strong></div>'+
+      '<div class="lw-overview-stat"><small>الموسم / المشاركات</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
+      '<div class="lw-overview-stat"><small>الطاقة</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div>'+
       '</div>'+
       '<div class="lw-progress-block"><div class="lw-progress-head"><span id="lw-hub-progress-label">تقدم الموسم</span><b id="lw-hub-progress-value">0%</b></div><div class="lw-progress-line"><i id="lw-hub-progress-bar" style="width:0%"></i></div></div>'+
       '<div class="lw-overview-actions">'+
-      '<button type="button" class="btn primary" id="lw-cta-match">استعد للمباراة <span>↗</span></button>'+
-      '<button type="button" class="btn" id="lw-cta-training">اختر تدريب <span>＋</span></button>'+
-      '<button type="button" class="btn ghost" id="lw-cta-diary">سجل المسيرة <span>↗</span></button>'+
-      '<button type="button" class="btn ghost" id="lw-cta-save">احفظ التقدم <span>⌘</span></button>'+
+      '<button type="button" class="btn primary" id="lw-cta-match">استعد للمباراة</button>'+
+      '<button type="button" class="btn" id="lw-cta-season">العب الموسم لحد الشتاء</button>'+
+      '<button type="button" class="btn" id="lw-cta-training">مركز التدريب</button>'+
+      '<button type="button" class="btn ghost" id="lw-cta-transfers">سوق الانتقالات</button>'+
       '</div>'+
-      '<div class="lw-next-match"><div><small>NEXT FIXTURE</small><strong id="lw-next-opponent">منافسك القادم</strong></div><span class="lw-match-day" id="lw-next-match-meta">الموسم 1</span></div>';
+      '<div class="lw-next-match"><div><small>المباراة القادمة</small><strong id="lw-next-opponent">منافسك القادم</strong></div><span class="lw-match-day" id="lw-next-match-meta">الموسم 1</span></div>';
     header.insertAdjacentElement("afterend",shell);
     var story=document.createElement("section");
     story.id="lw-story-panel";
@@ -213,7 +213,7 @@ function ensureShell(){
   bindNewControls();
 }
 function bindNewControls(){
-  var mappings=[["lw-cta-match","heroMatch"],["lw-cta-training","heroTrain"],["lw-cta-diary",null],["lw-cta-save","saveBtn"]];
+  var mappings=[["lw-cta-match","heroMatch"],["lw-cta-training","heroTrain"],["lw-cta-season","seasonStageAction"],["lw-cta-transfers","seasonTransferAction"]];
   mappings.forEach(function(pair){
     var button=document.getElementById(pair[0]);
     if(!button||button.dataset.lwBound)return;
@@ -348,6 +348,10 @@ function renderOverview(s){
   set("lw-overview-sub","مسيرة "+(s.name||"لاعب جديد")+" — "+(s.clubName||"ناديك")+" / "+desc+". كل قرار بيغير طريقك.");
   var cta=document.getElementById("lw-cta-match");if(cta)cta.disabled=!!s.retired;
   var train=document.getElementById("lw-cta-training");if(train)train.disabled=!!s.retired;
+  var seasonSource=document.getElementById("seasonStageAction"),seasonCta=document.getElementById("lw-cta-season");
+  if(seasonSource&&seasonCta){seasonCta.textContent=seasonSource.textContent;seasonCta.disabled=seasonSource.disabled;}
+  var transferSource=document.getElementById("seasonTransferAction"),transferCta=document.getElementById("lw-cta-transfers");
+  if(transferSource&&transferCta){transferCta.textContent=transferSource.textContent;transferCta.disabled=transferSource.disabled;}
 }
 function tick(){
   var api=API();if(!api)return;

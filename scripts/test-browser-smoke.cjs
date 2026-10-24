@@ -130,33 +130,38 @@ async function main() {
     results.push("career creation");
 
     const homeActionPlacement = await page.evaluate(() => {
-      const playerCard = document.querySelector("#page-home .hub-player-card");
-      const readinessHint = document.querySelector("#homeReadinessHint");
-      const readinessActions = document.querySelector("#page-home .hub-home-season-actions");
-      const transferButton = document.querySelector("#seasonTransferAction");
-      const seasonButton = document.querySelector("#seasonStageAction");
+      const commandCenter = document.querySelector("#lw-command-center");
+      const storyPanel = document.querySelector("#lw-story-panel");
+      const transferButton = document.querySelector("#lw-cta-transfers");
+      const seasonButton = document.querySelector("#lw-cta-season");
       const seasonRoadmap = document.querySelector("#page-home .seasonJourneyCard");
-      if (!playerCard || !readinessHint || !readinessActions || !transferButton || !seasonButton || !seasonRoadmap) return null;
+      const shortcutPanel = document.querySelector("#page-home .hub-launch-panel");
+      const playerSummary = document.querySelector("#page-home .hub-player-card");
+      const duplicateActionPanel = document.querySelector("#page-home .hub-home-season-actions");
+      if (!commandCenter || !storyPanel || !transferButton || !seasonButton || !seasonRoadmap) return null;
       return {
-        actionsOutsidePlayerCard: !playerCard.contains(readinessActions),
-        actionsAreFirstHomeBlock: readinessActions.compareDocumentPosition(playerCard) & Node.DOCUMENT_POSITION_FOLLOWING,
-        bothButtonsInsideActions: readinessActions.contains(transferButton) && readinessActions.contains(seasonButton),
-        actionsAbovePlayerSummary: readinessActions.getBoundingClientRect().top < playerCard.getBoundingClientRect().top,
-        actionsAboveSeasonRoadmap: readinessActions.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top
+        commandCenterBeforeStory: !!(commandCenter.compareDocumentPosition(storyPanel) & Node.DOCUMENT_POSITION_FOLLOWING),
+        bothPrimaryActionsVisible: transferButton.getClientRects().length > 0 && seasonButton.getClientRects().length > 0,
+        commandCenterAboveSeasonRoadmap: commandCenter.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top,
+        duplicateShortcutsHidden: !!shortcutPanel && getComputedStyle(shortcutPanel).display === "none",
+        duplicatePlayerSummaryHidden: !!playerSummary && getComputedStyle(playerSummary).display === "none",
+        duplicateActionPanelHidden: !!duplicateActionPanel && getComputedStyle(duplicateActionPanel).display === "none"
       };
     });
-    assert.ok(homeActionPlacement, "home season action panel must exist");
-    assert.equal(homeActionPlacement.actionsOutsidePlayerCard, true,
-      "season actions must be outside the player summary card");
-    assert.equal(homeActionPlacement.bothButtonsInsideActions, true,
-      "both season buttons must be inside the new action panel");
-    assert.ok(homeActionPlacement.actionsAreFirstHomeBlock,
-      "season actions must be the first block in the home dashboard");
-    assert.equal(homeActionPlacement.actionsAbovePlayerSummary, true,
-      "season actions must render above player stats and readiness");
-    assert.equal(homeActionPlacement.actionsAboveSeasonRoadmap, true,
-      "season buttons must render above the season roadmap on mobile");
-    results.push("season actions placed beside readiness above season roadmap");
+    assert.ok(homeActionPlacement, "redesigned home dashboard must exist");
+    assert.equal(homeActionPlacement.commandCenterBeforeStory, true,
+      "player command center must lead the home page");
+    assert.equal(homeActionPlacement.bothPrimaryActionsVisible, true,
+      "match-season and transfer actions must be visible inside the command center");
+    assert.equal(homeActionPlacement.commandCenterAboveSeasonRoadmap, true,
+      "the main player controls must appear before the season roadmap");
+    assert.equal(homeActionPlacement.duplicateShortcutsHidden, true,
+      "the duplicated shortcut panel must be removed from the home screen");
+    assert.equal(homeActionPlacement.duplicatePlayerSummaryHidden, true,
+      "the duplicate player summary must be removed from the home screen");
+    assert.equal(homeActionPlacement.duplicateActionPanelHidden, true,
+      "the old season action panel must be hidden after moving its actions into the command center");
+    results.push("redesigned home hierarchy and duplicate-panel cleanup");
 
     const sections = ["home", "training", "stats", "wellness", "league", "europe", "contract", "national", "shop", "life", "diary"];
     for (const section of sections) {
@@ -226,8 +231,8 @@ async function main() {
 
     const modalOpen = await page.locator("#modalShade").evaluate(el => el.classList.contains("open"));
     if (modalOpen) await page.locator("#modalClose").click();
-    await page.locator("#seasonTransferAction").scrollIntoViewIfNeeded();
-    await page.locator("#seasonTransferAction").click();
+    await page.locator("#lw-cta-transfers").scrollIntoViewIfNeeded();
+    await page.locator("#lw-cta-transfers").click();
     await page.waitForFunction(() => {
       const active = document.querySelector(".page.active");
       return active && active.id === "page-contract";
@@ -237,7 +242,7 @@ async function main() {
     // Exercise the complete league season lifecycle, not just a single match.
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
-    await page.locator("#seasonStageAction").click();
+    await page.locator("#lw-cta-season").click();
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
@@ -274,7 +279,7 @@ async function main() {
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     // At the winter break, the primary season action correctly reopens the winter-market decision.
-    await page.locator("#seasonStageAction").click();
+    await page.locator("#lw-cta-season").click();
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")

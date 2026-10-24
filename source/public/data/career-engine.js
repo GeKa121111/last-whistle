@@ -389,7 +389,7 @@
     return n < 2 ? 0 : 2 * (n - 1);
   }
 
-  function leagueMatchDaysRemaining(lastMatchCalendarDay, currentCalendarDay, minimumGap = 7) {
+  function leagueMatchDaysRemaining(lastMatchCalendarDay, currentCalendarDay, minimumGap = 5) {
     const last = Math.max(0, Math.floor(Number(lastMatchCalendarDay) || 0));
     const current = Math.max(0, Math.floor(Number(currentCalendarDay) || 0));
     const gap = Math.max(1, Math.floor(Number(minimumGap) || 7));

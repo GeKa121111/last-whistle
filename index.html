@@ -802,6 +802,7 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
     <button class="navBtn" data-page="europe"><span class="ico">🌍</span> العالم: الدوريات والبطولات</button>
     <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقد والانتقالات</button>
     <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> منتخب مصر</button>
+    <button class="navBtn" data-page="life"><span class="ico">🎙️</span> الحياة والسمعة</button>
     <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
     <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
   </nav>
@@ -992,6 +993,37 @@ main{grid-area:main;min-width:0}.page{padding-top:0}.grid{display:grid;grid-temp
         <h3>بطولات قابلة للمحاكاة داخل اللعبة</h3><p class="dataDisclaimer">هذه محاكاة تجريبية للمراحل؛ لا تمثل القرعة الرسمية أو قائمة المشاركين الحالية. راجع تفاصيل كل بطولة ورابطها الرسمي في الدليل أعلاه.</p><div id="cupCatalog" class="leagueCatalog"></div><div id="cupActive" class="feed" style="margin-top:10px"></div>
         <h3>أسماء لاعبين — أمثلة مساعدة قديمة</h3><p class="dataDisclaimer">أسماء مختارة وليست قوائم أندية رسمية أو تحديثًا لحظيًا للاعبين.</p><div id="realPlayerCatalog"></div>
       </article></div>
+    </section>
+
+    <section class="page" id="page-life">
+      <div class="grid">
+        <article class="card span12 seasonJourneyCard">
+          <div class="cardHead"><div><h2>الحياة الاحترافية</h2><div class="subline">قراراتك خارج الملعب بتأثر على سمعتك وعلاقتك بالفريق، وكل قرار له تكلفة ونتيجة.</div></div><span class="pill gold">الحياة والسمعة</span></div>
+          <div class="dataGrid" id="professionalLifeStats"></div>
+          <p class="dataDisclaimer" style="margin-top:10px">الأنشطة الإعلامية والاجتماعية بتستخدم النشاط الجانبي اليومي نفسه الموجود في المسيرة؛ مش هتقدر تجمع كل المكافآت في يوم واحد.</p>
+        </article>
+        <article class="card span6">
+          <div class="cardHead"><h2>مقابلة صحفية</h2><span class="pill">اختيار له عواقب</span></div>
+          <p class="muted small">اختار أسلوبك. التواضع يحسن صورتك المهنية، والثقة ترفع الاهتمام بيك، والتصريح المثير للجدل ممكن يضر علاقتك بالمدرب.</p>
+          <div class="actionGrid">
+            <button class="btn actionBtn primary" id="pressHumble"><span class="actionTitle">رد متواضع</span><span class="actionDesc">احترافية وثقة أعلى تدريجيًا</span></button>
+            <button class="btn actionBtn" id="pressConfident"><span class="actionTitle">رد واثق</span><span class="actionDesc">شهرة أكبر مع مخاطرة محسوبة</span></button>
+            <button class="btn actionBtn" id="pressControversial"><span class="actionTitle">تصريح مثير للجدل</span><span class="actionDesc">تفاعل أعلى ومخاطر على العلاقة</span></button>
+          </div>
+        </article>
+        <article class="card span6">
+          <div class="cardHead"><h2>غرفة الملابس</h2><span class="pill green">روح الفريق</span></div>
+          <p class="muted small">دعم زميل أو الالتزام بخطة احترافية ممكن يحسن الانسجام والانضباط، لكنه يستهلك نشاطك الجانبي اليومي.</p>
+          <div class="actionGrid">
+            <button class="btn actionBtn" id="supportTeammate"><span class="actionTitle">ساند زميل محبط</span><span class="actionDesc">انسجام أعلى ومعنويات أفضل</span></button>
+            <button class="btn actionBtn" id="professionalCommitment"><span class="actionTitle">جلسة التزام احترافي</span><span class="actionDesc">انضباط وثقة تدريجيان</span></button>
+          </div>
+        </article>
+        <article class="card span12">
+          <div class="cardHead"><h2>سجل الإعلام والعلاقات</h2><span class="pill" id="lifeHistoryCount">0 حدث</span></div>
+          <div class="eventFeed" id="lifeHistory"></div>
+        </article>
+      </div>
     </section>
 
     <section class="page" id="page-diary">
@@ -2139,7 +2171,8 @@ const INITIAL = {
  trophies:0,topScorerAwards:0,achievements:[],diary:[],storyTitle:"الفصل الأول: فرصة العمر",
  storyText:"النهارده أول يوم ليك في مركز شباب النور. الكابتن شريف بصّلك وقال: «الموهبة مهمة، بس الالتزام هو اللي بيخلي اللاعب يكمل». قدامك موسم طويل، وكل يوم ممكن يغيّر مستقبلك.",
  seasonLog:[],careerMatchHistory:[],seasonHistory:[],leagueArchives:[],recordedMatchIds:[],leagueArchiveSequence:0,transferHistory:[],league:null,fixtureSchedule:[],calendarEvents:[],cupState:null,cupHistory:[],internationalHistory:[],promotionHistory:[],currentPage:"home",seasonSummary:null,internationalPlayed:false,journeyTransferReviewed:false,journeyEventSeen:false,journeySeasonReviewed:false,seasonFinished:false,seasonPhase:"firstHalf",winterBreakPending:false,
- dailyActionDay:1,dailyActionUsed:false,dailyActionType:"",suspensions:{},bookings:{},contractOffer:null,freeAgent:false,contractDecisionSeason:0,leagueRoundHistory:[]
+ dailyActionDay:1,dailyActionUsed:false,dailyActionType:"",suspensions:{},bookings:{},contractOffer:null,freeAgent:false,contractDecisionSeason:0,leagueRoundHistory:[],
+ professionalism:65,mediaReputation:20,teamChemistry:50,coachRelationship:35,pressHistory:[],relationshipHistory:[]
 };
 let state = structuredCloneSafe(INITIAL);
 let modalResolver = null;
@@ -2270,6 +2303,8 @@ function loadGame(){
   const saved=JSON.parse(raw);
   if(!saved||typeof saved!=="object")return false;
   state={...structuredCloneSafe(INITIAL),...saved};
+  state.pressHistory=Array.isArray(state.pressHistory)?state.pressHistory:[];state.relationshipHistory=Array.isArray(state.relationshipHistory)?state.relationshipHistory:[];
+  for(const key of ["professionalism","mediaReputation","teamChemistry","coachRelationship"])state[key]=clamp(state[key]??INITIAL[key]);
   if(Number(saved.schemaVersion||3)<4)window.LWCareer?.rebuildLegacyCareerStats(state);if(Number(saved.schemaVersion||3)<5||saved.leagueRatingSum===undefined||saved.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(state);
   state.schemaVersion=7;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
   state.diary=Array.isArray(state.diary)?state.diary.slice(0,40):[];
@@ -2384,17 +2419,60 @@ function openModal(title,text,choices,options={}){
 }
 function closeModal(){$("modalShade").classList.remove("open");}
 function showPage(page){
- const valid=["home","league","europe","contract","national","shop","diary"].includes(page)?page:"home";
+ const valid=["home","league","europe","contract","national","shop","life","diary"].includes(page)?page:"home";
  state.currentPage=valid;
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+valid));
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
- const labels={home:"الرئيسية",league:"الدوري المحلي",europe:"الدوريات الأوروبية",contract:"العقد والانتقالات",national:"منتخب مصر",shop:"المتجر",diary:"المذكرات"};
+ const labels={home:"الرئيسية",league:"الدوري المحلي",europe:"الدوريات الأوروبية",contract:"العقد والانتقالات",national:"منتخب مصر",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
  $("pageName").textContent=labels[valid];closeDrawer();render();
 }
 function openDrawer(){$("drawer").classList.add("open");$("drawerShade").classList.add("open");}
 function closeDrawer(){$("drawer").classList.remove("open");$("drawerShade").classList.remove("open");}
 function setBar(id,val){const el=$(id);if(el)el.style.width=clamp(val)+"%";}
 function setText(id,value){const el=$(id);if(el)el.textContent=value;}
+function renderProfessionalLife(){
+ const stats=[
+  {label:"الاحترافية",value:clamp(state.professionalism??65),desc:"الالتزام والسلوك"},
+  {label:"السمعة الإعلامية",value:clamp(state.mediaReputation??20),desc:"صورتك عند الجمهور"},
+  {label:"انسجام الفريق",value:clamp(state.teamChemistry??50),desc:"علاقتك بزملائك"},
+  {label:"علاقتك بالمدرب",value:clamp(state.coachRelationship??35),desc:"الثقة خارج الملعب"}
+ ];
+ $("professionalLifeStats").innerHTML=stats.map(x=>`<div class="dataCard"><h4>${x.label} <b style="float:left;color:var(--green)">${x.value}/100</b></h4><div class="bar"><i style="width:${x.value}%"></i></div><p>${x.desc}</p></div>`).join("");
+ const rows=[...(Array.isArray(state.pressHistory)?state.pressHistory:[]),...(Array.isArray(state.relationshipHistory)?state.relationshipHistory:[])].sort((a,b)=>(Number(b.day)||0)-(Number(a.day)||0)).slice(0,20);
+ setText("lifeHistoryCount",`${rows.length} حدث`);
+ $("lifeHistory").innerHTML=rows.length?rows.map(x=>`<div class="feedItem"><b>الموسم ${Number(x.season)||state.season} • اليوم ${Number(x.day)||state.day} — ${safeHTML(x.type||"حدث")}</b>${safeHTML(x.text||"")}</div>`).join(""):'<div class="empty">لسه مفيش أحداث إعلامية أو علاقات. اختار نشاط من فوق عشان تبدأ.</div>';
+ const locked=!!state.retired;
+ ["pressHumble","pressConfident","pressControversial","supportTeammate","professionalCommitment"].forEach(id=>{const el=$(id);if(el)el.disabled=locked||!canUseDailyAction();});
+}
+function recordLifeEvent(target,type,text){
+ const entry={season:Number(state.season)||1,day:Number(state.day)||1,type,text};
+ state[target]=Array.isArray(state[target])?state[target]:[];state[target].unshift(entry);state[target]=state[target].slice(0,30);
+ log(type+": "+text);
+}
+function professionalLifeAction(kind){
+ if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
+ if(!useDailyAction(kind))return;
+ const p=clamp(state.professionalism??65),r=clamp(state.mediaReputation??20),c=clamp(state.teamChemistry??50),coach=clamp(state.coachRelationship??35);
+ if(kind==="press-humble"){
+  state.professionalism=clamp(p+4);state.mediaReputation=clamp(r+2);state.coachRelationship=clamp(coach+2);state.trust=clamp(state.trust+1);state.morale=clamp(state.morale+1);
+  recordLifeEvent("pressHistory","مقابلة صحفية — تواضع","شكرت زملاءك والمدرب، وركزت على العمل الجماعي. صورتك المهنية اتحسنت.");setStory("كلام موزون","الموهبة تلفت النظر، لكن التواضع والاستمرارية بيخلوا الناس تثق فيك.");
+ }else if(kind==="press-confident"){
+  state.mediaReputation=clamp(r+6);state.professionalism=clamp(p-1);state.followers+=rand(12,28);state.morale=clamp(state.morale+2);
+  recordLifeEvent("pressHistory","مقابلة صحفية — ثقة","أكدت إنك مستعد للمنافسة على مكان أساسي. زاد الاهتمام بيك، لكن عليك تثبت كلامك في الملعب.");setStory("ثقة ولا غرور؟","التصريحات رفعت الاهتمام بيك؛ الأداء القادم هو اللي هيحدد إذا كانت ثقة مستحقة.");
+ }else if(kind==="press-controversial"){
+  state.mediaReputation=clamp(r+9);state.followers+=rand(25,55);state.professionalism=clamp(p-7);state.coachRelationship=clamp(coach-6);state.trust=clamp(state.trust-3);state.morale=clamp(state.morale-2);
+  recordLifeEvent("pressHistory","مقابلة صحفية — جدل","تصريحك عمل ضجة وزود المتابعين، لكنه أزعج المدرب وقلل من صورتك المهنية.");setStory("الشهرة ليها تمن","التفاعل زاد، لكن العلاقة مع النادي اتأثرت. هتحتاج شغلك في الملعب يصلح الصورة.");
+ }else if(kind==="support-teammate"){
+  state.teamChemistry=clamp(c+7);state.morale=clamp(state.morale+3);state.professionalism=clamp(p+2);state.energy=clamp(state.energy-3);
+  recordLifeEvent("relationshipHistory","دعم زميل","خصصت وقت لزميل محبط بعد التدريب. الانسجام والمعنويات اتحسنوا.");setStory("الفريق قبل الفرد","المساندة بتبني ثقة متبادلة، لكن الانسجام الحقيقي بيتثبت في الملعب.");
+ }else if(kind==="professional-commitment"){
+  state.professionalism=clamp(p+6);state.coachRelationship=clamp(coach+4);state.trust=clamp(state.trust+2);state.energy=clamp(state.energy-2);
+  recordLifeEvent("relationshipHistory","جلسة التزام احترافي","راجعت أهدافك والتزاماتك وخطة التعافي. ارتفع الانضباط وعلاقتك بالمدرب تدريجيًا.");setStory("عقلية المحترف","الالتزام مش لقطة واحدة؛ هو قرارات صغيرة بتتكرر كل يوم.");
+ }else{
+  state.dailyActionUsed=false;state.dailyActionType="";state.nightToday=false;toast("النشاط ده غير معروف.");return;
+ }
+ saveGame(true);render();toast("اتسجل النشاط وتأثيره في مسيرتك.");
+}
 function renderAchievements(){
  const all=[
   {id:"debut",icon:"👟",name:"أول ظهور",desc:"العب أول مباراة",ok:state.apps>=1},
@@ -2862,7 +2940,7 @@ function render(){
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
  setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
- renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();
+ renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
  document.querySelectorAll('[data-action="match"]').forEach(b=>b.disabled=state.retired||state.playedToday||state.injuryDays>0);
  document.querySelectorAll("[data-action]").forEach(b=>{if(state.retired)b.disabled=true;});if($("heroMatch"))$("heroMatch").disabled=!!state.retired;if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
  document.querySelectorAll('[data-action^="train-"]').forEach(b=>b.disabled=state.retired||state.injuryDays>0||state.playedToday||state.trainedToday);
@@ -3472,6 +3550,11 @@ function bind(){
  $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة المدرب: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
  $("nationalMatchBtn").addEventListener("click",nationalMatch);$("sponsorBtn").addEventListener("click",negotiateSponsorship);
  $("shopItems").addEventListener("click",e=>{const b=e.target.closest("[data-buy]");if(b)buyItem(b.dataset.buy);});
+ $("pressHumble").addEventListener("click",()=>professionalLifeAction("press-humble"));
+ $("pressConfident").addEventListener("click",()=>professionalLifeAction("press-confident"));
+ $("pressControversial").addEventListener("click",()=>professionalLifeAction("press-controversial"));
+ $("supportTeammate").addEventListener("click",()=>professionalLifeAction("support-teammate"));
+ $("professionalCommitment").addEventListener("click",()=>professionalLifeAction("professional-commitment"));
  $("saveBtn").addEventListener("click",()=>saveGame(false));$("drawerSave").addEventListener("click",()=>{saveGame(false);closeDrawer();});$("exportSaveBtn").addEventListener("click",exportSave);$("importSaveBtn").addEventListener("click",()=>$("importSaveInput").click());$("importSaveInput").addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];if(file)importSaveFile(file);e.target.value="";});$("newCareerBtn").addEventListener("click",newCareer);
 }
 async function init(){

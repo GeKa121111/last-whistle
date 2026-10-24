@@ -852,7 +852,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     <div class="headerDeskTag"><span class="liveDot"></span> PLAYER CAREER</div>
     <div class="headStats">
       <div class="miniStat"><small>DAY</small><b id="headDay">1</b></div>
-      <div class="miniStat"><small>BALANCE</small><b><span id="headMoney">450</span> <em>ج</em></b></div>
+      <div class="miniStat"><small>BALANCE</small><b><span id="headMoney">450</span> <em id="headCurrency">ج.م</em></b></div>
       <div class="miniStat hideMobile"><small>ENERGY</small><b><span id="headEnergy">80</span>%</b></div>
     </div>
   </header>
@@ -920,7 +920,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
             <div class="progressRow"><span>ثقة الجهاز الفني</span><div class="bar indigo"><i id="trustBar"></i></div><b id="trustVal">25</b></div>
           </div>
           <div class="kpiGrid" style="margin-top:13px">
-            <div class="kpi"><div class="kpiNum" id="kpiMoney">450</div><div class="kpiLabel">جنيه</div></div>
+            <div class="kpi"><div class="kpiNum" id="kpiMoney">450</div><div class="kpiLabel" id="kpiCurrency">ج.م</div></div>
             <div class="kpi"><div class="kpiNum" id="kpiFollowers">120</div><div class="kpiLabel">متابع</div></div>
             <div class="kpi"><div class="kpiNum" id="kpiApps">0</div><div class="kpiLabel">مباراة</div></div>
           </div>
@@ -961,6 +961,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
             <button class="btn actionBtn" data-action="train-defending"><span class="actionTitle">🛡️ تمركز ودفاع</span><span class="actionDesc">التمركز وقراءة اللعب</span></button>
             <button class="btn actionBtn" data-action="train-goalkeeping"><span class="actionTitle">🧤 تدريب الحراسة</span><span class="actionDesc">متاح لحارس المرمى فقط</span></button>
             <button class="btn actionBtn" data-action="train-vision"><span class="actionTitle">👁️ رؤية وصناعة لعب</span><span class="actionDesc">قراءة المساحات والقرار</span></button>
+            <button class="btn actionBtn" data-action="train-physical"><span class="actionTitle">💪 قوة بدنية والالتحامات</span><span class="actionDesc">الثبات في المواجهات والالتحام البدني</span></button>
             <button class="btn actionBtn" data-action="train-composure"><span class="actionTitle">🧠 هدوء تحت الضغط</span><span class="actionDesc">الاتزان والتركيز وقت الحسم</span></button>
             <button class="btn actionBtn" data-action="train-speed"><span class="actionTitle">⚡ سرعة وانطلاق</span><span class="actionDesc">السرعة القصوى والتسارع</span></button>
           </div>
@@ -985,7 +986,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           </div>
         </article>
         <article class="card span8">
-          <div class="cardHead"><h2>المهارات الأساسية</h2><span class="pill">9 مهارات</span></div>
+          <div class="cardHead"><h2>المهارات الأساسية</h2><span class="pill">10 مهارات</span></div>
           <div class="grid" style="margin:0;gap:0 18px">
             <div class="span6">
               <div class="progressRow"><span>🎯 التسديد</span><div class="bar"><i id="skill-shooting"></i></div><b id="val-shooting">52</b></div>
@@ -996,12 +997,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
               <div class="progressRow"><span>⚡ السرعة</span><div class="bar"><i id="skill-speed"></i></div><b id="val-speed">67</b></div>
               <div class="progressRow"><span>🏃 اللياقة</span><div class="bar"><i id="skill-fitness"></i></div><b id="val-fitness">60</b></div>
               <div class="progressRow"><span>🧠 الهدوء</span><div class="bar"><i id="skill-composure"></i></div><b id="val-composure">48</b></div>
+              <div class="progressRow"><span>👁️ الرؤية</span><div class="bar"><i id="skill-vision"></i></div><b id="val-vision">50</b></div>
             </div>
           </div>
           <div class="advancedSkillGrid" aria-label="المهارات التخصصية">
             <div class="progressRow"><span>🛡️ الدفاع</span><div class="bar"><i id="skill-defending"></i></div><b id="val-defending">50</b></div>
             <div class="progressRow"><span>🧤 الحراسة</span><div class="bar"><i id="skill-goalkeeping"></i></div><b id="val-goalkeeping">50</b></div>
-            <div class="progressRow"><span>👁️ الرؤية</span><div class="bar"><i id="skill-vision"></i></div><b id="val-vision">50</b></div>
+            <div class="progressRow"><span>💪 القوة البدنية</span><div class="bar"><i id="skill-physical"></i></div><b id="val-physical">50</b></div>
+            
           </div>
           <div class="careerMeter"><div class="progressRow"><span id="careerLevelBadge">المستوى 1</span><div class="bar gold"><i id="careerXPBar"></i></div><b id="careerLevelValue">1</b></div><div class="careerMeta" id="careerProgressText">الخبرة والمسار التدريبي</div></div>
           <div class="sectionNote" id="seasonProgress">الموسم 1 • المباراة 0 من 38 • النقاط 0</div>
@@ -1060,7 +1063,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
     <section class="page" id="page-contract">
       <div class="grid">
-        <article class="card span6"><div class="cardHead"><h2>📄 عقدك الحالي</h2><span class="pill green" id="contractStatusPill">ساري</span></div><div class="big" id="contractClub">مركز شباب النور</div><p class="muted small" id="currentClubLeague">الدوري والدولة</p><p class="muted small">المرتب بيتصرف كل 7 أيام داخل اللعبة.</p><div class="kpiGrid"><div class="kpi"><div class="kpiNum" id="weeklyWage">250</div><div class="kpiLabel">جنيه / أسبوع</div></div><div class="kpi"><div class="kpiNum" id="contractYears">2</div><div class="kpiLabel">مواسم متبقية</div></div><div class="kpi"><div class="kpiNum" id="contractTrust">25%</div><div class="kpiLabel">ثقة المدرب</div></div></div><div class="btnRow" style="margin-top:14px"><button class="btn primary" id="negotiateBtn">🤝 تفاوض على العقد</button><button class="btn" id="contractDetailsBtn">تفاصيل العقد</button></div><div class="muted small" id="contractMessage" style="margin-top:10px">خليك ثابت في مستواك عشان موقفك في التفاوض يبقى أقوى.</div></article>
+        <article class="card span6"><div class="cardHead"><h2>📄 عقدك الحالي</h2><span class="pill green" id="contractStatusPill">ساري</span></div><div class="big" id="contractClub">مركز شباب النور</div><p class="muted small" id="currentClubLeague">الدوري والدولة</p><p class="muted small">المرتب بيتصرف كل 7 أيام داخل اللعبة.</p><div class="kpiGrid"><div class="kpi"><div class="kpiNum" id="weeklyWage">250</div><div class="kpiLabel" id="weeklyWageLabel">ج.م / أسبوع</div></div><div class="kpi"><div class="kpiNum" id="contractYears">2</div><div class="kpiLabel">مواسم متبقية</div></div><div class="kpi"><div class="kpiNum" id="contractTrust">25%</div><div class="kpiLabel">ثقة المدرب</div></div></div><div class="btnRow" style="margin-top:14px"><button class="btn primary" id="negotiateBtn">🤝 تفاوض على العقد</button><button class="btn" id="contractDetailsBtn">تفاصيل العقد</button></div><div class="muted small" id="contractMessage" style="margin-top:10px">خليك ثابت في مستواك عشان موقفك في التفاوض يبقى أقوى.</div></article>
         <article class="card span6"><h2>⚽ المنافسة على مركزك</h2><p class="muted small">تقييم افتراضي للمنافسة على دورك حسب مستواك وفورمتك وثقة المدرب، وليس قائمة أسماء حقيقية.</p><div id="squadCompetition" class="eventFeed"></div></article>
         <article class="card span6"><h2>🤝 الرعاية والإعلانات</h2><p class="muted small" id="sponsorStatus">تقدر تفاوض على عقد رعاية مرتبط بمشاركاتك وسمعتك.</p><button class="btn primary" id="sponsorBtn" type="button">تفاوض على عقد رعاية</button></article>
         <article class="card span6"><h2>📈 سلم الأندية</h2><p class="muted small">كل نقلة أصعب من اللي قبلها. لازم تثبت إنك جاهز، والعروض مش بتتكرر كل يوم.</p><div id="clubLadder"></div></article>
@@ -1190,27 +1193,21 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     goalkeeping: { cost: 19, xp: 28, secondary: { composure: 6 }, goalkeeperOnly: true },
     vision: { cost: 12, xp: 24, secondary: { passing: 6 } },
     composure: { cost: 10, xp: 22, secondary: { passing: 4 } },
-    speed: { cost: 20, xp: 24, secondary: { fitness: 7 } }
+    speed: { cost: 20, xp: 24, secondary: { fitness: 7 } },
+    physical: { cost: 20, xp: 26, secondary: { defending: 5, fitness: 4 } }
   };
-
   const CAREER_ATTRIBUTE = {
-    "حارس مرمى": "goalkeeping",
-    "قلب دفاع": "defending",
-    "ظهير": "speed",
-    "وسط دفاعي": "defending",
-    "وسط مهاجم": "vision",
-    "جناح": "dribbling",
-    "مهاجم": "shooting"
+    "حارس مرمى": "goalkeeping", "قلب دفاع": "physical", "ظهير": "speed",
+    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "shooting"
   };
-
 
   const DEVELOPMENT_PLANS = {
     "حارس مرمى": { title: "حارس متكامل", summary: "رد الفعل والتمركز والهدوء بالكرة. ارفع الحراسة أولًا، وادعمها بالاتزان والتمرير واللياقة.", primary: ["goalkeeping"], secondary: ["composure", "passing", "fitness"], matchSkill: "goalkeeping" },
-    "قلب دفاع": { title: "قلب دفاع قارئ للعب", summary: "اكسب المواجهات والكرات الهوائية، وطوّر التمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
-    "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والعودة الدفاعية، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending"], matchSkill: "speed" },
-    "وسط دفاعي": { title: "محور ارتكاز", summary: "اقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية قبل اللمسات الهجومية.", primary: ["defending", "passing"], secondary: ["vision", "fitness", "composure"], matchSkill: "defending" },
+    "قلب دفاع": { title: "قلب دفاع قوي وقارئ للعب", summary: "اكسب الالتحامات والكرات الهوائية، وادعم قوتك بالتمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending", "physical"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
+    "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والقوة في الالتحامات، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending", "physical"], matchSkill: "speed" },
+    "وسط دفاعي": { title: "محور ارتكاز", summary: "اكسب الالتحامات واقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية.", primary: ["defending", "physical"], secondary: ["vision", "fitness", "composure", "passing"], matchSkill: "defending" },
     "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
-    "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ثم حسّن إنهاء الهجمة وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness"], matchSkill: "dribbling" },
+    "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ووازن ده بالقوة وقت الالتحام ثم حسّن الإنهاء وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness", "physical"], matchSkill: "dribbling" },
     "مهاجم": { title: "مهاجم هدّاف", summary: "حوّل الفرص لأهداف بالتسديد والهدوء، وادعمهم بالتحرك والسرعة والرؤية داخل المنطقة.", primary: ["shooting"], secondary: ["composure", "speed", "vision"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
@@ -1226,9 +1223,28 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   const APPEARANCE_MILESTONES = [5, 10, 20, 30];
-
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
+
+  const STARTING_RANGES = {
+    "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
+    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[40,50], physical:[55,66] },
+    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[45,55], physical:[52,62] },
+    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
+    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
+    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
+    "مهاجم": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[48,60] }
+  };
+  function startingStatsForPosition(position, random = Math.random) {
+    const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
+    const stats = {};
+    for (const [key, range] of Object.entries(ranges)) {
+      const roll = Math.max(0, Math.min(0.999999999, Number(random()) || 0));
+      stats[key] = range[0] + Math.floor(roll * (range[1] - range[0] + 1));
+    }
+    return stats;
+  }
+
 
   function uniqueMatchRows(rows) {
     const seen = new Set();
@@ -1240,7 +1256,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         row.day || "", row.calendarDay || "", row.matchday || "",
         row.teamGoals ?? row.scoreFor ?? "", row.oppGoals ?? row.scoreAgainst ?? "",
         row.minutes ?? "", row.goals ?? "", row.assists ?? ""].join("|");
-      const key = id ? `id:${id}` : `row:${fallback}`;
+      const key = id ? "id:" + id : "row:" + fallback;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -1266,7 +1282,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function deriveLeagueRatingStats(state) {
-    const rows = uniqueCareerHistory(state).filter(row => row.scope === "league" && Number(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
+    const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
+      && Number(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
     state.leagueRatingSum = rows.reduce((sum, row) => sum + Number(row.rating), 0);
     state.leagueRatingCount = rows.length;
     return { sum: state.leagueRatingSum, count: state.leagueRatingCount };
@@ -1281,8 +1298,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.careerLevel = Math.max(1, Number(state.careerLevel) || 1);
     state.trainingSessions = Number(state.trainingSessions) || 0;
     state.playerPotential = clamp(state.playerPotential || 82, 65, 97);
-    state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity)
-      ? state.trainingIntensity : "normal";
+    state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);
     state.progressionMatchIds = Array.isArray(state.progressionMatchIds) ? state.progressionMatchIds : [];
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
@@ -1296,7 +1312,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     }
     state.qualifyingAppearances = Math.max(0, Number(state.qualifyingAppearances) || 0);
     if (!hadMilestoneLedger) {
-      state.careerMilestonesEarned = APPEARANCE_MILESTONES.filter(threshold => state.qualifyingAppearances >= threshold).map(String);
+      state.careerMilestonesEarned = APPEARANCE_MILESTONES
+        .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
     }
     state.fatigue = clamp(state.fatigue || 0, 0, 100);
     for (const key of Object.keys(CONFIG)) {
@@ -1306,20 +1323,25 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return state;
   }
 
+  const OVR_WEIGHTS = {
+    "حارس مرمى": { goalkeeping:.48,composure:.12,vision:.08,fitness:.08,passing:.07,physical:.05,speed:.04,defending:.03,dribbling:.025,shooting:.025 },
+    "قلب دفاع": { defending:.23,physical:.17,fitness:.12,speed:.10,composure:.10,passing:.08,vision:.06,dribbling:.05,shooting:.06,goalkeeping:.03 },
+    "ظهير": { speed:.17,defending:.17,fitness:.14,physical:.12,passing:.11,dribbling:.09,vision:.06,composure:.06,shooting:.05,goalkeeping:.03 },
+    "وسط دفاعي": { defending:.18,passing:.16,vision:.13,physical:.12,fitness:.12,composure:.10,speed:.07,dribbling:.04,shooting:.05,goalkeeping:.03 },
+    "وسط مهاجم": { vision:.19,passing:.19,composure:.12,dribbling:.11,shooting:.10,speed:.08,fitness:.08,physical:.04,defending:.06,goalkeeping:.03 },
+    "جناح": { shooting:.16,dribbling:.18,speed:.16,passing:.12,vision:.10,fitness:.10,composure:.08,physical:.04,defending:.04,goalkeeping:.02 },
+    "مهاجم": { shooting:.26,dribbling:.10,speed:.13,composure:.12,fitness:.10,vision:.10,passing:.08,physical:.05,defending:.04,goalkeeping:.02 }
+  };
   function overall(state) {
     ensureState(state);
-    const core = ["shooting", "dribbling", "passing", "speed", "fitness", "composure"];
-    const base = core.reduce((sum, key) => sum + Number(state[key] || 0), 0) / core.length;
-    const special = {
-      "حارس مرمى": ["goalkeeping", 0.25],
-      "قلب دفاع": ["defending", 0.20],
-      "ظهير": ["speed", 0.12],
-      "وسط دفاعي": ["defending", 0.16],
-      "وسط مهاجم": ["vision", 0.14],
-      "جناح": ["dribbling", 0.16],
-      "مهاجم": ["shooting", 0.16]
-    }[state.pos] || ["vision", 0.08];
-    return Math.round(base * (1 - special[1]) + Number(state[special[0]] || 50) * special[1]);
+    const weights = OVR_WEIGHTS[state.pos] || OVR_WEIGHTS["جناح"];
+    let weighted = 0, totalWeight = 0;
+    for (const [key, weight] of Object.entries(weights)) {
+      const value = Number(state[key]);
+      weighted += (Number.isFinite(value) ? value : 0) * weight;
+      totalWeight += weight;
+    }
+    return Math.round(weighted / (totalWeight || 1));
   }
 
   function limitFor(state, key) {
@@ -1356,15 +1378,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   function train(state, type, options = {}) {
     ensureState(state);
     const random = typeof options.random === "function" ? options.random : () => {
-      let x = (Number(state.randomSeed) >>> 0) || 0x6d2b79f5; x = (x + 0x6d2b79f5) >>> 0; state.randomSeed = x;
+      let x = (Number(state.randomSeed) >>> 0) || 0x6d2b79f5;
+      x = (x + 0x6d2b79f5) >>> 0; state.randomSeed = x;
       let t = x; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
     const setup = CONFIG[type];
     if (!setup) return { ok: false, message: "نوع التدريب غير معروف." };
-    if (setup.goalkeeperOnly && state.pos !== "حارس مرمى") {
-      return { ok: false, message: "تدريب الحراس متاح للاعب حارس المرمى فقط." };
-    }
+    if (setup.goalkeeperOnly && state.pos !== "حارس مرمى") return { ok: false, message: "تدريب الحراس متاح للاعب حارس المرمى فقط." };
     if (state.injuryDays > 0) return { ok: false, message: "لازم تكمّل الاستشفاء قبل التدريب." };
     if (state.playedToday) return { ok: false, message: "مفيش تدريب في يوم المباراة. تقدّم لليوم التالي عشان تتمرن." };
     if (state.trainedToday) return { ok: false, message: "أنهيت حصة اليوم. خُد راحة أو تقدّم لليوم التالي." };
@@ -1376,7 +1397,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       intense: { energy: 1.30, xp: 1.32, risk: 0.09 }
     }[intensity] || { energy: 1, xp: 1, risk: 0.01 };
     const cost = Math.ceil(setup.cost * multipliers.energy);
-    if (Number(state.energy) < cost) return { ok: false, message: `طاقتك ${state.energy}%، والحصة تحتاج ${cost}%. خُد راحة الأول.` };
+    if (Number(state.energy) < cost) return { ok: false, message: "طاقتك " + state.energy + "%، والحصة تحتاج " + cost + "%. خُد راحة الأول." };
 
     state.energy = clamp(state.energy - cost);
     const coachBonus = state.privateCoach ? 8 : 0;
@@ -1407,17 +1428,12 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       state.morale = clamp(state.morale - 3);
     }
     return {
-      ok: true,
-      cost,
-      xp: baseXP,
-      gain: primaryGain,
-      secondaryGains,
-      levels,
-      injured,
-      focusMultiplier,
+      ok: true, cost, xp: baseXP, gain: primaryGain, secondaryGains, levels, injured, focusMultiplier,
       message: primaryGain
-        ? `زادت ${type} نقطة${primaryGain > 1 ? "ين" : " واحدة"} بعد تراكم الخبرة.`
-        : `اتسجلت ${baseXP} نقطة خبرة في ${type}. كل ${Number(state.age) <= 21 ? 92 : Number(state.age) >= 30 ? 125 : 108} نقطة ترفع المهارة نقطة حتى سقف إمكاناتك.`
+        ? "زادت " + type + " نقطة" + (primaryGain > 1 ? "ين" : " واحدة") + " بعد تراكم الخبرة."
+        : "اتسجلت " + baseXP + " نقطة خبرة في " + type + ". كل "
+          + (Number(state.age) <= 21 ? 92 : Number(state.age) >= 30 ? 125 : 108)
+          + " نقطة ترفع المهارة نقطة حتى سقف إمكاناتك."
     };
   }
 
@@ -1426,7 +1442,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const data = match && typeof match === "object" ? match : { rating: match, minutes: legacyMinutes };
     const played = Math.max(0, Number(data.minutes) || 0);
     if (!played) return { gained: 0, skill: "", qualifying: false, milestones: [] };
-    const matchId = String(data.matchId || `legacy:${state.season || 1}:${state.apps || 0}:${state.seasonLog?.length || 0}:${played}`);
+    const matchId = String(data.matchId || ("legacy:" + (state.season || 1) + ":" + (state.apps || 0)
+      + ":" + (state.seasonLog?.length || 0) + ":" + played));
     if (state.progressionMatchIds.includes(matchId)) return { gained: 0, skill: "", duplicate: true, qualifying: played >= 20, milestones: [] };
     state.progressionMatchIds.push(matchId);
     if (state.progressionMatchIds.length > 5000) state.progressionMatchIds.splice(0, state.progressionMatchIds.length - 5000);
@@ -1434,15 +1451,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.careerMinutes += played;
     const qualifying = played >= 20;
     const competitionKey = String(data.competitionKey || "club|unknown");
-    const competition = state.competitionStats[competitionKey] || (state.competitionStats[competitionKey] = { appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0 });
+    const competition = state.competitionStats[competitionKey] || (state.competitionStats[competitionKey] = {
+      appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
+    });
     competition.appearances++;
     competition.minutes += played;
     competition.goals += Math.max(0, Number(data.goals) || 0);
     competition.assists += Math.max(0, Number(data.assists) || 0);
-    if (qualifying) {
-      state.qualifyingAppearances++;
-      competition.qualifyingAppearances++;
-    }
+    if (qualifying) { state.qualifyingAppearances++; competition.qualifyingAppearances++; }
     const skill = CAREER_ATTRIBUTE[state.pos] || "passing";
     const ageFactor = Number(state.age) >= 30 ? 0.7 : Number(state.age) <= 21 ? 1.15 : 1;
     const rating = clamp(data.rating || 6, 3, 10);
@@ -1497,48 +1513,48 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       && (!row.leagueCompetition || !competition || row.leagueCompetition === competition));
     const appearances = playerMatches.length;
     if (appearances < 3) return [];
-
     const goals = playerMatches.reduce((sum, row) => sum + (Number(row.goals) || 0), 0);
     const assists = playerMatches.reduce((sum, row) => sum + (Number(row.assists) || 0), 0);
     const average = playerMatches.reduce((sum, row) => sum + (Number(row.rating) || 0), 0) / appearances;
     const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - Number(teamRank || 6)) * 0.7;
-    const opponents = (Array.isArray(league) ? league : [])
-      .filter(team => team && team.name !== state.clubName)
-      .map(team => {
-        const rng = seeded(hash(`${state.season}|${state.leagueCountry}|${team.name}`));
-        const power = Number(team.power) || 50;
-        return {
-          age: 18 + Math.floor(rng() * 18),
-          goals: Math.max(0, Math.round(appearances * (0.04 + power / 850 + rng() * 0.09))),
-          assists: Math.max(0, Math.round(appearances * (0.05 + power / 1100 + rng() * 0.07))),
-          rating: 6.05 + power * 0.014 + rng() * 0.48,
-          score: 0
-        };
-      });
+    const opponents = (Array.isArray(league) ? league : []).filter(team => team && team.name !== state.clubName).map(team => {
+      const rng = seeded(hash(String(state.season) + "|" + String(state.leagueCountry) + "|" + team.name));
+      const power = Number(team.power) || 50;
+      return {
+        age: 18 + Math.floor(rng() * 18),
+        goals: Math.max(0, Math.round(appearances * (0.04 + power / 850 + rng() * 0.09))),
+        assists: Math.max(0, Math.round(appearances * (0.05 + power / 1100 + rng() * 0.07))),
+        rating: 6.05 + power * 0.014 + rng() * 0.48,
+        score: 0
+      };
+    });
     for (const player of opponents) player.score = player.rating * 10 + player.goals * 0.34 + player.assists * 0.28;
     const eligible = Number(state.age) <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
-    const awardScope = `${state.season}|${country}|${competition}`;
-    const alreadyWon = new Set((state.careerAwards || []).map(award => `${award.season}|${award.country || ""}|${award.competition || ""}|${award.id}`));
+    const awardScope = String(state.season) + "|" + country + "|" + competition;
+    const alreadyWon = new Set((state.careerAwards || []).map(award =>
+      String(award.season) + "|" + (award.country || "") + "|" + (award.competition || "") + "|" + award.id));
     const definitions = [
-      { id: "league-player", title: "لاعب الموسم — محاكاة", value: playerScore, compare: Math.max(0, ...opponents.map(p => p.score)), minimum: 69, note: `تقييم ${average.toFixed(2)} • ${goals} هدف • ${assists} صناعة • مركز ${teamRank}` },
-      { id: "golden-boot", title: "الحذاء الذهبي — محاكاة", value: goals, compare: Math.max(0, ...opponents.map(p => p.goals)), minimum: 3, note: `${goals} هدف في ${appearances} مشاركة` },
-      { id: "playmaker", title: "صانع ألعاب الموسم — محاكاة", value: assists, compare: Math.max(0, ...opponents.map(p => p.assists)), minimum: 3, note: `${assists} تمريرة حاسمة في ${appearances} مشاركة` },
-      { id: "young-player", title: "أفضل لاعب شاب — محاكاة", value: playerScore, compare: Math.max(0, ...youngOpponents.map(p => p.score)), minimum: 64, eligible, note: `${state.age} سنة • ${appearances} مشاركة • تقييم ${average.toFixed(2)}` }
+      { id: "league-player", title: "لاعب الموسم — محاكاة", value: playerScore,
+        compare: Math.max(0, ...opponents.map(p => p.score)), minimum: 69,
+        note: "تقييم " + average.toFixed(2) + " • " + goals + " هدف • " + assists + " صناعة • مركز " + teamRank },
+      { id: "golden-boot", title: "الحذاء الذهبي — محاكاة", value: goals,
+        compare: Math.max(0, ...opponents.map(p => p.goals)), minimum: 3,
+        note: goals + " هدف في " + appearances + " مشاركة" },
+      { id: "playmaker", title: "صانع ألعاب الموسم — محاكاة", value: assists,
+        compare: Math.max(0, ...opponents.map(p => p.assists)), minimum: 3,
+        note: assists + " تمريرة حاسمة في " + appearances + " مشاركة" },
+      { id: "young-player", title: "أفضل لاعب شاب — محاكاة", value: playerScore,
+        compare: Math.max(0, ...youngOpponents.map(p => p.score)), minimum: 64, eligible,
+        note: state.age + " سنة • " + appearances + " مشاركة • تقييم " + average.toFixed(2) }
     ];
-
     const won = [];
     for (const definition of definitions) {
-      if (alreadyWon.has(`${awardScope}|${definition.id}`) || definition.eligible === false) continue;
+      if (alreadyWon.has(awardScope + "|" + definition.id) || definition.eligible === false) continue;
       if (definition.value < definition.minimum || definition.value <= definition.compare) continue;
       const award = {
-        id: definition.id,
-        title: definition.title,
-        season: Number(state.season) || 1,
-        club: String(state.clubName || ""),
-        country,
-        competition,
-        note: definition.note,
+        id: definition.id, title: definition.title, season: Number(state.season) || 1,
+        club: String(state.clubName || ""), country, competition, note: definition.note,
         date: new Date().toISOString()
       };
       state.careerAwards.unshift(award);
@@ -1550,8 +1566,6 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return won;
   }
 
-  // A double round-robin gives each club n-1 matches at home and n-1 away,
-  // including odd-sized leagues where each club has a bye in each half.
   function leagueMatchTarget(teamCount) {
     const n = Math.max(0, Math.floor(Number(teamCount) || 0));
     return n < 2 ? 0 : 2 * (n - 1);
@@ -1565,11 +1579,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return last + gap - current;
   }
 
-
   function normalizeLeagueRoundIndex(savedRoundIndex, roundHistory, leagueApps, roundCount) {
     const history = Array.isArray(roundHistory) ? roundHistory : [];
-    const legacyRound = history.length
-      ? Math.max(0, ...history.map(row => Number(row?.matchday) || 0))
+    const legacyRound = history.length ? Math.max(0, ...history.map(row => Number(row?.matchday) || 0))
       : Math.max(0, Number(leagueApps) || 0);
     const hasSavedIndex = savedRoundIndex !== undefined && savedRoundIndex !== null && savedRoundIndex !== "";
     const saved = Number(savedRoundIndex);
@@ -1598,10 +1610,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     if (Math.max(0, Number(state.daysSinceNegotiation) || 0) < 7) return "cooldown";
     return "ready";
   }
-
-  function canNegotiateInSeason(state) {
-    return wageNegotiationStatus(state) === "ready";
-  }
+  function canNegotiateInSeason(state) { return wageNegotiationStatus(state) === "ready"; }
 
   function loanRequestStatus(state, options = {}) {
     if (!state) return "invalid-state";
@@ -1626,9 +1635,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
   function purchaseItem(state, item) {
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
-      || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) {
-      return { ok: false, status: "invalid-item" };
-    }
+      || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
     if (state.retired) return { ok: false, status: "retired" };
     if (state[item.id]) return { ok: false, status: "already-owned" };
     const cost = Math.round(Number(item.price));
@@ -1658,7 +1665,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     if (status !== "ready") return { ok: false, status };
     if (![0, 1, 2].includes(Number(level))) return { ok: false, status: "invalid-level" };
     const oldWage = Math.max(0, Number(state.weeklyWage) || 0);
-    state.daysSinceNegotiation = 0; // Also makes a second click on the same dialog a no-op.
+    state.daysSinceNegotiation = 0;
     const success = nextRandomUnit(state) * 100 < Math.max(5, Math.min(95, Number(chance) || 0));
     if (!success) {
       state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) - 2)));
@@ -1670,14 +1677,15 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return { ok: true, status: "success", oldWage, wage: state.weeklyWage, trust: state.trust };
   }
 
-  function shouldRetire(state, maximumAge = 40) {
-    return Boolean(state && (state.retired || Number(state.age) >= maximumAge));
-  }
+  function shouldRetire(state, maximumAge = 40) { return Boolean(state && (state.retired || Number(state.age) >= maximumAge)); }
 
   function makeContractOffer(state, withAgent = false) {
     const currentWage = Math.max(0, Number(state?.weeklyWage) || 250);
+    const contractMultiplier = withAgent && typeof withAgent === "object"
+      ? Math.max(0.96, Math.min(1.18, Number(withAgent.contractMultiplier) || 1.08))
+      : withAgent ? 1.1 : 1;
     const wage = Math.max(currentWage, Math.round(currentWage * (0.9 + overall(state) / 500
-      + (Number(state?.trust) || 0) / 1000) * (withAgent ? 1.1 : 1)));
+      + (Number(state?.trust) || 0) / 1000) * contractMultiplier));
     return { club: String(state?.clubName || ""), wage, seasons: 3, season: Number(state?.season) || 1 };
   }
 
@@ -1691,17 +1699,12 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       state.contractOffer = null;
       return { ok: true, status: "renewed", wage: state.weeklyWage, seasonsBeforeNewSeason: state.contractSeasons };
     }
-    state.contractSeasons = 0;
-    state.weeklyWage = 0;
-    state.freeAgent = true;
-    state.contractOffer = null;
+    state.contractSeasons = 0; state.weeklyWage = 0; state.freeAgent = true; state.contractOffer = null;
     return { ok: true, status: "free-agent", wage: 0, seasonsBeforeNewSeason: 0 };
   }
 
   function recordNationalTournamentMatch(state, outcome) {
-    if (!state || state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) {
-      return { ok: false, status: "tournament-closed" };
-    }
+    if (!state || state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
     const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
     if (played < 2) {
       state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
@@ -1714,9 +1717,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       state.internationalPlayed = Boolean(state.nationalTournamentDone);
       return { ok: true, status: state.nationalTournamentMatches < 2 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
     }
-    state.nationalTournamentMatches = 3;
-    state.nationalTournamentDone = true;
-    state.internationalPlayed = true;
+    state.nationalTournamentMatches = 3; state.nationalTournamentDone = true; state.internationalPlayed = true;
     return { ok: true, status: "final-complete", points: state.nationalTournamentPoints };
   }
 
@@ -1730,33 +1731,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   window.LWCareer = {
-    ensureState,
-    uniqueMatchRows,
-    rebuildLegacyCareerStats,
-    deriveLeagueRatingStats,
-    overall,
-    train,
-    matchDevelopment,
-    appearanceMilestones: APPEARANCE_MILESTONES,
-    seasonAwards,
-    applySeasonAging,
-    leagueMatchTarget,
-    leagueMatchDaysRemaining,
-    normalizeLeagueRoundIndex,
-    contractStateForSeasonTransition,
-    wageNegotiationStatus,
-    canNegotiateInSeason,
-    loanRequestStatus,
-    loanTargetStatus,
-    purchaseItem,
-    resolveWageNegotiation,
-    shouldRetire,
-    makeContractOffer,
-    resolveContractDecision,
-    recordNationalTournamentMatch,
-    positionDevelopmentPlan,
-    trainingFocusMultiplier,
-    trainingTypes: Object.keys(CONFIG)
+    ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
+    appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
+    normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
+    loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
+    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
   };
 })();
 
@@ -2202,8 +2181,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 "use strict";
 const STORAGE_KEY = "lastWhistleCareer_v4";
 const LEGACY_STORAGE_KEYS = ["lastWhistleCareer_v3"];
-const SKILLS = ["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision"];
-const SKILL_AR = {shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",defending:"الدفاع",goalkeeping:"الحراسة",vision:"الرؤية"};
+const SKILLS = ["shooting","dribbling","passing","speed","fitness","composure","vision","defending","goalkeeping","physical"];
+const SKILL_AR = {shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",vision:"الرؤية",defending:"الدفاع",goalkeeping:"الحراسة",physical:"القوة البدنية"};
 const CLUBS = [
  {name:"مركز شباب النور",tier:0,ov:0,wage:250,transferOV:0,trust:0,followers:0},
  {name:"المقاولون العرب",tier:1,ov:56,wage:650,transferOV:56,trust:40,followers:250},
@@ -2319,9 +2298,9 @@ const REAL_PLAYERS={
 const INITIAL = {
  name:"يوسف حسن",age:17,pos:"جناح",nationalTeam:"مصر",clubIndex:0,role:"بديل",day:1,season:1,energy:80,morale:65,trust:25,fatigue:0,
  careerStarted:false,leagueCountry:"مصر",leagueDivision:2,clubName:"مركز شباب النور",clubTier:0,calendarDay:1,lastOfferWindow:"",lastTransferDay:-99,averageRatingSum:0,averageRatingCount:0,leagueRatingSum:0,leagueRatingCount:0,pendingTransfer:null,favoriteLeague:"",
- shooting:52,dribbling:61,passing:55,speed:67,fitness:60,composure:48,defending:50,goalkeeping:50,vision:50,playerPotential:82,careerXP:0,levelXP:0,careerLevel:1,trainingSessions:0,trainingXP:{},trainingIntensity:"normal",careerAwards:[],careerAppearances:0,careerMinutes:0,qualifyingAppearances:0,careerMilestonesEarned:[],progressionMatchIds:[],competitionStats:{},clubPower:52,leagueCompetition:"",leagueSource:"",
+ shooting:52,dribbling:61,passing:55,speed:67,fitness:60,composure:48,defending:50,goalkeeping:50,vision:50,physical:50,playerPotential:82,careerXP:0,levelXP:0,careerLevel:1,trainingSessions:0,trainingXP:{},trainingIntensity:"normal",careerAwards:[],careerAppearances:0,careerMinutes:0,qualifyingAppearances:0,careerMilestonesEarned:[],progressionMatchIds:[],competitionStats:{},clubPower:52,leagueCompetition:"",leagueSource:"",
  money:450,followers:120,goals:0,assists:0,apps:0,lastRating:0,
- schemaVersion:8,randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
+ schemaVersion:9,contractType:"professional",randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
  boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,
@@ -2351,17 +2330,34 @@ function clubTierForPower(power){return power>=77?3:power>=68?2:power>=58?1:0;}
 function catalogLeague(country){return window.LWCatalog?.clubsForCountry(country)||null;}
 function safeHTML(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));}
 function overall(s=state){return window.LWCareer?window.LWCareer.overall(s):Math.round(SKILLS.slice(0,6).reduce((sum,k)=>sum+(Number(s[k])||0),0)/6);}
+const EURO_COUNTRIES=new Set(EUROPE_LEAGUES.map(row=>row.country));
+function currencyLabel(country=state.leagueCountry){
+ if(country==="مصر")return "ج.م";
+ if(country==="إنجلترا")return "£";
+ if(EURO_COUNTRIES.has(country))return "€";
+ return "$";
+}
+function startingWeeklyWage(country,division,age,tier=0){
+ if(Number(age)<=18||Number(division)>=2)return country==="مصر"?250:country==="إنجلترا"?85:EURO_COUNTRIES.has(country)?90:70;
+ const local=[250,650,1500,4000][clamp(tier,0,3)]||250;
+ return country==="مصر"?local:Math.round((local/250)*(country==="إنجلترا"?85:EURO_COUNTRIES.has(country)?90:70));
+}
+function legacyPhysicalFallback(position,skills={}){
+ const average=keys=>Math.round(keys.reduce((sum,key)=>sum+(Number(skills[key])||40),0)/keys.length);
+ const values={"حارس مرمى":average(["fitness","composure"]),"قلب دفاع":average(["defending","fitness"]),"ظهير":average(["speed","fitness"]),"وسط دفاعي":average(["defending","fitness"]),"وسط مهاجم":average(["passing","composure"]),"جناح":average(["dribbling","speed"]),"مهاجم":average(["shooting","fitness"])};
+ return clamp(values[position]||50,5,70);
+}
 function club(){const base=CLUBS[clamp(state.clubIndex,0,CLUBS.length-1)]||CLUBS[0];return {...base,name:state.clubName||base.name,wage:state.weeklyWage||base.wage,tier:state.clubTier??state.clubIndex,ov:Number(state.clubPower)||base.ov};}
 function safeText(s){return String(s??"");}
 function log(message){state.diary.unshift({day:state.day,season:state.season,text:String(message)});state.diary=state.diary.slice(0,40);}
 function setStory(title,text){state.storyTitle=title;state.storyText=text;}
 function saveGame(silent=false){
-	 try{state.schemaVersion=8;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));if(!silent)toast("اتحفظت مسيرتك بنجاح على الجهاز.");return true;}
+	 try{state.schemaVersion=9;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));if(!silent)toast("اتحفظت مسيرتك بنجاح على الجهاز.");return true;}
  catch(err){if(!silent)toast("المتصفح منع الحفظ المحلي. جرّب فتح الملف في Chrome أو انشر اللعبة على موقع.");return false;}
 }
 function exportSave(){
  try{
-  const payload={game:"LAST WHISTLE",version:5,exportedAt:new Date().toISOString(),career:state};
+  const payload={game:"LAST WHISTLE",version:6,exportedAt:new Date().toISOString(),career:state};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;
   a.download=`last-whistle-${String(state.name||"career").replace(/[^\p{L}\p{N}-]+/gu,"-")}-season-${state.season||1}.json`;
@@ -2384,16 +2380,18 @@ async function importSaveFile(file){
  let payload,restored;
  try{
   payload=JSON.parse(await file.text());
-  if(!payload||payload.game!=="LAST WHISTLE"||![3,4,5].includes(payload.version)||!payload.career||typeof payload.career!=="object"||Array.isArray(payload.career))throw new Error("invalid backup");
+  if(!payload||payload.game!=="LAST WHISTLE"||![3,4,5,6].includes(payload.version)||!payload.career||typeof payload.career!=="object"||Array.isArray(payload.career))throw new Error("invalid backup");
   const clean=validateBackupValue(payload.career);
   restored={...structuredCloneSafe(INITIAL)};
   for(const key of Object.keys(INITIAL))if(Object.prototype.hasOwnProperty.call(clean,key))restored[key]=clean[key];
+  if(clean.physical===undefined)restored.physical=legacyPhysicalFallback(clean.pos,clean);
+  if(clean.contractType===undefined)restored.contractType=Number(restored.age)<=18&&Number(restored.leagueDivision)>=2?"youth-amateur":restored.freeAgent?"free-agent":"professional";
   if(payload.version<4||clean.qualifyingAppearances===undefined)window.LWCareer?.rebuildLegacyCareerStats(restored);if(payload.version<5||clean.leagueRatingSum===undefined||clean.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(restored);
   const legacySeasonApps=Math.max(0,Number(clean.seasonApps)||0),savedLeagueApps=Number(clean.leagueApps),trustedLeagueCounter=Object.prototype.hasOwnProperty.call(clean,"leagueApps")&&(savedLeagueApps>0||legacySeasonApps===0||clean.leagueSegmentIsPartial===true);restored.leagueApps=trustedLeagueCounter?Math.max(0,savedLeagueApps):legacySeasonApps;const legacyTransferThisSeason=legacySeasonApps>0&&Array.isArray(clean.transferHistory)&&clean.transferHistory.some(row=>Number(row?.season)===Number(clean.season)&&String(row?.text||"").includes(String(clean.clubName||"")));restored.leagueSegmentIsPartial=!!clean.leagueSegmentIsPartial||(!trustedLeagueCounter&&legacyTransferThisSeason);
   const importedRoundHistory=Array.isArray(restored.leagueRoundHistory)?restored.leagueRoundHistory:[];
   restored.leagueRoundIndex=Number.isInteger(Number(clean.leagueRoundIndex))?Math.max(0,Number(clean.leagueRoundIndex)):(importedRoundHistory.length?Math.max(...importedRoundHistory.map(row=>Number(row?.matchday)||0)):Math.max(0,Number(restored.leagueApps)||0));
   if(!Object.prototype.hasOwnProperty.call(clean,"calendarDay")||!Number.isFinite(Number(clean.calendarDay))||Number(clean.calendarDay)<1)restored.calendarDay=Math.max(1,Number(restored.day)||1);
-  restored.schemaVersion=8;
+  restored.schemaVersion=9;
   if(window.LWCareer)window.LWCareer.ensureState(restored);
   if(typeof restored.name!=="string"||restored.name.length<1||restored.name.length>50)throw new Error("invalid player name");
   if(restored.league!==null&&!Array.isArray(restored.league))throw new Error("invalid league");
@@ -2462,11 +2460,13 @@ function loadGame(){
   const saved=JSON.parse(raw);
   if(!saved||typeof saved!=="object")return false;
   state={...structuredCloneSafe(INITIAL),...saved};
+  if(saved.physical===undefined)state.physical=legacyPhysicalFallback(state.pos,saved);
+  if(saved.contractType===undefined)state.contractType=Number(state.age)<=18&&Number(state.leagueDivision)>=2?"youth-amateur":state.freeAgent?"free-agent":"professional";
   if(!Object.prototype.hasOwnProperty.call(saved,"calendarDay")||!Number.isFinite(Number(saved.calendarDay))||Number(saved.calendarDay)<1)state.calendarDay=Math.max(1,Number(saved.day)||1);
   state.pressHistory=Array.isArray(state.pressHistory)?state.pressHistory:[];state.relationshipHistory=Array.isArray(state.relationshipHistory)?state.relationshipHistory:[];
   for(const key of ["professionalism","mediaReputation","teamChemistry","coachRelationship"])state[key]=clamp(state[key]??INITIAL[key]);
   if(Number(saved.schemaVersion||3)<4)window.LWCareer?.rebuildLegacyCareerStats(state);if(Number(saved.schemaVersion||3)<5||saved.leagueRatingSum===undefined||saved.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(state);
-  state.schemaVersion=8;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
+  state.schemaVersion=9;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
   state.diary=Array.isArray(state.diary)?state.diary.slice(0,40):[];
   state.achievements=Array.isArray(state.achievements)?state.achievements:[];
   state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];state.transferShortlist=Array.isArray(state.transferShortlist)?state.transferShortlist.filter(item=>item&&typeof item.club==="string"&&typeof item.country==="string").slice(0,4):[];

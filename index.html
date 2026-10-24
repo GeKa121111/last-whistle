@@ -791,7 +791,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
 </style>
-<link rel="stylesheet" href="./redesign.css?v=2">
+<link rel="stylesheet" href="./redesign.css?v=3">
 </head>
 <body>
 
@@ -1082,7 +1082,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     <section class="page" id="page-shop">
       <div class="store-heading">
         <div><span class="hub-overline">PLAYER LIFESTYLE / PERFORMANCE</span><h1>متجر اللاعب</h1><p>كل حاجة هنا لها أثر واضح: على الملعب، الاستشفاء، الفلوس، أو حياتك وشهرتك خارج الملعب.</p></div>
-        <div class="store-wallet"><span>رصيد مسيرتك</span><strong><b id="storeBalance">450</b> <small>جنيه</small></strong><span id="storeOwnedCount">0 من 17 عنصر مملوك</span></div>
+        <div class="store-wallet"><span>رصيد مسيرتك</span><strong><b id="storeBalance">450</b> <small id="storeCurrency">ج.م</small></strong><span id="storeOwnedCount">0 من 17 عنصر مملوك</span></div>
       </div>
       <div class="store-toolbar">
         <div class="store-filters" id="shopFilters" role="group" aria-label="تصنيفات متجر اللاعب">
@@ -1735,7 +1735,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
-    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
+    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
   };
 })();
 
@@ -3951,6 +3951,7 @@ async function init(){
 init();
 window.LWStoryRuntime = {
  getState: () => state,
+ currency: () => currencyLabel(),
  save: () => saveGame(true),
  render: () => render(),
  log: (message) => log(message),
@@ -3967,7 +3968,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 </script>
-<script src="./story-mode.js?v=2"></script>
+<script src="./story-mode.js?v=3"></script>
 <script src="./career-experience.js?v=1"></script>
 <script src="./agent-system.js?v=1"></script>
 <script src="./career-hub.js?v=1"></script>

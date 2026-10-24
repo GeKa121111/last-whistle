@@ -70,7 +70,7 @@ vm.runInContext(functions, sandbox, { filename: "actual-career-actions" });
 // Player setup must normalize names and keep the career from starting when the name is empty.
 assert.equal(sandbox.normalizePlayerName("  Mohamed  " + String.fromCharCode(10) + " Ahmed   "), "Mohamed Ahmed",
   "player names must collapse whitespace and trim edges");
-assert.equal(sandbox.normalizePlayerName("  Mohamed  " + String.fromCharCode(10) + " Ahmed   "), "Mohamed Ahmed",
+assert.equal(sandbox.normalizePlayerName("123456789012345678901234567890").length, 24,
   "player names must respect the 24-character limit");
 startNameNode.value = "   ";
 startNameNode.validityMessages.length = 0;

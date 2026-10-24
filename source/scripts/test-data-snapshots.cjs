@@ -9,32 +9,31 @@ const root = path.resolve(__dirname, "..");
 const snapshotRoot = path.join(root, "public", "data", "snapshots");
 const expected = {
   "fifa-global-2023.json.gz.b64": {
-    file: "fifa-global-2023", check(data) {
+    check(data) {
       assert.equal(data.sourceYear, "2023");
       assert.equal(data.associations.length, 211);
     }
   },
   "openfootball-clubs.json.gz.b64": {
-    file: "openfootball-clubs", check(data) {
+    check(data) {
       assert.equal(data.latestDomesticCompetitions.length, 18);
       assert.equal(data.coverage.distinctDomesticClubNames, 340);
       assert.equal(data.license, "CC0-1.0");
     }
   },
   "football-reference.json.gz.b64": {
-    file: "football-reference", check(data) {
+    check(data) {
       assert.equal(data.officialCompetitions.length, 36);
     }
   },
   "awards.json.gz.b64": {
-    file: "awards", check(data) {
+    check(data) {
       assert.equal(data.officialAwards.length, 57);
       assert.equal(data.careerSimulationAwards.length, 4);
     }
   }
 };
 
-const decoded = {};
 for (const [filename, definition] of Object.entries(expected)) {
   const encoded = fs.readFileSync(path.join(snapshotRoot, filename), "utf8").trim();
   assert.ok(encoded.length > 0, filename + " must not be empty");
@@ -43,12 +42,11 @@ for (const [filename, definition] of Object.entries(expected)) {
   const jsonText = zlib.gunzipSync(bytes).toString("utf8");
   const data = JSON.parse(jsonText);
   definition.check(data);
-  decoded[definition.file] = data;
 }
 
 global.window = global;
 global.fetch = async (pathname) => {
-  const basename = String(pathname).split("/").pop() + ".gz.b64";
+  const basename = String(pathname).split("/").pop();
   const content = fs.readFileSync(path.join(snapshotRoot, basename), "utf8");
   return { ok: true, status: 200, text: async () => content };
 };

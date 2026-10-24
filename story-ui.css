@@ -1,5 +1,5 @@
 /* LAST WHISTLE — STORY MODE / complete visual refresh */
-:root{
+body.lw-rebuild{
   color-scheme:dark;
   --bg:#090c0c;
   --panel:#111716;

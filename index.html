@@ -2378,10 +2378,11 @@ const EURO_COUNTRIES=new Set(EUROPE_LEAGUES.map(row=>row[0]));
 function europeanLeagueRow(country){return EUROPE_LEAGUES.find(row=>row[0]===country)||null;}
 function sampleClubsForCountry(country,division){const row=europeanLeagueRow(country);return String(row?.[Number(division)===1?4:5]||"").split(/[،,]/).map(name=>name.trim()).filter(Boolean);}
 function currencyLabel(country=state.leagueCountry){
- if(country==="مصر")return "ج.م";
- if(country==="إنجلترا"||country==="England")return "£";
- if(EURO_COUNTRIES.has(country))return "€";
- return "$";
+ const profile=window.LWWorldDB?.leagueByCountry?.(country)||null;
+ if(country==="مصر"||profile?.id==="egypt")return "ج.م";
+ if(country==="إنجلترا"||country==="England"||profile?.id==="england")return "£";
+ if(profile?.currency==="€"||EURO_COUNTRIES.has(country))return "€";
+ return profile?.currency||"$";
 }
 function startingWeeklyWage(country,division,age,tier=0){
  if(Number(age)<=18||Number(division)>=2)return country==="مصر"?250:country==="إنجلترا"?85:EURO_COUNTRIES.has(country)?90:70;

@@ -194,6 +194,10 @@ assert.equal(reloadedWorld.transfers.length, world.transfers.length,
   "transfer history must survive JSON save/reload");
 assert.equal(JSON.stringify(reloadedWorld.completedSeasons), JSON.stringify(world.completedSeasons),
   "completed-season markers must survive JSON save/reload");
+assert.equal(JSON.stringify(reloadedWorld.seasonStats["1"]), JSON.stringify(world.seasonStats["1"]),
+  "season 1 rows must remain unchanged after JSON save/reload");
+assert.equal(JSON.stringify(reloadedWorld.seasonStats["2"]), JSON.stringify(world.seasonStats["2"]),
+  "season 2 rows must remain unchanged after JSON save/reload");
 for (const move of regularTransfers) {
   assert.equal(reloadedWorld.players[move.playerId].clubId, world.players[move.playerId].clubId,
     "current club must survive JSON save/reload for " + move.player);

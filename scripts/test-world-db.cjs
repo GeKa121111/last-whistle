@@ -103,8 +103,8 @@ console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
     sourcedPlayers: league.realPlayers, generatedPlayers: league.generatedPlayers
   }))
 }));
-assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "المقاولون العرب" && club.ovr === 62),
-  "Egyptian second-division clubs should be queryable");
+assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "الإسماعيلي"),
+  "Egyptian second-division clubs should be queryable after applying the current first-division registry");
 assert.ok(db.playerRecordsForClub("ليفربول", "إنجلترا").some(player => player.name === "Florian Wirtz" && player.isRealPlayer === true),
   "Liverpool squad should include sourced 2026/27 player records");
 assert.ok(!db.playersForClub("ليفربول", "إنجلترا").includes("محمد صلاح"),

@@ -170,7 +170,75 @@ async function probeSportsDb() {
   }
 }
 
+async function probeLfpOfficial() {
+  const urls = [
+    "https://www.lfp.dz/ar/",
+    "https://www.lfp.dz/ar/clubs",
+    "https://www.lfp.dz/ar/club",
+    "https://www.lfp.dz/sitemap.xml",
+    "https://www.lfp.dz/ar/club/673",
+    "https://www.lfp.dz/ar/club/524"
+  ];
+  for (const url of urls) {
+    try {
+      const page = await fetchPage(url);
+      const title = plainText((page.html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i) || [, ""])[1]);
+      const heading = plainText((page.html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) || [, ""])[1]);
+      const as = anchors(page.html, page.url);
+      const clubLinks = as.filter(link => /\/ar\/club\/\d+\/?$/i.test(new URL(link.url).pathname))
+        .map(link => ({ name: link.text, url: link.url, id: (new URL(link.url).pathname.match(/\/club\/(\d+)/i) || [,""])[1] }));
+      const lineText = page.html
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(?:p|li|tr|td|th|div|section|h[1-6])\s*>/gi, "\n")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;|&#160;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .split(/\n/)
+        .map(value => plainText(value))
+        .filter(Boolean);
+      const playerLines = lineText.filter(line => /\d+\s+\S.{2,90}\bالعمر\s*[:：]/u.test(line));
+      const categories = [...page.html.matchAll(/>([^<>]{2,50})</g)]
+        .map(match => plainText(match[1]))
+        .filter(value => /حراس المرمى|المدافعون|وسط الميدان|لاعبو الوسط|المهاجمون|الطاقم الفني/u.test(value));
+      console.log("LFP_OFFICIAL_PROBE " + JSON.stringify({
+        url, status: page.status, bytes: page.html.length, title, heading,
+        anchors: as.length, clubLinks: clubLinks.length, sampleClubLinks: clubLinks.slice(0, 35),
+        categories: [...new Set(categories)], playerLineCount: playerLines.length,
+        samplePlayerLines: playerLines.slice(0, 18),
+        textContainsSquad: /حراس المرمى|المدافعون|المهاجمون/u.test(page.html)
+      }));
+      if (clubLinks.length) {
+        for (const link of clubLinks.slice(0, 3)) {
+          try {
+            const squad = await fetchPage(link.url);
+            const stext = squad.html
+              .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+              .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+              .replace(/<br\s*\/?>/gi, "\n")
+              .replace(/<\/(?:p|li|tr|td|th|div|section|h[1-6])\s*>/gi, "\n")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&nbsp;|&#160;/gi, " ")
+              .split(/\n/).map(value => plainText(value)).filter(Boolean);
+            const rows = stext.filter(line => /\d+\s+\S.{2,90}\bالعمر\s*[:：]/u.test(line));
+            console.log("LFP_OFFICIAL_TEAM_PROBE " + JSON.stringify({
+              url: link.url, name: link.name, status: squad.status, bytes: squad.html.length,
+              playerLineCount: rows.length, samplePlayerLines: rows.slice(0, 24)
+            }));
+          } catch (error) {
+            console.log("LFP_OFFICIAL_TEAM_ERROR " + JSON.stringify({ url: link.url, error: String(error) }));
+          }
+        }
+      }
+    } catch (error) {
+      console.log("LFP_OFFICIAL_ERROR " + JSON.stringify({ url, error: String(error) }));
+    }
+  }
+}
+
 async function main() {
+  await probeLfpOfficial();
   await probeSportsDb();
   for (const league of LEAGUES) {
     try {

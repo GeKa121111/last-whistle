@@ -794,7 +794,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 }
 </style>
 <link rel="stylesheet" href="./redesign.css?v=5">
-<script src="./football-world-ai.js?v=3"></script>
+<script src="./football-world-ai.js?v=4"></script>
 </head>
 <body>
 
@@ -2608,7 +2608,14 @@ function decodeStoredSave(raw){
  if(typeof decoded!=="string")throw new Error("compressed save is corrupt");
  return decoded;
 }
-function saveGame(silent=false){
+let saveQueueTimer=0;
+let saveIdleHandle=0;
+let saveQueued=false;
+function cancelQueuedSave(){
+ if(saveQueueTimer){clearTimeout(saveQueueTimer);saveQueueTimer=0;}
+ if(saveIdleHandle&&typeof window.cancelIdleCallback==="function"){window.cancelIdleCallback(saveIdleHandle);saveIdleHandle=0;}
+}
+function persistGame(silent=false){
  try{
   state.schemaVersion=10;
   localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
@@ -2618,6 +2625,35 @@ function saveGame(silent=false){
   if(!silent)toast("المتصفح منع الحفظ المحلي أو مساحة التخزين ممتلئة. حرّر مساحة أو صدّر نسخة احتياطية.");
   return false;
  }
+}
+function flushQueuedSave(){
+ cancelQueuedSave();
+ if(!saveQueued)return true;
+ saveQueued=false;
+ const saved=persistGame(true);
+ if(!saved)saveQueued=true;
+ return saved;
+}
+function saveGame(silent=false){
+ if(!silent){
+  cancelQueuedSave();saveQueued=false;
+  return persistGame(false);
+ }
+ saveQueued=true;
+ cancelQueuedSave();
+ // Large world saves are compressed JSON. Batch rapid actions and do the work
+ // during browser idle time where supported, while flushing before the page hides.
+ if(typeof window.requestIdleCallback==="function"){
+  saveIdleHandle=window.requestIdleCallback(()=>{saveIdleHandle=0;flushQueuedSave();},{timeout:1200});
+ }else{
+  saveQueueTimer=setTimeout(()=>{saveQueueTimer=0;flushQueuedSave();},650);
+ }
+ return true;
+}
+if(!window.__lwSaveFlushInstalled){
+ window.__lwSaveFlushInstalled=true;
+ window.addEventListener("pagehide",flushQueuedSave);
+ document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushQueuedSave();});
 }
 function exportSave(){
  try{
@@ -3675,10 +3711,67 @@ function renderCareerAwards(){
  const awardsBox=$("officialAwardCatalog");
  if(awardsBox)awardsBox.innerHTML=awards.map(row=>`<div class="dataCard"><h4>${safeHTML(row.name)}</h4><p>${safeHTML(row.organizer)} • ${safeHTML(row.eligibilityOrMetric)}</p><a href="${safeHTML(row.officialUrl)}" target="_blank" rel="noopener noreferrer">مصدر الجهة المنظمة ↗</a></div>`).join("")||'<div class="empty">لا توجد جوائز مطابقة.</div>';
 }
+let lastWorldDashboardRenderWorld=null;
+let lastWorldDashboardRenderSignature="";
+function worldDashboardRenderSignature(world){
+ if(!world||typeof world!=="object")return "no-world";
+ const season=Math.max(1,Number(world.currentSeason)||Number(state.season)||1);
+ const matches=world.matchesBySeason&&world.matchesBySeason[String(season)];
+ const stats=world.seasonStats&&world.seasonStats[String(season)];
+ const competitions=world.competitionsBySeason&&world.competitionsBySeason[String(season)];
+ const market=(world.marketReports||[])[0]||{};
+ const transfer=(world.transfers||[])[0]||{};
+ const completed=Array.isArray(world.completedSeasons)?world.completedSeasons:[];
+ return [
+  season,Number(state.season)||1,String(state.leagueCountry||""),Number(state.seasonAppsTarget)||0,
+  Number(world.dbVersion)||0,Number(world.rosterSchemaVersion)||0,Number(world.lastCompletedSeason)||0,
+  Number(world.lastAdvancedTo)||0,completed.length,completed.length?completed[completed.length-1]:0,
+  Array.isArray(matches)?matches.length:-1,Array.isArray(stats)?stats.length:-1,
+  Array.isArray(competitions)?competitions.length:-1,(world.transfers||[]).length,
+  Number(world.transferSequence)||0,String(transfer.id||""),Number(market.season)||0,
+  Number(market.moves)||0,String(market.summary||"")
+ ].join("|");
+}
+let worldAIInitializationQueued=false;
+let worldAIInitializationIdleHandle=0;
+let worldAIInitializationTimer=0;
+function scheduleWorldSimulationInitialization(){
+ if(worldAIInitializationQueued||!state.careerStarted||state.worldSimulation||!window.LWWorldAI)return;
+ worldAIInitializationQueued=true;
+ const initialize=()=>{
+  worldAIInitializationQueued=false;
+  worldAIInitializationIdleHandle=0;worldAIInitializationTimer=0;
+  if(!state.careerStarted||state.worldSimulation)return;
+  try{
+   window.LWWorldAI.ensureState(state,window.LWWorldDB);
+   saveGame(true);
+   lastWorldDashboardRenderWorld=null;lastWorldDashboardRenderSignature="";
+   renderWorldAIDashboard();
+  }catch(error){console.warn("Football-world initialization deferred after an error",error);}
+ };
+ if(typeof window.requestIdleCallback==="function"){
+  worldAIInitializationIdleHandle=window.requestIdleCallback(initialize,{timeout:1600});
+ }else{
+  worldAIInitializationTimer=setTimeout(initialize,750);
+ }
+}
 function renderWorldAIDashboard(){
  const box=$("worldAISimulationDashboard");
  if(!box||!window.LWWorldAI)return;
+ if(!state.worldSimulation){
+  if(state.careerStarted)scheduleWorldSimulationInitialization();
+  return;
+ }
+ const currentWorld=state.worldSimulation||null;
+ const signature=worldDashboardRenderSignature(currentWorld);
+ const progress=Math.round(Number(state.seasonApps||0)/Math.max(1,Number(state.seasonAppsTarget)||0)*100);
+ if(currentWorld&&currentWorld===lastWorldDashboardRenderWorld&&signature===lastWorldDashboardRenderSignature){
+  setText("worldAISeasonTag","الموسم "+(Number(currentWorld.currentSeason)||Number(state.season)||1)+" • "+progress+"% من جدولك");
+  return;
+ }
  const db=window.LWWorldDB,view=window.LWWorldAI.dashboard(state,db);
+ lastWorldDashboardRenderWorld=state.worldSimulation||null;
+ lastWorldDashboardRenderSignature=worldDashboardRenderSignature(lastWorldDashboardRenderWorld);
  setText("worldAIHomeStatus","الموسم "+view.season+" • عالم متغير");
  setText("worldAIHomePulse",view.lastMarket.season
   ?("آخر نافذة انتقالات: "+view.lastMarket.moves+" صفقة في الموسم "+view.lastMarket.season+". "+view.lastMarket.summary)
@@ -3715,7 +3808,6 @@ function renderWorldAIDashboard(){
  setText("worldAISimulationNote",view.note+" الأسعار والأرقام دي قيم لعبية ومحاكاة، مش تقييمات انتقالات أو إحصائيات رسمية.");
 }
 function renderEurope(){
- renderWorldAIDashboard();
  const w=transferWindow();
  $("transferWindowBanner").textContent=w.open?`🟢 ${w.name} مفتوحة — ${calendarDateLabel()}. عروض المحاكاة مرتبطة بالأداء.`:`🔒 ${w.name} — ${calendarDateLabel()}. أقرب نافذة بعد حوالي ${w.days} يوم.`;
  renderGlobalCatalog();
@@ -3863,7 +3955,7 @@ function render(){
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
  setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
- renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
+ renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderWorldAIDashboard();if((state.currentPage||"home")==="europe")renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
  document.querySelectorAll('[data-action="match"]').forEach(b=>b.disabled=state.retired||state.playedToday||state.injuryDays>0);
  document.querySelectorAll("[data-action]").forEach(b=>{const action=b.dataset.action||"";if(action==="match")b.disabled=!!state.retired||!!state.playedToday||Number(state.injuryDays)>0;else if(action.startsWith("train-"))b.disabled=!!state.retired||Number(state.injuryDays)>0||!!state.playedToday||!!state.trainedToday;else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();else b.disabled=!!state.retired;});if($("heroMatch"))$("heroMatch").disabled=!!state.retired;if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
  document.querySelectorAll('[data-action^="train-"]').forEach(b=>b.disabled=state.retired||state.injuryDays>0||state.playedToday||state.trainedToday);
@@ -4577,8 +4669,7 @@ async function init(){
  try{await window.LWCatalog?.load();}catch(err){console.warn("Global football reference data unavailable",err);}
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
  if(window.LWCareer)window.LWCareer.ensureState(state);
- window.LWWorldAI?.ensureState(state,window.LWWorldDB);
- ensureLeague();bind();render();showPage(state.currentPage||"home");if(!state.careerStarted)$("startScreen").classList.add("show");
+ ensureLeague();bind();showPage(state.currentPage||"home",false);if(!state.careerStarted)$("startScreen").classList.add("show");
 }
 init();
 window.LWStoryRuntime = {

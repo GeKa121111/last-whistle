@@ -3,6 +3,11 @@ on:
   workflow_dispatch:
   push:
   pull_request:
+
+concurrency:
+  group: last-whistle-ci-\${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 

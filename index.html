@@ -19,6 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LAST WHISTLE | مسيرة لاعب</title>
 <script src="./lz-string.min.js?v=1"></script>
+<script src="./career-state-store.js?v=1"></script>
 <link rel="stylesheet" href="./story-ui.css?v=1">
 <link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=1">
@@ -794,7 +795,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 }
 </style>
 <link rel="stylesheet" href="./redesign.css?v=5">
-<script src="./football-world-ai.js?v=6"></script>
+<script src="./football-world-ai.js?v=7"></script>
 </head>
 <body>
 
@@ -2620,11 +2621,22 @@ function cancelQueuedSave(){
 function persistGame(silent=false){
  try{
   state.schemaVersion=10;
+  if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
+   window.LWStateStore.publish(state,{source:"save"});
+   window.LWStateStore.save(state,{slotId:"career:default",label:String(state.name||"المسيرة الرئيسية")}).then(()=>{
+    if(!silent)toast("اتحفظت مسيرتك بنجاح في قاعدة بيانات الجهاز.");
+   }).catch(err=>{
+    try{localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));}catch(_){}
+    console.warn("IndexedDB save failed; legacy fallback attempted",err);
+    if(!silent)toast("تعذر الحفظ في قاعدة البيانات؛ تم استخدام الحفظ الاحتياطي إن أمكن.");
+   });
+   return true;
+  }
   localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
   if(!silent)toast("اتحفظت مسيرتك بنجاح على الجهاز.");
   return true;
  }catch(err){
-  if(!silent)toast("المتصفح منع الحفظ المحلي أو مساحة التخزين ممتلئة. حرّر مساحة أو صدّر نسخة احتياطية.");
+  if(!silent)toast("تعذر حفظ المسيرة. صدّر نسخة احتياطية وتحقق من مساحة التخزين.");
   return false;
  }
 }
@@ -2632,6 +2644,10 @@ function flushQueuedSave(){
  cancelQueuedSave();
  if(!saveQueued)return true;
  saveQueued=false;
+ if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
+  window.LWStateStore.flush(state).catch(err=>console.warn("Final IndexedDB flush failed",err));
+  return true;
+ }
  const saved=persistGame(true);
  if(!saved)saveQueued=true;
  return saved;
@@ -2723,7 +2739,9 @@ async function importSaveFile(file){
  if(!window.confirm("سيتم استبدال المسيرة المحفوظة حاليًا بالنسخة المختارة. هل تريد المتابعة؟"))return;
  const previous=localStorage.getItem(STORAGE_KEY);
  try{
+  if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(restored,{source:"import"});
   localStorage.setItem(STORAGE_KEY,encodeStoredSave(restored));
+  if(window.LWStateStore&&typeof window.LWStateStore.save==="function")window.LWStateStore.save(restored,{slotId:"career:default"}).catch(err=>console.warn("Imported IndexedDB save pending",err));
   if(!loadGame())throw new Error("restore failed");
   saveGame(true);render();showPage(state.currentPage||"home");closeDrawer();toast("تمت استعادة المسيرة وعالم الكرة بنجاح.");
  }catch(err){
@@ -2776,10 +2794,12 @@ function ensureFixtureSchedule(){
 }
 function loadGame(){
  try{
+  let indexedSave=window.LWStateStore&&typeof window.LWStateStore.getStartupSave==="function"?window.LWStateStore.getStartupSave():null;
   let storageKey=STORAGE_KEY,raw=localStorage.getItem(STORAGE_KEY);
-  if(!raw){for(const legacyKey of LEGACY_STORAGE_KEYS){const candidate=localStorage.getItem(legacyKey);if(candidate){storageKey=legacyKey;raw=candidate;break;}}}
-  if(!raw)return false;
-  const saved=JSON.parse(decodeStoredSave(raw));
+  if(indexedSave)raw=null;
+  else if(!raw){for(const legacyKey of LEGACY_STORAGE_KEYS){const candidate=localStorage.getItem(legacyKey);if(candidate){storageKey=legacyKey;raw=candidate;break;}}}
+  if(!raw&&!indexedSave)return false;
+  const saved=indexedSave?structuredCloneSafe(indexedSave):JSON.parse(decodeStoredSave(raw));
   if(!saved||typeof saved!=="object")return false;
   state={...structuredCloneSafe(INITIAL),...saved};
   if(saved.physical===undefined)state.physical=legacyPhysicalFallback(state.pos,saved);
@@ -5005,8 +5025,12 @@ function bind(){
  $("saveBtn").addEventListener("click",()=>saveGame(false));$("drawerSave").addEventListener("click",()=>{saveGame(false);closeDrawer();});$("exportSaveBtn").addEventListener("click",exportSave);$("importSaveBtn").addEventListener("click",()=>$("importSaveInput").click());$("importSaveInput").addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];if(file)importSaveFile(file);e.target.value="";});$("newCareerBtn").addEventListener("click",newCareer);
 }
 async function init(){
+ try{await window.LWStateStore?.ready();}catch(err){console.warn("IndexedDB save store unavailable; legacy storage will be used",err);}
+ const hasIndexedSave=!!(window.LWStateStore&&window.LWStateStore.getStartupSave&&window.LWStateStore.getStartupSave());
  try{await window.LWCatalog?.load();}catch(err){console.warn("Global football reference data unavailable",err);}
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
+ if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:loaded?"load":"new-career"});
+ if(window.LWStateStore&&typeof window.LWStateStore.save==="function"&&(!loaded||!hasIndexedSave))window.LWStateStore.save(state,{slotId:"career:default"}).catch(err=>console.warn("Initial IndexedDB migration failed",err));
  if(window.LWCareer)window.LWCareer.ensureState(state);
  ensureLeague();bind();showPage(state.currentPage||"home",false);if(!state.careerStarted)$("startScreen").classList.add("show");
 }
@@ -5035,6 +5059,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./career-experience.js?v=1"></script>
 <script src="./agent-system.js?v=1"></script>
 <script src="./career-hub.js?v=1"></script>
-<script src="./ai-career-engine.js?v=3"></script>
+<script src="./ai-career-engine.js?v=4"></script>
+<script src="./ai-career-ui.js?v=1"></script>
 </body>
 </html>

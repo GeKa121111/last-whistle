@@ -4841,22 +4841,30 @@ function startCareerFromSetup(){
  const nameInput=$("startName");const name=normalizePlayerName(nameInput?.value);
  if(!name){const message="اكتب اسمك في خانة «اسم اللاعب» أعلى النموذج قبل ما تبدأ المسيرة.";nameInput?.setCustomValidity(message);nameInput?.reportValidity?.();if($("startScreen"))$("startScreen").scrollTop=0;nameInput?.scrollIntoView?.({block:"center",behavior:"smooth"});nameInput?.focus();toast(message);return;}
  nameInput.setCustomValidity("");
- const age=clamp(Number($("startAge").value)||17,16,20),country=$("startCountry").value||"مصر";
- const division=age<=18?2:clamp(Number($("startDivision").value)||2,1,2),p=positionById(selectedPosition);
+ const age=clamp(Number($("startAge").value)||17,12,20),academy=age<=15,country=$("startCountry").value||"مصر";
+ const division=academy?clamp(Number($("startDivision").value)||1,1,2):age<=18?2:clamp(Number($("startDivision").value)||2,1,2),p=positionById(selectedPosition);
  const fresh=structuredCloneSafe(INITIAL);state=fresh;
- state.name=name;state.age=age;state.pos=p.id;state.nationalTeam=$("startNationalTeam")?.value||"مصر";state.leagueCountry=country;state.leagueDivision=division;state.careerStarted=true;state.playerPotential=rand(78,96);state.randomSeed=stableHash(`${name}|${age}|${country}|${state.nationalTeam}|${Date.now()}`)||1831565813;state.trainingIntensity=$("trainingIntensity")?.value||"normal";
- const startingStats=window.LWCareer?.startingStatsForPosition(p.id,()=>randomUnit());
+ state.name=name;state.age=age;state.pos=p.id;state.nationalTeam=$("startNationalTeam")?.value||"مصر";state.leagueCountry=country;state.leagueDivision=division;state.careerStarted=true;
+ state.academyCareer=academy;state.academyStartAge=academy?age:0;state.academyYearsCompleted=0;state.academyHistory=[];state.academyGraduated=false;state.academyGraduationPending=false;state.academyReserve=false;state.academyLeagueDivision=academy?division:0;
+ state.playerPotential=rand(78,96);state.randomSeed=stableHash(name+"|"+age+"|"+country+"|"+state.nationalTeam+"|"+Date.now())||1831565813;state.trainingIntensity=$("trainingIntensity")?.value||"normal";
+ const rawStartingStats=window.LWCareer?.startingStatsForPosition(p.id,()=>randomUnit());
+ const startingStats=academy?scaleAcademyStartingStats(rawStartingStats,age):rawStartingStats;
  if(startingStats)Object.assign(state,startingStats);else Object.entries(p.boost).forEach(([k,v])=>state[k]=clamp(state[k]+v));
- state.role=age<=18?"ناشئ / بديل":p.role;state.contractType=age<=18?"youth-amateur":division===1?"professional":"amateur";
- state.trust=age<=18?22:division===1?32:25;state.energy=85;state.morale=70;state.calendarDay=1;state.day=1;
+ state.role=academy?"ناشئ "+academyAgeGroup(age):age<=18?"ناشئ / بديل":p.role;state.contractType=academy?"academy":age<=18?"youth-amateur":division===1?"professional":"amateur";
+ state.trust=academy?14:age<=18?22:division===1?32:25;state.energy=85;state.morale=70;state.calendarDay=1;state.day=1;
  state.clubName=$("startClub").value||LEAGUE_ROSTERS[country]?.[division]?.[0]||"مركز شباب النور";
- const source=division===1?catalogLeague(country):null;const countryRow=europeanLeagueRow(country);
- state.leagueCompetition=source?.competition||(country==="مصر"?(division===2?"دوري مراكز الشباب والدرجة الثانية — محاكاة":"الدوري المصري — محاكاة محلية"):(countryRow?.[division===1?2:3]||"الدوري المحلي"));state.leagueSource=source?`OpenFootball • ${source.season}`:"قائمة أكاديميات/درجة ثانية محلية";
+ const source=division===1?catalogLeague(country):null;
+ state.leagueCompetition=academy?academyCompetition(age):seniorLeagueCompetition(country,division);
+ state.leagueSource=academy?"أكاديمية الناشئين — محاكاة داخل اللعبة":source?"OpenFootball • "+source.season:"قائمة أكاديميات/درجة ثانية محلية";
  state.clubPower=division===2?48+rand(0,7):clubPowerFor(state.clubName,country);state.clubIndex=division===2?0:clubTierForPower(state.clubPower);state.clubTier=state.clubIndex;
- state.weeklyWage=startingWeeklyWage(country,division,age,state.clubIndex);state.contractSeasons=age<=18?1:division===2?2:3;
- state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.seasonAppsTarget=window.LWCareer?.leagueMatchTarget(state.league.length)||seasonMatchTotal();state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);ensureSeasonDevelopmentSnapshot();setStory("الفصل الأول: "+p.id,p.story+" دي بدايتك يا "+name+". أول هدف ليك إنك تكسب ثقة المدرب وتثبت إنك تستحق فرصة أكبر.");log(`بدأت مسيرتك في مركز ${p.id} مع ${state.clubName} في ${country}.`);
-	$("startScreen").classList.remove("show");saveGame(true);render();showPage("home");openModal("أهلاً يا "+name+" ⚽",p.story+"\nأول تحدي: شارك في مباراتين وارفع متوسط تقييمك قبل ما تفتح نافذة الانتقالات الجاية.",[{label:"يلا نبدأ",action:()=>{}}]);
-	}
+ state.weeklyWage=academy?0:startingWeeklyWage(country,division,age,state.clubIndex);state.contractSeasons=academy?6:age<=18?1:division===2?2:3;
+ if(academy)syncAcademyCareerState(state);
+ state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.seasonAppsTarget=window.LWCareer?.leagueMatchTarget(state.league.length)||seasonMatchTotal();state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);ensureSeasonDevelopmentSnapshot();
+ if(academy){setStory("أول يوم في الأكاديمية","بدأت رحلتك في أكاديمية "+state.clubName+" وأنت عندك "+age+" سنة. هتتدرج بين فرق "+academyAgeGroup(age)+" والفئة الأكبر كل موسم، والتدريب والمشاركات هيحددوا مستواك. عند سن 18 هيظهر قرار التصعيد للفريق الأول أو تجربة موسم مع الرديف.");log("بدأت مسيرة "+name+" في أكاديمية "+state.clubName+" بعمر "+age+" سنة ("+academyAgeGroup(age)+").");}
+ else{setStory("الفصل الأول: "+p.id,p.story+" دي بدايتك يا "+name+". أول هدف ليك إنك تكسب ثقة المدرب وتثبت إنك تستحق فرصة أكبر.");log("بدأت مسيرتك في مركز "+p.id+" مع "+state.clubName+" في "+country+".");}
+ $("startScreen").classList.remove("show");saveGame(true);render();showPage("home");
+ openModal(academy?"أهلاً بيك في الأكاديمية يا "+name:"أهلاً يا "+name+" ⚽",academy?"أول خطوة: كسب ثقة مدرب "+academyAgeGroup(age)+". التزم بالتدريب وشارك في المباريات. العقود الاحترافية وانتقالات الفريق الأول هتبدأ بعد التخرج في سن 18.":p.story+"\nأول تحدي: شارك في مباراتين وارفع متوسط تقييمك قبل ما تفتح نافذة الانتقالات الجاية.",[{label:"يلا نبدأ",action:()=>{}}]);
+}
 let globalCatalogRenderTimer=0;
 function scheduleGlobalCatalogRender(){
  if(globalCatalogRenderTimer)clearTimeout(globalCatalogRenderTimer);

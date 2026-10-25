@@ -143,6 +143,13 @@ for (const marker of [
 if (renderBody.includes('renderAchievements();renderLeague();renderContract();renderNational();')) {
   console.error("Render performance regression: hidden pages must not all render for every player action."); process.exit(1);
 }
+if (!html.includes("let lastAchievementsRenderSignature") ||
+    !html.includes("let lastSeasonJourneyRenderKey") ||
+    !html.includes('box&&!box.querySelector("#realPlayerTeam")') ||
+    !html.includes('addEventListener("input",scheduleGlobalCatalogRender)')) {
+  console.error("UI performance regression: stable widgets must be cached and catalog searches must avoid full-page rerenders.");
+  process.exit(1);
+}
 
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 let inlineCount = 0;

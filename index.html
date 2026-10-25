@@ -2673,7 +2673,7 @@ function exportSave(){
 function validateBackupValue(value,depth=0){
  if(depth>20)throw new Error("backup nesting too deep");
  if(value===null||typeof value==="boolean")return value;
- if(typeof value==="number"){if(!Number.isFinite(value)||Math.abs(value)>10000000)throw new Error("invalid number");return value;}
+ if(typeof value==="number"){if(!Number.isFinite(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER)throw new Error("invalid number");return value;}
  if(typeof value==="string"){if(value.length>10000||/[\u0000-\u001f\u007f<>"\x60=]/.test(value))throw new Error("unsafe text");return value;}
  if(Array.isArray(value)){if(value.length>20000)throw new Error("array too large");return value.map(item=>validateBackupValue(item,depth+1));}
  if(value&&Object.getPrototypeOf(value)===Object.prototype){const entries=Object.entries(value);if(entries.length>20000)throw new Error("object too large");const clean={};for(const [key,item] of entries){if(key==="__proto__"||key==="constructor"||key==="prototype"||/[\u0000-\u001f\u007f<>"\x60=]/.test(key))throw new Error("unsafe key");clean[key]=validateBackupValue(item,depth+1);}return clean;}

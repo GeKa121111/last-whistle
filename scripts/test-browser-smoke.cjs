@@ -264,6 +264,13 @@ async function main() {
         const active = document.querySelector(".page.active");
         return active && active.id === "page-" + value;
       }, section);
+      const layout = await page.evaluate(() => ({
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth
+      }));
+      assert.ok(layout.documentWidth <= layout.viewportWidth + 1,
+        "mobile section must not overflow horizontally: " + section
+        + " (" + layout.documentWidth + "px document vs " + layout.viewportWidth + "px viewport)");
     }
     await page.locator("#shopItems [data-buy]").first().waitFor({ state: "attached" });
     assert.ok(await page.locator("#shopItems [data-buy]").count() > 0, "the player store must render purchasable items");

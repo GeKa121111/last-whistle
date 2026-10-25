@@ -212,10 +212,29 @@ async function main() {
     results.push("position-based starting stats, youth contract, dynamic league length, currency and match countdown");
 
     await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
-    // The command center is injected by story-mode.js after the page starts. Wait for
-    // its actual user-facing controls to finish becoming visible before inspecting layout.
+    // A player in the youth route must not see the professional transfer shortcut.
+    // Re-check the same dashboard as an adult during the summer window so layout
+    // coverage still verifies both primary actions when the market is legitimately open.
     await page.locator("#lw-command-center").waitFor({ state: "visible", timeout: 10000 });
     await page.locator("#lw-cta-season").waitFor({ state: "visible", timeout: 10000 });
+    await page.waitForFunction(() => {
+      const transfers = document.querySelector("#lw-cta-transfers");
+      return !!transfers && (transfers.hidden || getComputedStyle(transfers).display === "none");
+    }, null, { timeout: 10000 });
+    await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      window.__transferEligibilityTestBackup = JSON.parse(JSON.stringify(state));
+      state.age = 18;
+      state.academyCareer = false;
+      state.academyReserve = false;
+      state.academyGraduationPending = false;
+      state.academyGraduated = true;
+      state.freeAgent = false;
+      state.winterBreakPending = false;
+      state.calendarDay = 15;
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.render();
+    });
     await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
     await page.waitForFunction(() => {
       const season = document.querySelector("#lw-cta-season");
@@ -245,7 +264,7 @@ async function main() {
     assert.equal(homeActionPlacement.commandCenterBeforeStory, true,
       "player command center must lead the home page");
     assert.equal(homeActionPlacement.bothPrimaryActionsVisible, true,
-      "match-season and transfer actions must be visible inside the command center");
+      "match-season and transfer actions must be visible inside the command center during an open transfer window");
     assert.equal(homeActionPlacement.commandCenterAboveSeasonRoadmap, true,
       "the main player controls must appear before the season roadmap");
     assert.equal(homeActionPlacement.duplicateShortcutsHidden, true,
@@ -254,7 +273,21 @@ async function main() {
       "the duplicate player summary must be removed from the home screen");
     assert.equal(homeActionPlacement.duplicateActionPanelHidden, true,
       "the old season action panel must be hidden after moving its actions into the command center");
-    results.push("redesigned home hierarchy and duplicate-panel cleanup");
+    await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const backup = window.__transferEligibilityTestBackup;
+      Object.keys(state).forEach(key => delete state[key]);
+      Object.assign(state, backup);
+      delete window.__transferEligibilityTestBackup;
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.showPage("home");
+      window.LWStoryRuntime.render();
+    });
+    await page.waitForFunction(() => {
+      const transfers = document.querySelector("#lw-cta-transfers");
+      return !!transfers && (transfers.hidden || getComputedStyle(transfers).display === "none");
+    }, null, { timeout: 10000 });
+    results.push("youth transfer lock and adult summer-market shortcut visibility");
 
     const sections = ["home", "training", "stats", "wellness", "league", "europe", "contract", "national", "shop", "life", "diary"];
     for (const section of sections) {

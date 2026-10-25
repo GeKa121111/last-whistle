@@ -11,7 +11,7 @@ if (rootHtml !== html) { console.error("Root index.html and public/index.html ar
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v41";')) {
+if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v42";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
@@ -75,7 +75,7 @@ const required = [
   "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=4",
+  "story-mode.js?v=5",
   "career-experience.js?v=1",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
@@ -253,7 +253,7 @@ const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css")
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (!workerSource.includes("last-whistle-static-v40")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=4", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=3", "football-world-ai.css?v=1", "football-world-ai.js?v=6", "football-world-rosters.js?v=5", "football-world-db.js?v=6", "lz-string.min.js?v=1", "world-roster-audit.json", "redesign.css?v=5"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=5", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=3", "football-world-ai.css?v=1", "football-world-ai.js?v=6", "football-world-rosters.js?v=5", "football-world-db.js?v=6", "lz-string.min.js?v=1", "world-roster-audit.json", "redesign.css?v=5"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

@@ -23,6 +23,7 @@ const LEAGUES = [
   { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1.htm", teamDirectory: "/france/2026-2027/ligue1/", expectedTeams: 18 },
   { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
+  { id: "turkey", country: "تركيا", division: 1, url: "/turkey/2026-2027/superl/", teamDirectory: "/turkey/2026-2027/superl/", expectedTeams: 18 },
   { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
   // Argentina uses the calendar-year Apertura, so identify that source season explicitly.
   { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/argaper.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }

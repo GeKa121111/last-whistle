@@ -3605,7 +3605,47 @@ function renderCareerAwards(){
  const awardsBox=$("officialAwardCatalog");
  if(awardsBox)awardsBox.innerHTML=awards.map(row=>`<div class="dataCard"><h4>${safeHTML(row.name)}</h4><p>${safeHTML(row.organizer)} • ${safeHTML(row.eligibilityOrMetric)}</p><a href="${safeHTML(row.officialUrl)}" target="_blank" rel="noopener noreferrer">مصدر الجهة المنظمة ↗</a></div>`).join("")||'<div class="empty">لا توجد جوائز مطابقة.</div>';
 }
+function renderWorldAIDashboard(){
+ const box=$("worldAISimulationDashboard");
+ if(!box||!window.LWWorldAI)return;
+ const db=window.LWWorldDB,view=window.LWWorldAI.dashboard(state,db);
+ setText("worldAIHomeStatus","الموسم "+view.season+" • عالم متغير");
+ setText("worldAIHomePulse",view.lastMarket.season
+  ?("آخر نافذة انتقالات: "+view.lastMarket.moves+" صفقة في الموسم "+view.lastMarket.season+". "+view.lastMarket.summary)
+  :"الأندية واللاعبون جاهزون للمحاكاة. صفقات AI هتظهر عند الانتقال للموسم التالي.");
+ setText("worldAIHomeMoves",view.lastMarket.moves||0);
+ setText("worldAIHomeTeams",view.clubCount);
+ setText("worldAIHomePlayers",view.playerCount);
+ setText("worldAISeasonTag","الموسم "+view.season+" • "+view.progress+"% من جدولك");
+ setText("worldAIOverallSummary","العالم الحالي يضم "+view.clubCount+" ناديًا و"+view.playerCount+" لاعبًا. مستوى الأندية والانتقالات والتطور والإحصائيات بيتغيروا مع نهاية كل موسم، ومفيش صفقات بتتكرر مرتين لنفس الحفظ.");
+ setText("worldAIMarketMoves",view.lastMarket.moves||0);
+ setText("worldAITotalClubs",view.clubCount);
+ setText("worldAITotalPlayers",view.playerCount);
+ setText("worldAICompletedSeasons",view.completedSeasons);
+ const renderLeaders=(rows,kind)=>{
+  const active=(rows||[]).filter(row=>Number(row.appearances)>0);
+  if(!active.length)return '<div class="world-ai-empty">إحصائيات الموسم هتبدأ تتحدث بعد أول مباراة؛ أرقام كل لاعب هتتحسب من مستوى النادي ومركزه ومشاركاته.</div>';
+  return active.slice(0,5).map((row,index)=>'<div class="world-ai-leader-row"><span class="world-ai-rank">'+(index+1)+'</span><div class="world-ai-leader-main"><b>'+safeHTML(row.name)+'</b><small>'+safeHTML(row.club||row.clubName||"")+' • '+safeHTML(row.country||"")+' • '+Number(row.appearances||0)+' مشاركة</small></div><span class="world-ai-stat">'+Number(row[kind]||0)+(kind==="goals"?" هدف":" صناعة")+'</span></div>').join("");
+ };
+ const scorers=$("worldAITopScorers"),assists=$("worldAITopAssists");
+ if(scorers)scorers.innerHTML=renderLeaders(view.goalsLeaders,"goals");
+ if(assists)assists.innerHTML=renderLeaders(view.assistLeaders,"assists");
+ const moves=$("worldAITransferLog");
+ if(moves){
+  const rows=view.recentTransfers||[];
+  moves.innerHTML=rows.length?rows.slice(0,6).map(row=>'<div class="world-ai-transfer"><b>'+safeHTML(row.player)+' — '+safeHTML(row.position||"مركز غير محدد")+'</b><small>'+safeHTML(row.from)+' ('+safeHTML(row.fromCountry)+') ← '+safeHTML(row.to)+' ('+safeHTML(row.toCountry)+')</small><small><span class="world-ai-fee">قيمة سوق محاكية: '+Number(row.fee||0).toLocaleString("en-US")+'</span> • '+safeHTML(row.reason||"انتقال داخل المحاكاة")+'</small></div>').join("")
+   :'<div class="world-ai-empty">لحد دلوقتي مفيش انتقالات AI محفوظة. حركة السوق تبدأ بعد اعتماد أول موسم والانتقال للموسم اللي بعده.</div>';
+ }
+ const table=$("worldAILeagueTable");
+ if(table){
+  const rows=view.leagueTable||[];
+  table.innerHTML=rows.length?'<div class="tableWrap"><table><thead><tr><th>#</th><th>النادي</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th><th>له</th><th>عليه</th><th>نقاط</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+row.rank+'</td><td>'+safeHTML(row.club)+'</td><td>'+row.played+'</td><td>'+row.w+'</td><td>'+row.d+'</td><td>'+row.l+'</td><td>'+row.gf+'</td><td>'+row.ga+'</td><td><b>'+row.pts+'</b></td></tr>').join("")+'</tbody></table></div>'
+   :'<div class="world-ai-empty">مفيش جدول عالمي للدوري المختار في قاعدة البيانات الحالية؛ جدول دوري اللاعب المحلي يفضل ظاهر في صفحة الدوري.</div>';
+ }
+ setText("worldAISimulationNote",view.note+" الأسعار والأرقام دي قيم لعبية ومحاكاة، مش تقييمات انتقالات أو إحصائيات رسمية.");
+}
 function renderEurope(){
+ renderWorldAIDashboard();
  const w=transferWindow();
  $("transferWindowBanner").textContent=w.open?`🟢 ${w.name} مفتوحة — ${calendarDateLabel()}. عروض المحاكاة مرتبطة بالأداء.`:`🔒 ${w.name} — ${calendarDateLabel()}. أقرب نافذة بعد حوالي ${w.days} يوم.`;
  renderGlobalCatalog();
@@ -3889,16 +3929,18 @@ function disciplineKey(scope,country,competition){return `${scope}|${country||""
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}
- const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(state.clubPower)||52)-55)*.16,30,94);
- const opponentPower=clamp(Number(opponentTeam?.power)||55,30,94);
- const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower})||{tactic:"balanced",label:"متوازن"};
+ const dynamicOwnPower=window.LWWorldAI?.getClubPower(state,club().name,state.leagueCountry,window.LWWorldDB)||Number(state.clubPower)||52;
+ const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(dynamicOwnPower)||55)-55)*.16,30,94);
+ const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
+ const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
+ const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  const key=disciplineKey(scope,state.leagueCountry,competition);
  const suspended=(Number(state.suspensions?.[key])||0)>0;
  const available=!!playerAvailable&&state.injuryDays<=0&&!suspended&&state.energy>0;
  return window.LWMatch.simulateMatch({
   seed:window.LWMatch.hash(`${matchId}|${state.energy}|${state.fatigue}|${state.trust}|${state.morale}`),
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
-  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
+  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
   playerAvailable:available,
   player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });

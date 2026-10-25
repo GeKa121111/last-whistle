@@ -4255,6 +4255,49 @@ function recordLeagueByeRound(roundIndex){
  state.leagueRoundHistory.push({segmentId:ensureLeagueSegmentId(),matchday:roundIndex+1,day:Number(state.day)||1,club:clubNameForLeague(),opponent:"",home:null,scoreFor:null,scoreAgainst:null,outcome:"bye",playerMinutes:0,playerRating:0,matchId:"",standings:structuredCloneSafe(state.league||[])});
  if(state.leagueRoundHistory.length>100)state.leagueRoundHistory.splice(0,state.leagueRoundHistory.length-100);
 }
+function chooseSeasonTrainingFocus(){
+ const career=window.LWCareer,ai=window.LWCareerAI;
+ if(!career)return "";
+ const plan=career.positionDevelopmentPlan?career.positionDevelopmentPlan(state):null;
+ const advice=ai&&typeof ai.coachAdvice==="function"?ai.coachAdvice(state,overall()):null;
+ const candidates=[...(plan?.primary||[]),...(plan?.secondary||[])].filter((skill,index,arr)=>arr.indexOf(skill)===index);
+ if(!candidates.length)return advice?.focus||"fitness";
+ const potential=Math.max(65,Number(state.playerPotential)||82);
+ candidates.sort((a,b)=>{
+  const gapA=Math.max(0,potential-(Number(state[a])||0)),gapB=Math.max(0,potential-(Number(state[b])||0));
+  const roleA=(plan?.primary||[]).includes(a)?1.2:1,roleB=(plan?.primary||[]).includes(b)?1.2:1;
+  const adviceA=advice?.focus===a?1.08:1,adviceB=advice?.focus===b?1.08:1;
+  return gapB*roleB*adviceB-gapA*roleA*adviceA;
+ });
+ return candidates[0]||advice?.focus||"fitness";
+}
+function runSeasonAITtraining(){
+ const career=window.LWCareer;
+ if(!career||typeof career.train!=="function"||state.retired)return null;
+ if(Number(state.injuryDays)>0)return {skipped:"injury"};
+ if(Number(state.energy)<18||Number(state.fatigue)>=84)return {skipped:"recovery"};
+ const focus=chooseSeasonTrainingFocus();
+ if(!focus)return null;
+ state.trainingIntensity=(Number(state.energy)>=62&&Number(state.fatigue)<48)?"normal":"light";
+ const result=career.train(state,focus);
+ if(result?.ok){
+  state.seasonTrainingReport=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0};
+  state.seasonTrainingReport.sessions++;
+  state.seasonTrainingReport.skills[focus]=(Number(state.seasonTrainingReport.skills[focus])||0)+1;
+  state.seasonTrainingReport.xp+=Number(result.xp)||0;
+  if(result.injured)state.seasonTrainingReport.injuries++;
+  state.seasonTrainingReport.lastFocus=focus;
+  return result;
+ }
+ return {skipped:result?.message||"unavailable"};
+}
+function ensureSeasonDevelopmentSnapshot(){
+ if(state.seasonDevelopmentSnapshot&&Number(state.seasonDevelopmentSnapshot.season)===Number(state.season))return;
+ const skills=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"],attributes={};
+ skills.forEach(key=>attributes[key]=Number(state[key])||0);
+ state.seasonDevelopmentSnapshot={season:Number(state.season)||1,ovr:overall(),attributes,sessions:Number(state.trainingSessions)||0};
+ state.seasonTrainingReport={sessions:0,skills:{},xp:0,injuries:0};
+}
 function simulateSeasonBlock(targetApps){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(state.seasonFinished)return;
@@ -4437,7 +4480,21 @@ function finishSeason(){
  if(completeLeagueSegment&&hasPlayableSecondTier&&oldDivision===2&&place<=2){state.leagueDivision=1;state.clubTier=Math.min(3,state.clubTier+1);state.promotionHistory.unshift({season:state.season,club:clubNameForLeague(),from:2,to:1,reason:"صعود رياضي بعد إنهاء الموسم ضمن أول مركزين"});prize+=" صعد ناديك للدرجة الأولى بعد موسم قوي!";log("صعود داخل محاكاة الدرجة المحلية.");}
  else if(completeLeagueSegment&&hasPlayableSecondTier&&oldDivision===1&&place>=Math.max(1,state.league.length-2)){state.leagueDivision=2;state.clubTier=Math.max(0,state.clubTier-1);state.promotionHistory.unshift({season:state.season,club:clubNameForLeague(),from:1,to:2,reason:"هبوط بعد إنهاء الموسم في مراكز الهبوط"});prize+=" للأسف هبط ناديك للدرجة الثانية.";log("هبوط إلى الدرجة المحلية الثانية داخل المحاكاة.");}
  if(!completeLeagueSegment)prize+=" انتهى الموسم بمرحلة دوري جزئية بعد انتقال منتصف الموسم؛ لم تُحتسب بطولة أو صعود/هبوط على جدول جزئي.";
- const summary=`النادي الحالي: المركز ${place} من ${state.league.length} • سجل النادي في المرحلة الحالية: ${state.seasonW} فوز / ${state.seasonD} تعادل / ${state.seasonL} خسارة • أهدافك وصناعاتك محسوبة للموسم عبر الأندية: ${state.seasonGoals} هدف و${state.seasonAssists} صناعة.`+prize;
+ let developmentNote="";
+ const dev=state.seasonDevelopmentSnapshot,training=state.seasonTrainingReport;
+ if(dev&&Number(dev.season)===Number(state.season)){
+  const keys=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"];
+  const changes=keys.map(key=>({key,delta:(Number(state[key])||0)-(Number(dev.attributes?.[key])||0)})).filter(row=>row.delta>0).sort((a,b)=>b.delta-a.delta);
+  const labels={shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",defending:"الدفاع",goalkeeping:"حراسة المرمى",vision:"الرؤية",physical:"القوة البدنية"};
+  const delta=overall()-(Number(dev.ovr)||overall());
+  developmentNote="\n\nتقرير تطور اللاعب بالـ AI: التقييم العام "+dev.ovr+" ← "+overall()+" ("+(delta>=0?"+":"")+delta+"). حصص التدريب التلقائية: "+(Number(training?.sessions)||0)+"، خبرة تدريب: "+(Number(training?.xp)||0)+". "+(changes.length?"أبرز التحسينات: "+changes.slice(0,4).map(row=>labels[row.key]+" +"+row.delta).join("، ")+".":"لم ترتفع المهارات الأساسية نقطة كاملة خلال هذا الموسم.")+" الخطة اتحددت حسب المركز والإمكانات والجاهزية.";
+  state.seasonDevelopmentHistory=Array.isArray(state.seasonDevelopmentHistory)?state.seasonDevelopmentHistory:[];
+  if(!state.seasonDevelopmentHistory.some(row=>Number(row.season)===Number(state.season))){
+   state.seasonDevelopmentHistory.unshift({season:Number(state.season),ovrBefore:dev.ovr,ovrAfter:overall(),sessions:Number(training?.sessions)||0,xp:Number(training?.xp)||0,skills:changes.slice(0,10),injuries:Number(training?.injuries)||0});
+   state.seasonDevelopmentHistory=state.seasonDevelopmentHistory.slice(0,20);
+  }
+ }
+ const summary=`النادي الحالي: المركز ${place} من ${state.league.length} • سجل النادي في المرحلة الحالية: ${state.seasonW} فوز / ${state.seasonD} تعادل / ${state.seasonL} خسارة • أهدافك وصناعاتك محسوبة للموسم عبر الأندية: ${state.seasonGoals} هدف و${state.seasonAssists} صناعة.`+developmentNote+prize;
  state.seasonSummary=summary;archiveLeagueSegment("season-end",place);archiveSeasonRecord();log("نهاية الموسم "+state.season+": "+summary);
  // استدعاء المنتخب في نهاية الموسم حسب الشروط
  const recentForm=(state.seasonLog||[]).filter(r=>Number(r.minutes)>0&&Number.isFinite(Number(r.rating))).slice(-8);

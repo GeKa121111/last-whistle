@@ -13,6 +13,8 @@ vm.runInContext(rosterSource, sandbox, { filename: "football-world-rosters.js" }
 vm.runInContext(source, sandbox, { filename: "football-world-db.js" });
 const snapshot = sandbox.window.LWFootballSquadData;
 assert.ok(snapshot && snapshot.season === "2026/27", "checked-in current-season roster snapshot must load");
+assert.ok(!(snapshot.leagues || []).some(league => league.leagueId === "japan"),
+  "the checked-in roster snapshot must not contain leagues outside UCL, CAF Champions League, and Libertadores pathways");
 const snapshotClubs = (snapshot.leagues || []).flatMap(league => league.clubs || []);
 const snapshotPlayers = snapshotClubs.reduce((sum, club) => sum + (club.players || []).length, 0);
 assert.ok(snapshot.leagues.length >= 10, "current rosters should cover at least ten major league divisions");
@@ -51,7 +53,15 @@ const db = sandbox.window.LWWorldDB;
 assert.ok(db);
 assert.equal(db.version, 4);
 assert.equal(db.season, "2026/27");
-assert.equal(db.leagues().length, 21);
+assert.equal(db.leagues().length, 20);
+assert.equal(db.leagueById("japan"), null, "Japan must not be a selectable league outside the supported continental competitions");
+assert.equal(db.leagueFor("اليابان", 1), null, "removed leagues must not resolve through the country/league lookup");
+const supportedContinentalIds = new Set(["ucl", "caf-cl", "libertadores"]);
+assert.ok(db.leagues().every(league => (league.continental || []).some(id => supportedContinentalIds.has(id)),
+  "every selectable league must feed UEFA Champions League, CAF Champions League, or Copa Libertadores");
+assert.ok(!db.clubs().some(club => club.leagueId === "japan"), "removed league clubs must not enter the playable club catalogue");
+assert.ok(!db.allTournaments().some(tournament => tournament.confederation === "AFC"),
+  "AFC competitions must not remain as orphan competitions after removing Japan");
 assert.equal(db.leagueFor("مصر", 1).matchesPerSeason, 34);
 assert.equal(db.leagueFor("إنجلترا", 1).matchesPerSeason, 38);
 assert.equal(db.leagueFor("ألمانيا", 1).matchesPerSeason, 34);
@@ -101,8 +111,7 @@ const addedLeagues = [
   { id: "netherlands", country: "هولندا", teams: 18, matches: 34, cup: "dutch-cup", continental: "UEFA Champions League" },
   { id: "belgium", country: "بلجيكا", teams: 18, matches: 34, cup: "belgian-cup", continental: "UEFA Champions League" },
   { id: "greece", country: "اليونان", teams: 14, matches: 26, cup: "greek-cup", continental: "UEFA Champions League" },
-  { id: "scotland", country: "اسكتلندا", teams: 12, matches: 38, cup: "scottish-cup", continental: "UEFA Champions League" },
-  { id: "japan", country: "اليابان", teams: 20, matches: 38, cup: "japanese-cup", continental: "AFC Champions League Elite" }
+  { id: "scotland", country: "اسكتلندا", teams: 12, matches: 38, cup: "scottish-cup", continental: "UEFA Champions League" }
 ];
 for (const league of addedLeagues) {
   const sourced = snapshot.leagues.find(row => row.leagueId === league.id && Number(row.division) === 1);

@@ -129,6 +129,19 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "يلا نبدأ" }).click();
     results.push("career creation");
 
+    await page.waitForFunction(() => Boolean(window.LWCareerAI && window.LWCareerAIUI
+      && document.querySelector("#careerAIPanel") && document.querySelector("#careerAIOverview")?.textContent.trim()), null, { timeout: 10000 });
+    await page.locator('[data-ai-action="coach"]').click();
+    assert.ok(await page.locator("#careerAIResultTitle").textContent().then(text => text.includes("خطة") || text.includes("الأولوية") || text.includes("ارفع")),
+      "AI coach must return a context-aware report");
+    await page.locator('[data-ai-action="tactics"]').click();
+    assert.ok(await page.locator("#careerAIResultTitle").textContent().then(text => text.includes("خطة مقترحة")),
+      "AI match analyst must recommend a tactic for the upcoming opponent");
+    assert.equal(await page.locator("#careerAIApplyTactic").isVisible(), true,
+      "the recommended tactic must be offered as an actionable match option");
+    results.push("career AI coach and upcoming-match tactical recommendation");
+
+
     await page.waitForFunction(() => Boolean(document.querySelector("#lw-hub-money")?.textContent.trim()), null, { timeout: 5000 });
     const startingContext = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();

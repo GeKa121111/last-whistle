@@ -208,6 +208,16 @@ async function main() {
     results.push("position-based starting stats, youth contract, dynamic league length, currency and match countdown");
 
     await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    // The command center is injected by story-mode.js after the page starts. Wait for
+    // its actual user-facing controls to finish becoming visible before inspecting layout.
+    await page.locator("#lw-command-center").waitFor({ state: "visible", timeout: 10000 });
+    await page.locator("#lw-cta-season").waitFor({ state: "visible", timeout: 10000 });
+    await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
+    await page.waitForFunction(() => {
+      const season = document.querySelector("#lw-cta-season");
+      const transfers = document.querySelector("#lw-cta-transfers");
+      return !!season && !!transfers && season.getBoundingClientRect().width > 0 && transfers.getBoundingClientRect().width > 0;
+    }, null, { timeout: 10000 });
     const homeActionPlacement = await page.evaluate(() => {
       const commandCenter = document.querySelector("#lw-command-center");
       const storyPanel = document.querySelector("#lw-story-panel");
@@ -220,7 +230,7 @@ async function main() {
       if (!commandCenter || !storyPanel || !transferButton || !seasonButton || !seasonRoadmap) return null;
       return {
         commandCenterBeforeStory: !!(commandCenter.compareDocumentPosition(storyPanel) & Node.DOCUMENT_POSITION_FOLLOWING),
-        bothPrimaryActionsVisible: transferButton.getClientRects().length > 0 && seasonButton.getClientRects().length > 0,
+        bothPrimaryActionsVisible: transferButton.getBoundingClientRect().width > 0 && seasonButton.getBoundingClientRect().width > 0,
         commandCenterAboveSeasonRoadmap: commandCenter.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top,
         duplicateShortcutsHidden: !!shortcutPanel && getComputedStyle(shortcutPanel).display === "none",
         duplicatePlayerSummaryHidden: !!playerSummary && getComputedStyle(playerSummary).display === "none",

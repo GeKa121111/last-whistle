@@ -674,8 +674,9 @@ async function main() {
       state.academyReserve = false;
       state.academyGraduationPending = false;
       state.academyGraduated = true;
-      // Start early enough that the 17-match midpoint lands inside the natural January window.
-      state.calendarDay = 100;
+      // Start so the 17th simulated match itself lands inside the natural January window.
+      // The window check happens before the five-day post-match recovery advance.
+      state.calendarDay = 104;
       state.day = Math.max(Number(state.day) || 1, 100);
       state.lastLeagueMatchCalendarDay = 0;
       state.winterBreakPending = false;

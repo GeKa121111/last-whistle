@@ -45,6 +45,24 @@ assert.ok(allClubs.some(club => club.players.some(player => player.isRealPlayer 
 const coverage = db.rosterCoverage();
 assert.ok(coverage.totalDatabasePlayers >= allClubs.length * 16, "roster coverage audit must include complete playable squads");
 assert.equal(coverage.totalClubs, allClubs.length);
+const clubsWithSourcedRosters = coverage.leagues.reduce((sum, league) => sum + league.clubsWithCurrentRoster, 0);
+assert.equal(coverage.importedClubs, snapshotClubs.length, "all clubs in the sourced snapshot must be imported into the game database");
+assert.equal(clubsWithSourcedRosters, coverage.importedClubs, "the per-league roster audit must reconcile with imported club totals");
+assert.ok(coverage.importedPlayers >= 3500, "the game catalogue must retain thousands of sourced current player records");
+console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
+  totalClubs: coverage.totalClubs,
+  playableSquadPlayers: coverage.totalDatabasePlayers,
+  sourcedClubs: coverage.importedClubs,
+  sourcedPlayers: coverage.importedPlayers,
+  totalRealPlayerEntries: coverage.totalRealPlayers,
+  generatedPlayerEntries: coverage.totalGeneratedPlayers,
+  leagues: coverage.leagues.map(league => ({
+    leagueId: league.leagueId, division: league.division, clubCount: league.clubCount,
+    sourcedRosters: league.clubsWithCurrentRoster, partialRosters: league.clubsWithPartialRoster,
+    clubsNeedingSourcedRoster: league.clubsNeedingRealRoster.length,
+    sourcedPlayers: league.realPlayers, generatedPlayers: league.generatedPlayers
+  }))
+}));
 assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "المقاولون العرب" && club.ovr === 62),
   "Egyptian second-division clubs should be queryable");
 assert.ok(db.playerRecordsForClub("ليفربول", "إنجلترا").some(player => player.name === "Florian Wirtz" && player.isRealPlayer === true),

@@ -57,7 +57,7 @@ assert.equal(db.leagues().length, 20);
 assert.equal(db.leagueById("japan"), null, "Japan must not be a selectable league outside the supported continental competitions");
 assert.equal(db.leagueFor("اليابان", 1), null, "removed leagues must not resolve through the country/league lookup");
 const supportedContinentalIds = new Set(["ucl", "caf-cl", "libertadores"]);
-assert.ok(db.leagues().every(league => (league.continental || []).some(id => supportedContinentalIds.has(id)),
+assert.ok(db.leagues().every(league => (league.continental || []).some(id => supportedContinentalIds.has(id))),
   "every selectable league must feed UEFA Champions League, CAF Champions League, or Copa Libertadores");
 assert.ok(!db.clubs().some(club => club.leagueId === "japan"), "removed league clubs must not enter the playable club catalogue");
 assert.ok(!db.allTournaments().some(tournament => tournament.confederation === "AFC"),

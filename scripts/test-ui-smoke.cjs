@@ -54,11 +54,14 @@ const required = [
   "function seasonTrainingPerformanceFocus()",
   "const performanceFocus=seasonTrainingPerformanceFocus();",
   "function runSeasonAITtraining()",
+  "function canAccessTransferMarket()",
+  "function isNaturalWinterTransferWindow()",
+  "const developmentResult=runSeasonAITtraining();",
+  "report.completedSeason=currentSeason",
+  "transferButton.hidden=!transferVisible",
   "ensureSeasonDevelopmentSnapshot();",
   "const academyBeforeSeason=isYouthAcademyPlayer();",
   "const academySeason=isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending;",
-  "runSeasonAITtraining();advanceCalendarDays(4",
-  'advanceCalendarDays(1,"استشفاء خلال أسبوع الراحة");runSeasonAITtraining();advanceCalendarDays(4',
   'state.fixtureSchedule=buildFixtureSchedule(state.league);ensureSeasonDevelopmentSnapshot();',
   'const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);',
   "تقرير تطور اللاعب بالـ AI",
@@ -313,9 +316,11 @@ if (!summerAfterAppearances.open || summerAfterAppearances.name !== "الانت�
   console.error("Transfer test failed: summer window must remain open after the first appearances.", JSON.stringify(summerAfterAppearances)); process.exit(1);
 }
 const closedWindow = evaluateTransferWindow({ calendarDay: 100, season: 1, seasonApps: 12, winterBreakPending: false, freeAgent: false });
-if (closedWindow.open || closedWindow.days !== 54) { console.error("Transfer test failed: closed-window countdown is incorrect.", JSON.stringify(closedWindow)); process.exit(1); }
-const winterPause = evaluateTransferWindow({ calendarDay: 100, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
-if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open the transfer window.", JSON.stringify(winterPause)); process.exit(1); }
+if (closedWindow.open || closedWindow.days !== 84) { console.error("Transfer test failed: closed-window countdown is incorrect.", JSON.stringify(closedWindow)); process.exit(1); }
+const staleWinterPause = evaluateTransferWindow({ calendarDay: 100, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
+if (staleWinterPause.open) { console.error("Transfer test failed: a stale pending winter pause must not force the market open outside January.", JSON.stringify(staleWinterPause)); process.exit(1); }
+const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
+if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
 
 const journeyStart = html.indexOf("function renderSeasonJourney(){");
 const journeyEnd = html.indexOf("\nfunction renderPerformanceInsights", journeyStart);
@@ -323,7 +328,7 @@ const journeySource = html.slice(journeyStart, journeyEnd);
 if (journeyStart < 0 || journeyEnd < 0 || journeySource.includes("if(false)")) {
   console.error("Journey test failed: journey renderer is missing or dead CTA code remains."); process.exit(1);
 }
-for (const marker of ['setJourneyAction(stageButton,"transfer-review","راجع الانتقالات")', 'setJourneyAction(transferButton,state.retired?"retired":state.winterBreakPending?"winter":"transfer-review"']) {
+for (const marker of ['setJourneyAction(stageButton,"transfer-review","راجع الانتقالات")', 'setJourneyAction(transferButton,state.retired?"retired":winterDecisionDue?"winter":"transfer-review"', "transferButton.hidden=!transferVisible", "transferButton.style.display=transferVisible?""]) {
   if (!journeySource.includes(marker)) { console.error("Journey test failed: missing stable transfer CTA behavior:", marker); process.exit(1); }
 }
 if (!html.includes("function runSeasonJourneyAction(action)")) { console.error("Journey action router is missing."); process.exit(1); }
@@ -384,10 +389,10 @@ const extractTopLevelFunction = (source, functionName) => {
   return source.slice(start, next < 0 ? source.length : next);
 };
 const transferJourneyFunctions = [
-  "setJourneyAction", "runSeasonJourneyAction", "renderSeasonJourney", "openTransferMarketPage"
+  "setJourneyAction", "canAccessTransferMarket", "runSeasonJourneyAction", "renderSeasonJourney", "openTransferMarketPage"
 ].map((name) => extractTopLevelFunction(html, name)).join("\n");
 const interactionState = {
-  careerStarted: true, retired: false, day: 3, season: 1, seasonApps: 2,
+  careerStarted: true, retired: false, age: 19, academyCareer: false, day: 3, calendarDay: 15, season: 1, seasonApps: 2,
   seasonGoals: 0, seasonAssists: 0, seasonPoints: 3, journeyTransferReviewed: false,
   journeySeasonReviewed: false, journeyEventSeen: false, winterBreakPending: false,
   freeAgent: false, diary: [], currentPage: "home", seasonSummary: ""
@@ -401,7 +406,7 @@ const interactionMessages = [];
 const interactionLogs = [];
 function interactionNode(id) {
   if (!interactionNodes[id]) interactionNodes[id] = {
-    id, textContent: "", innerHTML: "", title: "", disabled: false,
+    id, textContent: "", innerHTML: "", title: "", disabled: false, hidden: false, style: Object.create(null),
     dataset: Object.create(null), attributes: Object.create(null), scrollIntoView() { if (id === "transferMarket") marketScrollCount++; },
     setAttribute(name, value) { this.attributes[name] = String(value); }
   };
@@ -409,13 +414,19 @@ function interactionNode(id) {
 }
 const interactionSandbox = {
   state: interactionState,
-  isYouthAcademyPlayer: () => false,
+  isYouthAcademyPlayer: () => !!interactionSandbox.state.academyCareer,
   openAcademyGraduationDecision: () => { winterModalCount++; },
   $: (id) => id === "transferMarket" && missingMarket ? null : interactionNode(id),
   setText: (id, value) => { interactionNode(id).textContent = String(value); },
   seasonMatchTotal: () => 38,
   seasonMidpoint: () => 19,
-  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 0 }),
+  transferWindow: () => {
+    const day = Math.max(1, Number(interactionSandbox.state.calendarDay) || 1);
+    const d = ((day - 1) % 365) + 1, year = Math.floor((day - 1) / 365);
+    if (d <= 62) return { open: true, id: "summer-" + year, name: "الانتقالات الصيفية", days: 62 - d };
+    if (d >= 184 && d <= 214) return { open: true, id: interactionSandbox.state.winterBreakPending ? "winter-season-" + interactionSandbox.state.season : "winter-" + year, name: "الانتقالات الشتوية", days: 214 - d };
+    return { open: false, id: "closed-" + year, name: "السوق مغلق", days: d < 184 ? 184 - d : 365 - d + 1 };
+  },
   saveGame: () => { interactionSaveCount++; return true; },
   showPage: (page) => { interactionState.currentPage = page; },
   log: (message) => interactionLogs.push(String(message)),
@@ -438,6 +449,7 @@ assert.equal(marketScrollCount, 1, "the transfer route must scroll the market in
 assert.equal(interactionSaveCount, 1, "reviewing transfers must save the career state");
 assert.ok(interactionMessages.some((message) => message.includes("فتحت سوق الانتقالات")), "the user must get visible confirmation after navigation");
 
+interactionState.calendarDay = 190;
 interactionState.winterBreakPending = true;
 interactionSandbox.renderSeasonJourney();
 assert.equal(transferCta.dataset.seasonAction, "winter", "the winter break must switch the action to the explicit winter-decision flow");
@@ -465,5 +477,15 @@ assert.equal(routeResult, false, "a missing market section must fail safely");
 assert.equal(brokenMarketState.journeyTransferReviewed, false, "a missing market section must not falsely complete the transfer milestone");
 assert.ok(interactionMessages.some((message) => message.includes("صفحة السوق غير متاحة")), "missing market markup must produce an actionable error message");
 missingMarket = false;
+
+interactionSandbox.state.age = 12;
+interactionSandbox.state.academyCareer = true;
+interactionSandbox.state.winterBreakPending = false;
+interactionSandbox.state.journeyTransferReviewed = false;
+interactionSandbox.renderSeasonJourney();
+assert.equal(interactionNode("seasonTransferAction").hidden, true, "the transfer-market shortcut must be hidden for a 12-year-old academy player");
+assert.notEqual(interactionNode("seasonStageAction").dataset.seasonAction, "transfer-review", "the main season CTA must not route academy players to professional transfers");
+interactionSandbox.runSeasonJourneyAction("transfer-review");
+assert.ok(interactionMessages.some(message => message.includes("سن 18")), "academy players must be told the professional market unlocks at 18");
 
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

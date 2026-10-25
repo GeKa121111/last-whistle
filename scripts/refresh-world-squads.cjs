@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const BASE_URL = "https://footballsquads.co.uk";
 const SOURCE_LABEL = "FootballSquads.co.uk current squad pages";
 const SEASON = "2026/27";
-const REFRESH_REVISION = 2;
+const REFRESH_REVISION = 3;
 const LEAGUES = [
   { id: "england", country: "إنجلترا", division: 1, url: "/eng/2026-2027/engprem/", expectedTeams: 20 },
   { id: "england", country: "إنجلترا", division: 2, url: "/eng/2026-2027/flcham/", expectedTeams: 24 },
@@ -24,6 +24,11 @@ const LEAGUES = [
   { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
   { id: "turkey", country: "تركيا", division: 1, url: "/turkey/2026-2027/superl/", teamDirectory: "/turkey/2026-2027/superl/", expectedTeams: 18 },
+  { id: "netherlands", country: "هولندا", division: 1, url: "/netherl/2026-2027/nethere.htm", teamDirectory: "/netherl/2026-2027/ere/", expectedTeams: 18 },
+  { id: "belgium", country: "بلجيكا", division: 1, url: "/belgium/2026-2027/belpro.htm", teamDirectory: "/belgium/2026-2027/prolge/", expectedTeams: 18 },
+  { id: "greece", country: "اليونان", division: 1, url: "/greece/2026-2027/gresuper.htm", teamDirectory: "/greece/2026-2027/superl/", expectedTeams: 14 },
+  { id: "scotland", country: "اسكتلندا", division: 1, url: "/scots/2026-2027/scotsp.htm", teamDirectory: "/scots/2026-2027/scotprm/", expectedTeams: 12 },
+  { id: "japan", country: "اليابان", division: 1, url: "/japan/2026-2027/japjlge.htm", teamDirectory: "/japan/2026-2027/jleague/", expectedTeams: 20 },
   { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
   // Argentina uses the calendar-year Apertura, so identify that source season explicitly.
   { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/argaper.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }

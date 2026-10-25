@@ -326,7 +326,7 @@
     const qualityGap = Math.max(0, club.power - row.average - 4);
     const topQualityGap = Math.max(0, club.power - row.best - 6);
     const weakUnitPenalty = row.average < club.power - 5 ? 5 : 0;
-    return deficit * 11 + qualityGap * 1.25 + topQualityGap * 0.9
+    return 5 + deficit * 11 + qualityGap * 1.25 + topQualityGap * 0.9
       + weakUnitPenalty + (row.count === 0 ? 18 : 0);
   }
   function sellingCandidate(world, seller, group, usedPlayers) {

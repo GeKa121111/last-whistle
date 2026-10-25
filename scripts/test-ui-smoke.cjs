@@ -14,12 +14,15 @@ if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and publi
 if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v32";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
-const shellMatch = serviceWorker.match(/const APP_SHELL = \\[(.*?)\\];/s);
-if (!shellMatch) { console.error("Service-worker APP_SHELL is missing."); process.exit(1); }
-const normalizeAsset = value => value.replace(/^\\.\\//, "").split("?")[0];
-const cachedAssets = [...shellMatch[1].matchAll(/["']([^"']+)["']/g)].map(match => normalizeAsset(match[1]));
-const localAssets = [...html.matchAll(/<(?:script|link)\\b[^>]*>/gi)]
-  .flatMap(match => [...match[0].matchAll(/(?:src|href)=["']([^"']+)["']/gi)].map(asset => asset[1]))
+const shellStart = serviceWorker.indexOf("const APP_SHELL = [");
+const shellEnd = serviceWorker.indexOf("];", shellStart);
+if (shellStart < 0 || shellEnd < 0) { console.error("Service-worker APP_SHELL is missing."); process.exit(1); }
+const shellSource = serviceWorker.slice(shellStart, shellEnd);
+const normalizeAsset = value => value.replace("./", "").split("?")[0];
+const cachedAssets = [...shellSource.matchAll(/["']([^"']+)["']/g)].map(match => normalizeAsset(match[1]));
+const htmlTags = html.match(/<script[^>]+>|<link[^>]+>/g) || [];
+const localAssets = htmlTags
+  .flatMap(tag => [...tag.matchAll(/(?:src|href)=["']([^"']+)["']/g)].map(asset => asset[1]))
   .filter(asset => asset.startsWith("./"))
   .map(normalizeAsset);
 const missingOfflineAssets = [...new Set(localAssets)].filter(asset => !cachedAssets.includes(asset));

@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="./career-experience.css?v=1">
 <link rel="stylesheet" href="./career-hub.css?v=1">
 <link rel="stylesheet" href="./player-store.css?v=2">
-<link rel="stylesheet" href="./ai-career.css?v=1">
+<link rel="stylesheet" href="./football-world-ai.css?v=1">
 <style>
 :root{--bg:#0a1020;--panel:#121a32;--panel2:#192342;--line:#2c3659;--text:#eef2ff;--muted:#a5afd0;--green:#4ee0a1;--green2:#1e9e78;--indigo:#7779ff;--gold:#ffd166;--red:#ff7185;--shadow:0 16px 40px #0004}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% -10%,#25345f 0,transparent 42%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.55;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -793,6 +793,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 }
 </style>
 <link rel="stylesheet" href="./redesign.css?v=4">
+<script src="./football-world-ai.js?v=1"></script>
 </head>
 <body>
 
@@ -939,28 +940,18 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           <div class="seasonJourney" id="seasonJourney"></div>
           <div class="seasonJourneyFoot"><div><strong id="seasonStageTitle">المباريات والأداء</strong><p id="seasonStageDesc" class="muted small">العب مبارياتك وسجّل أهدافك وصناعاتك وارفع تقييمك.</p></div></div>
         </article>
-        <article class="card career-ai-card" id="careerAIPanel" aria-labelledby="careerAIHeading">
-          <div class="career-ai-head">
-            <div class="career-ai-brand"><span class="career-ai-orb" aria-hidden="true">AI</span><div><h2 id="careerAIHeading">مساعد المسيرة الذكي</h2><div class="subline">تحليل محلي لأدائك وخططك وقراراتك — بدون إنترنت إضافي أو مفاتيح API</div></div></div>
-            <span class="pill green" id="careerAIStatus">جاري تحليل المسيرة</span>
+        <article class="card world-ai-home" id="worldAIHomePanel">
+          <div class="cardHead">
+            <div><h2>ذكاء عالم الكرة</h2><div class="subline">الأندية بتدور على احتياجاتها، واللاعبين بيتطوروا، والسوق بيتغير موسم ورا موسم.</div></div>
+            <span class="pill green" id="worldAIHomeStatus">جاري تجهيز العالم</span>
           </div>
-          <div class="career-ai-overview" id="careerAIOverview" aria-live="polite">بيحلل الجاهزية ومستوى اللاعب عشان يرشح لك الخطوة الأنسب.</div>
-          <div class="career-ai-head"><span class="career-ai-signal">مؤشر الحالة</span><strong id="careerAIScore">—</strong></div>
-          <div class="career-ai-actions" aria-label="أدوات الذكاء الاصطناعي">
-            <button type="button" class="btn career-ai-action" data-ai-action="coach"><strong>المدرب الذكي</strong><small>تحليل الأداء والتدريب والثقة</small></button>
-            <button type="button" class="btn career-ai-action" data-ai-action="tactics"><strong>محلل المباراة</strong><small>خطة مناسبة للمنافس القادم</small></button>
-            <button type="button" class="btn career-ai-action" data-ai-action="agent"><strong>الوكيل الذكي</strong><small>ترشيح وجهات انتقال مناسبة</small></button>
-            <button type="button" class="btn career-ai-action" data-ai-action="life"><strong>مستشار المسيرة</strong><small>الجاهزية والعقد والموارد</small></button>
+          <div class="world-ai-pulse" id="worldAIHomePulse">بيتم تجهيز قاعدة اللاعبين والميزانيات وسجل الإحصائيات الديناميكي.</div>
+          <div class="kpiGrid">
+            <div class="kpi"><div class="kpiNum" id="worldAIHomeMoves">0</div><div class="kpiLabel">انتقالات آخر نافذة</div></div>
+            <div class="kpi"><div class="kpiNum" id="worldAIHomeTeams">0</div><div class="kpiLabel">نادي في عالم المحاكاة</div></div>
+            <div class="kpi"><div class="kpiNum" id="worldAIHomePlayers">0</div><div class="kpiLabel">لاعب في قاعدة العالم</div></div>
           </div>
-          <div class="career-ai-result" aria-live="polite">
-            <h3 id="careerAIResultTitle">تحليل المدرب</h3>
-            <p id="careerAIResultText">التوصيات هتتغير حسب بيانات اللاعب الحالية، مش نصائح ثابتة للجميع.</p>
-            <ul id="careerAIResultList"></ul>
-            <div class="career-ai-controls">
-              <button type="button" class="btn" id="careerAIOpenPage" data-ai-page="training">افتح القسم المناسب</button>
-              <button type="button" class="btn primary" id="careerAIApplyTactic" hidden>ابدأ المباراة بالخطة المقترحة</button>
-            </div>
-          </div>
+          <div class="world-ai-home-cta"><button type="button" class="btn primary" data-page="europe">افتح انتقالات وإحصائيات عالم الكرة ←</button></div>
         </article>
       </div>
     </section>
@@ -1129,6 +1120,27 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
 
     <section class="page" id="page-europe">
+      <div class="grid world-ai-dashboard-grid">
+        <article class="card world-ai-dashboard-card" id="worldAISimulationDashboard">
+          <div class="cardHead"><div><h2>محرك عالم الكرة — انتقالات وإحصائيات متطورة</h2><div class="subline">الأندية تختار احتياجات المراكز واللاعبين حسب القوة والسن والإمكانات والميزانية.</div></div><span class="pill green" id="worldAISeasonTag">الموسم</span></div>
+          <div class="sectionNote" id="worldAIOverallSummary">بيتم تجهيز محاكاة العالم.</div>
+          <div class="world-ai-kpis">
+            <div class="world-ai-kpi"><b id="worldAIMarketMoves">0</b><span>انتقالات في آخر نافذة</span></div>
+            <div class="world-ai-kpi"><b id="worldAITotalClubs">0</b><span>نادي تحت إدارة محاكاة AI</span></div>
+            <div class="world-ai-kpi"><b id="worldAITotalPlayers">0</b><span>لاعب ببيانات قابلة للتطور</span></div>
+            <div class="world-ai-kpi"><b id="worldAICompletedSeasons">0</b><span>مواسم عالمية محفوظة</span></div>
+          </div>
+          <div class="world-ai-grid-two">
+            <div class="world-ai-section"><h3>سباق الهدافين العالمي</h3><div id="worldAITopScorers" class="world-ai-leaders"></div></div>
+            <div class="world-ai-section"><h3>أفضل صُنّاع اللعب</h3><div id="worldAITopAssists" class="world-ai-leaders"></div></div>
+          </div>
+          <div class="world-ai-grid-two">
+            <div class="world-ai-section"><h3>آخر انتقالات الأندية</h3><div id="worldAITransferLog" class="world-ai-transfers"></div></div>
+            <div class="world-ai-section"><h3>ترتيب دوري الدولة المختارة — تقديري</h3><div id="worldAILeagueTable" class="world-ai-standings"></div></div>
+          </div>
+          <p class="world-ai-note" id="worldAISimulationNote">قوة الأندية والإحصائيات والصفقات تقديرات محاكاة داخل اللعبة، وليست تحديثات رسمية حية.</p>
+        </article>
+      </div>
       <div class="grid"><article class="card span12">
         <div class="cardHead"><h2>🌍 دليل الدوريات والأندية والبطولات العالمية</h2><span class="pill" id="europeCount">جارٍ تحميل المصادر…</span></div>
         <p class="muted small">فهرس عالمي لمسابقات الدرجة الأولى المعروفة في بيانات FIFA لعام 2023، مع قوائم أندية قابلة للعب من مسابقات OpenFootball التي تتوفر لها جداول فرق. لكل قائمة موسم ومصدر وترخيص ظاهر؛ عدم وجود قائمة يعني أن الأسماء غير متاحة في هذه النسخة، وليس أن الدوري غير موجود.</p>
@@ -4461,6 +4473,5 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./agent-system.js?v=1"></script>
 <script src="./career-hub.js?v=1"></script>
 <script src="./ai-career-engine.js?v=1"></script>
-<script src="./ai-career-ui.js?v=1"></script>
 </body>
 </html>

@@ -3732,9 +3732,36 @@ function worldDashboardRenderSignature(world){
   Number(market.moves)||0,String(market.summary||"")
  ].join("|");
 }
+let worldAIInitializationQueued=false;
+let worldAIInitializationIdleHandle=0;
+let worldAIInitializationTimer=0;
+function scheduleWorldSimulationInitialization(){
+ if(worldAIInitializationQueued||!state.careerStarted||state.worldSimulation||!window.LWWorldAI)return;
+ worldAIInitializationQueued=true;
+ const initialize=()=>{
+  worldAIInitializationQueued=false;
+  worldAIInitializationIdleHandle=0;worldAIInitializationTimer=0;
+  if(!state.careerStarted||state.worldSimulation)return;
+  try{
+   window.LWWorldAI.ensureState(state,window.LWWorldDB);
+   saveGame(true);
+   lastWorldDashboardRenderWorld=null;lastWorldDashboardRenderSignature="";
+   renderWorldAIDashboard();
+  }catch(error){console.warn("Football-world initialization deferred after an error",error);}
+ };
+ if(typeof window.requestIdleCallback==="function"){
+  worldAIInitializationIdleHandle=window.requestIdleCallback(initialize,{timeout:1600});
+ }else{
+  worldAIInitializationTimer=setTimeout(initialize,750);
+ }
+}
 function renderWorldAIDashboard(){
  const box=$("worldAISimulationDashboard");
  if(!box||!window.LWWorldAI)return;
+ if(!state.worldSimulation){
+  if(state.careerStarted)scheduleWorldSimulationInitialization();
+  return;
+ }
  const currentWorld=state.worldSimulation||null;
  const signature=worldDashboardRenderSignature(currentWorld);
  const progress=Math.round(Number(state.seasonApps||0)/Math.max(1,Number(state.seasonAppsTarget)||0)*100);
@@ -4642,7 +4669,6 @@ async function init(){
  try{await window.LWCatalog?.load();}catch(err){console.warn("Global football reference data unavailable",err);}
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
  if(window.LWCareer)window.LWCareer.ensureState(state);
- window.LWWorldAI?.ensureState(state,window.LWWorldDB);
  ensureLeague();bind();showPage(state.currentPage||"home",false);if(!state.careerStarted)$("startScreen").classList.add("show");
 }
 init();

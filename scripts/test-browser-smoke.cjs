@@ -388,7 +388,6 @@ async function main() {
         && Object.keys(state.worldSimulation?.clubs || {}).length > 100;
     }, null, { timeout: 30000 });
     results.push("compressed backup exports and restores the player career and full world AI database");
-    await page.locator("#menuOpen").click();
 
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();

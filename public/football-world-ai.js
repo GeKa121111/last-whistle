@@ -154,6 +154,55 @@
   }
   function reconcileDatabase(world, db) {
     if (!world || !world.clubs) return seedWorld(db);
+    // Remove clubs from leagues that are no longer part of the supported continental competitions.
+    // This is a data migration for already-saved worlds, not only for new careers.
+    const supportedLeagueIds = new Set(db && typeof db.leagues === "function"
+      ? db.leagues().map(profile => String(profile && profile.id || "")).filter(Boolean) : []);
+    const removedClubIds = new Set();
+    if (supportedLeagueIds.size) {
+      for (const [id, club] of Object.entries(world.clubs)) {
+        if (club && club.leagueId && !supportedLeagueIds.has(String(club.leagueId))) {
+          removedClubIds.add(String(id));
+          delete world.clubs[id];
+        }
+      }
+    }
+    if (removedClubIds.size) {
+      const removedPlayerIds = new Set();
+      for (const [id, player] of Object.entries(world.players || {})) {
+        if (player && removedClubIds.has(String(player.clubId))) {
+          removedPlayerIds.add(String(id));
+          delete world.players[id];
+          if (world.playerHistory) delete world.playerHistory[id];
+        }
+      }
+      Object.values(world.clubs).forEach(club => {
+        club.roster = (club.roster || []).filter(id => !removedPlayerIds.has(String(id)) && !!world.players[id]);
+      });
+      Object.keys(world.seasonStats || {}).forEach(season => {
+        world.seasonStats[season] = (world.seasonStats[season] || [])
+          .filter(row => !row || !row.leagueId || supportedLeagueIds.has(String(row.leagueId)));
+      });
+      Object.keys(world.leagueTables || {}).forEach(season => {
+        const tables = world.leagueTables[season] || {};
+        Object.keys(tables).forEach(key => {
+          if (!supportedLeagueIds.has(String(key).split(":")[0])) delete tables[key];
+          else if (Array.isArray(tables[key])) tables[key] = tables[key]
+            .filter(row => !row || !row.leagueId || supportedLeagueIds.has(String(row.leagueId)));
+        });
+      });
+      Object.keys(world.matchesBySeason || {}).forEach(season => {
+        world.matchesBySeason[season] = (world.matchesBySeason[season] || []).filter(match =>
+          !removedClubIds.has(String(match && match.homeClubId))
+          && !removedClubIds.has(String(match && match.awayClubId)));
+      });
+      Object.keys(world.competitionsBySeason || {}).forEach(season => {
+        world.competitionsBySeason[season] = (world.competitionsBySeason[season] || []).filter(item =>
+          item && item.confederation !== "AFC"
+          && !["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"]
+            .includes(String(item.id || item.competitionId || "")));
+      });
+    }
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const knownNames = new Set(Object.values(world.players).map(player => normalize(player && player.name)).filter(Boolean));
     for (const row of rows) {

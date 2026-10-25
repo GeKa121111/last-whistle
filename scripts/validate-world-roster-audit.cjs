@@ -63,7 +63,7 @@ for (const [key, supplement] of Object.entries(supplementalCoverage)) {
   assert.equal(Number(row.clubs), Number(supplement.importedClubs), "supplemental club count does not reconcile for " + key);
   assert.equal(Number(row.players), Number(supplement.importedPlayers), "supplemental player count does not reconcile for " + key);
 }
-assert.ok(audit.totalTeams >= 380, "sourced roster snapshot must include at least 380 clubs across expanded current leagues");
+assert.ok(audit.totalTeams >= 360, "sourced roster snapshot must include at least 360 clubs across eligible UEFA, CAF and CONMEBOL leagues");
 assert.ok(audit.totalPlayers >= 11000, "sourced roster snapshot must include at least 11000 player records across expanded current leagues");
 
 const sandbox = { window: {} };
@@ -73,6 +73,11 @@ const snapshot = sandbox.window.LWFootballSquadData;
 assert.ok(snapshot, "checked-in world-roster JavaScript must initialize");
 assert.equal(snapshot.season, audit.season, "snapshot and audit seasons must agree");
 assert.equal(snapshot.leagues.length, audit.leagues.length, "snapshot and audit league counts must agree");
+assert.ok(!(audit.leagues || []).some(league => league.leagueId === "japan"),
+  "AFC leagues must not remain in the roster audit");
+assert.ok(!(snapshot.leagues || []).some(league => league.leagueId === "japan"),
+  "AFC leagues must not remain in the checked-in roster snapshot");
+
 
 const snapshotClubs = snapshot.leagues.flatMap(league => league.clubs || []);
 const snapshotPlayers = snapshotClubs.reduce((sum, club) => sum + (club.players || []).length, 0);

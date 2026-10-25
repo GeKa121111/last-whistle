@@ -46,6 +46,33 @@ assert.equal(world.schemaVersion, ai.version);
 assert.equal(ai.ensureState(save, db), world, "loading the same save must preserve its existing world simulation");
 assert.equal(Object.keys(world.players).length, playerCount, "reconciliation must not duplicate the saved player database");
 
+// Older saved worlds may still contain Japan/AFC data. Reconciliation must purge it
+// while retaining the supported league database and its normal career state.
+const legacyClubId = "legacy-japan-club";
+const legacyPlayerId = "legacy-japan-player";
+world.clubs[legacyClubId] = {
+  id: legacyClubId, name: "Legacy Japan Club", leagueId: "japan", division: 1,
+  country: "اليابان", roster: [legacyPlayerId]
+};
+world.players[legacyPlayerId] = {
+  id: legacyPlayerId, name: "Legacy Japan Test Player", clubId: legacyClubId,
+  leagueId: "japan", country: "اليابان", position: "وسط مهاجم", group: "midfielder"
+};
+world.matchesBySeason = world.matchesBySeason || {};
+world.competitionsBySeason = world.competitionsBySeason || {};
+world.seasonStats["0"] = [{ id: legacyPlayerId, leagueId: "japan", goals: 1 }];
+world.leagueTables["0"] = { japan: [{ leagueId: "japan", club: "Legacy Japan Club" }] };
+world.matchesBySeason["0"] = [{ homeClubId: legacyClubId, awayClubId: "some-supported-club" }];
+world.competitionsBySeason["0"] = [{ id: "afc-cl", confederation: "AFC" }];
+ai.ensureState(save, db);
+assert.equal(world.clubs[legacyClubId], undefined, "clubs from removed continental pathways must be purged from existing saves");
+assert.equal(world.players[legacyPlayerId], undefined, "players owned by removed-league clubs must be purged from existing saves");
+assert.equal(world.leagueTables["0"].japan, undefined, "stale standings for removed leagues must be purged");
+assert.equal(world.seasonStats["0"].length, 0, "stale stats for removed-league players must be purged");
+assert.equal(world.matchesBySeason["0"].length, 0, "fixtures involving removed-league clubs must be purged");
+assert.equal(world.competitionsBySeason["0"].length, 0, "AFC competition results must be purged from existing saves");
+
+
 const firstSeason = ai.completeSeason(save, 1, db);
 assert.equal(firstSeason.season, 1);
 assert.equal(firstSeason.alreadyCompleted, false);

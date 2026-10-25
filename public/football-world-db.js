@@ -19,7 +19,6 @@
     {id:"belgium",country:"بلجيكا",englishCountry:"Belgium",league:"الدوري البلجيكي الممتاز",english:"Belgian Pro League",tier2:"دوري التحدي البلجيكي",tier2English:"Challenger Pro League",confederation:"UEFA",globalTier:2,strength:82,teams:18,matches:34,tier2Teams:16,currency:"€",cups:["belgian-cup"],superCup:"belgian-super-cup",continental:["ucl","uel","uecl"],url:"https://www.rbfa.be/"},
     {id:"greece",country:"اليونان",englishCountry:"Greece",league:"الدوري اليوناني الممتاز",english:"Super League Greece",tier2:"دوري السوبر اليوناني 2",tier2English:"Super League 2",confederation:"UEFA",globalTier:2,strength:80,teams:14,matches:26,tier2Teams:16,currency:"€",cups:["greek-cup"],superCup:null,continental:["ucl","uel","uecl"],url:"https://www.slgr.gr/"},
     {id:"scotland",country:"اسكتلندا",englishCountry:"Scotland",league:"الدوري الاسكتلندي الممتاز",english:"Scottish Premiership",tier2:"دوري البطولة الاسكتلندي",tier2English:"Scottish Championship",confederation:"UEFA",globalTier:2,strength:80,teams:12,matches:38,tier2Teams:10,currency:"£",cups:["scottish-cup","scottish-league-cup"],superCup:null,continental:["ucl","uel","uecl"],url:"https://spfl.co.uk/"},
-    {id:"japan",country:"اليابان",englishCountry:"Japan",league:"الدوري الياباني الممتاز",english:"J1 League",tier2:"الدوري الياباني الدرجة الثانية",tier2English:"J2 League",confederation:"AFC",globalTier:2,strength:80,teams:20,matches:38,tier2Teams:20,currency:"¥",cups:["japanese-cup"],superCup:"japanese-super-cup",continental:["afc-cl","afc-cl-two"],url:"https://www.jleague.jp/"},
     {id:"egypt",country:"مصر",englishCountry:"Egypt",league:"الدوري المصري الممتاز",english:"Egyptian Premier League",tier2:"دوري الدرجة الثانية المصري",tier2English:"Egyptian Second Division",confederation:"CAF",globalTier:3,strength:76,teams:20,matches:34,tier2Teams:12,currency:"ج.م",cups:["egypt-cup","egypt-league-cup"],superCup:"egyptian-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.efa.com.eg/"},
     {id:"morocco",country:"المغرب",englishCountry:"Morocco",league:"البطولة الاحترافية المغربية",english:"Botola Pro",tier2:"القسم الثاني المغربي",tier2English:"Botola 2",confederation:"CAF",globalTier:3,strength:72,teams:16,matches:30,tier2Teams:16,currency:"$",cups:["morocco-throne-cup"],superCup:"morocco-super-cup",continental:["caf-cl","caf-confed"],url:"https://frmf.ma/"},
     {id:"tunisia",country:"تونس",englishCountry:"Tunisia",league:"الرابطة التونسية المحترفة الأولى",english:"Tunisian Ligue Professionnelle 1",tier2:"الرابطة التونسية المحترفة الثانية",tier2English:"Ligue 2",confederation:"CAF",globalTier:3,strength:70,teams:16,matches:30,tier2Teams:24,currency:"$",cups:["tunisia-cup"],superCup:"tunisia-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.ftf.org.tn/"},
@@ -30,6 +29,12 @@
     {id:"brazil",country:"البرازيل",englishCountry:"Brazil",league:"الدوري البرازيلي الدرجة الأولى",english:"Campeonato Brasileiro Série A",tier2:"الدوري البرازيلي الدرجة الثانية",tier2English:"Série B",confederation:"CONMEBOL",globalTier:2,strength:84,teams:20,matches:38,tier2Teams:20,currency:"$",cups:["copa-do-brasil"],superCup:"brazilian-super-cup",continental:["libertadores","sudamericana"],url:"https://www.cbf.com.br/"},
     {id:"argentina",country:"الأرجنتين",englishCountry:"Argentina",league:"الدوري الأرجنتيني للمحترفين",english:"Liga Profesional de Fútbol",tier2:"الدرجة الثانية الأرجنتينية",tier2English:"Primera Nacional",confederation:"CONMEBOL",globalTier:2,strength:82,teams:30,matches:30,tier2Teams:36,currency:"$",cups:["copa-argentina"],superCup:"argentina-super-cup",continental:["libertadores","sudamericana"],url:"https://www.afa.com.ar/"}
   ];
+  var ELIGIBLE_CONTINENTAL_TOURNAMENTS = ["ucl", "caf-cl", "libertadores"];
+  LEAGUES = LEAGUES.filter(function (league) {
+    return (league.continental || []).some(function (tournamentId) {
+      return ELIGIBLE_CONTINENTAL_TOURNAMENTS.indexOf(tournamentId) >= 0;
+    });
+  });
 
   var TOURNAMENTS = [
     {id:"league",name:"الدوري المحلي",kind:"league",system:"league",format:"موسم دوري؛ عدد المباريات حسب الدوري والدرجة.",url:""},
@@ -89,6 +94,8 @@
     {id:"sudamericana",name:"Copa Sudamericana",kind:"continental",confederation:"CONMEBOL",system:"conmebol",url:"https://www.conmebol.com/sudamericana/",format:"بطولة قارية بمراحل تأهيل وإقصاء.",qualification:"حسب ترتيب الدوري ولوائح CONMEBOL.",teams:["كورينثيانز","راسينغ كلوب","إنديبندينتي"]},
     {id:"fifa-club-world-cup",name:"FIFA Club World Cup",kind:"world",confederation:"FIFA",system:"world32",url:"https://www.fifa.com/tournaments/mens/club-world-cup",format:"بطولة عالمية للأندية المؤهلة وفق دورة ولوائح FIFA.",qualification:"المشاركة لا تتم تلقائيًا؛ يلزم التأهل وفق لوائح FIFA.",teams:["ريال مدريد","مانشستر سيتي","الأهلي","فلامنغو","بالميراس","ريفر بليت"]}
   ];
+  // No Asian league remains in this game scope, so do not surface orphan AFC competitions.
+  TOURNAMENTS = TOURNAMENTS.filter(function (item) { return item.confederation !== "AFC"; });
 
   var CLUBS = [
     {name:"ريال مدريد",aliases:["Real Madrid","Real Madrid CF"],country:"إسبانيا",leagueId:"spain",ovr:93,prestige:100,stars:["كيليان مبابي","فينيسيوس جونيور","جود بيلينغهام","فيديريكو فالفيردي","تيبو كورتوا","ترنت ألكسندر أرنولد","رودريغو","إندريك","برناردو سيلفا","أردا غولر"]},
@@ -164,7 +171,14 @@
   // Import a checked-in current-roster snapshot when available. The game does not fetch
   // roster data at runtime; this overlay keeps offline/Pages launches deterministic.
   var SQUAD_SNAPSHOT = window.LWFootballSquadData && Array.isArray(window.LWFootballSquadData.leagues)
-    ? window.LWFootballSquadData : { leagues: [] };
+    ? Object.assign({}, window.LWFootballSquadData, {
+      leagues: window.LWFootballSquadData.leagues.filter(function (sourceLeague) {
+        var profile = LEAGUES.find(function (league) { return league.id === sourceLeague.leagueId; });
+        return !!profile && (profile.continental || []).some(function (tournamentId) {
+          return ELIGIBLE_CONTINENTAL_TOURNAMENTS.indexOf(tournamentId) >= 0;
+        });
+      })
+    }) : { leagues: [] };
   var IMPORTED_CLUB_COUNT = 0;
   var IMPORTED_PLAYER_COUNT = 0;
   function clubMatchKey(value) {

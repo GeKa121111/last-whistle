@@ -43,8 +43,18 @@ const playerCount = Object.keys(world.players).length;
 assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");
 assert.ok(playerCount >= clubCount * 12, "each club must have a multi-player squad");
 assert.equal(world.schemaVersion, ai.version);
+assert.equal(world.rosterSchemaVersion, 1, "fresh worlds must be marked reconciled so the next render does not rescan every squad");
 assert.equal(ai.ensureState(save, db), world, "loading the same save must preserve its existing world simulation");
 assert.equal(Object.keys(world.players).length, playerCount, "reconciliation must not duplicate the saved player database");
+
+// Merely opening or refreshing the dashboard must not synchronously simulate every
+// global league's full fixture list. Repeated unchanged reads should also be cached.
+const initialDashboard = ai.dashboard(save, db);
+assert.equal(initialDashboard.matchesSimulated, 0, "the fresh world dashboard must remain non-blocking before a season is simulated");
+assert.equal(Object.prototype.hasOwnProperty.call(world.matchesBySeason || {}, "1"), false,
+  "dashboard render must not create an entire world season as a side effect");
+assert.strictEqual(ai.dashboard(save, db), initialDashboard,
+  "unchanged dashboard refreshes should reuse the cached result");
 
 // Older saved worlds may still contain Japan/AFC data. Reconciliation must purge it
 // while retaining the supported league database and its normal career state.

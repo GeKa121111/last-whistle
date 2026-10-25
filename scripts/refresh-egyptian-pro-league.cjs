@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, "..");
 const HOST = "https://www.egyptianproleague.com";
 const SOURCE = "Egyptian Professional Clubs Association official squad pages (2026/27)";
 const MIN_PLAYERS = 16;
-const MIN_SOURCED_CLUBS = 12;
+const MIN_SOURCED_CLUBS = 17;
 const TEAMS = [
   { name: "الاتحاد السكندري", aliases: ["Al Ittihad Alexandria", "Al Ittihad Alexandria Club"], path: "/team/18/detials/13/squad" },
   { name: "الأهلي", aliases: ["Al Ahly", "Al Ahly SC", "Al Ahly FC"], path: "/team/20/detials/1/squad" },
@@ -19,6 +19,8 @@ const TEAMS = [
   { name: "الجونة", aliases: ["El Gouna", "El Gouna FC"], path: "/team/22/detials/617/squad" },
   { name: "الزمالك", aliases: ["Zamalek", "Zamalek SC"], path: "/team/23/detials/2/squad" },
   { name: "المصري", aliases: ["Al Masry", "Al Masry SC"], path: "/team/24/detials/8/squad" },
+  { name: "إنبي", aliases: ["الشرقية إنبي", "ENPPI", "ENPPI Club", "Enppi"], path: "/team/26/detials/150/squad" },
+  { name: "سموحة", aliases: ["Smouha SC", "Smouha"], path: "/team/30/detials/860/squad" },
   { name: "بيراميدز", aliases: ["Pyramids FC", "Pyramids"], path: "/team/28/detials/1451/squad" },
   { name: "زد", aliases: ["ZED FC", "ZED"], path: "/team/29/detials/1683/squad" },
   { name: "سيراميكا كليوباترا", aliases: ["Ceramica Cleopatra", "Cleopatra FC"], path: "/team/31/detials/12723/squad" },

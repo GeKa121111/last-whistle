@@ -3711,10 +3711,40 @@ function renderCareerAwards(){
  const awardsBox=$("officialAwardCatalog");
  if(awardsBox)awardsBox.innerHTML=awards.map(row=>`<div class="dataCard"><h4>${safeHTML(row.name)}</h4><p>${safeHTML(row.organizer)} • ${safeHTML(row.eligibilityOrMetric)}</p><a href="${safeHTML(row.officialUrl)}" target="_blank" rel="noopener noreferrer">مصدر الجهة المنظمة ↗</a></div>`).join("")||'<div class="empty">لا توجد جوائز مطابقة.</div>';
 }
+let lastWorldDashboardRenderWorld=null;
+let lastWorldDashboardRenderSignature="";
+function worldDashboardRenderSignature(world){
+ if(!world||typeof world!=="object")return "no-world";
+ const season=Math.max(1,Number(world.currentSeason)||Number(state.season)||1);
+ const matches=world.matchesBySeason&&world.matchesBySeason[String(season)];
+ const stats=world.seasonStats&&world.seasonStats[String(season)];
+ const competitions=world.competitionsBySeason&&world.competitionsBySeason[String(season)];
+ const market=(world.marketReports||[])[0]||{};
+ const transfer=(world.transfers||[])[0]||{};
+ const completed=Array.isArray(world.completedSeasons)?world.completedSeasons:[];
+ return [
+  season,Number(state.season)||1,String(state.leagueCountry||""),Number(state.seasonAppsTarget)||0,
+  Number(world.dbVersion)||0,Number(world.rosterSchemaVersion)||0,Number(world.lastCompletedSeason)||0,
+  Number(world.lastAdvancedTo)||0,completed.length,completed.length?completed[completed.length-1]:0,
+  Array.isArray(matches)?matches.length:-1,Array.isArray(stats)?stats.length:-1,
+  Array.isArray(competitions)?competitions.length:-1,(world.transfers||[]).length,
+  Number(world.transferSequence)||0,String(transfer.id||""),Number(market.season)||0,
+  Number(market.moves)||0,String(market.summary||"")
+ ].join("|");
+}
 function renderWorldAIDashboard(){
  const box=$("worldAISimulationDashboard");
  if(!box||!window.LWWorldAI)return;
+ const currentWorld=state.worldSimulation||null;
+ const signature=worldDashboardRenderSignature(currentWorld);
+ const progress=Math.round(Number(state.seasonApps||0)/Math.max(1,Number(state.seasonAppsTarget)||0)*100);
+ if(currentWorld&&currentWorld===lastWorldDashboardRenderWorld&&signature===lastWorldDashboardRenderSignature){
+  setText("worldAISeasonTag","الموسم "+(Number(currentWorld.currentSeason)||Number(state.season)||1)+" • "+progress+"% من جدولك");
+  return;
+ }
  const db=window.LWWorldDB,view=window.LWWorldAI.dashboard(state,db);
+ lastWorldDashboardRenderWorld=state.worldSimulation||null;
+ lastWorldDashboardRenderSignature=worldDashboardRenderSignature(lastWorldDashboardRenderWorld);
  setText("worldAIHomeStatus","الموسم "+view.season+" • عالم متغير");
  setText("worldAIHomePulse",view.lastMarket.season
   ?("آخر نافذة انتقالات: "+view.lastMarket.moves+" صفقة في الموسم "+view.lastMarket.season+". "+view.lastMarket.summary)

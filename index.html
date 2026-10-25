@@ -3938,7 +3938,8 @@ function renderPositionDevelopment(){
  });
 }
 function render(){
- renderPositionDevelopment();
+ const page=state.currentPage||"home";
+ const pageRoot=document.getElementById("page-"+page)||document;
  const ov=overall();
  const homeCountry=state.leagueCountry||"مصر";
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
@@ -3955,13 +3956,71 @@ function render(){
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
  setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
- renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderWorldAIDashboard();if((state.currentPage||"home")==="europe")renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
- document.querySelectorAll('[data-action="match"]').forEach(b=>b.disabled=state.retired||state.playedToday||state.injuryDays>0);
- document.querySelectorAll("[data-action]").forEach(b=>{const action=b.dataset.action||"";if(action==="match")b.disabled=!!state.retired||!!state.playedToday||Number(state.injuryDays)>0;else if(action.startsWith("train-"))b.disabled=!!state.retired||Number(state.injuryDays)>0||!!state.playedToday||!!state.trainedToday;else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();else b.disabled=!!state.retired;});if($("heroMatch"))$("heroMatch").disabled=!!state.retired;if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
- document.querySelectorAll('[data-action^="train-"]').forEach(b=>b.disabled=state.retired||state.injuryDays>0||state.playedToday||state.trainedToday);
- document.querySelectorAll('[data-action="train-goalkeeping"]').forEach(b=>{b.disabled=b.disabled||state.pos!=="حارس مرمى";b.title=state.pos!=="حارس مرمى"?"هذا التمرين متاح لمركز حارس المرمى فقط":"";});
- if($("trainingIntensity"))$("trainingIntensity").value=state.trainingIntensity||"normal";
- const wageStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";$("negotiateBtn").disabled=wageStatus!=="ready";
+
+ // Rendering every hidden page on every training/rest/match made ordinary clicks pay
+ // for league-wide rankings, transfer-market cards and all catalogue HTML at once.
+ // Refresh only the active page; showPage() switches state.currentPage before calling us.
+ switch(page){
+  case "home":
+   renderAchievements();
+   renderWorldAIDashboard();
+   renderSeasonJourney();
+   break;
+  case "training":
+   renderPositionDevelopment();
+   break;
+  case "stats":
+   renderPerformanceInsights();
+   break;
+  case "league":
+   renderLeague();
+   renderCareerAwards();
+   break;
+  case "contract":
+   renderContract();
+   renderSponsorship();
+   renderSquadCompetition();
+   renderTransferMarket();
+   break;
+  case "national":
+   renderNational();
+   break;
+  case "shop":
+   renderShop();
+   break;
+  case "diary":
+   renderDiary();
+   break;
+  case "europe":
+   renderWorldAIDashboard();
+   renderEurope();
+   break;
+  case "life":
+   renderProfessionalLife();
+   break;
+  case "wellness":
+   // Wellness widgets own their lightweight state refresh through career-hub.js.
+   break;
+ }
+ // Only inspect the visible page's action controls. The old code made three full
+ // document-wide passes and rewrote hidden controls on every player action.
+ pageRoot.querySelectorAll("[data-action]").forEach(button=>{
+  const action=button.dataset.action||"";
+  if(action==="match")button.disabled=!!state.retired||!!state.playedToday||Number(state.injuryDays)>0;
+  else if(action.startsWith("train-")){
+   button.disabled=!!state.retired||Number(state.injuryDays)>0||!!state.playedToday||!!state.trainedToday;
+   if(action==="train-goalkeeping"){
+    button.disabled=button.disabled||state.pos!=="حارس مرمى";
+    button.title=state.pos!=="حارس مرمى"?"هذا التمرين متاح لمركز حارس المرمى فقط":"";
+   }
+  }else if(action==="coach")button.disabled=!!state.retired||!canUseDailyAction();
+  else button.disabled=!!state.retired;
+ });
+ if($("heroMatch"))$("heroMatch").disabled=!!state.retired;
+ if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
+ if($("trainingIntensity")&&page==="training")$("trainingIntensity").value=state.trainingIntensity||"normal";
+ const wageStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
+ $("negotiateBtn").disabled=wageStatus!=="ready";
 }
 function checkAction(kind,cost){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return false;}

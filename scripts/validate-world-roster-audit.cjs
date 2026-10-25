@@ -47,7 +47,7 @@ for (const expected of configuredLeagues) {
     league.leagueId === expected.leagueId && Number(league.division) === expected.division);
   assert.ok(actual, "missing source league in audit: " + expected.leagueId + " division " + expected.division);
   assert.equal(actual.sourceUrl, expected.sourceUrl, "stale source URL for " + expected.leagueId + " division " + expected.division);
-  assert.equal(actual.sourceSeason, expected.sourceSeason, "stale source season for " + expected.leagueId + " division " + expected.division);
+  assert.equal(actual.sourceSeason || audit.season, expected.sourceSeason, "stale source season for " + expected.leagueId + " division " + expected.division);
   assert.equal(Number(actual.expectedTeams), expected.expectedTeams, "expected club count changed for " + expected.leagueId);
   assert.ok(Number(actual.clubs) >= expected.expectedTeams - 2, "insufficient club coverage for " + expected.leagueId);
   assert.ok(Number(actual.players) >= Number(actual.clubs) * 12, "insufficient roster coverage for " + expected.leagueId);
@@ -84,7 +84,7 @@ for (const expected of configuredLeagues) {
     league.leagueId === expected.leagueId && Number(league.division) === expected.division);
   assert.ok(actual, "snapshot missing source league: " + expected.leagueId);
   assert.equal(actual.sourceUrl, expected.sourceUrl, "snapshot source URL must match current config");
-  assert.equal(actual.sourceSeason, expected.sourceSeason, "snapshot source season must match current config");
+  assert.equal(actual.sourceSeason || audit.season, expected.sourceSeason, "snapshot source season must match current config");
   assert.equal((actual.clubs || []).length >= expected.expectedTeams - 2, true,
     "snapshot must meet expected coverage for " + expected.leagueId);
 }

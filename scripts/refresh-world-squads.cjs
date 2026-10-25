@@ -51,7 +51,18 @@ const NAME_MAP = new Map([
   ["athleticoparanaense", ["Athletico Paranaense", "Athletico-PR"]],
   ["atleticomineiro", ["Atlético Mineiro", "Atletico Mineiro"]],
   ["redbullbragantino", ["Red Bull Bragantino", "RB Bragantino"]],
-  ["gremio", ["Grêmio", "Gremio"]]
+  ["gremio", ["Grêmio", "Gremio"]],
+  // Argentine club page headings include location suffixes not always used in the game catalogue.
+  ["atleticotucuman", ["Atlético Tucumán", "Atletico Tucuman"]],
+  ["centralcordobasantiagodelestero", ["Central Córdoba", "Central Cordoba", "Central Córdoba (Santiago del Estero)"]],
+  ["estudianteslaplata", ["Estudiantes de La Plata", "Estudiantes (La Plata)"]],
+  ["estudiantesriocuarto", ["Estudiantes de Río Cuarto", "Estudiantes (Río Cuarto)"]],
+  ["gimnasialaplata", ["Gimnasia La Plata", "Gimnasia y Esgrima La Plata", "Gimnasia (La Plata)"]],
+  ["gimnasiademendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia (Mendoza)"]],
+  ["gimnasiayesgrimademendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia (Mendoza)"]],
+  ["institutocordoba", ["Instituto", "Instituto (Córdoba)", "Instituto Atlético Central Córdoba"]],
+  ["unionsantafe", ["Unión", "Union", "Unión (Santa Fe)"]],
+  ["tallerescordoba", ["Talleres", "Talleres (Córdoba)", "Talleres de Córdoba"]]
 ]);
 
 function decodeEntities(text) {

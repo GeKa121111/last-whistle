@@ -3313,6 +3313,163 @@ function playCupMatch(){
 }
 
 let globalCatalogRenderKey="";
+function recordTrophy(name,type="بطولة جماعية",season=state.season,clubName=state.clubName,country=state.leagueCountry,details=""){
+ state.trophyCabinet=Array.isArray(state.trophyCabinet)?state.trophyCabinet:[];
+ const item={name:String(name||"إنجاز"),type:String(type||"بطولة جماعية"),season:Number(season)||1,
+  club:String(clubName||"النادي غير المحفوظ"),country:String(country||""),details:String(details||"")};
+ const key=[item.name,item.type,item.season,item.club,item.country].join("|");
+ if(!state.trophyCabinet.some(row=>[row.name,row.type,Number(row.season)||1,row.club,row.country].join("|")===key))state.trophyCabinet.unshift(item);
+ state.trophyCabinet=state.trophyCabinet.slice(0,150);
+}
+function renderTrophyCabinet(){
+ const box=$("trophyCabinet");if(!box)return;
+ const rows=Array.isArray(state.trophyCabinet)?state.trophyCabinet:[];
+ const count=Number(state.trophies)||rows.filter(row=>row.type==="بطولة جماعية").length;
+ if(!rows.length){box.innerHTML=count?'<div class="feedItem"><b>عدد البطولات المسجل: '+count+'</b><span class="muted">الألقاب القديمة محفوظة كعداد عام. الألقاب الجديدة ستظهر هنا بالاسم والموسم والنادي.</span></div>':'<div class="empty">لسه مفيش بطولات أو جوائز. خلي أول لقب هو بداية الحكاية.</div>';return;}
+ box.innerHTML='<div class="sectionNote">إجمالي ألقاب المسيرة: '+count+' • سجل مفصل: '+rows.length+' إنجاز</div>'+rows.slice(0,40).map(row=>
+  '<div class="feedItem"><b>'+(row.type==="جائزة فردية"?"🏅 ":"🏆 ")+safeHTML(row.name)+' • الموسم '+Number(row.season||1)+'</b><span>'+safeHTML(row.club||"النادي غير المحفوظ")+' — '+safeHTML(row.country||"")+'</span>'+(row.details?'<span class="muted small">'+safeHTML(row.details)+'</span>':"")+'</div>'
+ ).join("");
+}
+function confederationForNation(nation){
+ const value=String(nation||"").toLocaleLowerCase();
+ if(["مصر","المغرب","الجزائر","تونس","نيجيريا","السنغال","غانا","جنوب أفريقيا","ساحل العاج","الكاميرون","مالي","الكونغو"].some(name=>value.includes(name)))return "CAF";
+ if(["البرازيل","الأرجنتين","أوروغواي","أوروجواي","كولومبيا","تشيلي","الإكوادور","باراغواي","باراجواي","بيرو","فنزويلا","بوليفيا"].some(name=>value.includes(name)))return "CONMEBOL";
+ if(["إنجلترا","إسبانيا","ألمانيا","فرنسا","البرتغال","إيطاليا","هولندا","بلجيكا","اسكتلندا","تركيا","اليونان","النمسا","سويسرا","الدنمارك","السويد","النرويج","فنلندا","بولندا","التشيك","كرواتيا","صربيا","رومانيا","بلغاريا"].some(name=>value.includes(name)))return "UEFA";
+ return "";
+}
+function seasonRealPlayerDirectory(){
+ const db=window.LWWorldDB;
+ const output=[];
+ for(const clubData of db?.clubs?.()||[]){
+  const profile=db?.leagueById?.(clubData.leagueId)||{};
+  for(const player of clubData.players||[]){
+   output.push({...player,clubName:clubData.name,country:clubData.country,confederation:profile.confederation||"",
+    originConfederation:profile.confederation||"",leagueStrength:Number(profile.strength)||60,
+    prestige:Number(clubData.prestige)||60,realPlayer:true});
+  }
+ }
+ return output;
+}
+function currentSeasonMatchRows(scopeFilter){
+ const season=Number(state.season)||1;
+ return (Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[]).filter(row=>
+  row&&Number(row.season)===season&&Number(row.minutes)>0&&row.scope!=="international"
+  &&(!scopeFilter||scopeFilter(row)));
+}
+function playerCurrentSeasonStats(rows){
+ const apps=rows.length;
+ const goals=rows.reduce((total,row)=>total+(Number(row.goals)||0),0);
+ const assists=rows.reduce((total,row)=>total+(Number(row.assists)||0),0);
+ const averageRating=apps?rows.reduce((total,row)=>total+(Number(row.rating)||0),0)/apps:0;
+ return {appearances:apps,goals:goals,assists:assists,averageRating:Number(averageRating.toFixed(2))};
+}
+function currentLeaguePlayerPool(){
+ const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
+ const clubs=(window.LWWorldDB?.clubs?.()||[]).filter(item=>item.country===country&&Math.max(1,Number(item.division)||1)===division);
+ const data=seasonRealPlayerDirectory().filter(player=>player.country===country&&Math.max(1,Number(player.division)||1)===division);
+ const covered=new Set(data.map(player=>player.clubName));
+ for(const team of Array.isArray(state.league)?state.league:[]){
+  if(covered.has(team.name))continue;
+  const power=Number(team.power)||clubPowerFor(team.name,country);
+  const leagueProfile=window.LWWorldDB?.leagueByCountry?.(country)||{};
+  data.push({name:"منافس افتراضي — "+team.name,clubName:team.name,country:country,position:"مهاجم",ovr:power,
+   prestige:power,division:division,confederation:leagueProfile.confederation||"",originConfederation:leagueProfile.confederation||"",
+   leagueStrength:Number(leagueProfile.strength)||55,realPlayer:false});
+  data.push({name:"صانع لعب افتراضي — "+team.name,clubName:team.name,country:country,position:"وسط مهاجم",
+   ovr:Math.max(42,power-2),prestige:power,division:division,confederation:leagueProfile.confederation||"",
+   originConfederation:leagueProfile.confederation||"",leagueStrength:Number(leagueProfile.strength)||55,realPlayer:false});
+ }
+ return data;
+}
+function renderLeaderboardTable(rows,kind){
+ const isAssists=kind==="assists";
+ const sorted=(Array.isArray(rows)?rows:[]).slice().sort((a,b)=>
+  (isAssists?Number(b.assists||0)-Number(a.assists||0):Number(b.goals||0)-Number(a.goals||0))
+  ||Number(b.averageRating||0)-Number(a.averageRating||0)||String(a.name).localeCompare(String(b.name),"ar"));
+ if(!sorted.length)return '<div class="empty">هتظهر الأرقام بعد بداية مباريات الموسم.</div>';
+ return '<div class="tableWrap"><table><thead><tr><th>#</th><th>اللاعب</th><th>النادي</th><th>أهداف</th><th>صناعة</th><th>تقييم</th></tr></thead><tbody>'+
+  sorted.slice(0,10).map((row,index)=>'<tr class="'+(row.isUser?"me":"")+'"><td>'+(index+1)+'</td><td>'+safeHTML(row.name)+(row.isUser?' <span class="pill">أنت</span>':"")+'</td><td>'+safeHTML(row.club||"")+'</td><td><b>'+Number(row.goals||0)+'</b></td><td>'+Number(row.assists||0)+'</td><td>'+Number(row.averageRating||0).toFixed(2)+'</td></tr>').join("")+
+  '</tbody></table></div>';
+}
+function renderCurrentCompetitions(){
+ const box=$("currentCompetitions");if(!box)return;
+ const sorted=[...(Array.isArray(state.league)?state.league:[])].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
+ const place=sorted.findIndex(row=>row.name===clubNameForLeague())+1;
+ const leagueStatus=state.seasonFinished?(place===1?"بطل الدوري": "انتهى الموسم — المركز "+place):"جارية • المركز "+(place||"—");
+ const items=[{name:state.leagueCompetition||"الدوري المحلي",region:state.leagueCountry||"مصر",status:leagueStatus,kind:"الدوري المحلي"}];
+ const eligible=typeof competitionsForCurrentClub==="function"?(competitionsForCurrentClub()||[]):[];
+ for(const comp of eligible){
+  if(!comp||comp.kind==="world"&&comp.id!=="fifa-club-world-cup")continue;
+  const history=(Array.isArray(state.cupHistory)?state.cupHistory:[]).find(row=>row&&row.name===comp.name&&Number(row.season)===Number(state.season)&&(!row.club||row.club===state.clubName));
+  const isActive=state.cupState&&state.cupState.name===comp.name&&!state.cupState.eliminated&&!state.cupState.champion&&Number(state.cupState.createdSeason||state.season)===Number(state.season);
+  let status=history?(history.champion?"بطل البطولة":history.eliminated?"انتهى المشوار":"انتهت البطولة"):"مجدولة";
+  if(isActive)status=state.cupState.phase==="league"?"مرحلة الدوري • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):state.cupState.phase==="groups"?"دور المجموعات • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):"نشطة • "+String((state.cupState.rounds||[])[state.cupState.stage]||"الدور الحالي");
+  else if(!history&&typeof competitionLockReason==="function"){
+   const reason=competitionLockReason(comp);
+   if(reason)status=reason.includes("التأهل")||reason.includes("مركز النادي")?"بانتظار التأهل":reason.includes("السوبر")?"مشروطة بنتائج الموسم السابق":reason.includes("كأس العالم")?"مقفولة حتى التأهل القاري":reason;
+  }
+  items.push({name:comp.name,region:comp.region||comp.confederation||"",status:status,kind:comp.kind||"بطولة"});
+ }
+ state.currentCompetitions=items.map(item=>({name:item.name,region:item.region,status:item.status,season:Number(state.season)||1,club:club().name}));
+ setText("currentCompetitionCount",items.length+" بطولة");
+ box.innerHTML=items.map(item=>'<div class="dataCard"><div class="cardHead"><h3>'+safeHTML(item.name)+'</h3><span class="pill">'+safeHTML(item.kind)+'</span></div><p class="muted small">'+safeHTML(item.region)+'</p><p>'+safeHTML(item.status)+'</p></div>').join("");
+}
+function renderAwardsLeaderboards(){
+ const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
+ const dbProfile=window.LWWorldDB?.leagueByCountry?.(country)||{};
+ const targetMatches=window.LWCareer?.leagueMatchTarget(Array.isArray(state.league)?state.league.length:0)||Math.max(1,seasonMatchTotal());
+ const progress=clamp((Number(state.leagueApps)||0)/Math.max(1,targetMatches),0,1);
+ const ownRows=currentSeasonMatchRows(row=>row.scope==="league"&&row.country===country&&row.club===clubNameForLeague());
+ const own=playerCurrentSeasonStats(ownRows);
+ const playerLine={name:String(state.name||"اللاعب"),club:club().name,country:country,position:state.pos,ovr:overall(),age:state.age,
+  appearances:own.appearances,goals:own.goals,assists:own.assists,averageRating:own.averageRating,leagueStrength:Number(dbProfile.strength)||55};
+ const pool=currentLeaguePlayerPool();
+ const rows=window.LWTransferAwards?.buildLeagueLeaderboard({players:pool,userLine:playerLine,season:state.season,progress:progress})||[];
+ const golden=$("goldenBootLeaderboard"),playmaker=$("playmakerLeaderboard");
+ if(golden)golden.innerHTML=renderLeaderboardTable(rows,"goals");
+ if(playmaker)playmaker.innerHTML=renderLeaderboardTable(rows,"assists");
+ const footnote="الأسماء الحقيقية المختارة تظهر حيث تتوفر بياناتها؛ بقية الفرق تستخدم لاعبين افتراضيين. الأرقام التقديرية للمنافسين محاكاة، وليست إحصاءات رسمية حية.";
+ setText("leaderboardNote",footnote);
+}
+function awardCeremonySummary(ceremony){
+ if(!ceremony)return "";
+ const top=ceremony.ballonDor?.topFive||[];
+ return "الكرة الذهبية — أفضل 5 مرشحين:\n"+(top.length?top.map((row,index)=>(index+1)+". "+row.name+" — "+row.club+" • "+row.goals+" هدف • "+row.assists+" صناعة • "+Number(row.averageRating||0).toFixed(2)+"/10").join("\n"):"لم تتوفر قائمة مرشحين كافية.");
+}
+function buildSeasonAwardCeremony(place){
+ const season=Number(state.season)||1;
+ const prior=(Array.isArray(state.awardCeremonies)?state.awardCeremonies:[]).find(item=>item&&Number(item.season)===season);
+ if(prior)return {...prior,playerAwards:[]};
+ const rows=currentSeasonMatchRows();
+ const stats=playerCurrentSeasonStats(rows);
+ const profile=window.LWWorldDB?.leagueByCountry?.(state.leagueCountry||"مصر")||{};
+ const trophyCount=(Array.isArray(state.trophyCabinet)?state.trophyCabinet:[]).filter(item=>Number(item.season)===season&&item.type==="بطولة جماعية").length;
+ const nationalConfederation=confederationForNation(state.nationalTeam||state.leagueCountry);
+ const player={
+  name:String(state.name||"اللاعب"),club:club().name,country:String(state.leagueCountry||"مصر"),
+  position:String(state.pos||"غير محدد"),age:Number(state.age)||18,ovr:overall(),appearances:stats.appearances,
+  goals:stats.goals,assists:stats.assists,averageRating:stats.averageRating,trophies:trophyCount,
+  potential:Number(state.playerPotential)||60,professionalism:Number(state.professionalism)||50,
+  confederation:profile.confederation||"",originConfederation:nationalConfederation||profile.confederation||"",
+  leagueStrength:Number(profile.strength)||60
+ };
+ const engine=window.LWTransferAwards;
+ if(!engine?.buildSeasonAwardCeremony)return null;
+ const ceremony=engine.buildSeasonAwardCeremony({season:season,player:player,realPlayers:seasonRealPlayerDirectory()});
+ ceremony.teamRank=Number(place)||0;
+ ceremony.playerAwards=Array.isArray(ceremony.playerAwards)?ceremony.playerAwards:[];
+ state.careerAwards=Array.isArray(state.careerAwards)?state.careerAwards:[];
+ for(const award of ceremony.playerAwards){
+  if(state.careerAwards.some(old=>old&&old.id===award.id&&Number(old.season)===season))continue;
+  state.careerAwards.unshift(award);
+ }
+ state.careerAwards=state.careerAwards.slice(0,200);
+ state.awardCeremonies=Array.isArray(state.awardCeremonies)?state.awardCeremonies:[];
+ state.awardCeremonies.unshift(ceremony);state.awardCeremonies=state.awardCeremonies.slice(0,20);
+ const rewards={"ballon-dor":2000,"fifa-the-best":1500,"world-golden-shoe":1000,"golden-boy":850,"caf-player":1000,"uefa-player":1500,"conmebol-player":1000};
+ for(const award of ceremony.playerAwards)state.money+=(rewards[award.id]||500);
+ return ceremony;
+}
 function renderCareerAwards(){
  const box=$("careerAwards");if(!box)return;
  const rows=Array.isArray(state.careerAwards)?state.careerAwards:[];

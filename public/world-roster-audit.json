@@ -3,7 +3,7 @@
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
-  "expectedTeamsTotal": 386,
+  "expectedTeamsTotal": 366,
   "leagues": [
     {
       "leagueId": "argentina",
@@ -137,16 +137,6 @@
       "below18Players": []
     },
     {
-      "leagueId": "japan",
-      "division": 1,
-      "sourceSeason": "2026/27",
-      "expectedTeams": 20,
-      "sourceUrl": "https://footballsquads.co.uk/japan/2026-2027/japjlge.htm",
-      "clubs": 20,
-      "players": 718,
-      "below18Players": []
-    },
-    {
       "leagueId": "netherlands",
       "division": 1,
       "sourceSeason": "2026/27",
@@ -207,9 +197,9 @@
       "below18Players": []
     }
   ],
-  "totalTeams": 386,
-  "totalPlayers": 12652,
-  "snapshotBytes": 2429149,
+  "totalTeams": 366,
+  "totalPlayers": 11934,
+  "snapshotBytes": 2292455,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {

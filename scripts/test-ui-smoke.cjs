@@ -120,6 +120,30 @@ if (missing.length) {
   process.exit(1);
 }
 
+const renderStart = html.indexOf("function render(){");
+const renderEnd = html.indexOf("function checkAction(", renderStart);
+if (renderStart < 0 || renderEnd < 0) { console.error("Render performance regression test could not locate render()."); process.exit(1); }
+const renderBody = html.slice(renderStart, renderEnd);
+for (const marker of [
+  'switch(page)',
+  'case "home":',
+  'case "training":',
+  'case "stats":',
+  'case "league":',
+  'case "contract":',
+  'case "national":',
+  'case "shop":',
+  'case "diary":',
+  'case "europe":',
+  'case "life":',
+  'pageRoot.querySelectorAll("[data-action]")'
+]) {
+  if (!renderBody.includes(marker)) { console.error("Active-page render regression test failed. Missing marker:", marker); process.exit(1); }
+}
+if (renderBody.includes('renderAchievements();renderLeague();renderContract();renderNational();')) {
+  console.error("Render performance regression: hidden pages must not all render for every player action."); process.exit(1);
+}
+
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 let inlineCount = 0;
 for (const [, attrs, body] of scripts) {
@@ -295,8 +319,15 @@ if (favoriteBindingCount !== 1) { console.error("Event binding test failed: leag
 if (!html.includes("function transferEligibilityReason(target){") || !html.includes("transferMarketNotice")) {
   console.error("Transfer test failed: actionable eligibility reasons or market status are missing."); process.exit(1);
 }
-if (!html.includes('else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();') || !html.includes("else b.disabled=!!state.retired;")) {
-  console.error("Action reset test failed: non-match actions must be re-enabled after starting a new career."); process.exit(1);
+const actionRenderStart = html.indexOf("function render(){");
+const actionRenderEnd = html.indexOf("function checkAction(", actionRenderStart);
+const activePageActionRender = actionRenderStart >= 0 && actionRenderEnd > actionRenderStart
+  ? html.slice(actionRenderStart, actionRenderEnd) : "";
+if (!activePageActionRender.includes('pageRoot.querySelectorAll("[data-action]")')
+  || !activePageActionRender.includes('else if(action==="coach")button.disabled=!!state.retired||!canUseDailyAction();')
+  || !activePageActionRender.includes("else button.disabled=!!state.retired;")) {
+  console.error("Action reset test failed: visible-page non-match actions must be re-enabled after starting a new career.");
+  process.exit(1);
 }
 
 

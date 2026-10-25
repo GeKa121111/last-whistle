@@ -145,7 +145,7 @@ function parsePlayers(html, sourceLabel = SOURCE) {
   const startAt = lines.findIndex(line => /حراسة\s*المرمى|حراسة\s*المرمي|حراس?\s*المرمى|goalkeepers?/i.test(line));
   const endAt = lines.findIndex((line, index) => index > Math.max(-1, startAt) && /الرعاة|رابطة الأندية المحترفة المصرية/i.test(line));
   const active = lines.slice(startAt >= 0 ? startAt : 0, endAt > startAt ? endAt : undefined);
-  return parsePlayerLines(active, sourceLabel, startAt >= 0);
+  return parsePlayerLines(active, sourceLabel);
 }
 
 function parseClubRosterPlayers(html, sourceLabel = SOURCE) {
@@ -159,10 +159,10 @@ function parseClubRosterPlayers(html, sourceLabel = SOURCE) {
     /^(management|technical staff|youth academy coaches|coach|مدرب|الجهاز الفني|الإدارة|الجهاز الإداري|مباريات الفريق|المركز في الدوري|المباريات القادمة|آخر الأخبار|موارد النادي|من نحن|resources|latest news)$/i.test(line) ||
     /^(ينافس نادي|يلعب نادي|هذا الموقع جزء|the club competes|the team competes)/i.test(line));
   const active = stop >= 0 ? tail.slice(0, stop) : tail;
-  return parsePlayerLines(active, sourceLabel, false);
+  return parsePlayerLines(active, sourceLabel);
 }
 
-function parsePlayerLines(lines, sourceLabel, sourceHasSectionHeadings) {
+function parsePlayerLines(lines, sourceLabel) {
   const players = [];
   const seen = new Set();
   let currentPosition = "غير محدد";
@@ -180,6 +180,12 @@ function parsePlayerLines(lines, sourceLabel, sourceHasSectionHeadings) {
     if (numbered) {
       number = Number(numbered[1]);
       line = numbered[2].trim();
+    } else {
+      const trailingNumber = line.match(/^(.{3,75}?)\s+(\d{1,2})$/);
+      if (trailingNumber) {
+        number = Number(trailingNumber[2]);
+        line = trailingNumber[1].trim();
+      }
     }
     if (!isPlayerName(line)) continue;
     if (/^(?:الرئيسية|بطولات|الأخبار|عن الرابطة|صور|فيديوهات|المركز الإعلامي|نظرة عامة|الرعاة|روابط سريعة|ترتيب|المباريات|الإحصائيات)$/i.test(line)) continue;

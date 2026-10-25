@@ -401,8 +401,14 @@ async function main() {
       window.LWStoryRuntime.getState().money = 49;
       window.LWStoryRuntime.save();
     });
-    await page.waitForFunction(() => Number(window.LWStoryRuntime?.getState().money) === 49,
-      null, { timeout: 5000 });
+    await page.waitForFunction(() => {
+      try {
+        const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
+        const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
+        const saved = JSON.parse(json);
+        return Number(saved.money) === 49;
+      } catch { return false; }
+    }, null, { timeout: 15000 });
     page.once("dialog", dialog => dialog.accept());
     await page.locator("#importSaveInput").setInputFiles(backupPath);
     await page.waitForFunction(() => {

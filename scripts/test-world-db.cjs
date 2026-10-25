@@ -57,6 +57,25 @@ assert.equal(argentinaCoverage.clubCount, 30, "Argentina sourced rosters must me
 assert.equal(argentinaCoverage.clubsWithCurrentRoster, 30, "all 30 Argentine first-division clubs must load a sourced roster");
 assert.equal(argentinaCoverage.clubsNeedingRealRoster.length, 0, "no Argentine top-flight club should remain on generated-only backup players");
 assert.ok(argentinaCoverage.realPlayers >= 700, "Argentina should contribute at least 700 sourced player records");
+const egyptSource = (snapshot.leagues || []).find(league => league.leagueId === "egypt" && Number(league.division) === 1);
+assert.ok(egyptSource, "the source snapshot should include official Egyptian Pro League squad pages");
+assert.equal(egyptSource.coverageType, "available-official-squad-pages",
+  "Egypt coverage must be labelled as the official pages actually available, not as complete league-wide coverage");
+assert.ok(egyptSource.clubs.length >= 12, "at least twelve official Egyptian squad pages must be usable");
+assert.ok(egyptSource.clubs.every(club => club.players.length >= 16
+  && club.sourceUrl && club.sourceUrl.startsWith("https://www.egyptianproleague.com/team/")),
+  "each imported Egyptian roster must be linked to an official squad page and contain enough players");
+assert.equal(audit.supplementalCoverage.egypt.importedClubs, egyptSource.clubs.length,
+  "the supplementary Egypt audit and snapshot club totals must agree");
+assert.equal(audit.supplementalCoverage.egypt.importedPlayers,
+  egyptSource.clubs.reduce((sum, club) => sum + club.players.length, 0),
+  "the supplementary Egypt audit and snapshot player totals must agree");
+const egyptCoverage = coverage.leagues.find(league => league.leagueId === "egypt" && league.division === 1);
+assert.ok(egyptCoverage, "Egypt should have a roster-coverage row in the game catalogue");
+assert.equal(egyptCoverage.clubsWithCurrentRoster, egyptSource.clubs.length,
+  "each official Egyptian page must feed a sourced roster into the database");
+assert.equal(egyptCoverage.clubsNeedingRealRoster.length, 0,
+  "an imported Egyptian source roster must not silently fall back to generated-only players");
 console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
   totalClubs: coverage.totalClubs,
   playableSquadPlayers: coverage.totalDatabasePlayers,

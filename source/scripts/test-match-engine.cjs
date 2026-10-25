@@ -112,7 +112,7 @@ for (const opponentTactic of ["balanced", "press", "compact", "wide", "counter"]
     assert.equal(integrity.ok, true, "AI tactical style produced an inconsistent match: " + opponentTactic + "/" + seed);
     assert.equal(result.metadata.opponentTactic, opponentTactic, "the selected opponent tactic must be recorded");
     const deployed = browserEngine.simulateMatch(options);
-    assert.deepEqual(deployed, result, "AI tactical engine must match the published HTML: " + opponentTactic + "/" + seed);
+    assert.equal(JSON.stringify(deployed), JSON.stringify(result), "AI tactical engine must match the published HTML: " + opponentTactic + "/" + seed);
     signatureRows.push(JSON.stringify({ score: result.score, events: result.events, shots: result.player.shots, goals: result.player.goals }));
   }
   tacticalSignatures.add(signatureRows.join("|"));

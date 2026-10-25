@@ -3,6 +3,12 @@ on:
   workflow_dispatch:
   push:
   pull_request:
+
+# Serialize push and PR runs for the same branch so only one job can refresh/push roster data.
+concurrency:
+  group: last-whistle-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -20,49 +26,16 @@ jobs:
           git fetch origin "$GITHUB_HEAD_REF"
           git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
       - name: Refresh current rosters on development branch
-        if: (github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27')
+        if: github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name == 'push'
         run: |
-          if node - <<'NODE'
-          const fs = require('node:fs');
-          const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));
-          const script = fs.readFileSync('scripts/refresh-world-squads.cjs', 'utf8');
-          const block = script.match(/const LEAGUES = \[([\s\S]*?)\n\];/);
-          if (!block) process.exit(1);
-          const rows = block[1].split(/\r?\n/).map(line => line.trim()).filter(line => line.startsWith('{ id:') && line.includes('expectedTeams:'));
-          const wanted = rows.map(line => {
-            const match = line.match(/\{ id: "([^"]+)", country: "([^"]+)", division: (\d+), url: "([^"]+)".*?expectedTeams: (\d+)(?:, sourceSeason: "([^"]+)")?/);
-            if (!match) throw new Error('Unable to parse source config line: ' + line);
-            return { leagueId: match[1], division: Number(match[3]), sourceUrl: new URL(match[4], 'https://footballsquads.co.uk').href,
-              expectedTeams: Number(match[5]), sourceSeason: match[6] || '2026/27' };
-          });
-          const stale = report.status !== 'complete' || report.allLeagueMinimumsMet !== true
-            || report.totalTeams < 210 || report.totalPlayers < 3500
-            || report.expectedTeamsTotal !== wanted.reduce((sum, row) => sum + row.expectedTeams, 0)
-            || !Array.isArray(report.leagues) || report.leagues.length !== wanted.length
-            || wanted.some(row => !report.leagues.some(old => old.leagueId === row.leagueId && Number(old.division) === row.division
-              && old.sourceUrl === row.sourceUrl && old.sourceSeason === row.sourceSeason
-              && Number(old.expectedTeams) === row.expectedTeams && Number(old.clubs) >= row.expectedTeams - 2));
-          if (stale) process.exit(1);
-          console.log('Checked-in snapshot matches ' + wanted.length + ' configured source leagues.');
-          NODE
-          then
+          if node scripts/validate-world-roster-audit.cjs; then
             echo "The checked-in sourced-roster snapshot matches the current scraper configuration; refresh skipped."
           else
             node scripts/refresh-world-squads.cjs
+            node scripts/validate-world-roster-audit.cjs
           fi
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));
-          if (report.status !== 'complete' || report.allLeagueMinimumsMet !== true) {
-            throw new Error('Incomplete world squad data: ' + JSON.stringify(report.leagues));
-          }
-          if (report.totalTeams < 210 || report.totalPlayers < 3500) {
-            throw new Error('Insufficient squad coverage: ' + report.totalTeams + ' teams, ' + report.totalPlayers + ' players');
-          }
-          console.log('Sourced squad snapshot covers ' + report.totalTeams + ' clubs and ' + report.totalPlayers + ' players.');
-          NODE
       - name: Commit refreshed roster snapshot on development branch
-        if: (github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27')
+        if: github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -79,6 +52,8 @@ jobs:
             git rebase "origin/$target_branch"
             git push origin "HEAD:$target_branch"
           fi
+      - name: Verify checked-in roster snapshot matches source configuration
+        run: node scripts/validate-world-roster-audit.cjs
       - run: npm test
       - run: npm run build
 

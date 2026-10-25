@@ -399,16 +399,16 @@ async function main() {
     // against the pre-import career before the asynchronous file parser finishes.
     await page.evaluate(() => {
       window.LWStoryRuntime.getState().money = 49;
-      window.LWStoryRuntime.save();
     });
-    await page.waitForFunction(() => {
-      try {
-        const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
-        const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
-        const saved = JSON.parse(json);
-        return Number(saved.money) === 49;
-      } catch { return false; }
-    }, null, { timeout: 15000 });
+    // Use the explicit save button here: it flushes synchronously, while the normal
+    // background save intentionally batches large world snapshots during idle time.
+    await page.locator("#saveBtn").click();
+    const sentinelMoney = await page.evaluate(() => {
+      const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
+      const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
+      return Number(JSON.parse(json).money);
+    });
+    assert.equal(sentinelMoney, 49, "the sentinel save must be persisted before the backup round-trip");
     await page.evaluate(() => {
       const host = document.querySelector("#toastHost");
       if (host) host.innerHTML = "";

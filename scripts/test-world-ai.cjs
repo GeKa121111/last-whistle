@@ -21,6 +21,19 @@ const scotlandFixtureSnapshot = {
       }))
     }))
   }, {
+    leagueId: "scotland", country: "اسكتلندا", division: 2, expectedTeams: 10,
+    sourceUrl: "https://footballsquads.co.uk/scots/2026-2027/scotcham.htm", sourceSeason: "2026/27",
+    clubs: Array.from({ length: 10 }, (_, clubIndex) => ({
+      name: "Scotland Division 2 Test Club " + String(clubIndex + 1).padStart(2, "0"), aliases: [],
+      leagueId: "scotland", country: "اسكتلندا", division: 2,
+      sourceUrl: "https://footballsquads.co.uk/scots/2026-2027/scotcham/test" + (clubIndex + 1) + ".htm",
+      players: Array.from({ length: 16 }, (_, playerIndex) => ({
+        name: "Scotland Division 2 Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
+        position: playerIndex < 3 ? "حارس مرمى" : playerIndex < 8 ? "قلب دفاع" : playerIndex < 13 ? "وسط مهاجم" : "مهاجم",
+        age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "SCO", isRealPlayer: true
+      }))
+    }))
+  }, {
     leagueId: "greece", country: "اليونان", division: 1, expectedTeams: 14,
     sourceUrl: "https://www.slgr.gr/", sourceSeason: "2026/27",
     clubs: Array.from({ length: 14 }, (_, clubIndex) => ({

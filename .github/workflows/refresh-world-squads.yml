@@ -1,0 +1,57 @@
+name: Refresh 2026/27 world football squads
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/full-world-squads-2026-27
+    paths:
+      - scripts/refresh-world-squads.cjs
+      - .github/workflows/refresh-world-squads.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: world-squads-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out development branch
+        uses: actions/checkout@v4
+        with:
+          ref: \${{ github.ref }}
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch and validate current squads
+        run: |
+          node scripts/refresh-world-squads.cjs
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));
+          const snapshot = fs.readFileSync('football-world-rosters.js', 'utf8');
+          if (report.status !== 'complete' || report.allLeagueMinimumsMet !== true) {
+            throw new Error('Squad snapshot has incomplete league coverage: ' + JSON.stringify(report.leagues));
+          }
+          if (report.totalTeams < 210) throw new Error('Expected at least 210 sourced clubs; got ' + report.totalTeams);
+          if (report.totalPlayers < 3500) throw new Error('Expected at least 3500 sourced player records; got ' + report.totalPlayers);
+          if (!snapshot.includes('isRealPlayer')) throw new Error('Sourced-player flags are missing');
+          console.log('Validated ' + report.totalTeams + ' clubs / ' + report.totalPlayers + ' player records across ' + report.leagues.length + ' league divisions.');
+          NODE
+      - name: Commit refreshed snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add football-world-rosters.js public/football-world-rosters.js world-roster-audit.json public/world-roster-audit.json
+          if git diff --cached --quiet; then
+            echo "Roster snapshot is unchanged."
+          else
+            git commit -m "Refresh 2026/27 verified world squad snapshot"
+            git push origin "HEAD:\${GITHUB_REF_NAME}"
+          fi

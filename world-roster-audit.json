@@ -3,8 +3,37 @@
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
-  "expectedTeamsTotal": 266,
+  "expectedTeamsTotal": 281,
   "leagues": [
+    {
+      "leagueId": "argentina",
+      "division": 1,
+      "expectedTeams": 30,
+      "sourceUrl": "https://footballsquads.co.uk/arg/2026/argaper.htm",
+      "clubs": 30,
+      "players": 1196,
+      "below18Players": []
+    },
+    {
+      "leagueId": "brazil",
+      "division": 1,
+      "expectedTeams": 20,
+      "sourceUrl": "https://footballsquads.co.uk/brazil/2026/bracamp.htm",
+      "clubs": 20,
+      "players": 733,
+      "below18Players": []
+    },
+    {
+      "leagueId": "egypt",
+      "division": 1,
+      "expectedTeams": 15,
+      "sourceUrl": "https://www.egyptianproleague.com/",
+      "sourceSeason": "2026/27",
+      "coverageType": "available-official-squad-pages",
+      "clubs": 15,
+      "players": 497,
+      "below18Players": []
+    },
     {
       "leagueId": "england",
       "division": 1,
@@ -24,21 +53,21 @@
       "below18Players": []
     },
     {
-      "leagueId": "spain",
+      "leagueId": "france",
       "division": 1,
-      "expectedTeams": 20,
-      "sourceUrl": "https://footballsquads.co.uk/spain/2026-2027/spalali.htm",
-      "clubs": 20,
-      "players": 641,
+      "expectedTeams": 18,
+      "sourceUrl": "https://footballsquads.co.uk/france/2026-2027/fralig1.htm",
+      "clubs": 18,
+      "players": 504,
       "below18Players": []
     },
     {
-      "leagueId": "spain",
+      "leagueId": "france",
       "division": 2,
-      "expectedTeams": 22,
-      "sourceUrl": "https://footballsquads.co.uk/spain/2026-2027/spalali2.htm",
-      "clubs": 22,
-      "players": 673,
+      "expectedTeams": 18,
+      "sourceUrl": "https://footballsquads.co.uk/france/2026-2027/fralig2.htm",
+      "clubs": 18,
+      "players": 521,
       "below18Players": []
     },
     {
@@ -78,24 +107,6 @@
       "below18Players": []
     },
     {
-      "leagueId": "france",
-      "division": 1,
-      "expectedTeams": 18,
-      "sourceUrl": "https://footballsquads.co.uk/france/2026-2027/fralig1.htm",
-      "clubs": 18,
-      "players": 504,
-      "below18Players": []
-    },
-    {
-      "leagueId": "france",
-      "division": 2,
-      "expectedTeams": 18,
-      "sourceUrl": "https://footballsquads.co.uk/france/2026-2027/fralig2.htm",
-      "clubs": 18,
-      "players": 521,
-      "below18Players": []
-    },
-    {
       "leagueId": "portugal",
       "division": 1,
       "expectedTeams": 18,
@@ -105,26 +116,43 @@
       "below18Players": []
     },
     {
-      "leagueId": "brazil",
+      "leagueId": "spain",
       "division": 1,
       "expectedTeams": 20,
-      "sourceUrl": "https://footballsquads.co.uk/brazil/2026/bracamp.htm",
+      "sourceUrl": "https://footballsquads.co.uk/spain/2026-2027/spalali.htm",
       "clubs": 20,
-      "players": 733,
+      "players": 641,
       "below18Players": []
     },
     {
-      "leagueId": "argentina",
-      "division": 1,
-      "expectedTeams": 30,
-      "sourceUrl": "https://footballsquads.co.uk/arg/2026/argaper.htm",
-      "clubs": 30,
-      "players": 1196,
+      "leagueId": "spain",
+      "division": 2,
+      "expectedTeams": 22,
+      "sourceUrl": "https://footballsquads.co.uk/spain/2026-2027/spalali2.htm",
+      "clubs": 22,
+      "players": 673,
       "below18Players": []
     }
   ],
-  "totalTeams": 266,
-  "totalPlayers": 8895,
-  "snapshotBytes": 1703939,
-  "allLeagueMinimumsMet": true
+  "totalTeams": 281,
+  "totalPlayers": 9392,
+  "snapshotBytes": 1796466,
+  "allLeagueMinimumsMet": true,
+  "supplementalCoverage": {
+    "egypt": {
+      "source": "Egyptian Professional Clubs Association official squad pages (2026/27)",
+      "season": "2026/27",
+      "availablePagesConfigured": 16,
+      "importedClubs": 15,
+      "importedPlayers": 497,
+      "skippedPages": [
+        {
+          "name": "بتروجيت",
+          "url": "https://www.egyptianproleague.com/team/36/detials/14455/squad",
+          "reason": "Only 0 player records parsed; minimum is 16",
+          "pageTitle": "م.السويس بتروجت."
+        }
+      ]
+    }
+  }
 }

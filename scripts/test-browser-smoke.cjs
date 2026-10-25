@@ -160,6 +160,8 @@ async function main() {
         age: Number(state.age), division: Number(state.leagueDivision), contractType: state.contractType,
         contractSeasons: Number(state.contractSeasons), position: state.pos, leagueCount: Array.isArray(state.league) ? state.league.length : 0,
         matchTarget: Number(state.seasonAppsTarget), shooting: Number(state.shooting), dribbling: Number(state.dribbling),
+        developmentSnapshotSeason: Number(state.seasonDevelopmentSnapshot?.season) || 0,
+        developmentSnapshotShooting: Number(state.seasonDevelopmentSnapshot?.attributes?.shooting) || 0,
         speed: Number(state.speed), defending: Number(state.defending), goalkeeping: Number(state.goalkeeping), physical: Number(state.physical),
         headerCurrency: text("headCurrency"), summaryCurrency: text("kpiCurrency"), storeCurrency: text("storeCurrency"),
         commandBalance: text("lw-hub-money"), nextMatchCountdown: text("lw-console-round"), nextMatchMeta: text("lw-next-match-meta")
@@ -171,6 +173,8 @@ async function main() {
     assert.equal(startingContext.contractSeasons, 1, "youth deals begin with a one-season term");
     assert.equal(startingContext.leagueCount, 12, "the second tier must use a 12-team schedule");
     assert.equal(startingContext.matchTarget, 22, "a 12-team double round-robin has 22 matches");
+    assert.equal(startingContext.developmentSnapshotSeason, 1, "the player-development snapshot must be initialized at the start of the career season");
+    assert.equal(startingContext.developmentSnapshotShooting, startingContext.shooting, "the starting snapshot must retain the actual pre-training skill baseline");
     assert.ok(startingContext.shooting >= 55 && startingContext.shooting <= 68, "a winger starts with winger-level shooting");
     assert.ok(startingContext.dribbling >= 55 && startingContext.dribbling <= 68, "a winger starts with winger-level dribbling");
     assert.ok(startingContext.speed >= 55 && startingContext.speed <= 68, "a winger starts with winger-level speed");

@@ -272,7 +272,9 @@
           const sourceKey = nameKey ? normalize(club.id + "|" + nameKey) : "";
           if (!nameKey || knownSourceKeys.has(sourceKey) || legacyRealNames.has(nameKey)) continue;
           while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
-            const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
+            const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player =>
+              player && player.isGenerated
+              && !(world.playerHistory && Array.isArray(world.playerHistory[player.id]) && world.playerHistory[player.id].length))
               .sort((a, b) => Number(a.ovr || 0) - Number(b.ovr || 0));
             if (!generated.length) break;
             const replace = generated[0];

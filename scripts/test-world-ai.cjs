@@ -35,6 +35,46 @@ assert.equal(firstSeason.alreadyCompleted, false);
 assert.ok(firstSeason.rows.length >= playerCount - 2, "season completion must save statistics for the world player pool");
 assert.ok(Object.keys(firstSeason.tables).length >= 8, "world league tables must be simulated for multiple leagues");
 assert.ok(world.completedSeasons.includes(1));
+
+// All table totals must reconcile to one shared set of actual simulated fixtures.
+const fixtures = world.matchesBySeason && world.matchesBySeason["1"];
+assert.ok(Array.isArray(fixtures) && fixtures.length > 20, "a season must persist its shared fixtures");
+assert.ok(Array.isArray(world.competitionsBySeason["1"]) && world.competitionsBySeason["1"].length > 0,
+  "domestic and continental competitions should have saved simulation results");
+const totalFixtureGoals = fixtures.reduce((sum, match) => sum + match.homeGoals + match.awayGoals, 0);
+const totalPlayerGoals = world.seasonStats["1"].reduce((sum, row) => sum + Number(row.goals || 0), 0);
+assert.equal(totalPlayerGoals, totalFixtureGoals, "player goals must come from the same goals recorded in fixtures");
+const allTableRows = Object.values(world.leagueTables["1"]).flat();
+assert.equal(allTableRows.reduce((sum, row) => sum + row.gf, 0), totalFixtureGoals,
+  "total goals for must equal total fixture goals");
+assert.equal(allTableRows.reduce((sum, row) => sum + row.ga, 0), totalFixtureGoals,
+  "total goals against must equal total fixture goals");
+const fixtureTallies = new Map();
+for (const match of fixtures) {
+  const homeClub = world.clubs[match.homeClubId], awayClub = world.clubs[match.awayClubId];
+  assert.ok(homeClub && awayClub && homeClub.id !== awayClub.id, "each fixture must contain two distinct real clubs");
+  const homeKey = match.division === 1 ? homeClub.leagueId : homeClub.leagueId + ":" + match.division;
+  const awayKey = match.division === 1 ? awayClub.leagueId : awayClub.leagueId + ":" + match.division;
+  assert.equal(homeKey, awayKey, "fixture opponents must belong to the same league and division");
+  for (const [club, scored, conceded, key] of [
+    [homeClub, match.homeGoals, match.awayGoals, homeKey],
+    [awayClub, match.awayGoals, match.homeGoals, awayKey]
+  ]) {
+    const tallyKey = key + "|" + club.id;
+    const tally = fixtureTallies.get(tallyKey) || { played: 0, gf: 0, ga: 0 };
+    tally.played++; tally.gf += scored; tally.ga += conceded; fixtureTallies.set(tallyKey, tally);
+  }
+}
+for (const [tableKey, rows] of Object.entries(world.leagueTables["1"])) {
+  for (const row of rows) {
+    const tally = fixtureTallies.get(tableKey + "|" + row.clubId) || { played: 0, gf: 0, ga: 0 };
+    assert.equal(row.played, tally.played, "played count must reconcile for " + row.club);
+    assert.equal(row.gf, tally.gf, "goals for must reconcile for " + row.club);
+    assert.equal(row.ga, tally.ga, "goals against must reconcile for " + row.club);
+    assert.equal(row.gd, row.gf - row.ga, "goal difference must be derived from match scores");
+    assert.equal(row.pts, row.w * 3 + row.d, "points must be derived from results");
+  }
+}
 const duplicateCompletion = ai.completeSeason(save, 1, db);
 assert.equal(duplicateCompletion.alreadyCompleted, true, "the same global season cannot be recorded twice");
 assert.equal(world.seasonStats["1"].length, firstSeason.rows.length, "idempotent season completion must not duplicate stat rows");
@@ -61,10 +101,17 @@ assert.ok(Array.isArray(transition.moves));
 assert.ok(transition.moves.length > 0, "a global market window should generate suitable moves when clubs have recruitment needs");
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length);
 assert.ok(world.marketReports.some(row => row.season === 2 && row.moves === transition.moves.length));
+assert.ok(Array.isArray(world.promotionHistory), "promotion/relegation history must be persisted");
+assert.ok(Object.values(world.players).some(player => player.freeAgent)
+  || transition.moves.some(move => String(move.kind).includes("حر")),
+  "expired contracts must create free agents and/or free-agent signings");
+assert.ok(Object.values(world.players).some(player => Number(player.contractSeasons) > 0),
+  "renewed and newly signed contracts must have a positive remaining term");
 for (const move of transition.moves) {
   assert.ok(move.player && move.from && move.to && move.from !== move.to);
   assert.ok(move.playerOvr >= 35 && move.playerOvr <= 99);
-  assert.ok(move.fee > 0);
+  assert.ok(move.fee >= 0);
+  if (move.fee === 0) assert.ok(String(move.kind).includes("حر"), "zero-fee deals must be free-agent signings");
   assert.ok(move.reason);
   const player = world.players[move.playerId];
   assert.ok(player, "every transfer must map to a persistent player record");

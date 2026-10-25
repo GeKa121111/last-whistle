@@ -56,6 +56,7 @@ const required = [
   "function runSeasonAITtraining()",
   "function canAccessTransferMarket()",
   "function isNaturalWinterTransferWindow()",
+  'if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&seasonMatchTotal()>=8',
   "const developmentResult=runSeasonAITtraining();",
   "report.completedSeason=currentSeason",
   "transferButton.hidden=!transferVisible",
@@ -322,6 +323,12 @@ if (staleWinterPause.open) { console.error("Transfer test failed: a stale pendin
 const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
 if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
 
+const simulatorStart = html.indexOf("function simulateSeasonBlock(targetApps){");
+const simulatorEnd = html.indexOf("\nfunction ", simulatorStart + 1);
+const simulatorSource = html.slice(simulatorStart, simulatorEnd);
+if (simulatorStart < 0 || simulatorEnd < 0 || simulatorSource.includes("runSeasonAITtraining(")) {
+  console.error("Season training regression: automated AI training must run once at season end, not once per simulated fixture."); process.exit(1);
+}
 const journeyStart = html.indexOf("function renderSeasonJourney(){");
 const journeyEnd = html.indexOf("\nfunction renderPerformanceInsights", journeyStart);
 const journeySource = html.slice(journeyStart, journeyEnd);

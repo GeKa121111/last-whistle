@@ -400,8 +400,10 @@ async function main() {
     await page.evaluate(() => {
       window.LWStoryRuntime.getState().money = 49;
     });
-    // Use the explicit save button here: it flushes synchronously, while the normal
-    // background save intentionally batches large world snapshots during idle time.
+    // The explicit save button belongs to the diary page, so make that page visible
+    // before clicking it. It flushes synchronously, unlike the deferred background save.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("diary"));
+    await page.locator("#saveBtn").waitFor({ state: "visible", timeout: 10000 });
     await page.locator("#saveBtn").click();
     const sentinelMoney = await page.evaluate(() => {
       const raw = localStorage.getItem("lastWhistleCareer_v4") || "";

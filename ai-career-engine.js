@@ -114,8 +114,11 @@
     const ownTactic = TACTIC_LABELS[input.ourTactic] ? input.ourTactic : "balanced";
     const ours = clamp(input.teamPower, 25, 95);
     const theirs = clamp(input.opponentPower, 25, 95);
+    const managerIQ = clamp(input.managerIQ ?? (theirs * 0.82 + Number(input.opponentPrestige || theirs) * 0.18), 25, 98);
     const rating = formRating(state);
     const goals = number(state.seasonGoals, 0);
+    const history = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory.slice(0, 8) : [];
+    const repeatedStyle = history.filter(row => row && String(row.tactic || row.playerTactic || "") === ownTactic).length;
     let tactic = "balanced";
     if (ownTactic === "attack") tactic = "counter";
     else if (theirs >= ours + 7) tactic = "press";
@@ -123,12 +126,19 @@
     else if (ownTactic === "defend") tactic = "wide";
     else if (ownTactic === "counter" && theirs > ours - 3) tactic = "press";
     else if (clamp(state.energy, 0, 100) < 35 || clamp(state.fatigue, 0, 100) > 75) tactic = "press";
-    return { tactic, label: OPPONENT_LABELS[tactic], reason: tactic === "counter"
-      ? "المنافس يترك مساحات خلفه ويتحول للهجوم المرتد أمام اندفاعك."
+    const readYou = repeatedStyle >= 3 && managerIQ >= 67;
+    if (readYou) {
+      tactic = ownTactic === "attack" ? "compact" : ownTactic === "defend" ? "wide"
+        : ownTactic === "counter" ? "press" : (theirs >= ours - 2 ? "press" : "compact");
+    }
+    const reason = readYou
+      ? "المدرب المنافس قرأ تكرار خطتك في آخر المباريات وغيّر أسلوبه لمواجهتها."
+      : tactic === "counter" ? "المنافس يترك مساحات خلفه ويتحول للهجوم المرتد أمام اندفاعك."
       : tactic === "compact" ? "المنافس يغلق العمق لأن مستواك الحالي يهدد دفاعه."
       : tactic === "press" ? "المنافس يرفع الضغط لمحاولة تعطيل البناء أو استغلال انخفاض الجاهزية."
       : tactic === "wide" ? "المنافس يحاول توسيع الملعب وسحبك إلى الأطراف."
-      : "المنافس يبدأ بتوازن وينتظر قراءة مجريات المباراة." };
+      : "المنافس يبدأ بتوازن وينتظر قراءة مجريات المباراة.";
+    return { tactic, label: OPPONENT_LABELS[tactic], reason, iq: managerIQ, repeatedStyle, adapted: readYou };
   }
   function recommendTransfers(state, clubs, overall) {
     state = state || {};

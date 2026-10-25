@@ -97,6 +97,7 @@ assert.equal(transition.season, 2);
 assert.equal(transition.alreadyAdvanced, false);
 assert.ok(world.completedSeasons.includes(1));
 assert.equal(world.currentSeason, 2);
+assert.equal(save.season, 1, "global simulation must not mutate the player's career-season counter");
 assert.ok(Array.isArray(transition.moves));
 assert.ok(transition.moves.length > 0, "a global market window should generate suitable moves when clubs have recruitment needs");
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length);
@@ -168,7 +169,14 @@ for (const player of Object.values(world.players)) {
 const transferTargets = ai.transferTargets(save, db);
 assert.ok(transferTargets.length >= clubCount);
 assert.ok(transferTargets.some(row => row.players.length >= 16), "the market should expose current simulated squads, not only static club names");
+const completedSeasonSnapshotBeforeDashboard = JSON.stringify(world.seasonStats["1"] || []);
 const dashboard = ai.dashboard(save, db);
+assert.equal(dashboard.season, world.currentSeason,
+  "world dashboard must follow its persisted world season rather than a stale player-career season");
+assert.equal(JSON.stringify(world.seasonStats["1"] || []), completedSeasonSnapshotBeforeDashboard,
+  "opening the dashboard must not rewrite a completed season with players' current clubs");
+assert.equal(dashboard.matchesSimulated, (world.matchesBySeason[String(world.currentSeason)] || []).length,
+  "dashboard match count must come from the current world season");
 assert.equal(dashboard.playerCount, Object.keys(world.players).length, "recruitment can introduce academy replacements and the dashboard must count them");
 assert.equal(dashboard.totalTransfers, world.transfers.length);
 assert.ok(dashboard.lastMarket.moves > 0);

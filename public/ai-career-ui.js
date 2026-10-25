@@ -10,8 +10,11 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
   })[char]);
   function getState() {
-    try { return runtime && typeof runtime.getState === "function" ? runtime.getState() : null; }
-    catch (error) { return null; }
+    try {
+      const shared = global.LWStateStore && typeof global.LWStateStore.getState === "function"
+        ? global.LWStateStore.getState() : null;
+      return shared || (runtime && typeof runtime.getState === "function" ? runtime.getState() : null);
+    } catch (error) { return null; }
   }
   function overall() {
     try { return runtime && typeof runtime.overall === "function" ? runtime.overall() : 50; }
@@ -71,6 +74,7 @@
     if (action === "coach") {
       const report = engine.coachAdvice(state, ov);
       renderDetail(report.title, report.summary, report.priorities, report.page, report.actionLabel);
+      if (typeof engine.recordRecommendation === "function") engine.recordRecommendation(state, report);
     } else if (action === "tactics") {
       const opponent = upcomingOpponent(state);
       const report = engine.recommendPlayerTactic(state, ov, opponent);
@@ -126,4 +130,7 @@
   global.LWCareerAIUI = Object.freeze({ refresh, openSuggestedPage, onAction });
   refresh();
   global.addEventListener("load", refresh, { once: true });
+  if (global.LWStateStore && typeof global.LWStateStore.subscribe === "function") {
+    global.LWStateStore.subscribe(refresh);
+  }
 })(window);

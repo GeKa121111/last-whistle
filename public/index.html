@@ -1058,6 +1058,10 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         <article class="card span6"><h2>📊 سجل موسمك</h2><div class="kpiGrid" style="margin-top:12px"><div class="kpi"><div class="kpiNum" id="seasonApps">0/38</div><div class="kpiLabel">مباريات الموسم</div></div><div class="kpi"><div class="kpiNum" id="seasonPoints">0</div><div class="kpiLabel">نقاط فريقك</div></div><div class="kpi"><div class="kpiNum" id="seasonGoals">0</div><div class="kpiLabel">أهدافك</div></div></div></article>
         <article class="card span6"><h2>🎖️ سجل البطولات</h2><div id="trophyCabinet" class="muted small" style="margin-top:10px">لسه مفيش بطولات. خلي أول لقب هو بداية الحكاية.</div></article>
         <article class="card span12"><div class="cardHead"><h2>🏅 الجوائز الفردية في مسيرتك</h2><span class="pill gold" id="careerAwardCount">0 جائزة</span></div><p class="dataDisclaimer">جوائز المسيرة هنا نتائج محاكاة مستقلة داخل اللعبة، وليست تصويتًا أو اعتمادًا من FIFA أو أي اتحاد.</p><div id="careerAwards" class="eventFeed"></div></article>
+        <article class="card span12"><div class="cardHead"><h2>🗺️ خريطة الموسم والبطولات</h2><span class="pill" id="currentCompetitionCount">0 بطولة</span></div><p class="muted small">حالة الدوري والكؤوس والبطولات القارية في مسيرتك الحالية؛ البطولات المشروطة لا تُفتح إلا بعد التأهل.</p><div class="dataGrid" id="currentCompetitions"></div></article>
+        <article class="card span6"><div class="cardHead"><h2>👟 ترتيب الهدافين</h2><span class="pill">الدوري الحالي</span></div><div id="goldenBootLeaderboard"></div></article>
+        <article class="card span6"><div class="cardHead"><h2>🎯 ترتيب صناع اللعب</h2><span class="pill">الدوري الحالي</span></div><div id="playmakerLeaderboard"></div></article>
+        <article class="card span12"><h2>🌍 حفل الجوائز العالمية</h2><p class="muted small" id="leaderboardNote">الجوائز تعتمد على الأهداف والصناعة ومتوسط التقييم وقوة الدوري والألقاب. بيانات اللاعبين المنافسين تقديرية للمحاكاة.</p><div id="ballonDOrCeremony" class="dataGrid"></div></article>
       </div>
     </section>
 
@@ -3471,11 +3475,22 @@ function buildSeasonAwardCeremony(place){
  return ceremony;
 }
 function renderCareerAwards(){
- const box=$("careerAwards");if(!box)return;
+ const box=$("careerAwards");
  const rows=Array.isArray(state.careerAwards)?state.careerAwards:[];
+ if(box)box.innerHTML=rows.length?rows.slice(0,40).map(a=>'<div class="feedItem"><b>'+safeHTML(a.title)+' • الموسم '+safeHTML(a.season)+'</b><span class="muted">'+safeHTML(a.club)+' — '+safeHTML(a.country)+(a.competition?' • '+safeHTML(a.competition):'')+' • '+safeHTML(a.note)+'</span></div>').join(""):'<div class="empty">الجوائز الفردية تظهر في حفل نهاية الموسم، وتنافس فيها سجلات اللاعبين وأرقام الدوري والبطولات.</div>';
  setText("careerAwardCount",rows.length+" جائزة");
- box.innerHTML=rows.length?rows.slice(0,30).map(a=>`<div class="feedItem"><b>${safeHTML(a.title)} • الموسم ${safeHTML(a.season)}</b><span class="muted">${safeHTML(a.club)} — ${safeHTML(a.country)}${a.competition?` • ${safeHTML(a.competition)}`:""} • ${safeHTML(a.note)}</span></div>`).join(""):'<div class="empty">الجوائز الفردية تظهر في تقرير نهاية الموسم، وتُحتسب من مشاركاتك وأهدافك وتمريراتك وتقييمك. بعد انتقالك، يحسب كل دوري مشاركاتك فيه على حدة.</div>';}
-function renderGlobalCatalog(force=false){
+ const ceremonyBox=$("ballonDOrCeremony");
+ if(ceremonyBox){
+  const ceremony=(Array.isArray(state.awardCeremonies)?state.awardCeremonies:[])[0];
+  if(!ceremony)ceremonyBox.innerHTML='<div class="empty">حفل الكرة الذهبية والجوائز الكبرى هيتفتح بعد نهاية الموسم. لسه مفيش حفل محفوظ في المسيرة.</div>';
+  else{
+   const top=ceremony.ballonDor?.topFive||[];
+   const awards=ceremony.awards||[];
+   ceremonyBox.innerHTML='<div class="dataCard span12"><div class="cardHead"><h3>الكرة الذهبية — الموسم '+Number(ceremony.season)+'</h3><span class="pill gold">'+safeHTML(ceremony.ballonDor?.winner?.name||"—")+'</span></div><p>النادي: '+safeHTML(ceremony.ballonDor?.winner?.club||"")+'</p><h4>أفضل 5 مرشحين</h4><div class="tableWrap"><table><thead><tr><th>#</th><th>اللاعب</th><th>النادي</th><th>أهداف</th><th>صناعة</th><th>تقييم</th></tr></thead><tbody>'+top.map((row,index)=>'<tr class="'+(row.isUser?"me":"")+'"><td>'+(index+1)+'</td><td>'+safeHTML(row.name)+(row.isUser?' <span class="pill">أنت</span>':'')+'</td><td>'+safeHTML(row.club||"")+'</td><td>'+Number(row.goals||0)+'</td><td>'+Number(row.assists||0)+'</td><td>'+Number(row.averageRating||0).toFixed(2)+'</td></tr>').join("")+'</tbody></table></div></div>'+
+   awards.map(row=>'<div class="dataCard"><h4>'+safeHTML(row.title)+'</h4><p><b>'+safeHTML(row.winner?.name||"—")+'</b> — '+safeHTML(row.winner?.club||"")+'</p><p class="muted small">'+Number(row.winner?.goals||0)+' هدف • '+Number(row.winner?.assists||0)+' صناعة • تقييم '+Number(row.winner?.averageRating||0).toFixed(2)+'</p></div>').join("");
+  }
+ }
+}function renderGlobalCatalog(force=false){
  if(!window.LWCatalog)return;
  const query=($("leagueSearch")?.value||"").trim().toLocaleLowerCase();
  const confederation=$("confederationFilter")?.value||"all";

@@ -518,7 +518,7 @@
       const origin = seller.name;
       seller.roster = seller.roster.filter(id => id !== player.id);
       buyer.roster.push(player.id);
-      seller.budget = Math.min(seller.budget + fee, seller.budget + Math.round(seller.power * 8));
+      seller.budget = Math.min(5000, Math.max(0, Number(seller.budget) || 0) + fee);
       buyer.budget = Math.max(0, buyer.budget - fee);
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.contractSeasons = 2 + (hash(player.id + "|" + season + "|contract") % 4);
@@ -545,7 +545,7 @@
       const squadAverage = average(strength.map(player => player.ovr));
       club.power = clamp(Math.round(club.basePower * 0.70 + squadAverage * 0.30), 35, 97);
       club.updatedSeason = Number(season);
-      club.budget = Math.max(40, Math.round(70 + club.power * 9 + club.prestige * 2.2));
+      // Preserve the balance after transfer fees; seasonal income is applied after all signings.
     });
     world.marketReports.unshift({
       season: Number(season), moves: moves.length,
@@ -1287,6 +1287,15 @@
     }
     return signed;
   }
+  function applyClubSeasonFinances(world) {
+    // Abstract in-game broadcast, sponsorship and commercial income. Transfer fees
+    // are cash flows between clubs, so do not overwrite those balances after the window.
+    Object.values(world.clubs).forEach(club => {
+      const budget = Math.max(0, Number(club.budget) || 0);
+      const income = Math.round(50 + (Number(club.power) || 55) * 1.8 + (Number(club.prestige) || 50) * 0.7);
+      club.budget = clamp(budget + income, 0, 5000);
+    });
+  }
   function completeSeason(save, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
@@ -1337,6 +1346,7 @@
     const transition = base.advanceToSeason(save, next, db);
     if (!transition.alreadyAdvanced) {
       const freeAgentMoves = signFreeAgents(world, next, transition.moves || []);
+      applyClubSeasonFinances(world);
       transition.moves = (transition.moves || []).concat(freeAgentMoves);
       if (world.marketReports && world.marketReports[0] && Number(world.marketReports[0].season) === next) {
         world.marketReports[0].moves = transition.moves.length;

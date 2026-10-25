@@ -409,8 +409,32 @@ async function main() {
         return Number(saved.money) === 49;
       } catch { return false; }
     }, null, { timeout: 15000 });
+    await page.evaluate(() => {
+      const host = document.querySelector("#toastHost");
+      if (host) host.innerHTML = "";
+      window.__backupRestoreNotices = [];
+      if (host) {
+        const observer = new MutationObserver(() => {
+          const text = host.querySelector(".toast")?.textContent || "";
+          if (text) window.__backupRestoreNotices.push(text);
+        });
+        observer.observe(host, { childList: true, subtree: true, characterData: true });
+        window.__backupRestoreObserver = observer;
+      }
+    });
     page.once("dialog", dialog => dialog.accept());
     await page.locator("#importSaveInput").setInputFiles(backupPath);
+    await page.waitForFunction(() => {
+      const notices = window.__backupRestoreNotices || [];
+      return notices.some(text => text.includes("تمت استعادة")
+        || text.includes("الملف غير صالح") || text.includes("تعذرت الاستعادة"));
+    }, null, { timeout: 30000 });
+    const restoreNotice = await page.evaluate(() => {
+      window.__backupRestoreObserver?.disconnect();
+      return (window.__backupRestoreNotices || []).join(" | ");
+    });
+    assert.ok(restoreNotice.includes("تمت استعادة"),
+      "backup restore must complete successfully; observed notices: " + restoreNotice);
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime?.getState();
       return state && state.name === "Mohamed Ahmed" && state.boots === true

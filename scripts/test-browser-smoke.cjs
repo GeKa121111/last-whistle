@@ -331,6 +331,113 @@ async function main() {
     );
     results.push("winter transfer review is recorded");
 
+    // Exercise a real in-page transfer offer, negotiation form, and accepted transfer.
+    // The seeded offer is deterministic and the career is restored afterwards so the
+    // normal full-season lifecycle below is still tested from the original winter break.
+    const transferFixture = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const backup = JSON.parse(JSON.stringify(state));
+      const clubs = window.LWWorldDB?.clubs?.() || [];
+      const target = clubs.find(row =>
+        row && row.country === state.leagueCountry
+        && row.name !== state.clubName
+        && (Number(row.division) || 1) === 1
+      );
+      if (!target) throw new Error("Could not find a same-country top-division club for transfer-flow testing.");
+      const profile = window.LWWorldDB?.leagueById?.(target.leagueId) || {};
+      if (!profile.league) throw new Error("Transfer-flow test target has no domestic league mapping.");
+
+      state.retired = false;
+      state.careerStarted = true;
+      state.loan = null;
+      state.freeAgent = false;
+      state.transferCooldown = 0;
+      state.winterBreakPending = true;
+      state.cupState = null;
+      const windowId = "winter-season-" + Number(state.season);
+      state.transferOffersWindowId = windowId;
+      state.transferOffers = [{
+        id: "browser-flow-offer",
+        status: "pending",
+        windowId,
+        club: target.name,
+        country: target.country,
+        league: profile.league,
+        leagueEnglish: profile.english || "",
+        season: window.LWWorldDB?.season || "2026/27",
+        source: "LWWorldDB",
+        sourceUrl: profile.url || "",
+        division: Number(target.division) || 1,
+        power: Number(target.ovr) || 60,
+        prestige: Number(target.prestige) || 60,
+        currency: profile.currency || "ج.م",
+        stars: Array.isArray(target.stars) ? target.stars.slice(0, 3) : [],
+        positionRivals: [],
+        role: "أساسي",
+        wage: 700,
+        signingBonus: 120,
+        goalBonus: 30,
+        cleanSheetBonus: 25,
+        contractSeasons: 3,
+        releaseClause: 0
+      }];
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.showPage("contract");
+      window.LWStoryRuntime.render();
+      return { backup, targetClub: target.name, targetCountry: target.country, windowId };
+    });
+
+    const seededOffer = page.locator('#transferMarket [data-negotiate-offer="browser-flow-offer"]');
+    await seededOffer.waitFor({ state: "visible", timeout: 10000 });
+    await seededOffer.click();
+    await page.locator("#transferNegotiationPanel").waitFor({ state: "visible", timeout: 10000 });
+    assert.ok(
+      await page.locator("#transferNegotiationPanel").textContent().then(text => text.includes(transferFixture.targetClub)),
+      "the selected club's contract terms must render inside the negotiation panel"
+    );
+    assert.equal(
+      await page.locator('#transferNegotiationPanel [data-negotiation-field="wage"]').inputValue(),
+      "700",
+      "the initial weekly salary must match the club offer"
+    );
+    await page.locator('#transferNegotiationPanel [data-submit-negotiation]').click();
+    await page.waitForFunction(targetName => {
+      const state = window.LWStoryRuntime.getState();
+      return state.clubName === targetName
+        && Number(state.weeklyWage) === 700
+        && Number(state.contractSeasons) === 3
+        && Number(state.goalBonusPerGoal) === 30
+        && Number(state.cleanSheetBonus) === 25
+        && Number(state.transferCooldown) === 14
+        && Array.isArray(state.transferHistory)
+        && state.transferHistory.some(row => String(row.text || "").includes(targetName));
+    }, transferFixture.targetClub, { timeout: 15000 });
+    const acceptedTransfer = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        club: state.clubName,
+        country: state.leagueCountry,
+        offerStatus: state.transferOffers.find(row => row.id === "browser-flow-offer")?.status,
+        history: state.transferHistory[0]?.text || "",
+        clubExistsInLeague: Array.isArray(state.league) && state.league.some(row => row.name === state.clubName)
+      };
+    });
+    assert.equal(acceptedTransfer.club, transferFixture.targetClub);
+    assert.equal(acceptedTransfer.country, transferFixture.targetCountry);
+    assert.equal(acceptedTransfer.offerStatus, "accepted", "accepted offers must be marked as accepted");
+    assert.ok(acceptedTransfer.history.includes(transferFixture.targetClub), "accepted transfers must enter the career history");
+    assert.equal(acceptedTransfer.clubExistsInLeague, true, "the destination club must exist in its rebuilt league table");
+    results.push("transfer offer renders, accepted negotiation signs the contract, and destination league is rebuilt");
+
+    await page.evaluate(backup => {
+      const state = window.LWStoryRuntime.getState();
+      Object.keys(state).forEach(key => delete state[key]);
+      Object.assign(state, backup);
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.showPage("home");
+      window.LWStoryRuntime.render();
+    }, transferFixture.backup);
+
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     // At the winter break, the primary season action correctly reopens the winter-market decision.

@@ -121,7 +121,7 @@ if (missing.length) {
 }
 
 const renderStart = html.indexOf("function render(){");
-const renderEnd = html.indexOf("\\nfunction checkAction(", renderStart);
+const renderEnd = html.indexOf("\nfunction checkAction(", renderStart);
 if (renderStart < 0 || renderEnd < 0) { console.error("Render performance regression test could not locate render()."); process.exit(1); }
 const renderBody = html.slice(renderStart, renderEnd);
 for (const marker of [

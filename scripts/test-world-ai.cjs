@@ -138,10 +138,10 @@ const greekClubs = Object.values(world.clubs).filter(club => club.leagueId === "
 assert.equal(greekClubs.length, 14, "the Greek Super League must contain all 14 clubs");
 const greekIds = new Set(greekClubs.map(club => club.id));
 const greekFixtures = fixtures.filter(match => greekIds.has(match.homeClubId) && greekIds.has(match.awayClubId));
-assert.equal(greekFixtures.length, 145, "Greek league should contain 91 regular-season plus 54 post-season fixtures");
+assert.equal(greekFixtures.length, 236, "Greek league should contain 182 regular-season plus 54 post-season fixtures");
 const greekRegularFixtures = greekFixtures.filter(match => match.matchday <= 26);
 const greekPostSeasonFixtures = greekFixtures.filter(match => match.matchday > 26);
-assert.equal(greekRegularFixtures.length, 91, "14 clubs should play 13 opponents twice in the regular season");
+assert.equal(greekRegularFixtures.length, 182, "14 clubs should play 13 opponents twice across 26 regular-season matchdays");
 assert.equal(greekPostSeasonFixtures.length, 54, "post-season groups should add 12 + 12 + 30 fixtures");
 const greekRegular = new Map(greekClubs.map(club => [club.id, {
   clubId: club.id, club: club.name, power: club.power, pts: 0, gf: 0, ga: 0

@@ -120,8 +120,11 @@ for (const move of transition.moves) {
 
  // A transfer must not rewrite the season that just ended; next-season stats must
  // follow the player's new club. Check the actual persistent rows, not just the log.
- const previousSeasonRows = new Map((world.seasonStats["1"] || []).map(row => [row.id, row]));
+ const previousSeasonSnapshot = JSON.stringify(world.seasonStats["1"] || []);
+ const previousSeasonRows = new Map((world.seasonStats["1"] || []).map(row => [row.id, { ...row }]));
  const nextSeasonRows = new Map(ai.getSeasonLines(save, 2, 1, db).map(row => [row.id, row]));
+ assert.equal(JSON.stringify(world.seasonStats["1"] || []), previousSeasonSnapshot,
+   "simulating season 2 must not rewrite season 1 player-stat attribution");
  const regularTransfers = transition.moves.filter(move => String(move.kind).includes("انتقال — محاكاة"));
  assert.ok(regularTransfers.length > 0, "the test scenario must contain ordinary club-to-club transfers");
  for (const move of regularTransfers) {

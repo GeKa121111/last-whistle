@@ -1,4 +1,5 @@
 {
+  "refreshRevision": 2,
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
@@ -124,6 +125,6 @@
   ],
   "totalTeams": 266,
   "totalPlayers": 8895,
-  "snapshotBytes": 1703509,
+  "snapshotBytes": 1703939,
   "allLeagueMinimumsMet": true
 }

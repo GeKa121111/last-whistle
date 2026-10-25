@@ -468,5 +468,23 @@ assert.equal(reloadedRepeat.alreadyAdvanced, true,
 assert.equal(reloadedWorld.transfers.length, world.transfers.length,
   "reloading and replaying the same season must not duplicate transfer deals");
 
+// The promotion/relegation guard must be keyed to the target season, not the source
+// season; otherwise the second transition (season 3) is skipped forever.
+const promotionHistoryBeforeSeason3 = world.promotionHistory.length;
+const thirdSeasonTransition = ai.advanceToSeason(save, 3, db);
+assert.equal(thirdSeasonTransition.season, 3);
+assert.equal(thirdSeasonTransition.alreadyAdvanced, false);
+assert.ok(thirdSeasonTransition.promotions && thirdSeasonTransition.promotions.length > 0,
+  "promotion and relegation must be evaluated again for season 3");
+assert.ok(world.promotionHistory.some(row => Number(row.season) === 3),
+  "season 3 promotion history must be recorded under its target season");
+const promotionHistoryAfterSeason3 = world.promotionHistory.length;
+assert.ok(promotionHistoryAfterSeason3 >= promotionHistoryBeforeSeason3);
+const thirdSeasonReplay = ai.advanceToSeason(save, 3, db);
+assert.equal(thirdSeasonReplay.alreadyAdvanced, true, "repeating season 3 must be idempotent");
+assert.equal(world.promotionHistory.length, promotionHistoryAfterSeason3,
+  "replaying the same target season must not duplicate promotion history");
+
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

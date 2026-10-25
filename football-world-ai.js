@@ -285,7 +285,12 @@
     // reconcileDatabase scans the global club/player catalogue and repairs squads.
     // Running it for every dashboard render caused severe avoidable CPU work.
     const catalogueVersion = int(db && db.version, int(world.dbVersion, 0));
-    if (catalogueVersion !== int(world.dbVersion, 0) || Number(world.rosterSchemaVersion) !== 1) {
+    const supportedLeagueIds = new Set(db && typeof db.leagues === "function"
+      ? db.leagues().map(profile => String(profile && profile.id || "")).filter(Boolean) : []);
+    const hasUnsupportedClub = supportedLeagueIds.size > 0 && Object.values(world.clubs).some(club =>
+      club && club.leagueId && !supportedLeagueIds.has(String(club.leagueId)));
+    if (catalogueVersion !== int(world.dbVersion, 0)
+      || Number(world.rosterSchemaVersion) !== 1 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
     // The world-simulation season is independent of the player's career season.

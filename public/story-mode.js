@@ -265,13 +265,15 @@ function renderStoryPanel(s,api){
     var candidates=eligibleEvents(s);
     pending=candidates.length?candidates[0]:null;
   }
-  var storyHistoryRows=history(s).slice(0,3);
-  var storyPanelSignature=JSON.stringify({
-    pending:pending?{id:pending.id,tag:pending.tag,title:pending.title,body:pending.body,consequence:pending.consequence,
-      choices:(pending.choices||[]).map(function(choice){return [choice.label,choice.detail||""];})}:null,
-    done:done,seasonFinished:!!s.seasonFinished,
-    history:storyHistoryRows.map(function(item){return [item.id,item.title,item.outcome,item.choice,item.season,item.day];})
-  });
+  // This panel is polled for state changes, but its interactive buttons must not be
+  // destroyed/recreated every 900ms when the story has not changed (which also stole focus).
+  var panelHistory=history(s).slice(0,3);
+  var storyPanelSignature=[
+    String(s.storyPendingId||""),pending?String(pending.id||""):"",done,s.seasonFinished?1:0,
+    pending?[pending.tag||"",pending.title||"",pending.body||"",pending.consequence||"",
+      (pending.choices||[]).map(function(choice){return [choice.label||"",choice.detail||"",choice.outcome||""].join("\u001e");}).join("\u001f")].join("\u001e"):"",
+    panelHistory.map(function(item){return [item.id||"",item.title||"",item.outcome||item.choice||"",item.season||1,item.day||1].join("\u001e");}).join("\u001f")
+  ].join("\u001d");
   if(storyPanelSignature===lastRenderedStoryPanelSignature&&panel.dataset.storyPanelSignature===storyPanelSignature)return;
   lastRenderedStoryPanelSignature=storyPanelSignature;
   panel.dataset.storyPanelSignature=storyPanelSignature;

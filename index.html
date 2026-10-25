@@ -809,7 +809,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
    <small class="muted tiny" id="startNameHelp">اكتب الاسم اللي عايز يظهر في مسيرتك (حتى 24 حرفًا).</small>
   </div>
   <div class="startGrid">
-   <div class="startField"><label for="startAge">العمر عند البداية</label><select id="startAge"><option value="16">16 سنة</option><option value="17" selected>17 سنة</option><option value="18">18 سنة</option><option value="19">19 سنة</option><option value="20">20 سنة</option></select></div>
+   <div class="startField"><label for="startAge">العمر عند البداية</label><select id="startAge"><option value="12">12 سنة — أكاديمية الناشئين</option><option value="13">13 سنة — أكاديمية الناشئين</option><option value="14">14 سنة — أكاديمية الناشئين</option><option value="15">15 سنة — أكاديمية الناشئين</option><option value="16">16 سنة</option><option value="17" selected>17 سنة</option><option value="18">18 سنة</option><option value="19">19 سنة</option><option value="20">20 سنة</option></select><small class="muted tiny" id="startAgeHelp">لو بدأت من 12–15 سنة، هتلعب في أكاديمية النادي وتتدرج في فرق الناشئين لحد سن 18.</small></div>
    <div class="startField"><label for="startCountry">الدوري / الدولة</label><select id="startCountry"></select></div>
    <div class="startField"><label for="startClub">نادي البداية</label><select id="startClub"></select><small class="muted tiny" id="startClubSource"></small></div>
    <div class="startField"><label for="startNationalTeam">المنتخب اللي تمثله</label><select id="startNationalTeam"><option>مصر</option><option>المغرب</option><option>الجزائر</option><option>تونس</option><option>نيجيريا</option><option>السنغال</option><option>غانا</option><option>إنجلترا</option><option>فرنسا</option><option>إسبانيا</option><option>ألمانيا</option><option>البرتغال</option><option>البرازيل</option><option>الأرجنتين</option></select></div>
@@ -2494,6 +2494,7 @@ const INITIAL = {
  careerStarted:false,leagueCountry:"مصر",leagueDivision:2,clubName:"مركز شباب النور",clubTier:0,calendarDay:1,lastOfferWindow:"",lastTransferDay:-99,averageRatingSum:0,averageRatingCount:0,leagueRatingSum:0,leagueRatingCount:0,pendingTransfer:null,favoriteLeague:"",transferOffers:[],transferOffersWindowId:"",transferNegotiation:null,currentReleaseClause:0,goalBonusPerGoal:0,cleanSheetBonus:0,currentCompetitions:[],trophyCabinet:[],awardCeremonies:[],
  shooting:52,dribbling:61,passing:55,speed:67,fitness:60,composure:48,defending:50,goalkeeping:50,vision:50,physical:50,playerPotential:82,careerXP:0,levelXP:0,careerLevel:1,trainingSessions:0,trainingXP:{},trainingIntensity:"normal",careerAwards:[],careerAppearances:0,careerMinutes:0,qualifyingAppearances:0,careerMilestonesEarned:[],progressionMatchIds:[],competitionStats:{},clubPower:52,leagueCompetition:"",leagueSource:"",
  money:450,followers:120,goals:0,assists:0,apps:0,lastRating:0,
+ academyCareer:false,academyStartAge:0,academyYearsCompleted:0,academyHistory:[],academyGraduated:false,academyGraduationPending:false,academyReserve:false,academyLeagueDivision:0,
  schemaVersion:10,contractType:"professional",randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
@@ -2535,6 +2536,7 @@ function currencyLabel(country=state.leagueCountry){
  return profile?.currency||"$";
 }
 function startingWeeklyWage(country,division,age,tier=0){
+ if(Number(age)<=15)return 0;
  if(Number(age)<=18||Number(division)>=2)return country==="مصر"?250:country==="إنجلترا"?85:EURO_COUNTRIES.has(country)?90:70;
  const local=[250,650,1500,4000][clamp(tier,0,3)]||250;
  return country==="مصر"?local:Math.round((local/250)*(country==="إنجلترا"?85:EURO_COUNTRIES.has(country)?90:70));
@@ -2855,13 +2857,55 @@ function createLeague(){
  const sourced=division===1?catalogLeague(country):null,legacy=LEAGUE_ROSTERS[country]?.[division];
  let names=sourced?[...sourced.clubs]:legacy?[...legacy]:sampleClubsForCountry(country,division);
  names=[...new Set(names.filter(Boolean))];names=[ours,...names.filter(name=>name!==ours)];
- const targetCount=division===2?12:country==="مصر"?16:(sourced?.clubs?.length||legacy?.length||(country==="ألمانيا"||country==="فرنسا"?18:20));
+ const targetCount=(state.academyCareer||state.academyReserve)?12:division===2?12:country==="مصر"?16:(sourced?.clubs?.length||legacy?.length||(country==="ألمانيا"||country==="فرنسا"?18:20));
  const prefix=division===2?(country==="مصر"?"أكاديمية ناشئين":"أكاديمية "+country):"نادي "+country;
  while(names.length<targetCount){const candidate=prefix+" "+(names.length+1);names.push(names.includes(candidate)?candidate+" "+(names.length+1):candidate);}
  names=names.slice(0,targetCount);
  return names.map(name=>({name,played:0,w:0,d:0,l:0,gf:0,ga:0,pts:0,power:clubPowerFor(name,country)}));
 }
 function clubNameForLeague(){return club().name;}
+function isYouthAcademyPlayer(s=state){return !!(s&&s.academyCareer&&!s.academyGraduated&&Number(s.age)<18);}
+function academyAgeGroup(age){return "تحت "+clamp(Number(age)+1,13,18)+" سنة";}
+function academyCompetition(age){return "دوري الناشئين "+academyAgeGroup(age)+" — محاكاة";}
+function seniorLeagueCompetition(country,division){const source=Number(division)===1?catalogLeague(country):null;const row=europeanLeagueRow(country);return source?.competition||(country==="مصر"?(Number(division)===2?"دوري مراكز الشباب والدرجة الثانية — محاكاة":"الدوري المصري — محاكاة محلية"):(row?.[Number(division)===1?2:3]||"الدوري المحلي"));}
+function scaleAcademyStartingStats(stats,age){const scale=Math.max(.55,Math.min(.85,.55+(Math.max(12,Math.min(15,Number(age)||12))-12)*.10));const out={};for(const [key,value] of Object.entries(stats||{}))out[key]=clamp(20+(Number(value)-20)*scale,5,65);return out;}
+function syncAcademyCareerState(s=state){
+ if(!s||!s.academyCareer)return {active:false,graduated:false};
+ if(Number(s.age)<18){
+  const group=academyAgeGroup(s.age);s.academyCareer=true;s.academyGraduated=false;s.academyGraduationPending=false;s.academyReserve=false;
+  s.role="ناشئ "+group;s.contractType="academy";s.contractSeasons=Math.max(1,Number(s.contractSeasons)||6);s.weeklyWage=0;s.freeAgent=false;
+  s.leagueCompetition=academyCompetition(s.age);s.leagueSource="أكاديمية الناشئين — محاكاة داخل اللعبة";
+  return {active:true,graduated:false,age:Number(s.age),group,competition:s.leagueCompetition};
+ }
+ s.academyCareer=false;s.academyGraduated=true;s.academyGraduationPending=true;s.academyReserve=false;s.role="لاعب صاعد / تحت التقييم";
+ s.contractType="academy-graduation-pending";s.contractSeasons=0;s.weeklyWage=0;s.freeAgent=true;
+ s.leagueCompetition=seniorLeagueCompetition(s.leagueCountry||"مصر",s.leagueDivision||2);s.leagueSource="الفريق الأول — محاكاة محلية بعد التخرج";
+ return {active:false,graduated:true,age:Number(s.age),competition:s.leagueCompetition};
+}
+function academyFirstTeamWage(){return Math.max(300,Math.round(120+(Number(overall())||45)*7+(Number(state.clubPower)||45)*4));}
+function acceptAcademyPromotion(){
+ if(!state.academyGraduationPending)return;
+ state.academyGraduationPending=false;state.academyCareer=false;state.academyReserve=false;state.academyGraduated=true;
+ state.contractType="professional";state.contractSeasons=2;state.weeklyWage=academyFirstTeamWage();state.freeAgent=false;state.role=overall()>=62?"بديل":"لاعب صاعد / بديل";
+ state.money=(Number(state.money)||0)+Math.round(state.weeklyWage*2);state.leagueCompetition=seniorLeagueCompetition(state.leagueCountry||"مصر",state.leagueDivision||2);state.leagueSource="الفريق الأول — عقد احترافي داخل اللعبة";
+ setStory("تصعيد للفريق الأول", "وقعت أول عقد احترافي مع "+state.clubName+". عمرك 18 سنة، وبدأت مرحلة جديدة: المنافسة على دقائق اللعب وإثبات نفسك مع الكبار.");
+ log("تم تصعيد "+state.name+" من أكاديمية الناشئين إلى الفريق الأول في سن 18 بعقد احترافي لمدة موسمين.");saveGame(true);render();toast("مبروك يا كابتن — وقعت أول عقد احترافي!");
+}
+function chooseAcademyReserve(){
+ if(!state.academyGraduationPending)return;
+ state.academyGraduationPending=false;state.academyCareer=false;state.academyReserve=true;state.academyGraduated=true;
+ state.contractType="reserve";state.contractSeasons=1;state.weeklyWage=0;state.freeAgent=false;state.role="فريق الرديف / لاعب تحت التقييم";
+ state.leagueCompetition="دوري الرديف — محاكاة";state.leagueSource="فريق الرديف التابع للنادي — محاكاة";state.league=createLeague();state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seasonMatchTotal();
+ setStory("فرصة أخيرة قبل الفريق الأول","اخترت تقضي موسمًا مع فريق الرديف في سن 18. الأداء والمشاركات في الموسم ده هيحددوا انتقالك للفريق الأول.");
+ log("اختار "+state.name+" قضاء موسم مع فريق الرديف بعد التخرج من الأكاديمية.");saveGame(true);render();toast("بدأت مرحلة فريق الرديف.");
+}
+function openAcademyGraduationDecision(){
+ if(!state.academyGraduationPending)return;
+ openModal("أول قرار بعد أكاديمية الناشئين","كملت رحلة الناشئين ووصلت لسن 18. قدامك طريقين: توقع أول عقد احترافي وتنافس على مكان في الفريق الأول، أو تلعب موسمًا مع فريق الرديف عشان تكتسب خبرة قبل التصعيد.",[
+  {label:"أقبل عقد الفريق الأول",className:"primary",action:acceptAcademyPromotion},
+  {label:"أبدأ مع فريق الرديف",action:chooseAcademyReserve}
+ ]);
+}
 function ensureLeague(){
  const ours=clubNameForLeague();
  const expectedCountry=state.leagueCountry||"مصر";

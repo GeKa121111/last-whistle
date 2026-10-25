@@ -47,11 +47,11 @@ assert.ok(coverage.totalDatabasePlayers >= allClubs.length * 16, "roster coverag
 assert.equal(coverage.totalClubs, allClubs.length);
 assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "المقاولون العرب" && club.ovr === 62),
   "Egyptian second-division clubs should be queryable");
-assert.ok(db.playerRecordsForClub("ليفربول", "إنجلترا").some(player => player.name === "فلوريان فيرتز"),
-  "player records should be generated from curated real squad names");
+assert.ok(db.playerRecordsForClub("ليفربول", "إنجلترا").some(player => player.name === "Florian Wirtz" && player.isRealPlayer === true),
+  "Liverpool squad should include sourced 2026/27 player records");
 assert.ok(!db.playersForClub("ليفربول", "إنجلترا").includes("محمد صلاح"),
   "2026/27 Liverpool highlights should not retain the stale Mohamed Salah entry");
-assert.equal(db.playerByName("لامين يامال", "إسبانيا").clubName, "برشلونة");
+assert.equal(db.playerByName("Lamine Yamal", "إسبانيا").clubName, "برشلونة");
 
 assert.equal(db.clubByName("Al Ahly", "مصر").ovr, 78);
 assert.equal(db.clubByName("Liverpool", "إنجلترا").name, "ليفربول");

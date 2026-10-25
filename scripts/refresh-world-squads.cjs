@@ -198,19 +198,19 @@ function htmlForTeamName(name) {
 }
 
 function extractTeamName(teamHtml, fallback) {
-  const heading = teamHtml.match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/i)
-    || teamHtml.match(/<h2\\b[^>]*>([\\s\\S]*?)<\\/h2>/i);
+  const heading = teamHtml.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)
+    || teamHtml.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
   if (heading) {
     const name = plainText(heading[1]);
     if (name && !/football squads|current squad|squad list/i.test(name)) return name;
   }
-  const title = teamHtml.match(/<title\\b[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const title = teamHtml.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
   if (title) {
     const text = plainText(title[1]);
-    const match = text.match(/FootballSquads\\s*[-–]\\s*(.*?)\\s*[-–]\\s*20\\d{2}/i);
+    const match = text.match(/FootballSquads\s*[-–]\s*(.*?)\s*[-–]\s*20\d{2}/i);
     if (match && match[1].trim()) return match[1].trim();
   }
-  return String(fallback || "").replace(/\\.html?$/i, "").replace(/[_-]+/g, " ").trim();
+  return String(fallback || "").replace(/\.html?$/i, "").replace(/[_-]+/g, " ").trim();
 }
 
 async function main() {

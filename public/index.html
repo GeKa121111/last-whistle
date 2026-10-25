@@ -2908,7 +2908,7 @@ function showPage(page, scrollTop=true){
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
- $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);closeDrawer();render();
+ $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
 function openDrawer(){$("drawer").classList.add("open");$("drawerShade").classList.add("open");}
@@ -4275,6 +4275,25 @@ function recordLeagueByeRound(roundIndex){
  state.leagueRoundHistory.push({segmentId:ensureLeagueSegmentId(),matchday:roundIndex+1,day:Number(state.day)||1,club:clubNameForLeague(),opponent:"",home:null,scoreFor:null,scoreAgainst:null,outcome:"bye",playerMinutes:0,playerRating:0,matchId:"",standings:structuredCloneSafe(state.league||[])});
  if(state.leagueRoundHistory.length>100)state.leagueRoundHistory.splice(0,state.leagueRoundHistory.length-100);
 }
+function seasonTrainingPerformanceFocus(){
+ const rows=(Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[])
+  .filter(row=>row&&Number(row.minutes)>0&&row.stats&&typeof row.stats==="object")
+  .slice(0,5);
+ if(rows.length<2)return "";
+ const average=key=>rows.reduce((sum,row)=>sum+(Number(row.stats?.[key])||0),0)/rows.length;
+ const shots=average("shots"),onTarget=average("shotsOnTarget"),tackles=average("tackles"),interceptions=average("interceptions");
+ const keyPasses=average("keyPasses"),chances=average("chances"),saves=average("saves"),goalsAgainst=rows.reduce((sum,row)=>sum+(Number(row.oppGoals)||0),0)/rows.length;
+ switch(String(state.pos||"")){
+  case "حارس مرمى": return goalsAgainst>=1.5&&saves<2?"goalkeeping":"composure";
+  case "قلب دفاع": return tackles+interceptions<2.2?"defending":"physical";
+  case "ظهير": return keyPasses+chances<1.8?"speed":"fitness";
+  case "وسط دفاعي": return tackles+interceptions<2.2?"defending":"passing";
+  case "وسط مهاجم": return keyPasses<1.5?"vision":"passing";
+  case "جناح": return onTarget<0.8&&chances<1.8?"dribbling":"speed";
+  case "مهاجم": return shots>=1&&onTarget/Math.max(1,shots)<0.38?"shooting":"composure";
+  default: return "";
+ }
+}
 function chooseSeasonTrainingFocus(){
  const career=window.LWCareer,ai=window.LWCareerAI;
  if(!career)return "";
@@ -4283,11 +4302,16 @@ function chooseSeasonTrainingFocus(){
  const candidates=[...(plan?.primary||[]),...(plan?.secondary||[])].filter((skill,index,arr)=>arr.indexOf(skill)===index);
  if(!candidates.length)return advice?.focus||"fitness";
  const potential=Math.max(65,Number(state.playerPotential)||82);
+ const performanceFocus=seasonTrainingPerformanceFocus();
  candidates.sort((a,b)=>{
-  const gapA=Math.max(0,potential-(Number(state[a])||0)),gapB=Math.max(0,potential-(Number(state[b])||0));
-  const roleA=(plan?.primary||[]).includes(a)?1.2:1,roleB=(plan?.primary||[]).includes(b)?1.2:1;
-  const adviceA=advice?.focus===a?1.08:1,adviceB=advice?.focus===b?1.08:1;
-  return gapB*roleB*adviceB-gapA*roleA*adviceA;
+  const score=skill=>{
+   const gap=Math.max(0,potential-(Number(state[skill])||0));
+   const role=(plan?.primary||[]).includes(skill)?1.2:1;
+   const coach=advice?.focus===skill?1.08:1;
+   const evidence=performanceFocus===skill?1.3:1;
+   return gap*role*coach*evidence;
+  };
+  return score(b)-score(a);
  });
  return candidates[0]||advice?.focus||"fitness";
 }
@@ -4856,7 +4880,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 </script>
-<script src="./story-mode.js?v=4"></script>
+<script src="./story-mode.js?v=7"></script>
 <script src="./career-experience.js?v=1"></script>
 <script src="./agent-system.js?v=1"></script>
 <script src="./career-hub.js?v=1"></script>

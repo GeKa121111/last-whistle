@@ -3,6 +3,7 @@
 var API = function(){return window.LWStoryRuntime||null;};
 var stateRef = null;
 var previousSnapshot = "";
+var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
 var eventDefs = [
   {
@@ -264,6 +265,18 @@ function renderStoryPanel(s,api){
     var candidates=eligibleEvents(s);
     pending=candidates.length?candidates[0]:null;
   }
+  // This panel is polled for state changes, but its interactive buttons must not be
+  // destroyed/recreated every 900ms when the story has not changed (which also stole focus).
+  var panelHistory=history(s).slice(0,3);
+  var storyPanelSignature=[
+    String(s.storyPendingId||""),pending?String(pending.id||""):"",done,s.seasonFinished?1:0,
+    pending?[pending.tag||"",pending.title||"",pending.body||"",pending.consequence||"",
+      (pending.choices||[]).map(function(choice){return [choice.label||"",choice.detail||"",choice.outcome||""].join("\u001e");}).join("\u001f")].join("\u001e"):"",
+    panelHistory.map(function(item){return [item.id||"",item.title||"",item.outcome||item.choice||"",item.season||1,item.day||1].join("\u001e");}).join("\u001f")
+  ].join("\u001d");
+  if(storyPanelSignature===lastRenderedStoryPanelSignature&&panel.dataset.storyPanelSignature===storyPanelSignature)return;
+  lastRenderedStoryPanelSignature=storyPanelSignature;
+  panel.dataset.storyPanelSignature=storyPanelSignature;
   var tag=document.getElementById("lw-story-tag");
   var title=document.getElementById("lw-story-title");
   var body=document.getElementById("lw-story-body");
@@ -289,7 +302,7 @@ function renderStoryPanel(s,api){
   }
   var hist=document.getElementById("lw-story-history");
   if(hist){
-    var entries=history(s).slice(0,3);
+    var entries=panelHistory;
     hist.innerHTML=entries.map(function(item){
       return '<div class="lw-history-item"><span class="lw-history-dot"></span><div><strong>'+escapeHTML(item.title||"قرار مسيرة")+'</strong><p>'+escapeHTML(item.outcome||item.choice||"تم حفظ القرار")+' <span style="color:#72846f">• الموسم '+escapeHTML(item.season||1)+' / اليوم '+escapeHTML(item.day||1)+'</span></p></div></div>';
     }).join("");
@@ -323,7 +336,7 @@ function chooseStory(id,index){
 }
 function renderOverview(s){
   var api=API();if(!s)return;
-  var overview=document.getElementById("lw-command-center");if(overview)overview.style.display=(s.currentPage||"home")==="home"?"":"none";
+  var overview=document.getElementById("lw-command-center");var appRoot=document.querySelector(".app.hasSidebar");var activePage=appRoot&&appRoot.getAttribute("data-active-page");if(!activePage)activePage=s.currentPage||"home";if(overview)overview.style.display=activePage==="home"?"":"none";
   var set=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value);};
   var val=api&&typeof api.overall==="function"?api.overall():(typeof s.overall==="number"?s.overall:null);
   if(val==null){

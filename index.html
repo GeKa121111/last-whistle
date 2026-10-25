@@ -2854,6 +2854,7 @@ function renderLeague(){
 }
 function transferTargets(){
  const list=new Map(),db=window.LWWorldDB;
+ for(const target of window.LWWorldAI?.transferTargets(state,db)||[])list.set(normalizedTargetKey(target),target);
  for(const clubData of db?.clubs?.()||[]){
   const profile=db?.leagueById?.(clubData.leagueId)||{};
   const division=Math.max(1,Number(clubData.division)||1);
@@ -2865,7 +2866,7 @@ function transferTargets(){
    confederation:profile.confederation||"",currency:profile.currency||currencyLabel(clubData.country),
    stars:Array.isArray(clubData.stars)?clubData.stars.slice():[],players:Array.isArray(clubData.players)?clubData.players.slice():[],
    leagueId:clubData.leagueId};
-  list.set(normalizedTargetKey(target),target);
+  const key=normalizedTargetKey(target);if(!list.has(key))list.set(key,target);
  }
  for(const league of window.LWCatalog?.latestDomesticCompetitions?.()||[]){
   for(const name of league.clubs||[]){
@@ -3416,6 +3417,16 @@ function confederationForNation(nation){
 }
 function seasonRealPlayerDirectory(){
  const db=window.LWWorldDB;
+ const simulated=window.LWWorldAI?.getSeasonLines(state,Number(state.season)||1,1,db)||[];
+ if(simulated.length)return simulated.map(player=>{
+  const profile=db?.leagueById?.(player.leagueId)||{};
+  return {...player,clubName:player.clubName||player.club,country:player.country,
+   confederation:player.confederation||profile.confederation||"",
+   originConfederation:player.originConfederation||profile.confederation||"",
+   leagueStrength:Number(player.leagueStrength)||Number(profile.strength)||60,
+   prestige:Number(player.prestige)||60,realPlayer:player.realPlayer!==false,
+   seasonStats:player.seasonStats};
+ });
  const output=[];
  for(const clubData of db?.clubs?.()||[]){
   const profile=db?.leagueById?.(clubData.leagueId)||{};
@@ -3442,12 +3453,14 @@ function playerCurrentSeasonStats(rows){
 }
 function currentLeaguePlayerPool(){
  const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
- const clubs=(window.LWWorldDB?.clubs?.()||[]).filter(item=>item.country===country&&Math.max(1,Number(item.division)||1)===division);
- const data=seasonRealPlayerDirectory().filter(player=>player.country===country&&Math.max(1,Number(player.division)||1)===division);
+ const db=window.LWWorldDB;
+ const data=(window.LWWorldAI?.getSeasonLines(state,Number(state.season)||1,1,db)||[])
+  .filter(player=>String(player.country||"")===country&&Math.max(1,Number(player.division)||1)===division)
+  .map(player=>({...player,clubName:player.clubName||player.club,realPlayer:player.realPlayer!==false,seasonStats:player.seasonStats}));
  const covered=new Set(data.map(player=>player.clubName));
  for(const team of Array.isArray(state.league)?state.league:[]){
   if(covered.has(team.name))continue;
-  const power=Number(team.power)||clubPowerFor(team.name,country);
+  const power=window.LWWorldAI?.getClubPower(state,team.name,country,db)||Number(team.power)||clubPowerFor(team.name,country);
   const leagueProfile=window.LWWorldDB?.leagueByCountry?.(country)||{};
   data.push({name:"منافس افتراضي — "+team.name,clubName:team.name,country:country,position:"مهاجم",ovr:power,
    prestige:power,division:division,confederation:leagueProfile.confederation||"",originConfederation:leagueProfile.confederation||"",

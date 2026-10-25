@@ -90,6 +90,27 @@ assert.ok(firstSeason.rows.length >= playerCount - 2, "season completion must sa
 assert.ok(Object.keys(firstSeason.tables).length >= 8, "world league tables must be simulated for multiple leagues");
 assert.ok(world.completedSeasons.includes(1));
 
+// Player leaderboard strength weighting must match the average power of the player's
+// league/division. This also protects the precomputed lookup used to avoid O(players × clubs)
+// repeated scans when a season's player-stat rows are built.
+const leaguePowerTotals = new Map();
+for (const club of Object.values(world.clubs)) {
+  const key = String(club.leagueId || "") + "|" + Number(club.division);
+  const summary = leaguePowerTotals.get(key) || { total: 0, count: 0 };
+  summary.total += Number(club.power) || 55;
+  summary.count++;
+  leaguePowerTotals.set(key, summary);
+}
+for (const row of world.seasonStats["1"]) {
+  const division = Number(row.division || 1);
+  const summary = leaguePowerTotals.get(String(row.leagueId || "") + "|" + division);
+  if (!summary || !summary.count) continue;
+  const expectedStrength = Math.round(summary.total / summary.count);
+  assert.equal(row.leagueStrength, expectedStrength, "league strength must match its division's club-power average: " + row.leagueId);
+  assert.equal(row.weightedGoals, Number((Number(row.goals || 0) * (0.82 + (expectedStrength || 60) / 450)).toFixed(3)),
+    "weighted-goal leaderboard scores must preserve the existing formula: " + row.id);
+}
+
 // All table totals must reconcile to one shared set of actual simulated fixtures.
 const fixtures = world.matchesBySeason && world.matchesBySeason["1"];
 assert.ok(Array.isArray(fixtures) && fixtures.length > 20, "a season must persist its shared fixtures");

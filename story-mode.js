@@ -4,6 +4,7 @@ var API = function(){return window.LWStoryRuntime||null;};
 var stateRef = null;
 var previousSnapshot = "";
 var lastPending = "";
+var lastRenderedStoryPanelSignature = "";
 var eventDefs = [
   {
     id:"family-pressure",chapter:"01 / THE BEGINNING",title:"مكالمة آخر الليل",tag:"أول قرار في المسيرة",
@@ -264,6 +265,17 @@ function renderStoryPanel(s,api){
     var candidates=eligibleEvents(s);
     pending=candidates.length?candidates[0]:null;
   }
+  // This panel is polled for state changes, but its interactive buttons must not be
+  // destroyed/recreated every 900ms when the story has not changed (which also stole focus).
+  var panelHistory=history(s).slice(0,3);
+  var storyPanelSignature=[
+    String(s.storyPendingId||""),pending?String(pending.id||""):"",done,s.seasonFinished?1:0,
+    pending?[pending.tag||"",pending.title||"",pending.body||"",pending.consequence||"",
+      (pending.choices||[]).map(function(choice){return [choice.label||"",choice.detail||"",choice.outcome||""].join("\u001e");}).join("\u001f")].join("\u001e"):"",
+    panelHistory.map(function(item){return [item.id||"",item.title||"",item.outcome||item.choice||"",item.season||1,item.day||1].join("\u001e");}).join("\u001f")
+  ].join("\u001d");
+  if(storyPanelSignature===lastRenderedStoryPanelSignature)return;
+  lastRenderedStoryPanelSignature=storyPanelSignature;
   var tag=document.getElementById("lw-story-tag");
   var title=document.getElementById("lw-story-title");
   var body=document.getElementById("lw-story-body");

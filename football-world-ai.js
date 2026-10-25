@@ -111,7 +111,7 @@
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
     const id = generated
       ? "academy-" + hash(club.id + "|" + index + "|" + (row && row.name || "player")).toString(36)
-      : "player-" + hash(club.id + "|" + (normalize(row && row.name) || String(index))).toString(36);
+      : "player-" + club.id + "-" + (normalize(row && row.name) || String(index));
     if (world.players[id]) return world.players[id];
     const player = {
       id, name: String(row && row.name || (club.name + " • ناشئ " + String(index + 1).padStart(2, "0"))),

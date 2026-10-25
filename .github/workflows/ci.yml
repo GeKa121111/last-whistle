@@ -54,6 +54,10 @@ jobs:
           fi
       - name: Verify checked-in roster snapshot matches source configuration
         run: node scripts/validate-world-roster-audit.cjs
+      - name: Probe Arabic league roster source structure
+        if: github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name == 'push'
+        continue-on-error: true
+        run: node scripts/probe-arabic-roster-sources.cjs
       - run: npm test
       - run: npm run build
 

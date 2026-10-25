@@ -4577,7 +4577,7 @@ async function init(){
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
  if(window.LWCareer)window.LWCareer.ensureState(state);
  window.LWWorldAI?.ensureState(state,window.LWWorldDB);
- ensureLeague();bind();render();showPage(state.currentPage||"home");if(!state.careerStarted)$("startScreen").classList.add("show");
+ ensureLeague();bind();showPage(state.currentPage||"home",false);if(!state.careerStarted)$("startScreen").classList.add("show");
 }
 init();
 window.LWStoryRuntime = {

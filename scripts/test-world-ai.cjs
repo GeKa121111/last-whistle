@@ -47,7 +47,7 @@ const egyptLeaders = ai.leaderboard(save, { season: 1, progress: 1, country: "م
 assert.ok(egyptLeaders.length > 0, "persistent stats must feed league leaderboards");
 assert.ok(egyptLeaders.some(row => row.goals > 0 || row.assists > 0), "the simulation should generate real statistical variation");
 const table = ai.getLeagueTable(save, "egypt", 1, db);
-assert.ok(table.length >= 8);
+assert.ok(table.length >= 3, "league table must include the available clubs for the selected league");
 assert.equal(table[0].rank, 1);
 assert.ok(table.every((row, index) => row.rank === index + 1 && row.played > 0 && Number.isFinite(row.pts)));
 

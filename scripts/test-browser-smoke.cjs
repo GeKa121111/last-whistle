@@ -358,6 +358,109 @@ async function main() {
     }, null, { timeout: 10000 });
     results.push("season transfer-market navigation");
 
+    // Regression: league/group cup fixtures must only be appended once to cup history.
+    const cupPhaseFixture = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const backup = JSON.parse(JSON.stringify(state));
+      const teams = [state.clubName, "كأس اختبار — منافس 1", "كأس اختبار — منافس 2", "كأس اختبار — منافس 3"];
+      state.playedToday = false; state.trainedToday = false; state.injuryDays = 0;
+      state.energy = 85; state.fatigue = 10; state.dailyActionUsed = false; state.dailyActionType = "";
+      state.cupState = {
+        name: "بطولة اختبار سجل المباريات", system: "uefa36", phase: "league", phaseGames: 4, phasePlayed: 0,
+        points: 0, gd: 0, gf: 0, rounds: [], stage: 0, twoLegs: [], tieLeg: 1, tieAggregate: 0,
+        tieOpponent: "", eliminated: false, champion: false, history: [], matchesPlayed: 0,
+        createdSeason: Number(state.season), createdCalendarDay: Number(state.calendarDay), rank: null,
+        opponent: teams[1], bracketWins: 0, leagueOpponents: [], phaseResults: [], groupOpponents: {},
+        groups: [], playerGroup: -1,
+        standings: teams.map(name => ({ name, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }))
+      };
+      window.LWStoryRuntime.showPage("europe");
+      window.LWStoryRuntime.render();
+      return { backup, clubName: state.clubName };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime.getState();
+      const title = document.querySelector("#modalTitle");
+      return Number(state.cupState?.phasePlayed) === 1 && title && title.textContent.includes("نتيجة البطولة");
+    }, null, { timeout: 15000 });
+    const cupPhaseResult = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        phasePlayed: Number(state.cupState.phasePlayed),
+        matchesPlayed: Number(state.cupState.matchesPlayed),
+        historyCount: state.cupState.history.length,
+        history: state.cupState.history.slice()
+      };
+    });
+    assert.equal(cupPhaseResult.phasePlayed, 1);
+    assert.equal(cupPhaseResult.matchesPlayed, 1);
+    assert.equal(cupPhaseResult.historyCount, 1, "a cup league/group match must create exactly one history entry");
+    assert.ok(cupPhaseResult.history[0].includes("مرحلة الدوري"));
+    results.push("cup phase match history is recorded once");
+    await page.locator("#modalClose").click();
+    await page.evaluate(backup => {
+      const state = window.LWStoryRuntime.getState();
+      Object.keys(state).forEach(key => delete state[key]);
+      Object.assign(state, backup);
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.showPage("home");
+      window.LWStoryRuntime.render();
+    }, cupPhaseFixture.backup);
+
+    // Regression: first-leg home advantage must depend on the current tie leg,
+    // not the number of previous matches in the same cup.
+    const cupTieFixture = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const backup = JSON.parse(JSON.stringify(state));
+      const teams = [state.clubName, "اختبار نصف النهائي", "اختبار نهائي", "اختبار احتياطي"];
+      state.playedToday = false; state.trainedToday = false; state.injuryDays = 0;
+      state.energy = 85; state.fatigue = 10; state.dailyActionUsed = false; state.dailyActionType = "";
+      state.cupState = {
+        name: "بطولة اختبار الذهاب والإياب", system: "knockout", phase: "knockout", phaseGames: 0, phasePlayed: 0,
+        points: 0, gd: 0, gf: 0, rounds: ["نصف النهائي", "النهائي"], stage: 0, twoLegs: [true, false],
+        tieLeg: 1, tieAggregate: 0, tieOpponent: "", eliminated: false, champion: false, history: [],
+        matchesPlayed: 3, createdSeason: Number(state.season), createdCalendarDay: Number(state.calendarDay),
+        rank: null, opponent: teams[1], bracketWins: 0, leagueOpponents: [], phaseResults: [], groupOpponents: {},
+        groups: [], playerGroup: -1,
+        standings: teams.map(name => ({ name, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }))
+      };
+      window.LWStoryRuntime.showPage("europe");
+      window.LWStoryRuntime.render();
+      return { backup, opponent: teams[1] };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime.getState();
+      const title = document.querySelector("#modalTitle");
+      return Number(state.cupState?.tieLeg) === 2 && title && title.textContent.includes("نتيجة البطولة");
+    }, null, { timeout: 15000 });
+    const tieLegResult = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        home: state.cupMatchHistory?.[0]?.home,
+        tieLeg: Number(state.cupState.tieLeg),
+        opponent: state.cupState.tieOpponent,
+        stage: Number(state.cupState.stage),
+        matchesPlayed: Number(state.cupState.matchesPlayed)
+      };
+    });
+    assert.equal(tieLegResult.home, true, "the first leg must be a home match even when earlier cup rounds made the match count odd");
+    assert.equal(tieLegResult.tieLeg, 2, "a first leg must keep the tie open for its return fixture");
+    assert.equal(tieLegResult.opponent, cupTieFixture.opponent, "the second leg must preserve the first-leg opponent");
+    assert.equal(tieLegResult.stage, 0, "a first leg must not advance the player to the next cup round");
+    results.push("two-leg cup fixture keeps opponent and correct home/away leg");
+
+    await page.locator("#modalClose").click();
+    await page.evaluate(backup => {
+      const state = window.LWStoryRuntime.getState();
+      Object.keys(state).forEach(key => delete state[key]);
+      Object.assign(state, backup);
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.showPage("home");
+      window.LWStoryRuntime.render();
+    }, cupTieFixture.backup);
+
     // Exercise the complete league season lifecycle, not just a single match.
     await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();

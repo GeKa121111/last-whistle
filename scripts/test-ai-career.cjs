@@ -42,6 +42,18 @@ const newestForm = ai.formRating({
 assert.ok(newestForm > 8.4 && newestForm < 8.8,
   "adaptive coaching must prioritize the newest five matches, not the oldest rows in newest-first match history");
 
+const playedForm = ai.formRating({
+  careerMatchHistory: [
+    { scope: "league", minutes: 0, rating: 0, matchId: "bench-1" },
+    { scope: "league", minutes: 0, rating: 0, matchId: "suspension-1" },
+    { scope: "league", minutes: 90, rating: 7.6, matchId: "played-1" },
+    { scope: "league", minutes: 85, rating: 7.4, matchId: "played-2" }
+  ],
+  lastRating: 6.0
+});
+assert.equal(playedForm, 7.5,
+  "bench or suspended appearances with zero minutes must not count as poor performance");
+
 const strongPlan = ai.recommendPlayerTactic({
   pos: "مهاجم", energy: 90, fatigue: 15, trust: 72, morale: 80, clubPower: 76,
   seasonGoals: 8

@@ -32,6 +32,16 @@ const winger = ai.coachAdvice({
 }, 68);
 assert.equal(winger.focus, "speed", "a winger must receive a position-specific primary focus");
 
+const newestForm = ai.formRating({
+  careerMatchHistory: [
+    ...Array.from({ length: 5 }, (_, i) => ({ scope: "league", rating: 8.8 - i * 0.1, matchId: "new-" + i })),
+    ...Array.from({ length: 5 }, (_, i) => ({ scope: "league", rating: 4.8 + i * 0.1, matchId: "old-" + i }))
+  ],
+  lastRating: 6.0
+});
+assert.ok(newestForm > 8.4 && newestForm < 8.8,
+  "adaptive coaching must prioritize the newest five matches, not the oldest rows in newest-first match history");
+
 const strongPlan = ai.recommendPlayerTactic({
   pos: "مهاجم", energy: 90, fatigue: 15, trust: 72, morale: 80, clubPower: 76,
   seasonGoals: 8

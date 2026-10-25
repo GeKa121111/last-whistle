@@ -38,6 +38,10 @@ for (const clubName of ["بتروجيت", "أبو قير للأسمدة", "بت�
   assert.ok(/^https:\/\//.test(club.sourceUrl || ""), "club roster must retain a source URL: " + clubName);
   assert.ok(club.source, "club roster must preserve its source label: " + clubName);
   assert.ok(club.players.every(player => player.isRealPlayer === true), "sourced roster rows must be marked real: " + clubName);
+  if (club.rosterMode === "reviewed-static-fallback") {
+    assert.ok(club.players.every(player => player.position === "غير محدد" && player.positionVerified === false),
+      "fallback roster must not invent positions absent from its source: " + clubName);
+  }
 }
 assert.ok(Array.isArray(egyptSupplement.skippedPages)
   && !egyptSupplement.skippedPages.some(row => ["بتروجيت", "أبو قير للأسمدة", "بترول أسيوط"].includes(row.name)),

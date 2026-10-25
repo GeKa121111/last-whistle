@@ -4301,7 +4301,7 @@ function ensureSeasonDevelopmentSnapshot(){
 function simulateSeasonBlock(targetApps){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(state.seasonFinished)return;
- ensureLeague();ensureFixtureSchedule();
+ ensureLeague();ensureFixtureSchedule();ensureSeasonDevelopmentSnapshot();
  if(state.trainedToday)advanceCalendarDays(1,"راحة بعد التدريب قبل محاكاة المباريات");
  const target=Math.min(seasonMatchTotal(),Math.max(state.seasonApps,targetApps));let simulated=0;
  while(state.seasonApps<target){
@@ -4328,7 +4328,8 @@ function simulateSeasonBlock(targetApps){
   state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;state.seasonApps++;state.leagueApps++;state.leagueRoundIndex=roundIndex+1;updateLeague(opponent,gf,ga,roundIndex);simulateOtherFixtures(roundIndex,fixture);recordLeagueRound(roundIndex,fixture,opponent,gf,ga,settled);
   const injuryText=result.player.injuryDays?` إصابة ${result.player.injuryDays} يوم.`:"";
   simulated++;
-  advanceCalendarDays(5,"محاكاة مباراة الدوري");
+  // AI-managed development: one position-specific training day, followed by recovery before the next fixture.
+  advanceCalendarDays(1,"استشفاء بعد المباراة");runSeasonAITtraining();advanceCalendarDays(4,"استشفاء وتجهيز للمباراة التالية");
   if(state.seasonPhase==="firstHalf"&&state.seasonApps>=seasonMidpoint()&&state.seasonApps<seasonMatchTotal()&&!state.winterBreakPending){state.seasonPhase="winterBreak";state.winterBreakPending=true;state.journeyTransferReviewed=false;setStory("وصلنا لنص الموسم",`خلصت أول ${state.seasonApps} مباريات. اتوقفت المسيرة عند فترة الانتقالات الشتوية قبل لعب النصف التاني.`);log("وصلت لنقطة التوقف الشتوية بعد أول نصف الموسم.");break;}
   if(injuryText)log(`${state.name} سيغيب ${result.player.injuryDays} يومًا بعد المباراة.`);
  }

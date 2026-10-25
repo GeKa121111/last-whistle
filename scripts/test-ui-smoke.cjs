@@ -8,6 +8,25 @@ const htmlPath = path.join(root, "public", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
+const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
+if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
+if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v32";')) {
+  console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
+}
+const shellMatch = serviceWorker.match(/const APP_SHELL = \\[(.*?)\\];/s);
+if (!shellMatch) { console.error("Service-worker APP_SHELL is missing."); process.exit(1); }
+const normalizeAsset = value => value.replace(/^\\.\\//, "").split("?")[0];
+const cachedAssets = [...shellMatch[1].matchAll(/["']([^"']+)["']/g)].map(match => normalizeAsset(match[1]));
+const localAssets = [...html.matchAll(/<(?:script|link)\\b[^>]*>/gi)]
+  .flatMap(match => [...match[0].matchAll(/(?:src|href)=["']([^"']+)["']/gi)].map(asset => asset[1]))
+  .filter(asset => asset.startsWith("./"))
+  .map(normalizeAsset);
+const missingOfflineAssets = [...new Set(localAssets)].filter(asset => !cachedAssets.includes(asset));
+if (missingOfflineAssets.length) {
+  console.error("Required local assets missing from the offline app shell:", missingOfflineAssets.join(", "));
+  process.exit(1);
+}
 const required = [
   'id="startName"',
   '<script src="./lz-string.min.js?v=1"></script>',

@@ -1,5 +1,5 @@
-const CACHE_NAME = "last-whistle-static-v21";
-const APP_SHELL = ["./index.html", "./manifest.webmanifest", "./app-icon.svg", "./story-ui.css?v=1", "./story-mode.js?v=3", "./career-experience.css?v=1", "./career-experience.js?v=1", "./agent-system.css?v=1", "./agent-system.js?v=1", "./career-hub.css?v=1", "./career-hub.js?v=1", "./player-store.css?v=2", "./ai-career-engine.js?v=1", "./football-world-ai.css?v=1", "./football-world-ai.js?v=1", "./redesign.css?v=5"];
+const CACHE_NAME = "last-whistle-static-v24";
+const APP_SHELL = ["./index.html", "./manifest.webmanifest", "./app-icon.svg", "./story-ui.css?v=1", "./story-mode.js?v=3", "./career-experience.css?v=1", "./career-experience.js?v=1", "./agent-system.css?v=1", "./agent-system.js?v=1", "./career-hub.css?v=1", "./career-hub.js?v=1", "./player-store.css?v=2", "./ai-career-engine.js?v=1", "./football-world-ai.css?v=1", "./football-world-ai.js?v=1", "./lz-string.min.js?v=1", "./football-world-rosters.js?v=2", "./football-world-db.js?v=3", "./world-roster-audit.json", "./redesign.css?v=5"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });

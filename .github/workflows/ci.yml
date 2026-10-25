@@ -1,7 +1,11 @@
 name: LAST WHISTLE CI
 on:
+  workflow_dispatch:
   push:
   pull_request:
+permissions:
+  contents: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -10,6 +14,48 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check out PR head for roster refresh
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27'
+        run: |
+          git fetch origin "$GITHUB_HEAD_REF"
+          git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
+      - name: Refresh current rosters on development branch
+        if: (github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27')
+        run: |
+          if node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); process.exit(r.status==="complete" && r.allLeagueMinimumsMet===true && r.totalTeams>=210 && r.totalPlayers>=3500 ? 0 : 1); } catch (_) { process.exit(1); }'; then
+            echo "A complete sourced-roster snapshot already exists; refresh skipped."
+          else
+            node scripts/refresh-world-squads.cjs
+          fi
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));
+          if (report.status !== 'complete' || report.allLeagueMinimumsMet !== true) {
+            throw new Error('Incomplete world squad data: ' + JSON.stringify(report.leagues));
+          }
+          if (report.totalTeams < 210 || report.totalPlayers < 3500) {
+            throw new Error('Insufficient squad coverage: ' + report.totalTeams + ' teams, ' + report.totalPlayers + ' players');
+          }
+          console.log('Sourced squad snapshot covers ' + report.totalTeams + ' clubs and ' + report.totalPlayers + ' players.');
+          NODE
+      - name: Commit refreshed roster snapshot on development branch
+        if: (github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add football-world-rosters.js public/football-world-rosters.js world-roster-audit.json public/world-roster-audit.json
+          if git diff --cached --quiet; then
+            echo "Roster snapshot already current."
+          else
+            git commit -m "Refresh 2026/27 verified world squad snapshot"
+            target_branch="$GITHUB_REF_NAME"
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then target_branch="$GITHUB_HEAD_REF"; fi
+            # The branch may receive code/workflow fixes while this long scrape runs.
+            # Rebase the generated data-only commit on the latest head before pushing.
+            git fetch origin "$target_branch"
+            git rebase "origin/$target_branch"
+            git push origin "HEAD:$target_branch"
+          fi
       - run: npm test
       - run: npm run build
 

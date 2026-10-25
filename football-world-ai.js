@@ -6,6 +6,9 @@
   "use strict";
   const VERSION = 1;
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
+  // The full roster catalogue is available in the database/UI. The career save simulates a
+  // compact 16-player matchday pool per club so long saves remain within browser storage limits.
+  const SIMULATED_SQUAD_LIMIT = 16;
   const POSITIONS = Object.freeze({
     goalkeeper: ["حارس مرمى"],
     defender: ["قلب دفاع", "ظهير"],
@@ -79,7 +82,7 @@
       division: Math.max(1, int(row.division, 1)), currency: String(profile.currency || "€"),
       basePower: power, power, prestige: clamp(row.prestige || power, 25, 100),
       budget: Math.round(90 + power * 10 + (Number(row.prestige) || power) * 2.8),
-      roster: [], matchesPerSeason: Math.max(20, int(profile.matches, 34)),
+      roster: [], matchesPerSeason: Math.max(20, int(row.matchesPerSeason || ((db && typeof db.leagueFor === "function" && db.leagueFor(row.country, row.division)) || {}).matchesPerSeason, int(profile.matches, 34))),
       updatedSeason: 1
     };
     world.clubs[id] = club;
@@ -101,7 +104,7 @@
       clubId: club.id, country: club.country, leagueId: club.leagueId, division: club.division,
       position, group, ovr, potential: clamp(row && row.potential || ovr + 3 + Math.floor(rng() * 18), ovr, 97),
       age, prestige: club.prestige, contractSeasons: 1 + Math.floor(rng() * 5),
-      isGenerated: !!generated, isRealPlayer: !generated && row && row.isRealPlayer !== false,
+      isGenerated: !!generated || !!(row && row.isRealPlayer === false), isRealPlayer: !generated && !!row && row.isRealPlayer !== false,
       lastRating: 0, transferListed: false
     };
     world.players[id] = player;
@@ -134,8 +137,9 @@
     for (const raw of clubs) {
       if (!raw || !raw.name || !raw.country) continue;
       const club = addClub(world, raw, db);
-      const rows = Array.isArray(raw.players) && raw.players.length ? raw.players
+      const sourceRows = Array.isArray(raw.players) && raw.players.length ? raw.players
         : db && typeof db.playerRecordsForClub === "function" ? db.playerRecordsForClub(raw.name, raw.country) : [];
+      const rows = sourceRows.slice(0, SIMULATED_SQUAD_LIMIT);
       let index = 0;
       for (const row of rows) {
         const nameKey = normalize(row && row.name);
@@ -151,20 +155,52 @@
   function reconcileDatabase(world, db) {
     if (!world || !world.clubs) return seedWorld(db);
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
+    const knownNames = new Set(Object.values(world.players).map(player => normalize(player && player.name)).filter(Boolean));
     for (const row of rows) {
       if (!row || !row.name || !row.country) continue;
       const id = clubKey(row.name, row.country);
+      const sourceRows = Array.isArray(row.players) && row.players.length ? row.players
+        : db && typeof db.playerRecordsForClub === "function" ? db.playerRecordsForClub(row.name, row.country) : [];
+      const records = sourceRows.slice(0, SIMULATED_SQUAD_LIMIT);
       if (!world.clubs[id]) {
         const club = addClub(world, row, db);
-        const records = Array.isArray(row.players) ? row.players : [];
-        records.forEach((player, index) => makePlayer(world, player, club, index, false));
+        let index = 0;
+        records.forEach(player => {
+          const nameKey = normalize(player && player.name);
+          if (!nameKey || knownNames.has(nameKey)) return;
+          makePlayer(world, player, club, index++, false);
+          knownNames.add(nameKey);
+        });
         fillRoster(world, club);
       } else {
         const club = world.clubs[id];
-        const profile = db && typeof db.leagueById === "function" ? db.leagueById(row.leagueId) || {} : {};
-        club.leagueName = String(profile.league || club.leagueName || "");
-        club.leagueEnglish = String(profile.english || club.leagueEnglish || "");
-        club.matchesPerSeason = Math.max(20, int(profile.matches, club.matchesPerSeason || 34));
+        const profile = db && typeof db.leagueFor === "function"
+          ? db.leagueFor(row.country, row.division) || {}
+          : db && typeof db.leagueById === "function" ? db.leagueById(row.leagueId) || {} : {};
+        club.leagueName = String(row.leagueName || profile.name || profile.league || club.leagueName || "");
+        club.leagueEnglish = String(row.leagueEnglish || profile.englishName || profile.english || club.leagueEnglish || "");
+        club.division = Math.max(1, int(row.division, club.division || 1));
+        club.matchesPerSeason = Math.max(20, int(row.matchesPerSeason || profile.matchesPerSeason || profile.matches, club.matchesPerSeason || 34));
+        // Migrate saves created before complete squads were stored. Replace only generated
+        // placeholders; existing real players and their career history are preserved.
+        let index = 0;
+        for (const playerRow of records) {
+          const nameKey = normalize(playerRow && playerRow.name);
+          if (!nameKey || knownNames.has(nameKey)) continue;
+          while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
+            const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
+              .sort((a, b) => Number(a.ovr || 0) - Number(b.ovr || 0));
+            if (!generated.length) break;
+            const replace = generated[0];
+            club.roster = club.roster.filter(playerId => playerId !== replace.id);
+            delete world.players[replace.id];
+            knownNames.delete(normalize(replace.name));
+          }
+          if ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) break;
+          makePlayer(world, playerRow, club, index++, false);
+          knownNames.add(nameKey);
+        }
+        fillRoster(world, club);
       }
     }
     world.dbVersion = int(db && db.version, world.dbVersion || 0);
@@ -646,6 +682,20 @@
     do { count++; product *= Math.max(1e-9, rng()); } while (product > limit && count < 12);
     return Math.max(0, count - 1);
   }
+  function compactWorldMatch(match) {
+    return { season: Number(match.season), competitionId: match.competitionId || "league",
+      division: Number(match.division) || 1, matchday: Number(match.matchday) || 1,
+      homeClubId: match.homeClubId, awayClubId: match.awayClubId,
+      homeGoals: Number(match.homeGoals) || 0, awayGoals: Number(match.awayGoals) || 0 };
+  }
+  function expandWorldMatches(world, matches) {
+    return (matches || []).map(match => {
+      const home = world.clubs[match.homeClubId], away = world.clubs[match.awayClubId];
+      return { ...match, id: "world-match-" + match.season + "-" + hash([match.homeClubId, match.awayClubId, match.matchday].join("|")).toString(36),
+        home: home ? home.name : "", away: away ? away.name : "",
+        result: match.homeGoals === match.awayGoals ? "draw" : match.homeGoals > match.awayGoals ? "home-win" : "away-win" };
+    });
+  }
   function playerAccumulator() {
     return { appearances: 0, goals: 0, assists: 0, ratingTotal: 0, clubId: "", leagueId: "", division: 0 };
   }
@@ -775,7 +825,8 @@
     const year = Math.max(1, int(season, int(save.season, 1)));
     if (Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))) {
       return { season: year, rows: world.seasonStats[String(year)] || [], tables: world.leagueTables[String(year)] || {},
-        matches: world.matchesBySeason[String(year)] || [], competitions: world.competitionsBySeason[String(year)] || [] };
+        matches: expandWorldMatches(world, world.matchesBySeason[String(year)] || []),
+        competitions: world.competitionsBySeason[String(year)] || [] };
     }
     const accumulators = new Map(Object.values(world.players).map(player => [player.id, playerAccumulator()]));
     const tables = {}, allMatches = [], groups = groupRows(world);
@@ -832,14 +883,20 @@
           : index === 0 ? "بطل المحاكاة" : index >= Math.max(1, ranked.length - 2) ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
     }
     const rows = buildPlayerRows(world, year, accumulators);
-    world.matchesBySeason[String(year)] = allMatches;
+    // Persist compact match scores and only the most recent complete season of fixtures.
+    // This prevents localStorage quota failures when the game contains hundreds of clubs.
+    world.matchesBySeason[String(year)] = allMatches.map(compactWorldMatch);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
     world.competitionsBySeason[String(year)] = simulateCompetitions(world, year, db, tables);
-    const keep = Object.keys(world.matchesBySeason).map(Number).sort((a,b)=>a-b).slice(-12);
-    const keepSet = new Set(keep.map(String));
-    Object.keys(world.matchesBySeason).forEach(key => { if (!keepSet.has(key)) delete world.matchesBySeason[key]; });
-    Object.keys(world.competitionsBySeason).forEach(key => { if (!keepSet.has(key)) delete world.competitionsBySeason[key]; });
+    const matchKeep = Object.keys(world.matchesBySeason).map(Number).sort((a,b)=>a-b).slice(-1);
+    const matchKeepSet = new Set(matchKeep.map(String));
+    Object.keys(world.matchesBySeason).forEach(key => { if (!matchKeepSet.has(key)) delete world.matchesBySeason[key]; });
+    const seasonKeep = Object.keys(world.seasonStats).map(Number).sort((a,b)=>a-b).slice(-2);
+    const seasonKeepSet = new Set(seasonKeep.map(String));
+    Object.keys(world.seasonStats).forEach(key => { if (!seasonKeepSet.has(key)) delete world.seasonStats[key]; });
+    Object.keys(world.leagueTables).forEach(key => { if (!seasonKeepSet.has(key)) delete world.leagueTables[key]; });
+    Object.keys(world.competitionsBySeason).forEach(key => { if (!seasonKeepSet.has(key)) delete world.competitionsBySeason[key]; });
     return { season: year, rows, tables, matches: allMatches, competitions: world.competitionsBySeason[String(year)] };
   }
   function knockout(world, season, def, participants) {
@@ -1102,7 +1159,7 @@
     seasonMatches: function (save, season, db) {
       const world = base.ensureState(save, db);
       simulateLeagueSeason(save, season, db);
-      return (world.matchesBySeason[String(Math.max(1, int(season, 1)))] || []).slice();
+      return expandWorldMatches(world, (world.matchesBySeason[String(Math.max(1, int(season, 1)))] || []).slice());
     },
     seasonCompetitions: function (save, season, db) {
       const world = base.ensureState(save, db);

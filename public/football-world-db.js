@@ -4,9 +4,9 @@
  */
 (function () {
   "use strict";
-  var VERSION = 2;
+  var VERSION = 3;
   var SEASON = "2026/27";
-  var RATINGS_NOTE = "قوة الأندية والهيبة هنا تقديرات توازن داخل اللعبة، مش تصنيفات رسمية. أسماء النجوم أمثلة من القوائم وليست قائمة كاملة.";
+  var RATINGS_NOTE = "قوة الأندية والتقييمات تقديرات توازن داخل اللعبة. الأسماء من قوائم أندية 2026/27 المتاحة موثقة بمصدرها؛ أي اسم ناشئ مولّد موسوم داخل البيانات وليس لاعبًا حقيقيًا.";
   var LEAGUES = [
     {id:"england",country:"إنجلترا",englishCountry:"England",league:"الدوري الإنجليزي الممتاز",english:"Premier League",tier2:"دوري البطولة الإنجليزية",tier2English:"EFL Championship",confederation:"UEFA",globalTier:1,strength:98,teams:20,matches:38,tier2Teams:24,currency:"£",cups:["fa-cup","efl-cup"],superCup:"community-shield",continental:["ucl","uel","uecl"],url:"https://www.premierleague.com/"},
     {id:"spain",country:"إسبانيا",englishCountry:"Spain",league:"الدوري الإسباني الدرجة الأولى",english:"LaLiga",tier2:"الدوري الإسباني الدرجة الثانية",tier2English:"LaLiga Hypermotion",confederation:"UEFA",globalTier:1,strength:96,teams:20,matches:38,tier2Teams:22,currency:"€",cups:["copa-del-rey"],superCup:"spanish-super-cup",continental:["ucl","uel","uecl"],url:"https://www.laliga.com/"},
@@ -14,7 +14,7 @@
     {id:"italy",country:"إيطاليا",englishCountry:"Italy",league:"الدوري الإيطالي الدرجة الأولى",english:"Serie A",tier2:"الدوري الإيطالي الدرجة الثانية",tier2English:"Serie B",confederation:"UEFA",globalTier:1,strength:93,teams:20,matches:38,tier2Teams:20,currency:"€",cups:["coppa-italia"],superCup:"italian-super-cup",continental:["ucl","uel","uecl"],url:"https://www.legaseriea.it/"},
     {id:"france",country:"فرنسا",englishCountry:"France",league:"الدوري الفرنسي الدرجة الأولى",english:"Ligue 1",tier2:"الدوري الفرنسي الدرجة الثانية",tier2English:"Ligue 2",confederation:"UEFA",globalTier:1,strength:91,teams:18,matches:34,tier2Teams:18,currency:"€",cups:["coupe-de-france"],superCup:"trophee-des-champions",continental:["ucl","uel","uecl"],url:"https://ligue1.com/"},
     {id:"portugal",country:"البرتغال",englishCountry:"Portugal",league:"الدوري البرتغالي الممتاز",english:"Primeira Liga",tier2:"الدوري البرتغالي الدرجة الثانية",tier2English:"Liga Portugal 2",confederation:"UEFA",globalTier:1,strength:88,teams:18,matches:34,tier2Teams:18,currency:"€",cups:["taca-portugal","taca-liga"],superCup:"portuguese-super-cup",continental:["ucl","uel","uecl"],url:"https://www.ligaportugal.pt/"},
-    {id:"egypt",country:"مصر",englishCountry:"Egypt",league:"الدوري المصري الممتاز",english:"Egyptian Premier League",tier2:"دوري الدرجة الثانية المصري",tier2English:"Egyptian Second Division",confederation:"CAF",globalTier:3,strength:76,teams:18,matches:34,tier2Teams:12,currency:"ج.م",cups:["egypt-cup","egypt-league-cup"],superCup:"egyptian-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.efa.com.eg/"},
+    {id:"egypt",country:"مصر",englishCountry:"Egypt",league:"الدوري المصري الممتاز",english:"Egyptian Premier League",tier2:"دوري الدرجة الثانية المصري",tier2English:"Egyptian Second Division",confederation:"CAF",globalTier:3,strength:76,teams:20,matches:34,tier2Teams:12,currency:"ج.م",cups:["egypt-cup","egypt-league-cup"],superCup:"egyptian-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.efa.com.eg/"},
     {id:"morocco",country:"المغرب",englishCountry:"Morocco",league:"البطولة الاحترافية المغربية",english:"Botola Pro",tier2:"القسم الثاني المغربي",tier2English:"Botola 2",confederation:"CAF",globalTier:3,strength:72,teams:16,matches:30,tier2Teams:16,currency:"$",cups:["morocco-throne-cup"],superCup:"morocco-super-cup",continental:["caf-cl","caf-confed"],url:"https://frmf.ma/"},
     {id:"tunisia",country:"تونس",englishCountry:"Tunisia",league:"الرابطة التونسية المحترفة الأولى",english:"Tunisian Ligue Professionnelle 1",tier2:"الرابطة التونسية المحترفة الثانية",tier2English:"Ligue 2",confederation:"CAF",globalTier:3,strength:70,teams:16,matches:30,tier2Teams:24,currency:"$",cups:["tunisia-cup"],superCup:"tunisia-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.ftf.org.tn/"},
     {id:"algeria",country:"الجزائر",englishCountry:"Algeria",league:"الرابطة الجزائرية المحترفة الأولى",english:"Ligue Professionnelle 1",tier2:"الرابطة الجزائرية الثانية",tier2English:"Ligue 2",confederation:"CAF",globalTier:3,strength:69,teams:16,matches:30,tier2Teams:16,currency:"$",cups:["algeria-cup"],superCup:"algeria-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.faf.dz/"},
@@ -142,6 +142,283 @@
   ];
 
 
+  // Import a checked-in current-roster snapshot when available. The game does not fetch
+  // roster data at runtime; this overlay keeps offline/Pages launches deterministic.
+  var SQUAD_SNAPSHOT = window.LWFootballSquadData && Array.isArray(window.LWFootballSquadData.leagues)
+    ? window.LWFootballSquadData : { leagues: [] };
+  var IMPORTED_CLUB_COUNT = 0;
+  var IMPORTED_PLAYER_COUNT = 0;
+  function clubMatchKey(value) {
+    var key = normalize(value);
+    key = key.replace(/^(afc|fc|cf|sc)/, "");
+    key = key.replace(/(footballclub|athleticclub|club|fc|afc|cf|sc|ac)$/, "");
+    return key;
+  }
+  function estimatedClubPower(leagueId, division, index) {
+    var profile = leagueById(leagueId) || {};
+    var base = Number(profile.strength) || 60;
+    if (Number(division) >= 2) base -= 18;
+    var stableNoise = ((normalize(leagueId + "|" + division + "|" + index).split("").reduce(function (sum, ch) {
+      return (sum * 33 + ch.charCodeAt(0)) >>> 0;
+    }, 5381) % 11) - 5);
+    return Math.max(42, Math.min(88, base + stableNoise));
+  }
+  function estimateImportedPlayer(player, club, index) {
+    var base = Number(club.ovr) || 58;
+    var age = Number(player.age) || 23;
+    var position = String(player.position || "وسط مهاجم");
+    var roleAdjust = position.indexOf("حارس") >= 0 ? -1
+      : position.indexOf("مهاجم") >= 0 ? 1
+      : position.indexOf("دفاع") >= 0 ? 0 : 1;
+    var nameHash = normalize(player.name).split("").reduce(function (sum, ch) {
+      return (Math.imul(sum ^ ch.charCodeAt(0), 16777619) >>> 0);
+    }, 2166136261);
+    var ageAdjust = age <= 21 ? 2 : age >= 31 ? -3 : age >= 28 ? -1 : 0;
+    var ovr = Math.max(40, Math.min(92, Math.round(base - 3 + roleAdjust + ageAdjust + ((nameHash + index * 7) % 9) - 4)));
+    return {
+      id: club.leagueId + "-" + normalize(player.name),
+      name: player.name,
+      clubName: club.name,
+      country: club.country,
+      leagueId: club.leagueId,
+      division: Number(club.division) || 1,
+      position: position,
+      ovr: ovr,
+      potential: Math.min(96, ovr + (age <= 22 ? 8 : age <= 26 ? 4 : 1)),
+      age: age,
+      isRealPlayer: true,
+      jerseyNumber: Number(player.number) || null,
+      nationality: player.nationality || "",
+      dateOfBirth: player.dob || "",
+      season: SEASON,
+      source: player.source || SQUAD_SNAPSHOT.source || "Current squad snapshot",
+      ratingType: "simulation-estimate"
+    };
+  }
+  var MANUAL_FIRST_DIVISION_CLUBS = [
+    // Egypt — current 2026/27 first-division participants; clubs without sourced squad pages get explicit generated backups.
+    {leagueId:"egypt",country:"مصر",division:1,name:"الاتحاد السكندري",aliases:["Al Ittihad Alexandria","Al-Ittihad Alexandria","Al Ittihad"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"أبو قير للأسمدة",aliases:["Abou Qir","Abu Qir Fertilizers"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"بترول أسيوط",aliases:["Asyut Petroleum","Petroleum Assiut"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"سيراميكا كليوباترا",aliases:["Ceramica Cleopatra"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"الجونة",aliases:["El Gouna"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"إنبي",aliases:["ENPPI"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"غزل المحلة",aliases:["Ghazl El Mahalla"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"مودرن سبورت",aliases:["Modern Future FC","Modern Sport","Future FC"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"البنك الأهلي",aliases:["National Bank of Egypt","National Bank"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"بتروجيت",aliases:["Petrojet"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"سموحة",aliases:["Smouha SC","Smouha"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"طلائع الجيش",aliases:["Tala'ea El Geish","El Geish"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"زد",aliases:["ZED FC","ZED"]},
+    // Morocco — Botola Pro 1.
+    {leagueId:"morocco",country:"المغرب",division:1,name:"أمل تزنيت",aliases:["US Amal Tiznit","Amal Tiznit"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"النادي المكناسي",aliases:["CODM Meknès","CODM Meknes"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الدفاع الحسني الجديدي",aliases:["Difaâ El Jadida","Difaa Hassani El Jadidi"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الفتح الرباطي",aliases:["FUS Rabat","Fath Union Sport"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"حسنية أكادير",aliases:["Hassania Agadir","HUSA"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"اتحاد طنجة",aliases:["Ittihad Tanger","IRT"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الكوكب المراكشي",aliases:["Kawkab Marrakech"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"المغرب الفاسي",aliases:["Maghreb Fès","Maghreb Fes","MAS Fes"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"المغرب التطواني",aliases:["Moghreb Tétouan","Moghreb Tetouan","MAT"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"نهضة الزمامرة",aliases:["CR Khemis Zemamra","Renaissance Club Athletic Zemamra"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الاتحاد التوركي",aliases:["UTS Rabat","Union Touarga Sportif"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"وداد تمارة",aliases:["Widad Témara","Widad Temara"]},
+    // Tunisia — Ligue Professionnelle 1 2026/27.
+    {leagueId:"tunisia",country:"تونس",division:1,name:"مستقبل المرسى",aliases:["AS Marsa","AS La Marsa"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي البنزرتي",aliases:["CA Bizertin","CAB"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي الصفاقسي",aliases:["CS Sfaxien","CS Sfaxien","CSS"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النجم الرياضي بحمام سوسة",aliases:["ES Hammam Sousse","ESHS"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النجم الرياضي بالمتلوي",aliases:["ES Métlaoui","ES Metlaoui","ESM"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الترجي الجرجيسي",aliases:["ES Zarzis","ESZ"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"شبيبة العمران",aliases:["JS El Omrane","JSO"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الأولمبي الباجي",aliases:["Olympique Béja","Olympique Beja","OB"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الملعب التونسي",aliases:["Stade Tunisien","ST"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الاتحاد الرياضي ببن قردان",aliases:["US Ben Guerdane","USBG"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الاتحاد المنستيري",aliases:["US Monastir","USM"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي بحمام الأنف",aliases:["CS Hammam-Lif","CSHL"]},
+    // Algeria — Ligue 1 2026/27.
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"أولمبي الشلف",aliases:["ASO Chlef"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"شباب بلوزداد",aliases:["CR Belouizdad"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"شباب قسنطينة",aliases:["CS Constantine"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"نجم بن عكنون",aliases:["ES Ben Aknoun"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"ترجي مستغانم",aliases:["ES Mostaganem"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"وفاق سطيف",aliases:["ES Sétif","ES Setif"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"شبيبة الساورة",aliases:["JS Saoura"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"مستقبل الرويسات",aliases:["MB Rouissat"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"مولودية البيض",aliases:["MC El Bayadh"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"مولودية وهران",aliases:["MC Oran"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"أولمبيك أقبو",aliases:["O Akbou","Olympique Akbou"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"نادي بارادو",aliases:["Paradou AC"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"اتحاد خنشلة",aliases:["USM Khenchela"]},
+    // Senegal — Ligue 1 2026/27.
+    {leagueId:"senegal",country:"السنغال",division:1,name:"أجيل روفيسك",aliases:["AJEL de Rufisque","AJEL Rufisque"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"أكاديمية بيكين",aliases:["AS Pikine","Pikine"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"كازا سبورت",aliases:["Casa Sports","Casa-Sports"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"داكار ساكر كور",aliases:["Dakar Sacré-Cœur","Dakar Sacre-Coeur"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"ديامبارز",aliases:["Diambars","Diambars de Saly"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"إيساماي",aliases:["Essamaye FC"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"غيدياواي",aliases:["Guédiawaye FC","Guediawaye"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"إتش إل إم داكار",aliases:["ASC HLM Dakar","HLM"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"لا لينغير",aliases:["La Linguère","La Linguere","ASC La Linguère"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"ملعب مبور",aliases:["Stade de Mbour","Stade Mbour"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"تيونغيث",aliases:["Teungueth FC","Teungueth Rufisque"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"يو إس غوري",aliases:["US Gorée","US Goree"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"يو إس واكام",aliases:["US Ouakam"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"والي دان",aliases:["Wally Daan","Wally Daan FC"]},
+    // Nigeria — NPFL 2026/27.
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"نيجر تورنادوز",aliases:["Niger Tornadoes FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كون خليفات",aliases:["Kun Khalifat FC","Kun Khalifat Football Club"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"ناساراوا يونايتد",aliases:["Nasarawa United FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"إيكيورودو سيتي",aliases:["Ikorodu City FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كاتسينا يونايتد",aliases:["Katsina United FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"سبورتينغ لاغوس",aliases:["Sporting Lagos"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كانو بيلارز",aliases:["Kano Pillars"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"إنتر لاغوس",aliases:["Inter Lagos"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"رينجرز إنترناشيونال",aliases:["Rangers International","Enugu Rangers"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"واري وولفز",aliases:["Warri Wolves"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"دوما يونايتد",aliases:["Doma United"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"باراو",aliases:["Barau FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"رانشرز بيز",aliases:["Ranchers Bees"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"بندل إنشورانس",aliases:["Bendel Insurance"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"بلاتو يونايتد",aliases:["Plateau United"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"شوتينغ ستارز",aliases:["Shooting Stars Sports Club","3SC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كوارا يونايتد",aliases:["Kwara United"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"أبيا ووريورز",aliases:["Abia Warriors"]},
+    // Ghana — Premier League 2026/27.
+    {leagueId:"ghana",country:"غانا",division:1,name:"أدوانا ستارز",aliases:["Aduana FC","Aduana Stars"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"أشانتي غولد 04",aliases:["Ashantigold '04","Ashanti Gold"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"باساكي هولي ستارز",aliases:["Basake Holy Stars"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بيشيم يونايتد",aliases:["Bechem United"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بيركوم تشيلسي",aliases:["Berekum Chelsea"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بيبياني غولد ستارز",aliases:["Bibiani Gold Stars"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"ديبيبي يونايتد",aliases:["Debibi United"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"دريمز إف سي",aliases:["Dreams FC"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"هارت أوف ليونز",aliases:["Heart of Lions"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"كاريلا يونايتد",aliases:["Karela United"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"ميديما",aliases:["Medeama SC","Medeama"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بورت سيتي",aliases:["Port City FC","Port City"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"سامارتكس",aliases:["Samartex FC","FC Samartex"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"سْوِدرو أول بلاكس",aliases:["Swedru All Blacks"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"فيجن إف سي",aliases:["Vision FC"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"يونغ أبوستلز",aliases:["Young Apostles FC"]},
+    // Argentina — 2026 first division clubs.
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"ألدوسيفي",aliases:["Aldosivi"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"أرجنتينوس جونيورز",aliases:["Argentinos Juniors","Argentinos"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"أتلتيكو توكومان",aliases:["Atlético Tucumán","Atletico Tucuman"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"بانفيلد",aliases:["Banfield"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"باراكاس سنترال",aliases:["Barracas Central"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"بيلغرانو",aliases:["Belgrano"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"روساريو سنترال",aliases:["Rosario Central","Central"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"سنترال كوردوبا",aliases:["Central Córdoba","Central Cordoba"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"ديفينسا خوستيكا",aliases:["Defensa y Justicia","Defensa"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إستوديانتس لا بلاتا",aliases:["Estudiantes de La Plata"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إستوديانتس ريو كوارتو",aliases:["Estudiantes de Río Cuarto","Estudiantes de Rio Cuarto"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"خيمناسيا لا بلاتا",aliases:["Gimnasia La Plata"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"خيمناسيا ميندوزا",aliases:["Gimnasia de Mendoza","Gimnasia (Mendoza)"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"هوراكان",aliases:["Huracán","Huracan"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إنديبندينتي ريفادافيا",aliases:["Independiente Rivadavia"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إنستيتوتو",aliases:["Instituto"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"لانوس",aliases:["Lanús","Lanus"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"نيويلز أولد بويز",aliases:["Newell's Old Boys","Newell’s"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"بلاتينسي",aliases:["Platense"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"دِيِسترا",aliases:["Deportivo Riestra","Riestra"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"سان لورينزو",aliases:["San Lorenzo"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"سارمينتو",aliases:["Sarmiento"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"تالريريس",aliases:["Talleres"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"تيغري",aliases:["Tigre"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"يونيون سانتا في",aliases:["Unión","Union"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"فيليز سارسفيلد",aliases:["Vélez Sarsfield","Velez"]},
+    // Brazilian top-flight clubs are fully imported via the roster refresh. This registry catches any missing entry.
+  ];
+
+  function applyManualClubRegistry() {
+    MANUAL_FIRST_DIVISION_CLUBS.forEach(function (entry, index) {
+      var candidates = [entry.name].concat(entry.aliases || []);
+      var found = CLUBS.find(function (club) {
+        if (club.leagueId !== entry.leagueId) return false;
+        return [club.name].concat(club.aliases || []).some(function (name) {
+          var key = clubMatchKey(name);
+          return candidates.some(function (candidate) {
+            var compare = clubMatchKey(candidate);
+            return key && compare && key === compare;
+          });
+        });
+      });
+      if (found) {
+        // Explicit 2026/27 current top-flight participants override outdated stored divisions.
+        found.division = 1;
+        found.aliases = Array.from(new Set((found.aliases || []).concat(candidates)));
+      } else {
+        var power = estimatedClubPower(entry.leagueId, 1, index);
+        CLUBS.push({name:entry.name,aliases:candidates.slice(1),country:entry.country,
+          leagueId:entry.leagueId,division:1,ovr:power,prestige:Math.max(35,Math.min(94,power+4)),stars:[],
+          rosterSource:"generated-squad; no verified full roster source"});
+      }
+    });
+    // Ismaily did not appear in the current official 20-club Egyptian league list.
+    var ismaily = CLUBS.find(function (club) { return club.leagueId === "egypt" && club.aliases && club.aliases.some(function(alias){return clubMatchKey(alias)==="ismaily";}); });
+    if (ismaily && ismaily.name === "الإسماعيلي") ismaily.division = 2;
+  }
+  applyManualClubRegistry();
+
+  function applyImportedSquads() {
+    var imported = [];
+    (SQUAD_SNAPSHOT.leagues || []).forEach(function (league) {
+      (league.clubs || []).forEach(function (sourceClub, sourceIndex) {
+        if (!sourceClub || !sourceClub.name || !Array.isArray(sourceClub.players) || !sourceClub.players.length) return;
+        var sourceKey = clubMatchKey(sourceClub.name);
+        var aliases = [sourceClub.name].concat(sourceClub.aliases || []);
+        var found = CLUBS.find(function (club) {
+          if (club.leagueId !== league.leagueId || (Number(club.division) || 1) !== Number(league.division || 1)) return false;
+          return [club.name].concat(club.aliases || []).some(function (name) {
+            var key = clubMatchKey(name);
+            return key && (key === sourceKey || aliases.some(function (alias) { return key === clubMatchKey(alias); }));
+          });
+        });
+        var profile = leagueById(league.leagueId) || {};
+        if (!found) {
+          var power = estimatedClubPower(league.leagueId, league.division, sourceIndex);
+          found = {
+            name: sourceClub.name,
+            aliases: aliases,
+            country: league.country || profile.country || "",
+            leagueId: league.leagueId,
+            division: Math.max(1, Number(league.division) || 1),
+            ovr: power,
+            prestige: Math.max(40, Math.min(92, power + 4)),
+            stars: [],
+            fullRoster: [],
+            rosterSource: sourceClub.source || SQUAD_SNAPSHOT.source || "Current squad snapshot"
+          };
+          CLUBS.push(found);
+        } else {
+          // Keep the curated Arabic display name, club strength and highlight names;
+          // fullRoster stores the complete sourced squad independently.
+          found.division = Math.max(1, Number(league.division) || 1);
+          found.aliases = Array.from(new Set((found.aliases || []).concat(aliases)));
+        }
+        var rosterSeen = new Set();
+        var fullRoster = sourceClub.players.map(function (player, playerIndex) {
+          if (!player || !player.name) return null;
+          var key = normalize(player.name);
+          if (!key || rosterSeen.has(key)) return null;
+          rosterSeen.add(key);
+          return estimateImportedPlayer(player, found, playerIndex);
+        }).filter(Boolean);
+        if (!fullRoster.length) return;
+        found.fullRoster = fullRoster;
+        // Do not overwrite curated Arabic highlight names with English source names.
+        found.rosterSource = sourceClub.source || SQUAD_SNAPSHOT.source || "Current squad snapshot";
+        found.sourceUrl = sourceClub.sourceUrl || "";
+        imported.push({ leagueId: found.leagueId, division: found.division, club: found.name, players: fullRoster.length });
+        IMPORTED_CLUB_COUNT++;
+        IMPORTED_PLAYER_COUNT += fullRoster.length;
+      });
+    });
+    return imported;
+  }
+  var IMPORTED_SQUAD_SUMMARY = applyImportedSquads();
+
   var PLAYER_POSITION_HINTS = {
     "محمد الشناوي":"حارس مرمى","مصطفى شوبير":"حارس مرمى","تيبو كورتوا":"حارس مرمى","جوان غارسيا":"حارس مرمى","أليسون بيكر":"حارس مرمى",
     "فيرجيل فان دايك":"قلب دفاع","ماركينيوس":"قلب دفاع","روبن دياز":"قلب دفاع","جوناثان تاه":"قلب دفاع","غوستافو غوميز":"قلب دفاع",
@@ -208,14 +485,50 @@
     });
     return list[0] || null;
   }
+  function generatedBackupRecords(item, currentPlayers) {
+    var players = currentPlayers.slice();
+    var positions = ["حارس مرمى","حارس مرمى","حارس مرمى","قلب دفاع","قلب دفاع","قلب دفاع","قلب دفاع","ظهير","ظهير",
+      "وسط دفاعي","وسط دفاعي","وسط مهاجم","وسط مهاجم","وسط مهاجم","جناح","جناح","جناح","مهاجم","مهاجم","مهاجم",
+      "قلب دفاع","وسط مهاجم","ظهير","مهاجم","حارس مرمى"];
+    var index = 1;
+    var base = Number(item.ovr) || 58;
+    while (players.length < 25) {
+      var pos = positions[(players.length) % positions.length];
+      var seed = normalize(item.leagueId + "|" + item.name + "|" + index).split("").reduce(function (sum, ch) {
+        return (Math.imul(sum ^ ch.charCodeAt(0), 16777619) >>> 0);
+      }, 2166136261);
+      var ovr = Math.max(38, Math.min(78, Math.round(base - 11 + (seed % 15))));
+      var name = item.name + " • لاعب مُولّد " + String(index).padStart(2, "0");
+      players.push({
+        id:"generated-" + item.leagueId + "-" + (Number(item.division) || 1) + "-" + normalize(item.name) + "-" + index,
+        name:name,clubName:item.name,country:item.country,leagueId:item.leagueId,division:Number(item.division)||1,
+        position:pos,ovr:ovr,potential:Math.min(88,ovr+6),age:18+(seed%12),isRealPlayer:false,isGenerated:true,
+        season:SEASON,source:"توليد داخلي لتكميل قائمة الفريق؛ ليس لاعبًا حقيقيًا",ratingType:"simulation-estimate"
+      });
+      index++;
+    }
+    return players;
+  }
   function normalizeClub(item) {
     var profile = leagueById(item.leagueId);
     var division = Math.max(1, Number(item.division) || 1);
+    var hasCurrentRoster = Array.isArray(item.fullRoster) && item.fullRoster.length > 0;
+    var players = hasCurrentRoster
+      ? item.fullRoster.map(function (player) { return Object.assign({}, player); })
+      : buildPlayerRecords(item);
+    var curatedNames = (item.stars || []).slice();
+    var rosterSource = item.rosterSource || "";
+    if (!hasCurrentRoster && players.length < 25) {
+      players = generatedBackupRecords(item, players);
+      if (!rosterSource) rosterSource = curatedNames.length ? "curated highlights + generated in-game backups" : "generated in-game squad; no verified full-roster source";
+    }
     return {name:item.name,aliases:(item.aliases || []).slice(),country:item.country,leagueId:item.leagueId,division:division,
       leagueName:profile ? (division >= 2 ? profile.tier2 : profile.league) : "",
       leagueEnglish:profile ? (division >= 2 ? profile.tier2English : profile.english) : "",
-      ovr:item.ovr,prestige:item.prestige,stars:(item.stars || []).slice(),players:buildPlayerRecords(item),
-      season:SEASON,ratingType:"simulation-estimate",rosterStatus:(item.stars || []).length ? "curated-highlights" : "ratings-only"};
+      ovr:item.ovr,prestige:item.prestige,stars:curatedNames.length ? curatedNames : (hasCurrentRoster ? players.map(function (player) { return player.name; }) : curatedNames),
+      players:players,season:SEASON,ratingType:"simulation-estimate",
+      rosterStatus:hasCurrentRoster ? "current-squad" : curatedNames.length ? "curated-highlights+generated-backups" : "generated-squad",
+      rosterSource:rosterSource,sourceUrl:item.sourceUrl || ""};
   }
   function leagueFor(country, division) {
     var profile = leagueByCountry(country);
@@ -290,19 +603,43 @@
     leagues:function () { return LEAGUES.map(function (item) { return profileSummary(item.country); }); },
     leagueById:leagueById,leagueByCountry:leagueByCountry,leagueFor:leagueFor,
     clubs:function () { return CLUBS.map(normalizeClub); },clubsForCountry:clubsForCountry,
+    rosterCoverage:function () {
+      var byLeague = {};
+      var totalDatabasePlayers = 0, totalRealPlayers = 0, totalGeneratedPlayers = 0;
+      CLUBS.forEach(function (club) {
+        var key = String(club.leagueId) + ":" + String(Number(club.division) || 1);
+        if (!byLeague[key]) byLeague[key] = {leagueId:club.leagueId,division:Number(club.division)||1,clubCount:0,
+          clubsWithCurrentRoster:0,clubsWithPartialRoster:0,listedPlayers:0,realPlayers:0,generatedPlayers:0,clubsNeedingRealRoster:[]};
+        var row = normalizeClub(club);
+        byLeague[key].clubCount++;
+        byLeague[key].listedPlayers += row.players.length;
+        totalDatabasePlayers += row.players.length;
+        row.players.forEach(function (player) {
+          if (player.isRealPlayer !== false && !player.isGenerated) { byLeague[key].realPlayers++; totalRealPlayers++; }
+          else { byLeague[key].generatedPlayers++; totalGeneratedPlayers++; }
+        });
+        if (Array.isArray(club.fullRoster) && club.fullRoster.length) byLeague[key].clubsWithCurrentRoster++;
+        else if ((club.stars || []).length) byLeague[key].clubsWithPartialRoster++;
+        else byLeague[key].clubsNeedingRealRoster.push(club.name);
+      });
+      return {season:SEASON,source:SQUAD_SNAPSHOT.source || "",snapshotGeneratedAt:SQUAD_SNAPSHOT.generatedAt || null,
+        importedClubs:IMPORTED_CLUB_COUNT,importedPlayers:IMPORTED_PLAYER_COUNT,totalClubs:CLUBS.length,
+        totalDatabasePlayers:totalDatabasePlayers,totalRealPlayers:totalRealPlayers,totalGeneratedPlayers:totalGeneratedPlayers,
+        leagues:Object.values(byLeague).sort(function(a,b){return a.leagueId.localeCompare(b.leagueId)||a.division-b.division;})};
+    },
     clubByName:function (name,country) { var item = findClub(name,country); return item ? normalizeClub(item) : null; },
-    playersForClub:function (name,country) { var item = findClub(name,country); return item ? item.stars.slice() : []; },
+    playersForClub:function (name,country) { var item = findClub(name,country); return item ? normalizeClub(item).players.map(function (row) { return row.name; }) : []; },
     playerRecordsForClub:function (name,country) {
       var item = findClub(name,country);
-      return item ? buildPlayerRecords(item).map(function (row) { return Object.assign({},row); }) : [];
+      return item ? normalizeClub(item).players.map(function (row) { return Object.assign({},row); }) : [];
     },
     playerByName:function (name,country) {
       var target=normalize(name), list=CLUBS.filter(function (club) {
         if(country && normalize(club.country)!==normalize(country)) return false;
-        return (club.stars || []).some(function (star) { return normalize(star)===target; });
+        return normalizeClub(club).players.some(function (player) { return normalize(player.name)===target; });
       });
       if(!list.length) return null;
-      return buildPlayerRecords(list[0]).find(function (row) { return normalize(row.name)===target; }) || null;
+      return normalizeClub(list[0]).players.find(function (row) { return normalize(row.name)===target; }) || null;
     },
     tournamentById:tournamentById,allTournaments:function () { return TOURNAMENTS.map(function (item) {
       return Object.assign({},item,{teams:(item.teams || []).slice(),countries:(item.countries || []).slice(),qualificationPlaces:(item.qualificationPlaces || []).slice()});

@@ -208,6 +208,16 @@ async function main() {
     results.push("position-based starting stats, youth contract, dynamic league length, currency and match countdown");
 
     await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    // The command center is injected by story-mode.js after the page starts. Wait for
+    // its actual user-facing controls to finish becoming visible before inspecting layout.
+    await page.locator("#lw-command-center").waitFor({ state: "visible", timeout: 10000 });
+    await page.locator("#lw-cta-season").waitFor({ state: "visible", timeout: 10000 });
+    await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
+    await page.waitForFunction(() => {
+      const season = document.querySelector("#lw-cta-season");
+      const transfers = document.querySelector("#lw-cta-transfers");
+      return !!season && !!transfers && season.getBoundingClientRect().width > 0 && transfers.getBoundingClientRect().width > 0;
+    }, null, { timeout: 10000 });
     const homeActionPlacement = await page.evaluate(() => {
       const commandCenter = document.querySelector("#lw-command-center");
       const storyPanel = document.querySelector("#lw-story-panel");
@@ -220,7 +230,7 @@ async function main() {
       if (!commandCenter || !storyPanel || !transferButton || !seasonButton || !seasonRoadmap) return null;
       return {
         commandCenterBeforeStory: !!(commandCenter.compareDocumentPosition(storyPanel) & Node.DOCUMENT_POSITION_FOLLOWING),
-        bothPrimaryActionsVisible: transferButton.getClientRects().length > 0 && seasonButton.getClientRects().length > 0,
+        bothPrimaryActionsVisible: transferButton.getBoundingClientRect().width > 0 && seasonButton.getBoundingClientRect().width > 0,
         commandCenterAboveSeasonRoadmap: commandCenter.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top,
         duplicateShortcutsHidden: !!shortcutPanel && getComputedStyle(shortcutPanel).display === "none",
         duplicatePlayerSummaryHidden: !!playerSummary && getComputedStyle(playerSummary).display === "none",
@@ -275,6 +285,31 @@ async function main() {
         && document.querySelector("#inventory").textContent.includes("حذاء احترافي");
     }, null, { timeout: 15000 });
     results.push("store purchase changes balance and inventory");
+
+    const saveDiagnostic = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const beforeRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
+      const decode = raw => { try { const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw; return JSON.parse(json); } catch { return null; } };
+      const beforeSave = decode(beforeRaw);
+      const stateChars = JSON.stringify(state).length;
+      const worldChars = JSON.stringify(state.worldSimulation || {}).length;
+      const saveSucceeded = window.LWStoryRuntime.save();
+      const afterRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
+      const afterSave = decode(afterRaw);
+      return {
+        stateMoney: Number(state.money), stateBoots: !!state.boots,
+        beforeSavedMoney: beforeSave ? Number(beforeSave.money) : null,
+        beforeSavedChars: beforeRaw.length, stateChars, worldChars,
+        worldPlayers: Object.keys(state.worldSimulation?.players || {}).length,
+        worldClubs: Object.keys(state.worldSimulation?.clubs || {}).length,
+        worldProperties: Object.entries(state.worldSimulation || {}).map(([key, value]) => ({ key, chars: (() => { try { return JSON.stringify(value).length; } catch { return -1; } })(), count: Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value).length : null })).sort((a,b) => b.chars-a.chars).slice(0,12),
+        saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
+        afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length, storageEncoding: afterRaw.startsWith("LWZ1:") ? "compressed" : "plain"
+      };
+    });
+    console.log("PURCHASE_SAVE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
+    assert.equal(saveDiagnostic.saveSucceeded, true,
+      "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => {

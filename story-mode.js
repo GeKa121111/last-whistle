@@ -212,6 +212,7 @@ function ensureShell(){
     document.head.appendChild(style);
   }
   bindNewControls();
+  document.documentElement.classList.remove("lw-rebuild-pending");
 }
 function bindNewControls(){
   var mappings=[["lw-cta-match","heroMatch"],["lw-cta-training","heroTrain"],["lw-cta-season","seasonStageAction"],["lw-cta-transfers","seasonTransferAction"]];
@@ -234,7 +235,6 @@ function bindNewControls(){
       chooseStory(button.getAttribute("data-story-id"),Number(button.getAttribute("data-story-choice")));
     });
     panel.dataset.lwBound="1";
-  document.documentElement.classList.remove("lw-rebuild-pending");
   }
 }
 function checkTriggers(s,api){

@@ -330,7 +330,8 @@ function chooseStory(id,index){
   if(api.save)api.save();
   if(api.render)api.render();
   if(api.toast)api.toast("اتسجل قرارك واتطبقت نتائجه على المسيرة.");
-  syncMatchContext(s);\n  checkTriggers(s,api);
+  syncMatchContext(s);
+  checkTriggers(s,api);
   renderOverview(s);
   renderStoryPanel(s,api);
 }

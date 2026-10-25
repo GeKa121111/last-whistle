@@ -268,7 +268,7 @@ async function main() {
     }
     leagueOutputs.push({
       leagueId: league.id, country: league.country, division: league.division,
-      expectedTeams: league.expectedTeams, sourceUrl: indexUrl, clubs
+      expectedTeams: league.expectedTeams, sourceUrl: indexUrl, sourceSeason: league.sourceSeason || SEASON, clubs
     });
   }
 

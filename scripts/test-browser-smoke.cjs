@@ -129,19 +129,27 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "يلا نبدأ" }).click();
     results.push("career creation");
 
-    await page.waitForFunction(() => Boolean(window.LWCareerAI && window.LWCareerAIUI
-      && document.querySelector("#careerAIPanel") && document.querySelector("#careerAIOverview")?.textContent.trim()), null, { timeout: 10000 });
-    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
-    await page.locator("#careerAIPanel").scrollIntoViewIfNeeded();
-    await page.locator('[data-ai-action="coach"]').click();
-    assert.ok(await page.locator("#careerAIResultTitle").textContent().then(text => text.trim().length > 0),
-      "AI coach must return a context-aware report");
-    await page.locator('[data-ai-action="tactics"]').click();
-    assert.ok(await page.locator("#careerAIResultTitle").textContent().then(text => text.includes("خطة مقترحة")),
-      "AI match analyst must recommend a tactic for the upcoming opponent");
-    assert.equal(await page.locator("#careerAIApplyTactic").isVisible(), true,
-      "the recommended tactic must be offered as an actionable match option");
-    results.push("career AI coach and upcoming-match tactical recommendation");
+    await page.waitForFunction(() => Boolean(window.LWWorldAI
+      && document.querySelector("#worldAIHomePanel")
+      && Number(document.querySelector("#worldAIHomePlayers")?.textContent || 0) > 100), null, { timeout: 20000 });
+    assert.equal(await page.locator("#careerAIPanel").count(), 0,
+      "the game should use autonomous world simulation rather than a conversational AI panel");
+    assert.ok(await page.locator("#worldAIHomeTeams").textContent().then(text => Number(text) > 40),
+      "the persistent world AI must initialize multiple clubs");
+    assert.ok(await page.locator("#worldAIHomePlayers").textContent().then(text => Number(text) > 100),
+      "the persistent world AI must initialize player squads");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("europe"));
+    await page.waitForFunction(() => Boolean(document.querySelector("#worldAISimulationDashboard")
+      && document.querySelector("#worldAITopScorers")?.textContent.trim()
+      && document.querySelector("#worldAITransferLog")?.textContent.trim()), null, { timeout: 20000 });
+    const worldContext = await page.evaluate(() => {
+      const world = window.LWStoryRuntime.getState().worldSimulation;
+      return { clubs: Object.keys(world?.clubs || {}).length, players: Object.keys(world?.players || {}).length,
+        completed: Array.isArray(world?.completedSeasons) ? world.completedSeasons.length : 0 };
+    });
+    assert.ok(worldContext.clubs > 40 && worldContext.players > worldContext.clubs * 10,
+      "world AI must persist a multi-club squad database");
+    results.push("persistent AI football world, squad initialization and transfers/statistics dashboard");
 
 
     await page.waitForFunction(() => Boolean(document.querySelector("#lw-hub-money")?.textContent.trim()), null, { timeout: 5000 });

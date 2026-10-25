@@ -207,6 +207,7 @@ async function main() {
       "the dashboard shows the upcoming fixture and dynamic season length");
     results.push("position-based starting stats, youth contract, dynamic league length, currency and match countdown");
 
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
     const homeActionPlacement = await page.evaluate(() => {
       const commandCenter = document.querySelector("#lw-command-center");
       const storyPanel = document.querySelector("#lw-story-panel");

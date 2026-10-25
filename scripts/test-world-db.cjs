@@ -24,6 +24,24 @@ assert.equal(snapshot.refreshRevision, 2, "squad data payload must carry the cur
 assert.equal(audit.allLeagueMinimumsMet, true, "every source league must meet its expected coverage threshold");
 assert.equal(audit.totalTeams, snapshotClubs.length, "audit and checked-in snapshot team totals must agree");
 assert.equal(audit.totalPlayers, snapshotPlayers, "audit and checked-in snapshot player totals must agree");
+const egyptSupplement = audit.supplementalCoverage && audit.supplementalCoverage.egypt;
+assert.ok(egyptSupplement, "Egyptian supplemental roster coverage must be audited");
+assert.ok(egyptSupplement.importedClubs >= 20, "all 20 Egyptian Premier League clubs should have sourced roster coverage");
+assert.ok(egyptSupplement.importedPlayers >= 630, "Egyptian sourced rosters should include at least 630 player records");
+const egyptRosterLeague = snapshot.leagues.find(league => league.leagueId === "egypt" && Number(league.division) === 1);
+assert.ok(egyptRosterLeague, "Egyptian Premier League roster snapshot must be present");
+assert.equal(egyptRosterLeague.clubs.length, 20, "Egyptian roster snapshot must include all 20 current first-division clubs");
+for (const clubName of ["بتروجيت", "أبو قير للأسمدة", "بترول أسيوط"]) {
+  const club = egyptRosterLeague.clubs.find(row => row.name === clubName);
+  assert.ok(club, "missing current Egyptian club roster: " + clubName);
+  assert.ok(club.players.length >= 16, "club must have at least 16 sourced real-player entries: " + clubName);
+  assert.ok(/^https:\/\//.test(club.sourceUrl || ""), "club roster must retain a source URL: " + clubName);
+  assert.ok(club.source, "club roster must preserve its source label: " + clubName);
+  assert.ok(club.players.every(player => player.isRealPlayer === true), "sourced roster rows must be marked real: " + clubName);
+}
+assert.ok(Array.isArray(egyptSupplement.skippedPages)
+  && !egyptSupplement.skippedPages.some(row => ["بتروجيت", "أبو قير للأسمدة", "بترول أسيوط"].includes(row.name)),
+  "current promoted-club rosters must not be recorded as skipped");
 const db = sandbox.window.LWWorldDB;
 assert.ok(db);
 assert.equal(db.version, 3);

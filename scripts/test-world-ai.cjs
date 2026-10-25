@@ -175,6 +175,22 @@ assert.ok(transition.moves.length > 0, "a global market window should generate s
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length);
 assert.ok(world.marketReports.some(row => row.season === 2 && row.moves === transition.moves.length));
 assert.ok(Array.isArray(world.promotionHistory), "promotion/relegation history must be persisted");
+const promotionMoves = transition.promotions || [];
+assert.ok(promotionMoves.length > 0, "the two-division test world should produce promotion/relegation moves");
+for (const move of promotionMoves) {
+  const promotedClub = Object.values(world.clubs).find(club => club.leagueId === move.leagueId && club.name === move.promoted);
+  const relegatedClub = Object.values(world.clubs).find(club => club.leagueId === move.leagueId && club.name === move.relegated);
+  assert.ok(promotedClub && relegatedClub, "promotion history must refer to clubs that remain in the world");
+  assert.equal(promotedClub.division, 1, "promoted club must stay in division 1 after the season transition: " + move.promoted);
+  assert.equal(relegatedClub.division, 2, "relegated club must stay in division 2 after the season transition: " + move.relegated);
+}
+ai.ensureState(save, db);
+for (const move of promotionMoves) {
+  const promotedClub = Object.values(world.clubs).find(club => club.leagueId === move.leagueId && club.name === move.promoted);
+  const relegatedClub = Object.values(world.clubs).find(club => club.leagueId === move.leagueId && club.name === move.relegated);
+  assert.equal(promotedClub.division, 1, "world reload must preserve promotion for " + move.promoted);
+  assert.equal(relegatedClub.division, 2, "world reload must preserve relegation for " + move.relegated);
+}
 assert.ok(Object.values(world.players).some(player => player.freeAgent)
   || transition.moves.some(move => String(move.kind).includes("حر")),
   "expired contracts must create free agents and/or free-agent signings");

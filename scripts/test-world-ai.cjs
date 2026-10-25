@@ -58,6 +58,8 @@ world.players[legacyPlayerId] = {
   id: legacyPlayerId, name: "Legacy Japan Test Player", clubId: legacyClubId,
   leagueId: "japan", country: "اليابان", position: "وسط مهاجم", group: "midfielder"
 };
+world.matchesBySeason = world.matchesBySeason || {};
+world.competitionsBySeason = world.competitionsBySeason || {};
 world.seasonStats["0"] = [{ id: legacyPlayerId, leagueId: "japan", goals: 1 }];
 world.leagueTables["0"] = { japan: [{ leagueId: "japan", club: "Legacy Japan Club" }] };
 world.matchesBySeason["0"] = [{ homeClubId: legacyClubId, awayClubId: "some-supported-club" }];

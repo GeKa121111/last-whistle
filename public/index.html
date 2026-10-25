@@ -2908,7 +2908,7 @@ function showPage(page, scrollTop=true){
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
- $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);closeDrawer();render();
+ $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
 function openDrawer(){$("drawer").classList.add("open");$("drawerShade").classList.add("open");}

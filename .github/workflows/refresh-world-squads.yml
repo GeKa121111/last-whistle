@@ -27,6 +27,7 @@ jobs:
       - name: Fetch and validate current squads
         run: |
           node scripts/refresh-world-squads.cjs
+          node scripts/refresh-egyptian-pro-league.cjs
           node - <<'NODE'
           const fs = require('node:fs');
           const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));
@@ -34,7 +35,8 @@ jobs:
           if (report.status !== 'complete' || report.allLeagueMinimumsMet !== true) {
             throw new Error('Squad snapshot has incomplete league coverage: ' + JSON.stringify(report.leagues));
           }
-          if (report.totalTeams < 210) throw new Error('Expected at least 210 sourced clubs; got ' + report.totalTeams);
+          if (report.totalTeams < 300) throw new Error('Expected at least 300 sourced clubs including Egypt and Turkey; got ' + report.totalTeams);
+          if (!report.leagues.some(league => league.leagueId === 'turkey' && Number(league.division) === 1)) throw new Error('Turkey Süper Lig is missing from the current sourced squad snapshot.');
           if (report.totalPlayers < 3500) throw new Error('Expected at least 3500 sourced player records; got ' + report.totalPlayers);
           if (!snapshot.includes('isRealPlayer')) throw new Error('Sourced-player flags are missing');
           console.log('Validated ' + report.totalTeams + ' clubs / ' + report.totalPlayers + ' player records across ' + report.leagues.length + ' league divisions.');

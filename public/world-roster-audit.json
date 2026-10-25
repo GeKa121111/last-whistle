@@ -3,11 +3,12 @@
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
-  "expectedTeamsTotal": 286,
+  "expectedTeamsTotal": 304,
   "leagues": [
     {
       "leagueId": "argentina",
       "division": 1,
+      "sourceSeason": "2026 Apertura",
       "expectedTeams": 30,
       "sourceUrl": "https://footballsquads.co.uk/arg/2026/argaper.htm",
       "clubs": 30,
@@ -17,6 +18,7 @@
     {
       "leagueId": "brazil",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/brazil/2026/bracamp.htm",
       "clubs": 20,
@@ -37,6 +39,7 @@
     {
       "leagueId": "england",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/eng/2026-2027/engprem/",
       "clubs": 20,
@@ -46,15 +49,17 @@
     {
       "leagueId": "england",
       "division": 2,
+      "sourceSeason": "2026/27",
       "expectedTeams": 24,
       "sourceUrl": "https://footballsquads.co.uk/eng/2026-2027/flcham/",
       "clubs": 24,
-      "players": 727,
+      "players": 730,
       "below18Players": []
     },
     {
       "leagueId": "france",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 18,
       "sourceUrl": "https://footballsquads.co.uk/france/2026-2027/fralig1.htm",
       "clubs": 18,
@@ -64,6 +69,7 @@
     {
       "leagueId": "france",
       "division": 2,
+      "sourceSeason": "2026/27",
       "expectedTeams": 18,
       "sourceUrl": "https://footballsquads.co.uk/france/2026-2027/fralig2.htm",
       "clubs": 18,
@@ -73,6 +79,7 @@
     {
       "leagueId": "germany",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 18,
       "sourceUrl": "https://footballsquads.co.uk/ger/2026-2027/gerbun.htm",
       "clubs": 18,
@@ -82,6 +89,7 @@
     {
       "leagueId": "germany",
       "division": 2,
+      "sourceSeason": "2026/27",
       "expectedTeams": 18,
       "sourceUrl": "https://footballsquads.co.uk/ger/2026-2027/gerbun2.htm",
       "clubs": 18,
@@ -91,6 +99,7 @@
     {
       "leagueId": "italy",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/italy/2026-2027/seriea.htm",
       "clubs": 20,
@@ -100,6 +109,7 @@
     {
       "leagueId": "italy",
       "division": 2,
+      "sourceSeason": "2026/27",
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/italy/2026-2027/serieb.htm",
       "clubs": 20,
@@ -109,6 +119,7 @@
     {
       "leagueId": "portugal",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 18,
       "sourceUrl": "https://footballsquads.co.uk/portugal/2026-2027/porprim.htm",
       "clubs": 18,
@@ -118,6 +129,7 @@
     {
       "leagueId": "spain",
       "division": 1,
+      "sourceSeason": "2026/27",
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/spain/2026-2027/spalali.htm",
       "clubs": 20,
@@ -127,16 +139,27 @@
     {
       "leagueId": "spain",
       "division": 2,
+      "sourceSeason": "2026/27",
       "expectedTeams": 22,
       "sourceUrl": "https://footballsquads.co.uk/spain/2026-2027/spalali2.htm",
       "clubs": 22,
       "players": 673,
       "below18Players": []
+    },
+    {
+      "leagueId": "turkey",
+      "division": 1,
+      "sourceSeason": "2026/27",
+      "expectedTeams": 18,
+      "sourceUrl": "https://footballsquads.co.uk/turkey/2026-2027/superl/",
+      "clubs": 18,
+      "players": 504,
+      "below18Players": []
     }
   ],
-  "totalTeams": 286,
-  "totalPlayers": 9550,
-  "snapshotBytes": 1831915,
+  "totalTeams": 304,
+  "totalPlayers": 10057,
+  "snapshotBytes": 1930166,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {

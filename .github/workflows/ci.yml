@@ -22,7 +22,11 @@ jobs:
       - name: Refresh current rosters on development branch
         if: (github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27')
         run: |
-          node scripts/refresh-world-squads.cjs
+          if node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); process.exit(r.status==="complete" && r.allLeagueMinimumsMet===true && r.totalTeams>=210 && r.totalPlayers>=3500 ? 0 : 1); } catch (_) { process.exit(1); }'; then
+            echo "A complete sourced-roster snapshot already exists; refresh skipped."
+          else
+            node scripts/refresh-world-squads.cjs
+          fi
           node - <<'NODE'
           const fs = require('node:fs');
           const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));

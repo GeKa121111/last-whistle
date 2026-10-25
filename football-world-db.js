@@ -4,7 +4,7 @@
  */
 (function () {
   "use strict";
-  var VERSION = 2;
+  var VERSION = 3;
   var SEASON = "2026/27";
   var RATINGS_NOTE = "قوة الأندية والهيبة هنا تقديرات توازن داخل اللعبة، مش تصنيفات رسمية. أسماء النجوم أمثلة من القوائم وليست قائمة كاملة.";
   var LEAGUES = [
@@ -142,6 +142,117 @@
   ];
 
 
+  // Import a checked-in current-roster snapshot when available. The game does not fetch
+  // roster data at runtime; this overlay keeps offline/Pages launches deterministic.
+  var SQUAD_SNAPSHOT = window.LWFootballSquadData && Array.isArray(window.LWFootballSquadData.leagues)
+    ? window.LWFootballSquadData : { leagues: [] };
+  var IMPORTED_CLUB_COUNT = 0;
+  var IMPORTED_PLAYER_COUNT = 0;
+  function clubMatchKey(value) {
+    var key = normalize(value);
+    key = key.replace(/^(afc|fc|cf|sc|ac|usm|as|rs|cr|mc|us)/, "");
+    key = key.replace(/(footballclub|athleticclub|club|fc|afc|cf|sc|ac)$/, "");
+    return key;
+  }
+  function estimatedClubPower(leagueId, division, index) {
+    var profile = leagueById(leagueId) || {};
+    var base = Number(profile.strength) || 60;
+    if (Number(division) >= 2) base -= 18;
+    var stableNoise = ((normalize(leagueId + "|" + division + "|" + index).split("").reduce(function (sum, ch) {
+      return (sum * 33 + ch.charCodeAt(0)) >>> 0;
+    }, 5381) % 11) - 5);
+    return Math.max(42, Math.min(88, base + stableNoise));
+  }
+  function estimateImportedPlayer(player, club, index) {
+    var base = Number(club.ovr) || 58;
+    var age = Number(player.age) || 23;
+    var position = String(player.position || "وسط مهاجم");
+    var roleAdjust = position.indexOf("حارس") >= 0 ? -1
+      : position.indexOf("مهاجم") >= 0 ? 1
+      : position.indexOf("دفاع") >= 0 ? 0 : 1;
+    var nameHash = normalize(player.name).split("").reduce(function (sum, ch) {
+      return (Math.imul(sum ^ ch.charCodeAt(0), 16777619) >>> 0);
+    }, 2166136261);
+    var ageAdjust = age <= 21 ? 2 : age >= 31 ? -3 : age >= 28 ? -1 : 0;
+    var ovr = Math.max(40, Math.min(92, Math.round(base - 3 + roleAdjust + ageAdjust + ((nameHash + index * 7) % 9) - 4)));
+    return {
+      id: club.leagueId + "-" + normalize(player.name),
+      name: player.name,
+      clubName: club.name,
+      country: club.country,
+      leagueId: club.leagueId,
+      division: Number(club.division) || 1,
+      position: position,
+      ovr: ovr,
+      potential: Math.min(96, ovr + (age <= 22 ? 8 : age <= 26 ? 4 : 1)),
+      age: age,
+      isRealPlayer: true,
+      jerseyNumber: Number(player.number) || null,
+      nationality: player.nationality || "",
+      dateOfBirth: player.dob || "",
+      season: SEASON,
+      source: player.source || SQUAD_SNAPSHOT.source || "Current squad snapshot",
+      ratingType: "simulation-estimate"
+    };
+  }
+  function applyImportedSquads() {
+    var imported = [];
+    (SQUAD_SNAPSHOT.leagues || []).forEach(function (league) {
+      (league.clubs || []).forEach(function (sourceClub, sourceIndex) {
+        if (!sourceClub || !sourceClub.name || !Array.isArray(sourceClub.players) || !sourceClub.players.length) return;
+        var sourceKey = clubMatchKey(sourceClub.name);
+        var aliases = [sourceClub.name].concat(sourceClub.aliases || []);
+        var found = CLUBS.find(function (club) {
+          if (club.leagueId !== league.leagueId || (Number(club.division) || 1) !== Number(league.division || 1)) return false;
+          return [club.name].concat(club.aliases || []).some(function (name) {
+            var key = clubMatchKey(name);
+            return key && (key === sourceKey || aliases.some(function (alias) { return key === clubMatchKey(alias); }));
+          });
+        });
+        var profile = leagueById(league.leagueId) || {};
+        if (!found) {
+          var power = estimatedClubPower(league.leagueId, league.division, sourceIndex);
+          found = {
+            name: sourceClub.name,
+            aliases: aliases,
+            country: league.country || profile.country || "",
+            leagueId: league.leagueId,
+            division: Math.max(1, Number(league.division) || 1),
+            ovr: power,
+            prestige: Math.max(40, Math.min(92, power + 4)),
+            stars: [],
+            fullRoster: [],
+            rosterSource: sourceClub.source || SQUAD_SNAPSHOT.source || "Current squad snapshot"
+          };
+          CLUBS.push(found);
+        } else {
+          // Keep our curated Arabic display name and club strength while replacing the
+          // old highlight-only list with the current registered/academy squad.
+          found.division = Math.max(1, Number(league.division) || 1);
+          found.aliases = Array.from(new Set((found.aliases || []).concat(aliases)));
+        }
+        var rosterSeen = new Set();
+        var fullRoster = sourceClub.players.map(function (player, playerIndex) {
+          if (!player || !player.name) return null;
+          var key = normalize(player.name);
+          if (!key || rosterSeen.has(key)) return null;
+          rosterSeen.add(key);
+          return estimateImportedPlayer(player, found, playerIndex);
+        }).filter(Boolean);
+        if (!fullRoster.length) return;
+        found.fullRoster = fullRoster;
+        found.stars = fullRoster.map(function (player) { return player.name; });
+        found.rosterSource = sourceClub.source || SQUAD_SNAPSHOT.source || "Current squad snapshot";
+        found.sourceUrl = sourceClub.sourceUrl || "";
+        imported.push({ leagueId: found.leagueId, division: found.division, club: found.name, players: fullRoster.length });
+        IMPORTED_CLUB_COUNT++;
+        IMPORTED_PLAYER_COUNT += fullRoster.length;
+      });
+    });
+    return imported;
+  }
+  var IMPORTED_SQUAD_SUMMARY = applyImportedSquads();
+
   var PLAYER_POSITION_HINTS = {
     "محمد الشناوي":"حارس مرمى","مصطفى شوبير":"حارس مرمى","تيبو كورتوا":"حارس مرمى","جوان غارسيا":"حارس مرمى","أليسون بيكر":"حارس مرمى",
     "فيرجيل فان دايك":"قلب دفاع","ماركينيوس":"قلب دفاع","روبن دياز":"قلب دفاع","جوناثان تاه":"قلب دفاع","غوستافو غوميز":"قلب دفاع",
@@ -211,11 +322,15 @@
   function normalizeClub(item) {
     var profile = leagueById(item.leagueId);
     var division = Math.max(1, Number(item.division) || 1);
+    var players = Array.isArray(item.fullRoster) && item.fullRoster.length
+      ? item.fullRoster.map(function (player) { return Object.assign({}, player); })
+      : buildPlayerRecords(item);
     return {name:item.name,aliases:(item.aliases || []).slice(),country:item.country,leagueId:item.leagueId,division:division,
       leagueName:profile ? (division >= 2 ? profile.tier2 : profile.league) : "",
       leagueEnglish:profile ? (division >= 2 ? profile.tier2English : profile.english) : "",
-      ovr:item.ovr,prestige:item.prestige,stars:(item.stars || []).slice(),players:buildPlayerRecords(item),
-      season:SEASON,ratingType:"simulation-estimate",rosterStatus:(item.stars || []).length ? "curated-highlights" : "ratings-only"};
+      ovr:item.ovr,prestige:item.prestige,stars:players.map(function (player) { return player.name; }),players:players,
+      season:SEASON,ratingType:"simulation-estimate",rosterStatus:(item.fullRoster || []).length ? "current-squad" : (item.stars || []).length ? "curated-highlights" : "ratings-only",
+      rosterSource:item.rosterSource || "",sourceUrl:item.sourceUrl || ""};
   }
   function leagueFor(country, division) {
     var profile = leagueByCountry(country);
@@ -290,19 +405,34 @@
     leagues:function () { return LEAGUES.map(function (item) { return profileSummary(item.country); }); },
     leagueById:leagueById,leagueByCountry:leagueByCountry,leagueFor:leagueFor,
     clubs:function () { return CLUBS.map(normalizeClub); },clubsForCountry:clubsForCountry,
+    rosterCoverage:function () {
+      var byLeague = {};
+      CLUBS.forEach(function (club) {
+        var key = String(club.leagueId) + ":" + String(Number(club.division) || 1);
+        if (!byLeague[key]) byLeague[key] = {leagueId:club.leagueId,division:Number(club.division)||1,clubCount:0,realRosterCount:0,listedPlayers:0,clubsWithoutRoster:[]};
+        byLeague[key].clubCount++;
+        var roster = Array.isArray(club.fullRoster) && club.fullRoster.length ? club.fullRoster : club.stars || [];
+        byLeague[key].listedPlayers += roster.length;
+        if (Array.isArray(club.fullRoster) && club.fullRoster.length) byLeague[key].realRosterCount++;
+        else byLeague[key].clubsWithoutRoster.push(club.name);
+      });
+      return {season:SEASON,source:SQUAD_SNAPSHOT.source || "",snapshotGeneratedAt:SQUAD_SNAPSHOT.generatedAt || null,
+        importedClubs:IMPORTED_CLUB_COUNT,importedPlayers:IMPORTED_PLAYER_COUNT,totalClubs:CLUBS.length,
+        leagues:Object.values(byLeague).sort(function(a,b){return a.leagueId.localeCompare(b.leagueId)||a.division-b.division;})};
+    },
     clubByName:function (name,country) { var item = findClub(name,country); return item ? normalizeClub(item) : null; },
-    playersForClub:function (name,country) { var item = findClub(name,country); return item ? item.stars.slice() : []; },
+    playersForClub:function (name,country) { var item = findClub(name,country); return item ? normalizeClub(item).players.map(function (row) { return row.name; }) : []; },
     playerRecordsForClub:function (name,country) {
       var item = findClub(name,country);
-      return item ? buildPlayerRecords(item).map(function (row) { return Object.assign({},row); }) : [];
+      return item ? normalizeClub(item).players.map(function (row) { return Object.assign({},row); }) : [];
     },
     playerByName:function (name,country) {
       var target=normalize(name), list=CLUBS.filter(function (club) {
         if(country && normalize(club.country)!==normalize(country)) return false;
-        return (club.stars || []).some(function (star) { return normalize(star)===target; });
+        return normalizeClub(club).players.some(function (player) { return normalize(player.name)===target; });
       });
       if(!list.length) return null;
-      return buildPlayerRecords(list[0]).find(function (row) { return normalize(row.name)===target; }) || null;
+      return normalizeClub(list[0]).players.find(function (row) { return normalize(row.name)===target; }) || null;
     },
     tournamentById:tournamentById,allTournaments:function () { return TOURNAMENTS.map(function (item) {
       return Object.assign({},item,{teams:(item.teams || []).slice(),countries:(item.countries || []).slice(),qualificationPlaces:(item.qualificationPlaces || []).slice()});

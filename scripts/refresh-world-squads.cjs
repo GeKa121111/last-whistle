@@ -274,6 +274,7 @@ async function main() {
     expectedTeamsTotal: LEAGUES.reduce((sum, item) => sum + item.expectedTeams, 0),
     leagues: leagueOutputs.map(item => ({
       leagueId: item.leagueId, division: item.division, sourceSeason: item.sourceSeason,
+      expectedTeams: item.expectedTeams, sourceUrl: item.sourceUrl,
       clubs: item.clubs.length,
       players: item.clubs.reduce((sum, club) => sum + club.players.length, 0),
       below18Players: item.clubs.filter(club => club.players.length < 18).map(club => club.name)

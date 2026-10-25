@@ -324,7 +324,10 @@
     const row = roleStats[group];
     const deficit = Math.max(0, TARGETS[group] - row.count);
     const qualityGap = Math.max(0, club.power - row.average - 4);
-    return deficit * 11 + qualityGap * 1.25 + (row.count === 0 ? 18 : 0);
+    const topQualityGap = Math.max(0, club.power - row.best - 6);
+    const weakUnitPenalty = row.average < club.power - 5 ? 5 : 0;
+    return deficit * 11 + qualityGap * 1.25 + topQualityGap * 0.9
+      + weakUnitPenalty + (row.count === 0 ? 18 : 0);
   }
   function sellingCandidate(world, seller, group, usedPlayers) {
     const rows = rosterPlayers(world, seller).filter(player => player.group === group && !usedPlayers.has(player.id));

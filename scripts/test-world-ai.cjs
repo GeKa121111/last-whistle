@@ -117,6 +117,34 @@ for (const move of transition.moves) {
   assert.ok(player, "every transfer must map to a persistent player record");
   assert.equal(world.clubs[player.clubId].name, move.to, "the player's new club must be changed in the active world");
 }
+
+ // A transfer must not rewrite the season that just ended; next-season stats must
+ // follow the player's new club. Check the actual persistent rows, not just the log.
+ const previousSeasonRows = new Map((world.seasonStats["1"] || []).map(row => [row.id, row]));
+ const nextSeasonRows = new Map(ai.getSeasonLines(save, 2, 1, db).map(row => [row.id, row]));
+ const regularTransfers = transition.moves.filter(move => String(move.kind).includes("انتقال — محاكاة"));
+ assert.ok(regularTransfers.length > 0, "the test scenario must contain ordinary club-to-club transfers");
+ for (const move of regularTransfers) {
+   const previousRow = previousSeasonRows.get(move.playerId);
+   assert.ok(previousRow, "the player's completed-season row must survive the transfer: " + move.player);
+   assert.equal(previousRow.club, move.from,
+     "season 1 stats must remain attributed to the selling club for " + move.player);
+   const player = world.players[move.playerId];
+   const destination = world.clubs[player.clubId];
+   assert.ok(destination, "transferred player must have a valid destination club");
+   assert.equal(destination.name, move.to, "transfer log and current player club must agree");
+   const history = world.playerHistory[move.playerId] || [];
+   assert.ok(history.length > 0, "every transfer must create persistent player history");
+   assert.equal(history[0].type, "transfer-in", "the newest history event must describe the completed transfer");
+   assert.equal(history[0].season, move.season);
+   assert.equal(history[0].from, move.from);
+   assert.equal(history[0].club, move.to);
+   const nextRow = nextSeasonRows.get(move.playerId);
+   assert.ok(nextRow, "the transferred player must have a row in the following season: " + move.player);
+   assert.equal(nextRow.club, move.to,
+     "season 2 stats must be attributed to the receiving club for " + move.player);
+   assert.equal(nextRow.clubId, destination.id);
+ }
 const rosterOwner = new Map();
 for (const club of Object.values(world.clubs)) {
   assert.ok(club.roster.length >= 16 && club.roster.length <= 18, "club squads must remain inside the intended size band");
@@ -145,6 +173,31 @@ const duplicateAdvance = ai.advanceToSeason(save, 2, db);
 assert.equal(duplicateAdvance.alreadyAdvanced, true, "the same season transition must be idempotent");
 assert.equal(duplicateAdvance.moves.length, 0);
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length, "reopening the same market must not duplicate deals");
+
+// LocalStorage round-trip must preserve transfer logs, player history, and both
+// season snapshots. Re-opening the same season after reload must remain idempotent.
+const reloadedSave = JSON.parse(JSON.stringify(save));
+const reloadedWorld = ai.ensureState(reloadedSave, db);
+assert.equal(reloadedWorld.transfers.length, world.transfers.length,
+  "transfer history must survive JSON save/reload");
+assert.equal(JSON.stringify(reloadedWorld.completedSeasons), JSON.stringify(world.completedSeasons),
+  "completed-season markers must survive JSON save/reload");
+for (const move of regularTransfers) {
+  assert.equal(reloadedWorld.players[move.playerId].clubId, world.players[move.playerId].clubId,
+    "current club must survive JSON save/reload for " + move.player);
+  assert.equal(JSON.stringify(reloadedWorld.playerHistory[move.playerId]),
+    JSON.stringify(world.playerHistory[move.playerId]),
+    "player transfer history must survive JSON save/reload for " + move.player);
+  assert.equal(reloadedWorld.seasonStats["1"].find(row => row.id === move.playerId).club, move.from,
+    "previous-season attribution must survive JSON save/reload for " + move.player);
+  assert.equal(reloadedWorld.seasonStats["2"].find(row => row.id === move.playerId).club, move.to,
+    "next-season attribution must survive JSON save/reload for " + move.player);
+}
+const reloadedRepeat = ai.advanceToSeason(reloadedSave, 2, db);
+assert.equal(reloadedRepeat.alreadyAdvanced, true,
+  "replaying a market transition after reload must not create a second market");
+assert.equal(reloadedWorld.transfers.length, world.transfers.length,
+  "reloading and replaying the same season must not duplicate transfer deals");
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

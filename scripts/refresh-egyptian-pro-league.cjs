@@ -9,8 +9,9 @@ const vm = require("node:vm");
 
 const ROOT = path.resolve(__dirname, "..");
 const HOST = "https://www.egyptianproleague.com";
-const SOURCE = "Verified official Egyptian league and club squad pages (2026/27)";
+const SOURCE = "Verified current Egyptian league and club squad pages (2026/27)";
 const MIN_PLAYERS = 16;
+const IMPORTER_REVISION = 3;
 const MIN_SOURCED_CLUBS = 20;
 const TEAMS = [
   { name: "الاتحاد السكندري", aliases: ["Al Ittihad Alexandria", "Al Ittihad Alexandria Club"], path: "/team/18/detials/13/squad" },
@@ -32,7 +33,6 @@ const TEAMS = [
     path: "/team/36/detials/14455/squad",
     fallbacks: [
       { url: "https://petrojetsc.com/", parser: "club-roster", source: "Petrojet SC official website (2026/27)" },
-      { url: "https://www.kooora.com/%D9%83%D8%B1%D8%A9-%D8%A7%D9%84%D9%82%D8%AF%D9%85/%D9%81%D8%B1%D9%8A%D9%82/%D8%A7%D9%84%D8%B3%D9%88%D9%8A%D8%B3-%D8%A8%D8%AA%D8%B1%D9%88%D8%AC%D9%8A%D8%AA/%D9%82%D8%A7%D8%A6%D9%85%D8%A9-%D8%A7%D9%84%D9%84%D8%A7%D8%B9%D8%A8%D9%8A%D9%86/bb1dz5zsbd7x9ezu8yrtbzhrj", parser: "club-roster", source: "Kooora Petrojet 2026/27 squad page" }
     ],
     fallbackSourceUrl: "https://petrojetsc.com/",
     fallbackSource: "Petrojet SC official website roster, reviewed 2026-10-25",
@@ -324,7 +324,7 @@ async function main() {
     sourceUrl: HOST + "/",
     sourceSeason: "2026/27",
     expectedTeams: imported.length,
-    coverageType: "verified-official-league-and-club-squad-pages",
+    coverageType: "verified-current-squad-pages",
     clubs: imported
   });
   payload.supplementalCoverage = payload.supplementalCoverage || {};
@@ -332,6 +332,7 @@ async function main() {
     source: SOURCE,
     season: "2026/27",
     availablePagesConfigured: TEAMS.length,
+    importerRevision: IMPORTER_REVISION,
     importedClubs: imported.length,
     importedPlayers: imported.reduce((sum, club) => sum + club.players.length, 0),
     skippedPages: skipped,
@@ -351,7 +352,7 @@ async function main() {
   const egyptPlayers = imported.reduce((sum, club) => sum + club.players.length, 0);
   const egyptAuditRow = {
     leagueId: "egypt", division: 1, expectedTeams: imported.length,
-    sourceUrl: HOST + "/", sourceSeason: "2026/27", coverageType: "verified-official-league-and-club-squad-pages",
+    sourceUrl: HOST + "/", sourceSeason: "2026/27", coverageType: "verified-current-squad-pages",
     clubs: imported.length, players: egyptPlayers,
     below18Players: imported.filter(club => club.players.length < 18).map(club => club.name)
   };

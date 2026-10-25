@@ -164,6 +164,8 @@ assert.equal(table[0].rank, 1);
 assert.ok(table.every((row, index) => row.rank === index + 1 && row.played > 0 && Number.isFinite(row.pts)));
 
 const oldTransferCount = world.transfers.length;
+const totalClubBudgetBeforeWindow = Object.values(world.clubs)
+  .reduce((sum, club) => sum + (Number(club.budget) || 0), 0);
 const transition = ai.advanceToSeason(save, 2, db);
 assert.equal(transition.season, 2);
 assert.equal(transition.alreadyAdvanced, false);
@@ -171,6 +173,12 @@ assert.ok(world.completedSeasons.includes(1));
 assert.equal(world.currentSeason, 2);
 assert.equal(save.season, 1, "global simulation must not mutate the player's career-season counter");
 assert.ok(Array.isArray(transition.moves));
+const expectedSeasonalIncome = Object.values(world.clubs).reduce((sum, club) =>
+  sum + Math.round(50 + (Number(club.power) || 55) * 1.8 + (Number(club.prestige) || 50) * 0.7), 0);
+const totalClubBudgetAfterWindow = Object.values(world.clubs)
+  .reduce((sum, club) => sum + (Number(club.budget) || 0), 0);
+assert.equal(totalClubBudgetAfterWindow, totalClubBudgetBeforeWindow + expectedSeasonalIncome,
+  "club budgets must preserve transfer fees as cash flows and include the modeled seasonal income");
 assert.ok(transition.moves.length > 0, "a global market window should generate suitable moves when clubs have recruitment needs");
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length);
 assert.ok(world.marketReports.some(row => row.season === 2 && row.moves === transition.moves.length));

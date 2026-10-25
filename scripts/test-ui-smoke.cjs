@@ -121,7 +121,7 @@ if (missing.length) {
 }
 
 const renderStart = html.indexOf("function render(){");
-const renderEnd = html.indexOf("\nfunction checkAction(", renderStart);
+const renderEnd = html.indexOf("function checkAction(", renderStart);
 if (renderStart < 0 || renderEnd < 0) { console.error("Render performance regression test could not locate render()."); process.exit(1); }
 const renderBody = html.slice(renderStart, renderEnd);
 for (const marker of [
@@ -320,7 +320,7 @@ if (!html.includes("function transferEligibilityReason(target){") || !html.inclu
   console.error("Transfer test failed: actionable eligibility reasons or market status are missing."); process.exit(1);
 }
 const actionRenderStart = html.indexOf("function render(){");
-const actionRenderEnd = html.indexOf("\\nfunction checkAction(", actionRenderStart);
+const actionRenderEnd = html.indexOf("function checkAction(", actionRenderStart);
 const activePageActionRender = actionRenderStart >= 0 && actionRenderEnd > actionRenderStart
   ? html.slice(actionRenderStart, actionRenderEnd) : "";
 if (!activePageActionRender.includes('pageRoot.querySelectorAll("[data-action]")')

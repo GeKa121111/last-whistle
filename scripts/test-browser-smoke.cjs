@@ -300,6 +300,9 @@ async function main() {
         stateMoney: Number(state.money), stateBoots: !!state.boots,
         beforeSavedMoney: beforeSave ? Number(beforeSave.money) : null,
         beforeSavedChars: beforeRaw.length, stateChars, worldChars,
+        worldPlayers: Object.keys(state.worldSimulation?.players || {}).length,
+        worldClubs: Object.keys(state.worldSimulation?.clubs || {}).length,
+        worldProperties: Object.entries(state.worldSimulation || {}).map(([key, value]) => ({ key, chars: (() => { try { return JSON.stringify(value).length; } catch { return -1; } })(), count: Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value).length : null })).sort((a,b) => b.chars-a.chars).slice(0,12),
         saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
         afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length, storageEncoding: afterRaw.startsWith("LWZ1:") ? "compressed" : "plain"
       };

@@ -71,7 +71,7 @@ for (const pattern of [
 ]) {
   for (const match of html.matchAll(pattern)) literalDomRefs.add(match[1]);
 }
-const runtimeGeneratedIds = new Set(["realPlayerTeam", "realPlayerNames"]);
+const runtimeGeneratedIds = new Set(["realPlayerTeam", "realPlayerNames", "transferNegotiationPanel", "negotiationPatienceBar", "negotiationPressure", "negotiationPatienceText", "negotiationMonthlyEquivalent"]);
 const dynamicIdPrefixes = ["skill-", "val-"];
 const missingDomRefs = [...literalDomRefs].filter((id) =>
   !staticIdsForRefs.has(id) && !runtimeGeneratedIds.has(id) && !dynamicIdPrefixes.some((prefix) => id.startsWith(prefix))

@@ -196,7 +196,55 @@ for (const move of transition.moves) {
  const previousSeasonSnapshot = JSON.stringify(world.seasonStats["1"] || []);
  const previousSeasonRows = new Map((world.seasonStats["1"] || []).map(row => [row.id, { ...row }]));
  const nextSeasonRows = new Map(ai.getSeasonLines(save, 2, 1, db).map(row => [row.id, row]));
- assert.equal(JSON.stringify(world.seasonStats["1"] || []), previousSeasonSnapshot,
+ // Regression: domestic supercups must use the previous season's domestic champions,
+// while continental supercups must use their exact qualifying competitions.
+const priorCompetitions = world.competitionsBySeason["1"] || [];
+const currentCompetitions = world.competitionsBySeason["2"] || [];
+const currentCompetitionById = new Map(currentCompetitions.map(row => [row.id, row]));
+const domesticSupercups = db.simulationCupDefinitions().filter(row =>
+  row && row.kind === "supercup" && Array.isArray(row.countries) && row.countries.length);
+assert.ok(domesticSupercups.length >= 10, "domestic supercup definitions must exist across the supported football world");
+for (const definition of domesticSupercups) {
+  const leagueId = definition.countries[0];
+  const result = currentCompetitionById.get(definition.id);
+  assert.ok(result, "season 2 should include domestic supercup: " + definition.id);
+  assert.equal(result.participants.length, 2, "domestic supercup must contain exactly two distinct teams: " + definition.id);
+  assert.equal(new Set(result.participants).size, 2, "domestic supercup participants must not be duplicated: " + definition.id);
+  const participantClubs = result.participants.map(id => world.clubs[id]);
+  assert.ok(participantClubs.every(club => club && club.leagueId === leagueId),
+    "domestic supercup must not accidentally invite continental winners from another league: " + definition.id);
+  const previousTable = (world.leagueTables["1"] || {})[leagueId] || [];
+  assert.ok(previousTable.length > 1, "previous-season league table must be available for " + leagueId);
+  assert.ok(result.participants.includes(previousTable[0].clubId),
+    "domestic league champion must qualify for " + definition.id);
+  const priorCup = priorCompetitions.find(row => row && row.kind === "domestic-cup" && row.championId
+    && (world.clubs[row.championId] || {}).leagueId === leagueId);
+  if (priorCup && priorCup.championId !== previousTable[0].clubId) {
+    assert.ok(result.participants.includes(priorCup.championId),
+      "domestic cup champion must qualify for " + definition.id);
+  } else if (priorCup) {
+    assert.ok(result.participants.includes(priorCup.runnerUpId) || result.participants.includes(previousTable[1].clubId),
+      "a league/cup double winner must be paired with a runner-up in " + definition.id);
+  }
+}
+const uefaSuperCup = currentCompetitionById.get("uefa-super-cup");
+const previousUcl = priorCompetitions.find(row => row && row.id === "ucl");
+const previousUel = priorCompetitions.find(row => row && row.id === "uel");
+assert.ok(uefaSuperCup && previousUcl && previousUel, "UEFA Super Cup and its qualifying competitions must be simulated");
+assert.ok(uefaSuperCup.participants.includes(previousUcl.championId), "UEFA Super Cup must include the Champions League winner");
+assert.ok(uefaSuperCup.participants.includes(previousUel.championId)
+  || (previousUcl.championId === previousUel.championId && uefaSuperCup.participants.includes(previousUel.runnerUpId)),
+  "UEFA Super Cup must use the Europa League winner, or its runner-up if a simulated double winner occurs");
+const cafSuperCup = currentCompetitionById.get("caf-super-cup");
+const previousCafCl = priorCompetitions.find(row => row && row.id === "caf-cl");
+const previousCafConfed = priorCompetitions.find(row => row && row.id === "caf-confed");
+assert.ok(cafSuperCup && previousCafCl && previousCafConfed, "CAF Super Cup and its qualifying competitions must be simulated");
+assert.ok(cafSuperCup.participants.includes(previousCafCl.championId), "CAF Super Cup must include the CAF Champions League winner");
+assert.ok(cafSuperCup.participants.includes(previousCafConfed.championId)
+  || (previousCafCl.championId === previousCafConfed.championId && cafSuperCup.participants.includes(previousCafConfed.runnerUpId)),
+  "CAF Super Cup must use the Confederation Cup winner, or its runner-up if a simulated double winner occurs");
+
+assert.equal(JSON.stringify(world.seasonStats["1"] || []), previousSeasonSnapshot,
    "simulating season 2 must not rewrite season 1 player-stat attribution");
  const regularTransfers = transition.moves.filter(move => String(move.kind).includes("انتقال — محاكاة"));
  assert.ok(regularTransfers.length > 0, "the test scenario must contain ordinary club-to-club transfers");
@@ -292,6 +340,34 @@ for (const move of regularTransfers) {
   assert.equal(reloadedWorld.seasonStats["2"].find(row => row.id === move.playerId).club, move.to,
     "next-season attribution must survive JSON save/reload for " + move.player);
 }
+// Player nationality and continental award origin must survive transfer to another confederation.
+const originSave = {
+  season: 1, age: 22, name: "Origin Confed Test", pos: "جناح",
+  clubName: "الأهلي", leagueCountry: "مصر", leagueDivision: 1,
+  seasonApps: 0, seasonAppsTarget: 34, careerMatchHistory: []
+};
+const originWorld = ai.ensureState(originSave, db);
+const migrant = Object.values(originWorld.players).find(player =>
+  !player.isGenerated && player.leagueId === "egypt" && player.originConfederation === "CAF" && player.nationality);
+assert.ok(migrant, "a sourced CAF player with nationality metadata must be present in the simulated world");
+const sourceClub = originWorld.clubs[migrant.clubId];
+const destinationClub = Object.values(originWorld.clubs).find(club =>
+  club.leagueId === "spain" && Number(club.division) === 1 && club.roster.length < 18);
+assert.ok(sourceClub && destinationClub && sourceClub.id !== destinationClub.id,
+  "the origin-confederation regression must have source and destination clubs in different confederations");
+sourceClub.roster = sourceClub.roster.filter(id => id !== migrant.id);
+destinationClub.roster.push(migrant.id);
+migrant.clubId = destinationClub.id;
+migrant.country = destinationClub.country;
+migrant.leagueId = destinationClub.leagueId;
+migrant.division = destinationClub.division;
+const originSeason = ai.completeSeason(originSave, 1, db);
+const migrantSeasonRow = originSeason.rows.find(row => row.id === migrant.id);
+assert.ok(migrantSeasonRow, "a transferred player must still receive a season row");
+assert.equal(migrantSeasonRow.confederation, "UEFA", "current competition confederation must follow the new club");
+assert.equal(migrantSeasonRow.originConfederation, "CAF", "continental origin must survive a transfer and support CAF awards");
+assert.equal(migrantSeasonRow.nationality, migrant.nationality, "the world simulation must retain sourced player nationality metadata");
+
 const reloadedRepeat = ai.advanceToSeason(reloadedSave, 2, db);
 assert.equal(reloadedRepeat.alreadyAdvanced, true,
   "replaying a market transition after reload must not create a second market");

@@ -418,7 +418,8 @@
       world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
     }
     world.transfers = world.transfers.slice(0, 300);
-    clubs.forEach(club => {
+    // Refill every division after contract expirations; relegated clubs need a complete squad too.
+    Object.values(world.clubs).forEach(club => {
       fillRoster(world, club);
       const strength = rosterPlayers(world, club).slice().sort((a, b) => b.ovr - a.ovr).slice(0, 11);
       const squadAverage = average(strength.map(player => player.ovr));

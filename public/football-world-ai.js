@@ -150,6 +150,7 @@
       fillRoster(world, club);
     }
     world.currentSeason = 1;
+    world.rosterSchemaVersion = 1;
     return world;
   }
   function reconcileDatabase(world, db) {
@@ -253,11 +254,14 @@
       }
     }
     world.dbVersion = int(db && db.version, world.dbVersion || 0);
+    // Mark the expensive roster/database reconciliation as complete. It should only
+    // rerun when the catalogue version changes, not on every render or AI query.
     // Migrate existing saves too: early v1 builds misclassified "وسط مهاجم" as an attacker.
     Object.values(world.players).forEach(player => {
       player.group = groupForPosition(player.position);
     });
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
+    world.rosterSchemaVersion = 1;
     return world;
   }
   function ensureState(save, db) {
@@ -278,7 +282,17 @@
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
-    reconcileDatabase(world, db);
+    // reconcileDatabase scans the global club/player catalogue and repairs squads.
+    // Running it for every dashboard render caused severe avoidable CPU work.
+    const catalogueVersion = int(db && db.version, int(world.dbVersion, 0));
+    const supportedLeagueIds = new Set(db && typeof db.leagues === "function"
+      ? db.leagues().map(profile => String(profile && profile.id || "")).filter(Boolean) : []);
+    const hasUnsupportedClub = supportedLeagueIds.size > 0 && Object.values(world.clubs).some(club =>
+      club && club.leagueId && !supportedLeagueIds.has(String(club.leagueId)));
+    if (catalogueVersion !== int(world.dbVersion, 0)
+      || Number(world.rosterSchemaVersion) !== 1 || hasUnsupportedClub) {
+      reconcileDatabase(world, db);
+    }
     // The world-simulation season is independent of the player's career season.
     // Never rewind completed global seasons just because save.season has not caught up.
     if (Number(world.lastAdvancedTo) > 0) {
@@ -1271,20 +1285,83 @@
     }
     return transition;
   }
+  const dashboardCache = new WeakMap();
   function dashboard(save, db) {
     const world = base.ensureState(save, db);
     const season = Math.max(1, int(world.currentSeason, int(save.season, 1)));
-    simulateLeagueSeason(save, season, db);
-    // base.dashboard reads save.season, which tracks the player's career and can
-    // lag the persistent world timeline. Give it a view with the world season,
-    // without mutating the player's saved career season.
-    const dashboardSave = Number(save.season) === season ? save : Object.assign({}, save, { season });
-    const output = base.dashboard(dashboardSave, db);
+    const matchesBySeason = world.matchesBySeason && typeof world.matchesBySeason === "object" ? world.matchesBySeason : {};
+    const statsBySeason = world.seasonStats && typeof world.seasonStats === "object" ? world.seasonStats : {};
+    const currentKey = String(season);
+    const hasCurrentMatches = Object.prototype.hasOwnProperty.call(matchesBySeason, currentKey);
+    const knownSeasons = new Set([
+      ...Object.keys(matchesBySeason),
+      ...Object.keys(statsBySeason).filter(key => Array.isArray(statsBySeason[key]) && statsBySeason[key].length)
+    ].map(Number).filter(value => Number.isFinite(value) && value > 0));
+    const statsSeason = hasCurrentMatches ? season : Math.max(0, ...knownSeasons);
+    const hasStats = statsSeason > 0 && (
+      Object.prototype.hasOwnProperty.call(matchesBySeason, String(statsSeason))
+      || (Array.isArray(statsBySeason[String(statsSeason)]) && statsBySeason[String(statsSeason)].length > 0)
+    );
+    const currentMatches = matchesBySeason[currentKey];
+    const currentCompetitions = world.competitionsBySeason && world.competitionsBySeason[currentKey];
+    const currentProgress = clamp(Number(save.seasonApps || 0) / Math.max(1, Number(save.seasonAppsTarget || 0)), 0, 1);
+    const lastTransfer = (world.transfers || [])[0] || {};
+    const lastMarket = (world.marketReports || [])[0] || {};
+    const cacheKey = [
+      season, int(save.season, 1), int(save.seasonApps, 0), int(save.seasonAppsTarget, 0),
+      String(save.leagueCountry || ""), int(world.dbVersion, 0), Object.keys(world.clubs || {}).length,
+      Object.keys(world.players || {}).length, (world.completedSeasons || []).length,
+      Object.keys(matchesBySeason).length, Array.isArray(currentMatches) ? currentMatches.length : -1,
+      hasStats ? statsSeason : 0, (statsBySeason[String(statsSeason)] || []).length,
+      (world.transfers || []).length, int(world.transferSequence, 0), String(lastTransfer.id || ""),
+      int(lastMarket.season, 0), int(lastMarket.moves, 0)
+    ].join("|");
+    const cached = dashboardCache.get(world);
+    if (cached && cached.key === cacheKey) return cached.value;
+
+    // Dashboard refreshes happen after training, rest, navigation and match actions.
+    // Do not run every league's full fixture list synchronously from this hot path.
+    // The actual season is simulated by completeSeason/advanceToSeason or explicit
+    // season-data requests, then these persisted results are reused here.
+    let output;
+    if (hasStats) {
+      const fullTarget = Math.max(1, int(save.seasonAppsTarget, 34));
+      const dashboardSave = Object.assign({}, save, {
+        season: statsSeason,
+        seasonApps: fullTarget,
+        seasonAppsTarget: fullTarget
+      });
+      output = base.dashboard(dashboardSave, db);
+    } else {
+      output = {
+        season,
+        clubCount: Object.keys(world.clubs || {}).length,
+        playerCount: Object.keys(world.players || {}).length,
+        totalTransfers: (world.transfers || []).length,
+        lastMarket: lastMarket.season ? lastMarket : {
+          season: 0, moves: 0,
+          summary: "تتغير حركة السوق مع تقدم المسيرة للموسم التالي.",
+          transferIds: []
+        },
+        recentTransfers: (world.transfers || []).slice(0, 6),
+        goalsLeaders: [],
+        assistLeaders: [],
+        leagueTable: [],
+        progress: Math.round(currentProgress * 100),
+        completedSeasons: (world.completedSeasons || []).length,
+        note: "الإحصائيات والقوة والانتقالات في هذا القسم محاكاة وليست بيانات رسمية حية. لم تُحاكَ مباريات الموسم العالمي بعد؛ ستظهر بيانات الموسم عند اكتمال محاكاته."
+      };
+    }
     output.season = season;
-    output.freeAgentCount = Object.values(world.players).filter(player => player.freeAgent).length;
-    output.matchesSimulated = (world.matchesBySeason[String(season)] || []).length;
-    output.competitionsSimulated = (world.competitionsBySeason[String(season)] || []).length;
+    output.progress = Math.round(currentProgress * 100);
+    output.freeAgentCount = Object.values(world.players || {}).filter(player => player && player.freeAgent).length;
+    output.matchesSimulated = Array.isArray(currentMatches) ? currentMatches.length : 0;
+    output.competitionsSimulated = Array.isArray(currentCompetitions) ? currentCompetitions.length : 0;
     output.promotionHistory = world.promotionHistory || [];
+    if (hasStats && statsSeason !== season) {
+      output.note = String(output.note || "") + " الهدافون والجدول يعرضون آخر موسم عالمي مكتمل (" + statsSeason + ").";
+    }
+    dashboardCache.set(world, { key: cacheKey, value: output });
     return output;
   }
   global.LWWorldAI = Object.freeze(Object.assign({}, base, {

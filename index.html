@@ -2548,57 +2548,89 @@ function club(){const base=CLUBS[clamp(state.clubIndex,0,CLUBS.length-1)]||CLUBS
 function safeText(s){return String(s??"");}
 function log(message){state.diary.unshift({day:state.day,season:state.season,text:String(message)});state.diary=state.diary.slice(0,40);}
 function setStory(title,text){state.storyTitle=title;state.storyText=text;}
-function compactSnapshotForStorage(value){
+function compactSnapshotForStorage(value,aggressive=false){
  const snapshot={...value};
  const source=value&&value.worldSimulation;
  if(!source||typeof source!=="object"||!source.clubs||!source.players)return snapshot;
  const keysOf=object=>Object.keys(object&&typeof object==="object"?object:{});
  const numericSort=(a,b)=>Number(a)-Number(b);
  const statKeys=keysOf(source.seasonStats).sort(numericSort).slice(-1);
- const recentTableKeys=keysOf(source.leagueTables).sort(numericSort).slice(-2);
- const recentCompetitionKeys=keysOf(source.competitionsBySeason).sort(numericSort).slice(-2);
+ const recentTableKeys=keysOf(source.leagueTables).sort(numericSort).slice(aggressive?-1:-2);
+ const recentCompetitionKeys=keysOf(source.competitionsBySeason).sort(numericSort).slice(aggressive?-1:-2);
  const pick=(object,keys)=>Object.fromEntries(keys.filter(key=>Object.prototype.hasOwnProperty.call(object||{},key)).map(key=>[key,object[key]]));
+ const seasonFields=["id","season","name","club","clubName","clubId","country","leagueId","division","position","group","age","ovr","potential","appearances","goals","assists","averageRating","leagueStrength","prestige","confederation","isGenerated","realPlayer","score","weightedGoals"];
  const seasonStats=Object.fromEntries(statKeys.filter(key=>Array.isArray(source.seasonStats[key])).map(key=>[
   key,source.seasonStats[key].map(row=>{
    if(!row||typeof row!=="object")return row;
-   const compact={...row};
-   // These objects duplicate fields already present on the season row; the API rebuilds
-   // them when getSeasonLines() is called after loading a save.
-   delete compact.seasonStats;
-   delete compact.displayStats;
-   delete compact.originConfederation;
-   return compact;
+   return Object.fromEntries(seasonFields.filter(field=>row[field]!==undefined).map(field=>[field,row[field]]));
   })
  ]));
- const playerHistory=Object.fromEntries(Object.entries(source.playerHistory||{}).map(([id,rows])=>[
+ const playerFields=["id","name","clubId","country","leagueId","division","position","group","ovr","potential","age","prestige","contractSeasons","isGenerated","isRealPlayer","lastRating","transferListed","freeAgent","previousClubId","lastRenewedSeason","freeAgentSince"];
+ const clubFields=["id","name","country","leagueId","leagueName","leagueEnglish","confederation","division","currency","basePower","power","prestige","budget","roster","matchesPerSeason","updatedSeason"];
+ const compactPlayers=Object.fromEntries(Object.entries(source.players).map(([id,player])=>[
+  id,Object.fromEntries(playerFields.filter(field=>player[field]!==undefined).map(field=>[field,player[field]]))
+ ]));
+ const compactClubs=Object.fromEntries(Object.entries(source.clubs).map(([id,club])=>[
+  id,Object.fromEntries(clubFields.filter(field=>club[field]!==undefined).map(field=>[field,club[field]]))
+ ]));
+ const playerHistory=aggressive?{}:Object.fromEntries(Object.entries(source.playerHistory||{}).map(([id,rows])=>[
   id,Array.isArray(rows)?rows.slice(0,5):[]
  ]).filter(([,rows])=>rows.length));
  snapshot.worldSimulation={
   ...source,
+  players:compactPlayers,
+  clubs:compactClubs,
   seasonStats,
   leagueTables:pick(source.leagueTables,recentTableKeys),
   competitionsBySeason:pick(source.competitionsBySeason,recentCompetitionKeys),
-  matchesBySeason:pick(source.matchesBySeason,keysOf(source.matchesBySeason).sort(numericSort).slice(-1)),
-  transfers:(Array.isArray(source.transfers)?source.transfers:[]).slice(0,150),
-  marketReports:(Array.isArray(source.marketReports)?source.marketReports:[]).slice(0,6),
-  notes:(Array.isArray(source.notes)?source.notes:[]).slice(0,20),
-  promotionHistory:(Array.isArray(source.promotionHistory)?source.promotionHistory:[]).slice(-10),
-  playerHistory
+  matchesBySeason:aggressive?{}:pick(source.matchesBySeason,keysOf(source.matchesBySeason).sort(numericSort).slice(-1)),
+  transfers:(Array.isArray(source.transfers)?source.transfers:[]).slice(0,aggressive?80:150),
+  marketReports:(Array.isArray(source.marketReports)?source.marketReports:[]).slice(0,aggressive?3:6),
+  notes:(Array.isArray(source.notes)?source.notes:[]).slice(0,aggressive?12:20),
+  promotionHistory:(Array.isArray(source.promotionHistory)?source.promotionHistory:[]).slice(aggressive?-6:-10),
+  playerHistory,
+  completedSeasons:(Array.isArray(source.completedSeasons)?source.completedSeasons:[]).slice(-20)
  };
+ if(aggressive){
+  for(const key of ["diary","seasonLog","careerMatchHistory","seasonHistory","leagueArchives","recordedMatchIds","transferHistory","calendarEvents","cupHistory","internationalHistory","promotionHistory"]){
+   if(Array.isArray(snapshot[key]))snapshot[key]=snapshot[key].slice(-20);
+  }
+ }
  return snapshot;
 }
 function encodeStoredSave(value){
- const compacted=compactSnapshotForStorage(value);
- const serialized=JSON.stringify(compacted);
- if(serialized.length<100000||!window.LZString||typeof window.LZString.compressToUTF16!=="function")return serialized;
- try{
-  const compressed=window.LZString.compressToUTF16(serialized);
-  return typeof compressed==="string"&&compressed.length+5<serialized.length?"LWZ1:"+compressed:serialized;
- }catch(error){
-  // A quota-safe compact JSON snapshot is preferable to losing the save if compression
-  // runs out of memory on a large football-world simulation.
-  return serialized;
+ let compacted=compactSnapshotForStorage(value,false);
+ let serialized=JSON.stringify(compacted);
+ // localStorage quotas are small; use a compact JSON representation before expensive
+ // general-purpose compression on the entire multi-league simulation.
+ if(serialized.length>2100000){
+  compacted=compactSnapshotForStorage(value,true);
+  serialized=JSON.stringify(compacted);
  }
+ if(serialized.length<=2100000)return serialized;
+ if(window.LZString&&typeof window.LZString.compressToUTF16==="function"){
+  try{
+   const compressed=window.LZString.compressToUTF16(serialized);
+   if(typeof compressed==="string"&&compressed.length+5<serialized.length)return "LWZ1:"+compressed;
+  }catch(error){console.warn("Could not compress compact career snapshot; keeping compact JSON.",error);}
+ }
+ return serialized;
+}
+function rehydrateStoredWorld(world){
+ if(!world||typeof world!=="object"||!world.seasonStats)return;
+ Object.values(world.seasonStats).forEach(rows=>{
+  if(!Array.isArray(rows))return;
+  rows.forEach(row=>{
+   if(!row||typeof row!=="object")return;
+   if(row.clubName===undefined)row.clubName=row.club||"";
+   if(row.originConfederation===undefined)row.originConfederation=row.confederation||"";
+   if(!row.seasonStats)row.seasonStats={season:Number(row.season)||1,appearances:Number(row.appearances)||0,
+    goals:Number(row.goals)||0,assists:Number(row.assists)||0,averageRating:Number(row.averageRating)||0,
+    ovr:Number(row.ovr)||50,club:row.club||row.clubName||"",country:row.country||""};
+   if(!row.displayStats)row.displayStats={appearances:Number(row.appearances)||0,goals:Number(row.goals)||0,
+    assists:Number(row.assists)||0,averageRating:Number(row.averageRating)||0};
+  });
+ });
 }
 function decodeStoredSave(raw){
  if(typeof raw!=="string")throw new Error("invalid save payload");
@@ -2725,6 +2757,7 @@ function loadGame(){
   const saved=JSON.parse(decodeStoredSave(raw));
   if(!saved||typeof saved!=="object")return false;
   state={...structuredCloneSafe(INITIAL),...saved};
+  rehydrateStoredWorld(state.worldSimulation);
   if(saved.physical===undefined)state.physical=legacyPhysicalFallback(state.pos,saved);
   if(saved.contractType===undefined)state.contractType=Number(state.age)<=18&&Number(state.leagueDivision)>=2?"youth-amateur":state.freeAgent?"free-agent":"professional";
   if(!Object.prototype.hasOwnProperty.call(saved,"calendarDay")||!Number.isFinite(Number(saved.calendarDay))||Number(saved.calendarDay)<1)state.calendarDay=Math.max(1,Number(saved.day)||1);

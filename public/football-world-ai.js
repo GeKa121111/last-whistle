@@ -1308,7 +1308,7 @@
     const lastTransfer = (world.transfers || [])[0] || {};
     const lastMarket = (world.marketReports || [])[0] || {};
     const cacheKey = [
-      season, int(save.season, 1), int(save.seasonApps, 0), int(save.seasonAppsTarget, 0),
+      season, int(save.season, 1), int(save.seasonAppsTarget, 0),
       String(save.leagueCountry || ""), int(world.dbVersion, 0), Object.keys(world.clubs || {}).length,
       Object.keys(world.players || {}).length, (world.completedSeasons || []).length,
       Object.keys(matchesBySeason).length, Array.isArray(currentMatches) ? currentMatches.length : -1,
@@ -1317,41 +1317,23 @@
       int(lastMarket.season, 0), int(lastMarket.moves, 0)
     ].join("|");
     const cached = dashboardCache.get(world);
-    if (cached && cached.key === cacheKey) return cached.value;
+    if (cached && cached.key === cacheKey) {
+      // Progress belongs to the player's career, not the cached global-season projection.
+      cached.value.progress = Math.round(currentProgress * 100);
+      return cached.value;
+    }
 
     // Dashboard refreshes happen after training, rest, navigation and match actions.
-    // Do not run every league's full fixture list synchronously from this hot path.
-    // The actual season is simulated by completeSeason/advanceToSeason or explicit
-    // season-data requests, then these persisted results are reused here.
-    let output;
-    if (hasStats) {
-      const fullTarget = Math.max(1, int(save.seasonAppsTarget, 34));
-      const dashboardSave = Object.assign({}, save, {
-        season: statsSeason,
-        seasonApps: fullTarget,
-        seasonAppsTarget: fullTarget
-      });
-      output = base.dashboard(dashboardSave, db);
-    } else {
-      output = {
-        season,
-        clubCount: Object.keys(world.clubs || {}).length,
-        playerCount: Object.keys(world.players || {}).length,
-        totalTransfers: (world.transfers || []).length,
-        lastMarket: lastMarket.season ? lastMarket : {
-          season: 0, moves: 0,
-          summary: "تتغير حركة السوق مع تقدم المسيرة للموسم التالي.",
-          transferIds: []
-        },
-        recentTransfers: (world.transfers || []).slice(0, 6),
-        goalsLeaders: [],
-        assistLeaders: [],
-        leagueTable: [],
-        progress: Math.round(currentProgress * 100),
-        completedSeasons: (world.completedSeasons || []).length,
-        note: "الإحصائيات والقوة والانتقالات في هذا القسم محاكاة وليست بيانات رسمية حية. لم تُحاكَ مباريات الموسم العالمي بعد؛ ستظهر بيانات الموسم عند اكتمال محاكاته."
-      };
-    }
+    // Never run every league's full fixture list synchronously from this hot path.
+    // Before a global season is completed, show cheap deterministic projections;
+    // afterwards, show the persisted full-season results.
+    const fullTarget = Math.max(1, int(save.seasonAppsTarget, 34));
+    const dashboardSave = Object.assign({}, save, {
+      season: statsSeason || season,
+      seasonApps: fullTarget,
+      seasonAppsTarget: fullTarget
+    });
+    let output = base.dashboard(dashboardSave, db);
     output.season = season;
     output.progress = Math.round(currentProgress * 100);
     output.freeAgentCount = Object.values(world.players || {}).filter(player => player && player.freeAgent).length;
@@ -1360,6 +1342,8 @@
     output.promotionHistory = world.promotionHistory || [];
     if (hasStats && statsSeason !== season) {
       output.note = String(output.note || "") + " الهدافون والجدول يعرضون آخر موسم عالمي مكتمل (" + statsSeason + ").";
+    } else if (!hasStats) {
+      output.note = String(output.note || "") + " الهدافون والجدول الحاليان توقعات محاكاة قابلة للتغيّر عند اعتماد نتائج الموسم.";
     }
     dashboardCache.set(world, { key: cacheKey, value: output });
     return output;

@@ -22,6 +22,20 @@
       .replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
       .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
   }
+  function nationalityConfederation(value) {
+    const key = normalize(value);
+    if (!key) return "";
+    const regions = [
+      ["CAF", ["alg","ang","ben","bfa","bdi","bot","bur","cmr","cpv","caf","cha","com","cod","cgo","civ","djib","dji","egy","eqg","eri","eth","gab","gam","gha","gui","gnb","ken","les","lbr","lby","mad","maw","mli","mtn","moz","nam","ner","ngr","nga","rsa","rwa","sen","sey","sle","som","ssd","sud","swz","tan","tog","tun","uga","zam","zim","algeria","angola","benin","botswana","burkinafaso","burundi","cameroon","capeverde","centralafricanrepublic","chad","comoros","drcongo","congo","ivorycoast","djibouti","egypt","equatorialguinea","eritrea","ethiopia","gabon","gambia","ghana","guinea","guineabissau","kenya","lesotho","liberia","libya","madagascar","malawi","mali","mauritania","mauritius","morocco","mozambique","namibia","niger","nigeria","rwanda","senegal","seychelles","sierraleone","somalia","southafrica","southsudan","sudan","eswatini","tanzania","togo","tunisia","uganda","zambia","zimbabwe"]],
+      ["CONMEBOL", ["arg","bol","bra","chi","col","ecu","par","per","uru","ven","argentina","bolivia","brazil","chile","colombia","ecuador","paraguay","peru","uruguay","venezuela"]],
+      ["AFC", ["afg","aus","bhr","ban","bhu","bru","cam","chn","gum","hkg","ind","ina","irn","irq","jor","jpn","kor","kuw","kgz","lao","lib","mac","mas","mdv","mgl","mya","nep","oma","pak","ple","phi","prk","qat","ksa","sin","sri","syr","tjk","tha","tls","tkm","uae","uzb","vie","yem","afghanistan","australia","bahrain","bangladesh","bhutan","brunei","cambodia","china","hongkong","india","indonesia","iran","iraq","jordan","japan","southkorea","kuwait","kyrgyzstan","laos","lebanon","malaysia","maldives","mongolia","myanmar","nepal","oman","pakistan","palestine","philippines","northkorea","qatar","saudiarabia","singapore","srilanka","syria","tajikistan","thailand","timorleste","turkmenistan","unitedarabemirates","uzbekistan","vietnam","yemen"]],
+      ["CONCACAF", ["can","crc","cub","cur","dom","slv","gua","hai","hon","jam","mex","nca","pan","usa","tri","canada","costarica","cuba","curacao","dominicanrepublic","elsalvador","guatemala","haiti","honduras","jamaica","mexico","nicaragua","panama","unitedstates","trinidadandtobago"]],
+      ["OFC", ["fij","ncl","nzl","png","sam","sol","tah","tga","van","fiji","newcaledonia","newzealand","papuanewguinea","samoa","solomonislands","tahiti","tonga","vanuatu"]],
+      ["UEFA", ["alb","and","arm","aut","aze","blr","bel","bih","bul","cro","cyp","cze","den","eng","est","fin","fra","geo","ger","gre","hun","isl","irl","isr","ita","kaz","kos","kvx","lat","lie","ltu","lux","mkd","mlt","mda","mne","ned","nir","nor","pol","por","rou","rus","sco","srb","svk","svn","swe","sui","tur","ukr","wal","albania","andorra","armenia","austria","azerbaijan","belarus","belgium","bosniaandherzegovina","bulgaria","croatia","cyprus","czechia","denmark","england","estonia","finland","france","georgia","germany","greece","hungary","iceland","ireland","israel","italy","kazakhstan","kosovo","latvia","liechtenstein","lithuania","luxembourg","northmacedonia","malta","moldova","montenegro","netherlands","northernireland","norway","poland","portugal","romania","russia","scotland","serbia","slovakia","slovenia","sweden","switzerland","turkey","ukraine","wales"]]
+    ];
+    for (const [confederation, values] of regions) if (values.includes(key)) return confederation;
+    return "";
+  }
   function hash(value) {
     let h = 2166136261;
     for (const char of String(value)) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
@@ -104,6 +118,9 @@
       clubId: club.id, country: club.country, leagueId: club.leagueId, division: club.division,
       position, group, ovr, potential: clamp(row && row.potential || ovr + 3 + Math.floor(rng() * 18), ovr, 97),
       age, prestige: club.prestige, contractSeasons: 1 + Math.floor(rng() * 5),
+      nationality: String(row && (row.nationality || row.nationalityCode) || ""),
+      originConfederation: String(row && (row.originConfederation || row.confederation)
+        || nationalityConfederation(row && (row.nationality || row.nationalityCode)) || club.confederation || ""),
       isGenerated: !!generated || !!(row && row.isRealPlayer === false), isRealPlayer: !generated && !!row && row.isRealPlayer !== false,
       lastRating: 0, transferListed: false
     };
@@ -256,6 +273,12 @@
     // Migrate existing saves too: early v1 builds misclassified "وسط مهاجم" as an attacker.
     Object.values(world.players).forEach(player => {
       player.group = groupForPosition(player.position);
+      const activeClub = world.clubs[player.clubId];
+      if (!player.nationality) player.nationality = "";
+      if (!player.originConfederation) {
+        player.originConfederation = String(nationalityConfederation(player.nationality)
+          || (activeClub && activeClub.confederation) || player.confederation || "");
+      }
     });
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
     return world;
@@ -860,7 +883,8 @@
         leagueStrength: Math.round(avg(leagueClubs.map(club => Number(club.power) || 55))),
         prestige: historicalClub ? historicalClub.prestige : player.prestige || 0,
         confederation: historicalClub ? historicalClub.confederation : "",
-        originConfederation: historicalClub ? historicalClub.confederation : "",
+        originConfederation: String(player.originConfederation
+          || nationalityConfederation(player.nationality) || (historicalClub && historicalClub.confederation) || ""),
         isGenerated: !!player.isGenerated, realPlayer: !player.isGenerated,
         score: Number((rating * 9 + goals * 0.95 + assists * 0.62 + (Number(player.ovr) || 0) * 0.08).toFixed(3)),
         weightedGoals: Number((goals * (0.82 + (Math.round(avg(leagueClubs.map(club => Number(club.power) || 55)) || 60)) / 450)).toFixed(3)),
@@ -1099,20 +1123,67 @@
           .sort((a, b) => Number(b.power || 50) - Number(a.power || 50)).slice(0, 16);
       } else if (def.kind === "supercup" && season > 1) {
         const previous = world.competitionsBySeason[String(season - 1)] || [];
-        const eligible = previous.filter(row => row && row.championId
-          && (!def.confederation || row.confederation === def.confederation));
-        eligible.sort((a,b)=>a.kind==="continental" ? -1 : b.kind==="continental" ? 1 : 0);
-        eligible.slice(0, 2).forEach(row => {
-          const club = world.clubs[row.championId];
+        const addParticipant = club => {
           if (club && !participants.some(team => team.id === club.id)) participants.push(club);
-        });
-        if (participants.length < 2 && def.countries && def.countries.length) {
-          const leagueId = def.countries[0];
-          const leagueChampion = (tables[leagueId] || [])[0];
-          const cupChampion = previous.find(row => row.kind === "domestic-cup" && row.id && row.championId
+        };
+        if (Array.isArray(def.countries) && def.countries.length) {
+          // Domestic supercups must use their own league and cup champions from the previous season,
+          // never the UEFA/CAF continental winners merely because those clubs share a confederation.
+          const leagueId = String(def.countries[0]);
+          const previousTables = world.leagueTables[String(season - 1)] || {};
+          const previousLeagueTable = previousTables[leagueId] || [];
+          const leagueChampionRow = previousLeagueTable[0];
+          const leagueChampion = leagueChampionRow && world.clubs[leagueChampionRow.clubId];
+          const cupResult = previous.find(row => row && row.kind === "domestic-cup" && row.championId
             && (world.clubs[row.championId] || {}).leagueId === leagueId);
-          [leagueChampion && world.clubs[leagueChampion.clubId], cupChampion && world.clubs[cupChampion.championId]]
-            .forEach(club => { if (club && !participants.some(team => team.id === club.id)) participants.push(club); });
+          const cupChampion = cupResult && world.clubs[cupResult.championId];
+          addParticipant(leagueChampion);
+          addParticipant(cupChampion);
+          if (participants.length < 2 && cupResult) addParticipant(world.clubs[cupResult.runnerUpId]);
+          if (participants.length < 2 && previousLeagueTable[1]) addParticipant(world.clubs[previousLeagueTable[1].clubId]);
+          if (participants.length < 2) {
+            const otherDomesticCup = previous.find(row => row && row.kind === "domestic-cup" && row.championId
+              && (world.clubs[row.championId] || {}).leagueId === leagueId
+              && !participants.some(team => team.id === row.championId));
+            if (otherDomesticCup) {
+              addParticipant(world.clubs[otherDomesticCup.championId]);
+              if (participants.length < 2) addParticipant(world.clubs[otherDomesticCup.runnerUpId]);
+            }
+          }
+        } else {
+          // Continental supercups are tied to the exact competitions that qualify for them.
+          // If one club wins both, use the runner-up of the secondary competition as the opponent.
+          const preferredIds = def.id === "uefa-super-cup" ? ["ucl", "uel"]
+            : def.id === "caf-super-cup" ? ["caf-cl", "caf-confed"] : [];
+          const previousById = new Map(previous.filter(Boolean).map(row => [String(row.id), row]));
+          preferredIds.forEach(id => {
+            const result = previousById.get(id);
+            addParticipant(result && world.clubs[result.championId]);
+          });
+          if (participants.length < 2) {
+            for (const id of preferredIds.slice().reverse()) {
+              const result = previousById.get(id);
+              addParticipant(result && world.clubs[result && result.runnerUpId]);
+              if (participants.length >= 2) break;
+            }
+          }
+          if (participants.length < 2) {
+            const priority = def.confederation === "UEFA" ? ["ucl", "uel", "uecl"]
+              : def.confederation === "CAF" ? ["caf-cl", "caf-confed"] : [];
+            const rank = row => {
+              const index = priority.indexOf(String(row && row.id || ""));
+              return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+            };
+            const eligible = previous.filter(row => row && row.championId
+              && (!def.confederation || row.confederation === def.confederation))
+              .sort((a, b) => rank(a) - rank(b) || String(a.id).localeCompare(String(b.id)));
+            for (const result of eligible) {
+              addParticipant(world.clubs[result.championId]);
+              if (participants.length >= 2) break;
+              addParticipant(world.clubs[result.runnerUpId]);
+              if (participants.length >= 2) break;
+            }
+          }
         }
       } else {
         return;

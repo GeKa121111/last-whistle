@@ -429,12 +429,18 @@ async function main() {
     await page.evaluate(() => {
       window.LWStoryRuntime.getState().money = 49;
     });
-    // The explicit save button belongs to the diary page, so make that page visible
-    // before clicking it. It flushes synchronously, unlike the deferred background save.
+    // The explicit save button belongs to the diary page. Check the durable IndexedDB slot
+    // after flushing the current state; localStorage is only the legacy fallback now.
     await page.evaluate(() => window.LWStoryRuntime.showPage("diary"));
     await page.locator("#saveBtn").waitFor({ state: "visible", timeout: 10000 });
     await page.locator("#saveBtn").click();
-    const sentinelMoney = await page.evaluate(() => {
+    const sentinelMoney = await page.evaluate(async () => {
+      const liveState = window.LWStoryRuntime.getState();
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") {
+        await window.LWStateStore.flush(liveState);
+        const saved = await window.LWStateStore.load("career:default");
+        if (saved) return Number(saved.money);
+      }
       const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
       const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
       return Number(JSON.parse(json).money);

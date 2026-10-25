@@ -20,6 +20,19 @@ const scotlandFixtureSnapshot = {
         age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "SCO", isRealPlayer: true
       }))
     }))
+  }, {
+    leagueId: "greece", country: "اليونان", division: 1, expectedTeams: 14,
+    sourceUrl: "https://www.slgr.gr/", sourceSeason: "2026/27",
+    clubs: Array.from({ length: 14 }, (_, clubIndex) => ({
+      name: "Greece Test Club " + String(clubIndex + 1).padStart(2, "0"), aliases: [],
+      leagueId: "greece", country: "اليونان", division: 1,
+      sourceUrl: "https://www.slgr.gr/test-club-" + (clubIndex + 1),
+      players: Array.from({ length: 16 }, (_, playerIndex) => ({
+        name: "Greece Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
+        position: playerIndex < 3 ? "حارس مرمى" : playerIndex < 8 ? "قلب دفاع" : playerIndex < 13 ? "وسط مهاجم" : "مهاجم",
+        age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "GRE", isRealPlayer: true
+      }))
+    }))
   }]
 };
 const sandbox = { window: { LWFootballSquadData: scotlandFixtureSnapshot }, console };
@@ -116,7 +129,7 @@ for (const [tableKey, rows] of Object.entries(world.leagueTables["1"])) {
     assert.equal(row.gf, tally.gf, "goals for must reconcile for " + row.club);
     assert.equal(row.ga, tally.ga, "goals against must reconcile for " + row.club);
     assert.equal(row.gd, row.gf - row.ga, "goal difference must be derived from match scores");
-    assert.equal(row.pts, row.w * 3 + row.d, "points must be derived from results");
+    assert.equal(row.pts, row.w * 3 + row.d + Number(row.pointsAdjustment || 0), "points must reconcile with results and explicit league-format adjustments");
   }
 }
 // The Scottish Premiership plays 33 matches before splitting into top and bottom six,
@@ -147,6 +160,58 @@ assert.equal(splitFixtures.length, 30, "the final split should contain 30 fixtur
 assert.ok(splitFixtures.every(match => scottishTopSix.has(match.homeClubId) === scottishTopSix.has(match.awayClubId)),
   "Scottish split fixtures must not cross between the top six and bottom six");
 assert.ok(world.leagueTables["1"].scotland.every(row => row.played === 38), "the saved Scottish table must show 38 games per club");
+
+ // Greece: regular season followed by championship, conference, and play-out groups.
+ const greekClubs = Object.values(world.clubs).filter(club => club.leagueId === "greece" && Number(club.division) === 1);
+ assert.equal(greekClubs.length, 14, "the Greek Super League must contain all 14 clubs");
+ const greekIds = new Set(greekClubs.map(club => club.id));
+ const greekFixtures = fixtures.filter(match => greekIds.has(match.homeClubId) && greekIds.has(match.awayClubId));
+ assert.equal(greekFixtures.length, 236, "Greek league should contain 182 regular-season plus 54 post-season fixtures");
+ const greekRegularFixtures = greekFixtures.filter(match => match.matchday <= 26);
+ const greekPostSeasonFixtures = greekFixtures.filter(match => match.matchday > 26);
+ assert.equal(greekRegularFixtures.length, 182, "14 clubs should play 13 opponents twice across 26 regular-season matchdays");
+ assert.equal(greekPostSeasonFixtures.length, 54, "post-season groups should add 12 + 12 + 30 fixtures");
+ const greekRegular = new Map(greekClubs.map(club => [club.id, {
+   clubId: club.id, club: club.name, power: club.power, pts: 0, gf: 0, ga: 0
+ }]));
+ for (const match of greekRegularFixtures) {
+   const home = greekRegular.get(match.homeClubId), away = greekRegular.get(match.awayClubId);
+   home.gf += match.homeGoals; home.ga += match.awayGoals;
+   away.gf += match.awayGoals; away.ga += match.homeGoals;
+   if (match.homeGoals > match.awayGoals) home.pts += 3;
+   else if (match.homeGoals < match.awayGoals) away.pts += 3;
+   else { home.pts++; away.pts++; }
+ }
+ const greekRanked = Array.from(greekRegular.values()).map(row => ({ ...row, gd: row.gf - row.ga }))
+   .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || b.power - a.power || a.club.localeCompare(b.club, "ar"));
+ const greekGroupByClub = new Map();
+ greekRanked.forEach((row, index) => greekGroupByClub.set(row.clubId,
+   index < 4 ? "championship" : index < 8 ? "conference" : "playout"));
+ const greekTable = new Map((world.leagueTables["1"].greece || []).map(row => [row.clubId, row]));
+ assert.equal(greekTable.size, 14, "Greek final table must retain all clubs");
+ for (const club of greekClubs) {
+   const row = greekTable.get(club.id);
+   const expectedGroup = greekGroupByClub.get(club.id);
+   assert.equal(row.postSeasonGroup, expectedGroup, "club must remain in its regular-season-ranked post-season group: " + club.name);
+   assert.equal(row.regularSeasonPoints, greekRegular.get(club.id).pts, "regular-season points must be archived before post-season adjustments");
+   assert.equal(row.pointsAdjustment, expectedGroup === "conference" ? Math.ceil(row.regularSeasonPoints / 2) - row.regularSeasonPoints : 0,
+     "only the 5th-8th group halves regular-season points, rounded up");
+   const clubFixtures = greekFixtures.filter(match => match.homeClubId === club.id || match.awayClubId === club.id);
+   assert.equal(clubFixtures.filter(match => match.matchday <= 26).length, 26, "every Greek club plays 26 regular-season matches");
+   assert.equal(clubFixtures.length, expectedGroup === "playout" ? 36 : 32,
+     "Greek post-season group format determines the final match count for " + club.name);
+ }
+ assert.ok(greekPostSeasonFixtures.every(match => {
+   const homeGroup = greekGroupByClub.get(match.homeClubId);
+   return homeGroup === greekGroupByClub.get(match.awayClubId)
+     && ((match.matchday >= 27 && match.matchday <= 32 && homeGroup !== "playout")
+       || (match.matchday >= 27 && match.matchday <= 36 && homeGroup === "playout"));
+ }), "post-season fixtures must stay inside the correct group and matchday window");
+ assert.equal(greekTable.get(greekRanked[0].clubId).rank, 1, "the championship-group leader should be ranked first");
+ assert.ok((world.leagueTables["1"].greece || []).slice(0, 4).every(row => row.postSeasonGroup === "championship"));
+ assert.ok((world.leagueTables["1"].greece || []).slice(4, 8).every(row => row.postSeasonGroup === "conference"));
+ assert.ok((world.leagueTables["1"].greece || []).slice(8, 14).every(row => row.postSeasonGroup === "playout"));
+
 const duplicateCompletion = ai.completeSeason(save, 1, db);
 assert.equal(duplicateCompletion.alreadyCompleted, true, "the same global season cannot be recorded twice");
 assert.equal(world.seasonStats["1"].length, firstSeason.rows.length, "idempotent season completion must not duplicate stat rows");

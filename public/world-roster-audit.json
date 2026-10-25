@@ -3,7 +3,7 @@
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
-  "expectedTeamsTotal": 283,
+  "expectedTeamsTotal": 286,
   "leagues": [
     {
       "leagueId": "argentina",
@@ -26,12 +26,12 @@
     {
       "leagueId": "egypt",
       "division": 1,
-      "expectedTeams": 17,
+      "expectedTeams": 20,
       "sourceUrl": "https://www.egyptianproleague.com/",
       "sourceSeason": "2026/27",
-      "coverageType": "available-official-squad-pages",
-      "clubs": 17,
-      "players": 570,
+      "coverageType": "verified-current-squad-pages",
+      "clubs": 20,
+      "players": 655,
       "below18Players": []
     },
     {
@@ -134,23 +134,37 @@
       "below18Players": []
     }
   ],
-  "totalTeams": 283,
-  "totalPlayers": 9465,
-  "snapshotBytes": 1809932,
+  "totalTeams": 286,
+  "totalPlayers": 9550,
+  "snapshotBytes": 1831915,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {
-      "source": "Egyptian Professional Clubs Association official squad pages (2026/27)",
+      "source": "Verified current Egyptian league and club squad pages (2026/27)",
       "season": "2026/27",
-      "availablePagesConfigured": 18,
-      "importedClubs": 17,
-      "importedPlayers": 570,
-      "skippedPages": [
+      "availablePagesConfigured": 20,
+      "importerRevision": 3,
+      "importedClubs": 20,
+      "importedPlayers": 655,
+      "skippedPages": [],
+      "fallbackClubs": [
         {
           "name": "بتروجيت",
-          "url": "https://www.egyptianproleague.com/team/36/detials/14455/squad",
-          "reason": "Only 0 player records parsed; minimum is 16",
-          "pageTitle": "م.السويس بتروجت."
+          "sourceUrl": "https://petrojetsc.com/",
+          "playerCount": 28,
+          "positionData": "position-not-published"
+        },
+        {
+          "name": "أبو قير للأسمدة",
+          "sourceUrl": "https://abuqirfertilizers.com/players/",
+          "playerCount": 32,
+          "positionData": "position-not-published"
+        },
+        {
+          "name": "بترول أسيوط",
+          "sourceUrl": "https://asyutpetroleum.com/player-category/players/",
+          "playerCount": 25,
+          "positionData": "position-not-published"
         }
       ]
     }

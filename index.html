@@ -4459,7 +4459,10 @@ function finishSeason(){
    {label:"راجع جدول الدوري",action:()=>proceedSeasonTransition(true)}
   ]);
  }
- render();saveGame(true);
+ // Refresh the hidden league/award panels once when the season is finalized.
+ // Routine actions still render only the active page, but the season-end report must
+ // be visible immediately when the player opens the league tab.
+ renderLeague();renderCareerAwards();render();saveGame(true);
 }
 function startNewSeason(showStory=true){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}

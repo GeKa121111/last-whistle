@@ -59,6 +59,21 @@ for (const file of ["index.html", "football-world-db.js", "football-world-roster
   assert.equal(read(file), read(path.join("public", file)), "root/public canonical file drift: " + file);
 }
 for (const file of [
+  "SNAPSHOTS_AR.md",
+  "career-engine.js",
+  "global-catalog.js",
+  "match-engine.js",
+  "snapshots/fifa-global-2023.json.gz.b64",
+  "snapshots/openfootball-clubs.json.gz.b64",
+  "snapshots/football-reference.json.gz.b64",
+  "snapshots/awards.json.gz.b64"
+]) {
+  const canonical = fs.readFileSync(path.join(root, "source", "public", "data", file));
+  assert.deepEqual(fs.readFileSync(path.join(root, "data", file)), canonical, "root data drift: " + file);
+  assert.deepEqual(fs.readFileSync(path.join(root, "public", "data", file)), canonical, "public data drift: " + file);
+}
+
+for (const file of [
   "data/global-catalog.js",
   "data/career-engine.js",
   "data/match-engine.js",

@@ -320,6 +320,7 @@ async function main() {
       const state = window.LWStoryRuntime && window.LWStoryRuntime.getState();
       return state && state.careerStarted && state.name === "Mohamed Ahmed"
         && state.boots === true && Number(state.money) === 50
+        && Number(state.schemaVersion) === 10
         && !document.querySelector("#startScreen").classList.contains("show");
     }, null, { timeout: 20000 });
     results.push("career and store ownership persist after reload");
@@ -358,6 +359,11 @@ async function main() {
     results.push("season transfer-market navigation");
 
     // Exercise the complete league season lifecycle, not just a single match.
+    await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.trainingIntensity = "intense";
+      window.LWStoryRuntime.save();
+    });
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     await page.locator("#lw-cta-season").click();
@@ -530,6 +536,8 @@ async function main() {
         apps: Number(state.seasonApps),
         target: Number(state.seasonAppsTarget),
         finished: state.seasonFinished,
+        trainingIntensity: state.trainingIntensity,
+        schemaVersion: Number(state.schemaVersion),
         historyCount: Array.isArray(state.seasonHistory) ? state.seasonHistory.length : 0,
         trainingSessions: Number(state.seasonTrainingReport?.sessions) || 0,
         trainingXP: Number(state.seasonTrainingReport?.xp) || 0,
@@ -548,6 +556,8 @@ async function main() {
       };
     });
     assert.equal(completedSeason.finished, true);
+    assert.equal(completedSeason.trainingIntensity, "intense", "AI season simulation must not overwrite the user's selected training intensity");
+    assert.equal(completedSeason.schemaVersion, 10, "the loaded/saved career must use the current schema version");
     assert.equal(completedSeason.apps, completedSeason.target, "a season cannot be marked complete before all scheduled matches are played");
     assert.ok(completedSeason.historyCount > 0, "the completed season must be archived");
     assert.equal(completedSeason.hasSummary, true, "the season report must be saved");

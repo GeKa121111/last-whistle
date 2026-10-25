@@ -878,6 +878,7 @@
         country: historicalClub ? historicalClub.country : player.country || "",
         leagueId, division: Number(acc.division || player.division) || 0,
         position: player.position, group: player.group || base.groupForPosition(player.position),
+        nationality: String(player.nationality || ""),
         age: Number(player.age) || 18, ovr: Number(player.ovr) || 50, potential: Number(player.potential) || Number(player.ovr) || 50,
         appearances: apps, goals, assists, averageRating: rating,
         leagueStrength: Math.round(avg(leagueClubs.map(club => Number(club.power) || 55))),

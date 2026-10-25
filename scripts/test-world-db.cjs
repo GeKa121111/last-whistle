@@ -52,12 +52,6 @@ assert.equal(coverage.importedClubs, snapshotClubs.length, "all clubs in the sou
 assert.equal(clubsWithSourcedRosters, coverage.importedClubs, "the per-league roster audit must reconcile with imported club totals");
 assert.ok(coverage.importedPlayers >= 3500, "the game catalogue must retain thousands of sourced current player records");
 const argentinaCoverage = coverage.leagues.find(league => league.leagueId === "argentina" && league.division === 1);
-const argentinaClubDiagnostic = allClubs.filter(club => club.leagueId === "argentina" && Number(club.division) === 1).map(club => ({
-  name:club.name, aliases:club.aliases, rosterStatus:club.rosterStatus,
-  players:club.players.length, sourced:club.players.filter(player => player.isRealPlayer === true && player.isGenerated !== true).length,
-  rosterSource:club.rosterSource
-}));
-console.log("ARGENTINA_COVERAGE_DIAGNOSTIC " + JSON.stringify(argentinaClubDiagnostic));
 assert.ok(argentinaCoverage, "Argentina top-flight needs a dedicated roster-coverage row");
 assert.equal(argentinaCoverage.clubCount, 30, "Argentina sourced rosters must merge into the existing 30-club division without duplicate clubs");
 assert.equal(argentinaCoverage.clubsWithCurrentRoster, 30, "all 30 Argentine first-division clubs must load a sourced roster");

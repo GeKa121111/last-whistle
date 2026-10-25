@@ -302,7 +302,7 @@ function renderStoryPanel(s,api){
   }
   var hist=document.getElementById("lw-story-history");
   if(hist){
-    var entries=storyHistoryRows;
+    var entries=panelHistory;
     hist.innerHTML=entries.map(function(item){
       return '<div class="lw-history-item"><span class="lw-history-dot"></span><div><strong>'+escapeHTML(item.title||"قرار مسيرة")+'</strong><p>'+escapeHTML(item.outcome||item.choice||"تم حفظ القرار")+' <span style="color:#72846f">• الموسم '+escapeHTML(item.season||1)+' / اليوم '+escapeHTML(item.day||1)+'</span></p></div></div>';
     }).join("");

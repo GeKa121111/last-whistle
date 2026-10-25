@@ -34,7 +34,7 @@ const required = [
   'id="headCurrency"',
   'id="kpiCurrency"',
   "currency: () => currencyLabel()",
-  "schemaVersion:9",
+  "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
   "story-mode.js?v=3",
@@ -54,7 +54,7 @@ const required = [
   "window.LWStoryRuntime =",
   'class="page active"',
   "saved.calendarDay",
-  "restored.schemaVersion=9;",
+  "restored.schemaVersion=10;",
   "state.schemaVersion=9;",
   "state.dailyActionDay=Math.max(1,Number(state.day)||1);"
 ];

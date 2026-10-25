@@ -4564,15 +4564,23 @@ function finishSeason(){
  if(closedCup)log("أُغلقت البطولة التي لم تُستكمل مع نهاية الموسم حتى لا تستمر حالتها إلى الموسم التالي.");
  state.seasonFinished=true;
  const completeLeagueSegment=!state.leagueSegmentIsPartial&&state.leagueApps>=seasonMatchTotal();
+ const academySeason=isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending;
+ if(isYouthAcademyPlayer()){
+  state.academyHistory=Array.isArray(state.academyHistory)?state.academyHistory:[];
+  if(!state.academyHistory.some(row=>Number(row.season)===Number(state.season)&&Number(row.age)===Number(state.age))){
+   state.academyHistory.unshift({season:Number(state.season)||1,age:Number(state.age)||12,ageGroup:academyAgeGroup(state.age),club:String(state.clubName||""),apps:Number(state.seasonApps)||0,goals:Number(state.seasonGoals)||0,assists:Number(state.seasonAssists)||0,overall:overall(),trainingSessions:Number(state.seasonTrainingReport?.sessions)||0});
+   state.academyHistory=state.academyHistory.slice(0,20);
+  }
+ }
  const sorted=[...state.league].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
  const place=sorted.findIndex(t=>t.name===clubNameForLeague())+1;
  const worldSeasonReport=window.LWWorldAI?.completeSeason(state,state.season,window.LWWorldDB);
  if(worldSeasonReport&&!worldSeasonReport.alreadyCompleted)state.worldSeasonReport={season:Number(state.season)||1,playerPool:worldSeasonReport.rows.length,leagueCount:Object.keys(worldSeasonReport.tables||{}).length};
  let prize="";
- if(place===1&&completeLeagueSegment){state.trophies++;state.money+=1000;state.followers+=300;prize=" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
- const newAwards=completeLeagueSegment&&window.LWCareer?window.LWCareer.seasonAwards(state,state.league,place):[];
+ if(place===1&&completeLeagueSegment){state.trophies++;state.money+=academySeason?150:1000;state.followers+=academySeason?25:300;prize=academySeason?" كسبت بطولة الناشئين وجايزة رمزية داخل اللعبة!":" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
+ const newAwards=completeLeagueSegment&&!academySeason&&window.LWCareer?window.LWCareer.seasonAwards(state,state.league,place):[];
  if(newAwards.length){prize+=` جوائز فردية (محاكاة): ${newAwards.map(a=>a.title).join("، ")}.`;newAwards.forEach(a=>{recordTrophy(a.title,"جائزة فردية",a.season,a.club,a.country,a.note);log(`فزت بجائزة ${a.title} — ${a.note}.`);});}
- const ceremony=buildSeasonAwardCeremony(place);
+ const ceremony=academySeason?null:buildSeasonAwardCeremony(place);
  if(ceremony){for(const award of ceremony.playerAwards||[]){recordTrophy(award.title,"جائزة فردية",award.season,award.club,award.country,award.note);log(`فزت بجائزة عالمية ${award.title}.`);}
   const winner=ceremony.ballonDor?.winner?.name||"غير محدد";
   prize+=" حفل الجوائز: الكرة الذهبية ذهبت إلى "+winner+". "+awardCeremonySummary(ceremony).replace(/\n/g," • ");
@@ -4580,8 +4588,8 @@ function finishSeason(){
  // لا نصعّد/نهبط بين الدرجات إلا حيث تملك اللعبة قائمة الدرجة الثانية المحلية.
  const oldDivision=Number(state.leagueDivision)||2;
  const hasPlayableSecondTier=!!LEAGUE_ROSTERS[state.leagueCountry||"مصر"]?.[2];
- if(completeLeagueSegment&&hasPlayableSecondTier&&oldDivision===2&&place<=2){state.leagueDivision=1;state.clubTier=Math.min(3,state.clubTier+1);state.promotionHistory.unshift({season:state.season,club:clubNameForLeague(),from:2,to:1,reason:"صعود رياضي بعد إنهاء الموسم ضمن أول مركزين"});prize+=" صعد ناديك للدرجة الأولى بعد موسم قوي!";log("صعود داخل محاكاة الدرجة المحلية.");}
- else if(completeLeagueSegment&&hasPlayableSecondTier&&oldDivision===1&&place>=Math.max(1,state.league.length-2)){state.leagueDivision=2;state.clubTier=Math.max(0,state.clubTier-1);state.promotionHistory.unshift({season:state.season,club:clubNameForLeague(),from:1,to:2,reason:"هبوط بعد إنهاء الموسم في مراكز الهبوط"});prize+=" للأسف هبط ناديك للدرجة الثانية.";log("هبوط إلى الدرجة المحلية الثانية داخل المحاكاة.");}
+ if(!academySeason&&completeLeagueSegment&&hasPlayableSecondTier&&oldDivision===2&&place<=2){state.leagueDivision=1;state.clubTier=Math.min(3,state.clubTier+1);state.promotionHistory.unshift({season:state.season,club:clubNameForLeague(),from:2,to:1,reason:"صعود رياضي بعد إنهاء الموسم ضمن أول مركزين"});prize+=" صعد ناديك للدرجة الأولى بعد موسم قوي!";log("صعود داخل محاكاة الدرجة المحلية.");}
+ else if(!academySeason&&completeLeagueSegment&&hasPlayableSecondTier&&oldDivision===1&&place>=Math.max(1,state.league.length-2)){state.leagueDivision=2;state.clubTier=Math.max(0,state.clubTier-1);state.promotionHistory.unshift({season:state.season,club:clubNameForLeague(),from:1,to:2,reason:"هبوط بعد إنهاء الموسم في مراكز الهبوط"});prize+=" للأسف هبط ناديك للدرجة الثانية.";log("هبوط إلى الدرجة المحلية الثانية داخل المحاكاة.");}
  if(!completeLeagueSegment)prize+=" انتهى الموسم بمرحلة دوري جزئية بعد انتقال منتصف الموسم؛ لم تُحتسب بطولة أو صعود/هبوط على جدول جزئي.";
  let developmentNote="";
  const dev=state.seasonDevelopmentSnapshot,training=state.seasonTrainingReport;
@@ -4602,7 +4610,7 @@ function finishSeason(){
  // استدعاء المنتخب في نهاية الموسم حسب الشروط
  const recentForm=(state.seasonLog||[]).filter(r=>Number(r.minutes)>0&&Number.isFinite(Number(r.rating))).slice(-8);
  const formAverage=recentForm.length?recentForm.reduce((sum,r)=>sum+Number(r.rating),0)/recentForm.length:0;
- if(overall()>=68&&state.clubIndex>0&&state.age<40&&recentForm.length>=3&&formAverage>=6.25&&Number(state.apps)>=5){
+ if(!academySeason&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending&&state.age>=18&&overall()>=68&&state.clubIndex>0&&state.age<40&&recentForm.length>=3&&formAverage>=6.25&&Number(state.apps)>=5){
   state.nationalCalled=true;state.internationalPlayed=false;state.nationalCallups=Array.isArray(state.nationalCallups)?state.nationalCallups:[];
   if(!state.nationalCallups.some(row=>Number(row.season)===Number(state.season))){state.nationalCallups.unshift({season:Number(state.season),age:Number(state.age),team:String(state.nationalTeam||"مصر"),club:String(state.clubName||""),rating:Math.round(overall()),form:Number(formAverage.toFixed(2))});}
   log(`استدعاء رسمي لمنتخب ${state.nationalTeam||"مصر"} في الموسم ${state.season}!`);

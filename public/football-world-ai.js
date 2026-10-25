@@ -82,7 +82,7 @@
       division: Math.max(1, int(row.division, 1)), currency: String(profile.currency || "€"),
       basePower: power, power, prestige: clamp(row.prestige || power, 25, 100),
       budget: Math.round(90 + power * 10 + (Number(row.prestige) || power) * 2.8),
-      roster: [], matchesPerSeason: Math.max(20, int(row.matchesPerSeason || (db && typeof db.leagueFor === "function" && db.leagueFor(row.country, row.division) || {}).matchesPerSeason, int(profile.matches, 34)),
+      roster: [], matchesPerSeason: Math.max(20, int(row.matchesPerSeason || ((db && typeof db.leagueFor === "function" && db.leagueFor(row.country, row.division)) || {}).matchesPerSeason, int(profile.matches, 34))),
       updatedSeason: 1
     };
     world.clubs[id] = club;

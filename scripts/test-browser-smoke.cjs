@@ -452,14 +452,36 @@ async function main() {
 
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
-    await page.waitForFunction(() => {
+    await page.waitForTimeout(1200);
+    const homeActionDiagnostics = await page.evaluate(() => {
       const app = document.querySelector(".app.hasSidebar");
       const center = document.querySelector("#lw-command-center");
       const matchButton = document.querySelector("#lw-cta-match");
-      return app?.getAttribute("data-active-page") === "home"
-        && center && getComputedStyle(center).display !== "none"
-        && matchButton && getComputedStyle(matchButton).visibility !== "hidden";
-    }, null, { timeout: 10000 });
+      const rect = element => element ? {
+        display: getComputedStyle(element).display,
+        visibility: getComputedStyle(element).visibility,
+        hidden: !!element.hidden,
+        bounds: (() => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()
+      } : null;
+      return {
+        appPage: app?.getAttribute("data-active-page") || null,
+        statePage: window.LWStoryRuntime.getState().currentPage || null,
+        pageName: document.querySelector("#pageName")?.textContent || "",
+        activeNav: document.querySelector("#drawer .navBtn.active")?.getAttribute("data-page") || null,
+        commandCenter: rect(center),
+        matchButton: rect(matchButton),
+        drawerOpen: !!document.querySelector("#drawer")?.classList.contains("open")
+      };
+    });
+    console.log("HOME_ACTION_VISIBILITY_DIAGNOSTICS " + JSON.stringify(homeActionDiagnostics));
+    assert.equal(
+      homeActionDiagnostics.appPage === "home" &&
+      homeActionDiagnostics.commandCenter?.display !== "none" &&
+      homeActionDiagnostics.matchButton?.visibility !== "hidden" &&
+      homeActionDiagnostics.matchButton?.bounds.height > 0,
+      true,
+      "career command center and match action must become visible on home after navigation; diagnostics: " + JSON.stringify(homeActionDiagnostics)
+    );
     const beforeApps = await page.evaluate(() => Number(window.LWStoryRuntime.getState().seasonApps) || 0);
     assert.equal(await page.locator("#heroMatch").isVisible(), false,
       "legacy hero CTA must remain hidden after the redesigned story-mode shell is installed");

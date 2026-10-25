@@ -19,6 +19,8 @@ assert.ok(snapshot.leagues.length >= 10, "current rosters should cover at least 
 assert.ok(snapshotClubs.length >= 210, "current roster snapshot should cover at least 210 clubs");
 assert.ok(snapshotPlayers >= 3500, "current roster snapshot should include at least 3500 player records");
 assert.equal(audit.status, "complete", "roster audit must not be a placeholder");
+assert.equal(audit.refreshRevision, 2, "snapshot audit must be refreshed after source alias updates");
+assert.equal(snapshot.refreshRevision, 2, "squad data payload must carry the current refresh revision");
 assert.equal(audit.allLeagueMinimumsMet, true, "every source league must meet its expected coverage threshold");
 assert.equal(audit.totalTeams, snapshotClubs.length, "audit and checked-in snapshot team totals must agree");
 assert.equal(audit.totalPlayers, snapshotPlayers, "audit and checked-in snapshot player totals must agree");

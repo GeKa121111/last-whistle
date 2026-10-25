@@ -4453,7 +4453,6 @@ function simulateSeasonBlock(targetApps){
  if(reconcileWinterBreakState())saveGame(true);
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(state.seasonFinished)return;
- if(reconcileWinterBreakState())saveGame(true);
  ensureLeague();ensureFixtureSchedule();ensureSeasonDevelopmentSnapshot();
  if(state.trainedToday)advanceCalendarDays(1,"راحة بعد التدريب قبل محاكاة المباريات");
  const target=Math.min(seasonMatchTotal(),Math.max(state.seasonApps,targetApps));let simulated=0;

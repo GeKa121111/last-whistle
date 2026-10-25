@@ -86,9 +86,11 @@ for (const sourceClub of egyptSource.clubs) {
 }
 const expectedEgyptianRosterGaps = ["أبو قير للأسمدة", "بترول أسيوط", "بتروجيت"]
   .map(name => db.normalize(name)).sort();
-assert.deepEqual(egyptCoverage.clubsNeedingRealRoster.map(name => db.normalize(name)).sort(),
-  expectedEgyptianRosterGaps,
-  "only clubs without a usable official squad page may remain on clearly marked generated-only backups");
+assert.equal(
+  JSON.stringify(Array.from(egyptCoverage.clubsNeedingRealRoster, name => db.normalize(name)).sort()),
+  JSON.stringify(expectedEgyptianRosterGaps),
+  "only clubs without a usable official squad page may remain on clearly marked generated-only backups"
+);
 console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
   totalClubs: coverage.totalClubs,
   playableSquadPlayers: coverage.totalDatabasePlayers,

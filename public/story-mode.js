@@ -435,5 +435,6 @@ function start(){
   window.addEventListener("pageshow",tick);
   window.addEventListener("storage",tick);
 }
-window.LWStoryContext={acceptMatchReport:acceptMatchReport,matchNarrativeSummary:matchNarrativeSummary};\nif(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
+window.LWStoryContext={acceptMatchReport:acceptMatchReport,matchNarrativeSummary:matchNarrativeSummary};
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
 })();

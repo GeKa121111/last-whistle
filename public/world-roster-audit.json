@@ -1,9 +1,9 @@
 {
-  "refreshRevision": 2,
+  "refreshRevision": 3,
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
-  "expectedTeamsTotal": 304,
+  "expectedTeamsTotal": 386,
   "leagues": [
     {
       "leagueId": "argentina",
@@ -13,6 +13,16 @@
       "sourceUrl": "https://footballsquads.co.uk/arg/2026/argaper.htm",
       "clubs": 30,
       "players": 1196,
+      "below18Players": []
+    },
+    {
+      "leagueId": "belgium",
+      "division": 1,
+      "sourceSeason": "2026/27",
+      "expectedTeams": 18,
+      "sourceUrl": "https://footballsquads.co.uk/belgium/2026-2027/belpro.htm",
+      "clubs": 18,
+      "players": 523,
       "below18Players": []
     },
     {
@@ -97,6 +107,16 @@
       "below18Players": []
     },
     {
+      "leagueId": "greece",
+      "division": 1,
+      "sourceSeason": "2026/27",
+      "expectedTeams": 14,
+      "sourceUrl": "https://footballsquads.co.uk/greece/2026-2027/gresuper.htm",
+      "clubs": 14,
+      "players": 452,
+      "below18Players": []
+    },
+    {
       "leagueId": "italy",
       "division": 1,
       "sourceSeason": "2026/27",
@@ -117,6 +137,26 @@
       "below18Players": []
     },
     {
+      "leagueId": "japan",
+      "division": 1,
+      "sourceSeason": "2026/27",
+      "expectedTeams": 20,
+      "sourceUrl": "https://footballsquads.co.uk/japan/2026-2027/japjlge.htm",
+      "clubs": 20,
+      "players": 718,
+      "below18Players": []
+    },
+    {
+      "leagueId": "netherlands",
+      "division": 1,
+      "sourceSeason": "2026/27",
+      "expectedTeams": 18,
+      "sourceUrl": "https://footballsquads.co.uk/netherl/2026-2027/nethere.htm",
+      "clubs": 18,
+      "players": 539,
+      "below18Players": []
+    },
+    {
       "leagueId": "portugal",
       "division": 1,
       "sourceSeason": "2026/27",
@@ -124,6 +164,16 @@
       "sourceUrl": "https://footballsquads.co.uk/portugal/2026-2027/porprim.htm",
       "clubs": 18,
       "players": 526,
+      "below18Players": []
+    },
+    {
+      "leagueId": "scotland",
+      "division": 1,
+      "sourceSeason": "2026/27",
+      "expectedTeams": 12,
+      "sourceUrl": "https://footballsquads.co.uk/scots/2026-2027/scotsp.htm",
+      "clubs": 12,
+      "players": 363,
       "below18Players": []
     },
     {
@@ -157,9 +207,9 @@
       "below18Players": []
     }
   ],
-  "totalTeams": 304,
-  "totalPlayers": 10057,
-  "snapshotBytes": 1930166,
+  "totalTeams": 386,
+  "totalPlayers": 12652,
+  "snapshotBytes": 2429149,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {

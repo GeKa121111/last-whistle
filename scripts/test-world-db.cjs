@@ -19,8 +19,8 @@ assert.ok(snapshot.leagues.length >= 10, "current rosters should cover at least 
 assert.ok(snapshotClubs.length >= 210, "current roster snapshot should cover at least 210 clubs");
 assert.ok(snapshotPlayers >= 3500, "current roster snapshot should include at least 3500 player records");
 assert.equal(audit.status, "complete", "roster audit must not be a placeholder");
-assert.equal(audit.refreshRevision, 2, "snapshot audit must be refreshed after source alias updates");
-assert.equal(snapshot.refreshRevision, 2, "squad data payload must carry the current refresh revision");
+assert.equal(audit.refreshRevision, 3, "snapshot audit must be refreshed after source alias updates");
+assert.equal(snapshot.refreshRevision, 3, "squad data payload must carry the current refresh revision");
 assert.equal(audit.allLeagueMinimumsMet, true, "every source league must meet its expected coverage threshold");
 assert.equal(audit.totalTeams, snapshotClubs.length, "audit and checked-in snapshot team totals must agree");
 assert.equal(audit.totalPlayers, snapshotPlayers, "audit and checked-in snapshot player totals must agree");
@@ -49,9 +49,9 @@ assert.ok(Array.isArray(egyptSupplement.skippedPages)
   "current promoted-club rosters must not be recorded as skipped");
 const db = sandbox.window.LWWorldDB;
 assert.ok(db);
-assert.equal(db.version, 3);
+assert.equal(db.version, 4);
 assert.equal(db.season, "2026/27");
-assert.equal(db.leagues().length, 16);
+assert.equal(db.leagues().length, 21);
 assert.equal(db.leagueFor("مصر", 1).matchesPerSeason, 34);
 assert.equal(db.leagueFor("إنجلترا", 1).matchesPerSeason, 38);
 assert.equal(db.leagueFor("ألمانيا", 1).matchesPerSeason, 34);
@@ -97,6 +97,32 @@ assert.equal(turkeyCoverage.clubsNeedingRealRoster.length, 0, "no Turkish top-fl
 const turkeyCompetitions = db.competitionsForCountry("تركيا", { division: 1, clubName: "Galatasaray", clubPower: 82 });
 assert.ok(turkeyCompetitions.some(item => item.id === "turkish-cup" && item.kind === "domestic-cup"));
 assert.ok(turkeyCompetitions.some(item => item.name === "UEFA Champions League"));
+const addedLeagues = [
+  { id: "netherlands", country: "هولندا", teams: 18, matches: 34, cup: "dutch-cup", continental: "UEFA Champions League" },
+  { id: "belgium", country: "بلجيكا", teams: 18, matches: 34, cup: "belgian-cup", continental: "UEFA Champions League" },
+  { id: "greece", country: "اليونان", teams: 14, matches: 26, cup: "greek-cup", continental: "UEFA Champions League" },
+  { id: "scotland", country: "اسكتلندا", teams: 12, matches: 38, cup: "scottish-cup", continental: "UEFA Champions League" },
+  { id: "japan", country: "اليابان", teams: 20, matches: 38, cup: "japanese-cup", continental: "AFC Champions League Elite" }
+];
+for (const league of addedLeagues) {
+  const sourced = snapshot.leagues.find(row => row.leagueId === league.id && Number(row.division) === 1);
+  assert.ok(sourced, league.id + " source snapshot must be present");
+  assert.equal(sourced.clubs.length, league.teams, league.id + " must import every expected first-division club");
+  assert.ok(sourced.clubs.every(club => club.players.length >= 12 && club.sourceUrl && club.sourceUrl.startsWith("https://")),
+    league.id + " squads must have enough player records and retain source URLs");
+  assert.ok(sourced.clubs.every(club => club.players.every(player => player.isRealPlayer === true)),
+    league.id + " imported rows must be sourced real players, not generated backups");
+  assert.equal(db.leagueFor(league.country, 1).matchesPerSeason, league.matches, league.id + " modeled season length must match");
+  assert.equal(db.clubsForCountry(league.country, 1).length, league.teams, league.id + " club list must be searchable without duplicates");
+  const report = coverage.leagues.find(row => row.leagueId === league.id && row.division === 1);
+  assert.ok(report, league.id + " must have a roster coverage audit row");
+  assert.equal(report.clubCount, league.teams);
+  assert.equal(report.clubsWithCurrentRoster, league.teams);
+  assert.equal(report.clubsNeedingRealRoster.length, 0, league.id + " cannot have a generated-only first-division squad");
+  const competitions = db.competitionsForCountry(league.country, { division: 1, clubName: sourced.clubs[0].name, clubPower: 80 });
+  assert.ok(competitions.some(item => item.id === league.cup && item.kind === "domestic-cup"), league.id + " domestic cup must be available");
+  assert.ok(competitions.some(item => item.name === league.continental), league.id + " continental competition must be available");
+}
 const egyptSource = (snapshot.leagues || []).find(league => league.leagueId === "egypt" && Number(league.division) === 1);
 assert.ok(egyptSource, "the source snapshot should include official Egyptian Pro League squad pages");
 assert.equal(egyptSource.coverageType, "verified-current-squad-pages",

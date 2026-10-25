@@ -49,7 +49,7 @@ for (const expected of configuredLeagues) {
   assert.equal(actual.sourceUrl, expected.sourceUrl, "stale source URL for " + expected.leagueId + " division " + expected.division);
   assert.equal(actual.sourceSeason || audit.season, expected.sourceSeason, "stale source season for " + expected.leagueId + " division " + expected.division);
   assert.equal(Number(actual.expectedTeams), expected.expectedTeams, "expected club count changed for " + expected.leagueId);
-  assert.ok(Number(actual.clubs) >= expected.expectedTeams - 2, "insufficient club coverage for " + expected.leagueId);
+  assert.equal(Number(actual.clubs), expected.expectedTeams, "incomplete club coverage for " + expected.leagueId);
   assert.ok(Number(actual.players) >= Number(actual.clubs) * 12, "insufficient roster coverage for " + expected.leagueId);
 }
 
@@ -63,8 +63,8 @@ for (const [key, supplement] of Object.entries(supplementalCoverage)) {
   assert.equal(Number(row.clubs), Number(supplement.importedClubs), "supplemental club count does not reconcile for " + key);
   assert.equal(Number(row.players), Number(supplement.importedPlayers), "supplemental player count does not reconcile for " + key);
 }
-assert.ok(audit.totalTeams >= 210, "sourced roster snapshot must include at least 210 clubs");
-assert.ok(audit.totalPlayers >= 3500, "sourced roster snapshot must include at least 3500 player records");
+assert.ok(audit.totalTeams >= 380, "sourced roster snapshot must include at least 380 clubs across expanded current leagues");
+assert.ok(audit.totalPlayers >= 11000, "sourced roster snapshot must include at least 11000 player records across expanded current leagues");
 
 const sandbox = { window: {} };
 vm.createContext(sandbox);
@@ -85,8 +85,8 @@ for (const expected of configuredLeagues) {
   assert.ok(actual, "snapshot missing source league: " + expected.leagueId);
   assert.equal(actual.sourceUrl, expected.sourceUrl, "snapshot source URL must match current config");
   assert.equal(actual.sourceSeason || audit.season, expected.sourceSeason, "snapshot source season must match current config");
-  assert.equal((actual.clubs || []).length >= expected.expectedTeams - 2, true,
-    "snapshot must meet expected coverage for " + expected.leagueId);
+  assert.equal((actual.clubs || []).length, expected.expectedTeams,
+    "snapshot must include every expected club for " + expected.leagueId);
 }
 
 console.log("Roster source audit passed: " + audit.totalTeams + " clubs / " + audit.totalPlayers

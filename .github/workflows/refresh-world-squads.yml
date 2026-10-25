@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: world-squads-${{ github.ref }}
@@ -44,7 +45,9 @@ jobs:
           if (!snapshot.includes('isRealPlayer')) throw new Error('Sourced-player flags are missing');
           console.log('Validated ' + report.totalTeams + ' clubs / ' + report.totalPlayers + ' player records across ' + report.leagues.length + ' league divisions.');
           NODE
-      - name: Commit refreshed snapshot
+      - name: Commit refreshed snapshot and launch regression CI
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -54,4 +57,5 @@ jobs:
           else
             git commit -m "Refresh 2026/27 verified world squad snapshot"
             git push origin "HEAD:${GITHUB_REF_NAME}"
+            gh workflow run ci.yml --ref "${GITHUB_REF_NAME}"
           fi

@@ -24,7 +24,7 @@ const LEAGUES = [
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
   { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
   // FootballSquads publishes Argentine club sheets on a calendar-year season; label that source season explicitly.
-  { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/apertura.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }
+  { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/apertura/", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }
 ];
 
 const NAME_MAP = new Map([

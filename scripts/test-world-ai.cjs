@@ -20,6 +20,19 @@ const scotlandFixtureSnapshot = {
         age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "SCO", isRealPlayer: true
       }))
     }))
+  }, {
+    leagueId: "greece", country: "اليونان", division: 1, expectedTeams: 14,
+    sourceUrl: "https://www.slgr.gr/", sourceSeason: "2026/27",
+    clubs: Array.from({ length: 14 }, (_, clubIndex) => ({
+      name: "Greece Test Club " + String(clubIndex + 1).padStart(2, "0"), aliases: [],
+      leagueId: "greece", country: "اليونان", division: 1,
+      sourceUrl: "https://www.slgr.gr/test-club-" + (clubIndex + 1),
+      players: Array.from({ length: 16 }, (_, playerIndex) => ({
+        name: "Greece Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
+        position: playerIndex < 3 ? "حارس مرمى" : playerIndex < 8 ? "قلب دفاع" : playerIndex < 13 ? "وسط مهاجم" : "مهاجم",
+        age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "GRE", isRealPlayer: true
+      }))
+    }))
   }]
 };
 const sandbox = { window: { LWFootballSquadData: scotlandFixtureSnapshot }, console };

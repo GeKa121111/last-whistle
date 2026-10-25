@@ -10,6 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const BASE_URL = "https://footballsquads.co.uk";
 const SOURCE_LABEL = "FootballSquads.co.uk current squad pages";
 const SEASON = "2026/27";
+const REFRESH_REVISION = 2;
 const LEAGUES = [
   { id: "england", country: "إنجلترا", division: 1, url: "/eng/2026-2027/engprem/", expectedTeams: 20 },
   { id: "england", country: "إنجلترا", division: 2, url: "/eng/2026-2027/flcham/", expectedTeams: 24 },
@@ -22,7 +23,9 @@ const LEAGUES = [
   { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1.htm", teamDirectory: "/france/2026-2027/ligue1/", expectedTeams: 18 },
   { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
-  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 }
+  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
+  // Argentina uses the calendar-year Apertura, so identify that source season explicitly.
+  { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/argaper.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }
 ];
 
 const NAME_MAP = new Map([
@@ -49,7 +52,24 @@ const NAME_MAP = new Map([
   ["athleticoparanaense", ["Athletico Paranaense", "Athletico-PR"]],
   ["atleticomineiro", ["Atlético Mineiro", "Atletico Mineiro"]],
   ["redbullbragantino", ["Red Bull Bragantino", "RB Bragantino"]],
-  ["gremio", ["Grêmio", "Gremio"]]
+  ["gremio", ["Grêmio", "Gremio"]],
+  // Argentine club page headings include location suffixes not always used in the game catalogue.
+  ["atleticotucuman", ["Atlético Tucumán", "Atletico Tucuman"]],
+  ["centralcordobasantiagodelestero", ["Central Córdoba", "Central Cordoba", "Central Córdoba (Santiago del Estero)"]],
+  ["estudianteslaplata", ["Estudiantes de La Plata", "Estudiantes (La Plata)"]],
+  ["estudiantesriocuarto", ["Estudiantes de Río Cuarto", "Estudiantes (Río Cuarto)"]],
+  ["gimnasialaplata", ["Gimnasia La Plata", "Gimnasia y Esgrima La Plata", "Gimnasia (La Plata)"]],
+  ["gimnasiademendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia (Mendoza)"]],
+  ["gimnasiayesgrimademendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia (Mendoza)"]],
+  ["institutocordoba", ["Instituto", "Instituto (Córdoba)", "Instituto Atlético Central Córdoba"]],
+  ["unionsantafe", ["Unión", "Union", "Unión (Santa Fe)"]],
+  ["tallerescordoba", ["Talleres", "Talleres (Córdoba)", "Talleres de Córdoba"]],
+  ["aldosivimardelplata", ["Aldosivi", "Aldosivi (Mar del Plata)"]],
+  ["belgranocordoba", ["Belgrano", "Belgrano (Córdoba)", "Belgrano (Cordoba)"]],
+  ["gimnasiayesgrimalaplata", ["Gimnasia La Plata", "Gimnasia y Esgrima La Plata", "Gimnasia y Esgrima (La Plata)", "Gimnasia (La Plata)"]],
+  ["gimnasiayesgrimamendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia y Esgrima (Mendoza)", "Gimnasia (Mendoza)"]],
+  ["independienterivadaviamendoza", ["Independiente Rivadavia", "Independiente Rivadavia (Mendoza)"]],
+  ["sarmientojunin", ["Sarmiento", "Sarmiento (Junín)", "Sarmiento Junín"]]
 ]);
 
 function decodeEntities(text) {
@@ -253,6 +273,7 @@ async function main() {
 
   const payload = {
     schemaVersion: 1,
+    refreshRevision: REFRESH_REVISION,
     season: SEASON,
     source: SOURCE_LABEL,
     generatedAt: new Date().toISOString(),
@@ -264,10 +285,13 @@ async function main() {
   fs.writeFileSync(path.join(ROOT, "football-world-rosters.js"), js);
   fs.writeFileSync(path.join(ROOT, "public", "football-world-rosters.js"), js);
   const report = {
+    refreshRevision: REFRESH_REVISION,
     season: SEASON, source: SOURCE_LABEL, status: "complete",
     expectedTeamsTotal: LEAGUES.reduce((sum, item) => sum + item.expectedTeams, 0),
     leagues: leagueOutputs.map(item => ({
-      leagueId: item.leagueId, division: item.division,
+      leagueId: item.leagueId, division: item.division, sourceSeason: item.sourceSeason,
+      expectedTeams: LEAGUES.find(league => league.id === item.leagueId && league.division === item.division).expectedTeams,
+      sourceUrl: item.sourceUrl,
       clubs: item.clubs.length,
       players: item.clubs.reduce((sum, club) => sum + club.players.length, 0),
       below18Players: item.clubs.filter(club => club.players.length < 18).map(club => club.name)

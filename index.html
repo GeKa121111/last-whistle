@@ -2608,7 +2608,14 @@ function decodeStoredSave(raw){
  if(typeof decoded!=="string")throw new Error("compressed save is corrupt");
  return decoded;
 }
-function saveGame(silent=false){
+let saveQueueTimer=0;
+let saveIdleHandle=0;
+let saveQueued=false;
+function cancelQueuedSave(){
+ if(saveQueueTimer){clearTimeout(saveQueueTimer);saveQueueTimer=0;}
+ if(saveIdleHandle&&typeof window.cancelIdleCallback==="function"){window.cancelIdleCallback(saveIdleHandle);saveIdleHandle=0;}
+}
+function persistGame(silent=false){
  try{
   state.schemaVersion=10;
   localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
@@ -2618,6 +2625,35 @@ function saveGame(silent=false){
   if(!silent)toast("المتصفح منع الحفظ المحلي أو مساحة التخزين ممتلئة. حرّر مساحة أو صدّر نسخة احتياطية.");
   return false;
  }
+}
+function flushQueuedSave(){
+ cancelQueuedSave();
+ if(!saveQueued)return true;
+ saveQueued=false;
+ const saved=persistGame(true);
+ if(!saved)saveQueued=true;
+ return saved;
+}
+function saveGame(silent=false){
+ if(!silent){
+  cancelQueuedSave();saveQueued=false;
+  return persistGame(false);
+ }
+ saveQueued=true;
+ cancelQueuedSave();
+ // Large world saves are compressed JSON. Batch rapid actions and do the work
+ // during browser idle time where supported, while flushing before the page hides.
+ if(typeof window.requestIdleCallback==="function"){
+  saveIdleHandle=window.requestIdleCallback(()=>{saveIdleHandle=0;flushQueuedSave();},{timeout:1200});
+ }else{
+  saveQueueTimer=setTimeout(()=>{saveQueueTimer=0;flushQueuedSave();},650);
+ }
+ return true;
+}
+if(!window.__lwSaveFlushInstalled){
+ window.__lwSaveFlushInstalled=true;
+ window.addEventListener("pagehide",flushQueuedSave);
+ document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushQueuedSave();});
 }
 function exportSave(){
  try{

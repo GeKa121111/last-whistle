@@ -395,6 +395,14 @@ async function main() {
     assert.equal(exportedBackupFacts.boots, true);
     assert.ok(exportedBackupFacts.worldPlayers > 1000, "backup must include the full player-world database");
     assert.ok(exportedBackupFacts.worldClubs > 100, "backup must include the world club database");
+    // Make the live state observably different so the restore assertion cannot pass
+    // against the pre-import career before the asynchronous file parser finishes.
+    await page.evaluate(() => {
+      window.LWStoryRuntime.getState().money = 49;
+      window.LWStoryRuntime.save();
+    });
+    await page.waitForFunction(() => Number(window.LWStoryRuntime?.getState().money) === 49,
+      null, { timeout: 5000 });
     page.once("dialog", dialog => dialog.accept());
     await page.locator("#importSaveInput").setInputFiles(backupPath);
     await page.waitForFunction(() => {

@@ -57,5 +57,5 @@ jobs:
           else
             git commit -m "Refresh 2026/27 verified world squad snapshot"
             git push origin "HEAD:${GITHUB_REF_NAME}"
-            gh workflow run ci.yml --ref "${GITHUB_REF_NAME}"
           fi
+          gh workflow run ci.yml --ref "${GITHUB_REF_NAME}"

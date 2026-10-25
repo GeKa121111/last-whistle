@@ -8,7 +8,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: world-squads-${{ github.ref }}
+  group: last-whistle-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:

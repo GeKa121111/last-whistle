@@ -1534,6 +1534,31 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         score: 0
       };
     });
+    const database = window.LWWorldDB;
+    const leagueProfile = database?.leagueFor?.(country, state.leagueDivision) || {};
+    const currentDivision = Math.max(1, Number(state.leagueDivision) || 1);
+    const realLeagueClubs = (database?.clubs?.() || []).filter(club =>
+      club.country === country && Math.max(1, Number(club.division) || 1) === currentDivision
+    );
+    for (const club of realLeagueClubs) {
+      const profile = database?.leagueById?.(club.leagueId) || {};
+      for (const player of club.players || []) {
+        const simulated = window.LWTransferAwards?.simulatePlayerSeason({
+          ...player, clubName: club.name, country: club.country,
+          prestige: club.prestige, leagueStrength: Number(leagueProfile.strength) || 60,
+          confederation: profile.confederation || "",
+          originConfederation: profile.confederation || "",
+          realPlayer: true
+        }, state.season, 1);
+        if (!simulated) continue;
+        opponents.push({
+          name: simulated.name, club: club.name, age: simulated.age,
+          goals: simulated.goals, assists: simulated.assists,
+          rating: simulated.averageRating,
+          score: simulated.averageRating * 10 + simulated.goals * 0.34 + simulated.assists * 0.28
+        });
+      }
+    }
     for (const player of opponents) player.score = player.rating * 10 + player.goals * 0.34 + player.assists * 0.28;
     const eligible = Number(state.age) <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
@@ -2777,7 +2802,7 @@ function renderLeague(){
  const sorted=[...state.league].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
  $("leagueBody").innerHTML=sorted.map((t,i)=>`<tr class="${t.name===clubNameForLeague()?"me":""}"><td><span class="rank">${i+1}</span></td><td>${t.name}</td><td>${t.played}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td><td>${t.gf}</td><td>${t.ga}</td><td>${t.gf-t.ga}</td><td><b>${t.pts}</b></td></tr>`).join("");
  setText("leagueSeason",`${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"} • ${state.league.length} فريق • الموسم ${state.season}${state.leagueSegmentIsPartial?" • مرحلة انتقال جزئية":""}`);setText("seasonApps",state.leagueApps+"/"+leagueSegmentMatchTarget());setText("seasonPoints",state.seasonPoints);setText("seasonGoals",state.seasonGoals);
-  renderTrophyCabinet();
+  renderTrophyCabinet();renderCurrentCompetitions();renderAwardsLeaderboards();
 }
 function transferTargets(){
  const list=new Map(),db=window.LWWorldDB;
@@ -3308,7 +3333,7 @@ function playCupMatch(){
   }else setStory('نتيجة البطولة',`انتهت المباراة ${gf}-${ga}. ${extraTimeText?extraTimeText+'. ':''}رصيدك ${c.points} نقطة.`);
  }else if(isTwoLegTie&&Number(c.tieLeg)===2)setStory('مباراة الذهاب انتهت',`انتهت مباراة الذهاب ${gf}-${ga}. لسه قدامك مباراة الإياب لتحديد المتأهل.`);
  else if(!won){c.eliminated=true;calendarEvent('cup-exit',`الخروج من ${c.name}`,roundName);setStory('نهاية مشوار البطولة',`خسرت ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} خرجت من ${c.name} في ${roundName}.`);}
- else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});setStory('بطل البطولة!',`كسبت النهائي ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} ورفعت كأس ${c.name}. مكافأة اللقب 1200 جنيه.`);log('حققت لقب بطولة: '+c.name+'.');}
+ else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;recordTrophy(c.name,"بطولة جماعية",state.season,club().name,state.leagueCountry||"",c.name);state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});setStory('بطل البطولة!',`كسبت النهائي ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} ورفعت كأس ${c.name}. مكافأة اللقب 1200 جنيه.`);log('حققت لقب بطولة: '+c.name+'.');}
  else{c.stage++;const pool=c.teams.filter(n=>n!==clubNameForLeague()&&n!==opponent);c.opponent=pool[(c.stage*3+1)%Math.max(1,pool.length)]||'منافس متأهل';setStory('تأهلت للدور التالي',`فزت ${gf}-${ga} على ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}. تأهلت إلى ${(c.rounds||[])[c.stage]}.`);}
  c.history.push(`${roundName}${isTwoLegTie?' ('+(Number(c.tieLeg)===2?'ذهاب':'إياب')+')':''}: ${gf}-${ga} أمام ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}`);
  const cupDate=nextAvailableMatchDay(state.calendarDay+3,'cup-match');if(cupDate>state.calendarDay+3)advanceCalendarDays(cupDate-(state.calendarDay+3),'ترتيب موعد البطولة');
@@ -4055,9 +4080,14 @@ function finishSeason(){
  const sorted=[...state.league].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
  const place=sorted.findIndex(t=>t.name===clubNameForLeague())+1;
  let prize="";
- if(place===1&&completeLeagueSegment){state.trophies++;state.money+=1000;state.followers+=300;prize=" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";}
+ if(place===1&&completeLeagueSegment){state.trophies++;state.money+=1000;state.followers+=300;prize=" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
  const newAwards=completeLeagueSegment&&window.LWCareer?window.LWCareer.seasonAwards(state,state.league,place):[];
- if(newAwards.length){prize+=` جوائز فردية (محاكاة): ${newAwards.map(a=>a.title).join("، ")}.`;newAwards.forEach(a=>log(`فزت بجائزة ${a.title} — ${a.note}.`));}
+ if(newAwards.length){prize+=` جوائز فردية (محاكاة): ${newAwards.map(a=>a.title).join("، ")}.`;newAwards.forEach(a=>{recordTrophy(a.title,"جائزة فردية",a.season,a.club,a.country,a.note);log(`فزت بجائزة ${a.title} — ${a.note}.`);});}
+ const ceremony=buildSeasonAwardCeremony(place);
+ if(ceremony){for(const award of ceremony.playerAwards||[]){recordTrophy(award.title,"جائزة فردية",award.season,award.club,award.country,award.note);log(`فزت بجائزة عالمية ${award.title}.`);}
+  const winner=ceremony.ballonDor?.winner?.name||"غير محدد";
+  prize+=" حفل الجوائز: الكرة الذهبية ذهبت إلى "+winner+". "+awardCeremonySummary(ceremony).replace(/\n/g," • ");
+ }
  // لا نصعّد/نهبط بين الدرجات إلا حيث تملك اللعبة قائمة الدرجة الثانية المحلية.
  const oldDivision=Number(state.leagueDivision)||2;
  const hasPlayableSecondTier=!!LEAGUE_ROSTERS[state.leagueCountry||"مصر"]?.[2];
@@ -4076,12 +4106,12 @@ function finishSeason(){
  }
  const oldSeason=state.season;
  if(Number(state.age)>=40){
-  openModal("نهاية المسيرة — وقت الاعتزال",summary+`\nوصلت لسن ${state.age} سنة. دي نهاية الموسم الأخير، وتقدر تقفل مسيرتك وتحفظ سجل إنجازاتك.`,[
+  openModal("نهاية المسيرة — حفل الجوائز والاعتزال",summary+`\n\n${ceremony?awardCeremonySummary(ceremony):""}\nوصلت لسن ${state.age} سنة. دي نهاية الموسم الأخير، وتقدر تقفل مسيرتك وتحفظ سجل إنجازاتك.`,[
    {label:"اعتزال وحفظ سجل المسيرة",className:"primary",action:retireCareer}
   ]);
  }else{
   const nextLabel=Number(state.age)>=39?"ابدأ الموسم الأخير": "ابدأ الموسم الجديد";
-  openModal("نهاية الموسم "+oldSeason,summary+"\nتقييمك العام: "+overall()+".\n"+(state.nationalCalled?`الجهاز الفني لمنتخب ${state.nationalTeam||"مصر"} بعتلك استدعاء!`:"")+" راجع قرار عقدك قبل بداية الموسم القادم.",[
+  openModal("حفل نهاية الموسم "+oldSeason,summary+"\n\n"+(ceremony?awardCeremonySummary(ceremony):"") +"\nتقييمك العام: "+overall()+".\n"+(state.nationalCalled?`الجهاز الفني لمنتخب ${state.nationalTeam||"مصر"} بعتلك استدعاء!`:"")+" راجع قرار عقدك قبل بداية الموسم القادم.",[
    {label:nextLabel,className:"primary",action:()=>proceedSeasonTransition(false)},
    {label:"راجع جدول الدوري",action:()=>proceedSeasonTransition(true)}
   ]);
@@ -4096,7 +4126,7 @@ function startNewSeason(showStory=true){
  // Some legacy end-of-season buttons call startNewSeason directly. Honor the
  // one-season loan boundary on that path too, after the expiring-contract guard.
  if(state.loan)returnFromLoan();
- state.season++;state.age++;if(window.LWAgentRuntime?.ensureState)window.LWAgentRuntime.ensureState(state);const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);
+ state.season++;state.age++;state.currentCompetitions=[];state.transferOffers=[];state.transferOffersWindowId="";state.transferNegotiation=null;if(window.LWAgentRuntime?.ensureState)window.LWAgentRuntime.ensureState(state);const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);
  state.seasonApps=0;state.seasonAppsTarget=0;state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.seasonGoals=0;state.seasonAssists=0;state.seasonPoints=0;state.seasonW=0;state.seasonD=0;state.seasonL=0;
  state.seasonLog=[];state.journeyTransferReviewed=false;state.journeyEventSeen=false;state.journeySeasonReviewed=false;state.seasonFinished=false;state.seasonPhase="firstHalf";state.winterBreakPending=false;state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=false;state.dailyActionType="";state.internationalPlayed=false;state.nationalCalled=false;state.nationalTournamentMatches=0;state.nationalTournamentPoints=0;state.nationalTournamentQualified=false;state.nationalTournamentDone=false;
  state.contractSeasons=Math.max(0,state.contractSeasons-1);

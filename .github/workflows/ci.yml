@@ -22,8 +22,31 @@ jobs:
       - name: Refresh current rosters on development branch
         if: (github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/full-world-squads-2026-27')
         run: |
-          if node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); process.exit(r.status==="complete" && r.allLeagueMinimumsMet===true && r.totalTeams>=210 && r.totalPlayers>=3500 ? 0 : 1); } catch (_) { process.exit(1); }'; then
-            echo "A complete sourced-roster snapshot already exists; refresh skipped."
+          if node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('world-roster-audit.json', 'utf8'));
+          const script = fs.readFileSync('scripts/refresh-world-squads.cjs', 'utf8');
+          const block = script.match(/const LEAGUES = \[([\s\S]*?)\n\];/);
+          if (!block) process.exit(1);
+          const rows = block[1].split(/\r?\n/).map(line => line.trim()).filter(line => line.startsWith('{ id:') && line.includes('expectedTeams:'));
+          const wanted = rows.map(line => {
+            const match = line.match(/\{ id: "([^"]+)", country: "([^"]+)", division: (\d+), url: "([^"]+)".*?expectedTeams: (\d+)(?:, sourceSeason: "([^"]+)")?/);
+            if (!match) throw new Error('Unable to parse source config line: ' + line);
+            return { leagueId: match[1], division: Number(match[3]), sourceUrl: new URL(match[4], 'https://footballsquads.co.uk').href,
+              expectedTeams: Number(match[5]), sourceSeason: match[6] || '2026/27' };
+          });
+          const stale = report.status !== 'complete' || report.allLeagueMinimumsMet !== true
+            || report.totalTeams < 210 || report.totalPlayers < 3500
+            || report.expectedTeamsTotal !== wanted.reduce((sum, row) => sum + row.expectedTeams, 0)
+            || !Array.isArray(report.leagues) || report.leagues.length !== wanted.length
+            || wanted.some(row => !report.leagues.some(old => old.leagueId === row.leagueId && Number(old.division) === row.division
+              && old.sourceUrl === row.sourceUrl && old.sourceSeason === row.sourceSeason
+              && Number(old.expectedTeams) === row.expectedTeams && Number(old.clubs) >= row.expectedTeams - 2));
+          if (stale) process.exit(1);
+          console.log('Checked-in snapshot matches ' + wanted.length + ' configured source leagues.');
+          NODE
+          then
+            echo "The checked-in sourced-roster snapshot matches the current scraper configuration; refresh skipped."
           else
             node scripts/refresh-world-squads.cjs
           fi

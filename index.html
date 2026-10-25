@@ -3950,7 +3950,7 @@ function render(){
  setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":"عقد "+state.contractSeasons+" موسم");
  [["ovBar",ov],["energyBar",state.energy],["moraleBar",state.morale],["trustBar",state.trust]].forEach(([id,v])=>setBar(id,v));
  setText("ovVal",ov);setText("energyVal",state.energy);setText("moraleVal",state.morale);setText("trustVal",state.trust);
- setText("kpiMoney",Number(state.money||0).toLocaleString("en-US"));setText("kpiCurrency",currencyLabel());setText("kpiFollowers",state.followers);setText("kpiApps",state.apps);
+ setText("kpiMoney",Number(state.money||0).toLocaleString("en-US"));setText("kpiCurrency",currencyLabel());setText("storeCurrency",currencyLabel());setText("kpiFollowers",state.followers);setText("kpiApps",state.apps);
  SKILLS.forEach(k=>{setBar("skill-"+k,state[k]);setText("val-"+k,state[k]);});
  const levelThreshold=100+Math.min(80,((Number(state.careerLevel)||1)-1)*8);setBar("careerXPBar",(Number(state.levelXP)||0)/levelThreshold*100);setText("careerLevelBadge","المستوى "+(state.careerLevel||1));setText("careerLevelValue",state.careerLevel||1);setText("careerProgressText",`خبرة المستوى ${state.levelXP||0}/${levelThreshold} • إجمالي خبرة ${state.careerXP||0} • إمكانات ${state.playerPotential||82} • حصص ${state.trainingSessions||0}`);
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);

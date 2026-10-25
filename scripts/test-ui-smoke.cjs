@@ -319,8 +319,15 @@ if (favoriteBindingCount !== 1) { console.error("Event binding test failed: leag
 if (!html.includes("function transferEligibilityReason(target){") || !html.includes("transferMarketNotice")) {
   console.error("Transfer test failed: actionable eligibility reasons or market status are missing."); process.exit(1);
 }
-if (!html.includes('else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();') || !html.includes("else b.disabled=!!state.retired;")) {
-  console.error("Action reset test failed: non-match actions must be re-enabled after starting a new career."); process.exit(1);
+const actionRenderStart = html.indexOf("function render(){");
+const actionRenderEnd = html.indexOf("\\nfunction checkAction(", actionRenderStart);
+const activePageActionRender = actionRenderStart >= 0 && actionRenderEnd > actionRenderStart
+  ? html.slice(actionRenderStart, actionRenderEnd) : "";
+if (!activePageActionRender.includes('pageRoot.querySelectorAll("[data-action]")')
+  || !activePageActionRender.includes('else if(action==="coach")button.disabled=!!state.retired||!canUseDailyAction();')
+  || !activePageActionRender.includes("else button.disabled=!!state.retired;")) {
+  console.error("Action reset test failed: visible-page non-match actions must be re-enabled after starting a new career.");
+  process.exit(1);
 }
 
 

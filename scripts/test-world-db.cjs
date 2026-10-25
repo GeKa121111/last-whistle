@@ -51,7 +51,7 @@ const db = sandbox.window.LWWorldDB;
 assert.ok(db);
 assert.equal(db.version, 3);
 assert.equal(db.season, "2026/27");
-assert.equal(db.leagues().length, 15);
+assert.equal(db.leagues().length, 16);
 assert.equal(db.leagueFor("مصر", 1).matchesPerSeason, 34);
 assert.equal(db.leagueFor("إنجلترا", 1).matchesPerSeason, 38);
 assert.equal(db.leagueFor("ألمانيا", 1).matchesPerSeason, 34);
@@ -80,6 +80,23 @@ assert.equal(argentinaCoverage.clubCount, 30, "Argentina sourced rosters must me
 assert.equal(argentinaCoverage.clubsWithCurrentRoster, 30, "all 30 Argentine first-division clubs must load a sourced roster");
 assert.equal(argentinaCoverage.clubsNeedingRealRoster.length, 0, "no Argentine top-flight club should remain on generated-only backup players");
 assert.ok(argentinaCoverage.realPlayers >= 700, "Argentina should contribute at least 700 sourced player records");
+const turkeySource = snapshot.leagues.find(league => league.leagueId === "turkey" && Number(league.division) === 1);
+assert.ok(turkeySource, "Turkey Süper Lig source snapshot must be present");
+assert.equal(turkeySource.clubs.length, 18, "all 18 current Turkish Süper Lig clubs must be imported");
+assert.ok(turkeySource.clubs.every(club => club.players.length >= 12 && club.sourceUrl && club.sourceUrl.startsWith("https://")),
+  "every Turkish club must retain a source URL and a playable roster");
+assert.ok(turkeySource.clubs.every(club => club.players.every(player => player.isRealPlayer === true)),
+  "Turkey source rows must be real player records, not generated backups");
+assert.equal(db.leagueFor("تركيا", 1).matchesPerSeason, 34);
+assert.equal(db.clubsForCountry("تركيا", 1).length, 18, "all current Turkish top-flight clubs must be searchable");
+const turkeyCoverage = coverage.leagues.find(league => league.leagueId === "turkey" && league.division === 1);
+assert.ok(turkeyCoverage, "Turkey should have a separate sourced-roster audit row");
+assert.equal(turkeyCoverage.clubCount, 18);
+assert.equal(turkeyCoverage.clubsWithCurrentRoster, 18);
+assert.equal(turkeyCoverage.clubsNeedingRealRoster.length, 0, "no Turkish top-flight club should use generated-only players");
+const turkeyCompetitions = db.competitionsForCountry("تركيا", { division: 1, clubName: "Galatasaray", clubPower: 82 });
+assert.ok(turkeyCompetitions.some(item => item.id === "turkish-cup" && item.kind === "domestic-cup"));
+assert.ok(turkeyCompetitions.some(item => item.name === "UEFA Champions League"));
 const egyptSource = (snapshot.leagues || []).find(league => league.leagueId === "egypt" && Number(league.division) === 1);
 assert.ok(egyptSource, "the source snapshot should include official Egyptian Pro League squad pages");
 assert.equal(egyptSource.coverageType, "verified-current-squad-pages",

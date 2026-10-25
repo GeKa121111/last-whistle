@@ -2548,11 +2548,57 @@ function club(){const base=CLUBS[clamp(state.clubIndex,0,CLUBS.length-1)]||CLUBS
 function safeText(s){return String(s??"");}
 function log(message){state.diary.unshift({day:state.day,season:state.season,text:String(message)});state.diary=state.diary.slice(0,40);}
 function setStory(title,text){state.storyTitle=title;state.storyText=text;}
+function compactSnapshotForStorage(value){
+ const snapshot={...value};
+ const source=value&&value.worldSimulation;
+ if(!source||typeof source!=="object"||!source.clubs||!source.players)return snapshot;
+ const keysOf=object=>Object.keys(object&&typeof object==="object"?object:{});
+ const numericSort=(a,b)=>Number(a)-Number(b);
+ const statKeys=keysOf(source.seasonStats).sort(numericSort).slice(-1);
+ const recentTableKeys=keysOf(source.leagueTables).sort(numericSort).slice(-2);
+ const recentCompetitionKeys=keysOf(source.competitionsBySeason).sort(numericSort).slice(-2);
+ const pick=(object,keys)=>Object.fromEntries(keys.filter(key=>Object.prototype.hasOwnProperty.call(object||{},key)).map(key=>[key,object[key]]));
+ const seasonStats=Object.fromEntries(statKeys.filter(key=>Array.isArray(source.seasonStats[key])).map(key=>[
+  key,source.seasonStats[key].map(row=>{
+   if(!row||typeof row!=="object")return row;
+   const compact={...row};
+   // These objects duplicate fields already present on the season row; the API rebuilds
+   // them when getSeasonLines() is called after loading a save.
+   delete compact.seasonStats;
+   delete compact.displayStats;
+   delete compact.originConfederation;
+   return compact;
+  })
+ ]));
+ const playerHistory=Object.fromEntries(Object.entries(source.playerHistory||{}).map(([id,rows])=>[
+  id,Array.isArray(rows)?rows.slice(0,5):[]
+ ]).filter(([,rows])=>rows.length));
+ snapshot.worldSimulation={
+  ...source,
+  seasonStats,
+  leagueTables:pick(source.leagueTables,recentTableKeys),
+  competitionsBySeason:pick(source.competitionsBySeason,recentCompetitionKeys),
+  matchesBySeason:pick(source.matchesBySeason,keysOf(source.matchesBySeason).sort(numericSort).slice(-1)),
+  transfers:(Array.isArray(source.transfers)?source.transfers:[]).slice(0,150),
+  marketReports:(Array.isArray(source.marketReports)?source.marketReports:[]).slice(0,6),
+  notes:(Array.isArray(source.notes)?source.notes:[]).slice(0,20),
+  promotionHistory:(Array.isArray(source.promotionHistory)?source.promotionHistory:[]).slice(-10),
+  playerHistory
+ };
+ return snapshot;
+}
 function encodeStoredSave(value){
- const serialized=JSON.stringify(value);
+ const compacted=compactSnapshotForStorage(value);
+ const serialized=JSON.stringify(compacted);
  if(serialized.length<100000||!window.LZString||typeof window.LZString.compressToUTF16!=="function")return serialized;
- const compressed=window.LZString.compressToUTF16(serialized);
- return typeof compressed==="string"&&compressed.length+5<serialized.length?"LWZ1:"+compressed:serialized;
+ try{
+  const compressed=window.LZString.compressToUTF16(serialized);
+  return typeof compressed==="string"&&compressed.length+5<serialized.length?"LWZ1:"+compressed:serialized;
+ }catch(error){
+  // A quota-safe compact JSON snapshot is preferable to losing the save if compression
+  // runs out of memory on a large football-world simulation.
+  return serialized;
+ }
 }
 function decodeStoredSave(raw){
  if(typeof raw!=="string")throw new Error("invalid save payload");

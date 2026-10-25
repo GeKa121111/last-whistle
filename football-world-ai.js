@@ -448,24 +448,54 @@
     world.currentSeason = year;
     return { season: year, rows, tables, alreadyCompleted: false, transfers: 0 };
   }
+  function inferArchetype(club) {
+    const power = clamp(club && club.power, 35, 97);
+    const prestige = clamp(club && club.prestige, 25, 100);
+    if (power >= 82 && prestige >= 78) return "title-chaser";
+    if (power <= 65 && prestige <= 68) return "youth-investor";
+    if (power >= 70 && prestige >= 72) return "academy-builder";
+    return "balanced";
+  }
+  function inferCoachArchetype(club) {
+    const archetype = inferArchetype(club);
+    if (archetype === "title-chaser") return "win-now";
+    if (archetype === "youth-investor") return "develop-youth";
+    if (archetype === "academy-builder") return "technical-discipline";
+    return "balanced-rotation";
+  }
   function roleAverages(world, club) {
     const all = rosterPlayers(world, club);
     const stats = {};
     for (const group of Object.keys(TARGETS)) {
       const rows = all.filter(player => player.group === group);
-      stats[group] = { count: rows.length, average: average(rows.map(player => player.ovr)),
-        best: rows.length ? Math.max(...rows.map(player => player.ovr)) : 0 };
+      const ages = rows.map(player => clamp(player.age, 15, 45));
+      stats[group] = {
+        count: rows.length,
+        average: average(rows.map(player => player.ovr)),
+        best: rows.length ? Math.max(...rows.map(player => player.ovr)) : 0,
+        averageAge: ages.length ? average(ages) : 26,
+        youthCount: ages.filter(age => age <= 23).length,
+        primeCount: ages.filter(age => age >= 24 && age <= 30).length,
+        veteranCount: ages.filter(age => age >= 31).length
+      };
     }
     return stats;
   }
   function needScore(club, group, roleStats) {
     const row = roleStats[group];
+    if (!row) return 0;
     const deficit = Math.max(0, TARGETS[group] - row.count);
     const qualityGap = Math.max(0, club.power - row.average - 4);
     const topQualityGap = Math.max(0, club.power - row.best - 6);
     const weakUnitPenalty = row.average < club.power - 5 ? 5 : 0;
+    const archetype = inferArchetype(club);
+    let ageFit = 0;
+    if (archetype === "youth-investor") ageFit += Math.max(0, 26 - row.averageAge) * 0.62 + row.youthCount * 0.12;
+    else if (archetype === "title-chaser") ageFit += Math.max(0, row.averageAge - 23) * 0.30 - Math.max(0, row.averageAge - 31) * 0.75;
+    else if (archetype === "academy-builder") ageFit += Math.max(0, 28 - row.averageAge) * 0.28;
+    const undercovered = row.count < Math.max(1, Math.floor(TARGETS[group] * 0.55));
     return 5 + deficit * 11 + qualityGap * 1.25 + topQualityGap * 0.9
-      + weakUnitPenalty + (row.count === 0 ? 18 : 0);
+      + weakUnitPenalty + (row.count === 0 ? 18 : 0) + ageFit + (undercovered ? 7 : 0);
   }
   function sellingCandidate(world, seller, group, usedPlayers) {
     const rows = rosterPlayers(world, seller).filter(player => player.group === group && !usedPlayers.has(player.id));
@@ -516,8 +546,18 @@
         const prestigeFactor = (buyer.prestige - seller.prestige) * 0.04;
         const distancePenalty = buyer.leagueId === seller.leagueId ? 0 : 1.5;
         const tie = hash(player.id + "|" + buyer.id + "|" + season) % 41 / 100;
+        const archetype = inferArchetype(buyer);
+        const coachStyle = inferCoachArchetype(buyer);
+        const archetypeFactor = archetype === "youth-investor"
+          ? Math.max(0, player.potential - player.ovr) * 0.34 + (player.age <= 23 ? 4 : -2)
+          : archetype === "title-chaser"
+            ? (player.age >= 24 && player.age <= 30 ? 5 : player.age >= 32 ? -5 : 0) + player.ovr * 0.035
+            : archetype === "academy-builder" ? (player.age <= 25 ? 2.5 : -1) : 0;
+        const coachFit = coachStyle === "develop-youth" && player.age <= 23 ? 2
+          : coachStyle === "win-now" && player.ovr >= buyer.power - 2 ? 1.8
+          : coachStyle === "technical-discipline" && player.potential >= player.ovr + 8 ? 1 : 0;
         const score = player.ovr * 0.58 + potentialFactor + ageFactor + needsFactor + prestigeFactor
-          - distancePenalty - fee / Math.max(1, buyer.budget) * 5 + tie;
+          + archetypeFactor + coachFit - distancePenalty - fee / Math.max(1, buyer.budget) * 5 + tie;
         candidates.push({ player, seller, fee, score, group: need.group });
       }
       candidates.sort((a, b) => b.score - a.score || b.player.ovr - a.player.ovr);
@@ -1425,3 +1465,122 @@
   }));
 })(window);
 /* END LAST WHISTLE WORLD SIMULATION V2 */
+
+
+/* LAST WHISTLE — age-aware club AI, scouting estimates and worker-backed world jobs. */
+(function (global) {
+  "use strict";
+  const base = global.LWWorldAI;
+  if (!base) return;
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
+  const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  function archetypeForClub(club) {
+    const power = clamp(club && club.power, 35, 97), prestige = clamp(club && club.prestige, 25, 100);
+    if (power >= 82 && prestige >= 78) return { id: "title-chaser", label: "منافس على البطولات", strategy: "استقطاب الجاهز", coachStyle: "win-now" };
+    if (power <= 65 && prestige <= 68) return { id: "youth-investor", label: "استثمار وتطوير شباب", strategy: "تطوير ثم بيع", coachStyle: "develop-youth" };
+    if (power >= 70 && prestige >= 72) return { id: "academy-builder", label: "بناء فني منظم", strategy: "تطوير المواهب", coachStyle: "technical-discipline" };
+    return { id: "balanced", label: "توازن بين الخبرة والشباب", strategy: "تعاقدات حسب الاحتياج", coachStyle: "balanced-rotation" };
+  }
+  function ensureProfiles(save, db) {
+    const world = base.ensureState(save, db);
+    Object.values(world.clubs || {}).forEach(club => {
+      if (!club || typeof club !== "object") return;
+      const profile = archetypeForClub(club);
+      club.aiArchetype = profile.id;
+      club.aiStrategy = profile.strategy;
+      club.coachArchetype = profile.coachStyle;
+    });
+    world.aiMetadata = world.aiMetadata && typeof world.aiMetadata === "object" ? world.aiMetadata : {};
+    world.aiMetadata.version = 2;
+    world.aiMetadata.lastContextSeason = Math.max(1, int(save && save.season, int(world.currentSeason, 1)));
+    return world;
+  }
+  function recruitmentNeeds(save, db) {
+    const world = ensureProfiles(save, db);
+    return Object.values(world.clubs || {}).map(club => {
+      const rows = Object.values(world.players || {}).filter(player => player && player.clubId === club.id);
+      const roleNeeds = [
+        { id: "goalkeeper", target: 2, label: "حراسة المرمى" },
+        { id: "defender", target: 5, label: "الدفاع" },
+        { id: "midfielder", target: 5, label: "الوسط" },
+        { id: "attacker", target: 4, label: "الهجوم" }
+      ].map(role => {
+        const players = rows.filter(player => (player.group || base.groupForPosition(player.position)) === role.id);
+        const ages = players.map(player => int(player.age, 25));
+        const averageOverall = players.length ? players.reduce((sum, row) => sum + int(row.ovr, 55), 0) / players.length : 0;
+        return { group: role.id, label: role.label, count: players.length, target: role.target,
+          deficit: Math.max(0, role.target - players.length), averageOverall: Number(averageOverall.toFixed(1)),
+          averageAge: ages.length ? Number((ages.reduce((sum, age) => sum + age, 0) / ages.length).toFixed(1)) : null };
+      }).sort((a, b) => {
+        const scoreA = b.deficit * 10 + Math.max(0, Number(club.power) - a.averageOverall) * 0.25;
+        const scoreB = a.deficit * 10 + Math.max(0, Number(club.power) - b.averageOverall) * 0.25;
+        return scoreA - scoreB;
+      });
+      return { clubId: club.id, club: club.name, country: club.country, power: club.power,
+        archetype: club.aiArchetype, strategy: club.aiStrategy, coach: club.coachArchetype,
+        rosterSize: rows.length, needs: roleNeeds, priority: roleNeeds[0] || null };
+    });
+  }
+  function scoutingEstimate(player, coverage) {
+    const actual = clamp(player && (player.ovr ?? player.overall), 35, 99);
+    const potential = clamp(player && player.potential, actual, 99);
+    const scouting = clamp(coverage, 0, 100);
+    const confidence = Math.min(100, Math.round(25 + scouting * 0.75));
+    const uncertainty = Math.max(0, Math.round((100 - scouting) * 0.09));
+    return { min: Math.max(35, actual - uncertainty), max: Math.min(99, actual + uncertainty),
+      confidence, fullyScouted: scouting >= 100,
+      potentialMin: Math.max(actual, potential - Math.round((100 - scouting) * 0.08)),
+      potentialMax: Math.min(99, potential + Math.round((100 - scouting) * 0.08)) };
+  }
+  function applySaveResult(target, source) {
+    if (!target || !source || typeof target !== "object" || typeof source !== "object") return;
+    Object.keys(target).forEach(key => { if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key]; });
+    Object.keys(source).forEach(key => { target[key] = source[key]; });
+  }
+  function workerRequest(command, save, data) {
+    if (typeof global.Worker !== "function") return Promise.reject(new Error("Web Worker is not supported"));
+    const worker = new global.Worker("./football-world-worker.js?v=1");
+    const requestId = "lw-world-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const clean = () => worker.terminate();
+      worker.onmessage = event => {
+        const msg = event && event.data || {};
+        if (msg.id !== requestId || settled) return;
+        settled = true; clean();
+        if (!msg.ok) { reject(new Error(msg.error || "World worker failed")); return; }
+        applySaveResult(save, msg.save);
+        if (global.LWStateStore && typeof global.LWStateStore.publish === "function")
+          global.LWStateStore.publish(save, { source: "world-worker", command });
+        resolve(msg.result);
+      };
+      worker.onerror = event => {
+        if (settled) return;
+        settled = true; clean();
+        reject(new Error(event && event.message || "World worker crashed"));
+      };
+      worker.postMessage(Object.assign({ id: requestId, command, save }, data || {}));
+    });
+  }
+  function asyncFallback(command, save, data, db) {
+    return Promise.resolve().then(() => {
+      if (command === "completeSeason") return base.completeSeason(save, data.season, db);
+      if (command === "advanceToSeason") return base.advanceToSeason(save, data.season, db);
+      return base.dashboard(save, db);
+    });
+  }
+  function worldJob(command, save, data, db) {
+    return workerRequest(command, save, data || {}).catch(() => asyncFallback(command, save, data || {}, db));
+  }
+  global.LWWorldAI = Object.freeze(Object.assign({}, base, {
+    version: base.version,
+    archetypeForClub,
+    ensureState: ensureProfiles,
+    recruitmentNeeds,
+    scoutingEstimate,
+    completeSeasonAsync: (save, season, db) => worldJob("completeSeason", save, { season }, db),
+    advanceToSeasonAsync: (save, season, db) => worldJob("advanceToSeason", save, { season }, db),
+    dashboardAsync: (save, db) => worldJob("dashboard", save, {}, db)
+  }));
+})(window);
+/* END LAST WHISTLE CONTEXT AI LAYER */

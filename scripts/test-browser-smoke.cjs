@@ -527,6 +527,11 @@ async function main() {
         target: Number(state.seasonAppsTarget),
         finished: state.seasonFinished,
         historyCount: Array.isArray(state.seasonHistory) ? state.seasonHistory.length : 0,
+        trainingSessions: Number(state.seasonTrainingReport?.sessions) || 0,
+        trainingXP: Number(state.seasonTrainingReport?.xp) || 0,
+        developmentRecord: Array.isArray(state.seasonDevelopmentHistory)
+          ? state.seasonDevelopmentHistory.find(row => Number(row.season) === Number(state.season)) || null
+          : null,
         hasSummary: Boolean(state.seasonSummary),
         awardCeremonyCount: Array.isArray(state.awardCeremonies) ? state.awardCeremonies.length : 0,
         awardNomineeCount: Number(state.awardCeremonies?.[0]?.ballonDor?.topFive?.length) || 0,
@@ -542,6 +547,12 @@ async function main() {
     assert.equal(completedSeason.apps, completedSeason.target, "a season cannot be marked complete before all scheduled matches are played");
     assert.ok(completedSeason.historyCount > 0, "the completed season must be archived");
     assert.equal(completedSeason.hasSummary, true, "the season report must be saved");
+    assert.ok(completedSeason.trainingSessions > 0, "season simulation must execute automatic AI training sessions");
+    assert.ok(completedSeason.trainingXP > 0, "automatic training must accumulate training XP");
+    assert.ok(completedSeason.developmentRecord, "the completed season must archive its player-development record");
+    assert.equal(Number(completedSeason.developmentRecord.season), completedSeason.season);
+    assert.equal(Number(completedSeason.developmentRecord.sessions), completedSeason.trainingSessions,
+      "the season-development archive must reconcile with its training-session ledger");
     assert.ok(completedSeason.awardCeremonyCount > 0, "finishing a season must persist an award ceremony");
     assert.equal(completedSeason.awardNomineeCount, 5, "the ceremony must persist the five Ballon d'Or nominees");
     assert.ok(completedSeason.awardCeremonyText.includes("الكرة الذهبية"), "the award ceremony must render in the real UI");

@@ -3459,12 +3459,13 @@ function playCupMatch(){
   const group=(c.groups||[])[Math.max(0,c.playerGroup||0)]||c.teams.filter(n=>n!==clubNameForLeague()).slice(0,3);const pool=group.filter(n=>n!==clubNameForLeague());
   const maxMeetings=c.system==='caf'?2:1;const used=c.groupOpponents||{};const available=pool.filter(n=>(used[n]||0)<maxMeetings);
   opponent=available.length?available[(c.phasePlayed)%available.length]:pool[c.phasePlayed%pool.length];c.groupOpponents=used;c.groupOpponents[opponent]=(c.groupOpponents[opponent]||0)+1;
- }else opponent=c.opponent||c.teams[(c.stage*2+1)%c.teams.length]||c.teams[1];
+ }else opponent=(Number(c.tieLeg)===2&&c.tieOpponent)||c.opponent||c.teams[(c.stage*2+1)%c.teams.length]||c.teams[1];
  if(!opponent){toast('تعذر تحديد منافس الكأس.');return;}
  const knockout=!isLeague&&!isGroups,isTwoLegTie=knockout&&!!(c.twoLegs||[])[c.stage];
+ const tieLegAtKickoff=isTwoLegTie?(Number(c.tieLeg)===2?2:1):0;
  const id=buildMatchId('cup',c.name,(Number(c.matchesPlayed)||0)+1,club().name);
  const dKey=disciplineKey('cup',state.leagueCountry,c.name),suspended=Number(state.suspensions?.[dKey])>0;
- const result=simulateCareerMatch({opponent,opponentTeam:{power:clubPowerFor(opponent,state.leagueCountry||'')},scope:'cup',competition:c.name,tactic:state.lastTactic||'balanced',matchId:id,home:(Number(c.matchesPlayed)||0)%2===0,mode:'cup',knockout:knockout&&(!isTwoLegTie||Number(c.tieLeg)===2),aggregateOffset:isTwoLegTie&&Number(c.tieLeg)===2?Number(c.tieAggregate)||0:0,playerAvailable:!suspended});
+ const result=simulateCareerMatch({opponent,opponentTeam:{power:clubPowerFor(opponent,state.leagueCountry||'')},scope:'cup',competition:c.name,tactic:state.lastTactic||'balanced',matchId:id,home:isTwoLegTie?tieLegAtKickoff===1:(Number(c.matchesPlayed)||0)%2===0,mode:'cup',knockout:knockout&&(!isTwoLegTie||tieLegAtKickoff===2),aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2?Number(c.tieAggregate)||0:0,playerAvailable:!suspended});
  const settled=applyMatchResult(result,{id,scope:'cup',country:state.leagueCountry,competition:c.name,opponent,tactic:result.tactic,home:result.home,matchday:(Number(c.matchesPlayed)||0)+1,suspendedAtKickoff:suspended});
  if(!settled){toast('تم منع تكرار أو اعتماد نتيجة كأس غير متسقة.');return;}
  const gf=Number(result.score.for)||0,ga=Number(result.score.against)||0,won=result.outcome==='فوز',draw=result.outcome==='تعادل';
@@ -3472,7 +3473,7 @@ function playCupMatch(){
  const shootout=result.shootout?.used?` ركلات الترجيح ${result.shootout.scoreFor}-${result.shootout.scoreAgainst}.`:'';
  const participated=result.player.minutes>0;
  c.matchesPlayed=(Number(c.matchesPlayed)||0)+1;c.gf=(Number(c.gf)||0)+gf;c.gd=(Number(c.gd)||0)+gf-ga;
- if(isTwoLegTie){if(Number(c.tieLeg)===1){c.tieOpponent=opponent;c.tieAggregate=gf-ga;c.tieLeg=2;}else{c.tieAggregate=0;c.tieLeg=1;c.tieOpponent='';}}
+ if(isTwoLegTie){if(tieLegAtKickoff===1){c.tieOpponent=opponent;c.tieAggregate=gf-ga;c.tieLeg=2;}else{c.tieAggregate=0;c.tieLeg=1;c.tieOpponent='';}}
  if(isLeague||isGroups){
   c.standings=Array.isArray(c.standings)?c.standings:c.teams.map(name=>({name,played:0,w:0,d:0,l:0,gf:0,ga:0,pts:0}));
   const me=c.standings.find(t=>t.name===clubNameForLeague()),opp=c.standings.find(t=>t.name===opponent);
@@ -3481,7 +3482,7 @@ function playCupMatch(){
   const activeGroup=isGroups?((c.groups||[])[Math.max(0,c.playerGroup||0)]||c.teams):c.teams;const others=activeGroup.filter(n=>n!==clubNameForLeague()&&n!==opponent);
   for(let i=0;i+1<others.length;i+=2){const a=c.standings.find(t=>t.name===others[i]),b=c.standings.find(t=>t.name===others[i+1]);const x=rand(0,3),y=rand(0,3);update(a,b,x,y);}
  }
- if(isLeague||isGroups){c.phasePlayed++;if(won)c.points=(c.points||0)+3;else if(draw)c.points=(c.points||0)+1;c.history.push(`${roundName} ${c.phasePlayed}: ${gf}-${ga} أمام ${opponent} • ${won?'فوز':draw?'تعادل':'خسارة'}`);
+ if(isLeague||isGroups){c.phasePlayed++;if(won)c.points=(c.points||0)+3;else if(draw)c.points=(c.points||0)+1;
   if(c.phasePlayed>=c.phaseGames){
    if(isLeague){const table=[...(c.standings||[])].sort((a,b)=>b.pts-a.pts||((b.gf-b.ga)-(a.gf-a.ga))||b.gf-a.gf);c.rank=table.findIndex(t=>t.name===clubNameForLeague())+1||36;
     if(c.rank>24){c.eliminated=true;setStory('الخروج من البطولة',`أنهيت مرحلة الدوري في المركز ${c.rank}، خارج مراكز التأهل.`);}
@@ -3489,11 +3490,11 @@ function playCupMatch(){
     else{c.phase='knockout';c.stage=1;c.rounds=['الملحق','دور الـ16','ربع النهائي','نصف النهائي','النهائي'];setStory('تأهل مباشر لدور الـ16',`أنهيت مرحلة الدوري في المركز ${c.rank} وتأهلت مباشرة لدور الـ16.`);}
    }else{const groupNames=(c.groups||[])[Math.max(0,c.playerGroup||0)]||c.teams;const table=[...(c.standings||[])].filter(t=>groupNames.includes(t.name)).sort((a,b)=>b.pts-a.pts||((b.gf-b.ga)-(a.gf-a.ga))||b.gf-a.gf);const groupRank=table.findIndex(t=>t.name===clubNameForLeague())+1||4;c.rank=groupRank;if(groupRank>2){c.eliminated=true;setStory('الخروج من المجموعات',`أنهيت المجموعة في المركز ${groupRank} برصيد ${c.points} نقطة ولم تتأهل.`);}else{c.phase='knockout';c.stage=0;setStory('التأهل من المجموعات',`أنهيت المجموعة في المركز ${groupRank} برصيد ${c.points} نقطة وتأهلت للأدوار الإقصائية.`);}}
   }else setStory('نتيجة البطولة',`انتهت المباراة ${gf}-${ga}. ${extraTimeText?extraTimeText+'. ':''}رصيدك ${c.points} نقطة.`);
- }else if(isTwoLegTie&&Number(c.tieLeg)===2)setStory('مباراة الذهاب انتهت',`انتهت مباراة الذهاب ${gf}-${ga}. لسه قدامك مباراة الإياب لتحديد المتأهل.`);
+ }else if(isTwoLegTie&&tieLegAtKickoff===1)setStory('مباراة الذهاب انتهت',`انتهت مباراة الذهاب ${gf}-${ga}. مجموع المواجهة المؤقت ${c.tieAggregate>0?'تقدمك':c.tieAggregate<0?'تقدم المنافس':'تعادل'} ${Math.abs(c.tieAggregate)} هدف. لسه قدامك مباراة الإياب لتحديد المتأهل.`);
  else if(!won){c.eliminated=true;calendarEvent('cup-exit',`الخروج من ${c.name}`,roundName);setStory('نهاية مشوار البطولة',`خسرت ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} خرجت من ${c.name} في ${roundName}.`);}
  else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;recordTrophy(c.name,"بطولة جماعية",state.season,club().name,state.leagueCountry||"",c.name);state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});setStory('بطل البطولة!',`كسبت النهائي ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} ورفعت كأس ${c.name}. مكافأة اللقب 1200 جنيه.`);log('حققت لقب بطولة: '+c.name+'.');}
  else{c.stage++;const pool=c.teams.filter(n=>n!==clubNameForLeague()&&n!==opponent);c.opponent=pool[(c.stage*3+1)%Math.max(1,pool.length)]||'منافس متأهل';setStory('تأهلت للدور التالي',`فزت ${gf}-${ga} على ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}. تأهلت إلى ${(c.rounds||[])[c.stage]}.`);}
- c.history.push(`${roundName}${isTwoLegTie?' ('+(Number(c.tieLeg)===2?'ذهاب':'إياب')+')':''}: ${gf}-${ga} أمام ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}`);
+ c.history.push(`${roundName}${isLeague||isGroups?' '+c.phasePlayed:''}${isTwoLegTie?' ('+(tieLegAtKickoff===1?'ذهاب':'إياب')+')':''}: ${gf}-${ga} أمام ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}`);
  const cupDate=nextAvailableMatchDay(state.calendarDay+3,'cup-match');if(cupDate>state.calendarDay+3)advanceCalendarDays(cupDate-(state.calendarDay+3),'ترتيب موعد البطولة');
  log(`مباراة ${c.name}: ${gf}-${ga} أمام ${opponent}، ${roundName}${shootout}${participated?` • لعبت ${result.player.minutes} دقيقة • ${result.player.rating}/10`:" • لم تشارك"}.`);
  advanceCalendarDays(3,'مباراة الكأس');saveGame(true);render();openModal('نتيجة البطولة',state.storyText,[{label:'كمّل',className:'primary',action:()=>{render();showPage('europe');}}]);

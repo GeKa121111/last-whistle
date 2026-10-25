@@ -353,6 +353,8 @@
     for (const buyer of buyers) {
       if (moves.length >= maxMoves) break;
       if (alreadyUsedClubs.has(buyer.id)) continue;
+      // Avoid squad hoarding: each AI club has a soft roster ceiling before buying.
+      if (buyer.roster.length >= 18) continue;
       const roles = roleAverages(world, buyer);
       const needs = Object.keys(TARGETS).map(group => ({ group, score: needScore(buyer, group, roles) }))
         .sort((a, b) => b.score - a.score);

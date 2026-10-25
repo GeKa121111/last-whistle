@@ -55,7 +55,7 @@ const required = [
   'class="page active"',
   "saved.calendarDay",
   "restored.schemaVersion=10;",
-  "state.schemaVersion=9;",
+  "state.schemaVersion=10;",
   "state.dailyActionDay=Math.max(1,Number(state.day)||1);"
 ];
 const missing = required.filter((token) => !html.includes(token));
@@ -241,7 +241,29 @@ if (!html.includes('$("seasonStageAction").addEventListener("click",()=>runSeaso
 if (!html.includes("function openTransferMarketPage(){") || !html.includes('market.scrollIntoView({behavior:"smooth",block:"start"})')) {
   console.error("Transfer CTA test failed: review button must open and scroll to the transfer market."); process.exit(1);
 }
-if (!html.includes("function toggleTransferShortlist(country,clubName){") || !html.includes("transferShortlist") || !html.includes("data-watch-club")) { console.error("Transfer shortlist test failed: compare-list controls are missing."); process.exit(1); }
+if (!html.includes("function ensureTransferOffers(){")
+  || !html.includes("function beginTransferNegotiation(id){")
+  || !html.includes("function renderNegotiationPanel(){")
+  || !html.includes("data-submit-negotiation")
+  || !html.includes("data-reject-offer")
+  || html.includes("قائمة مقارنة الأندية")
+  || html.includes("data-watch-club")) {
+  console.error("Transfer offer test failed: negotiation flow is missing or old comparison UI remains."); process.exit(1);
+}
+if (!html.includes("function buildSeasonAwardCeremony(place){")
+  || !html.includes("function renderAwardsLeaderboards(){")
+  || !html.includes("function renderTrophyCabinet(){")
+  || !html.includes('id="ballonDOrCeremony"')
+  || !html.includes('id="goldenBootLeaderboard"')
+  || !html.includes('id="playmakerLeaderboard"')) {
+  console.error("Season awards test failed: ceremony, leaderboards, or trophy cabinet is missing."); process.exit(1);
+}
+if (!html.includes('src="./transfer-awards-engine.js?v=1"')
+  || !html.includes("transferOffersWindowId")
+  || !html.includes("awardCeremonies")
+  || !html.includes("currentCompetitions")) {
+  console.error("Persistence/integration test failed: transfer/award engine or new save defaults are missing."); process.exit(1);
+}
 const favoriteBindingCount = (html.match(/\$\("leagueCatalog"\)\.addEventListener\("click",favoriteHandler\)/g) || []).length;
 if (favoriteBindingCount !== 1) { console.error("Event binding test failed: league favorite handler should be registered exactly once."); process.exit(1); }
 if (!html.includes("function transferEligibilityReason(target){") || !html.includes("transferMarketNotice")) {

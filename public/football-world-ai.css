@@ -1,0 +1,28 @@
+.world-ai-home{grid-column:span 12;border-color:#476b54;background:radial-gradient(ellipse at 95% 0%,#b2ed4e16,transparent 45%),linear-gradient(145deg,#111d19,#121b2b)}
+.world-ai-home .world-ai-pulse{margin:12px 0;padding:11px 12px;border:1px solid #344d3a;border-radius:12px;background:#101b17;color:#d3e0cb;font-size:12px;line-height:1.8}
+.world-ai-home .world-ai-pulse strong{color:#caff43}
+.world-ai-home .world-ai-home-cta{margin-top:10px}
+.world-ai-dashboard-card{grid-column:span 12;border-color:#3a5541}
+.world-ai-dashboard-grid{margin-top:10px}
+.world-ai-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.world-ai-kpi{min-width:0;padding:12px;border:1px solid #344452;border-radius:12px;background:#111c2a}
+.world-ai-kpi b{display:block;font-size:20px;color:#caff43;line-height:1.3}
+.world-ai-kpi span{display:block;color:#9fadc0;font-size:10px;margin-top:4px;line-height:1.5}
+.world-ai-section{margin-top:14px}
+.world-ai-section h3{font-size:13px;margin:0 0 8px;color:var(--text)}
+.world-ai-leader-row{display:grid;grid-template-columns:25px minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #ffffff10;font-size:12px}
+.world-ai-leader-row:last-child{border-bottom:0}
+.world-ai-rank{display:grid;place-items:center;width:24px;height:24px;border:1px solid #384c3b;border-radius:7px;background:#1a2a1d;color:#caff43;font-size:10px;font-weight:900}
+.world-ai-leader-main{min-width:0}
+.world-ai-leader-main b{display:block;overflow-wrap:anywhere}
+.world-ai-leader-main small{display:block;color:#9eabc0;font-size:10px;margin-top:2px}
+.world-ai-stat{color:#caff43;font-weight:900;white-space:nowrap}
+.world-ai-transfer{padding:10px 0;border-bottom:1px solid #ffffff10}
+.world-ai-transfer:last-child{border-bottom:0}
+.world-ai-transfer b{display:block;font-size:12px;line-height:1.6}
+.world-ai-transfer small{display:block;color:#a7b4c5;font-size:10px;line-height:1.7;margin-top:2px}
+.world-ai-transfer .world-ai-fee{color:#caff43}
+.world-ai-note{font-size:10px;line-height:1.75;color:#9eabbd;margin-top:10px}
+.world-ai-grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.world-ai-empty{padding:14px;border:1px dashed #344452;border-radius:12px;color:#aab6c8;font-size:11px;line-height:1.8}
+@media(max-width:760px){.world-ai-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.world-ai-grid-two{grid-template-columns:1fr}.world-ai-kpi{padding:10px}.world-ai-kpi b{font-size:18px}.world-ai-dashboard-card{grid-column:span 12}}

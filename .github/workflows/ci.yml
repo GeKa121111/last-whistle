@@ -50,6 +50,10 @@ jobs:
             git commit -m "Refresh 2026/27 verified world squad snapshot"
             target_branch="$GITHUB_REF_NAME"
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then target_branch="$GITHUB_HEAD_REF"; fi
+            # The branch may receive code/workflow fixes while this long scrape runs.
+            # Rebase the generated data-only commit on the latest head before pushing.
+            git fetch origin "$target_branch"
+            git rebase "origin/$target_branch"
             git push origin "HEAD:$target_branch"
           fi
       - run: npm test

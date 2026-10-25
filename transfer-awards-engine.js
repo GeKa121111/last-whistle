@@ -55,6 +55,26 @@
   }
 
   function simulatePlayerSeason(player, season, progress) {
+    const saved = player && player.seasonStats;
+    if (saved && Number(saved.season) === Number(season)) {
+      const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
+      const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
+      const appearances = Math.round(Math.max(0, Number(saved.appearances) || 0) * scale);
+      const goals = Math.round(Math.max(0, Number(saved.goals) || 0) * scale);
+      const assists = Math.round(Math.max(0, Number(saved.assists) || 0) * scale);
+      const averageRating = appearances > 0 ? clamp(saved.averageRating || 0, 0, 10) : 0;
+      const leagueStrength = Number(player.leagueStrength) || 60;
+      return {
+        name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
+        country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
+        age: Number(player.age) || estimatedAge(player, season), ovr, appearances, goals, assists,
+        averageRating: Number(averageRating.toFixed(2)),
+        score: Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)),
+        weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
+        confederation: player.confederation || "", originConfederation: player.originConfederation || player.confederation || "",
+        leagueStrength, realPlayer: player.realPlayer !== false, isUser: !!player.isUser
+      };
+    }
     const ovr = clamp(player.ovr || player.power || 60, 35, 99);
     const type = roleType(player.position);
     const random = seeded(stableHash(season + "|" + player.clubName + "|" + player.name));

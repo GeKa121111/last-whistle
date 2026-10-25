@@ -26,10 +26,10 @@
   function recentRows(state) {
     const rows = Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [];
     return rows.filter(row => row && (row.scope === "league" || row.scope === "cup" || row.scope === "international" || row.rating !== undefined))
-      .slice(-8);
+      .slice(0, 8);
   }
   function formRating(state) {
-    const rows = recentRows(state).slice(-5);
+    const rows = recentRows(state).slice(0, 5);
     const ratings = rows.map(row => number(row.rating, NaN)).filter(value => Number.isFinite(value) && value >= 0 && value <= 10);
     if (ratings.length) return ratings.reduce((sum, value) => sum + value, 0) / ratings.length;
     const last = number(state && state.lastRating, NaN);

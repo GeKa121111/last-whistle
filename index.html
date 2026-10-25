@@ -3071,6 +3071,9 @@ function transferFactors(target){
 function transferAverageRating(){return Number(state.leagueRatingCount)>0?(Number(state.leagueRatingSum)||0)/Number(state.leagueRatingCount):6.1;}
 function transferEligibilityReason(target){
  if(state.retired)return "المسيرة انتهت بالاعتزال.";
+ if(isYouthAcademyPlayer())return "أنت في أكاديمية الناشئين؛ انتقالات الفريق الأول متاحة بعد التخرج في سن 18.";
+ if(state.academyGraduationPending)return "اختار الأول هتوقع مع الفريق الأول ولا هتلعب موسم مع الرديف.";
+ if(state.academyReserve)return "أنت مع فريق الرديف؛ هتبدأ انتقالات الفريق الأول بعد نهاية الموسم والتصعيد.";
  if(!state.careerStarted)return "ابدأ مسيرتك الأول قبل طلب انتقال.";
  if(!target)return "النادي المطلوب مش موجود في بيانات السوق.";
  if(target.club===state.clubName&&target.country===state.leagueCountry)return "ده ناديك الحالي بالفعل.";
@@ -3119,6 +3122,7 @@ function transferPlayerProfile(){
 function ensureTransferOffers(){
  state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers:[];
  const windowInfo=transferWindow();
+ if(isYouthAcademyPlayer()||state.academyGraduationPending||state.academyReserve)return;
  if(!state.careerStarted||state.retired||state.loan||Number(state.transferCooldown||0)>0||activeCupInProgress())return;
  if(!windowInfo.open&&!state.freeAgent)return;
  const windowId=windowInfo.open?windowInfo.id:"free-agent-"+Math.floor((Number(state.calendarDay)||1)/14);
@@ -3294,6 +3298,7 @@ function seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed){
  return played+remainingMatches;
 }
 function requestLoan(){
+ if(isYouthAcademyPlayer()||state.academyGraduationPending||state.academyReserve){toast("الإعارة متاحة بعد التخرج من الأكاديمية واكتساب سجل مع الفريق الأول.");return;}
  const status=window.LWCareer?.loanRequestStatus(state,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open})||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"الإعارة تتطلب عقدًا ساريًا مع نادٍ. ابحث عن عقد دائم أولًا.","already-loaned":"عندك إعارة نشطة بالفعل؛ هترجع لناديك الأصلي بعد نهاية الموسم.","cup-active":"كمّل بطولة الكأس الحالية قبل تغيير النادي حتى ما يضيعش سجل البطولة.","window-closed":"طلبات الإعارة متاحة في فترات الانتقالات الصيفية والشتوية.","appearances-required":"لازم تلعب مباراتين على الأقل قبل ما الأندية تطلب إعارتك."};
  if(status!=="ready"){toast(messages[status]||"تعذر بدء طلب الإعارة في الحالة الحالية.");return;}
@@ -3388,7 +3393,7 @@ function renderSponsorship(){
  const b=$("sponsorBtn");if(b){b.disabled=!!(c&&Number(c.matchesRemaining)>0)||!!state.retired;b.textContent=c&&Number(c.matchesRemaining)>0?"عقد الرعاية نشط":"تفاوض على عقد رعاية";}
 }
 function negotiateSponsorship(){
- if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}if(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){toast("عندك عقد رعاية نشط بالفعل.");return;}
+ if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}if(isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending){toast("عقود الرعاية متاحة بعد التخرج والانتقال لمرحلة الفريق الأول.");return;}if(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){toast("عندك عقد رعاية نشط بالفعل.");return;}
  const sponsorMultiplier=(window.LWAgentRuntime?.sponsorshipMultiplier(state)??(state.agent?1.15:1))*(state.creatorStudio?1.2:1)*(state.stylist?1.08:1)*(state.mediaTraining?1.05:1);const offer=Math.max(100,Math.round(((Number(state.followers)||0)*0.3+overall()*8)*sponsorMultiplier));
  openModal("عرض رعاية إعلاني",`شركة رياضية افتراضية بتعرض ${offer} جنيه عن كل مشاركة مؤهلة، لمدة 12 مشاركة. المقابل تقديري داخل اللعبة، ومش إعلان أو تعاقد حقيقي من علامة تجارية.`,[
   {label:"أقبل عقد الرعاية",className:"primary",action:()=>{if(state.retired||(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0)){toast("لم يعد عرض الرعاية متاحًا؛ راجع حالة عقدك.");return;}state.sponsorContract={brand:"راعي رياضي افتراضي",payPerMatch:offer,matchesRemaining:12,signedSeason:state.season};log(`وقعت عقد رعاية افتراضي بقيمة ${offer} جنيه لكل مشاركة لمدة 12 مشاركة.`);saveGame(true);render();toast("تم توقيع عقد الرعاية داخل اللعبة.");}},
@@ -3478,6 +3483,7 @@ function scheduledCupDate(c){
 }
 
 function enterCup(name){
+ if(isYouthAcademyPlayer()||state.academyReserve){toast("أنت بتلعب في منافسات الناشئين/الرديف؛ بطولات الفريق الأول متاحة بعد التصعيد.");return;}
  const comp=CUP_COMPETITIONS.find(c=>c.name===name);if(!comp)return;
  const lockReason=competitionLockReason(comp);if(lockReason){toast(lockReason);return;}
  if(activeCupInProgress()){toast('عندك بطولة شغالة بالفعل؛ خلّصها الأول.');render();return;}
@@ -3508,6 +3514,7 @@ function resolveExtraTime(ourPower,oppPower){
  return {ourGoals,oppGoals,text:`الوقت الإضافي (شوطان حتى 15 دقيقة): ${ourGoals}-${oppGoals}`};
 }
 function playCupMatch(){
+ if(isYouthAcademyPlayer()||state.academyReserve){toast("مباريات الكأس للفريق الأول؛ كمل مسيرة الناشئين أو الرديف.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  const c=state.cupState;if(!c||c.champion||c.eliminated)return;
  if(Number(c.createdSeason||state.season)!==Number(state.season)){closeUnfinishedCupAtSeasonEnd();saveGame(true);render();toast("اتقفلت البطولة القديمة مع نهاية موسمها؛ اختار بطولة جديدة للموسم الحالي.");return;}
@@ -4152,6 +4159,9 @@ function rest(){
 }
 function openTransferMarketPage(){
  if(!state.careerStarted){toast("ابدأ مسيرتك الأول علشان تفتح سوق الانتقالات.");return false;}
+ if(isYouthAcademyPlayer()){toast("ركز في الأكاديمية دلوقتي. سوق انتقالات الفريق الأول هيفتح بعد التخرج في سن 18.");return false;}
+ if(state.academyGraduationPending){openAcademyGraduationDecision();return false;}
+ if(state.academyReserve){toast("انتقالات الفريق الأول هتفتح بعد نهاية موسم الرديف والتصعيد.");return false;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return false;}
  const market=$("transferMarket");
  if(!market){console.error("Transfer market container is missing.");toast("تعذر فتح سوق الانتقالات لأن صفحة السوق غير متاحة. حدّث الصفحة وحاول مرة أخرى.");return false;}
@@ -4432,6 +4442,7 @@ function simulateSeasonBlock(targetApps){
  ]);
 }
 function match(tactic=""){
+ if(state.academyGraduationPending){openAcademyGraduationDecision();return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!tactic){openModal("خطة المباراة","اختار أسلوبك؛ خطة الموسم السريع تستخدم آخر خطة اخترتها.",[
   {label:"⚖️ متوازن",className:"primary",action:()=>match("balanced")},
@@ -4661,6 +4672,7 @@ function nextDay(){
  render();saveGame(true);toast("بدأ يوم جديد. الطاقة "+state.energy+"%.");
 }
 function maybeOfferTransfer(){
+ if(isYouthAcademyPlayer()||state.academyGraduationPending||state.academyReserve)return;
  const w=transferWindow();
  if(!w.open||state.lastOfferWindow===w.id||state.transferCooldown>0||state.daysSinceTransfer<7)return;
  if(state.apps<2||overall()<52||state.trust<30)return;
@@ -4682,6 +4694,7 @@ function maybeOfferTransfer(){
  ]);
 }
 function transferTo(){
+ if(isYouthAcademyPlayer()||state.academyGraduationPending||state.academyReserve){toast("انتقالات الفريق الأول متاحة بعد انتهاء مسيرة الناشئين/الرديف.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال؛ لا يمكن الانتقال.");return;}
  if(state.loan){toast("مينفعش تنتقل انتقالًا دائمًا أثناء الإعارة؛ ارجع لناديك الأصلي الأول.");return;}
  if(activeCupInProgress()){toast("كمّل بطولة الكأس الحالية قبل الانتقال حتى لا تنقل سجل البطولة إلى نادي جديد.");return;}
@@ -4697,6 +4710,7 @@ function transferTo(){
  setStory("فصل جديد في مسيرتك",`انضممت داخل اللعبة إلى ${state.clubName} في ${state.leagueCountry}. المنافسة الجديدة ستختبر مستواك؛ حافظ على التدريب والاستشفاء لتنافس على مكانك.`);log(`انتقال داخل اللعبة إلى ${state.clubName} في ${state.leagueCountry}.`);saveGame(true);render();showPage("contract");toast("تم الانتقال داخل المسيرة مع الاحتفاظ بإحصاءاتك!");
 }
 function negotiate(){
+ if(isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending){toast("مفاوضات العقود الاحترافية بتبدأ بعد التخرج من الأكاديمية.");return;}
  const status=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال؛ لا توجد مفاوضات جديدة.","free-agent":"أنت لاعب حر؛ اطلب عقدًا من سوق الانتقالات بدل التفاوض على عقد غير موجود.","contract-expiring":"عقدك يقترب من النهاية؛ عرض التجديد الرسمي هيظهر في نهاية الموسم.",cooldown:`استنى ${Math.max(1,7-(Number(state.daysSinceNegotiation)||0))} أيام قبل تفاوض جديد.`};
  if(status!=="ready"){toast(messages[status]||"التفاوض غير متاح حاليًا.");return;}
@@ -4771,6 +4785,7 @@ function buyItem(id){
  ]);
 }
 function nationalMatch(){
+ if(isYouthAcademyPlayer()||state.academyGraduationPending||state.academyReserve){toast("الاستدعاء الدولي للفريق الأول متاح بعد التخرج والتصعيد.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!state.nationalCalled||state.nationalTournamentDone||Number(state.nationalTournamentMatches)>=3)return;
  if(state.playedToday||calendarHasConflict(state.calendarDay,"")){toast("مينفعش تلعب مباراة نادي ودولية في نفس اليوم. تقدّم لليوم التالي الأول.");return;}

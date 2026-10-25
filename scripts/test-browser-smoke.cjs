@@ -343,46 +343,42 @@ async function main() {
     }, null, { timeout: 15000 });
     results.push("store purchase changes balance and inventory");
 
-    const saveDiagnostic = await page.evaluate(() => {
+    const saveDiagnostic = await page.evaluate(async () => {
       const state = window.LWStoryRuntime.getState();
-      const beforeRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
-      const decode = raw => { try { const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw; return JSON.parse(json); } catch { return null; } };
-      const beforeSave = decode(beforeRaw);
       const stateChars = JSON.stringify(state).length;
       const worldChars = JSON.stringify(state.worldSimulation || {}).length;
       const saveSucceeded = window.LWStoryRuntime.save();
-      const afterRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
-      const afterSave = decode(afterRaw);
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") {
+        await window.LWStateStore.flush(state);
+      }
+      let afterSave = null;
+      if (window.LWStateStore && typeof window.LWStateStore.load === "function") {
+        afterSave = await window.LWStateStore.load("career:default");
+      }
+      const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
       return {
         stateMoney: Number(state.money), stateBoots: !!state.boots,
-        beforeSavedMoney: beforeSave ? Number(beforeSave.money) : null,
-        beforeSavedChars: beforeRaw.length, stateChars, worldChars,
+        stateChars, worldChars,
         worldPlayers: Object.keys(state.worldSimulation?.players || {}).length,
         worldClubs: Object.keys(state.worldSimulation?.clubs || {}).length,
         worldProperties: Object.entries(state.worldSimulation || {}).map(([key, value]) => ({ key, chars: (() => { try { return JSON.stringify(value).length; } catch { return -1; } })(), count: Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value).length : null })).sort((a,b) => b.chars-a.chars).slice(0,12),
         saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
-        afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length, storageEncoding: afterRaw.startsWith("LWZ1:") ? "compressed" : "plain"
+        afterSavedBoots: afterSave ? !!afterSave.boots : null,
+        afterSavedChars: afterSave ? JSON.stringify(afterSave).length : raw.length,
+        storageBackend: afterSave ? "IndexedDB" : "legacy-fallback"
       };
     });
     console.log("PURCHASE_SAVE_QUEUE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
     assert.equal(saveDiagnostic.saveSucceeded, true,
       "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
-    await page.waitForFunction(() => {
-      try {
-        const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
-        const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
-        const saved = JSON.parse(json);
-        return Number(saved.money) === 50 && saved.boots === true;
-      } catch { return false; }
-    }, null, { timeout: 15000 });
-    const persistedPurchase = await page.evaluate(() => {
-      const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
-      const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
-      const saved = JSON.parse(json);
-      return { money: Number(saved.money), boots: !!saved.boots, chars: raw.length };
-    });
-    assert.equal(persistedPurchase.money, 50, "the deferred local save must persist the post-purchase balance");
-    assert.equal(persistedPurchase.boots, true, "the deferred local save must persist store ownership");
+    assert.equal(saveDiagnostic.afterSavedMoney, 50, "IndexedDB must persist the post-purchase balance");
+    assert.equal(saveDiagnostic.afterSavedBoots, true, "IndexedDB must persist store ownership");
+    const persistedPurchase = {
+      money: saveDiagnostic.afterSavedMoney,
+      boots: saveDiagnostic.afterSavedBoots,
+      chars: saveDiagnostic.afterSavedChars,
+      storageBackend: saveDiagnostic.storageBackend
+    };
     console.log("PURCHASE_PERSISTENCE_VERIFIED " + JSON.stringify(persistedPurchase));
 
     await page.reload({ waitUntil: "domcontentloaded" });

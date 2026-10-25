@@ -44,7 +44,7 @@ jobs:
           console.log('Sourced squad snapshot covers ' + report.totalTeams + ' clubs and ' + report.totalPlayers + ' players.');
           NODE
       - name: Add available Egyptian Pro League official squads
-        if: (github.ref == 'refs/heads/feature/egyptian-league-sourced-squads' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/egyptian-league-sourced-squads')
+        if: ((github.ref == 'refs/heads/feature/egyptian-league-sourced-squads' || github.ref == 'refs/heads/feature/egypt-roster-completion') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/egyptian-league-sourced-squads' || github.head_ref == 'feature/egypt-roster-completion'))
         run: |
           # Use the checked-in source snapshot for ordinary push/PR regression tests.
           # A manual workflow_dispatch deliberately refreshes official pages from the web.

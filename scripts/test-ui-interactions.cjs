@@ -90,7 +90,8 @@ assert.ok(notices.some(message => message.includes("اسم اللاعب")),
   "empty player name must show a helpful notice");
 
 const makeState = (overrides = {}) => ({
-  retired: false, winterBreakPending: false,
+  retired: false, age: 19, academyCareer: false, academyGraduated: true,
+  academyGraduationPending: false, academyReserve: false, winterBreakPending: false,
   day: 5, calendarDay: 5,
   energy: 55, fatigue: 40, injuryDays: 2, injuryName: "شد عضلي", morale: 60,
   money: 100, weeklyWage: 200,

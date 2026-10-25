@@ -331,9 +331,26 @@ async function main() {
         afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length, storageEncoding: afterRaw.startsWith("LWZ1:") ? "compressed" : "plain"
       };
     });
-    console.log("PURCHASE_SAVE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
+    console.log("PURCHASE_SAVE_QUEUE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
     assert.equal(saveDiagnostic.saveSucceeded, true,
       "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
+    await page.waitForFunction(() => {
+      try {
+        const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
+        const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
+        const saved = JSON.parse(json);
+        return Number(saved.money) === 50 && saved.boots === true;
+      } catch { return false; }
+    }, null, { timeout: 15000 });
+    const persistedPurchase = await page.evaluate(() => {
+      const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
+      const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw;
+      const saved = JSON.parse(json);
+      return { money: Number(saved.money), boots: !!saved.boots, chars: raw.length };
+    });
+    assert.equal(persistedPurchase.money, 50, "the deferred local save must persist the post-purchase balance");
+    assert.equal(persistedPurchase.boots, true, "the deferred local save must persist store ownership");
+    console.log("PURCHASE_PERSISTENCE_VERIFIED " + JSON.stringify(persistedPurchase));
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => {
@@ -387,6 +404,10 @@ async function main() {
         && Object.keys(state.worldSimulation?.players || {}).length > 1000
         && Object.keys(state.worldSimulation?.clubs || {}).length > 100;
     }, null, { timeout: 30000 });
+    await page.waitForFunction(() => {
+      const drawer = document.querySelector("#drawer");
+      return drawer && !drawer.classList.contains("open");
+    }, null, { timeout: 10000 });
     results.push("compressed backup exports and restores the player career and full world AI database");
 
     await page.locator("#menuOpen").click();

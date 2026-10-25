@@ -843,6 +843,7 @@
       const leagueId = groupKey.slice(0, split), division = Number(groupKey.slice(split + 1)) || 1;
       const leagueTables = new Map(), recent = new Map();
       clubs.forEach(club => { leagueTables.set(club.id, tableRow(club, year, leagueId, division)); recent.set(club.id, ""); });
+      const groupMatchStartIndex = allMatches.length;
       if (clubs.length >= 2) {
         let rotation = clubs.slice();
         if (rotation.length % 2) rotation.push(null);
@@ -875,6 +876,78 @@
           const fixed = rotation[0], rest = rotation.slice(1);
           rest.unshift(rest.pop());
           rotation = [fixed].concat(rest);
+        }
+
+        // Scotland's 12-team Premiership plays 33 matches before the league splits.
+        // The top and bottom six then play five more fixtures inside their own half.
+        if (leagueId === "scotland" && division === 1 && clubs.length === 12) {
+          const homeCounts = new Map(clubs.map(club => [club.id, 0]));
+          allMatches.slice(groupMatchStartIndex).forEach(match => {
+            if (homeCounts.has(match.homeClubId)) {
+              homeCounts.set(match.homeClubId, homeCounts.get(match.homeClubId) + 1);
+            }
+          });
+
+          // Third round-robin leg brings every club to 33 played; choose venues
+          // to balance the number of home fixtures accumulated so far.
+          let thirdRotation = clubs.slice();
+          const thirdRounds = clubs.length - 1;
+          for (let round = 0; round < thirdRounds; round++) {
+            for (let i = 0; i < thirdRotation.length / 2; i++) {
+              const one = thirdRotation[i], two = thirdRotation[thirdRotation.length - 1 - i];
+              if (!one || !two) continue;
+              const oneHomeCount = homeCounts.get(one.id) || 0;
+              const twoHomeCount = homeCounts.get(two.id) || 0;
+              let home, away;
+              if (oneHomeCount < twoHomeCount) { home = one; away = two; }
+              else if (twoHomeCount < oneHomeCount) { home = two; away = one; }
+              else { home = (round + i) % 2 === 0 ? one : two; away = home.id === one.id ? two : one; }
+              const fixture = playMatch(world, home, away, year, division,
+                rounds * 2 + round + 1, ++sequence, accumulators, "league");
+              allMatches.push(fixture);
+              applyResult(leagueTables, fixture);
+              homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
+            }
+            const fixed = thirdRotation[0], rest = thirdRotation.slice(1);
+            rest.unshift(rest.pop());
+            thirdRotation = [fixed].concat(rest);
+          }
+
+          // Rank after matchday 33, then keep the final five matchdays inside
+          // the top-six and bottom-six groups, as the real league format does.
+          const splitStandings = Array.from(leagueTables.values()).map(row => ({
+            ...row, gd: Number(row.gf || 0) - Number(row.ga || 0)
+          })).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf
+            || b.power - a.power || a.club.localeCompare(b.club, "ar"));
+          const topSixIds = new Set(splitStandings.slice(0, 6).map(row => row.clubId));
+          const halves = [
+            clubs.filter(club => topSixIds.has(club.id)),
+            clubs.filter(club => !topSixIds.has(club.id))
+          ];
+          halves.forEach(half => {
+            let splitRotation = half.slice();
+            const splitRounds = splitRotation.length - 1;
+            for (let round = 0; round < splitRounds; round++) {
+              for (let i = 0; i < splitRotation.length / 2; i++) {
+                const one = splitRotation[i], two = splitRotation[splitRotation.length - 1 - i];
+                if (!one || !two) continue;
+                const oneHomeCount = homeCounts.get(one.id) || 0;
+                const twoHomeCount = homeCounts.get(two.id) || 0;
+                let home, away;
+                if (oneHomeCount < twoHomeCount) { home = one; away = two; }
+                else if (twoHomeCount < oneHomeCount) { home = two; away = one; }
+                else { home = (round + i) % 2 === 0 ? one : two; away = home.id === one.id ? two : one; }
+                const fixture = playMatch(world, home, away, year, division,
+                  rounds * 3 + round + 1, ++sequence, accumulators, "league");
+                allMatches.push(fixture);
+                applyResult(leagueTables, fixture);
+                homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
+              }
+              const fixed = splitRotation[0], rest = splitRotation.slice(1);
+              rest.unshift(rest.pop());
+              splitRotation = [fixed].concat(rest);
+            }
+          });
         }
       }
       const ranked = Array.from(leagueTables.values()).map(row => {

@@ -50,6 +50,8 @@
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
     const tactic = ["balanced", "attack", "defend", "counter"].includes(options.tactic) ? options.tactic : "balanced";
     const opponentTactic = ["balanced", "press", "compact", "wide", "counter"].includes(options.opponentTactic) ? options.opponentTactic : "balanced";
+    const tacticalIQ = clamp(options.opponentTacticalIQ ?? opponentPower, 25, 98);
+    const tacticalScale = clamp(0.72 + (tacticalIQ - 45) * 0.007, 0.55, 1.10);
     const homeAdvantage = options.home ? 3 : 0;
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
@@ -107,8 +109,8 @@
         wide: { our: -0.10, opponent: 0.45 },
         counter: { our: tactic === "attack" ? -0.50 : 0, opponent: tactic === "attack" ? 0.40 : -0.08 }
       })[opponentTactic];
-      ourVolume = clamp(ourVolume + tacticalEffect.our, 1, 18);
-      oppVolume = clamp(oppVolume + tacticalEffect.opponent, 1, 18);
+      ourVolume = clamp(ourVolume + tacticalEffect.our * tacticalScale, 1, 18);
+      oppVolume = clamp(oppVolume + tacticalEffect.opponent * tacticalScale, 1, 18);
       if (isExtra) { ourVolume *= 0.38; oppVolume *= 0.38; }
       const scale = duration / 90;
       const ourChances = Math.max(1, Math.round((ourVolume + random() * 3 - 1.5) * scale));
@@ -133,9 +135,9 @@
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
-          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055 + (opponentTactic === "compact" ? -0.024 : opponentTactic === "press" ? -0.010 : 0), 0.075, 0.48);
-          const teamShotChance = clamp(0.15 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 : opponentTactic === "press" ? -0.008 : 0), 0.08, 0.39);
-          const opponentShotChance = clamp(0.17 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 : opponentTactic === "counter" && tactic === "attack" ? 0.022 : 0), 0.07, 0.38);
+          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055 + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
+          const teamShotChance = clamp(0.15 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
+          const opponentShotChance = clamp(0.17 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
           const isGoal = random() < (byPlayer ? playerShotChance : isOurs ? teamShotChance : opponentShotChance);
           const shotEvent = events[events.length - 1];
           shotEvent.shooter = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
@@ -224,7 +226,7 @@
       score: { for: finalFor, against: finalAgainst },
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
       player: stats, events,
-      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic }
+      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ }
     };
   }
   function validateResult(result) {

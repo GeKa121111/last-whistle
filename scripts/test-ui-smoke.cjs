@@ -409,6 +409,8 @@ function interactionNode(id) {
 }
 const interactionSandbox = {
   state: interactionState,
+  isYouthAcademyPlayer: () => false,
+  openAcademyGraduationDecision: () => { winterModalCount++; },
   $: (id) => id === "transferMarket" && missingMarket ? null : interactionNode(id),
   setText: (id, value) => { interactionNode(id).textContent = String(value); },
   seasonMatchTotal: () => 38,

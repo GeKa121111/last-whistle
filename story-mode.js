@@ -5,7 +5,6 @@ var stateRef = null;
 var previousSnapshot = "";
 var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
-var lastRenderedStoryPanelSignature = "";
 var eventDefs = [
   {
     id:"family-pressure",chapter:"01 / THE BEGINNING",title:"مكالمة آخر الليل",tag:"أول قرار في المسيرة",
@@ -275,15 +274,6 @@ function renderStoryPanel(s,api){
       (pending.choices||[]).map(function(choice){return [choice.label||"",choice.detail||"",choice.outcome||""].join("\u001e");}).join("\u001f")].join("\u001e"):"",
     panelHistory.map(function(item){return [item.id||"",item.title||"",item.outcome||item.choice||"",item.season||1,item.day||1].join("\u001e");}).join("\u001f")
   ].join("\u001d");
-  if(storyPanelSignature===lastRenderedStoryPanelSignature)return;
-  lastRenderedStoryPanelSignature=storyPanelSignature;
-  var storyHistoryRows=history(s).slice(0,3);
-  var storyPanelSignature=JSON.stringify({
-    pending:pending?{id:pending.id,tag:pending.tag,title:pending.title,body:pending.body,consequence:pending.consequence,
-      choices:(pending.choices||[]).map(function(choice){return [choice.label,choice.detail||""];})}:null,
-    done:done,seasonFinished:!!s.seasonFinished,
-    history:storyHistoryRows.map(function(item){return [item.id,item.title,item.outcome,item.choice,item.season,item.day];})
-  });
   if(storyPanelSignature===lastRenderedStoryPanelSignature&&panel.dataset.storyPanelSignature===storyPanelSignature)return;
   lastRenderedStoryPanelSignature=storyPanelSignature;
   panel.dataset.storyPanelSignature=storyPanelSignature;

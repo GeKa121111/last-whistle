@@ -373,7 +373,7 @@ function renderOverview(s){
   var seasonSource=document.getElementById("seasonStageAction"),seasonCta=document.getElementById("lw-cta-season");
   if(seasonSource&&seasonCta){seasonCta.textContent=seasonSource.textContent;seasonCta.disabled=seasonSource.disabled;}
   var transferSource=document.getElementById("seasonTransferAction"),transferCta=document.getElementById("lw-cta-transfers");
-  if(transferSource&&transferCta){transferCta.textContent=transferSource.textContent;transferCta.disabled=transferSource.disabled;}
+  if(transferSource&&transferCta){transferCta.textContent=transferSource.textContent;transferCta.disabled=transferSource.disabled;transferCta.hidden=!!transferSource.hidden;transferCta.style.display=transferSource.hidden?"none":"";}
 }
 function tick(){
   var api=API();if(!api)return;

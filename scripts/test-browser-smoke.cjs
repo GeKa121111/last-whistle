@@ -674,8 +674,9 @@ async function main() {
       state.academyReserve = false;
       state.academyGraduationPending = false;
       state.academyGraduated = true;
-      state.calendarDay = 130;
-      state.day = Math.max(Number(state.day) || 1, 130);
+      // Start early enough that the 17-match midpoint lands inside the natural January window.
+      state.calendarDay = 100;
+      state.day = Math.max(Number(state.day) || 1, 100);
       state.lastLeagueMatchCalendarDay = 0;
       state.winterBreakPending = false;
       state.seasonPhase = "firstHalf";

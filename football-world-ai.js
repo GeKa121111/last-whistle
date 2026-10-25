@@ -53,8 +53,11 @@
   function marketValue(player, seller) {
     const ovr = clamp(player.ovr, 35, 99);
     const potential = clamp(player.potential, ovr, 99);
-    return Math.max(12, Math.round(Math.pow(Math.max(1, ovr - 35), 2) * 0.18
-      + potential * 1.12 + Math.max(0, Number(seller && seller.prestige) || 50) * 0.28));
+    const rawValue = Math.pow(Math.max(1, ovr - 35), 2) * 0.18
+      + potential * 1.12 + Math.max(0, Number(seller && seller.prestige) || 50) * 0.28;
+    const term = Math.max(0, int(player && player.contractSeasons, 0));
+    const contractFactor = term <= 1 ? 0.72 : term >= 4 ? 1.16 : term === 3 ? 1.08 : 1;
+    return Math.max(12, Math.round(rawValue * contractFactor));
   }
   function emptyWorld() {
     return {
@@ -353,7 +356,7 @@
   function runTransferWindow(world, season) {
     const clubs = Object.values(world.clubs).filter(club => club.division === 1);
     const alreadyUsedClubs = new Set(), alreadyUsedPlayers = new Set(), moves = [];
-    const maxMoves = Math.max(6, Math.min(22, Math.round(clubs.length * 0.25)));
+    const maxMoves = Math.max(10, Math.min(40, Math.round(clubs.length * 0.42)));
     const buyers = clubs.slice().sort((a, b) => {
       const aStrength = a.power + a.prestige * 0.04 + hash(a.id + "|" + season + "|buyer") % 29 / 100;
       const bStrength = b.power + b.prestige * 0.04 + hash(b.id + "|" + season + "|buyer") % 29 / 100;
@@ -973,7 +976,8 @@
     for (const player of freeAgents) {
       if (signed.length >= maxSignings) break;
       const eligible = clubs.filter(club => !usedClubs.has(club.id)
-        && Number(club.roster.length) < 18 && Number(player.ovr) <= Number(club.power || 55) + 10
+        && Number(club.roster.length) < 18 && (!player.previousClubId || player.previousClubId !== club.id)
+        && Number(player.ovr) <= Number(club.power || 55) + 10
         && Number(player.ovr) >= Number(club.power || 55) - 23
         && (player.age || 18) < 37);
       if (!eligible.length) continue;

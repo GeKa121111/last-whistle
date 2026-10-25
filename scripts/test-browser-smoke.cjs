@@ -452,6 +452,14 @@ async function main() {
 
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
+    await page.waitForFunction(() => {
+      const app = document.querySelector(".app.hasSidebar");
+      const center = document.querySelector("#lw-command-center");
+      const matchButton = document.querySelector("#lw-cta-match");
+      return app?.getAttribute("data-active-page") === "home"
+        && center && getComputedStyle(center).display !== "none"
+        && matchButton && getComputedStyle(matchButton).visibility !== "hidden";
+    }, null, { timeout: 10000 });
     const beforeApps = await page.evaluate(() => Number(window.LWStoryRuntime.getState().seasonApps) || 0);
     assert.equal(await page.locator("#heroMatch").isVisible(), false,
       "legacy hero CTA must remain hidden after the redesigned story-mode shell is installed");

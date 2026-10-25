@@ -45,7 +45,14 @@ jobs:
           NODE
       - name: Add available Egyptian Pro League official squads
         if: (github.ref == 'refs/heads/feature/egyptian-league-sourced-squads' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/egyptian-league-sourced-squads')
-        run: node scripts/refresh-egyptian-pro-league.cjs
+        run: |
+          # Use the checked-in source snapshot for ordinary push/PR regression tests.
+          # A manual workflow_dispatch deliberately refreshes official pages from the web.
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); const e=r.supplementalCoverage && r.supplementalCoverage.egypt; process.exit(r.status==="complete" && e && e.season==="2026/27" && e.importedClubs>=17 && e.importedPlayers>=500 ? 0 : 1); } catch (_) { process.exit(1); }'; then
+            echo "Using the checked-in Egyptian squad snapshot (17 clubs / 500+ player entries)."
+          else
+            node scripts/refresh-egyptian-pro-league.cjs
+          fi
       - name: Commit refreshed roster snapshot on development branch
         if: ((github.ref == 'refs/heads/feature/full-world-squads-2026-27' || github.ref == 'refs/heads/feature/world-roster-coverage-expansion' || github.ref == 'refs/heads/feature/egyptian-league-sourced-squads') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion' || github.head_ref == 'feature/egyptian-league-sourced-squads'))
         run: |

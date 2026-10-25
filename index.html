@@ -3800,7 +3800,6 @@ function render(){
  document.querySelectorAll('[data-action="train-goalkeeping"]').forEach(b=>{b.disabled=b.disabled||state.pos!=="حارس مرمى";b.title=state.pos!=="حارس مرمى"?"هذا التمرين متاح لمركز حارس المرمى فقط":"";});
  if($("trainingIntensity"))$("trainingIntensity").value=state.trainingIntensity||"normal";
  const wageStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";$("negotiateBtn").disabled=wageStatus!=="ready";
- window.LWCareerAIUI?.refresh();
 }
 function checkAction(kind,cost){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return false;}
@@ -4184,6 +4183,8 @@ function finishSeason(){
  const completeLeagueSegment=!state.leagueSegmentIsPartial&&state.leagueApps>=seasonMatchTotal();
  const sorted=[...state.league].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
  const place=sorted.findIndex(t=>t.name===clubNameForLeague())+1;
+ const worldSeasonReport=window.LWWorldAI?.completeSeason(state,state.season,window.LWWorldDB);
+ if(worldSeasonReport&&!worldSeasonReport.alreadyCompleted)state.worldSeasonReport={season:Number(state.season)||1,playerPool:worldSeasonReport.rows.length,leagueCount:Object.keys(worldSeasonReport.tables||{}).length};
  let prize="";
  if(place===1&&completeLeagueSegment){state.trophies++;state.money+=1000;state.followers+=300;prize=" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
  const newAwards=completeLeagueSegment&&window.LWCareer?window.LWCareer.seasonAwards(state,state.league,place):[];
@@ -4232,6 +4233,12 @@ function startNewSeason(showStory=true){
  // one-season loan boundary on that path too, after the expiring-contract guard.
  if(state.loan)returnFromLoan();
  state.season++;state.age++;state.currentCompetitions=[];state.transferOffers=[];state.transferOffersWindowId="";state.transferNegotiation=null;if(window.LWAgentRuntime?.ensureState)window.LWAgentRuntime.ensureState(state);const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);
+ const worldTransition=window.LWWorldAI?.advanceToSeason(state,state.season,window.LWWorldDB);
+ if(worldTransition&&!worldTransition.alreadyAdvanced){
+  const moveCount=(worldTransition.moves||[]).length;
+  state.worldMarketSummary={season:Number(state.season),moves:moveCount};
+  if(moveCount)log("نافذة سوق عالمية: نفذت أندية اللعبة "+moveCount+" انتقالًا حسب احتياجات المراكز والقوة والإمكانات والميزانيات.");
+ }
  state.seasonApps=0;state.seasonAppsTarget=0;state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.seasonGoals=0;state.seasonAssists=0;state.seasonPoints=0;state.seasonW=0;state.seasonD=0;state.seasonL=0;
  state.seasonLog=[];state.journeyTransferReviewed=false;state.journeyEventSeen=false;state.journeySeasonReviewed=false;state.seasonFinished=false;state.seasonPhase="firstHalf";state.winterBreakPending=false;state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=false;state.dailyActionType="";state.internationalPlayed=false;state.nationalCalled=false;state.nationalTournamentMatches=0;state.nationalTournamentPoints=0;state.nationalTournamentQualified=false;state.nationalTournamentDone=false;
  state.contractSeasons=Math.max(0,state.contractSeasons-1);
@@ -4500,6 +4507,7 @@ async function init(){
  try{await window.LWCatalog?.load();}catch(err){console.warn("Global football reference data unavailable",err);}
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
  if(window.LWCareer)window.LWCareer.ensureState(state);
+ window.LWWorldAI?.ensureState(state,window.LWWorldDB);
  ensureLeague();bind();render();showPage(state.currentPage||"home");if(!state.careerStarted)$("startScreen").classList.add("show");
 }
 init();

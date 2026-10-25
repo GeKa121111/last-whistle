@@ -178,6 +178,18 @@ assert.equal(world.transfers.length, oldTransferCount + transition.moves.length,
 // season snapshots. Re-opening the same season after reload must remain idempotent.
 const reloadedSave = JSON.parse(JSON.stringify(save));
 const reloadedWorld = ai.ensureState(reloadedSave, db);
+for (const season of ["1", "2"]) {
+  const rows = reloadedWorld.seasonStats[season] || [];
+  const seenIds = new Set();
+  const duplicateIds = new Set();
+  for (const row of rows) {
+    if (seenIds.has(row.id)) duplicateIds.add(row.id);
+    seenIds.add(row.id);
+  }
+  assert.equal(duplicateIds.size, 0,
+    "each player must have exactly one saved season-stat row; duplicate ids in season " + season + ": "
+      + Array.from(duplicateIds).slice(0, 5).join(", "));
+}
 assert.equal(reloadedWorld.transfers.length, world.transfers.length,
   "transfer history must survive JSON save/reload");
 assert.equal(JSON.stringify(reloadedWorld.completedSeasons), JSON.stringify(world.completedSeasons),

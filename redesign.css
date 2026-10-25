@@ -103,7 +103,7 @@ body.lw-rebuild #lw-story-panel .lw-history:empty{display:none}
 body.lw-rebuild #page-home>.hub-launch-panel,
 body.lw-rebuild #page-home .hub-home-grid>.hub-home-season-actions,
 body.lw-rebuild #page-home .hub-home-grid>.hub-player-card,
-body.lw-rebuild #page-home .hub-home-grid>article:not(.seasonJourneyCard):not(.career-ai-card){display:none!important}
+body.lw-rebuild #page-home .hub-home-grid>article:not(.seasonJourneyCard):not(.world-ai-home){display:none!important}
 body.lw-rebuild .hub-home-season-actions{display:none!important}
 body.lw-rebuild #page-home .grid.hub-home-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin-top:0}
 body.lw-rebuild #page-home .seasonJourneyCard{grid-column:1/-1;margin:0;padding:15px;border:1px solid #27372a;border-radius:15px;background:#0d130f;box-shadow:0 9px 28px rgba(0,0,0,.18);color:var(--lw-ink)}

@@ -212,6 +212,7 @@ function ensureShell(){
     document.head.appendChild(style);
   }
   bindNewControls();
+  document.documentElement.classList.remove("lw-rebuild-pending");
 }
 function bindNewControls(){
   var mappings=[["lw-cta-match","heroMatch"],["lw-cta-training","heroTrain"],["lw-cta-season","seasonStageAction"],["lw-cta-transfers","seasonTransferAction"]];

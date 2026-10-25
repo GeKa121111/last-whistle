@@ -81,6 +81,28 @@
   function simulatedAwards() {
     return Array.isArray(awardReference?.careerSimulationAwards) ? awardReference.careerSimulationAwards : [];
   }
+
+  function ratingProfile(country, fallback) {
+    fallback = fallback || {};
+    const normalise = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
+      .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي").toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
+    const target = normalise(country);
+    const row = directoryRows().find(item =>
+      normalise(item.country) === target || normalise(item.rosterCountryArabic) === target ||
+      normalise(item.association) === target
+    ) || null;
+    const confederation = row && row.confederation || fallback.confederation || "FIFA";
+    const factors = { UEFA: 1, CONMEBOL: 0.985, CAF: 0.955, AFC: 0.97, OFC: 0.94, FIFA: 1 };
+    return {
+      country: country || fallback.country || "",
+      confederation,
+      coefficient: factors[confederation] || 0.97,
+      sourceYear: row && row.sourceYear || fifa && fifa.sourceYear || "2023",
+      catalogMatched: !!row,
+      leagueStrength: Number(fallback.leagueStrength) || 60,
+      division: Math.max(1, Number(fallback.division) || 1)
+    };
+  }
   function summary() {
     return {
       fifaAssociations: Array.isArray(fifa?.associations) ? fifa.associations.length : 0,
@@ -94,5 +116,5 @@
       limitations: Array.isArray(fifa?.limitations) ? fifa.limitations : [], partialData: !!loadError, loadError
     };
   }
-  window.LWCatalog = { load, summary, directoryRows, latestDomesticCompetitions, clubsForCountry, officialCompetitions, officialAwards, simulatedAwards };
+  window.LWCatalog = { load, summary, directoryRows, latestDomesticCompetitions, clubsForCountry, officialCompetitions, officialAwards, simulatedAwards, ratingProfile };
 })();

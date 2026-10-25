@@ -179,9 +179,11 @@ for (const marker of ["careerAIApplyTactic", "data-ai-action", "LWCareerAIUI", "
   if (!aiUiSource.includes(marker)) { console.error("Career AI UI integration is missing:", marker); process.exit(1); }
 }
 
+const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
+if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.career-ai-card)")) { console.error("Redesigned home must keep the career AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v19")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=3", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career.css?v=1", "ai-career-engine.js?v=1", "ai-career-ui.js?v=1", "redesign.css?v=3", "redesign.css?v=3"]) {
+if (!workerSource.includes("last-whistle-static-v20")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=3", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career.css?v=1", "ai-career-engine.js?v=1", "ai-career-ui.js?v=1", "redesign.css?v=4", "redesign.css?v=4"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

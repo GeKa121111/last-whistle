@@ -12,6 +12,7 @@ const HOST = "https://www.egyptianproleague.com";
 const SOURCE = "Verified current Egyptian league and club squad pages (2026/27)";
 const MIN_PLAYERS = 16;
 const IMPORTER_REVISION = 3;
+const RATING_NORMALIZATION = Object.freeze({ schemaVersion: 1, source: "global-catalog + continental competition calibration", factors: { UEFA: 1, CONMEBOL: 0.985, CAF: 0.955, AFC: 0.97, OFC: 0.94, FIFA: 1 } });
 const MIN_SOURCED_CLUBS = 20;
 const TEAMS = [
   { name: "الاتحاد السكندري", aliases: ["Al Ittihad Alexandria", "Al Ittihad Alexandria Club"], path: "/team/18/detials/13/squad" },
@@ -234,6 +235,7 @@ async function main() {
   const auditFile = path.join(ROOT, "world-roster-audit.json");
   const publicAuditFile = path.join(ROOT, "public", "world-roster-audit.json");
   const payload = loadSnapshot(rootFile);
+  payload.ratingNormalization = RATING_NORMALIZATION;
   payload.leagues = (payload.leagues || []).filter(league => !(league.leagueId === "egypt" && Number(league.division) === 1));
   const imported = [], skipped = [];
   for (const team of TEAMS) {
@@ -365,6 +367,7 @@ async function main() {
   audit.supplementalCoverage = payload.supplementalCoverage;
   audit.snapshotBytes = Buffer.byteLength(js);
   audit.status = "complete";
+  audit.ratingNormalization = RATING_NORMALIZATION;
   audit.allLeagueMinimumsMet = (audit.allLeagueMinimumsMet !== false);
   fs.writeFileSync(auditFile, JSON.stringify(audit, null, 2) + "\n");
   fs.writeFileSync(publicAuditFile, JSON.stringify(audit, null, 2) + "\n");

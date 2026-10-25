@@ -50,6 +50,7 @@ const pageCalls = [];
 const transferScrolls = [];
 const sandbox = {
   state: {},
+  isYouthAcademyPlayer: () => false,
   $: (id) => id === "transferMarket" ? transferMarketNode : id === "startName" ? startNameNode : id === "startScreen" ? startScreenNode : null,
   showPage: (...args) => pageCalls.push(args),
   transferWindow: () => ({ name: "الانتقالات الصيفية" }),

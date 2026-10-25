@@ -332,6 +332,51 @@ async function main() {
     }, null, { timeout: 20000 });
     results.push("career and store ownership persist after reload");
 
+    // Full backup must remain portable with the multi-thousand-player world simulation.
+    await page.locator("#menuOpen").click();
+    const [backupDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator("#exportSaveBtn").click()
+    ]);
+    const backupPath = await backupDownload.path();
+    assert.ok(backupPath, "backup export must provide a downloadable file");
+    const backupText = fs.readFileSync(backupPath, "utf8");
+    const backupPayload = JSON.parse(backupText);
+    assert.equal(backupPayload.game, "LAST WHISTLE");
+    assert.equal(backupPayload.version, 7, "new backups must use the compressed backup format");
+    assert.equal(backupPayload.encoding, "lz-string-utf16");
+    assert.equal(typeof backupPayload.career, "string");
+    assert.ok(fs.statSync(backupPath).size < 5000000, "large world save must fit within import size limit");
+    const exportedBackupFacts = await page.evaluate(encoded => {
+      const json = window.LZString.decompressFromUTF16(encoded);
+      if (typeof json !== "string") throw new Error("exported backup did not decompress");
+      const save = JSON.parse(json);
+      return {
+        name: save.name,
+        money: Number(save.money),
+        boots: !!save.boots,
+        worldPlayers: Object.keys(save.worldSimulation?.players || {}).length,
+        worldClubs: Object.keys(save.worldSimulation?.clubs || {}).length,
+        hasSeasonDevelopment: !!save.seasonTrainingReport || !!save.seasonDevelopmentSnapshot
+      };
+    }, backupPayload.career);
+    assert.equal(exportedBackupFacts.name, "Mohamed Ahmed");
+    assert.equal(exportedBackupFacts.money, 50);
+    assert.equal(exportedBackupFacts.boots, true);
+    assert.ok(exportedBackupFacts.worldPlayers > 1000, "backup must include the full player-world database");
+    assert.ok(exportedBackupFacts.worldClubs > 100, "backup must include the world club database");
+    page.once("dialog", dialog => dialog.accept());
+    await page.locator("#importSaveInput").setInputFiles(backupPath);
+    await page.waitForFunction(() => {
+      const state = window.LWStoryRuntime?.getState();
+      return state && state.name === "Mohamed Ahmed" && state.boots === true
+        && Number(state.money) === 50
+        && Object.keys(state.worldSimulation?.players || {}).length > 1000
+        && Object.keys(state.worldSimulation?.clubs || {}).length > 100;
+    }, null, { timeout: 30000 });
+    results.push("compressed backup exports and restores the player career and full world AI database");
+    await page.locator("#menuOpen").click();
+
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     const beforeApps = await page.evaluate(() => Number(window.LWStoryRuntime.getState().seasonApps) || 0);

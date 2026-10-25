@@ -461,20 +461,36 @@ async function main() {
 
     const completedSeason = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
+      const text = id => document.querySelector("#" + id)?.textContent || "";
       return {
         season: Number(state.season),
         apps: Number(state.seasonApps),
         target: Number(state.seasonAppsTarget),
         finished: state.seasonFinished,
         historyCount: Array.isArray(state.seasonHistory) ? state.seasonHistory.length : 0,
-        hasSummary: Boolean(state.seasonSummary)
+        hasSummary: Boolean(state.seasonSummary),
+        awardCeremonyCount: Array.isArray(state.awardCeremonies) ? state.awardCeremonies.length : 0,
+        awardNomineeCount: Number(state.awardCeremonies?.[0]?.ballonDor?.topFive?.length) || 0,
+        awardCeremonyText: text("ballonDOrCeremony"),
+        careerAwardCountText: text("careerAwardCount"),
+        trophyCabinetText: text("trophyCabinet"),
+        currentCompetitionCount: Array.isArray(state.currentCompetitions) ? state.currentCompetitions.length : 0,
+        goldenBootRowCount: document.querySelectorAll("#goldenBootLeaderboard tbody tr").length,
+        playmakerRowCount: document.querySelectorAll("#playmakerLeaderboard tbody tr").length
       };
     });
     assert.equal(completedSeason.finished, true);
     assert.equal(completedSeason.apps, completedSeason.target, "a season cannot be marked complete before all scheduled matches are played");
     assert.ok(completedSeason.historyCount > 0, "the completed season must be archived");
     assert.equal(completedSeason.hasSummary, true, "the season report must be saved");
-    results.push("season totals and report reconcile");
+    assert.ok(completedSeason.awardCeremonyCount > 0, "finishing a season must persist an award ceremony");
+    assert.equal(completedSeason.awardNomineeCount, 5, "the ceremony must persist the five Ballon d'Or nominees");
+    assert.ok(completedSeason.awardCeremonyText.includes("الكرة الذهبية"), "the award ceremony must render in the real UI");
+    assert.ok(completedSeason.awardCeremonyText.includes("أفضل 5 مرشحين"), "the UI must display the Ballon d'Or shortlist");
+    assert.ok(completedSeason.currentCompetitionCount > 0, "current competitions must remain linked to the player season");
+    assert.ok(completedSeason.goldenBootRowCount > 0, "the golden-boot leaderboard must render player rows");
+    assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
+    results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
 
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");

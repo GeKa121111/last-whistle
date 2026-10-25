@@ -71,7 +71,107 @@ function sampleSquadPage(page) {
     tableRowCount: (page.html.match(/<tr\b/gi) || []).length, sampleRows: rows, playerishAnchors };
 }
 
+
+async function fetchJson(url) {
+  const response = await fetch(url, {
+    headers: { "User-Agent": "LastWhistleRosterSourceProbe/1.0", "Accept": "application/json" },
+    signal: AbortSignal.timeout(15000)
+  });
+  const raw = await response.text();
+  let json;
+  try { json = JSON.parse(raw); } catch { json = null; }
+  return { url, status: response.status, json, bytes: raw.length, contentType: response.headers.get("content-type") || "" };
+}
+
+function compactTeam(team) {
+  return {
+    name: team.strTeam || team.name || "",
+    id: team.idTeam || team.id || "",
+    league: team.strLeague || team.league || "",
+    country: team.strCountry || team.country || "",
+    formed: team.intFormedYear || "",
+    website: team.strWebsite || "",
+    badge: !!(team.strBadge || team.badge),
+    lastUpdated: team.dateUpdated || team.strUpdated || ""
+  };
+}
+function compactPlayer(player) {
+  return {
+    name: player.strPlayer || player.name || "",
+    id: player.idPlayer || player.id || "",
+    position: player.strPosition || player.position || "",
+    dateBorn: player.dateBorn || player.born || "",
+    nationality: player.strNationality || player.nationality || "",
+    team: player.strTeam || player.team || "",
+    teamId: player.idTeam || "",
+    updated: player.dateUpdated || "",
+    description: !!(player.strDescriptionEN || player.description)
+  };
+}
+
+async function probeSportsDb() {
+  const api = "https://www.thesportsdb.com/api/v1/json/123";
+  const countryQueries = [
+    { country: "Egypt", url: api + "/search_all_teams.php?s=Soccer&c=Egypt" },
+    { country: "Morocco", url: api + "/search_all_teams.php?s=Soccer&c=Morocco" },
+    { country: "Tunisia", url: api + "/search_all_teams.php?s=Soccer&c=Tunisia" }
+  ];
+  for (const query of countryQueries) {
+    try {
+      const result = await fetchJson(query.url);
+      const teams = Array.isArray(result.json && result.json.teams) ? result.json.teams : [];
+      const relevant = teams.filter(team => /egypt|tunisia|morocco|premier|ligue|botola|pro league/i.test(
+        [team.strCountry, team.strLeague, team.strTeam].join(" ")));
+      console.log("SPORTSDB_COUNTRY_PROBE " + JSON.stringify({
+        country: query.country, url: result.url, status: result.status, bytes: result.bytes,
+        keys: result.json && Object.keys(result.json), teamCount: teams.length,
+        leagueNames: [...new Set(teams.map(team => team.strLeague).filter(Boolean))].slice(0, 25),
+        sampleTeams: (relevant.length ? relevant : teams).slice(0, 14).map(compactTeam)
+      }));
+    } catch (error) {
+      console.log("SPORTSDB_COUNTRY_ERROR " + JSON.stringify({ country: query.country, error: String(error) }));
+    }
+  }
+
+  const teamQueries = [
+    { name: "Al Ahly", url: api + "/searchteams.php?t=Al%20Ahly" },
+    { name: "Zamalek", url: api + "/searchteams.php?t=Zamalek" },
+    { name: "Raja Casablanca", url: api + "/searchteams.php?t=Raja%20Casablanca" },
+    { name: "Wydad Casablanca", url: api + "/searchteams.php?t=Wydad%20Casablanca" },
+    { name: "Espérance de Tunis", url: api + "/searchteams.php?t=Esperance%20de%20Tunis" },
+    { name: "Club Africain", url: api + "/searchteams.php?t=Club%20Africain" }
+  ];
+  for (const query of teamQueries) {
+    try {
+      const result = await fetchJson(query.url);
+      const teams = Array.isArray(result.json && result.json.teams) ? result.json.teams : [];
+      const team = teams[0];
+      let roster = null;
+      if (team && team.idTeam) {
+        try {
+          const squad = await fetchJson(api + "/lookup_all_players.php?id=" + encodeURIComponent(team.idTeam));
+          const players = Array.isArray(squad.json && squad.json.player) ? squad.json.player
+            : Array.isArray(squad.json && squad.json.players) ? squad.json.players : [];
+          roster = {
+            status: squad.status, bytes: squad.bytes, playerCount: players.length,
+            players: players.slice(0, 25).map(compactPlayer)
+          };
+        } catch (error) {
+          roster = { error: String(error) };
+        }
+      }
+      console.log("SPORTSDB_TEAM_PROBE " + JSON.stringify({
+        query: query.name, status: result.status, bytes: result.bytes,
+        matches: teams.slice(0, 3).map(compactTeam), roster
+      }));
+    } catch (error) {
+      console.log("SPORTSDB_TEAM_ERROR " + JSON.stringify({ query: query.name, error: String(error) }));
+    }
+  }
+}
+
 async function main() {
+  await probeSportsDb();
   for (const league of LEAGUES) {
     try {
       const page = await fetchPage(league.url);

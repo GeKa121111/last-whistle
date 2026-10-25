@@ -29,9 +29,9 @@
       "expectedTeams": 20,
       "sourceUrl": "https://www.egyptianproleague.com/",
       "sourceSeason": "2026/27",
-      "coverageType": "verified-official-league-and-club-squad-pages",
+      "coverageType": "verified-current-squad-pages",
       "clubs": 20,
-      "players": 709,
+      "players": 655,
       "below18Players": []
     },
     {
@@ -135,18 +135,25 @@
     }
   ],
   "totalTeams": 286,
-  "totalPlayers": 9604,
-  "snapshotBytes": 1840088,
+  "totalPlayers": 9550,
+  "snapshotBytes": 1831915,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {
-      "source": "Verified official Egyptian league and club squad pages (2026/27)",
+      "source": "Verified current Egyptian league and club squad pages (2026/27)",
       "season": "2026/27",
       "availablePagesConfigured": 20,
+      "importerRevision": 3,
       "importedClubs": 20,
-      "importedPlayers": 709,
+      "importedPlayers": 655,
       "skippedPages": [],
       "fallbackClubs": [
+        {
+          "name": "بتروجيت",
+          "sourceUrl": "https://petrojetsc.com/",
+          "playerCount": 28,
+          "positionData": "position-not-published"
+        },
         {
           "name": "أبو قير للأسمدة",
           "sourceUrl": "https://abuqirfertilizers.com/players/",

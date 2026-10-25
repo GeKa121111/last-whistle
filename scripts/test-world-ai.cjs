@@ -44,6 +44,8 @@ assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");
 assert.ok(playerCount >= clubCount * 12, "each club must have a multi-player squad");
 assert.equal(world.schemaVersion, ai.version);
 assert.equal(world.rosterSchemaVersion, 1, "fresh worlds must be marked reconciled so the next render does not rescan every squad");
+assert.ok(!Object.keys(world.seasonStats || {}).some(key => key === "1"),
+  "opening the dashboard must not create persistent season stats as a side effect");
 assert.equal(ai.ensureState(save, db), world, "loading the same save must preserve its existing world simulation");
 assert.equal(Object.keys(world.players).length, playerCount, "reconciliation must not duplicate the saved player database");
 

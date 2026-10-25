@@ -108,7 +108,7 @@ for (const sourceClub of egyptSource.clubs) {
   assert.ok(gameClub.players.some(player => player.isRealPlayer === true && player.isGenerated !== true),
     "sourced Egyptian club must contain real-player records: " + sourceClub.name);
 }
-assert.deepEqual(egyptCoverage.clubsNeedingRealRoster, [],
+assert.equal(egyptCoverage.clubsNeedingRealRoster.length, 0,
   "all 20 Egyptian Premier League clubs should use a sourced current roster, not generated-only backups");
 console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
   totalClubs: coverage.totalClubs,

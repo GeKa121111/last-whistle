@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, "..");
 const publicDir = path.join(root, "public");
 const output = path.join(root, "dist");
 const sourceData = path.join(root, "source", "public", "data");
+const rootData = path.join(root, "data");
 const publicData = path.join(publicDir, "data");
 
 // Root-level files are the canonical app entry points. Sync them into public before
@@ -26,6 +27,8 @@ for (const [sourceName, publicName] of canonicalCopies) {
 }
 
 if (!fs.existsSync(sourceData)) throw new Error("source/public/data is missing");
+fs.mkdirSync(rootData, { recursive: true });
+fs.cpSync(sourceData, rootData, { recursive: true, force: true });
 fs.mkdirSync(publicData, { recursive: true });
 fs.cpSync(sourceData, publicData, { recursive: true, force: true });
 

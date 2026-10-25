@@ -253,11 +253,14 @@
       }
     }
     world.dbVersion = int(db && db.version, world.dbVersion || 0);
+    // Mark the expensive roster/database reconciliation as complete. It should only
+    // rerun when the catalogue version changes, not on every render or AI query.
     // Migrate existing saves too: early v1 builds misclassified "وسط مهاجم" as an attacker.
     Object.values(world.players).forEach(player => {
       player.group = groupForPosition(player.position);
     });
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
+    world.rosterSchemaVersion = 1;
     return world;
   }
   function ensureState(save, db) {
@@ -278,7 +281,12 @@
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
-    reconcileDatabase(world, db);
+    // reconcileDatabase scans the global club/player catalogue and repairs squads.
+    // Running it for every dashboard render caused severe avoidable CPU work.
+    const catalogueVersion = int(db && db.version, int(world.dbVersion, 0));
+    if (catalogueVersion !== int(world.dbVersion, 0) || Number(world.rosterSchemaVersion) !== 1) {
+      reconcileDatabase(world, db);
+    }
     // The world-simulation season is independent of the player's career season.
     // Never rewind completed global seasons just because save.season has not caught up.
     if (Number(world.lastAdvancedTo) > 0) {

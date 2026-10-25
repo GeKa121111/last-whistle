@@ -215,7 +215,6 @@
     {leagueId:"egypt",country:"مصر",division:1,name:"القناة",aliases:["El Qanah","El Qanah FC"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"سموحة",aliases:["Smouha SC","Smouha"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"بتروجيت",aliases:["Petrojet"]},
-    {leagueId:"egypt",country:"مصر",division:1,name:"سموحة",aliases:["Smouha SC","Smouha"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"طلائع الجيش",aliases:["Tala'ea El Geish","El Geish"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"زد",aliases:["ZED FC","ZED"]},
     // Morocco — Botola Pro 1.

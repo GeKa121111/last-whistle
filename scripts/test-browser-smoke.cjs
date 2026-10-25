@@ -131,6 +131,8 @@ async function main() {
 
     await page.waitForFunction(() => Boolean(window.LWCareerAI && window.LWCareerAIUI
       && document.querySelector("#careerAIPanel") && document.querySelector("#careerAIOverview")?.textContent.trim()), null, { timeout: 10000 });
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    await page.locator("#careerAIPanel").scrollIntoViewIfNeeded();
     await page.locator('[data-ai-action="coach"]').click();
     assert.ok(await page.locator("#careerAIResultTitle").textContent().then(text => text.trim().length > 0),
       "AI coach must return a context-aware report");

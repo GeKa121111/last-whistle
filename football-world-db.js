@@ -206,6 +206,7 @@
     {leagueId:"egypt",country:"مصر",division:1,name:"غزل المحلة",aliases:["Ghazl El Mahalla"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"مودرن سبورت",aliases:["Modern Future FC","Modern Sport","Future FC"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"البنك الأهلي",aliases:["National Bank of Egypt","National Bank"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"سموحة",aliases:["Smouha SC","Smouha"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"بتروجيت",aliases:["Petrojet"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"سموحة",aliases:["Smouha SC","Smouha"]},
     {leagueId:"egypt",country:"مصر",division:1,name:"طلائع الجيش",aliases:["Tala'ea El Geish","El Geish"]},

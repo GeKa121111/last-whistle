@@ -566,7 +566,9 @@
         if (sourced && sourced.confederation) confederation = sourced.confederation;
       } catch (_) { /* Keep the deterministic local fallback. */ }
     }
-    var factor = CONTINENTAL_RATING_FACTORS[confederation] || 0.97;
+    var snapshotFactors = SQUAD_SNAPSHOT && SQUAD_SNAPSHOT.ratingNormalization && SQUAD_SNAPSHOT.ratingNormalization.factors || {};
+    var snapshotFactor = Number(snapshotFactors[confederation]);
+    var factor = Number.isFinite(snapshotFactor) && snapshotFactor > 0 ? Math.max(0.9, Math.min(1, snapshotFactor)) : (CONTINENTAL_RATING_FACTORS[confederation] || 0.97);
     var strength = Math.max(35, Math.min(100, (Number(league.strength) || 60) - (division >= 2 ? 18 : 0)));
     return { confederation: confederation, coefficient: factor, leagueStrength: strength,
       baseline: 52 + strength * 0.12, division: division, source: catalog && typeof catalog.ratingProfile === "function" ? "global-catalog+league-profile" : "league-profile-fallback" };
@@ -597,12 +599,12 @@
       : buildPlayerRecords(item);
     var curatedNames = (item.stars || []).slice();
     var ratingProfile = ratingProfileForLeague(item);
-    players = players.map(function (player) { return normalizedPlayer(player, ratingProfile); });
     var rosterSource = item.rosterSource || "";
     if (!hasCurrentRoster && players.length < 25) {
       players = generatedBackupRecords(item, players);
       if (!rosterSource) rosterSource = curatedNames.length ? "curated highlights + generated in-game backups" : "generated in-game squad; no verified full-roster source";
     }
+    players = players.map(function (player) { return normalizedPlayer(player, ratingProfile); });
     return {name:item.name,aliases:(item.aliases || []).slice(),country:item.country,leagueId:item.leagueId,division:division,
       leagueName:profile ? (division >= 2 ? profile.tier2 : profile.league) : "",
       leagueEnglish:profile ? (division >= 2 ? profile.tier2English : profile.english) : "",

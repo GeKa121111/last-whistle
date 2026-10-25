@@ -57,6 +57,40 @@ assert.equal(argentinaCoverage.clubCount, 30, "Argentina sourced rosters must me
 assert.equal(argentinaCoverage.clubsWithCurrentRoster, 30, "all 30 Argentine first-division clubs must load a sourced roster");
 assert.equal(argentinaCoverage.clubsNeedingRealRoster.length, 0, "no Argentine top-flight club should remain on generated-only backup players");
 assert.ok(argentinaCoverage.realPlayers >= 700, "Argentina should contribute at least 700 sourced player records");
+const egyptSource = (snapshot.leagues || []).find(league => league.leagueId === "egypt" && Number(league.division) === 1);
+assert.ok(egyptSource, "the source snapshot should include official Egyptian Pro League squad pages");
+assert.equal(egyptSource.coverageType, "available-official-squad-pages",
+  "Egypt coverage must be labelled as the official pages actually available, not as complete league-wide coverage");
+assert.ok(egyptSource.clubs.length >= 12, "at least twelve official Egyptian squad pages must be usable");
+assert.ok(egyptSource.clubs.every(club => club.players.length >= 16
+  && club.sourceUrl && club.sourceUrl.startsWith("https://www.egyptianproleague.com/team/")),
+  "each imported Egyptian roster must be linked to an official squad page and contain enough players");
+assert.equal(audit.supplementalCoverage.egypt.importedClubs, egyptSource.clubs.length,
+  "the supplementary Egypt audit and snapshot club totals must agree");
+assert.equal(audit.supplementalCoverage.egypt.importedPlayers,
+  egyptSource.clubs.reduce((sum, club) => sum + club.players.length, 0),
+  "the supplementary Egypt audit and snapshot player totals must agree");
+const egyptCoverage = coverage.leagues.find(league => league.leagueId === "egypt" && league.division === 1);
+assert.ok(egyptCoverage, "Egypt should have a roster-coverage row in the game catalogue");
+assert.equal(egyptCoverage.clubCount, 20,
+  "the current Egyptian top division should contain 20 clubs without duplicates");
+assert.equal(egyptCoverage.clubsWithCurrentRoster, egyptSource.clubs.length,
+  "each official Egyptian page must feed a sourced roster into the database");
+for (const sourceClub of egyptSource.clubs) {
+  const gameClub = db.clubByName(sourceClub.name, "مصر");
+  assert.ok(gameClub, "sourced Egyptian club should be searchable in the game: " + sourceClub.name);
+  assert.equal(gameClub.rosterStatus, "current-squad",
+    "sourced Egyptian club must use its imported current roster: " + sourceClub.name);
+  assert.ok(gameClub.players.some(player => player.isRealPlayer === true && player.isGenerated !== true),
+    "sourced Egyptian club must contain real-player records: " + sourceClub.name);
+}
+const expectedEgyptianRosterGaps = ["أبو قير للأسمدة", "بترول أسيوط", "بتروجيت"]
+  .map(name => db.normalize(name)).sort();
+assert.equal(
+  JSON.stringify(Array.from(egyptCoverage.clubsNeedingRealRoster, name => db.normalize(name)).sort()),
+  JSON.stringify(expectedEgyptianRosterGaps),
+  "only clubs without a usable official squad page may remain on clearly marked generated-only backups"
+);
 console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
   totalClubs: coverage.totalClubs,
   playableSquadPlayers: coverage.totalDatabasePlayers,
@@ -71,8 +105,8 @@ console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
     sourcedPlayers: league.realPlayers, generatedPlayers: league.generatedPlayers
   }))
 }));
-assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "المقاولون العرب" && club.ovr === 62),
-  "Egyptian second-division clubs should be queryable");
+assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "الإسماعيلي"),
+  "Egyptian second-division clubs should be queryable after applying the current first-division registry");
 assert.ok(db.playerRecordsForClub("ليفربول", "إنجلترا").some(player => player.name === "Florian Wirtz" && player.isRealPlayer === true),
   "Liverpool squad should include sourced 2026/27 player records");
 assert.ok(!db.playersForClub("ليفربول", "إنجلترا").includes("محمد صلاح"),

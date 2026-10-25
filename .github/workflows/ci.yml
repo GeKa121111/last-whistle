@@ -48,7 +48,7 @@ jobs:
         run: |
           # Use the checked-in source snapshot for ordinary push/PR regression tests.
           # A manual workflow_dispatch deliberately refreshes official pages from the web.
-          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); const e=r.supplementalCoverage && r.supplementalCoverage.egypt; const skipped=new Set((e && e.skippedPages || []).map(row => row.name)); const critical=["بتروجيت","أبو قير للأسمدة","بترول أسيوط"]; process.exit(r.status==="complete" && e && e.season==="2026/27" && e.importedClubs>=20 && e.importedPlayers>=630 && critical.every(name => !skipped.has(name)) ? 0 : 1); } catch (_) { process.exit(1); }'; then
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); const e=r.supplementalCoverage && r.supplementalCoverage.egypt; const skipped=new Set((e && e.skippedPages || []).map(row => row.name)); const critical=["بتروجيت","أبو قير للأسمدة","بترول أسيوط"]; process.exit(r.status==="complete" && e && e.season==="2026/27" && e.importerRevision>=3 && e.importedClubs>=20 && e.importedPlayers>=630 && critical.every(name => !skipped.has(name)) ? 0 : 1); } catch (_) { process.exit(1); }'; then
             echo "Using the checked-in Egyptian squad snapshot (20 clubs / 630+ player entries)."
           else
             node scripts/refresh-egyptian-pro-league.cjs

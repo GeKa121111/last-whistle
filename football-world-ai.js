@@ -230,7 +230,13 @@
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
     reconcileDatabase(world, db);
-    if (world.lastAdvancedTo >= Number(save.season || 1)) world.currentSeason = Number(save.season || 1);
+    // The world-simulation season is independent of the player's career season.
+    // Never rewind completed global seasons just because save.season has not caught up.
+    if (Number(world.lastAdvancedTo) > 0) {
+      world.currentSeason = Math.max(world.currentSeason, int(world.lastAdvancedTo, world.currentSeason));
+    } else {
+      world.currentSeason = Math.max(world.currentSeason, Math.max(1, int(save.season, 1)));
+    }
     return world;
   }
   function average(values) {
@@ -1145,11 +1151,17 @@
   }
   function dashboard(save, db) {
     const world = base.ensureState(save, db);
-    simulateLeagueSeason(save, Math.max(1, int(save.season, 1)), db);
-    const output = base.dashboard(save, db);
+    const season = Math.max(1, int(world.currentSeason, int(save.season, 1)));
+    simulateLeagueSeason(save, season, db);
+    // base.dashboard reads save.season, which tracks the player's career and can
+    // lag the persistent world timeline. Give it a view with the world season,
+    // without mutating the player's saved career season.
+    const dashboardSave = Number(save.season) === season ? save : Object.assign({}, save, { season });
+    const output = base.dashboard(dashboardSave, db);
+    output.season = season;
     output.freeAgentCount = Object.values(world.players).filter(player => player.freeAgent).length;
-    output.matchesSimulated = (world.matchesBySeason[String(Math.max(1, int(save.season, 1)))] || []).length;
-    output.competitionsSimulated = (world.competitionsBySeason[String(Math.max(1, int(save.season, 1)))] || []).length;
+    output.matchesSimulated = (world.matchesBySeason[String(season)] || []).length;
+    output.competitionsSimulated = (world.competitionsBySeason[String(season)] || []).length;
     output.promotionHistory = world.promotionHistory || [];
     return output;
   }

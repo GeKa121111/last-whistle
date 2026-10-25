@@ -3454,7 +3454,8 @@ function playerCurrentSeasonStats(rows){
 function currentLeaguePlayerPool(){
  const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
  const db=window.LWWorldDB;
- const data=(window.LWWorldAI?.getSeasonLines(state,Number(state.season)||1,1,db)||[])
+ const progress=clamp((Number(state.seasonApps)||0)/Math.max(1,Number(state.seasonAppsTarget)||seasonMatchTotal()),0,1);
+ const data=(window.LWWorldAI?.getSeasonLines(state,Number(state.season)||1,progress,db)||[])
   .filter(player=>String(player.country||"")===country&&Math.max(1,Number(player.division)||1)===division)
   .map(player=>({...player,clubName:player.clubName||player.club,realPlayer:player.realPlayer!==false,seasonStats:player.seasonStats}));
  const covered=new Set(data.map(player=>player.clubName));

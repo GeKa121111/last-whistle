@@ -111,7 +111,7 @@
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
     const id = generated
       ? "academy-" + hash(club.id + "|" + index + "|" + (row && row.name || "player")).toString(36)
-      : "player-" + hash(normalize(row && row.name) || (club.id + "|" + index)).toString(36);
+      : "player-" + hash(club.id + "|" + (normalize(row && row.name) || String(index))).toString(36);
     if (world.players[id]) return world.players[id];
     const player = {
       id, name: String(row && row.name || (club.name + " • ناشئ " + String(index + 1).padStart(2, "0"))),
@@ -119,6 +119,7 @@
       position, group, ovr, potential: clamp(row && row.potential || ovr + 3 + Math.floor(rng() * 18), ovr, 97),
       age, prestige: club.prestige, contractSeasons: 1 + Math.floor(rng() * 5),
       nationality: String(row && (row.nationality || row.nationalityCode) || ""),
+      sourceClubId: generated ? "" : String(row && row.sourceClubId || club.id),
       originConfederation: String(row && (row.originConfederation || row.confederation)
         || nationalityConfederation(row && (row.nationality || row.nationalityCode)) || club.confederation || ""),
       isGenerated: !!generated || !!(row && row.isRealPlayer === false), isRealPlayer: !generated && !!row && row.isRealPlayer !== false,
@@ -150,7 +151,7 @@
     const world = emptyWorld();
     world.dbVersion = int(db && db.version, 0);
     const clubs = db && typeof db.clubs === "function" ? db.clubs() : [];
-    const seenRealNames = new Set();
+    const seenSourcePlayers = new Set();
     for (const raw of clubs) {
       if (!raw || !raw.name || !raw.country) continue;
       const club = addClub(world, raw, db);
@@ -160,8 +161,9 @@
       let index = 0;
       for (const row of rows) {
         const nameKey = normalize(row && row.name);
-        if (!nameKey || seenRealNames.has(nameKey)) continue;
-        seenRealNames.add(nameKey);
+        const sourceKey = nameKey ? normalize(club.id + "|" + nameKey) : "";
+        if (!nameKey || seenSourcePlayers.has(sourceKey)) continue;
+        seenSourcePlayers.add(sourceKey);
         makePlayer(world, row, club, index++, false);
       }
       fillRoster(world, club);
@@ -221,7 +223,15 @@
       });
     }
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
-    const knownNames = new Set(Object.values(world.players).map(player => normalize(player && player.name)).filter(Boolean));
+    // Real players can share an identical name. Use their source club plus name as a
+    // stable source identity for new records; retain global name protection only for
+    // legacy save entries that predate sourceClubId.
+    const knownSourceKeys = new Set(Object.values(world.players)
+      .filter(player => player && !player.isGenerated && player.sourceClubId)
+      .map(player => normalize(String(player.sourceClubId) + "|" + String(player.name || ""))).filter(Boolean));
+    const legacyRealNames = new Set(Object.values(world.players)
+      .filter(player => player && !player.isGenerated && !player.sourceClubId)
+      .map(player => normalize(player.name)).filter(Boolean));
     for (const row of rows) {
       if (!row || !row.name || !row.country) continue;
       const id = clubKey(row.name, row.country);
@@ -233,9 +243,10 @@
         let index = 0;
         records.forEach(player => {
           const nameKey = normalize(player && player.name);
-          if (!nameKey || knownNames.has(nameKey)) return;
+          const sourceKey = nameKey ? normalize(club.id + "|" + nameKey) : "";
+          if (!nameKey || knownSourceKeys.has(sourceKey) || legacyRealNames.has(nameKey)) return;
           makePlayer(world, player, club, index++, false);
-          knownNames.add(nameKey);
+          knownSourceKeys.add(sourceKey);
         });
         fillRoster(world, club);
       } else {
@@ -258,7 +269,8 @@
         let index = 0;
         for (const playerRow of records) {
           const nameKey = normalize(playerRow && playerRow.name);
-          if (!nameKey || knownNames.has(nameKey)) continue;
+          const sourceKey = nameKey ? normalize(club.id + "|" + nameKey) : "";
+          if (!nameKey || knownSourceKeys.has(sourceKey) || legacyRealNames.has(nameKey)) continue;
           while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
             const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
               .sort((a, b) => Number(a.ovr || 0) - Number(b.ovr || 0));
@@ -266,11 +278,10 @@
             const replace = generated[0];
             club.roster = club.roster.filter(playerId => playerId !== replace.id);
             delete world.players[replace.id];
-            knownNames.delete(normalize(replace.name));
           }
           if ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) break;
           makePlayer(world, playerRow, club, index++, false);
-          knownNames.add(nameKey);
+          knownSourceKeys.add(sourceKey);
         }
         fillRoster(world, club);
       }

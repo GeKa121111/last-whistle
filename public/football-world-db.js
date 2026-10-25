@@ -6,7 +6,7 @@
   "use strict";
   var VERSION = 3;
   var SEASON = "2026/27";
-  var RATINGS_NOTE = "قوة الأندية والهيبة هنا تقديرات توازن داخل اللعبة، مش تصنيفات رسمية. أسماء النجوم أمثلة من القوائم وليست قائمة كاملة.";
+  var RATINGS_NOTE = "قوة الأندية والتقييمات تقديرات توازن داخل اللعبة. الأسماء من قوائم أندية 2026/27 المتاحة موثقة بمصدرها؛ أي اسم ناشئ مولّد موسوم داخل البيانات وليس لاعبًا حقيقيًا.";
   var LEAGUES = [
     {id:"england",country:"إنجلترا",englishCountry:"England",league:"الدوري الإنجليزي الممتاز",english:"Premier League",tier2:"دوري البطولة الإنجليزية",tier2English:"EFL Championship",confederation:"UEFA",globalTier:1,strength:98,teams:20,matches:38,tier2Teams:24,currency:"£",cups:["fa-cup","efl-cup"],superCup:"community-shield",continental:["ucl","uel","uecl"],url:"https://www.premierleague.com/"},
     {id:"spain",country:"إسبانيا",englishCountry:"Spain",league:"الدوري الإسباني الدرجة الأولى",english:"LaLiga",tier2:"الدوري الإسباني الدرجة الثانية",tier2English:"LaLiga Hypermotion",confederation:"UEFA",globalTier:1,strength:96,teams:20,matches:38,tier2Teams:22,currency:"€",cups:["copa-del-rey"],superCup:"spanish-super-cup",continental:["ucl","uel","uecl"],url:"https://www.laliga.com/"},
@@ -150,7 +150,7 @@
   var IMPORTED_PLAYER_COUNT = 0;
   function clubMatchKey(value) {
     var key = normalize(value);
-    key = key.replace(/^(afc|fc|cf|sc|ac|usm|as|rs|cr|mc|us)/, "");
+    key = key.replace(/^(afc|fc|cf|sc)/, "");
     key = key.replace(/(footballclub|athleticclub|club|fc|afc|cf|sc|ac)$/, "");
     return key;
   }
@@ -195,6 +195,172 @@
       ratingType: "simulation-estimate"
     };
   }
+  var MANUAL_FIRST_DIVISION_CLUBS = [
+    // Egypt — current 2026/27 first-division participants; clubs without sourced squad pages get explicit generated backups.
+    {leagueId:"egypt",country:"مصر",division:1,name:"الاتحاد السكندري",aliases:["Al Ittihad Alexandria","Al-Ittihad Alexandria","Al Ittihad"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"أبو قير للأسمدة",aliases:["Abou Qir","Abu Qir Fertilizers"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"بترول أسيوط",aliases:["Asyut Petroleum","Petroleum Assiut"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"سيراميكا كليوباترا",aliases:["Ceramica Cleopatra"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"الجونة",aliases:["El Gouna"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"إنبي",aliases:["ENPPI"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"غزل المحلة",aliases:["Ghazl El Mahalla"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"مودرن سبورت",aliases:["Modern Future FC","Modern Sport","Future FC"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"البنك الأهلي",aliases:["National Bank of Egypt","National Bank"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"بتروجيت",aliases:["Petrojet"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"سموحة",aliases:["Smouha SC","Smouha"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"طلائع الجيش",aliases:["Tala'ea El Geish","El Geish"]},
+    {leagueId:"egypt",country:"مصر",division:1,name:"زد",aliases:["ZED FC","ZED"]},
+    // Morocco — Botola Pro 1.
+    {leagueId:"morocco",country:"المغرب",division:1,name:"أمل تزنيت",aliases:["US Amal Tiznit","Amal Tiznit"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"النادي المكناسي",aliases:["CODM Meknès","CODM Meknes"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الدفاع الحسني الجديدي",aliases:["Difaâ El Jadida","Difaa Hassani El Jadidi"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الفتح الرباطي",aliases:["FUS Rabat","Fath Union Sport"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"حسنية أكادير",aliases:["Hassania Agadir","HUSA"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"اتحاد طنجة",aliases:["Ittihad Tanger","IRT"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الكوكب المراكشي",aliases:["Kawkab Marrakech"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"المغرب الفاسي",aliases:["Maghreb Fès","Maghreb Fes","MAS Fes"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"المغرب التطواني",aliases:["Moghreb Tétouan","Moghreb Tetouan","MAT"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"نهضة الزمامرة",aliases:["CR Khemis Zemamra","Renaissance Club Athletic Zemamra"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"الاتحاد التوركي",aliases:["UTS Rabat","Union Touarga Sportif"]},
+    {leagueId:"morocco",country:"المغرب",division:1,name:"وداد تمارة",aliases:["Widad Témara","Widad Temara"]},
+    // Tunisia — Ligue Professionnelle 1 2026/27.
+    {leagueId:"tunisia",country:"تونس",division:1,name:"مستقبل المرسى",aliases:["AS Marsa","AS La Marsa"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي البنزرتي",aliases:["CA Bizertin","CAB"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي الصفاقسي",aliases:["CS Sfaxien","CS Sfaxien","CSS"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النجم الرياضي بالمتلوي",aliases:["ES Métlaoui","ES Metlaoui","ESM"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الترجي الجرجيسي",aliases:["ES Zarzis","ESZ"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"شبيبة العمران",aliases:["JS El Omrane","JSO"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الأولمبي الباجي",aliases:["Olympique Béja","Olympique Beja","OB"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الملعب التونسي",aliases:["Stade Tunisien","ST"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الاتحاد الرياضي ببن قردان",aliases:["US Ben Guerdane","USBG"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"الاتحاد المنستيري",aliases:["US Monastir","USM"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي بحمام الأنف",aliases:["CS Hammam-Lif","CSHL"]},
+    // Algeria — Ligue 1 2026/27.
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"أولمبي الشلف",aliases:["ASO Chlef"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"شباب بلوزداد",aliases:["CR Belouizdad"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"شباب قسنطينة",aliases:["CS Constantine"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"نجم بن عكنون",aliases:["ES Ben Aknoun"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"ترجي مستغانم",aliases:["ES Mostaganem"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"وفاق سطيف",aliases:["ES Sétif","ES Setif"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"شبيبة الساورة",aliases:["JS Saoura"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"مستقبل الرويسات",aliases:["MB Rouissat"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"مولودية البيض",aliases:["MC El Bayadh"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"مولودية وهران",aliases:["MC Oran"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"أولمبيك أقبو",aliases:["O Akbou","Olympique Akbou"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"نادي بارادو",aliases:["Paradou AC"]},
+    {leagueId:"algeria",country:"الجزائر",division:1,name:"اتحاد خنشلة",aliases:["USM Khenchela"]},
+    // Senegal — Ligue 1 2026/27.
+    {leagueId:"senegal",country:"السنغال",division:1,name:"أجيل روفيسك",aliases:["AJEL de Rufisque","AJEL Rufisque"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"أكاديمية بيكين",aliases:["AS Pikine","Pikine"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"كازا سبورت",aliases:["Casa Sports","Casa-Sports"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"داكار ساكر كور",aliases:["Dakar Sacré-Cœur","Dakar Sacre-Coeur"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"ديامبارز",aliases:["Diambars","Diambars de Saly"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"إيساماي",aliases:["Essamaye FC"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"غيدياواي",aliases:["Guédiawaye FC","Guediawaye"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"إتش إل إم داكار",aliases:["ASC HLM Dakar","HLM"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"لا لينغير",aliases:["La Linguère","La Linguere","ASC La Linguère"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"ملعب مبور",aliases:["Stade de Mbour","Stade Mbour"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"تيونغيث",aliases:["Teungueth FC","Teungueth Rufisque"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"يو إس غوري",aliases:["US Gorée","US Goree"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"يو إس واكام",aliases:["US Ouakam"]},
+    {leagueId:"senegal",country:"السنغال",division:1,name:"والي دان",aliases:["Wally Daan","Wally Daan FC"]},
+    // Nigeria — NPFL 2026/27.
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"نيجر تورنادوز",aliases:["Niger Tornadoes FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كون خليفات",aliases:["Kun Khalifat FC","Kun Khalifat Football Club"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"ناساراوا يونايتد",aliases:["Nasarawa United FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"إيكيورودو سيتي",aliases:["Ikorodu City FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كاتسينا يونايتد",aliases:["Katsina United FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"سبورتينغ لاغوس",aliases:["Sporting Lagos"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كانو بيلارز",aliases:["Kano Pillars"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"إنتر لاغوس",aliases:["Inter Lagos"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"رينجرز إنترناشيونال",aliases:["Rangers International","Enugu Rangers"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"واري وولفز",aliases:["Warri Wolves"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"دوما يونايتد",aliases:["Doma United"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"باراو",aliases:["Barau FC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"رانشرز بيز",aliases:["Ranchers Bees"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"بندل إنشورانس",aliases:["Bendel Insurance"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"بلاتو يونايتد",aliases:["Plateau United"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"شوتينغ ستارز",aliases:["Shooting Stars Sports Club","3SC"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كوارا يونايتد",aliases:["Kwara United"]},
+    {leagueId:"nigeria",country:"نيجيريا",division:1,name:"أبيا ووريورز",aliases:["Abia Warriors"]},
+    // Ghana — Premier League 2026/27.
+    {leagueId:"ghana",country:"غانا",division:1,name:"أكرا لايونز",aliases:["Accra Lions"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"أدوانا ستارز",aliases:["Aduana FC","Aduana Stars"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"أشانتي غولد 04",aliases:["Ashantigold '04","Ashanti Gold"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"باساكي هولي ستارز",aliases:["Basake Holy Stars"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بيشيم يونايتد",aliases:["Bechem United"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بيركوم تشيلسي",aliases:["Berekum Chelsea"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بيبياني غولد ستارز",aliases:["Bibiani Gold Stars"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"ديبيبي يونايتد",aliases:["Debibi United"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"دريمز إف سي",aliases:["Dreams FC"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"هارت أوف ليونز",aliases:["Heart of Lions"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"كاريلا يونايتد",aliases:["Karela United"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"ميديما",aliases:["Medeama SC","Medeama"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"بورت سيتي",aliases:["Port City FC","Port City"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"سامارتكس",aliases:["Samartex FC","FC Samartex"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"سْوِدرو أول بلاكس",aliases:["Swedru All Blacks"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"فيجن إف سي",aliases:["Vision FC"]},
+    {leagueId:"ghana",country:"غانا",division:1,name:"يونغ أبوستلز",aliases:["Young Apostles FC"]},
+    // Argentina — 2026 first division clubs.
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"ألدوسيفي",aliases:["Aldosivi"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"أرجنتينوس جونيورز",aliases:["Argentinos Juniors","Argentinos"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"أتلتيكو توكومان",aliases:["Atlético Tucumán","Atletico Tucuman"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"بانفيلد",aliases:["Banfield"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"باراكاس سنترال",aliases:["Barracas Central"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"بيلغرانو",aliases:["Belgrano"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"روساريو سنترال",aliases:["Rosario Central","Central"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"سنترال كوردوبا",aliases:["Central Córdoba","Central Cordoba"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"ديفينسا خوستيكا",aliases:["Defensa y Justicia","Defensa"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إستوديانتس لا بلاتا",aliases:["Estudiantes de La Plata"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إستوديانتس ريو كوارتو",aliases:["Estudiantes de Río Cuarto","Estudiantes de Rio Cuarto"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"خيمناسيا لا بلاتا",aliases:["Gimnasia La Plata"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"خيمناسيا ميندوزا",aliases:["Gimnasia de Mendoza","Gimnasia (Mendoza)"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"هوراكان",aliases:["Huracán","Huracan"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إنديبندينتي ريفادافيا",aliases:["Independiente Rivadavia"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"إنستيتوتو",aliases:["Instituto"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"لانوس",aliases:["Lanús","Lanus"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"نيويلز أولد بويز",aliases:["Newell's Old Boys","Newell’s"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"بلاتينسي",aliases:["Platense"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"دِيِسترا",aliases:["Deportivo Riestra","Riestra"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"سان لورينزو",aliases:["San Lorenzo"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"سارمينتو",aliases:["Sarmiento"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"تالريريس",aliases:["Talleres"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"تيغري",aliases:["Tigre"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"يونيون سانتا في",aliases:["Unión","Union"]},
+    {leagueId:"argentina",country:"الأرجنتين",division:1,name:"فيليز سارسفيلد",aliases:["Vélez Sarsfield","Velez"]},
+    // Brazilian top-flight clubs are fully imported via the roster refresh. This registry catches any missing entry.
+  ];
+
+  function applyManualClubRegistry() {
+    MANUAL_FIRST_DIVISION_CLUBS.forEach(function (entry, index) {
+      var candidates = [entry.name].concat(entry.aliases || []);
+      var found = CLUBS.find(function (club) {
+        if (club.leagueId !== entry.leagueId) return false;
+        return [club.name].concat(club.aliases || []).some(function (name) {
+          var key = clubMatchKey(name);
+          return candidates.some(function (candidate) {
+            var compare = clubMatchKey(candidate);
+            return key && compare && key === compare;
+          });
+        });
+      });
+      if (found) {
+        // Explicit 2026/27 current top-flight participants override outdated stored divisions.
+        found.division = 1;
+        found.aliases = Array.from(new Set((found.aliases || []).concat(candidates)));
+      } else {
+        var power = estimatedClubPower(entry.leagueId, 1, index);
+        CLUBS.push({name:entry.name,aliases:candidates.slice(1),country:entry.country,
+          leagueId:entry.leagueId,division:1,ovr:power,prestige:Math.max(35,Math.min(94,power+4)),stars:[],
+          rosterSource:"generated-squad; no verified full roster source"});
+      }
+    });
+    // Ismaily did not appear in the current official 20-club Egyptian league list.
+    var ismaily = CLUBS.find(function (club) { return club.leagueId === "egypt" && club.aliases && club.aliases.some(function(alias){return clubMatchKey(alias)==="ismaily";}); });
+    if (ismaily && ismaily.name === "الإسماعيلي") ismaily.division = 2;
+  }
+  applyManualClubRegistry();
+
   function applyImportedSquads() {
     var imported = [];
     (SQUAD_SNAPSHOT.leagues || []).forEach(function (league) {

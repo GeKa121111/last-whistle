@@ -215,6 +215,12 @@ async function main() {
   fs.writeFileSync(rootFile, js);
   fs.writeFileSync(publicFile, js);
   const audit = JSON.parse(fs.readFileSync(auditFile, "utf8"));
+  const previousEgypt = audit.supplementalCoverage && audit.supplementalCoverage.egypt || {};
+  const previousEgyptClubs = Math.max(0, Number(previousEgypt.importedClubs) || 0);
+  const previousEgyptPlayers = Math.max(0, Number(previousEgypt.importedPlayers) || 0);
+  const baseTotalTeams = Math.max(0, Number(audit.totalTeams) - previousEgyptClubs);
+  const baseTotalPlayers = Math.max(0, Number(audit.totalPlayers) - previousEgyptPlayers);
+  const baseExpectedTeams = Math.max(0, Number(audit.expectedTeamsTotal) - previousEgyptClubs);
   const egyptPlayers = imported.reduce((sum, club) => sum + club.players.length, 0);
   const egyptAuditRow = {
     leagueId: "egypt", division: 1, expectedTeams: imported.length,
@@ -225,9 +231,9 @@ async function main() {
   audit.leagues = (audit.leagues || []).filter(league => !(league.leagueId === "egypt" && Number(league.division) === 1));
   audit.leagues.push(egyptAuditRow);
   audit.leagues.sort((a, b) => String(a.leagueId).localeCompare(String(b.leagueId)) || Number(a.division) - Number(b.division));
-  audit.expectedTeamsTotal = Number(audit.expectedTeamsTotal || 0) + imported.length;
-  audit.totalTeams = Number(audit.totalTeams || 0) + imported.length - (oldLeague && oldLeague.clubs ? oldLeague.clubs.length : 0);
-  audit.totalPlayers = Number(audit.totalPlayers || 0) + egyptPlayers;
+  audit.expectedTeamsTotal = baseExpectedTeams + imported.length;
+  audit.totalTeams = baseTotalTeams + imported.length;
+  audit.totalPlayers = baseTotalPlayers + egyptPlayers;
   audit.supplementalCoverage = payload.supplementalCoverage;
   audit.snapshotBytes = Buffer.byteLength(js);
   audit.status = "complete";

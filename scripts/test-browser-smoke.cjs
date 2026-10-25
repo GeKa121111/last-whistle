@@ -516,13 +516,48 @@ async function main() {
 
     const modalOpen = await page.locator("#modalShade").evaluate(el => el.classList.contains("open"));
     if (modalOpen) await page.locator("#modalClose").click();
+    assert.equal(await page.locator("#lw-cta-transfers").isVisible(), false,
+      "the professional transfer shortcut must remain hidden for the under-18 career");
+    const youthTransferFlags = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        age: state.age, academyCareer: state.academyCareer,
+        academyReserve: state.academyReserve, academyGraduationPending: state.academyGraduationPending,
+        academyGraduated: state.academyGraduated, freeAgent: state.freeAgent,
+        winterBreakPending: state.winterBreakPending, calendarDay: state.calendarDay
+      };
+    });
+    await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.age = 18;
+      state.academyCareer = false;
+      state.academyReserve = false;
+      state.academyGraduationPending = false;
+      state.academyGraduated = true;
+      state.freeAgent = false;
+      state.winterBreakPending = false;
+      state.calendarDay = 15;
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.render();
+    });
+    await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
     await page.locator("#lw-cta-transfers").scrollIntoViewIfNeeded();
     await page.locator("#lw-cta-transfers").click();
     await page.waitForFunction(() => {
       const active = document.querySelector(".page.active");
       return active && active.id === "page-contract";
     }, null, { timeout: 10000 });
-    results.push("season transfer-market navigation");
+    await page.evaluate(flags => {
+      Object.assign(window.LWStoryRuntime.getState(), flags);
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.showPage("home");
+      window.LWStoryRuntime.render();
+    }, youthTransferFlags);
+    await page.waitForFunction(() => {
+      const button = document.querySelector("#lw-cta-transfers");
+      return !!button && (button.hidden || getComputedStyle(button).display === "none");
+    }, null, { timeout: 10000 });
+    results.push("youth transfer lock and age-eligible summer transfer-market navigation");
 
     // Regression: league/group cup fixtures must only be appended once to cup history.
     const cupPhaseFixture = await page.evaluate(() => {

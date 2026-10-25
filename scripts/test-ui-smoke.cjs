@@ -210,9 +210,9 @@ for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.
     process.exit(1);
   }
 }
-const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
+const storyModeSyntaxSource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
 try {
-  new vm.Script(storySource, { filename: "public/story-mode.js" });
+  new vm.Script(storyModeSyntaxSource, { filename: "public/story-mode.js" });
 } catch (error) {
   console.error("Story JavaScript syntax error:", error.message);
   process.exit(1);

@@ -485,18 +485,50 @@
     });
     return list[0] || null;
   }
+  function generatedBackupRecords(item, currentPlayers) {
+    var players = currentPlayers.slice();
+    var positions = ["حارس مرمى","حارس مرمى","حارس مرمى","قلب دفاع","قلب دفاع","قلب دفاع","قلب دفاع","ظهير","ظهير",
+      "وسط دفاعي","وسط دفاعي","وسط مهاجم","وسط مهاجم","وسط مهاجم","جناح","جناح","جناح","مهاجم","مهاجم","مهاجم",
+      "قلب دفاع","وسط مهاجم","ظهير","مهاجم","حارس مرمى"];
+    var index = 1;
+    var base = Number(item.ovr) || 58;
+    while (players.length < 25) {
+      var pos = positions[(players.length) % positions.length];
+      var seed = normalize(item.leagueId + "|" + item.name + "|" + index).split("").reduce(function (sum, ch) {
+        return (Math.imul(sum ^ ch.charCodeAt(0), 16777619) >>> 0);
+      }, 2166136261);
+      var ovr = Math.max(38, Math.min(78, Math.round(base - 11 + (seed % 15))));
+      var name = item.name + " • لاعب مُولّد " + String(index).padStart(2, "0");
+      players.push({
+        id:"generated-" + item.leagueId + "-" + (Number(item.division) || 1) + "-" + normalize(item.name) + "-" + index,
+        name:name,clubName:item.name,country:item.country,leagueId:item.leagueId,division:Number(item.division)||1,
+        position:pos,ovr:ovr,potential:Math.min(88,ovr+6),age:18+(seed%12),isRealPlayer:false,isGenerated:true,
+        season:SEASON,source:"توليد داخلي لتكميل قائمة الفريق؛ ليس لاعبًا حقيقيًا",ratingType:"simulation-estimate"
+      });
+      index++;
+    }
+    return players;
+  }
   function normalizeClub(item) {
     var profile = leagueById(item.leagueId);
     var division = Math.max(1, Number(item.division) || 1);
-    var players = Array.isArray(item.fullRoster) && item.fullRoster.length
+    var hasCurrentRoster = Array.isArray(item.fullRoster) && item.fullRoster.length > 0;
+    var players = hasCurrentRoster
       ? item.fullRoster.map(function (player) { return Object.assign({}, player); })
       : buildPlayerRecords(item);
+    var curatedNames = (item.stars || []).slice();
+    var rosterSource = item.rosterSource || "";
+    if (!hasCurrentRoster && players.length < 25) {
+      players = generatedBackupRecords(item, players);
+      if (!rosterSource) rosterSource = curatedNames.length ? "curated highlights + generated in-game backups" : "generated in-game squad; no verified full-roster source";
+    }
     return {name:item.name,aliases:(item.aliases || []).slice(),country:item.country,leagueId:item.leagueId,division:division,
       leagueName:profile ? (division >= 2 ? profile.tier2 : profile.league) : "",
       leagueEnglish:profile ? (division >= 2 ? profile.tier2English : profile.english) : "",
-      ovr:item.ovr,prestige:item.prestige,stars:players.map(function (player) { return player.name; }),players:players,
-      season:SEASON,ratingType:"simulation-estimate",rosterStatus:(item.fullRoster || []).length ? "current-squad" : (item.stars || []).length ? "curated-highlights" : "ratings-only",
-      rosterSource:item.rosterSource || "",sourceUrl:item.sourceUrl || ""};
+      ovr:item.ovr,prestige:item.prestige,stars:hasCurrentRoster ? players.map(function (player) { return player.name; }) : curatedNames,
+      players:players,season:SEASON,ratingType:"simulation-estimate",
+      rosterStatus:hasCurrentRoster ? "current-squad" : curatedNames.length ? "curated-highlights+generated-backups" : "generated-squad",
+      rosterSource:rosterSource,sourceUrl:item.sourceUrl || ""};
   }
   function leagueFor(country, division) {
     var profile = leagueByCountry(country);

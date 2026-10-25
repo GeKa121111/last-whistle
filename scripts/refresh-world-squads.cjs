@@ -22,7 +22,7 @@ const LEAGUES = [
   { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1.htm", teamDirectory: "/france/2026-2027/ligue1/", expectedTeams: 18 },
   { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
-  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
+  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20, sourceSeason: "2026" },
   // FootballSquads publishes Argentine club sheets on a calendar-year season; label that source season explicitly.
   { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/argaper.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }
 ];
@@ -277,7 +277,7 @@ async function main() {
       expectedTeams: item.expectedTeams, sourceUrl: item.sourceUrl,
       clubs: item.clubs.length,
       players: item.clubs.reduce((sum, club) => sum + club.players.length, 0),
-      below18Players: item.clubs.filter(club => club.players.length < 18).map(club => club.name)
+      clubsBelowRosterMinimum: item.clubs.filter(club => club.players.length < 18).map(club => club.name)
     })),
     totalTeams, totalPlayers, snapshotBytes: Buffer.byteLength(js),
     allLeagueMinimumsMet: leagueOutputs.every(item => item.clubs.length >= item.expectedTeams - 2)

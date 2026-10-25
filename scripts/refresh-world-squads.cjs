@@ -294,6 +294,7 @@ async function main() {
   const report = {
     refreshRevision: REFRESH_REVISION,
     season: SEASON, source: SOURCE_LABEL, status: "complete",
+    ratingNormalization: RATING_NORMALIZATION,
     expectedTeamsTotal: LEAGUES.reduce((sum, item) => sum + item.expectedTeams, 0),
     leagues: leagueOutputs.map(item => ({
       leagueId: item.leagueId, division: item.division, sourceSeason: item.sourceSeason,

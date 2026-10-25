@@ -286,6 +286,27 @@ async function main() {
     }, null, { timeout: 15000 });
     results.push("store purchase changes balance and inventory");
 
+    const saveDiagnostic = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const beforeRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
+      const beforeSave = (() => { try { return JSON.parse(beforeRaw); } catch { return null; } })();
+      const stateChars = JSON.stringify(state).length;
+      const worldChars = JSON.stringify(state.worldSimulation || {}).length;
+      const saveSucceeded = window.LWStoryRuntime.save();
+      const afterRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
+      const afterSave = (() => { try { return JSON.parse(afterRaw); } catch { return null; } })();
+      return {
+        stateMoney: Number(state.money), stateBoots: !!state.boots,
+        beforeSavedMoney: beforeSave ? Number(beforeSave.money) : null,
+        beforeSavedChars: beforeRaw.length, stateChars, worldChars,
+        saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
+        afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length
+      };
+    });
+    console.log("PURCHASE_SAVE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
+    assert.equal(saveDiagnostic.saveSucceeded, true,
+      "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
+
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime && window.LWStoryRuntime.getState();

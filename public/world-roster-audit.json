@@ -3,7 +3,7 @@
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
-  "expectedTeamsTotal": 286,
+  "expectedTeamsTotal": 304,
   "leagues": [
     {
       "leagueId": "argentina",
@@ -49,7 +49,7 @@
       "expectedTeams": 24,
       "sourceUrl": "https://footballsquads.co.uk/eng/2026-2027/flcham/",
       "clubs": 24,
-      "players": 727,
+      "players": 730,
       "below18Players": []
     },
     {
@@ -132,11 +132,20 @@
       "clubs": 22,
       "players": 673,
       "below18Players": []
+    },
+    {
+      "leagueId": "turkey",
+      "division": 1,
+      "expectedTeams": 18,
+      "sourceUrl": "https://footballsquads.co.uk/turkey/2026-2027/superl/",
+      "clubs": 18,
+      "players": 504,
+      "below18Players": []
     }
   ],
-  "totalTeams": 286,
-  "totalPlayers": 9550,
-  "snapshotBytes": 1831915,
+  "totalTeams": 304,
+  "totalPlayers": 10057,
+  "snapshotBytes": 1929810,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {

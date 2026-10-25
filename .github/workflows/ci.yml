@@ -20,12 +20,12 @@ jobs:
         with:
           node-version: 22
       - name: Check out PR head for roster refresh
-        if: github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion')
+        if: github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion' || github.head_ref == 'feature/egyptian-league-sourced-squads')
         run: |
           git fetch origin "$GITHUB_HEAD_REF"
           git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
       - name: Refresh current rosters on development branch
-        if: ((github.ref == 'refs/heads/feature/full-world-squads-2026-27' || github.ref == 'refs/heads/feature/world-roster-coverage-expansion') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion'))
+        if: ((github.ref == 'refs/heads/feature/full-world-squads-2026-27' || github.ref == 'refs/heads/feature/world-roster-coverage-expansion' || github.ref == 'refs/heads/feature/egyptian-league-sourced-squads') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion' || github.head_ref == 'feature/egyptian-league-sourced-squads'))
         run: |
           if node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); process.exit(r.status==="complete" && r.refreshRevision===2 && r.allLeagueMinimumsMet===true && r.totalTeams>=266 && r.totalPlayers>=4300 && Array.isArray(r.leagues) && r.leagues.some(league => league.leagueId==="argentina") ? 0 : 1); } catch (_) { process.exit(1); }'; then
             echo "A complete sourced-roster snapshot already exists; refresh skipped."
@@ -43,8 +43,11 @@ jobs:
           }
           console.log('Sourced squad snapshot covers ' + report.totalTeams + ' clubs and ' + report.totalPlayers + ' players.');
           NODE
+      - name: Add available Egyptian Pro League official squads
+        if: (github.ref == 'refs/heads/feature/egyptian-league-sourced-squads' && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && github.head_ref == 'feature/egyptian-league-sourced-squads')
+        run: node scripts/refresh-egyptian-pro-league.cjs
       - name: Commit refreshed roster snapshot on development branch
-        if: ((github.ref == 'refs/heads/feature/full-world-squads-2026-27' || github.ref == 'refs/heads/feature/world-roster-coverage-expansion') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion'))
+        if: ((github.ref == 'refs/heads/feature/full-world-squads-2026-27' || github.ref == 'refs/heads/feature/world-roster-coverage-expansion' || github.ref == 'refs/heads/feature/egyptian-league-sourced-squads') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion' || github.head_ref == 'feature/egyptian-league-sourced-squads'))
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

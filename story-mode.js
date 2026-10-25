@@ -3,6 +3,7 @@
 var API = function(){return window.LWStoryRuntime||null;};
 var stateRef = null;
 var previousSnapshot = "";
+var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
 var lastRenderedStoryPanelSignature = "";
 var eventDefs = [
@@ -276,6 +277,16 @@ function renderStoryPanel(s,api){
   ].join("\u001d");
   if(storyPanelSignature===lastRenderedStoryPanelSignature)return;
   lastRenderedStoryPanelSignature=storyPanelSignature;
+  var storyHistoryRows=history(s).slice(0,3);
+  var storyPanelSignature=JSON.stringify({
+    pending:pending?{id:pending.id,tag:pending.tag,title:pending.title,body:pending.body,consequence:pending.consequence,
+      choices:(pending.choices||[]).map(function(choice){return [choice.label,choice.detail||""];})}:null,
+    done:done,seasonFinished:!!s.seasonFinished,
+    history:storyHistoryRows.map(function(item){return [item.id,item.title,item.outcome,item.choice,item.season,item.day];})
+  });
+  if(storyPanelSignature===lastRenderedStoryPanelSignature&&panel.dataset.storyPanelSignature===storyPanelSignature)return;
+  lastRenderedStoryPanelSignature=storyPanelSignature;
+  panel.dataset.storyPanelSignature=storyPanelSignature;
   var tag=document.getElementById("lw-story-tag");
   var title=document.getElementById("lw-story-title");
   var body=document.getElementById("lw-story-body");
@@ -301,7 +312,7 @@ function renderStoryPanel(s,api){
   }
   var hist=document.getElementById("lw-story-history");
   if(hist){
-    var entries=history(s).slice(0,3);
+    var entries=storyHistoryRows;
     hist.innerHTML=entries.map(function(item){
       return '<div class="lw-history-item"><span class="lw-history-dot"></span><div><strong>'+escapeHTML(item.title||"قرار مسيرة")+'</strong><p>'+escapeHTML(item.outcome||item.choice||"تم حفظ القرار")+' <span style="color:#72846f">• الموسم '+escapeHTML(item.season||1)+' / اليوم '+escapeHTML(item.day||1)+'</span></p></div></div>';
     }).join("");

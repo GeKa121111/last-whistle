@@ -1507,15 +1507,30 @@
       ].map(role => {
         const players = rows.filter(player => (player.group || base.groupForPosition(player.position)) === role.id);
         const ages = players.map(player => int(player.age, 25));
-        const averageOverall = players.length ? players.reduce((sum, row) => sum + int(row.ovr, 55), 0) / players.length : 0;
-        return { group: role.id, label: role.label, count: players.length, target: role.target,
-          deficit: Math.max(0, role.target - players.length), averageOverall: Number(averageOverall.toFixed(1)),
-          averageAge: ages.length ? Number((ages.reduce((sum, age) => sum + age, 0) / ages.length).toFixed(1)) : null };
-      }).sort((a, b) => {
-        const scoreA = b.deficit * 10 + Math.max(0, Number(club.power) - a.averageOverall) * 0.25;
-        const scoreB = a.deficit * 10 + Math.max(0, Number(club.power) - b.averageOverall) * 0.25;
-        return scoreA - scoreB;
-      });
+        const averageOverall = players.length
+          ? players.reduce((sum, row) => sum + int(row.ovr, 55), 0) / players.length : 0;
+        const averagePotential = players.length
+          ? players.reduce((sum, row) => sum + int(row.potential, int(row.ovr, 55)), 0) / players.length : 0;
+        const averageAge = ages.length ? ages.reduce((sum, age) => sum + age, 0) / ages.length : null;
+        const archetype = String(club.aiArchetype || "balanced");
+        // A thin position group is always urgent. Age pressure then adjusts the
+        // priority to fit the club's strategy instead of treating every squad alike.
+        const agePressure = averageAge == null ? 0 : archetype === "youth-investor"
+          ? Math.max(0, averageAge - 23) * 0.8
+          : archetype === "title-chaser"
+            ? Math.max(0, averageAge - 31) * 0.55
+            : Math.max(0, averageAge - 28) * 0.7;
+        const qualityGap = Math.max(0, Number(club.power) - averageOverall) * 0.25;
+        const potentialGap = archetype === "youth-investor"
+          ? Math.max(0, 72 - averagePotential) * 0.18 : 0;
+        const deficit = Math.max(0, role.target - players.length);
+        const priorityScore = Number((deficit * 10 + qualityGap + agePressure + potentialGap).toFixed(2));
+        return { group: role.id, label: role.label, count: players.length, target: role.target, deficit,
+          averageOverall: Number(averageOverall.toFixed(1)),
+          averagePotential: Number(averagePotential.toFixed(1)),
+          averageAge: averageAge == null ? null : Number(averageAge.toFixed(1)),
+          agePressure: Number(agePressure.toFixed(2)), priorityScore };
+      }).sort((a, b) => b.priorityScore - a.priorityScore || b.deficit - a.deficit);
       return { clubId: club.id, club: club.name, country: club.country, power: club.power,
         archetype: club.aiArchetype, strategy: club.aiStrategy, coach: club.coachArchetype,
         rosterSize: rows.length, needs: roleNeeds, priority: roleNeeds[0] || null };

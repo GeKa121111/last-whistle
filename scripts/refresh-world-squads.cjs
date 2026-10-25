@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const BASE_URL = "https://footballsquads.co.uk";
 const SOURCE_LABEL = "FootballSquads.co.uk current squad pages";
 const SEASON = "2026/27";
-const REFRESH_REVISION = 2;
+const REFRESH_REVISION = 3;
 const LEAGUES = [
   { id: "england", country: "إنجلترا", division: 1, url: "/eng/2026-2027/engprem/", expectedTeams: 20 },
   { id: "england", country: "إنجلترا", division: 2, url: "/eng/2026-2027/flcham/", expectedTeams: 24 },
@@ -23,6 +23,7 @@ const LEAGUES = [
   { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1.htm", teamDirectory: "/france/2026-2027/ligue1/", expectedTeams: 18 },
   { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
+  { id: "netherlands", country: "هولندا", division: 1, url: "/netherl/2026-2027/nethere.htm", teamDirectory: "/netherl/2026-2027/ere/", expectedTeams: 18 },
   { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
   // Argentina uses the calendar-year Apertura, so identify that source season explicitly.
   { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/argaper.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }
@@ -69,7 +70,25 @@ const NAME_MAP = new Map([
   ["gimnasiayesgrimalaplata", ["Gimnasia La Plata", "Gimnasia y Esgrima La Plata", "Gimnasia y Esgrima (La Plata)", "Gimnasia (La Plata)"]],
   ["gimnasiayesgrimamendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia y Esgrima (Mendoza)", "Gimnasia (Mendoza)"]],
   ["independienterivadaviamendoza", ["Independiente Rivadavia", "Independiente Rivadavia (Mendoza)"]],
-  ["sarmientojunin", ["Sarmiento", "Sarmiento (Junín)", "Sarmiento Junín"]]
+  ["sarmientojunin", ["Sarmiento", "Sarmiento (Junín)", "Sarmiento Junín"]],
+  ["adodenhaag", ["ADO Den Haag", "ADO The Hague"]],
+  ["ajax", ["Ajax", "AFC Ajax"]],
+  ["azalkmaar", ["AZ Alkmaar", "AZ"]],
+  ["sccambuur", ["SC Cambuur", "Cambuur Leeuwarden"]],
+  ["excelsior", ["Excelsior", "SBV Excelsior"]],
+  ["feyenoord", ["Feyenoord", "Feyenoord Rotterdam"]],
+  ["fortunasittard", ["Fortuna Sittard"]],
+  ["goaheadeagles", ["Go Ahead Eagles"]],
+  ["fcgroningen", ["FC Groningen", "Groningen"]],
+  ["scheerenveen", ["SC Heerenveen", "Heerenveen"]],
+  ["necnijmegen", ["NEC Nijmegen", "NEC"]],
+  ["peczwolle", ["PEC Zwolle", "Zwolle"]],
+  ["psveindhoven", ["PSV Eindhoven", "PSV"]],
+  ["spartarotterdam", ["Sparta Rotterdam", "Sparta"]],
+  ["telstar", ["Telstar", "SC Telstar"]],
+  ["fctwente", ["FC Twente", "Twente"]],
+  ["fcutrecht", ["FC Utrecht", "Utrecht"]],
+  ["willemii", ["Willem II", "Willem II Tilburg"]]
 ]);
 
 function decodeEntities(text) {
@@ -291,6 +310,7 @@ async function main() {
     leagues: leagueOutputs.map(item => ({
       leagueId: item.leagueId, division: item.division, sourceSeason: item.sourceSeason,
       expectedTeams: LEAGUES.find(league => league.id === item.leagueId && league.division === item.division).expectedTeams,
+      sourceSeason: LEAGUES.find(league => league.id === item.leagueId && league.division === item.division).sourceSeason,
       sourceUrl: item.sourceUrl,
       clubs: item.clubs.length,
       players: item.clubs.reduce((sum, club) => sum + club.players.length, 0),

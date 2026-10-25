@@ -5,7 +5,24 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
-const sandbox = { window: {}, console };
+const scotlandFixtureSnapshot = {
+  schemaVersion: 1, refreshRevision: 3, season: "2026/27", source: "Synthetic Scottish roster fixture for schedule tests",
+  leagues: [{
+    leagueId: "scotland", country: "اسكتلندا", division: 1, expectedTeams: 12,
+    sourceUrl: "https://footballsquads.co.uk/scots/2026-2027/scotsp.htm", sourceSeason: "2026/27",
+    clubs: Array.from({ length: 12 }, (_, clubIndex) => ({
+      name: "Scotland Test Club " + String(clubIndex + 1).padStart(2, "0"), aliases: [],
+      leagueId: "scotland", country: "اسكتلندا", division: 1,
+      sourceUrl: "https://footballsquads.co.uk/scots/2026-2027/scotprm/test" + (clubIndex + 1) + ".htm",
+      players: Array.from({ length: 16 }, (_, playerIndex) => ({
+        name: "Scotland Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
+        position: playerIndex < 3 ? "حارس مرمى" : playerIndex < 8 ? "قلب دفاع" : playerIndex < 13 ? "وسط مهاجم" : "مهاجم",
+        age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "SCO", isRealPlayer: true
+      }))
+    }))
+  }]
+};
+const sandbox = { window: { LWFootballSquadData: scotlandFixtureSnapshot }, console };
 vm.createContext(sandbox);
 const dbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
 const aiSource = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
@@ -75,6 +92,34 @@ for (const [tableKey, rows] of Object.entries(world.leagueTables["1"])) {
     assert.equal(row.pts, row.w * 3 + row.d, "points must be derived from results");
   }
 }
+// The Scottish Premiership plays 33 matches before splitting into top and bottom six,
+// then each half plays five more. The shared saved fixture set must reflect all 38.
+const scotlandClubs = Object.values(world.clubs).filter(club => club.leagueId === "scotland" && Number(club.division) === 1);
+assert.equal(scotlandClubs.length, 12, "the schedule test must seed all 12 Scottish top-flight clubs");
+const scotlandIds = new Set(scotlandClubs.map(club => club.id));
+const scotlandFixtures = fixtures.filter(match => scotlandIds.has(match.homeClubId) && scotlandIds.has(match.awayClubId));
+assert.equal(scotlandFixtures.length, 228, "12 Scottish clubs must produce exactly 228 league fixtures for 38 games each");
+for (const club of scotlandClubs) {
+  assert.equal(scotlandFixtures.filter(match => match.homeClubId === club.id || match.awayClubId === club.id).length, 38,
+    "each Scottish club must play exactly 38 league matches: " + club.name);
+}
+const splitRows = new Map(scotlandClubs.map(club => [club.id, { clubId: club.id, club: club.name, power: club.power, pts: 0, gf: 0, ga: 0 }]));
+for (const match of scotlandFixtures.filter(row => row.matchday <= 33)) {
+  const home = splitRows.get(match.homeClubId), away = splitRows.get(match.awayClubId);
+  home.gf += match.homeGoals; home.ga += match.awayGoals;
+  away.gf += match.awayGoals; away.ga += match.homeGoals;
+  if (match.homeGoals > match.awayGoals) home.pts += 3;
+  else if (match.homeGoals < match.awayGoals) away.pts += 3;
+  else { home.pts++; away.pts++; }
+}
+const splitRanked = Array.from(splitRows.values()).map(row => ({ ...row, gd: row.gf - row.ga }))
+  .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || b.power - a.power || a.club.localeCompare(b.club, "ar"));
+const scottishTopSix = new Set(splitRanked.slice(0, 6).map(row => row.clubId));
+const splitFixtures = scotlandFixtures.filter(match => match.matchday >= 34);
+assert.equal(splitFixtures.length, 30, "the final split should contain 30 fixtures across the two six-team groups");
+assert.ok(splitFixtures.every(match => scottishTopSix.has(match.homeClubId) === scottishTopSix.has(match.awayClubId)),
+  "Scottish split fixtures must not cross between the top six and bottom six");
+assert.ok(world.leagueTables["1"].scotland.every(row => row.played === 38), "the saved Scottish table must show 38 games per club");
 const duplicateCompletion = ai.completeSeason(save, 1, db);
 assert.equal(duplicateCompletion.alreadyCompleted, true, "the same global season cannot be recorded twice");
 assert.equal(world.seasonStats["1"].length, firstSeason.rows.length, "idempotent season completion must not duplicate stat rows");

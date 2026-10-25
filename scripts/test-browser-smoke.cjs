@@ -264,13 +264,26 @@ async function main() {
         const active = document.querySelector(".page.active");
         return active && active.id === "page-" + value;
       }, section);
-      const layout = await page.evaluate(() => ({
-        documentWidth: document.documentElement.scrollWidth,
-        viewportWidth: window.innerWidth
-      }));
+      const layout = await page.evaluate(() => {
+        const offenders = [...document.querySelectorAll("#page-europe *, #page-europe")]
+          .map(el => {
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 1 || rect.height < 1) return null;
+            const style = getComputedStyle(el);
+            return { tag: el.tagName, id: el.id || "", cls: String(el.className || "").slice(0, 100),
+              left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width),
+              scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, overflowX: style.overflowX,
+              whiteSpace: style.whiteSpace };
+          })
+          .filter(row => row && (row.right > window.innerWidth + 1 || row.left < -1))
+          .sort((a, b) => b.right - a.right)
+          .slice(0, 20);
+        return { documentWidth: document.documentElement.scrollWidth, viewportWidth: window.innerWidth, offenders };
+      });
       assert.ok(layout.documentWidth <= layout.viewportWidth + 1,
         "mobile section must not overflow horizontally: " + section
-        + " (" + layout.documentWidth + "px document vs " + layout.viewportWidth + "px viewport)");
+        + " (" + layout.documentWidth + "px document vs " + layout.viewportWidth + "px viewport); offenders="
+        + JSON.stringify(layout.offenders));
     }
     await page.locator("#shopItems [data-buy]").first().waitFor({ state: "attached" });
     assert.ok(await page.locator("#shopItems [data-buy]").count() > 0, "the player store must render purchasable items");

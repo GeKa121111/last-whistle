@@ -58,21 +58,6 @@ assert.equal(transition.alreadyAdvanced, false);
 assert.ok(world.completedSeasons.includes(1));
 assert.equal(world.currentSeason, 2);
 assert.ok(Array.isArray(transition.moves));
-const divisions = Object.values(world.clubs).reduce((out, club) => { out[club.division] = (out[club.division] || 0) + 1; return out; }, {});
-const eligibleClubs = Object.values(world.clubs).filter(club => club.division === 1);
-const groupTargets = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
-const groupDebug = eligibleClubs.slice(0, 8).map(club => {
-  const roster = club.roster.map(id => world.players[id]).filter(Boolean);
-  const groups = {};
-  for (const group of Object.keys(groupTargets)) {
-    const rows = roster.filter(player => player.group === group);
-    groups[group] = { count: rows.length, avg: rows.length ? Math.round(rows.reduce((sum, row) => sum + row.ovr, 0) / rows.length) : 0,
-      low: rows.filter(player => player.ovr < (rows.length ? Math.max(...rows.map(row => row.ovr)) - 2 : 100)
-        || player.age >= 29 || player.contractSeasons <= 1).length };
-  }
-  return { club: club.name, power: club.power, division: club.division, groups };
-});
-console.log("WORLD-AI-DEBUG", JSON.stringify({ divisions, marketMoves: transition.moves.length, eligibleClubs: eligibleClubs.length, groupDebug }));
 assert.ok(transition.moves.length > 0, "a global market window should generate suitable moves when clubs have recruitment needs");
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length);
 assert.ok(world.marketReports.some(row => row.season === 2 && row.moves === transition.moves.length));
@@ -100,7 +85,7 @@ const transferTargets = ai.transferTargets(save, db);
 assert.ok(transferTargets.length >= clubCount);
 assert.ok(transferTargets.some(row => row.players.length >= 16), "the market should expose current simulated squads, not only static club names");
 const dashboard = ai.dashboard(save, db);
-assert.equal(dashboard.playerCount, playerCount);
+assert.equal(dashboard.playerCount, Object.keys(world.players).length, "recruitment can introduce academy replacements and the dashboard must count them");
 assert.equal(dashboard.totalTransfers, world.transfers.length);
 assert.ok(dashboard.lastMarket.moves > 0);
 const duplicateAdvance = ai.advanceToSeason(save, 2, db);

@@ -2767,7 +2767,7 @@ function loadGame(){
   state.pressHistory=Array.isArray(state.pressHistory)?state.pressHistory:[];state.relationshipHistory=Array.isArray(state.relationshipHistory)?state.relationshipHistory:[];
   for(const key of ["professionalism","mediaReputation","teamChemistry","coachRelationship"])state[key]=clamp(state[key]??INITIAL[key]);
   if(Number(saved.schemaVersion||3)<4)window.LWCareer?.rebuildLegacyCareerStats(state);if(Number(saved.schemaVersion||3)<5||saved.leagueRatingSum===undefined||saved.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(state);
-  state.schemaVersion=9;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
+  state.schemaVersion=10;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
   state.diary=Array.isArray(state.diary)?state.diary.slice(0,40):[];
   state.achievements=Array.isArray(state.achievements)?state.achievements:[];
   state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers.filter(item=>item&&typeof item.id==="string"&&typeof item.club==="string").slice(-40):[];state.transferOffersWindowId=String(state.transferOffersWindowId||"");state.transferNegotiation=state.transferNegotiation&&typeof state.transferNegotiation==="object"?state.transferNegotiation:null;state.currentCompetitions=Array.isArray(state.currentCompetitions)?state.currentCompetitions:[];state.trophyCabinet=Array.isArray(state.trophyCabinet)?state.trophyCabinet:[];state.awardCeremonies=Array.isArray(state.awardCeremonies)?state.awardCeremonies:[];state.currentReleaseClause=Math.max(0,Number(state.currentReleaseClause)||0);state.goalBonusPerGoal=Math.max(0,Number(state.goalBonusPerGoal)||0);state.cleanSheetBonus=Math.max(0,Number(state.cleanSheetBonus)||0);delete state.transferShortlist;
@@ -4278,8 +4278,11 @@ function runSeasonAITtraining(){
  if(Number(state.energy)<18||Number(state.fatigue)>=84)return {skipped:"recovery"};
  const focus=chooseSeasonTrainingFocus();
  if(!focus)return null;
+ const preferredIntensity=["light","normal","intense"].includes(state.trainingIntensity)?state.trainingIntensity:"normal";
  state.trainingIntensity=(Number(state.energy)>=62&&Number(state.fatigue)<48)?"normal":"light";
- const result=career.train(state,focus);
+ let result;
+ try{result=career.train(state,focus);}
+ finally{state.trainingIntensity=preferredIntensity;}
  if(result?.ok){
   state.seasonTrainingReport=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0};
   state.seasonTrainingReport.sessions++;

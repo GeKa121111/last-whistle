@@ -49,6 +49,23 @@ assert.ok(!Object.keys(world.seasonStats || {}).some(key => key === "1"),
 assert.equal(ai.ensureState(save, db), world, "loading the same save must preserve its existing world simulation");
 assert.equal(Object.keys(world.players).length, playerCount, "reconciliation must not duplicate the saved player database");
 
+// Recruitment priorities must be contextual: role deficit, squad quality, age,
+// potential and club archetype all feed a stable explainable score.
+assert.equal(typeof ai.recruitmentNeeds, "function", "the world AI must expose recruitment-needs analysis");
+const recruitment = ai.recruitmentNeeds(save, db);
+assert.ok(recruitment.length >= clubCount, "recruitment analysis must cover the full club database");
+for (const clubNeed of recruitment) {
+  assert.ok(Array.isArray(clubNeed.needs) && clubNeed.needs.length >= 4,
+    "every club must evaluate goalkeeper, defence, midfield and attack needs");
+  for (const role of clubNeed.needs) {
+    assert.ok(Number.isFinite(role.priorityScore), "role recruitment priority must be a numeric contextual score");
+    assert.ok(Number.isFinite(role.deficit), "role recruitment priority must include roster deficit");
+    assert.ok(Number.isFinite(role.averagePotential), "role recruitment priority must consider player potential");
+    assert.ok(role.averageAge === null || Number.isFinite(role.averageAge),
+      "role recruitment priority must include a valid average age");
+  }
+}
+
 // Merely opening or refreshing the dashboard must not synchronously simulate every
 // global league's full fixture list. Repeated unchanged reads should also be cached.
 const initialDashboard = ai.dashboard(save, db);

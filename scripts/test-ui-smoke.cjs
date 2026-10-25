@@ -92,7 +92,7 @@ const required = [
   "football-world-ai.js?v=7",
   'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
-  "window.LWWorldAI?.advanceToSeasonAsync",
+  "window.LWWorldAI.advanceToSeasonAsync",
   "window.LWWorldAI?.completeSeason",
   "function renderWorldAIDashboard",
   "opponentTacticalIQ:opponentPlan.iq",

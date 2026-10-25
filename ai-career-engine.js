@@ -212,3 +212,255 @@
     lifestyleAdvice
   });
 })(window);
+
+
+/* LAST WHISTLE Context-Aware Utility AI v2.
+ * Preserves the established public API while adding context, seasonal memory, consequence links
+ * and age-stage-specific career advice. No external APIs or non-deterministic model calls.
+ */
+(function (global) {
+  "use strict";
+  const base = global.LWCareerAI;
+  if (!base) return;
+  const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
+  const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const LEDGER_VERSION = 1, LEDGER_LIMIT = 180;
+  const AGE_STAGES = Object.freeze({
+    academy: { min: 0, max: 18, label: "ناشئ في الأكاديمية" },
+    development: { min: 19, max: 23, label: "مرحلة التطور" },
+    peak: { min: 24, max: 29, label: "لاعب في قمة العطاء" },
+    veteran: { min: 30, max: 99, label: "لاعب مخضرم" }
+  });
+  function seasonOf(state) { return Math.max(1, num(state && state.season, 1)); }
+  function dayOf(state) { return Math.max(0, num(state && (state.calendarDay ?? state.day), 0)); }
+  function ledgerOf(state) {
+    if (!state || typeof state !== "object") return { version: LEDGER_VERSION, events: [], decisions: [] };
+    let ledger = state.aiMemoryLedger;
+    if (!ledger || typeof ledger !== "object" || Number(ledger.version) !== LEDGER_VERSION) {
+      ledger = { version: LEDGER_VERSION, events: [], decisions: [], nextId: 1 };
+      state.aiMemoryLedger = ledger;
+    }
+    if (!Array.isArray(ledger.events)) ledger.events = [];
+    if (!Array.isArray(ledger.decisions)) ledger.decisions = [];
+    if (!Number.isFinite(Number(ledger.nextId))) ledger.nextId = ledger.events.length + ledger.decisions.length + 1;
+    return ledger;
+  }
+  function hasEvent(state, type, key, season) {
+    const ledger = ledgerOf(state);
+    return ledger.events.some(item => item && item.type === String(type) && item.key === String(key)
+      && Number(item.season) === Math.max(1, num(season, seasonOf(state))));
+  }
+  function recordEvent(state, event) {
+    if (!state || typeof state !== "object" || !event || !event.type || !event.key) return false;
+    const ledger = ledgerOf(state), season = Math.max(1, num(event.season, seasonOf(state)));
+    const type = String(event.type), key = String(event.key);
+    if (ledger.events.some(item => item && item.type === type && item.key === key && Number(item.season) === season)) return false;
+    ledger.events.unshift({
+      id: "ai-event-" + ledger.nextId++, type, key, season, day: dayOf(state),
+      context: event.context && typeof event.context === "object" ? event.context : {},
+      outcome: event.outcome == null ? null : String(event.outcome), createdAt: Date.now()
+    });
+    ledger.events = ledger.events.slice(0, LEDGER_LIMIT);
+    return true;
+  }
+  function recordDecision(state, decision) {
+    if (!state || typeof state !== "object" || !decision || !decision.type) return null;
+    const ledger = ledgerOf(state), season = seasonOf(state), day = dayOf(state), type = String(decision.type);
+    const signature = type + "|" + season + "|" + day;
+    const duplicate = ledger.decisions.find(item => item && item.signature === signature);
+    if (duplicate) return duplicate;
+    const row = { id: "ai-decision-" + ledger.nextId++, signature, type, season, day,
+      details: decision.details || {}, outcome: "pending",
+      followUpAt: day + Math.max(7, num(decision.followUpDays, 14)) };
+    ledger.decisions.unshift(row);
+    ledger.decisions = ledger.decisions.slice(0, 60);
+    if (type === "criticize-coach" || type === "public-coach-criticism") {
+      state.coachRelationship = clamp(num(state.coachRelationship, num(state.trust, 50)) - 8, 0, 100);
+      if (state.trust != null) state.trust = clamp(num(state.trust, 50) - 5, 0, 100);
+      row.consequence = "coach-trust-risk";
+    } else if (type === "request-transfer" || type === "demand-transfer") row.consequence = "contract-and-role-review";
+    else if (type === "reject-loan") row.consequence = "minutes-opportunity-may-narrow";
+    return row;
+  }
+  function resolveDecision(state, id, outcome) {
+    const row = ledgerOf(state).decisions.find(item => item && item.id === String(id));
+    if (!row) return false;
+    row.outcome = String(outcome || "resolved"); row.resolvedAt = dayOf(state); return true;
+  }
+  function stageFor(state) {
+    const age = clamp(num(state && state.age, 24), 0, 99);
+    const isAcademy = age <= 18 && (state.youthAcademy || state.inAcademy || state.academyReserve
+      || /ناشئ|أكاديمية|شباب|academy|youth/i.test(String(state.role || state.careerPhase || "")));
+    return isAcademy ? "academy" : age >= 30 ? "veteran" : age <= 23 ? "development" : "peak";
+  }
+  function getLastResult(row) {
+    row = row || {};
+    let goalsFor = num(row.teamGoals, num(row.scoreFor, num(row.goalsFor, NaN)));
+    let goalsAgainst = num(row.oppGoals, num(row.scoreAgainst, num(row.goalsAgainst, NaN)));
+    if (!Number.isFinite(goalsFor) || !Number.isFinite(goalsAgainst)) {
+      const result = String(row.result || row.outcome || "").toUpperCase();
+      return { outcome: ["W", "WIN", "فوز"].includes(result) ? "win" :
+        ["L", "LOSS", "خسارة"].includes(result) ? "loss" :
+        ["D", "DRAW", "تعادل"].includes(result) ? "draw" : "unknown",
+        goalsFor: null, goalsAgainst: null, matchId: row.matchId || row.id || null };
+    }
+    return { outcome: goalsFor > goalsAgainst ? "win" : goalsFor < goalsAgainst ? "loss" : "draw",
+      goalsFor, goalsAgainst, matchId: row.matchId || row.id || null };
+  }
+  function clubRank(state) {
+    const name = String(state && state.clubName || "");
+    const rows = Array.isArray(state && state.leagueTable) ? state.leagueTable :
+      Array.isArray(state && state.standings) ? state.standings : Array.isArray(state && state.league) ? state.league : [];
+    const row = rows.find(item => item && String(item.club || item.name || item.team || "") === name);
+    if (!row) return { rank: null, points: null, teams: rows.length };
+    const rank = num(row.rank, num(row.position, rows.indexOf(row) + 1));
+    const pointsValue = row.pts ?? row.points;
+    return { rank, points: Number.isFinite(Number(pointsValue)) ? num(pointsValue) : null, teams: rows.length };
+  }
+  function contextSnapshot(state, overall) {
+    state = state || {};
+    const raw = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory :
+      Array.isArray(state.seasonLog) ? state.seasonLog : [];
+    const played = raw.filter(row => row && (row.minutes == null ? num(row.rating, 0) > 0 : num(row.minutes, 0) > 0)).slice(0, 5);
+    const ratings = played.map(row => num(row.rating, NaN)).filter(value => Number.isFinite(value) && value >= 0 && value <= 10);
+    const averageRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : base.formRating(state);
+    const goals = played.reduce((sum, row) => sum + Math.max(0, num(row.goals, 0)), 0);
+    const assists = played.reduce((sum, row) => sum + Math.max(0, num(row.assists, 0)), 0);
+    const minutesLastFive = played.reduce((sum, row) => sum + Math.max(0, num(row.minutes, 0)), 0);
+    const ledger = ledgerOf(state), currentSeason = seasonOf(state);
+    const recentDecision = ledger.decisions.find(row => row && Number(row.season) === currentSeason);
+    const daysSinceDecision = recentDecision ? dayOf(state) - num(recentDecision.day, dayOf(state)) : null;
+    const coachRelationship = clamp(num(state.coachRelationship, num(state.trust, 50)), 0, 100);
+    const freeAgent = !!state.freeAgent;
+    const contractSeasons = freeAgent ? 0 : Math.max(0, num(state.contractSeasons, num(state.contractYears, 0)));
+    const age = clamp(num(state.age, 24), 0, 99), stage = stageFor(state), rank = clubRank(state);
+    return {
+      season: currentSeason, day: dayOf(state), age, stage, stageLabel: AGE_STAGES[stage].label,
+      position: String(state.pos || state.position || "غير محدد"), clubName: String(state.clubName || ""),
+      overall: clamp(num(overall, num(state.ovr, 50)), 0, 99), recentMatches: played.length,
+      averageRating: Number(averageRating.toFixed(2)), goalsLastFive: goals, assistsLastFive: assists,
+      minutesLastFive, lastResult: getLastResult(played[0]), leaguePosition: rank.rank,
+      leaguePoints: rank.points, leagueTeamCount: rank.teams, coachRelationship, contractSeasons,
+      freeAgent, energy: clamp(state.energy, 0, 100), fatigue: clamp(state.fatigue, 0, 100),
+      injuryDays: Math.max(0, num(state.injuryDays, 0)), decisionHistoryCount: ledger.decisions.length,
+      pendingConsequence: recentDecision && recentDecision.outcome === "pending" && daysSinceDecision >= 14
+        ? recentDecision.consequence || recentDecision.type : null
+    };
+  }
+  function utilities(context) {
+    const recovery = context.injuryDays > 0 ? 100 : Math.max(0, 32 - context.energy) * 2.2 + Math.max(0, context.fatigue - 68) * 1.5;
+    const playingTime = Math.max(0, 330 - context.minutesLastFive) / 3.5 + Math.max(0, 45 - context.coachRelationship) * 0.45;
+    const form = Math.max(0, 6.7 - context.averageRating) * 11 + (context.lastResult.outcome === "loss" ? 2 : 0);
+    const contract = context.freeAgent ? 18 : context.contractSeasons <= 1 ? 24 : context.contractSeasons === 2 ? 10 : 0;
+    const development = context.stage === "academy" ? 24 : context.stage === "development" ? 18 : context.stage === "veteran" ? 13 : 8;
+    const leadership = context.stage === "veteran" && context.averageRating >= 7.1 ? 15 : 0;
+    const teamChallenge = context.leaguePosition != null && context.leagueTeamCount > 0
+      && context.leaguePosition >= Math.ceil(context.leagueTeamCount * 0.7) ? 10 : 0;
+    return { recovery: clamp(recovery, 0, 100), playingTime: clamp(playingTime, 0, 100),
+      form: clamp(form, 0, 100), contract: clamp(contract, 0, 100),
+      development: clamp(development, 0, 100), leadership: clamp(leadership, 0, 100),
+      teamChallenge: clamp(teamChallenge, 0, 100) };
+  }
+  const originalCoachAdvice = base.coachAdvice;
+  function coachAdvice(state, overall) {
+    state = state || {};
+    const core = originalCoachAdvice(state, overall);
+    const context = contextSnapshot(state, overall), utility = utilities(context);
+    let report = Object.assign({}, core, { context, utilities: utility });
+    if (context.injuryDays > 0 || context.energy < 30 || context.fatigue >= 76) {
+      report.id = "recovery";
+    } else if (context.stage === "academy") {
+      report.id = "academy-development";
+      report.title = context.minutesLastFive < 120 ? "اطلب دقائق لعب مفيدة للناشئين" : "طوّر الأساسيات قبل القفزة الاحترافية";
+      report.summary = context.minutesLastFive < 120
+        ? "أنت في مرحلة التكوين، ودقائق لعبك في آخر خمس مشاركات قليلة. الأولوية لتدريب مركزك والمشاركة المنتظمة، وليس مطاردة انتقال كبير مبكرًا."
+        : "في سن الأكاديمية، ثبات المهارات الأساسية والجاهزية أهم من القفز إلى نادٍ أكبر. ركّز على مركزك وراقب التقدم كل عدة أسابيع.";
+      report.page = "training"; report.actionLabel = "افتح التدريب";
+    } else if (context.pendingConsequence === "coach-trust-risk" && context.coachRelationship < 45) {
+      report.id = "repair-coach-relationship"; report.title = "رمّم علاقتك بالجهاز الفني";
+      report.summary = "ذاكرة المسيرة تسجّل خلافًا سابقًا مع المدرب. قلّل التصريحات التصادمية، واظهر الالتزام في التدريب؛ استمرار التوتر قد يقلّل دقائقك ويجعل الإعارة خيارًا مطروحًا.";
+      report.page = "wellness"; report.actionLabel = "راجع الجاهزية";
+    } else if (context.contractSeasons <= 1 && !context.freeAgent && context.averageRating >= 6.8) {
+      report.id = "contract-planning"; report.title = "اختار توقيت التفاوض على العقد";
+      report.summary = "عقدك يقترب من نهايته وأداؤك الأخير يدعم موقفك. قارن دورك المتوقع والراتب والمكافآت قبل التوقيع، ولا تنتظر آخر لحظة.";
+      report.page = "contract"; report.actionLabel = "راجع العقد";
+    } else if (context.minutesLastFive < 130 && context.coachRelationship < 48) {
+      report.id = "playing-time"; report.title = "دقائق اللعب هي الأولوية";
+      report.summary = "مشاركاتك وثقة الجهاز الفني منخفضتان. ثبّت الجاهزية، واطلب هدف مشاركة واضحًا؛ لو الوضع استمر لأسابيع، ناقش إعارة تضمن لك دقائق فعلية بدل انتقال لمجرد الاسم.";
+      report.page = "wellness"; report.actionLabel = "افتح الجاهزية";
+    } else if (context.stage === "veteran") {
+      report.id = "veteran-management"; report.title = "إدارة الخبرة والحمل البدني";
+      report.summary = context.averageRating >= 7.1
+        ? "أداؤك ثابت في مرحلة الخبرة. وازن الحمل البدني، وشارك خبرتك مع الأصغر سنًا؛ القيادة والاستشفاء الآن يحافظان على تأثيرك أكثر من التدريب المفرط."
+        : "مع التقدم في العمر، خفّض الحمل البدني غير الضروري وركّز على المهارات الذهنية والتمركز والقيادة، مع متابعة أي إصابة مبكرًا.";
+    } else if (context.averageRating >= 7.6 && context.minutesLastFive >= 300) {
+      report.id = "consistent-performance"; report.title = "حوّل مستواك الثابت إلى دور أكبر";
+      report.summary = "متوسط تقييمك في آخر خمس مشاركات مرتفع مع دقائق لعب كافية. حافظ على نفس المستوى، وناقش زيادة الدور أو تحسين العقد في التوقيت المناسب.";
+      report.page = context.contractSeasons <= 2 ? "contract" : "training";
+      report.actionLabel = context.contractSeasons <= 2 ? "راجع العقد" : "افتح التدريب";
+    } else report.id = context.stage === "development" ? "development-plan" : "position-plan";
+    const seen = new Set(ledgerOf(state).events.filter(item => item && item.type === "coach-recommendation"
+      && Number(item.season) === context.season).map(item => String(item.key)));
+    if (seen.has(report.id) && report.id !== "recovery") {
+      const options = [
+        { id: "position-plan", title: "تطوير مهارة مرتبطة بمركزك", summary: "استخدم خطة تدريب ثابتة لمهارة مرتبطة بمركزك، ثم قارن متوسط آخر خمس مباريات بدل الحكم من مباراة واحدة.", page: "training", actionLabel: "افتح التدريب", focus: core.focus },
+        { id: "match-review", title: "راجع تفاصيل آخر مباراة", summary: "قارن دقائق اللعب والتقييم والأهداف والصناعة ونتيجة الفريق قبل تغيير خطتك. قرار واحد مبني على بيانات أدق أفضل من تكرار نفس النصيحة.", page: "league", actionLabel: "راجع جدول الدوري", focus: core.focus },
+        { id: "recovery-routine", title: "خطّة أسبوعية متوازنة", summary: "حافظ على التوازن بين التدريب والراحة، وراقب طاقتك وإجهادك بعد كل مباراة لتبني تطورًا مستدامًا على مدار الموسم.", page: "training", actionLabel: "افتح التدريب", focus: core.focus }
+      ];
+      const alternate = options.find(item => !seen.has(item.id));
+      if (alternate) report = Object.assign(report, alternate);
+    }
+    report.score = Math.round(clamp(num(core.score, 50) * 0.62 + Math.max(...Object.values(utility)) * 0.38, 0, 100));
+    report.priorities = [
+      "المرحلة: " + context.stageLabel + " | السن: " + context.age,
+      "آخر 5 مباريات: " + context.averageRating.toFixed(1) + "/10، أهداف " + context.goalsLastFive + "، صناعة " + context.assistsLastFive,
+      "الدقائق: " + context.minutesLastFive + " | آخر نتيجة: " + context.lastResult.outcome,
+      "علاقة المدرب: " + context.coachRelationship + "/100 | العقد: " + (context.freeAgent ? "لاعب حر" : context.contractSeasons + " موسم"),
+      "أعلى أولوية: " + Object.entries(utility).sort((a,b) => b[1] - a[1])[0][0]
+    ];
+    return report;
+  }
+  function recordRecommendation(state, report) {
+    if (!report) return false;
+    return recordEvent(state, { type: "coach-recommendation", key: report.id || report.title,
+      context: { age: num(state && state.age, 0), club: String(state && state.clubName || ""),
+        lastResult: report.context && report.context.lastResult, utilities: report.utilities || {} } });
+  }
+  const originalTransfers = base.recommendTransfers;
+  function recommendTransfers(state, clubs, overall) {
+    const context = contextSnapshot(state, overall);
+    return originalTransfers(state, clubs, overall).map(row => {
+      const club = (Array.isArray(clubs) ? clubs : []).find(item => item && String(item.name) === row.name);
+      const prestige = clamp(num(club && club.prestige, 50), 0, 100);
+      const rotationRisk = context.minutesLastFive < 130 && num(club && (club.power || club.ovr), 55) > context.overall + 8;
+      const youthPath = context.stage === "academy" || context.stage === "development";
+      return Object.assign({}, row, {
+        fit: rotationRisk ? "مخاطرة قلة دقائق اللعب" : row.fit,
+        contextScore: Math.round(clamp(70 - Math.abs(row.gap || 0) * 1.5
+          + (youthPath ? Math.max(0, 75 - prestige) * 0.12 : 0)
+          + (context.averageRating >= 7.2 ? 5 : 0) - (rotationRisk ? 18 : 0), 0, 100)),
+        youthPath: youthPath ? "افحص خطة التطوير وفرص المشاركة قبل التفاوض" : "وازن بين الدور الحالي والراتب وقوة الدوري"
+      });
+    }).sort((a,b) => num(b.contextScore, 0) - num(a.contextScore, 0));
+  }
+  function decisionConsequences(state) {
+    const context = contextSnapshot(state, num(state && state.ovr, 50));
+    const pending = ledgerOf(state).decisions.filter(row => row && row.outcome === "pending" && context.day >= num(row.followUpAt, Infinity));
+    return pending.map(row => ({
+      decisionId: row.id, decision: row.type, consequence: row.consequence || "career-review",
+      urgency: context.coachRelationship < 40 ? "high" : "normal",
+      recommendation: row.consequence === "coach-trust-risk"
+        ? (context.minutesLastFive < 120 ? "ناقش إعارة قصيرة لاستعادة دقائق اللعب" : "رمّم العلاقة مع المدرب قبل تصعيد الخلاف")
+        : row.consequence === "contract-and-role-review" ? "راجع دورك المتوقع وشروط العقد" : "أعد تقييم خطة المشاركة",
+      ageStage: context.stage
+    }));
+  }
+  global.LWCareerAI = Object.freeze(Object.assign({}, base, {
+    version: base.version,
+    ageStages: AGE_STAGES,
+    contextSnapshot,
+    utilityScores: (state, overall) => utilities(contextSnapshot(state, overall)),
+    hasEvent, recordEvent, recordDecision, resolveDecision, recordRecommendation, decisionConsequences,
+    coachAdvice, recommendTransfers
+  }));
+})(window);

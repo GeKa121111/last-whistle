@@ -599,6 +599,16 @@ async function main() {
     // Exercise the complete league season lifecycle, not just a single match.
     await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
+      state.age = Math.max(18, Number(state.age) || 18);
+      state.academyCareer = false;
+      state.academyReserve = false;
+      state.academyGraduationPending = false;
+      state.academyGraduated = true;
+      state.calendarDay = 130;
+      state.day = Math.max(Number(state.day) || 1, 130);
+      state.lastLeagueMatchCalendarDay = 0;
+      state.winterBreakPending = false;
+      state.seasonPhase = "firstHalf";
       state.trainingIntensity = "intense";
       window.LWStoryRuntime.save();
     });

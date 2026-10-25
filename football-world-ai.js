@@ -949,16 +949,90 @@
             }
           });
         }
+
+        // Greece plays a 26-match regular season, then three separate standings groups.
+        // Championship (1-4) keep full points, places 5-8 start on half points rounded up,
+        // and the relegation group (9-14) keep their full regular-season points.
+        if (leagueId === "greece" && division === 1 && clubs.length === 14) {
+          const regularStandings = Array.from(leagueTables.values()).map(row => ({
+            ...row, gd: Number(row.gf || 0) - Number(row.ga || 0)
+          })).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf
+            || b.power - a.power || a.club.localeCompare(b.club, "ar"));
+          const phaseGroups = [
+            { key: "championship", ids: regularStandings.slice(0, 4).map(row => row.clubId), halvePoints: false },
+            { key: "conference", ids: regularStandings.slice(4, 8).map(row => row.clubId), halvePoints: true },
+            { key: "playout", ids: regularStandings.slice(8, 14).map(row => row.clubId), halvePoints: false }
+          ];
+          const clubById = new Map(clubs.map(club => [club.id, club]));
+          phaseGroups.forEach(group => {
+            const groupRows = group.ids.map(id => leagueTables.get(id)).filter(Boolean);
+            groupRows.forEach(row => {
+              const regularPoints = Number(row.pts) || 0;
+              row.regularSeasonPoints = regularPoints;
+              row.postSeasonGroup = group.key;
+              row.pointsAdjustment = group.halvePoints ? Math.ceil(regularPoints / 2) - regularPoints : 0;
+              row.pts = regularPoints + row.pointsAdjustment;
+            });
+            const phaseClubs = group.ids.map(id => clubById.get(id)).filter(Boolean);
+            const phaseRounds = phaseClubs.length - 1;
+
+            let phaseRotation = phaseClubs.slice();
+            for (let round = 0; round < phaseRounds; round++) {
+              for (let i = 0; i < phaseRotation.length / 2; i++) {
+                const one = phaseRotation[i], two = phaseRotation[phaseRotation.length - 1 - i];
+                if (!one || !two) continue;
+                const home = (round + i) % 2 === 0 ? one : two;
+                const away = home.id === one.id ? two : one;
+                const fixture = playMatch(world, home, away, year, division,
+                  26 + round + 1, ++sequence, accumulators, "league");
+                allMatches.push(fixture);
+                applyResult(leagueTables, fixture);
+              }
+              const fixed = phaseRotation[0], rest = phaseRotation.slice(1);
+              rest.unshift(rest.pop());
+              phaseRotation = [fixed].concat(rest);
+            }
+
+            // Reverse venues for the second leg; the 4-team groups end on day 32,
+            // while the 6-team relegation group has fixtures through day 36.
+            phaseRotation = phaseClubs.slice();
+            for (let round = 0; round < phaseRounds; round++) {
+              for (let i = 0; i < phaseRotation.length / 2; i++) {
+                const one = phaseRotation[i], two = phaseRotation[phaseRotation.length - 1 - i];
+                if (!one || !two) continue;
+                const home = (round + i) % 2 === 0 ? two : one;
+                const away = home.id === two.id ? one : two;
+                const fixture = playMatch(world, home, away, year, division,
+                  26 + phaseRounds + round + 1, ++sequence, accumulators, "league");
+                allMatches.push(fixture);
+                applyResult(leagueTables, fixture);
+              }
+              const fixed = phaseRotation[0], rest = phaseRotation.slice(1);
+              rest.unshift(rest.pop());
+              phaseRotation = [fixed].concat(rest);
+            }
+          });
+        }
       }
       const ranked = Array.from(leagueTables.values()).map(row => {
         row.gd = row.gf - row.ga;
         row.form = Number((6 + (row.pts / Math.max(1, row.played * 3)) * 1.2).toFixed(2));
         row.recentForm = row.recentForm.slice(-5);
         return row;
-      }).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || b.power - a.power || a.club.localeCompare(b.club, "ar"));
+      }).sort((a, b) => {
+        if (leagueId === "greece" && division === 1) {
+          const groupOrder = { championship: 0, conference: 1, playout: 2 };
+          const orderDiff = (groupOrder[a.postSeasonGroup] ?? 99) - (groupOrder[b.postSeasonGroup] ?? 99);
+          if (orderDiff) return orderDiff;
+        }
+        return b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || b.power - a.power || a.club.localeCompare(b.club, "ar");
+      });
       const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
       tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
         status: division > 1 ? (index < 2 ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية")
+          : leagueId === "greece" && row.postSeasonGroup === "conference" ? "ملحق أوروبي — محاكاة"
+          : leagueId === "greece" && row.postSeasonGroup === "playout" ? "مجموعة تفادي الهبوط — محاكاة"
+          : leagueId === "greece" && row.postSeasonGroup === "championship" && index > 0 ? "مجموعة اللقب — محاكاة"
           : index === 0 ? "بطل المحاكاة" : index >= Math.max(1, ranked.length - 2) ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
     }
     const rows = buildPlayerRows(world, year, accumulators);

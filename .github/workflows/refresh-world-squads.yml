@@ -2,12 +2,6 @@ name: Refresh 2026/27 world football squads
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/full-world-squads-2026-27
-    paths:
-      - scripts/refresh-world-squads.cjs
-      - .github/workflows/refresh-world-squads.yml
 
 permissions:
   contents: write

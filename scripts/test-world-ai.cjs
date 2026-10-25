@@ -15,7 +15,7 @@ const scotlandFixtureSnapshot = {
       leagueId: "scotland", country: "اسكتلندا", division: 1,
       sourceUrl: "https://footballsquads.co.uk/scots/2026-2027/scotprm/test" + (clubIndex + 1) + ".htm",
       players: Array.from({ length: 16 }, (_, playerIndex) => ({
-        name: "Scotland Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
+        name: playerIndex === 0 && clubIndex < 2 ? "Shared Test Player" : "Scotland Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
         position: playerIndex < 3 ? "حارس مرمى" : playerIndex < 8 ? "قلب دفاع" : playerIndex < 13 ? "وسط مهاجم" : "مهاجم",
         age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "SCO", isRealPlayer: true
       }))
@@ -66,6 +66,12 @@ const save = {
 const world = ai.ensureState(save, db);
 const clubCount = Object.keys(world.clubs).length;
 const playerCount = Object.keys(world.players).length;
+const duplicateNamePlayers = Object.values(world.players).filter(player => player.name === "Shared Test Player");
+assert.equal(duplicateNamePlayers.length, 2, "two distinct real players may share a name across different clubs");
+assert.equal(new Set(duplicateNamePlayers.map(player => player.id)).size, 2,
+  "same-name players in different clubs must receive unique persistent player IDs");
+assert.equal(new Set(duplicateNamePlayers.map(player => player.clubId)).size, 2,
+  "the AI must not drop a same-name player's source club registration");
 assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");
 assert.ok(playerCount >= clubCount * 12, "each club must have a multi-player squad");
 assert.equal(world.schemaVersion, ai.version);

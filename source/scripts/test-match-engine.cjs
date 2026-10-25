@@ -93,6 +93,32 @@ for (let seed = 10001; seed < 10001 + exitSweep; seed += 1) {
 assert.ok(injuryExits > 0, "exit regression sweep must cover at least one injury");
 assert.ok(redCardExits > 0, "exit regression sweep must cover at least one red card");
 
+// Opponent tactical styles must affect the simulation and remain in sync with the browser's embedded engine.
+const tacticalSignatures = new Set();
+for (const opponentTactic of ["balanced", "press", "compact", "wide", "counter"]) {
+  const signatureRows = [];
+  for (let seed = 21001; seed < 21031; seed += 1) {
+    const options = {
+      seed, opponentTactic, tactic: "attack", home: seed % 2 === 0,
+      teamPower: 72, opponentPower: 69, opponentGoalkeeping: 68, teamGoalkeeping: 64,
+      player: {
+        name: "اختبار الذكاء التكتيكي", position: "مهاجم", role: "أساسي",
+        shooting: 74, passing: 62, vision: 61, composure: 70, fitness: 75,
+        trust: 65, energy: 82, fatigue: 18
+      }
+    };
+    const result = engine.simulateMatch(options);
+    const integrity = engine.validateResult(result);
+    assert.equal(integrity.ok, true, "AI tactical style produced an inconsistent match: " + opponentTactic + "/" + seed);
+    assert.equal(result.metadata.opponentTactic, opponentTactic, "the selected opponent tactic must be recorded");
+    const deployed = browserEngine.simulateMatch(options);
+    assert.deepEqual(deployed, result, "AI tactical engine must match the published HTML: " + opponentTactic + "/" + seed);
+    signatureRows.push(JSON.stringify({ score: result.score, events: result.events, shots: result.player.shots, goals: result.player.goals }));
+  }
+  tacticalSignatures.add(signatureRows.join("|"));
+}
+assert.ok(tacticalSignatures.size > 1, "different opponent tactics must change at least one simulated match trajectory");
+
 const unavailable = engine.simulateMatch({ seed: 42, playerAvailable: false, player: { position: "مهاجم", energy: 90 } });
 assert.equal(unavailable.player.minutes, 0, "unavailable player cannot play");
 assert.equal(unavailable.player.goals, 0, "unavailable player cannot score");

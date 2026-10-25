@@ -3006,7 +3006,7 @@ function rejectTransferOffer(id){
  const offer=state.transferOffers.find(item=>item&&item.id===id);
  if(!offer||offer.status!=="pending")return;
  offer.status="rejected";if(state.transferNegotiation?.offerId===id)state.transferNegotiation=null;
- state.transferHistory.unshift({season:state.season,day:state.day,text:"رفضت عرض "+offer.club+" من "+offer.country واخترت البقاء في ناديك الحالي."});
+ state.transferHistory.unshift({season:state.season,day:state.day,text:"رفضت عرض "+offer.club+" من "+offer.country+" واخترت البقاء في ناديك الحالي."});
  log("رفضت عرض انتقال من "+offer.club+" واخترت الاستمرار في ناديك.");saveGame(true);renderTransferMarket();toast("تم رفض العرض؛ هتفضل في ناديك الحالي.");
 }
 function renderTransferMarket(){

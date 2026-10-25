@@ -25,8 +25,14 @@
   });
   function recentRows(state) {
     const rows = Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [];
-    return rows.filter(row => row && (row.scope === "league" || row.scope === "cup" || row.scope === "international" || row.rating !== undefined))
-      .slice(0, 8);
+    return rows.filter(row => {
+      if (!row) return false;
+      // A zero-minute bench/suspension row is not a performance rating.
+      const minutesKnown = row.minutes !== undefined && row.minutes !== null;
+      const participated = minutesKnown ? number(row.minutes, 0) > 0 : number(row.rating, 0) > 0;
+      return participated && (row.scope === "league" || row.scope === "cup"
+        || row.scope === "international" || row.rating !== undefined);
+    }).slice(0, 8);
   }
   function formRating(state) {
     const rows = recentRows(state).slice(0, 5);

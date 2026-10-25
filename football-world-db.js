@@ -392,8 +392,8 @@
           };
           CLUBS.push(found);
         } else {
-          // Keep our curated Arabic display name and club strength while replacing the
-          // old highlight-only list with the current registered/academy squad.
+          // Keep the curated Arabic display name, club strength and highlight names;
+          // fullRoster stores the complete sourced squad independently.
           found.division = Math.max(1, Number(league.division) || 1);
           found.aliases = Array.from(new Set((found.aliases || []).concat(aliases)));
         }
@@ -407,7 +407,7 @@
         }).filter(Boolean);
         if (!fullRoster.length) return;
         found.fullRoster = fullRoster;
-        found.stars = fullRoster.map(function (player) { return player.name; });
+        // Do not overwrite curated Arabic highlight names with English source names.
         found.rosterSource = sourceClub.source || SQUAD_SNAPSHOT.source || "Current squad snapshot";
         found.sourceUrl = sourceClub.sourceUrl || "";
         imported.push({ leagueId: found.leagueId, division: found.division, club: found.name, players: fullRoster.length });
@@ -525,7 +525,7 @@
     return {name:item.name,aliases:(item.aliases || []).slice(),country:item.country,leagueId:item.leagueId,division:division,
       leagueName:profile ? (division >= 2 ? profile.tier2 : profile.league) : "",
       leagueEnglish:profile ? (division >= 2 ? profile.tier2English : profile.english) : "",
-      ovr:item.ovr,prestige:item.prestige,stars:hasCurrentRoster ? players.map(function (player) { return player.name; }) : curatedNames,
+      ovr:item.ovr,prestige:item.prestige,stars:curatedNames.length ? curatedNames : (hasCurrentRoster ? players.map(function (player) { return player.name; }) : curatedNames),
       players:players,season:SEASON,ratingType:"simulation-estimate",
       rosterStatus:hasCurrentRoster ? "current-squad" : curatedNames.length ? "curated-highlights+generated-backups" : "generated-squad",
       rosterSource:rosterSource,sourceUrl:item.sourceUrl || ""};

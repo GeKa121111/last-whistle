@@ -289,18 +289,19 @@ async function main() {
     const saveDiagnostic = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
       const beforeRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
-      const beforeSave = (() => { try { return JSON.parse(beforeRaw); } catch { return null; } })();
+      const decode = raw => { try { const json = raw.startsWith("LWZ1:") ? window.LZString.decompressFromUTF16(raw.slice(5)) : raw; return JSON.parse(json); } catch { return null; } };
+      const beforeSave = decode(beforeRaw);
       const stateChars = JSON.stringify(state).length;
       const worldChars = JSON.stringify(state.worldSimulation || {}).length;
       const saveSucceeded = window.LWStoryRuntime.save();
       const afterRaw = localStorage.getItem("lastWhistleCareer_v4") || "";
-      const afterSave = (() => { try { return JSON.parse(afterRaw); } catch { return null; } })();
+      const afterSave = decode(afterRaw);
       return {
         stateMoney: Number(state.money), stateBoots: !!state.boots,
         beforeSavedMoney: beforeSave ? Number(beforeSave.money) : null,
         beforeSavedChars: beforeRaw.length, stateChars, worldChars,
         saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
-        afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length
+        afterSavedBoots: afterSave ? !!afterSave.boots : null, afterSavedChars: afterRaw.length, storageEncoding: afterRaw.startsWith("LWZ1:") ? "compressed" : "plain"
       };
     });
     console.log("PURCHASE_SAVE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));

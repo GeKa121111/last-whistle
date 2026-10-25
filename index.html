@@ -3715,7 +3715,6 @@ function renderWorldAIDashboard(){
  setText("worldAISimulationNote",view.note+" الأسعار والأرقام دي قيم لعبية ومحاكاة، مش تقييمات انتقالات أو إحصائيات رسمية.");
 }
 function renderEurope(){
- renderWorldAIDashboard();
  const w=transferWindow();
  $("transferWindowBanner").textContent=w.open?`🟢 ${w.name} مفتوحة — ${calendarDateLabel()}. عروض المحاكاة مرتبطة بالأداء.`:`🔒 ${w.name} — ${calendarDateLabel()}. أقرب نافذة بعد حوالي ${w.days} يوم.`;
  renderGlobalCatalog();
@@ -3863,7 +3862,7 @@ function render(){
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
  setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
- renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
+ renderAchievements();renderLeague();renderContract();renderNational();renderSponsorship();renderSquadCompetition();renderShop();renderDiary();renderWorldAIDashboard();if((state.currentPage||"home")==="europe")renderEurope();renderCareerAwards();renderSeasonJourney();renderPerformanceInsights();renderProfessionalLife();
  document.querySelectorAll('[data-action="match"]').forEach(b=>b.disabled=state.retired||state.playedToday||state.injuryDays>0);
  document.querySelectorAll("[data-action]").forEach(b=>{const action=b.dataset.action||"";if(action==="match")b.disabled=!!state.retired||!!state.playedToday||Number(state.injuryDays)>0;else if(action.startsWith("train-"))b.disabled=!!state.retired||Number(state.injuryDays)>0||!!state.playedToday||!!state.trainedToday;else if(action==="coach")b.disabled=!!state.retired||!canUseDailyAction();else b.disabled=!!state.retired;});if($("heroMatch"))$("heroMatch").disabled=!!state.retired;if($("heroTrain"))$("heroTrain").disabled=!!state.retired;
  document.querySelectorAll('[data-action^="train-"]').forEach(b=>b.disabled=state.retired||state.injuryDays>0||state.playedToday||state.trainedToday);

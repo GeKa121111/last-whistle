@@ -7,6 +7,18 @@ const root = path.resolve(__dirname, "..");
 const htmlPath = path.join(root, "public", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
+if (!html.includes('html.lw-rebuild-pending body .app { visibility: hidden !important; }') ||
+    !html.includes('document.documentElement.classList.add("lw-rebuild-pending")')) {
+  console.error("Legacy homepage must be hidden before first paint while the redesigned shell initializes.");
+  process.exit(1);
+}
+const storyRuntime = fs.readFileSync(path.join(root, "story-mode.js"), "utf8");
+if (!storyRuntime.includes('document.documentElement.classList.remove("lw-rebuild-pending")') ||
+    storyRuntime.indexOf('document.documentElement.classList.remove("lw-rebuild-pending")') < storyRuntime.indexOf("bindNewControls();")) {
+  console.error("First-paint gate must only release after the redesigned shell and controls are mounted.");
+  process.exit(1);
+}
+
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
 const required = [
   'id="startName"',
@@ -38,7 +50,7 @@ const required = [
   "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=3",
+  "story-mode.js?v=4",
   "career-experience.js?v=1",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
@@ -184,8 +196,8 @@ for (const marker of ["runTransferWindow", "completeSeason", "advanceToSeason", 
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v29")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=3", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=1", "football-world-ai.css?v=1", "football-world-ai.js?v=3", "football-world-rosters.js?v=5", "football-world-db.js?v=6", "lz-string.min.js?v=1", "world-roster-audit.json", "redesign.css?v=5"]) {
+if (!workerSource.includes("last-whistle-static-v30")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=4", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=1", "football-world-ai.css?v=1", "football-world-ai.js?v=3", "football-world-rosters.js?v=5", "football-world-db.js?v=6", "lz-string.min.js?v=1", "world-roster-audit.json", "redesign.css?v=6"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

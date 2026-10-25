@@ -22,7 +22,7 @@ jobs:
       - name: Refresh current rosters on development branch
         if: ((github.ref == 'refs/heads/feature/full-world-squads-2026-27' || github.ref == 'refs/heads/feature/world-roster-coverage-expansion') && github.event_name != 'pull_request') || (github.event_name == 'pull_request' && (github.head_ref == 'feature/full-world-squads-2026-27' || github.head_ref == 'feature/world-roster-coverage-expansion'))
         run: |
-          if node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); process.exit(r.status==="complete" && r.allLeagueMinimumsMet===true && r.totalTeams>=210 && r.totalPlayers>=3500 ? 0 : 1); } catch (_) { process.exit(1); }'; then
+          if node -e 'const fs=require("node:fs"); try { const r=JSON.parse(fs.readFileSync("world-roster-audit.json","utf8")); process.exit(r.status==="complete" && r.allLeagueMinimumsMet===true && r.totalTeams>=266 && r.totalPlayers>=4300 && Array.isArray(r.leagues) && r.leagues.some(league => league.leagueId==="argentina") ? 0 : 1); } catch (_) { process.exit(1); }'; then
             echo "A complete sourced-roster snapshot already exists; refresh skipped."
           else
             node scripts/refresh-world-squads.cjs
@@ -33,7 +33,7 @@ jobs:
           if (report.status !== 'complete' || report.allLeagueMinimumsMet !== true) {
             throw new Error('Incomplete world squad data: ' + JSON.stringify(report.leagues));
           }
-          if (report.totalTeams < 210 || report.totalPlayers < 3500) {
+          if (report.totalTeams < 266 || report.totalPlayers < 4300 || !report.leagues.some(league => league.leagueId === 'argentina')) {
             throw new Error('Insufficient squad coverage: ' + report.totalTeams + ' teams, ' + report.totalPlayers + ' players');
           }
           console.log('Sourced squad snapshot covers ' + report.totalTeams + ' clubs and ' + report.totalPlayers + ' players.');

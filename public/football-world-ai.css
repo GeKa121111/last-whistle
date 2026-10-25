@@ -26,3 +26,22 @@
 .world-ai-grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .world-ai-empty{padding:14px;border:1px dashed #344452;border-radius:12px;color:#aab6c8;font-size:11px;line-height:1.8}
 @media(max-width:760px){.world-ai-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.world-ai-grid-two{grid-template-columns:1fr}.world-ai-kpi{padding:10px}.world-ai-kpi b{font-size:18px}.world-ai-dashboard-card{grid-column:span 12}}
+
+/* Keep the Europe/world dashboard inside the mobile viewport. The standings table
+   may scroll inside its own wrapper; it must never widen the page grid. */
+@media(max-width:760px){
+ body.lw-rebuild #page-europe .grid{grid-template-columns:repeat(12,minmax(0,1fr));min-width:0;width:100%;max-width:100%}
+ body.lw-rebuild #page-europe .world-ai-dashboard-grid{min-width:0;width:100%;max-width:100%}
+ body.lw-rebuild #page-europe .world-ai-dashboard-card,
+ body.lw-rebuild #page-europe .world-ai-grid-two,
+ body.lw-rebuild #page-europe .world-ai-section,
+ body.lw-rebuild #page-europe .world-ai-leaders,
+ body.lw-rebuild #page-europe .world-ai-transfers,
+ body.lw-rebuild #page-europe .world-ai-standings{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+ body.lw-rebuild #page-europe .world-ai-grid-two{grid-template-columns:minmax(0,1fr)}
+ body.lw-rebuild #page-europe #worldAILeagueTable .tableWrap{width:100%;max-width:100%;overflow-x:auto}
+ body.lw-rebuild #page-europe #worldAILeagueTable table{min-width:410px;max-width:none}
+ body.lw-rebuild #page-europe .world-ai-section h3,
+ body.lw-rebuild #page-europe .world-ai-empty,
+ body.lw-rebuild #page-europe .world-ai-transfer{overflow-wrap:anywhere}
+}

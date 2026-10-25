@@ -25,33 +25,38 @@ jobs:
         run: |
           git fetch origin "$GITHUB_HEAD_REF"
           git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
-      - name: Refresh current rosters on development branch
+      - name: Refresh and commit world roster snapshot
         if: github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name == 'push'
         run: |
-          if node scripts/validate-world-roster-audit.cjs; then
-            echo "The checked-in sourced-roster snapshot matches the current scraper configuration; refresh skipped."
-          else
-            node scripts/refresh-world-squads.cjs
-            node scripts/validate-world-roster-audit.cjs
-          fi
-      - name: Commit refreshed roster snapshot on development branch
-        if: github.ref == 'refs/heads/feature/full-world-squads-2026-27' && github.event_name == 'push'
-        run: |
+          set -e
+          target_branch="$GITHUB_REF_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add football-world-rosters.js public/football-world-rosters.js world-roster-audit.json public/world-roster-audit.json
-          if git diff --cached --quiet; then
-            echo "Roster snapshot already current."
-          else
-            git commit -m "Refresh 2026/27 verified world squad snapshot"
-            target_branch="$GITHUB_REF_NAME"
-            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then target_branch="$GITHUB_HEAD_REF"; fi
-            # The branch may receive code/workflow fixes while this long scrape runs.
-            # Rebase the generated data-only commit on the latest head before pushing.
+          # A queued push run may start from an older commit. Always reload the latest
+          # branch before validating or refreshing, then retry cleanly if another push wins.
+          for attempt in 1 2 3; do
             git fetch origin "$target_branch"
-            git rebase "origin/$target_branch"
-            git push origin "HEAD:$target_branch"
-          fi
+            git reset --hard "origin/$target_branch"
+            if node scripts/validate-world-roster-audit.cjs; then
+              echo "The latest branch already contains a roster snapshot matching its source configuration."
+              exit 0
+            fi
+            node scripts/refresh-world-squads.cjs
+            node scripts/validate-world-roster-audit.cjs
+            git add football-world-rosters.js public/football-world-rosters.js world-roster-audit.json public/world-roster-audit.json
+            if git diff --cached --quiet; then
+              echo "Roster snapshot is already current."
+              exit 0
+            fi
+            git commit -m "Refresh 2026/27 verified world squad snapshot"
+            if git push origin "HEAD:$target_branch"; then
+              echo "Refreshed roster snapshot was committed successfully."
+              exit 0
+            fi
+            echo "Roster push raced another branch update (attempt $attempt); reloading latest branch."
+          done
+          echo "Could not publish the roster snapshot after three attempts."
+          exit 1
       - name: Verify checked-in roster snapshot matches source configuration
         run: node scripts/validate-world-roster-audit.cjs
       - name: Probe Arabic league roster source structure

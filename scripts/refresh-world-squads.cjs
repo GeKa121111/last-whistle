@@ -22,7 +22,9 @@ const LEAGUES = [
   { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1.htm", teamDirectory: "/france/2026-2027/ligue1/", expectedTeams: 18 },
   { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
   { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
-  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 }
+  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 },
+  // FootballSquads publishes Argentine club sheets on a calendar-year season; label that source season explicitly.
+  { id: "argentina", country: "الأرجنتين", division: 1, url: "/arg/2026/apertura.htm", teamDirectory: "/arg/2026/apertura/", expectedTeams: 30, sourceSeason: "2026 Apertura" }
 ];
 
 const NAME_MAP = new Map([
@@ -49,7 +51,11 @@ const NAME_MAP = new Map([
   ["athleticoparanaense", ["Athletico Paranaense", "Athletico-PR"]],
   ["atleticomineiro", ["Atlético Mineiro", "Atletico Mineiro"]],
   ["redbullbragantino", ["Red Bull Bragantino", "RB Bragantino"]],
-  ["gremio", ["Grêmio", "Gremio"]]
+  ["gremio", ["Grêmio", "Gremio"]],
+  ["riverplate", ["River Plate", "Club Atlético River Plate"]],
+  ["bocajuniors", ["Boca Juniors", "CA Boca Juniors"]],
+  ["racingclub", ["Racing Club", "Racing Club de Avellaneda"]],
+  ["independiente", ["Independiente", "CA Independiente"]]
 ]);
 
 function decodeEntities(text) {
@@ -247,7 +253,7 @@ async function main() {
     }
     leagueOutputs.push({
       leagueId: league.id, country: league.country, division: league.division,
-      expectedTeams: league.expectedTeams, sourceUrl: indexUrl, clubs
+      sourceSeason: league.sourceSeason || SEASON, expectedTeams: league.expectedTeams, sourceUrl: indexUrl, clubs
     });
   }
 
@@ -267,7 +273,7 @@ async function main() {
     season: SEASON, source: SOURCE_LABEL, status: "complete",
     expectedTeamsTotal: LEAGUES.reduce((sum, item) => sum + item.expectedTeams, 0),
     leagues: leagueOutputs.map(item => ({
-      leagueId: item.leagueId, division: item.division,
+      leagueId: item.leagueId, division: item.division, sourceSeason: item.sourceSeason,
       clubs: item.clubs.length,
       players: item.clubs.reduce((sum, club) => sum + club.players.length, 0),
       below18Players: item.clubs.filter(club => club.players.length < 18).map(club => club.name)

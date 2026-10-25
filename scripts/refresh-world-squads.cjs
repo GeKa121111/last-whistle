@@ -10,6 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const BASE_URL = "https://footballsquads.co.uk";
 const SOURCE_LABEL = "FootballSquads.co.uk current squad pages";
 const SEASON = "2026/27";
+const REFRESH_REVISION = 2;
 const LEAGUES = [
   { id: "england", country: "إنجلترا", division: 1, url: "/eng/2026-2027/engprem/", expectedTeams: 20 },
   { id: "england", country: "إنجلترا", division: 2, url: "/eng/2026-2027/flcham/", expectedTeams: 24 },
@@ -62,7 +63,13 @@ const NAME_MAP = new Map([
   ["gimnasiayesgrimademendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia (Mendoza)"]],
   ["institutocordoba", ["Instituto", "Instituto (Córdoba)", "Instituto Atlético Central Córdoba"]],
   ["unionsantafe", ["Unión", "Union", "Unión (Santa Fe)"]],
-  ["tallerescordoba", ["Talleres", "Talleres (Córdoba)", "Talleres de Córdoba"]]
+  ["tallerescordoba", ["Talleres", "Talleres (Córdoba)", "Talleres de Córdoba"]],
+  ["aldosivimardelplata", ["Aldosivi", "Aldosivi (Mar del Plata)"]],
+  ["belgranocordoba", ["Belgrano", "Belgrano (Córdoba)", "Belgrano (Cordoba)"]],
+  ["gimnasiayesgrimalaplata", ["Gimnasia La Plata", "Gimnasia y Esgrima La Plata", "Gimnasia y Esgrima (La Plata)", "Gimnasia (La Plata)"]],
+  ["gimnasiayesgrimamendoza", ["Gimnasia de Mendoza", "Gimnasia y Esgrima de Mendoza", "Gimnasia y Esgrima (Mendoza)", "Gimnasia (Mendoza)"]],
+  ["independienterivadaviamendoza", ["Independiente Rivadavia", "Independiente Rivadavia (Mendoza)"]],
+  ["sarmientojunin", ["Sarmiento", "Sarmiento (Junín)", "Sarmiento Junín"]]
 ]);
 
 function decodeEntities(text) {
@@ -266,6 +273,7 @@ async function main() {
 
   const payload = {
     schemaVersion: 1,
+    refreshRevision: REFRESH_REVISION,
     season: SEASON,
     source: SOURCE_LABEL,
     generatedAt: new Date().toISOString(),
@@ -277,6 +285,7 @@ async function main() {
   fs.writeFileSync(path.join(ROOT, "football-world-rosters.js"), js);
   fs.writeFileSync(path.join(ROOT, "public", "football-world-rosters.js"), js);
   const report = {
+    refreshRevision: REFRESH_REVISION,
     season: SEASON, source: SOURCE_LABEL, status: "complete",
     expectedTeamsTotal: LEAGUES.reduce((sum, item) => sum + item.expectedTeams, 0),
     leagues: leagueOutputs.map(item => ({

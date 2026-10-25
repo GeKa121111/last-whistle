@@ -1,0 +1,103 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const root = path.resolve(__dirname, "..");
+const source = fs.readFileSync(path.join(root, "public", "transfer-awards-engine.js"), "utf8");
+const sandbox = { window: {}, console, Date, Math, Number, String, Array, Object, Set };
+vm.createContext(sandbox);
+vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
+const engine = sandbox.window.LWTransferAwards;
+assert.ok(engine, "transfer and awards engine must be exported");
+assert.equal(engine.version, 1);
+
+const youthPlayer = {
+  name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
+  country: "مصر", currentClub: "مركز شباب النور", currentClubPower: 52,
+  form: 6.5, appearances: 5, goals: 1, assists: 1
+};
+const targets = [
+  { club: "ريال مدريد", country: "إسبانيا", league: "الدوري الإسباني الدرجة الأولى", power: 93, prestige: 100, division: 1, currency: "€", stars: ["كيليان مبابي"] },
+  { club: "نادي محلي متوسط", country: "مصر", league: "الدوري المصري الممتاز", power: 60, prestige: 65, division: 1, currency: "ج.م", stars: ["لاعب وسط"] },
+  { club: "نادي متواضع", country: "المغرب", league: "الدوري المغربي", power: 59, prestige: 62, division: 1, currency: "€", stars: ["مهاجم محلي"] },
+  { club: "نادي قوي", country: "مصر", league: "الدوري المصري الممتاز", power: 75, prestige: 80, division: 1, currency: "ج.م", stars: ["لاعب أساسي"] }
+];
+const youthOffers = engine.generateOffers({ player: youthPlayer, targets, windowId: "summer-test", currentClubPower: 52 });
+assert.ok(youthOffers.length > 0, "a youth player with match history should receive realistic step-up offers");
+assert.ok(youthOffers.every(offer => offer.power < 70), "a 58 OVR academy player must not receive elite-club offers");
+assert.ok(!youthOffers.some(offer => offer.club === "ريال مدريد" || offer.club === "نادي قوي"));
+assert.ok(youthOffers.every(offer => offer.role && offer.stars && offer.signingBonus >= 0 && offer.goalBonus >= 0 && offer.cleanSheetBonus >= 0));
+assert.ok(youthOffers.every(offer => ["نجم الفريق", "أساسي", "تناوب", "لاعب بديل", "لاعب ناشئ"].includes(offer.role)));
+
+const offer = youthOffers[0];
+const normalTerms = {
+  weeklyWage: offer.wage,
+  signingBonus: offer.signingBonus,
+  goalBonus: offer.goalBonus,
+  cleanSheetBonus: offer.cleanSheetBonus,
+  contractSeasons: 3,
+  releaseClause: offer.releaseClause
+};
+const accepted = engine.evaluateNegotiation(offer, normalTerms, 100, 0);
+assert.equal(accepted.status, "accepted", "reasonable initial requests should be accepted");
+assert.equal(accepted.terms.weeklyWage, offer.wage);
+
+const counter = engine.evaluateNegotiation(offer, {
+  weeklyWage: offer.wage * 2,
+  signingBonus: offer.signingBonus * 3,
+  goalBonus: offer.goalBonus * 2,
+  cleanSheetBonus: offer.cleanSheetBonus * 2,
+  contractSeasons: 2,
+  releaseClause: offer.releaseClause * 2
+}, 100, 0);
+assert.equal(counter.status, "counter", "an excessive first request should trigger a counter-offer");
+assert.ok(counter.patience < 100);
+
+const withdrawn = engine.evaluateNegotiation(offer, {
+  weeklyWage: offer.wage * 10,
+  signingBonus: offer.signingBonus * 10,
+  goalBonus: offer.goalBonus * 10,
+  cleanSheetBonus: offer.cleanSheetBonus * 10,
+  contractSeasons: 1,
+  releaseClause: offer.releaseClause * 5
+}, 1, 0);
+assert.equal(withdrawn.status, "withdrawn", "the club must withdraw when its patience is exhausted");
+
+const leaderboard = engine.buildLeagueLeaderboard({
+  season: 3,
+  progress: 0.5,
+  players: [
+    { name: "مهاجم حقيقي", clubName: "نادي نجوم", position: "مهاجم", ovr: 88, prestige: 85, leagueStrength: 82, age: 25 },
+    { name: "صانع ألعاب", clubName: "نادي نجوم", position: "وسط مهاجم", ovr: 82, prestige: 85, leagueStrength: 82, age: 24 }
+  ],
+  userLine: { name: "أنا", club: "فريقي", country: "مصر", ovr: 79, age: 22, appearances: 10, goals: 9, assists: 4, averageRating: 7.7, leagueStrength: 70 }
+});
+assert.ok(leaderboard.some(row => row.isUser && row.name === "أنا"));
+assert.ok(leaderboard.some(row => row.name === "مهاجم حقيقي"));
+assert.ok(leaderboard.every(row => Number.isFinite(row.goals) && Number.isFinite(row.assists)));
+
+const realPlayers = [
+  { name: "كيليان مبابي", clubName: "ريال مدريد", country: "إسبانيا", position: "مهاجم", ovr: 93, prestige: 100, leagueStrength: 96, age: 27, confederation: "UEFA", originConfederation: "UEFA" },
+  { name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح", ovr: 91, prestige: 99, leagueStrength: 96, age: 19, confederation: "UEFA", originConfederation: "UEFA" },
+  { name: "محمد صلاح", clubName: "ليفربول", country: "إنجلترا", position: "جناح", ovr: 90, prestige: 97, leagueStrength: 98, age: 34, confederation: "UEFA", originConfederation: "CAF" },
+  { name: "إمام عاشور", clubName: "الأهلي", country: "مصر", position: "وسط مهاجم", ovr: 82, prestige: 94, leagueStrength: 72, age: 28, confederation: "CAF", originConfederation: "CAF" },
+  { name: "إيرلينغ هالاند", clubName: "مانشستر سيتي", country: "إنجلترا", position: "مهاجم", ovr: 92, prestige: 99, leagueStrength: 98, age: 26, confederation: "UEFA", originConfederation: "UEFA" },
+  { name: "فيتور روكي", clubName: "بالميراس", country: "البرازيل", position: "مهاجم", ovr: 84, prestige: 90, leagueStrength: 84, age: 21, confederation: "CONMEBOL", originConfederation: "CONMEBOL" }
+];
+const ceremony = engine.buildSeasonAwardCeremony({
+  season: 4,
+  player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
+  realPlayers
+});
+assert.equal(ceremony.ballonDor.topFive.length, 5, "the Ballon d'Or ceremony must show exactly five nominees");
+assert.ok(ceremony.ballonDor.topFive.some(row => row.isUser), "a standout career player must be eligible for the global shortlist");
+assert.ok(ceremony.awards.some(row => row.id === "fifa-the-best"));
+assert.ok(ceremony.awards.some(row => row.id === "world-golden-shoe"));
+assert.ok(ceremony.awards.some(row => row.id === "golden-boy"));
+assert.ok(ceremony.awards.some(row => row.id === "caf-player"));
+assert.ok(ceremony.awards.some(row => row.id === "uefa-player"));
+assert.ok(ceremony.awards.some(row => row.id === "conmebol-player"));
+
+console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

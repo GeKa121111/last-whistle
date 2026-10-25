@@ -492,6 +492,7 @@ async function main() {
       state.energy = 85; state.fatigue = 10; state.dailyActionUsed = false; state.dailyActionType = "";
       state.cupState = {
         name: "بطولة اختبار سجل المباريات", system: "uefa36", phase: "league", phaseGames: 4, phasePlayed: 0,
+        teams,
         points: 0, gd: 0, gf: 0, rounds: [], stage: 0, twoLegs: [], tieLeg: 1, tieAggregate: 0,
         tieOpponent: "", eliminated: false, champion: false, history: [], matchesPlayed: 0,
         createdSeason: Number(state.season), createdCalendarDay: Number(state.calendarDay), rank: null,
@@ -543,6 +544,7 @@ async function main() {
       state.energy = 85; state.fatigue = 10; state.dailyActionUsed = false; state.dailyActionType = "";
       state.cupState = {
         name: "بطولة اختبار الذهاب والإياب", system: "knockout", phase: "knockout", phaseGames: 0, phasePlayed: 0,
+        teams,
         points: 0, gd: 0, gf: 0, rounds: ["نصف النهائي", "النهائي"], stage: 0, twoLegs: [true, false],
         tieLeg: 1, tieAggregate: 0, tieOpponent: "", eliminated: false, champion: false, history: [],
         matchesPlayed: 3, createdSeason: Number(state.season), createdCalendarDay: Number(state.calendarDay),

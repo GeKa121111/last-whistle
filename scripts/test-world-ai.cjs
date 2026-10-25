@@ -126,7 +126,13 @@ for (const club of Object.values(world.clubs)) {
     assert.equal(world.players[playerId].clubId, club.id, "roster membership and player club must agree");
   }
 }
-assert.equal(rosterOwner.size, Object.keys(world.players).length, "every world player must belong to exactly one club");
+const freeAgentPlayers = Object.values(world.players).filter(player => player.freeAgent);
+assert.equal(rosterOwner.size + freeAgentPlayers.length, Object.keys(world.players).length,
+  "every world player must belong to exactly one club or be explicitly marked as a free agent");
+for (const player of Object.values(world.players)) {
+  if (player.freeAgent) assert.equal(player.clubId, "", "free agents must not retain an active club");
+  else assert.equal(rosterOwner.get(player.id), player.clubId, "every contracted player must match a roster owner");
+}
 
 const transferTargets = ai.transferTargets(save, db);
 assert.ok(transferTargets.length >= clubCount);

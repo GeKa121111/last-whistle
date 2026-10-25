@@ -13,16 +13,16 @@ const SEASON = "2026/27";
 const LEAGUES = [
   { id: "england", country: "إنجلترا", division: 1, url: "/eng/2026-2027/engprem/", expectedTeams: 20 },
   { id: "england", country: "إنجلترا", division: 2, url: "/eng/2026-2027/flcham/", expectedTeams: 24 },
-  { id: "spain", country: "إسبانيا", division: 1, url: "/spain/2026-2027/spalali/", expectedTeams: 20 },
-  { id: "spain", country: "إسبانيا", division: 2, url: "/spain/2026-2027/spalali2/", expectedTeams: 22 },
-  { id: "germany", country: "ألمانيا", division: 1, url: "/ger/2026-2027/gerbun/", expectedTeams: 18 },
-  { id: "germany", country: "ألمانيا", division: 2, url: "/ger/2026-2027/gerbun2/", expectedTeams: 18 },
-  { id: "italy", country: "إيطاليا", division: 1, url: "/italy/2026-2027/seriea/", expectedTeams: 20 },
-  { id: "italy", country: "إيطاليا", division: 2, url: "/italy/2026-2027/serieb/", expectedTeams: 20 },
-  { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1/", expectedTeams: 18 },
-  { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2/", expectedTeams: 18 },
-  { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim/", expectedTeams: 18 },
-  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp/", expectedTeams: 20 }
+  { id: "spain", country: "إسبانيا", division: 1, url: "/spain/2026-2027/spalali.htm", teamDirectory: "/spain/2026-2027/laliga/", expectedTeams: 20 },
+  { id: "spain", country: "إسبانيا", division: 2, url: "/spain/2026-2027/spalali2.htm", teamDirectory: "/spain/2026-2027/laliga2/", expectedTeams: 22 },
+  { id: "germany", country: "ألمانيا", division: 1, url: "/ger/2026-2027/gerbun.htm", teamDirectory: "/ger/2026-2027/bundes/", expectedTeams: 18 },
+  { id: "germany", country: "ألمانيا", division: 2, url: "/ger/2026-2027/gerbun2.htm", teamDirectory: "/ger/2026-2027/bundes2/", expectedTeams: 18 },
+  { id: "italy", country: "إيطاليا", division: 1, url: "/italy/2026-2027/seriea.htm", teamDirectory: "/italy/2026-2027/seriea/", expectedTeams: 20 },
+  { id: "italy", country: "إيطاليا", division: 2, url: "/italy/2026-2027/serieb.htm", teamDirectory: "/italy/2026-2027/serieb/", expectedTeams: 20 },
+  { id: "france", country: "فرنسا", division: 1, url: "/france/2026-2027/fralig1.htm", teamDirectory: "/france/2026-2027/ligue1/", expectedTeams: 18 },
+  { id: "france", country: "فرنسا", division: 2, url: "/france/2026-2027/fralig2.htm", teamDirectory: "/france/2026-2027/ligue2/", expectedTeams: 18 },
+  { id: "portugal", country: "البرتغال", division: 1, url: "/portugal/2026-2027/porprim.htm", teamDirectory: "/portugal/2026-2027/primeira/", expectedTeams: 18 },
+  { id: "brazil", country: "البرازيل", division: 1, url: "/brazil/2026/bracamp.htm", teamDirectory: "/brazil/2026/seriea/", expectedTeams: 20 }
 ];
 
 const NAME_MAP = new Map([
@@ -129,13 +129,15 @@ async function fetchHtml(url) {
   throw lastError || new Error("Failed to fetch " + url);
 }
 
-function parseTeamLinks(indexHtml, indexUrl) {
+function parseTeamLinks(indexHtml, indexUrl, teamDirectory) {
   const page = new URL(indexUrl);
-  // FootballSquads publishes directory indexes (e.g. /engprem/) rather than a
-  // league HTML file. Keep links inside that exact directory.
-  const basePrefix = page.pathname.toLowerCase().endsWith(".htm") || page.pathname.toLowerCase().endsWith(".html")
-    ? page.pathname.slice(0, page.pathname.lastIndexOf("/") + 1)
-    : (page.pathname.endsWith("/") ? page.pathname : page.pathname + "/");
+  // FootballSquads has both directory-style indexes (England) and .htm indexes
+  // whose squad pages live in league-specific subfolders (Spain, Germany, etc.).
+  const basePrefix = teamDirectory
+    ? new URL(teamDirectory, indexUrl).pathname
+    : (page.pathname.toLowerCase().endsWith(".htm") || page.pathname.toLowerCase().endsWith(".html")
+      ? page.pathname.slice(0, page.pathname.lastIndexOf("/") + 1)
+      : (page.pathname.endsWith("/") ? page.pathname : page.pathname + "/"));
   const seen = new Set();
   const teams = [];
   const re = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
@@ -148,14 +150,11 @@ function parseTeamLinks(indexHtml, indexUrl) {
     const linkText = plainText(match[3]);
     if (!linkText || /squad|home|current season|archive|national competitions/i.test(linkText)) continue;
     seen.add(url.href);
-    // The directory listing usually displays a filename ("liverpool.htm"), not
-    // the human club name. extractTeamName() resolves it from the actual squad page.
     const name = linkText.replace(/\.html?$/i, "").replace(/[_-]+/g, " ").trim();
     teams.push({ name, url: url.href });
   }
   return teams;
 }
-
 function parsePlayers(teamHtml) {
   const cutoff = teamHtml.search(/Players\s+no\s+longer\s+at\s+this\s+club/i);
   const activeHtml = cutoff >= 0 ? teamHtml.slice(0, cutoff) : teamHtml;
@@ -219,7 +218,7 @@ async function main() {
   for (const league of LEAGUES) {
     const indexUrl = new URL(league.url, BASE_URL).href;
     const indexHtml = await fetchHtml(indexUrl);
-    const teams = parseTeamLinks(indexHtml, indexUrl);
+    const teams = parseTeamLinks(indexHtml, indexUrl, league.teamDirectory);
     if (teams.length < league.expectedTeams - 2) {
       throw new Error("Expected about " + league.expectedTeams + " clubs for " + league.id +
         " division " + league.division + " but only found " + teams.length + " links at " + indexUrl);

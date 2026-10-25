@@ -10,7 +10,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "football-world-db.js" });
 const db = sandbox.window.LWWorldDB;
 assert.ok(db);
-assert.equal(db.version, 2);
+assert.equal(db.version, 3);
 assert.equal(db.season, "2026/27");
 assert.equal(db.leagues().length, 15);
 assert.equal(db.leagueFor("مصر", 1).matchesPerSeason, 34);
@@ -20,6 +20,17 @@ assert.equal(db.leagueFor("إسبانيا", 1).matchesPerSeason, 38);
 assert.equal(db.leagueFor("مصر", 2).globalTier, 4);
 assert.equal(db.leagueFor("مصر", 2).matchesPerSeason, 22);
 assert.ok(db.clubs().length >= 65, "world database should contain first- and second-division clubs");
+const allClubs = db.clubs();
+assert.ok(allClubs.length >= 150, "the expanded world database should cover major first divisions");
+assert.ok(allClubs.every(club => Array.isArray(club.players) && club.players.length >= 16),
+  "every club must expose a playable squad of at least 16 players");
+assert.ok(allClubs.some(club => club.players.some(player => player.isGenerated === true && player.isRealPlayer === false)),
+  "generated backup players must be explicitly marked as generated, not real");
+assert.ok(allClubs.some(club => club.players.some(player => player.isRealPlayer === true)),
+  "sourced or curated real player names must remain available");
+const coverage = db.rosterCoverage();
+assert.ok(coverage.totalDatabasePlayers >= allClubs.length * 16, "roster coverage audit must include complete playable squads");
+assert.equal(coverage.totalClubs, allClubs.length);
 assert.ok(db.clubsForCountry("مصر", 2).some(club => club.name === "المقاولون العرب" && club.ovr === 62),
   "Egyptian second-division clubs should be queryable");
 assert.ok(db.playerRecordsForClub("ليفربول", "إنجلترا").some(player => player.name === "فلوريان فيرتز"),
@@ -50,4 +61,4 @@ assert.ok(db.competitionsForCountry("مصر", { division: 1, clubName: "الأه
   .some(item => item.id === "caf-super-cup" && item.kind === "supercup"));
 
 assert.equal(db.clubByName("not-a-real-club", "مصر"), null);
-console.log("PASS: world database loads 15 leagues, 50+ club ratings/stars and country-specific competitions.");
+console.log("PASS: world database loads complete playable squads, generated-player labels and country-specific competitions.");

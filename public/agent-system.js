@@ -467,10 +467,52 @@
   });
   document.addEventListener("keydown",function(e){if(e.key==="Escape"&&overlay&&!overlay.hidden)closeDialog();});
   function start(){tick();window.setInterval(tick,1000);window.addEventListener("pageshow",tick);window.addEventListener("storage",tick);}
+
+  // Stage 2: post-retirement career paths. Actions are deterministic and persist in the career state.
+  function postRetirementOptions(s){
+    if(!s||!s.retired)return {available:false,reason:"لازم تعتزل الأول."};
+    var wealth=Math.max(0,Number(s.money)||0),fame=Math.max(0,Number(s.mediaReputation)||0);
+    return {
+      available:true,
+      agent:{available:wealth>=250000,minimumCapital:250000,networkScore:Math.round(Math.min(100,fame*.55+wealth/500000))},
+      clubOwner:{available:wealth>=5000000,minimumCapital:5000000,requiredShare:51,academyBudget:Math.round(wealth*.08)}
+    };
+  }
+  function startPostRetirementAgency(s,capital){
+    var options=postRetirementOptions(s),amount=Math.max(0,Math.round(Number(capital)||250000));
+    if(!options.available||!options.agent.available||amount<250000||amount>Math.max(0,Number(s.money)||0))return {ok:false,reason:"رأس المال غير كافٍ أو المسيرة لم تنتهِ."};
+    s.money=Math.max(0,Number(s.money||0)-amount);
+    s.retirementCareer={type:"agency",capital:amount,players:[],reputation:Math.round(Math.min(100,(Number(s.mediaReputation)||0)*.55+amount/500000)),season:Number(s.season)||1,history:[]};
+    if(!Array.isArray(s.retirementCareer.history))s.retirementCareer.history=[];
+    s.retirementCareer.history.push({type:"founded",season:s.retirementCareer.season,capital:amount});
+    var api=API();if(api&&api.save)api.save();if(api&&api.render)api.render();
+    return {ok:true,career:s.retirementCareer};
+  }
+  function acquireClubControl(s,club,clubValue,share){
+    var options=postRetirementOptions(s),value=Math.max(1,Number(clubValue)||0),portion=Math.max(51,Math.min(100,Number(share)||51));
+    var cost=Math.ceil(value*portion/100);
+    if(!options.available||!options.clubOwner.available||!club||cost>Math.max(0,Number(s.money)||0))return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
+    s.money=Math.max(0,Number(s.money||0)-cost);
+    s.retirementCareer={type:"club-owner",club:String(club),share:portion,investment:cost,academyBudget:Math.round(cost*.08),season:Number(s.season)||1,history:[{type:"acquisition",club:String(club),share:portion,cost:cost}]};
+    var api=API();if(api&&api.save)api.save();if(api&&api.render)api.render();
+    return {ok:true,career:s.retirementCareer};
+  }
+  function registerAgencyPlayer(s,player){
+    if(!s||!s.retirementCareer||s.retirementCareer.type!=="agency"||!player||!player.id)return {ok:false,reason:"مسار الوكالة غير متاح أو بيانات اللاعب ناقصة."};
+    var career=s.retirementCareer;career.players=Array.isArray(career.players)?career.players:[];
+    if(career.players.some(function(p){return String(p.id)===String(player.id);}))return {ok:false,reason:"اللاعب مسجل بالفعل."};
+    career.players.push({id:String(player.id),name:String(player.name||"لاعب جديد"),club:String(player.club||""),joinedSeason:Number(s.season)||1,appearancesAtSigning:Math.max(0,Number(player.appearances)||0)});
+    career.reputation=Math.min(100,(Number(career.reputation)||0)+1);
+    if(Array.isArray(career.history))career.history.unshift({type:"player-signed",playerId:String(player.id),season:Number(s.season)||1});
+    var api=API();if(api&&api.save)api.save();
+    return {ok:true,player:career.players[career.players.length-1]};
+  }
   window.LWAgentRuntime={getAgents:currentAgentData,ensureState:ensureState,current:current,contractTerms:contractTerms,
     negotiationChanceBonus:negotiationChanceBonus,transferOfferChance:transferOfferChance,prioritizeTargets:prioritizeTargets,
     adjustTransferWage:adjustTransferWage,chargeFee:chargeFee,afterNegotiation:afterNegotiation,onContractRenewal:onContractRenewal,
     sponsorshipMultiplier:sponsorshipMultiplier,matchPayMultiplier:matchPayMultiplier,dailyRecoveryBonus:dailyRecoveryBonus,
-    currentChapter:currentChapter,chapterProgress:progress};
+    currentChapter:currentChapter,chapterProgress:progress,
+    postRetirementOptions:postRetirementOptions,startPostRetirementAgency:startPostRetirementAgency,
+    acquireClubControl:acquireClubControl,registerAgencyPlayer:registerAgencyPlayer};
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
 })();

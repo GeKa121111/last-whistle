@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="./career-experience.css?v=1">
 <link rel="stylesheet" href="./career-hub.css?v=1">
 <link rel="stylesheet" href="./player-store.css?v=2">
-<link rel="stylesheet" href="./ai-career.css?v=1">
+<link rel="stylesheet" href="./football-world-ai.css?v=1">
 <style>
 :root{--bg:#0a1020;--panel:#121a32;--panel2:#192342;--line:#2c3659;--text:#eef2ff;--muted:#a5afd0;--green:#4ee0a1;--green2:#1e9e78;--indigo:#7779ff;--gold:#ffd166;--red:#ff7185;--shadow:0 16px 40px #0004}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% -10%,#25345f 0,transparent 42%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.55;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -792,7 +792,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
 </style>
-<link rel="stylesheet" href="./redesign.css?v=4">
+<link rel="stylesheet" href="./redesign.css?v=5">
+<script src="./football-world-ai.js?v=1"></script>
 </head>
 <body>
 
@@ -939,28 +940,18 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           <div class="seasonJourney" id="seasonJourney"></div>
           <div class="seasonJourneyFoot"><div><strong id="seasonStageTitle">المباريات والأداء</strong><p id="seasonStageDesc" class="muted small">العب مبارياتك وسجّل أهدافك وصناعاتك وارفع تقييمك.</p></div></div>
         </article>
-        <article class="card career-ai-card" id="careerAIPanel" aria-labelledby="careerAIHeading">
-          <div class="career-ai-head">
-            <div class="career-ai-brand"><span class="career-ai-orb" aria-hidden="true">AI</span><div><h2 id="careerAIHeading">مساعد المسيرة الذكي</h2><div class="subline">تحليل محلي لأدائك وخططك وقراراتك — بدون إنترنت إضافي أو مفاتيح API</div></div></div>
-            <span class="pill green" id="careerAIStatus">جاري تحليل المسيرة</span>
+        <article class="card world-ai-home" id="worldAIHomePanel">
+          <div class="cardHead">
+            <div><h2>ذكاء عالم الكرة</h2><div class="subline">الأندية بتدور على احتياجاتها، واللاعبين بيتطوروا، والسوق بيتغير موسم ورا موسم.</div></div>
+            <span class="pill green" id="worldAIHomeStatus">جاري تجهيز العالم</span>
           </div>
-          <div class="career-ai-overview" id="careerAIOverview" aria-live="polite">بيحلل الجاهزية ومستوى اللاعب عشان يرشح لك الخطوة الأنسب.</div>
-          <div class="career-ai-head"><span class="career-ai-signal">مؤشر الحالة</span><strong id="careerAIScore">—</strong></div>
-          <div class="career-ai-actions" aria-label="أدوات الذكاء الاصطناعي">
-            <button type="button" class="btn career-ai-action" data-ai-action="coach"><strong>المدرب الذكي</strong><small>تحليل الأداء والتدريب والثقة</small></button>
-            <button type="button" class="btn career-ai-action" data-ai-action="tactics"><strong>محلل المباراة</strong><small>خطة مناسبة للمنافس القادم</small></button>
-            <button type="button" class="btn career-ai-action" data-ai-action="agent"><strong>الوكيل الذكي</strong><small>ترشيح وجهات انتقال مناسبة</small></button>
-            <button type="button" class="btn career-ai-action" data-ai-action="life"><strong>مستشار المسيرة</strong><small>الجاهزية والعقد والموارد</small></button>
+          <div class="world-ai-pulse" id="worldAIHomePulse">بيتم تجهيز قاعدة اللاعبين والميزانيات وسجل الإحصائيات الديناميكي.</div>
+          <div class="kpiGrid">
+            <div class="kpi"><div class="kpiNum" id="worldAIHomeMoves">0</div><div class="kpiLabel">انتقالات آخر نافذة</div></div>
+            <div class="kpi"><div class="kpiNum" id="worldAIHomeTeams">0</div><div class="kpiLabel">نادي في عالم المحاكاة</div></div>
+            <div class="kpi"><div class="kpiNum" id="worldAIHomePlayers">0</div><div class="kpiLabel">لاعب في قاعدة العالم</div></div>
           </div>
-          <div class="career-ai-result" aria-live="polite">
-            <h3 id="careerAIResultTitle">تحليل المدرب</h3>
-            <p id="careerAIResultText">التوصيات هتتغير حسب بيانات اللاعب الحالية، مش نصائح ثابتة للجميع.</p>
-            <ul id="careerAIResultList"></ul>
-            <div class="career-ai-controls">
-              <button type="button" class="btn" id="careerAIOpenPage" data-ai-page="training">افتح القسم المناسب</button>
-              <button type="button" class="btn primary" id="careerAIApplyTactic" hidden>ابدأ المباراة بالخطة المقترحة</button>
-            </div>
-          </div>
+          <div class="world-ai-home-cta"><button type="button" class="btn primary" data-page="europe">افتح انتقالات وإحصائيات عالم الكرة ←</button></div>
         </article>
       </div>
     </section>
@@ -1129,6 +1120,27 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
 
     <section class="page" id="page-europe">
+      <div class="grid world-ai-dashboard-grid">
+        <article class="card world-ai-dashboard-card" id="worldAISimulationDashboard">
+          <div class="cardHead"><div><h2>محرك عالم الكرة — انتقالات وإحصائيات متطورة</h2><div class="subline">الأندية تختار احتياجات المراكز واللاعبين حسب القوة والسن والإمكانات والميزانية.</div></div><span class="pill green" id="worldAISeasonTag">الموسم</span></div>
+          <div class="sectionNote" id="worldAIOverallSummary">بيتم تجهيز محاكاة العالم.</div>
+          <div class="world-ai-kpis">
+            <div class="world-ai-kpi"><b id="worldAIMarketMoves">0</b><span>انتقالات في آخر نافذة</span></div>
+            <div class="world-ai-kpi"><b id="worldAITotalClubs">0</b><span>نادي تحت إدارة محاكاة AI</span></div>
+            <div class="world-ai-kpi"><b id="worldAITotalPlayers">0</b><span>لاعب ببيانات قابلة للتطور</span></div>
+            <div class="world-ai-kpi"><b id="worldAICompletedSeasons">0</b><span>مواسم عالمية محفوظة</span></div>
+          </div>
+          <div class="world-ai-grid-two">
+            <div class="world-ai-section"><h3>سباق الهدافين العالمي</h3><div id="worldAITopScorers" class="world-ai-leaders"></div></div>
+            <div class="world-ai-section"><h3>أفضل صُنّاع اللعب</h3><div id="worldAITopAssists" class="world-ai-leaders"></div></div>
+          </div>
+          <div class="world-ai-grid-two">
+            <div class="world-ai-section"><h3>آخر انتقالات الأندية</h3><div id="worldAITransferLog" class="world-ai-transfers"></div></div>
+            <div class="world-ai-section"><h3>ترتيب دوري الدولة المختارة — تقديري</h3><div id="worldAILeagueTable" class="world-ai-standings"></div></div>
+          </div>
+          <p class="world-ai-note" id="worldAISimulationNote">قوة الأندية والإحصائيات والصفقات تقديرات محاكاة داخل اللعبة، وليست تحديثات رسمية حية.</p>
+        </article>
+      </div>
       <div class="grid"><article class="card span12">
         <div class="cardHead"><h2>🌍 دليل الدوريات والأندية والبطولات العالمية</h2><span class="pill" id="europeCount">جارٍ تحميل المصادر…</span></div>
         <p class="muted small">فهرس عالمي لمسابقات الدرجة الأولى المعروفة في بيانات FIFA لعام 2023، مع قوائم أندية قابلة للعب من مسابقات OpenFootball التي تتوفر لها جداول فرق. لكل قائمة موسم ومصدر وترخيص ظاهر؛ عدم وجود قائمة يعني أن الأسماء غير متاحة في هذه النسخة، وليس أن الدوري غير موجود.</p>
@@ -2007,6 +2019,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
     const tactic = ["balanced", "attack", "defend", "counter"].includes(options.tactic) ? options.tactic : "balanced";
     const opponentTactic = ["balanced", "press", "compact", "wide", "counter"].includes(options.opponentTactic) ? options.opponentTactic : "balanced";
+    const tacticalIQ = clamp(options.opponentTacticalIQ ?? opponentPower, 25, 98);
+    const tacticalScale = clamp(0.72 + (tacticalIQ - 45) * 0.007, 0.55, 1.10);
     const homeAdvantage = options.home ? 3 : 0;
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
@@ -2068,8 +2082,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         wide: { our: -0.10, opponent: 0.45 },
         counter: { our: tactic === "attack" ? -0.50 : 0, opponent: tactic === "attack" ? 0.40 : -0.08 }
       })[opponentTactic];
-      ourVolume = clamp(ourVolume + tacticalEffect.our, 1, 18);
-      oppVolume = clamp(oppVolume + tacticalEffect.opponent, 1, 18);
+      ourVolume = clamp(ourVolume + tacticalEffect.our * tacticalScale, 1, 18);
+      oppVolume = clamp(oppVolume + tacticalEffect.opponent * tacticalScale, 1, 18);
       if (isExtra) { ourVolume *= 0.38; oppVolume *= 0.38; }
       const scale = duration / 90;
       const ourChances = Math.max(1, Math.round((ourVolume + random() * 3 - 1.5) * scale));
@@ -2097,9 +2111,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
-          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055 + (opponentTactic === "compact" ? -0.024 : opponentTactic === "press" ? -0.010 : 0), 0.075, 0.48);
-          const teamShotChance = clamp(0.15 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 : opponentTactic === "press" ? -0.008 : 0), 0.08, 0.39);
-          const opponentShotChance = clamp(0.17 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 : opponentTactic === "counter" && tactic === "attack" ? 0.022 : 0), 0.07, 0.38);
+          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055 + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
+          const teamShotChance = clamp(0.15 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
+          const opponentShotChance = clamp(0.17 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
           const isGoal = random() < (byPlayer ? playerShotChance : isOurs ? teamShotChance : opponentShotChance);
           const shotEvent = events[events.length - 1];
           shotEvent.shooter = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
@@ -2199,7 +2213,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       score: { for: finalFor, against: finalAgainst },
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
       player: stats, events,
-      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic }
+      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ }
     };
   }
 
@@ -2840,6 +2854,7 @@ function renderLeague(){
 }
 function transferTargets(){
  const list=new Map(),db=window.LWWorldDB;
+ for(const target of window.LWWorldAI?.transferTargets(state,db)||[])list.set(normalizedTargetKey(target),target);
  for(const clubData of db?.clubs?.()||[]){
   const profile=db?.leagueById?.(clubData.leagueId)||{};
   const division=Math.max(1,Number(clubData.division)||1);
@@ -2851,7 +2866,7 @@ function transferTargets(){
    confederation:profile.confederation||"",currency:profile.currency||currencyLabel(clubData.country),
    stars:Array.isArray(clubData.stars)?clubData.stars.slice():[],players:Array.isArray(clubData.players)?clubData.players.slice():[],
    leagueId:clubData.leagueId};
-  list.set(normalizedTargetKey(target),target);
+  const key=normalizedTargetKey(target);if(!list.has(key))list.set(key,target);
  }
  for(const league of window.LWCatalog?.latestDomesticCompetitions?.()||[]){
   for(const name of league.clubs||[]){
@@ -3402,6 +3417,16 @@ function confederationForNation(nation){
 }
 function seasonRealPlayerDirectory(){
  const db=window.LWWorldDB;
+ const simulated=window.LWWorldAI?.getSeasonLines(state,Number(state.season)||1,1,db)||[];
+ if(simulated.length)return simulated.map(player=>{
+  const profile=db?.leagueById?.(player.leagueId)||{};
+  return {...player,clubName:player.clubName||player.club,country:player.country,
+   confederation:player.confederation||profile.confederation||"",
+   originConfederation:player.originConfederation||profile.confederation||"",
+   leagueStrength:Number(player.leagueStrength)||Number(profile.strength)||60,
+   prestige:Number(player.prestige)||60,realPlayer:player.realPlayer!==false,
+   seasonStats:player.seasonStats};
+ });
  const output=[];
  for(const clubData of db?.clubs?.()||[]){
   const profile=db?.leagueById?.(clubData.leagueId)||{};
@@ -3428,12 +3453,14 @@ function playerCurrentSeasonStats(rows){
 }
 function currentLeaguePlayerPool(){
  const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
- const clubs=(window.LWWorldDB?.clubs?.()||[]).filter(item=>item.country===country&&Math.max(1,Number(item.division)||1)===division);
- const data=seasonRealPlayerDirectory().filter(player=>player.country===country&&Math.max(1,Number(player.division)||1)===division);
+ const db=window.LWWorldDB;
+ const data=(window.LWWorldAI?.getSeasonLines(state,Number(state.season)||1,1,db)||[])
+  .filter(player=>String(player.country||"")===country&&Math.max(1,Number(player.division)||1)===division)
+  .map(player=>({...player,clubName:player.clubName||player.club,realPlayer:player.realPlayer!==false,seasonStats:player.seasonStats}));
  const covered=new Set(data.map(player=>player.clubName));
  for(const team of Array.isArray(state.league)?state.league:[]){
   if(covered.has(team.name))continue;
-  const power=Number(team.power)||clubPowerFor(team.name,country);
+  const power=window.LWWorldAI?.getClubPower(state,team.name,country,db)||Number(team.power)||clubPowerFor(team.name,country);
   const leagueProfile=window.LWWorldDB?.leagueByCountry?.(country)||{};
   data.push({name:"منافس افتراضي — "+team.name,clubName:team.name,country:country,position:"مهاجم",ovr:power,
    prestige:power,division:division,confederation:leagueProfile.confederation||"",originConfederation:leagueProfile.confederation||"",
@@ -3578,7 +3605,47 @@ function renderCareerAwards(){
  const awardsBox=$("officialAwardCatalog");
  if(awardsBox)awardsBox.innerHTML=awards.map(row=>`<div class="dataCard"><h4>${safeHTML(row.name)}</h4><p>${safeHTML(row.organizer)} • ${safeHTML(row.eligibilityOrMetric)}</p><a href="${safeHTML(row.officialUrl)}" target="_blank" rel="noopener noreferrer">مصدر الجهة المنظمة ↗</a></div>`).join("")||'<div class="empty">لا توجد جوائز مطابقة.</div>';
 }
+function renderWorldAIDashboard(){
+ const box=$("worldAISimulationDashboard");
+ if(!box||!window.LWWorldAI)return;
+ const db=window.LWWorldDB,view=window.LWWorldAI.dashboard(state,db);
+ setText("worldAIHomeStatus","الموسم "+view.season+" • عالم متغير");
+ setText("worldAIHomePulse",view.lastMarket.season
+  ?("آخر نافذة انتقالات: "+view.lastMarket.moves+" صفقة في الموسم "+view.lastMarket.season+". "+view.lastMarket.summary)
+  :"الأندية واللاعبون جاهزون للمحاكاة. صفقات AI هتظهر عند الانتقال للموسم التالي.");
+ setText("worldAIHomeMoves",view.lastMarket.moves||0);
+ setText("worldAIHomeTeams",view.clubCount);
+ setText("worldAIHomePlayers",view.playerCount);
+ setText("worldAISeasonTag","الموسم "+view.season+" • "+view.progress+"% من جدولك");
+ setText("worldAIOverallSummary","العالم الحالي يضم "+view.clubCount+" ناديًا و"+view.playerCount+" لاعبًا. مستوى الأندية والانتقالات والتطور والإحصائيات بيتغيروا مع نهاية كل موسم، ومفيش صفقات بتتكرر مرتين لنفس الحفظ.");
+ setText("worldAIMarketMoves",view.lastMarket.moves||0);
+ setText("worldAITotalClubs",view.clubCount);
+ setText("worldAITotalPlayers",view.playerCount);
+ setText("worldAICompletedSeasons",view.completedSeasons);
+ const renderLeaders=(rows,kind)=>{
+  const active=(rows||[]).filter(row=>Number(row.appearances)>0);
+  if(!active.length)return '<div class="world-ai-empty">إحصائيات الموسم هتبدأ تتحدث بعد أول مباراة؛ أرقام كل لاعب هتتحسب من مستوى النادي ومركزه ومشاركاته.</div>';
+  return active.slice(0,5).map((row,index)=>'<div class="world-ai-leader-row"><span class="world-ai-rank">'+(index+1)+'</span><div class="world-ai-leader-main"><b>'+safeHTML(row.name)+'</b><small>'+safeHTML(row.club||row.clubName||"")+' • '+safeHTML(row.country||"")+' • '+Number(row.appearances||0)+' مشاركة</small></div><span class="world-ai-stat">'+Number(row[kind]||0)+(kind==="goals"?" هدف":" صناعة")+'</span></div>').join("");
+ };
+ const scorers=$("worldAITopScorers"),assists=$("worldAITopAssists");
+ if(scorers)scorers.innerHTML=renderLeaders(view.goalsLeaders,"goals");
+ if(assists)assists.innerHTML=renderLeaders(view.assistLeaders,"assists");
+ const moves=$("worldAITransferLog");
+ if(moves){
+  const rows=view.recentTransfers||[];
+  moves.innerHTML=rows.length?rows.slice(0,6).map(row=>'<div class="world-ai-transfer"><b>'+safeHTML(row.player)+' — '+safeHTML(row.position||"مركز غير محدد")+'</b><small>'+safeHTML(row.from)+' ('+safeHTML(row.fromCountry)+') ← '+safeHTML(row.to)+' ('+safeHTML(row.toCountry)+')</small><small><span class="world-ai-fee">قيمة سوق محاكية: '+Number(row.fee||0).toLocaleString("en-US")+'</span> • '+safeHTML(row.reason||"انتقال داخل المحاكاة")+'</small></div>').join("")
+   :'<div class="world-ai-empty">لحد دلوقتي مفيش انتقالات AI محفوظة. حركة السوق تبدأ بعد اعتماد أول موسم والانتقال للموسم اللي بعده.</div>';
+ }
+ const table=$("worldAILeagueTable");
+ if(table){
+  const rows=view.leagueTable||[];
+  table.innerHTML=rows.length?'<div class="tableWrap"><table><thead><tr><th>#</th><th>النادي</th><th>لعب</th><th>فوز</th><th>تعادل</th><th>خسارة</th><th>له</th><th>عليه</th><th>نقاط</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+row.rank+'</td><td>'+safeHTML(row.club)+'</td><td>'+row.played+'</td><td>'+row.w+'</td><td>'+row.d+'</td><td>'+row.l+'</td><td>'+row.gf+'</td><td>'+row.ga+'</td><td><b>'+row.pts+'</b></td></tr>').join("")+'</tbody></table></div>'
+   :'<div class="world-ai-empty">مفيش جدول عالمي للدوري المختار في قاعدة البيانات الحالية؛ جدول دوري اللاعب المحلي يفضل ظاهر في صفحة الدوري.</div>';
+ }
+ setText("worldAISimulationNote",view.note+" الأسعار والأرقام دي قيم لعبية ومحاكاة، مش تقييمات انتقالات أو إحصائيات رسمية.");
+}
 function renderEurope(){
+ renderWorldAIDashboard();
  const w=transferWindow();
  $("transferWindowBanner").textContent=w.open?`🟢 ${w.name} مفتوحة — ${calendarDateLabel()}. عروض المحاكاة مرتبطة بالأداء.`:`🔒 ${w.name} — ${calendarDateLabel()}. أقرب نافذة بعد حوالي ${w.days} يوم.`;
  renderGlobalCatalog();
@@ -3733,7 +3800,6 @@ function render(){
  document.querySelectorAll('[data-action="train-goalkeeping"]').forEach(b=>{b.disabled=b.disabled||state.pos!=="حارس مرمى";b.title=state.pos!=="حارس مرمى"?"هذا التمرين متاح لمركز حارس المرمى فقط":"";});
  if($("trainingIntensity"))$("trainingIntensity").value=state.trainingIntensity||"normal";
  const wageStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";$("negotiateBtn").disabled=wageStatus!=="ready";
- window.LWCareerAIUI?.refresh();
 }
 function checkAction(kind,cost){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return false;}
@@ -3862,16 +3928,18 @@ function disciplineKey(scope,country,competition){return `${scope}|${country||""
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}
- const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(state.clubPower)||52)-55)*.16,30,94);
- const opponentPower=clamp(Number(opponentTeam?.power)||55,30,94);
- const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower})||{tactic:"balanced",label:"متوازن"};
+ const dynamicOwnPower=window.LWWorldAI?.getClubPower(state,club().name,state.leagueCountry,window.LWWorldDB)||Number(state.clubPower)||52;
+ const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(dynamicOwnPower)||55)-55)*.16,30,94);
+ const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
+ const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
+ const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  const key=disciplineKey(scope,state.leagueCountry,competition);
  const suspended=(Number(state.suspensions?.[key])||0)>0;
  const available=!!playerAvailable&&state.injuryDays<=0&&!suspended&&state.energy>0;
  return window.LWMatch.simulateMatch({
   seed:window.LWMatch.hash(`${matchId}|${state.energy}|${state.fatigue}|${state.trust}|${state.morale}`),
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
-  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
+  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
   playerAvailable:available,
   player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });
@@ -4115,6 +4183,8 @@ function finishSeason(){
  const completeLeagueSegment=!state.leagueSegmentIsPartial&&state.leagueApps>=seasonMatchTotal();
  const sorted=[...state.league].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
  const place=sorted.findIndex(t=>t.name===clubNameForLeague())+1;
+ const worldSeasonReport=window.LWWorldAI?.completeSeason(state,state.season,window.LWWorldDB);
+ if(worldSeasonReport&&!worldSeasonReport.alreadyCompleted)state.worldSeasonReport={season:Number(state.season)||1,playerPool:worldSeasonReport.rows.length,leagueCount:Object.keys(worldSeasonReport.tables||{}).length};
  let prize="";
  if(place===1&&completeLeagueSegment){state.trophies++;state.money+=1000;state.followers+=300;prize=" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
  const newAwards=completeLeagueSegment&&window.LWCareer?window.LWCareer.seasonAwards(state,state.league,place):[];
@@ -4163,6 +4233,12 @@ function startNewSeason(showStory=true){
  // one-season loan boundary on that path too, after the expiring-contract guard.
  if(state.loan)returnFromLoan();
  state.season++;state.age++;state.currentCompetitions=[];state.transferOffers=[];state.transferOffersWindowId="";state.transferNegotiation=null;if(window.LWAgentRuntime?.ensureState)window.LWAgentRuntime.ensureState(state);const agingNote=window.LWCareer?window.LWCareer.applySeasonAging(state):"";if(agingNote)log(agingNote);
+ const worldTransition=window.LWWorldAI?.advanceToSeason(state,state.season,window.LWWorldDB);
+ if(worldTransition&&!worldTransition.alreadyAdvanced){
+  const moveCount=(worldTransition.moves||[]).length;
+  state.worldMarketSummary={season:Number(state.season),moves:moveCount};
+  if(moveCount)log("نافذة سوق عالمية: نفذت أندية اللعبة "+moveCount+" انتقالًا حسب احتياجات المراكز والقوة والإمكانات والميزانيات.");
+ }
  state.seasonApps=0;state.seasonAppsTarget=0;state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.seasonGoals=0;state.seasonAssists=0;state.seasonPoints=0;state.seasonW=0;state.seasonD=0;state.seasonL=0;
  state.seasonLog=[];state.journeyTransferReviewed=false;state.journeyEventSeen=false;state.journeySeasonReviewed=false;state.seasonFinished=false;state.seasonPhase="firstHalf";state.winterBreakPending=false;state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=false;state.dailyActionType="";state.internationalPlayed=false;state.nationalCalled=false;state.nationalTournamentMatches=0;state.nationalTournamentPoints=0;state.nationalTournamentQualified=false;state.nationalTournamentDone=false;
  state.contractSeasons=Math.max(0,state.contractSeasons-1);
@@ -4431,6 +4507,7 @@ async function init(){
  try{await window.LWCatalog?.load();}catch(err){console.warn("Global football reference data unavailable",err);}
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
  if(window.LWCareer)window.LWCareer.ensureState(state);
+ window.LWWorldAI?.ensureState(state,window.LWWorldDB);
  ensureLeague();bind();render();showPage(state.currentPage||"home");if(!state.careerStarted)$("startScreen").classList.add("show");
 }
 init();
@@ -4459,6 +4536,5 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./agent-system.js?v=1"></script>
 <script src="./career-hub.js?v=1"></script>
 <script src="./ai-career-engine.js?v=1"></script>
-<script src="./ai-career-ui.js?v=1"></script>
 </body>
 </html>

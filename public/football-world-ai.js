@@ -1277,7 +1277,7 @@
   }
   function applyPromotionRelegation(world, season) {
     world.promotionHistory = Array.isArray(world.promotionHistory) ? world.promotionHistory : [];
-    if (world.promotionHistory.some(row => Number(row.season) === Number(season))) return [];
+    if (world.promotionHistory.some(row => Number(row.season) === Number(season) + 1)) return [];
     const tables = world.leagueTables[String(season)] || {};
     const leagueIds = new Set(Object.values(world.clubs).map(club => String(club.leagueId || "")).filter(Boolean));
     const moves = [];

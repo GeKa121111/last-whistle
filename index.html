@@ -4711,7 +4711,7 @@ function finishSeason(){
  // be visible immediately when the player opens the league tab.
  renderLeague();renderCareerAwards();render();saveGame(true);
 }
-function startNewSeason(showStory=true){
+async function startNewSeason(showStory=true){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!state.seasonFinished){toast("لا يمكن بدء موسم جديد قبل إكمال الموسم الحالي واعتماد تقرير نهايته.");return;}
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}
@@ -4731,7 +4731,15 @@ function startNewSeason(showStory=true){
   log("تم تصعيد "+state.name+" من الرديف إلى الفريق الأول في سن "+state.age+".");
  }
  ensureSeasonDevelopmentSnapshot();
- const worldTransition=window.LWWorldAI?.advanceToSeason(state,state.season,window.LWWorldDB);
+ let worldTransition=null;
+ if(window.LWWorldAI){
+  if(typeof window.LWWorldAI.advanceToSeasonAsync==="function"){
+   toast("جاري تحديث عالم الكرة واحتياجات الأندية والانتقالات...");
+   worldTransition=await window.LWWorldAI.advanceToSeasonAsync(state,state.season,window.LWWorldDB);
+  }else if(typeof window.LWWorldAI.advanceToSeason==="function"){
+   worldTransition=window.LWWorldAI.advanceToSeason(state,state.season,window.LWWorldDB);
+  }
+ }
  if(worldTransition&&!worldTransition.alreadyAdvanced){
   const moveCount=(worldTransition.moves||[]).length;state.worldMarketSummary={season:Number(state.season),moves:moveCount};
   if(moveCount)log("نافذة سوق عالمية: نفذت أندية اللعبة "+moveCount+" انتقالًا حسب احتياجات المراكز والقوة والإمكانات والميزانيات.");

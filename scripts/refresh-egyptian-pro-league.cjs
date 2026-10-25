@@ -9,9 +9,9 @@ const vm = require("node:vm");
 
 const ROOT = path.resolve(__dirname, "..");
 const HOST = "https://www.egyptianproleague.com";
-const SOURCE = "Egyptian Professional Clubs Association official squad pages (2026/27)";
+const SOURCE = "Verified official Egyptian league and club squad pages (2026/27)";
 const MIN_PLAYERS = 16;
-const MIN_SOURCED_CLUBS = 17;
+const MIN_SOURCED_CLUBS = 20;
 const TEAMS = [
   { name: "الاتحاد السكندري", aliases: ["Al Ittihad Alexandria", "Al Ittihad Alexandria Club"], path: "/team/18/detials/13/squad" },
   { name: "الأهلي", aliases: ["Al Ahly", "Al Ahly SC", "Al Ahly FC"], path: "/team/20/detials/1/squad" },
@@ -26,11 +26,62 @@ const TEAMS = [
   { name: "سيراميكا كليوباترا", aliases: ["Ceramica Cleopatra", "Cleopatra FC"], path: "/team/31/detials/12723/squad" },
   { name: "طلائع الجيش", aliases: ["Tala'ea El Geish", "Talaea El Gaish", "Tala'ea El Gaish"], path: "/team/32/detials/304/squad" },
   { name: "مودرن سبورت", aliases: ["Modern Sport", "Modern Sport FC", "Future FC"], path: "/team/34/detials/12724/squad" },
-  { name: "بتروجيت", aliases: ["Petrojet", "Petrojet FC"], path: "/team/36/detials/14455/squad" },
+  {
+    name: "بتروجيت",
+    aliases: ["Petrojet", "Petrojet FC"],
+    path: "/team/36/detials/14455/squad",
+    fallbacks: [
+      { url: "https://petrojetsc.com/", parser: "club-roster", source: "Petrojet SC official website (2026/27)" },
+      { url: "https://www.kooora.com/%D9%83%D8%B1%D8%A9-%D8%A7%D9%84%D9%82%D8%AF%D9%85/%D9%81%D8%B1%D9%8A%D9%82/%D8%A7%D9%84%D8%B3%D9%88%D9%8A%D8%B3-%D8%A8%D8%AA%D8%B1%D9%88%D8%AC%D9%8A%D8%AA/%D9%82%D8%A7%D8%A6%D9%85%D8%A9-%D8%A7%D9%84%D9%84%D8%A7%D8%B9%D8%A8%D9%8A%D9%86/bb1dz5zsbd7x9ezu8yrtbzhrj", parser: "club-roster", source: "Kooora Petrojet 2026/27 squad page" }
+    ],
+    fallbackSourceUrl: "https://petrojetsc.com/",
+    fallbackSource: "Petrojet SC official website roster, reviewed 2026-10-25",
+    fallbackPlayers: [
+      "عمر صلاح", "عبد الكافي رجب", "محمد خليفة", "حمزة خالد", "أحمد بحبح", "بركات حجاج",
+      "أحمد ياسين", "توفيق محمد", "كوبولوكي سيباندي", "إسلام عبد الله", "أحمد غنيم",
+      "محمود شديد قناوي", "محمد علي عكاشة", "أمادو جودليه باه", "عبدولاي دياباتيه",
+      "أدهم حامد", "بدر موسى", "مصطفى البدري", "محمود مرسي", "أحمد حلمي",
+      "مصطفى الجمل", "محمد دودو", "عمر رضا", "جابرييل تشوكودي", "سيكو سونكو",
+      "رشيد أحمد", "سمير محمد", "عادل علي"
+    ]
+  },
   { name: "غزل المحلة", aliases: ["Ghazl El Mahalla", "Ghazl El-Mahalla"], path: "/team/38/detials/7/squad" },
   { name: "وادي دجلة", aliases: ["Wadi Degla", "Wadi Degla FC"], path: "/team/42/detials/1016/squad" },
   { name: "المقاولون العرب", aliases: ["Al Mokawloon", "El Mokawloon SC", "Arab Contractors"], path: "/team/43/detials/11/squad" },
-  { name: "القناة", aliases: ["Canal SC", "Canal Sporting Club"], path: "/team/47/detials/12/squad" }
+  { name: "القناة", aliases: ["Canal SC", "Canal Sporting Club"], path: "/team/47/detials/12/squad" },
+  {
+    name: "أبو قير للأسمدة",
+    aliases: ["Abou Qir", "Abu Qir Fertilizers", "Abo Qir Fertilizers", "Abu Qair Semad"],
+    url: "https://abuqirfertilizers.com/players/",
+    parser: "club-roster",
+    source: "Abu Qir Fertilizers FC official roster page (2026/27)",
+    fallbackSourceUrl: "https://abuqirfertilizers.com/players/",
+    fallbackSource: "Abu Qir Fertilizers FC official roster, reviewed 2026-10-25",
+    fallbackPlayers: [
+      "عمرو خليل", "السيد الصاوي", "عادل يحيى", "إسلام جابر", "محمد عبد الله", "محمد مزيكا",
+      "أحمد فايز", "محمود علاء", "أحمد عادل", "إسلام أشرف", "محمد علاء", "محمد خطار",
+      "أدهم حمادة", "زياد رياض", "أوشا", "رامز ميلاد", "محمد عصام", "محمود عفروتو",
+      "عمر إبراهيم", "يوسف حمدي", "مازن أشرف", "أنس شندي", "أحمد عصام", "محمد مجدي",
+      "معتز إبراهيم", "محمد العكش", "محمود عبد الله", "كريم أشرف", "هشام رمضان", "ضياء السيد",
+      "حسام بركات", "محمد كامارا"
+    ]
+  },
+  {
+    name: "بترول أسيوط",
+    aliases: ["Asyut Petroleum", "Petrol Asyut", "Petroleum Assiut"],
+    url: "https://asyutpetroleum.com/player-category/players/",
+    parser: "club-roster",
+    source: "Asyut Petroleum FC official roster page (2026/27)",
+    fallbackSourceUrl: "https://asyutpetroleum.com/player-category/players/",
+    fallbackSource: "Asyut Petroleum FC official roster, reviewed 2026-10-25",
+    fallbackPlayers: [
+      "محمد مصطفى", "أمجد يوسف", "عبد العزيز أحمد", "عمرو الباشا", "أحمد شكري",
+      "محمود عوكل", "خالد عبد العال", "أحمد رفاعي", "سعيد إكرامي", "مصطفى صدفة",
+      "مؤمن عيد", "بكر فوزي", "عبدو كشكش", "عبد الرحمن الخماسي", "إبراهيم عباس",
+      "محمد تريكة", "محمد هشة", "أحمد فتحي", "محمد عيد", "محمود كمال", "أحمد يونس",
+      "إسلام صلاح", "أحمد عربي", "عبده عبد الله", "جوشوا إيجاجي"
+    ]
+  }
 ];
 
 function decodeEntities(value) {
@@ -65,16 +116,17 @@ function linesFromHtml(html) {
 }
 
 const POSITION_HEADINGS = [
-  { pattern: /حراسة\s*المرمى|حراسة\s*المرمي|حراس?\s*المرمى|حارس\s*المرمى/i, position: "حارس مرمى" },
-  { pattern: /خط\s*الدفاع|الدفاع|المدافعون/i, position: "قلب دفاع" },
-  { pattern: /خط\s*الوسط|الوسط|لاعبي\s*الوسط/i, position: "وسط مهاجم" },
-  { pattern: /خط\s*الهجوم|الهجوم|المهاجمون/i, position: "مهاجم" }
+  { pattern: /حراسة\s*المرمى|حراسة\s*المرمي|حراس?\s*المرمى|حارس\s*المرمى|goalkeepers?/i, position: "حارس مرمى" },
+  { pattern: /خط\s*الدفاع|الدفاع|المدافعون|defenders?/i, position: "قلب دفاع" },
+  { pattern: /خط\s*الوسط|الوسط|لاعبي\s*الوسط|midfielders?/i, position: "وسط مهاجم" },
+  { pattern: /خط\s*الهجوم|الهجوم|المهاجمون|attackers?|forwards?/i, position: "مهاجم" }
 ];
 const STOP = new Set([
   "الرئيسية","بطولات","الأخبار","عن الرابطة","صور","فيديوهات","المركز الإعلامي","الفريق","نظرة عامة",
+  "قائمة الفريق","قائمة اللاعبين","اللاعبون","الجهاز الفني","الإدارة","من نحن","آخر الأخبار",
   "مباريات ونتائج","إحصائيات اللاعبين","إحصائيات الفرق","الانتقالات","الرعاة","روابط سريعة","عرض المزيد",
   "تاريخ التأسيس","المدينة","الألقاب","الترتيب العام","الترتيب","الفريق","لعب","فوز","هزيمة","تعادل","نقاط",
-  "دوري","كأس مصر","الدوري المصري","Image","Images","الرعاية","الرابطة","الأندية","المصرية"
+  "دوري","كأس مصر","الدوري المصري","Image","Images","Management","Technical staff","Youth Academy Coaches","الرعاية","الرابطة","الأندية","المصرية"
 ]);
 
 function isPlayerName(line) {
@@ -88,45 +140,63 @@ function isPlayerName(line) {
   return true;
 }
 
-function parsePlayers(html) {
+function parsePlayers(html, sourceLabel = SOURCE) {
   const lines = linesFromHtml(html);
-  const startAt = lines.findIndex(line => /حراسة\s*المرمى|حراسة\s*المرمي|حراس?\s*المرمى/i.test(line));
-  const endAt = lines.findIndex((line, index) => index > Math.max(-1, startAt) && /الرعاة|رابطة الأندية المحترفة المصرية/.test(line));
+  const startAt = lines.findIndex(line => /حراسة\s*المرمى|حراسة\s*المرمي|حراس?\s*المرمى|goalkeepers?/i.test(line));
+  const endAt = lines.findIndex((line, index) => index > Math.max(-1, startAt) && /الرعاة|رابطة الأندية المحترفة المصرية/i.test(line));
   const active = lines.slice(startAt >= 0 ? startAt : 0, endAt > startAt ? endAt : undefined);
+  return parsePlayerLines(active, sourceLabel, startAt >= 0);
+}
+
+function parseClubRosterPlayers(html, sourceLabel = SOURCE) {
+  const lines = linesFromHtml(html);
+  const startAt = lines.findIndex(line =>
+    /^(players|current squad|squad|قائمة الفريق|قائمة اللاعبين|اللاعبون)$/i.test(line) ||
+    /^(?:قائمة الفريق|قائمة اللاعبين|اللاعبون)\b/.test(line));
+  if (startAt < 0) return [];
+  const tail = lines.slice(startAt + 1);
+  const stop = tail.findIndex(line =>
+    /^(management|technical staff|youth academy coaches|coach|مدرب|الجهاز الفني|الإدارة|الجهاز الإداري|مباريات الفريق|المركز في الدوري|المباريات القادمة|آخر الأخبار|موارد النادي|من نحن|resources|latest news)$/i.test(line) ||
+    /^(ينافس نادي|يلعب نادي|هذا الموقع جزء|the club competes|the team competes)/i.test(line));
+  const active = stop >= 0 ? tail.slice(0, stop) : tail;
+  return parsePlayerLines(active, sourceLabel, false);
+}
+
+function parsePlayerLines(lines, sourceLabel, sourceHasSectionHeadings) {
   const players = [];
   const seen = new Set();
-  let currentPosition = "وسط مهاجم";
-  let pending = null;
-  for (const rawLine of active) {
-    const line = rawLine.replace(/^[•*\-·]+\s*/, "").trim();
-    if (!line || /^Image(s)?$/i.test(line)) continue;
+  let currentPosition = "غير محدد";
+  for (const rawLine of lines) {
+    let line = rawLine.replace(/^[•*\-·]+\s*/, "").trim();
+    if (!line || /^image\b/i.test(line) || /^\d{1,3}$/.test(line)) continue;
     const heading = POSITION_HEADINGS.find(item => item.pattern.test(line));
     if (heading) {
       currentPosition = heading.position;
-      pending = null;
       continue;
     }
-    if (/^(الرئيسية|بطولات|الأخبار|عن الرابطة|صور|فيديوهات|الفريق|نظرة عامة|مباريات ونتائج|إحصائيات اللاعبين|إحصائيات الفرق|الانتقالات|الرعاة|روابط سريعة)$/i.test(line)) continue;
-    if (/^\d{1,2}$/.test(line)) {
-      if (pending && !pending.number) pending.number = Number(line);
-      pending = null;
-      continue;
+    if (/^(?:players|current squad|squad|قائمة الفريق|قائمة اللاعبين|اللاعبون|الفريق|team|manager|coach|المدرب)$/i.test(line)) continue;
+    const numbered = line.match(/^#?\s*(\d{1,3})[.)\-:]?\s+(.{3,75})$/);
+    let number;
+    if (numbered) {
+      number = Number(numbered[1]);
+      line = numbered[2].trim();
     }
-    const inlineNumber = line.match(/^(.{3,75}?)\s+(\d{1,2})$/);
-    const name = inlineNumber ? inlineNumber[1].trim() : line;
-    if (!isPlayerName(name)) { pending = null; continue; }
-    const key = normalize(name);
-    if (!key || seen.has(key)) { pending = null; continue; }
+    if (!isPlayerName(line)) continue;
+    if (/^(?:الرئيسية|بطولات|الأخبار|عن الرابطة|صور|فيديوهات|المركز الإعلامي|نظرة عامة|الرعاة|روابط سريعة|ترتيب|المباريات|الإحصائيات)$/i.test(line)) continue;
+    if (/ينافس نادي|يلعب نادي|هذا الموقع جزء|قائمة الفريق|قائمة اللاعبين|قائمة الفريق الأول/i.test(line)) continue;
+    const key = normalize(line);
+    if (!key || seen.has(key)) continue;
+    const positionKnown = currentPosition !== "غير محدد";
     const player = {
-      name,
+      name: line,
       position: currentPosition,
-      source: SOURCE,
+      positionVerified: positionKnown,
+      source: sourceLabel,
       isRealPlayer: true
     };
-    if (inlineNumber) player.number = Number(inlineNumber[2]);
+    if (number !== undefined) player.number = number;
     players.push(player);
     seen.add(key);
-    pending = player;
   }
   return players;
 }
@@ -161,35 +231,83 @@ async function main() {
   payload.leagues = (payload.leagues || []).filter(league => !(league.leagueId === "egypt" && Number(league.division) === 1));
   const imported = [], skipped = [];
   for (const team of TEAMS) {
-    const url = new URL(team.path, HOST).href;
-    try {
-      const html = await fetchHtml(url);
-      const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
-      const sourceTitle = heading ? linesFromHtml(heading[1]).join(" ").trim() : "";
-      const players = parsePlayers(html);
-      if (players.length < MIN_PLAYERS) {
-        skipped.push({ name: team.name, url, reason: "Only " + players.length + " player records parsed; minimum is " + MIN_PLAYERS, pageTitle: sourceTitle });
-        process.stdout.write("SKIP " + team.name + ": parsed " + players.length + " players; title=" + sourceTitle + "\n");
-        continue;
+    const primaryUrl = team.url || new URL(team.path, HOST).href;
+    const candidates = [
+      { url: primaryUrl, parser: team.parser || "league", source: team.source || SOURCE },
+      ...(team.fallbacks || [])
+    ];
+    let selected = null;
+    const attempts = [];
+    for (const candidate of candidates) {
+      try {
+        const html = await fetchHtml(candidate.url);
+        const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+        const sourceTitle = heading ? linesFromHtml(heading[1]).join(" ").trim() : "";
+        const parser = candidate.parser === "club-roster" ? parseClubRosterPlayers : parsePlayers;
+        const sourceLabel = candidate.source || team.source || SOURCE;
+        const players = parser(html, sourceLabel);
+        if (players.length < MIN_PLAYERS) {
+          attempts.push({ url: candidate.url, reason: "Only " + players.length + " player records parsed; minimum is " + MIN_PLAYERS, pageTitle: sourceTitle });
+          process.stdout.write("RETRY " + team.name + ": " + players.length + " players from " + candidate.url + "\n");
+          continue;
+        }
+        selected = { url: candidate.url, source: sourceLabel, sourceTitle, parser: candidate.parser || "league", players, rosterMode: "live-page" };
+        break;
+      } catch (error) {
+        attempts.push({ url: candidate.url, reason: String(error && error.message || error) });
+        process.stdout.write("SOURCE RETRY " + team.name + ": " + String(error && error.message || error) + "\n");
       }
-      imported.push({
-        name: team.name,
-        aliases: team.aliases,
-        leagueId: "egypt",
-        country: "مصر",
-        division: 1,
-        sourceUrl: url,
-        source: SOURCE,
-        players
-      });
-      process.stdout.write("Loaded Egyptian squad " + team.name + ": " + players.length + " players (" + url + ")\n");
-    } catch (error) {
-      skipped.push({ name: team.name, url, reason: String(error && error.message || error) });
-      process.stdout.write("SKIP " + team.name + ": " + String(error && error.message || error) + "\n");
     }
+    if (!selected && Array.isArray(team.fallbackPlayers) && team.fallbackPlayers.length >= MIN_PLAYERS) {
+      const sourceLabel = team.fallbackSource || SOURCE;
+      const seen = new Set();
+      const players = team.fallbackPlayers.map(name => ({
+        name: String(name).trim(),
+        position: "غير محدد",
+        positionVerified: false,
+        source: sourceLabel,
+        isRealPlayer: true
+      })).filter(player => {
+        const key = normalize(player.name);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      if (players.length >= MIN_PLAYERS) {
+        selected = {
+          url: team.fallbackSourceUrl || primaryUrl,
+          source: sourceLabel,
+          sourceTitle: "Reviewed source fallback; position not published in the fallback list",
+          parser: "reviewed-static-fallback",
+          players,
+          rosterMode: "reviewed-static-fallback"
+        };
+        process.stdout.write("SOURCE FALLBACK " + team.name + ": " + players.length + " reviewed names from " + selected.url + "\n");
+      }
+    }
+    if (!selected) {
+      skipped.push({ name: team.name, url: primaryUrl, reason: attempts.map(row => row.url + ": " + row.reason).join(" | ") || "No usable roster source" });
+      process.stdout.write("SKIP " + team.name + ": no source yielded at least " + MIN_PLAYERS + " player records\n");
+      continue;
+    }
+    imported.push({
+      name: team.name,
+      aliases: team.aliases,
+      leagueId: "egypt",
+      country: "مصر",
+      division: 1,
+      sourceUrl: selected.url,
+      source: selected.source,
+      sourceTitle: selected.sourceTitle,
+      sourceSeason: "2026/27",
+      rosterMode: selected.rosterMode,
+      positionData: selected.rosterMode === "reviewed-static-fallback" ? "position-not-published" : "page-derived-where-available",
+      players: selected.players
+    });
+    process.stdout.write("Loaded Egyptian squad " + team.name + ": " + selected.players.length + " players (" + selected.url + "; " + selected.rosterMode + ")\n");
   }
   if (imported.length < MIN_SOURCED_CLUBS) {
-    throw new Error("Official Egyptian Pro League source returned only " + imported.length + " usable squads; need at least " + MIN_SOURCED_CLUBS + ". Skipped pages: " + JSON.stringify(skipped));
+    throw new Error("Verified Egyptian roster sources returned only " + imported.length + " usable squads; need all " + MIN_SOURCED_CLUBS + " first-division clubs. Skipped pages: " + JSON.stringify(skipped));
   }
   const oldLeague = payload.leagues.find(league => league.leagueId === "egypt" && Number(league.division) === 1);
   payload.leagues.push({
@@ -200,7 +318,7 @@ async function main() {
     sourceUrl: HOST + "/",
     sourceSeason: "2026/27",
     expectedTeams: imported.length,
-    coverageType: "available-official-squad-pages",
+    coverageType: "verified-official-league-and-club-squad-pages",
     clubs: imported
   });
   payload.supplementalCoverage = payload.supplementalCoverage || {};
@@ -210,7 +328,8 @@ async function main() {
     availablePagesConfigured: TEAMS.length,
     importedClubs: imported.length,
     importedPlayers: imported.reduce((sum, club) => sum + club.players.length, 0),
-    skippedPages: skipped
+    skippedPages: skipped,
+    fallbackClubs: imported.filter(club => club.rosterMode === "reviewed-static-fallback").map(club => ({ name: club.name, sourceUrl: club.sourceUrl, playerCount: club.players.length, positionData: club.positionData }))
   };
   const js = "/* Generated from FootballSquads and supplemental official club-squad sources. Do not edit by hand. */\n" +
     "window.LWFootballSquadData = " + JSON.stringify(payload) + ";\n";
@@ -226,7 +345,7 @@ async function main() {
   const egyptPlayers = imported.reduce((sum, club) => sum + club.players.length, 0);
   const egyptAuditRow = {
     leagueId: "egypt", division: 1, expectedTeams: imported.length,
-    sourceUrl: HOST + "/", sourceSeason: "2026/27", coverageType: "available-official-squad-pages",
+    sourceUrl: HOST + "/", sourceSeason: "2026/27", coverageType: "verified-official-league-and-club-squad-pages",
     clubs: imported.length, players: egyptPlayers,
     below18Players: imported.filter(club => club.players.length < 18).map(club => club.name)
   };
@@ -252,6 +371,6 @@ async function main() {
 }
 
 main().catch(error => {
-  console.error("Egyptian official roster refresh FAILED:", error && error.stack || error);
+  console.error("Egyptian roster refresh FAILED:", error && error.stack || error);
   process.exitCode = 1;
 });

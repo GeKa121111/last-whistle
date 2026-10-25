@@ -2657,37 +2657,56 @@ if(!window.__lwSaveFlushInstalled){
 }
 function exportSave(){
  try{
-  const payload={game:"LAST WHISTLE",version:6,exportedAt:new Date().toISOString(),career:state};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  if(!window.LZString||typeof window.LZString.compressToUTF16!=="function")throw new Error("backup compressor unavailable");
+  const serialized=JSON.stringify(state);
+  const compressed=window.LZString.compressToUTF16(serialized);
+  if(typeof compressed!=="string"||!compressed)throw new Error("backup compression failed");
+  const payload={game:"LAST WHISTLE",version:7,encoding:"lz-string-utf16",exportedAt:new Date().toISOString(),career:compressed};
+  const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
+  if(blob.size>5000000){toast("النسخة الاحتياطية أكبر من الحد الآمن للتصدير؛ احفظ اللعبة محليًا وجرّب لاحقًا.");return;}
   const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;
-  a.download=`last-whistle-${String(state.name||"career").replace(/[^\p{L}\p{N}-]+/gu,"-")}-season-${state.season||1}.json`;
+  a.download="last-whistle-"+String(state.name||"career").replace(/[^\p{L}\p{N}-]+/gu,"-")+"-season-"+(state.season||1)+".json";
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast("تم تنزيل نسخة احتياطية من مسيرتك.");
- }catch(err){toast("تعذر إنشاء النسخة الاحتياطية في هذا المتصفح.");}
+  toast("تم تنزيل نسخة احتياطية مضغوطة من مسيرتك وعالم الكرة.");
+ }catch(err){toast("تعذر إنشاء النسخة الاحتياطية؛ تأكد أن أدوات الضغط متاحة ومساحة الجهاز كافية.");}
 }
 function validateBackupValue(value,depth=0){
  if(depth>20)throw new Error("backup nesting too deep");
  if(value===null||typeof value==="boolean")return value;
  if(typeof value==="number"){if(!Number.isFinite(value)||Math.abs(value)>10000000)throw new Error("invalid number");return value;}
- if(typeof value==="string"){if(value.length>10000||/[\u0000-\u001f\u007f<>\"`=]/.test(value))throw new Error("unsafe text");return value;}
- if(Array.isArray(value)){if(value.length>2000)throw new Error("array too large");return value.map(item=>validateBackupValue(item,depth+1));}
- if(value&&Object.getPrototypeOf(value)===Object.prototype){const entries=Object.entries(value);if(entries.length>2000)throw new Error("object too large");const clean={};for(const [key,item] of entries){if(key==="__proto__"||key==="constructor"||key==="prototype"||/[\u0000-\u001f\u007f<>\"`=]/.test(key))throw new Error("unsafe key");clean[key]=validateBackupValue(item,depth+1);}return clean;}
+ if(typeof value==="string"){if(value.length>10000||/[\u0000-\u001f\u007f<>"\x60=]/.test(value))throw new Error("unsafe text");return value;}
+ if(Array.isArray(value)){if(value.length>20000)throw new Error("array too large");return value.map(item=>validateBackupValue(item,depth+1));}
+ if(value&&Object.getPrototypeOf(value)===Object.prototype){const entries=Object.entries(value);if(entries.length>20000)throw new Error("object too large");const clean={};for(const [key,item] of entries){if(key==="__proto__"||key==="constructor"||key==="prototype"||/[\u0000-\u001f\u007f<>"\x60=]/.test(key))throw new Error("unsafe key");clean[key]=validateBackupValue(item,depth+1);}return clean;}
  throw new Error("unsupported value");
 }
 async function importSaveFile(file){
  if(!file)return;
- if(file.size>2000000){toast("ملف النسخة الاحتياطية أكبر من الحجم المسموح.");return;}
+ if(file.size>5000000){toast("ملف النسخة الاحتياطية أكبر من الحد المسموح (5 ميجابايت).");return;}
  let payload,restored;
  try{
   payload=JSON.parse(await file.text());
-  if(!payload||payload.game!=="LAST WHISTLE"||![3,4,5,6].includes(payload.version)||!payload.career||typeof payload.career!=="object"||Array.isArray(payload.career))throw new Error("invalid backup");
-  const clean=validateBackupValue(payload.career);
-  restored={...structuredCloneSafe(INITIAL)};
-  for(const key of Object.keys(INITIAL))if(Object.prototype.hasOwnProperty.call(clean,key))restored[key]=clean[key];
+  if(!payload||payload.game!=="LAST WHISTLE")throw new Error("invalid backup envelope");
+  let careerPayload=null;
+  if(payload.version===7&&payload.encoding==="lz-string-utf16"&&typeof payload.career==="string"){
+   if(!window.LZString||typeof window.LZString.decompressFromUTF16!=="function")throw new Error("backup decompressor unavailable");
+   const decoded=window.LZString.decompressFromUTF16(payload.career);
+   if(typeof decoded!=="string"||decoded.length>25000000)throw new Error("invalid decompressed backup");
+   careerPayload=JSON.parse(decoded);
+  }else if([3,4,5,6].includes(payload.version)&&payload.career&&typeof payload.career==="object"&&!Array.isArray(payload.career)){
+   careerPayload=payload.career;
+  }else throw new Error("unsupported backup version or encoding");
+  if(!careerPayload||typeof careerPayload!=="object"||Array.isArray(careerPayload))throw new Error("invalid career payload");
+  const clean=validateBackupValue(careerPayload);
+  // Preserve runtime data such as worldSimulation and season-development ledgers.
+  restored={...structuredCloneSafe(INITIAL),...clean};
   if(clean.physical===undefined)restored.physical=legacyPhysicalFallback(clean.pos,clean);
   if(clean.contractType===undefined)restored.contractType=Number(restored.age)<=18&&Number(restored.leagueDivision)>=2?"youth-amateur":restored.freeAgent?"free-agent":"professional";
-  if(payload.version<4||clean.qualifyingAppearances===undefined)window.LWCareer?.rebuildLegacyCareerStats(restored);if(payload.version<5||clean.leagueRatingSum===undefined||clean.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(restored);
-  const legacySeasonApps=Math.max(0,Number(clean.seasonApps)||0),savedLeagueApps=Number(clean.leagueApps),trustedLeagueCounter=Object.prototype.hasOwnProperty.call(clean,"leagueApps")&&(savedLeagueApps>0||legacySeasonApps===0||clean.leagueSegmentIsPartial===true);restored.leagueApps=trustedLeagueCounter?Math.max(0,savedLeagueApps):legacySeasonApps;const legacyTransferThisSeason=legacySeasonApps>0&&Array.isArray(clean.transferHistory)&&clean.transferHistory.some(row=>Number(row?.season)===Number(clean.season)&&String(row?.text||"").includes(String(clean.clubName||"")));restored.leagueSegmentIsPartial=!!clean.leagueSegmentIsPartial||(!trustedLeagueCounter&&legacyTransferThisSeason);
+  if(payload.version<4||clean.qualifyingAppearances===undefined)window.LWCareer?.rebuildLegacyCareerStats(restored);
+  if(payload.version<5||clean.leagueRatingSum===undefined||clean.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(restored);
+  const legacySeasonApps=Math.max(0,Number(clean.seasonApps)||0),savedLeagueApps=Number(clean.leagueApps),trustedLeagueCounter=Object.prototype.hasOwnProperty.call(clean,"leagueApps")&&(savedLeagueApps>0||legacySeasonApps===0||clean.leagueSegmentIsPartial===true);
+  restored.leagueApps=trustedLeagueCounter?Math.max(0,savedLeagueApps):legacySeasonApps;
+  const legacyTransferThisSeason=legacySeasonApps>0&&Array.isArray(clean.transferHistory)&&clean.transferHistory.some(row=>Number(row?.season)===Number(clean.season)&&String(row?.text||"").includes(String(clean.clubName||"")));
+  restored.leagueSegmentIsPartial=!!clean.leagueSegmentIsPartial||(!trustedLeagueCounter&&legacyTransferThisSeason);
   const importedRoundHistory=Array.isArray(restored.leagueRoundHistory)?restored.leagueRoundHistory:[];
   restored.leagueRoundIndex=Number.isInteger(Number(clean.leagueRoundIndex))?Math.max(0,Number(clean.leagueRoundIndex)):(importedRoundHistory.length?Math.max(...importedRoundHistory.map(row=>Number(row?.matchday)||0)):Math.max(0,Number(restored.leagueApps)||0));
   if(!Object.prototype.hasOwnProperty.call(clean,"calendarDay")||!Number.isFinite(Number(clean.calendarDay))||Number(clean.calendarDay)<1)restored.calendarDay=Math.max(1,Number(restored.day)||1);
@@ -2696,7 +2715,7 @@ async function importSaveFile(file){
   if(typeof restored.name!=="string"||restored.name.length<1||restored.name.length>50)throw new Error("invalid player name");
   if(restored.league!==null&&!Array.isArray(restored.league))throw new Error("invalid league");
   for(const key of ["achievements","diary","seasonLog","careerMatchHistory","seasonHistory","leagueArchives","recordedMatchIds","transferHistory","fixtureSchedule","calendarEvents","cupHistory","internationalHistory","promotionHistory","careerAwards","transferOffers","currentCompetitions","trophyCabinet","awardCeremonies"])if(!Array.isArray(restored[key]))throw new Error("invalid saved list");
-   if(restored.transferNegotiation!==null&&(typeof restored.transferNegotiation!=="object"||Array.isArray(restored.transferNegotiation)))throw new Error("invalid transfer negotiation state");
+  if(restored.transferNegotiation!==null&&(typeof restored.transferNegotiation!=="object"||Array.isArray(restored.transferNegotiation)))throw new Error("invalid transfer negotiation state");
   if(restored.cupState!==null&&(typeof restored.cupState!=="object"||Array.isArray(restored.cupState)))throw new Error("invalid cup state");
  }catch(err){toast("الملف غير صالح أو لا يخص نسخة LAST WHISTLE الحالية.");return;}
  if(!window.confirm("سيتم استبدال المسيرة المحفوظة حاليًا بالنسخة المختارة. هل تريد المتابعة؟"))return;
@@ -2704,7 +2723,7 @@ async function importSaveFile(file){
  try{
   localStorage.setItem(STORAGE_KEY,encodeStoredSave(restored));
   if(!loadGame())throw new Error("restore failed");
-  saveGame(true);render();showPage(state.currentPage||"home");closeDrawer();toast("تمت استعادة المسيرة بنجاح.");
+  saveGame(true);render();showPage(state.currentPage||"home");closeDrawer();toast("تمت استعادة المسيرة وعالم الكرة بنجاح.");
  }catch(err){
   if(previous===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,previous);
   if(previous!==null)loadGame();render();toast("تعذرت الاستعادة؛ لم يتم الاحتفاظ بالملف الجديد.");

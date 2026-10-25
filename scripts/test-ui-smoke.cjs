@@ -120,6 +120,30 @@ if (missing.length) {
   process.exit(1);
 }
 
+const renderStart = html.indexOf("function render(){");
+const renderEnd = html.indexOf("\\nfunction checkAction(", renderStart);
+if (renderStart < 0 || renderEnd < 0) { console.error("Render performance regression test could not locate render()."); process.exit(1); }
+const renderBody = html.slice(renderStart, renderEnd);
+for (const marker of [
+  'switch(page)',
+  'case "home":',
+  'case "training":',
+  'case "stats":',
+  'case "league":',
+  'case "contract":',
+  'case "national":',
+  'case "shop":',
+  'case "diary":',
+  'case "europe":',
+  'case "life":',
+  'pageRoot.querySelectorAll("[data-action]")'
+]) {
+  if (!renderBody.includes(marker)) { console.error("Active-page render regression test failed. Missing marker:", marker); process.exit(1); }
+}
+if (renderBody.includes('renderAchievements();renderLeague();renderContract();renderNational();')) {
+  console.error("Render performance regression: hidden pages must not all render for every player action."); process.exit(1);
+}
+
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 let inlineCount = 0;
 for (const [, attrs, body] of scripts) {

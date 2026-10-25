@@ -97,6 +97,11 @@ assert.ok(annualResult.sessions > 0, "the annual plan should produce training se
 assert.equal(annual.state.seasonTrainingReport.completed, true, "the season report should be marked complete");
 assert.equal(annual.state.seasonTrainingReport.completedSeason, 1, "the report should be tied to the season just finished");
 for (const key of Object.keys(originalCondition)) assert.equal(annual.state[key], originalCondition[key], "annual training must restore " + key);
+const incomplete = createSandbox("مهاجم", [], {}, {
+  primary: ["shooting"], secondary: ["composure"]
+});
+assert.equal(incomplete.runSeasonAITtraining().skipped, "season-incomplete", "the annual batch must not apply before the full season is complete");
+assert.equal(incomplete.state.trainingSessions, 0, "an incomplete season must not receive the annual AI training batch");
 const completedSessions = annual.state.seasonTrainingReport.sessions;
 annual.runSeasonAITtraining();
 assert.equal(annual.state.seasonTrainingReport.sessions, completedSessions, "re-entering the annual batch must not double-train the player");

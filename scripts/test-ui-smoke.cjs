@@ -43,6 +43,13 @@ const required = [
   "career-hub.css?v=1",
   "career-hub.js?v=1",
   "player-store.css?v=2",
+  "ai-career.css?v=1",
+  "ai-career-engine.js?v=1",
+  "ai-career-ui.js?v=1",
+  'id="careerAIPanel"',
+  'data-ai-action="coach"',
+  "opponentTactic:opponentPlan.tactic",
+  "window.LWCareerAIUI?.refresh()",
   "agent-system.js?v=1",
   "agent-system.css?v=1",
   'id="shopFilters"',
@@ -126,7 +133,7 @@ if (!inlineCount) {
   console.error("UI smoke test failed: no inline application script found.");
   process.exit(1);
 }
-for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css"]) {
+for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css", "ai-career.css", "ai-career-engine.js", "ai-career-ui.js"]) {
   if (!fs.existsSync(path.join(root, "public", asset))) {
     console.error("Missing public asset:", asset);
     process.exit(1);
@@ -152,14 +159,29 @@ catch (error) { console.error("Career hub JavaScript syntax error:", error.messa
 for (const marker of ["wellnessReadinessScore", "statusTrust", "statusRelation", "winterBreakPending", "dailyActionDay"]) {
   if (!careerHubSource.includes(marker)) { console.error("Career hub integration test failed. Missing marker:", marker); process.exit(1); }
 }
-for (const asset of ["story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css", "redesign.css", "sw.js"]) {
+for (const asset of ["story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css", "ai-career.css", "ai-career-engine.js", "ai-career-ui.js", "redesign.css", "sw.js"]) {
   const rootAsset = fs.readFileSync(path.join(root, asset), "utf8");
   const publicAsset = fs.readFileSync(path.join(root, "public", asset), "utf8");
   if (rootAsset !== publicAsset) { console.error("Root/public asset mirror mismatch:", asset); process.exit(1); }
 }
+
+for (const asset of ["ai-career-engine.js", "ai-career-ui.js"]) {
+  const source = fs.readFileSync(path.join(root, "public", asset), "utf8");
+  try { new vm.Script(source, { filename: "public/" + asset }); }
+  catch (error) { console.error("Career AI JavaScript syntax error in " + asset + ":", error.message); process.exit(1); }
+}
+const aiEngineSource = fs.readFileSync(path.join(root, "public", "ai-career-engine.js"), "utf8");
+for (const marker of ["coachAdvice", "recommendPlayerTactic", "chooseOpponentTactic", "recommendTransfers", "lifestyleAdvice"]) {
+  if (!aiEngineSource.includes(marker)) { console.error("Career AI engine is missing:", marker); process.exit(1); }
+}
+const aiUiSource = fs.readFileSync(path.join(root, "public", "ai-career-ui.js"), "utf8");
+for (const marker of ["careerAIApplyTactic", "data-ai-action", "LWCareerAIUI", "transferMarket"]) {
+  if (!aiUiSource.includes(marker)) { console.error("Career AI UI integration is missing:", marker); process.exit(1); }
+}
+
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v18")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=3", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "redesign.css?v=3", "redesign.css?v=3"]) {
+if (!workerSource.includes("last-whistle-static-v19")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=3", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career.css?v=1", "ai-career-engine.js?v=1", "ai-career-ui.js?v=1", "redesign.css?v=3", "redesign.css?v=3"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

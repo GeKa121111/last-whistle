@@ -234,6 +234,7 @@ function bindNewControls(){
       chooseStory(button.getAttribute("data-story-id"),Number(button.getAttribute("data-story-choice")));
     });
     panel.dataset.lwBound="1";
+  document.documentElement.classList.remove("lw-rebuild-pending");
   }
 }
 function checkTriggers(s,api){

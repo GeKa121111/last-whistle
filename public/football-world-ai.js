@@ -240,13 +240,19 @@
         fillRoster(world, club);
       } else {
         const club = world.clubs[id];
+        // Promotion/relegation is part of the simulated save. Do not overwrite a club's
+        // dynamic division with the static catalogue's original division on every reload.
+        const currentDivision = Math.max(1, int(club.division, int(row.division, 1)));
         const profile = db && typeof db.leagueFor === "function"
-          ? db.leagueFor(row.country, row.division) || {}
+          ? db.leagueFor(row.country, currentDivision) || {}
           : db && typeof db.leagueById === "function" ? db.leagueById(row.leagueId) || {} : {};
-        club.leagueName = String(row.leagueName || profile.name || profile.league || club.leagueName || "");
-        club.leagueEnglish = String(row.leagueEnglish || profile.englishName || profile.english || club.leagueEnglish || "");
-        club.division = Math.max(1, int(row.division, club.division || 1));
-        club.matchesPerSeason = Math.max(20, int(row.matchesPerSeason || profile.matchesPerSeason || profile.matches, club.matchesPerSeason || 34));
+        const staticLeagueName = Number(row.division) === currentDivision ? row.leagueName : "";
+        const staticLeagueEnglish = Number(row.division) === currentDivision ? row.leagueEnglish : "";
+        club.leagueName = String(profile.name || profile.league || staticLeagueName || club.leagueName || "");
+        club.leagueEnglish = String(profile.englishName || profile.english || staticLeagueEnglish || club.leagueEnglish || "");
+        club.division = currentDivision;
+        const staticMatches = Number(row.division) === currentDivision ? row.matchesPerSeason : 0;
+        club.matchesPerSeason = Math.max(20, int(profile.matchesPerSeason || profile.matches || staticMatches, club.matchesPerSeason || 34));
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.
         let index = 0;

@@ -2939,7 +2939,11 @@ function professionalLifeAction(kind){
  }
  saveGame(true);render();toast("اتسجل النشاط وتأثيره في مسيرتك.");
 }
+let lastAchievementsRenderSignature="";
 function renderAchievements(){
+ const renderKey=[state.apps>=1,state.goals>=1,state.followers>=1000,state.trust>=75,state.trophies>=1].join("|");
+ if(renderKey===lastAchievementsRenderSignature)return;
+ lastAchievementsRenderSignature=renderKey;
  const all=[
   {id:"debut",icon:"👟",name:"أول ظهور",desc:"العب أول مباراة",ok:state.apps>=1},
   {id:"scorer",icon:"⚽",name:"أول هدف",desc:"سجل أول هدف",ok:state.goals>=1},
@@ -3813,7 +3817,7 @@ function renderEurope(){
  renderGlobalCatalog();
  const cups=$("cupCatalog");if(cups)cups.innerHTML=competitionsForCurrentClub().map(c=>{const lock=competitionLockReason(c);return `<div class="leagueCountry"><h3>🏆 ${safeHTML(c.name)}</h3><p>${safeHTML(c.region)} • ${safeHTML(c.format)}</p><p>أندية مستخدمة في المحاكاة: ${(Array.isArray(c.teams)?c.teams:[]).map(safeHTML).join("، ")}</p><p class="muted small">${safeHTML(c.qualification||"تتحدد المشاركة وفق لائحة البطولة والموسم.")}</p>${c.officialUrl?`<p><a href="${safeHTML(c.officialUrl)}" target="_blank" rel="noopener noreferrer">الموقع الرسمي للبطولة</a></p>`:""}<p class="muted small">${safeHTML(c.simulationRatingNote||"المباريات داخل اللعبة محاكاة، وليست جدولًا أو قرعة رسمية حية.")}</p>${lock?`<p class="muted small">${safeHTML(lock)}</p>`:""}<button class="btn" data-enter-cup="${safeHTML(c.name)}" ${lock?'disabled aria-disabled="true" title="'+safeHTML(lock)+'"':''}>${lock?"مقفولة حاليًا":"ابدأ محاكاة البطولة"}</button></div>`}).join("");
  renderActiveCup();
- const box=$("realPlayerCatalog");if(box){box.innerHTML=`<label for="realPlayerTeam">اختار نادي</label><select id="realPlayerTeam">${Object.keys(REAL_PLAYERS).map(n=>`<option>${safeHTML(n)}</option>`).join("")}</select><div id="realPlayerNames" class="playerNames"></div>`;const sel=$("realPlayerTeam");const paint=()=>{$("realPlayerNames").innerHTML=(REAL_PLAYERS[sel.value]||[]).map((n,i)=>`<span class="pill">${i+1}. ${safeHTML(n)}</span>`).join("");};sel.addEventListener("change",paint);paint();}
+ const box=$("realPlayerCatalog");if(box&&!box.querySelector("#realPlayerTeam")){box.innerHTML=`<label for="realPlayerTeam">اختار نادي</label><select id="realPlayerTeam">${Object.keys(REAL_PLAYERS).map(n=>`<option>${safeHTML(n)}</option>`).join("")}</select><div id="realPlayerNames" class="playerNames"></div>`;const sel=$("realPlayerTeam");const paint=()=>{$("realPlayerNames").innerHTML=(REAL_PLAYERS[sel.value]||[]).map((n,i)=>`<span class="pill">${i+1}. ${safeHTML(n)}</span>`).join("");};sel.addEventListener("change",paint);paint();}
 }
 function setJourneyAction(button, action, label, disabled=false){
  if(!button)return;
@@ -3841,13 +3845,25 @@ function runSeasonJourneyAction(action){
  if(action==="season-block"){playSeasonBlock();return;}
  toast("تعذر تنفيذ الخطوة المطلوبة. حدّث الصفحة وحاول مرة أخرى.");
 }
+let lastJourneyEventCacheKey="";
+let lastJourneyEventCacheValue=false;
+let lastSeasonJourneyRenderKey="";
 function renderSeasonJourney(){
  const apps=Number(state.seasonApps)||0;
  const totalMatches=seasonMatchTotal();
  const contributions=Number(state.seasonGoals||0)+Number(state.seasonAssists||0);
  const missionsDone=contributions>=3;
  const windowInfo=transferWindow();
- const eventSeen=!!state.journeyEventSeen||(Array.isArray(state.diary)&&state.diary.some(x=>Number(x.season)===Number(state.season)&&String(x.text||"").includes("حدث يومي")));
+ const journeyDiary=Array.isArray(state.diary)?state.diary:[];
+ const eventCacheKey=[Number(state.season)||1,journeyDiary.length,!!state.journeyEventSeen].join("|");
+ if(eventCacheKey!==lastJourneyEventCacheKey){
+  lastJourneyEventCacheValue=!!state.journeyEventSeen||journeyDiary.some(x=>Number(x.season)===Number(state.season)&&String(x.text||"").includes("حدث يومي"));
+  lastJourneyEventCacheKey=eventCacheKey;
+ }
+ const eventSeen=lastJourneyEventCacheValue;
+ const root=$("seasonJourney");if(!root)return;
+ const renderKey=JSON.stringify([Number(state.season)||1,apps,totalMatches,contributions,Number(state.seasonGoals)||0,Number(state.seasonAssists)||0,Number(state.seasonPoints)||0,!!state.journeyTransferReviewed,!!windowInfo.open,String(windowInfo.name||""),Number(windowInfo.days)||0,eventSeen,String(state.seasonSummary||""),!!state.journeySeasonReviewed,!!state.retired,!!state.careerStarted,!!state.winterBreakPending,!!state.freeAgent]);
+ if(renderKey===lastSeasonJourneyRenderKey)return;
  const stages=[
   {name:"المباريات والأداء",icon:"⚽",short:"المباريات",desc:"لعب فريقك "+apps+" من "+totalMatches+" مباراة دوري. سجلت "+(state.seasonGoals||0)+" هدف وصنعت "+(state.seasonAssists||0)+"، وجمعت "+(state.seasonPoints||0)+" نقطة لفريقك.",done:apps>=2},
   {name:"قرار الانتقالات",icon:"🔄",short:"الانتقالات",desc:state.journeyTransferReviewed?"راجعت موقف عقدك وسوق الانتقالات للموسم الحالي.":(windowInfo.open?windowInfo.name+" مفتوحة. راجع العروض أو قرر الاستمرار مع ناديك.":windowInfo.name+". راجع عقدك وخططك، والسوق القادم بعد "+windowInfo.days+" يوم."),done:!!state.journeyTransferReviewed},
@@ -3861,7 +3877,6 @@ function renderSeasonJourney(){
  if(state.journeyTransferReviewed&&missionsDone)active=3;
  if(state.journeyTransferReviewed&&missionsDone&&eventSeen)active=4;
  if(apps>=totalMatches)active=4;
- const root=$("seasonJourney");if(!root)return;
  root.innerHTML=stages.map((st,i)=>'<div class="seasonStage '+(i===active?"active":"")+' '+(st.done?"done":"")+'"><div class="stageNum">'+(st.done?"✓":st.icon)+'</div><div><b>'+(i+1)+". "+st.name+'</b><small>'+st.short+'</small></div><span class="seasonStageStatus">'+(st.done?"اكتملت":i===active?"المحطة الحالية":"قادمة")+'</span></div>').join("");
  setText("seasonStageBadge","المحطة "+(active+1)+" من 5");
  setText("seasonStageTitle",stages[active].name);
@@ -3883,6 +3898,7 @@ function renderSeasonJourney(){
   const label=state.retired?"المسيرة انتهت":!state.careerStarted?"ابدأ مسيرتك أولًا":state.winterBreakPending?"راجع انتقالات الشتاء":windowInfo.open||state.freeAgent?"راجع سوق الانتقالات":"راجع العقد والسوق";
   setJourneyAction(transferButton,state.retired?"retired":state.winterBreakPending?"winter":"transfer-review",label,!!state.retired||!state.careerStarted);
  }
+ lastSeasonJourneyRenderKey=renderKey;
 }
 
 function renderPerformanceInsights(){
@@ -4688,11 +4704,16 @@ function startCareerFromSetup(){
  state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.seasonAppsTarget=window.LWCareer?.leagueMatchTarget(state.league.length)||seasonMatchTotal();state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);setStory("الفصل الأول: "+p.id,p.story+" دي بدايتك يا "+name+". أول هدف ليك إنك تكسب ثقة المدرب وتثبت إنك تستحق فرصة أكبر.");log(`بدأت مسيرتك في مركز ${p.id} مع ${state.clubName} في ${country}.`);
 	$("startScreen").classList.remove("show");saveGame(true);render();showPage("home");openModal("أهلاً يا "+name+" ⚽",p.story+"\nأول تحدي: شارك في مباراتين وارفع متوسط تقييمك قبل ما تفتح نافذة الانتقالات الجاية.",[{label:"يلا نبدأ",action:()=>{}}]);
 	}
+let globalCatalogRenderTimer=0;
+function scheduleGlobalCatalogRender(){
+ if(globalCatalogRenderTimer)clearTimeout(globalCatalogRenderTimer);
+ globalCatalogRenderTimer=setTimeout(()=>{globalCatalogRenderTimer=0;renderGlobalCatalog();},120);
+}
 function bind(){
  populateStartScreen();
  $("createCareerBtn").addEventListener("click",startCareerFromSetup);
  $("continueSavedBtn").addEventListener("click",()=>{$("startScreen").classList.remove("show");showPage(state.currentPage||"home");toast("رجعنا لمسيرتك يا كابتن.");});
- $("leagueSearch").addEventListener("input",renderEurope);$("confederationFilter").addEventListener("change",renderEurope);$("rosterFilter").addEventListener("change",renderEurope);$("transferSearch").addEventListener("input",renderTransferMarket);
+ $("leagueSearch").addEventListener("input",scheduleGlobalCatalogRender);$("confederationFilter").addEventListener("change",scheduleGlobalCatalogRender);$("rosterFilter").addEventListener("change",scheduleGlobalCatalogRender);$("transferSearch").addEventListener("input",renderTransferMarket);
  $("trainingIntensity").addEventListener("change",e=>{state.trainingIntensity=e.target.value;saveGame(true);toast("اتحفظت شدة التدريب للمسيرة.");});
  const favoriteHandler=e=>{const b=e.target.closest("[data-favorite-league]");if(!b)return;state.favoriteLeague=b.dataset.favoriteLeague;saveGame(true);toast("اتسجل "+state.favoriteLeague+" كدوري مفضل.");};
  $("leagueCatalog").addEventListener("click",favoriteHandler);$("playableLeagueCatalog").addEventListener("click",favoriteHandler);

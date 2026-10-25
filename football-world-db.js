@@ -14,7 +14,7 @@
     {id:"italy",country:"إيطاليا",englishCountry:"Italy",league:"الدوري الإيطالي الدرجة الأولى",english:"Serie A",tier2:"الدوري الإيطالي الدرجة الثانية",tier2English:"Serie B",confederation:"UEFA",globalTier:1,strength:93,teams:20,matches:38,tier2Teams:20,currency:"€",cups:["coppa-italia"],superCup:"italian-super-cup",continental:["ucl","uel","uecl"],url:"https://www.legaseriea.it/"},
     {id:"france",country:"فرنسا",englishCountry:"France",league:"الدوري الفرنسي الدرجة الأولى",english:"Ligue 1",tier2:"الدوري الفرنسي الدرجة الثانية",tier2English:"Ligue 2",confederation:"UEFA",globalTier:1,strength:91,teams:18,matches:34,tier2Teams:18,currency:"€",cups:["coupe-de-france"],superCup:"trophee-des-champions",continental:["ucl","uel","uecl"],url:"https://ligue1.com/"},
     {id:"portugal",country:"البرتغال",englishCountry:"Portugal",league:"الدوري البرتغالي الممتاز",english:"Primeira Liga",tier2:"الدوري البرتغالي الدرجة الثانية",tier2English:"Liga Portugal 2",confederation:"UEFA",globalTier:1,strength:88,teams:18,matches:34,tier2Teams:18,currency:"€",cups:["taca-portugal","taca-liga"],superCup:"portuguese-super-cup",continental:["ucl","uel","uecl"],url:"https://www.ligaportugal.pt/"},
-    {id:"egypt",country:"مصر",englishCountry:"Egypt",league:"الدوري المصري الممتاز",english:"Egyptian Premier League",tier2:"دوري الدرجة الثانية المصري",tier2English:"Egyptian Second Division",confederation:"CAF",globalTier:3,strength:76,teams:18,matches:34,tier2Teams:12,currency:"ج.م",cups:["egypt-cup","egypt-league-cup"],superCup:"egyptian-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.efa.com.eg/"},
+    {id:"egypt",country:"مصر",englishCountry:"Egypt",league:"الدوري المصري الممتاز",english:"Egyptian Premier League",tier2:"دوري الدرجة الثانية المصري",tier2English:"Egyptian Second Division",confederation:"CAF",globalTier:3,strength:76,teams:20,matches:34,tier2Teams:12,currency:"ج.م",cups:["egypt-cup","egypt-league-cup"],superCup:"egyptian-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.efa.com.eg/"},
     {id:"morocco",country:"المغرب",englishCountry:"Morocco",league:"البطولة الاحترافية المغربية",english:"Botola Pro",tier2:"القسم الثاني المغربي",tier2English:"Botola 2",confederation:"CAF",globalTier:3,strength:72,teams:16,matches:30,tier2Teams:16,currency:"$",cups:["morocco-throne-cup"],superCup:"morocco-super-cup",continental:["caf-cl","caf-confed"],url:"https://frmf.ma/"},
     {id:"tunisia",country:"تونس",englishCountry:"Tunisia",league:"الرابطة التونسية المحترفة الأولى",english:"Tunisian Ligue Professionnelle 1",tier2:"الرابطة التونسية المحترفة الثانية",tier2English:"Ligue 2",confederation:"CAF",globalTier:3,strength:70,teams:16,matches:30,tier2Teams:24,currency:"$",cups:["tunisia-cup"],superCup:"tunisia-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.ftf.org.tn/"},
     {id:"algeria",country:"الجزائر",englishCountry:"Algeria",league:"الرابطة الجزائرية المحترفة الأولى",english:"Ligue Professionnelle 1",tier2:"الرابطة الجزائرية الثانية",tier2English:"Ligue 2",confederation:"CAF",globalTier:3,strength:69,teams:16,matches:30,tier2Teams:16,currency:"$",cups:["algeria-cup"],superCup:"algeria-super-cup",continental:["caf-cl","caf-confed"],url:"https://www.faf.dz/"},
@@ -227,6 +227,7 @@
     {leagueId:"tunisia",country:"تونس",division:1,name:"مستقبل المرسى",aliases:["AS Marsa","AS La Marsa"]},
     {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي البنزرتي",aliases:["CA Bizertin","CAB"]},
     {leagueId:"tunisia",country:"تونس",division:1,name:"النادي الرياضي الصفاقسي",aliases:["CS Sfaxien","CS Sfaxien","CSS"]},
+    {leagueId:"tunisia",country:"تونس",division:1,name:"النجم الرياضي بحمام سوسة",aliases:["ES Hammam Sousse","ESHS"]},
     {leagueId:"tunisia",country:"تونس",division:1,name:"النجم الرياضي بالمتلوي",aliases:["ES Métlaoui","ES Metlaoui","ESM"]},
     {leagueId:"tunisia",country:"تونس",division:1,name:"الترجي الجرجيسي",aliases:["ES Zarzis","ESZ"]},
     {leagueId:"tunisia",country:"تونس",division:1,name:"شبيبة العمران",aliases:["JS El Omrane","JSO"]},
@@ -284,7 +285,6 @@
     {leagueId:"nigeria",country:"نيجيريا",division:1,name:"كوارا يونايتد",aliases:["Kwara United"]},
     {leagueId:"nigeria",country:"نيجيريا",division:1,name:"أبيا ووريورز",aliases:["Abia Warriors"]},
     // Ghana — Premier League 2026/27.
-    {leagueId:"ghana",country:"غانا",division:1,name:"أكرا لايونز",aliases:["Accra Lions"]},
     {leagueId:"ghana",country:"غانا",division:1,name:"أدوانا ستارز",aliases:["Aduana FC","Aduana Stars"]},
     {leagueId:"ghana",country:"غانا",division:1,name:"أشانتي غولد 04",aliases:["Ashantigold '04","Ashanti Gold"]},
     {leagueId:"ghana",country:"غانا",division:1,name:"باساكي هولي ستارز",aliases:["Basake Holy Stars"]},
@@ -605,17 +605,26 @@
     clubs:function () { return CLUBS.map(normalizeClub); },clubsForCountry:clubsForCountry,
     rosterCoverage:function () {
       var byLeague = {};
+      var totalDatabasePlayers = 0, totalRealPlayers = 0, totalGeneratedPlayers = 0;
       CLUBS.forEach(function (club) {
         var key = String(club.leagueId) + ":" + String(Number(club.division) || 1);
-        if (!byLeague[key]) byLeague[key] = {leagueId:club.leagueId,division:Number(club.division)||1,clubCount:0,realRosterCount:0,listedPlayers:0,clubsWithoutRoster:[]};
+        if (!byLeague[key]) byLeague[key] = {leagueId:club.leagueId,division:Number(club.division)||1,clubCount:0,
+          clubsWithCurrentRoster:0,clubsWithPartialRoster:0,listedPlayers:0,realPlayers:0,generatedPlayers:0,clubsNeedingRealRoster:[]};
+        var row = normalizeClub(club);
         byLeague[key].clubCount++;
-        var roster = Array.isArray(club.fullRoster) && club.fullRoster.length ? club.fullRoster : club.stars || [];
-        byLeague[key].listedPlayers += roster.length;
-        if (Array.isArray(club.fullRoster) && club.fullRoster.length) byLeague[key].realRosterCount++;
-        else byLeague[key].clubsWithoutRoster.push(club.name);
+        byLeague[key].listedPlayers += row.players.length;
+        totalDatabasePlayers += row.players.length;
+        row.players.forEach(function (player) {
+          if (player.isRealPlayer !== false && !player.isGenerated) { byLeague[key].realPlayers++; totalRealPlayers++; }
+          else { byLeague[key].generatedPlayers++; totalGeneratedPlayers++; }
+        });
+        if (Array.isArray(club.fullRoster) && club.fullRoster.length) byLeague[key].clubsWithCurrentRoster++;
+        else if ((club.stars || []).length) byLeague[key].clubsWithPartialRoster++;
+        else byLeague[key].clubsNeedingRealRoster.push(club.name);
       });
       return {season:SEASON,source:SQUAD_SNAPSHOT.source || "",snapshotGeneratedAt:SQUAD_SNAPSHOT.generatedAt || null,
         importedClubs:IMPORTED_CLUB_COUNT,importedPlayers:IMPORTED_PLAYER_COUNT,totalClubs:CLUBS.length,
+        totalDatabasePlayers:totalDatabasePlayers,totalRealPlayers:totalRealPlayers,totalGeneratedPlayers:totalGeneratedPlayers,
         leagues:Object.values(byLeague).sort(function(a,b){return a.leagueId.localeCompare(b.leagueId)||a.division-b.division;})};
     },
     clubByName:function (name,country) { var item = findClub(name,country); return item ? normalizeClub(item) : null; },

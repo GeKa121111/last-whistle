@@ -49,6 +49,12 @@ const clubsWithSourcedRosters = coverage.leagues.reduce((sum, league) => sum + l
 assert.equal(coverage.importedClubs, snapshotClubs.length, "all clubs in the sourced snapshot must be imported into the game database");
 assert.equal(clubsWithSourcedRosters, coverage.importedClubs, "the per-league roster audit must reconcile with imported club totals");
 assert.ok(coverage.importedPlayers >= 3500, "the game catalogue must retain thousands of sourced current player records");
+const argentinaCoverage = coverage.leagues.find(league => league.leagueId === "argentina" && league.division === 1);
+assert.ok(argentinaCoverage, "Argentina top-flight needs a dedicated roster-coverage row");
+assert.equal(argentinaCoverage.clubCount, 30, "Argentina sourced rosters must merge into the existing 30-club division without duplicate clubs");
+assert.equal(argentinaCoverage.clubsWithCurrentRoster, 30, "all 30 Argentine first-division clubs must load a sourced roster");
+assert.equal(argentinaCoverage.clubsNeedingRealRoster.length, 0, "no Argentine top-flight club should remain on generated-only backup players");
+assert.ok(argentinaCoverage.realPlayers >= 700, "Argentina should contribute at least 700 sourced player records");
 console.log("ROSTER_DATABASE_AUDIT " + JSON.stringify({
   totalClubs: coverage.totalClubs,
   playableSquadPlayers: coverage.totalDatabasePlayers,

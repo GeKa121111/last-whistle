@@ -5073,7 +5073,7 @@ function playingTimeNegotiationEvidence(){
 function negotiatePlayingTime(){
  const engine=window.LWCareer;
  const status=engine?.playingTimeNegotiationStatus(state)||"invalid-state";
- const messages={retired:"المسيرة انتهت بالاعتزال؛ مش متاح تعديل بند وقت اللعب.",youth:"تعديل بند وقت اللعب الاحترافي بيبدأ بعد التخرج من الأكاديمية.",free-agent:"أنت لاعب حر؛ اتفق على عقد مع نادٍ الأول.",on-loan:"وأنت معار، النادي المستضيف هو اللي بيحدد مشاركتك؛ تفاوض على الدور بعد العودة.",cooldown:"تمت محاولة تفاوض مؤخرًا. انتظر "+Math.max(1,7-(Number(state.daysSinceNegotiation)||0))+" أيام.", "already-agreed":"النادي وافق بالفعل على ضمان دور أساسي حتى نهاية الموسم."};
+ const messages={retired:"المسيرة انتهت بالاعتزال؛ مش متاح تعديل بند وقت اللعب.",youth:"تعديل بند وقت اللعب الاحترافي بيبدأ بعد التخرج من الأكاديمية.","free-agent":"أنت لاعب حر؛ اتفق على عقد مع نادٍ الأول.","on-loan":"وأنت معار، النادي المستضيف هو اللي بيحدد مشاركتك؛ تفاوض على الدور بعد العودة.",cooldown:"تمت محاولة تفاوض مؤخرًا. انتظر "+Math.max(1,7-(Number(state.daysSinceNegotiation)||0))+" أيام.", "already-agreed":"النادي وافق بالفعل على ضمان دور أساسي حتى نهاية الموسم."};
  if(status!=="ready"){toast(messages[status]||"تعديل بند وقت اللعب غير متاح حاليًا.");return;}
  const evidence=playingTimeNegotiationEvidence();
  const starterChance=engine.playingTimeNegotiationChance(state,"أساسي",evidence);

@@ -32,6 +32,21 @@ assert.equal(defensiveMidfieldLine.goals, attackingMidfieldLine.goals,
 assert.equal(defensiveMidfieldLine.assists, attackingMidfieldLine.assists,
   "an attacking midfielder must not be assigned striker assist rates");
 
+const sameForward = {
+  name: "مهاجم اختبار متطابق", clubName: "نادي اختبار", country: "مصر",
+  ovr: 95, prestige: 90, leagueStrength: 70, age: 24
+};
+const mobileForwardLine = engine.simulatePlayerSeason({
+  ...sameForward, position: "مهاجم"
+}, 3, 1);
+const centreStrikerLine = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة"
+}, 3, 1);
+assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
+  "a high-rated centre striker should produce more goals than an otherwise identical mobile forward");
+assert.ok(centreStrikerLine.assists < mobileForwardLine.assists,
+  "a mobile forward should produce more assists than an otherwise identical centre striker");
+
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
   country: "مصر", currentClub: "مركز شباب النور", currentClubPower: 52,

@@ -992,7 +992,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     </section>
 
     <section class="page" id="page-stats">
-      <div class="hub-page-heading"><span class="hub-overline">PLAYER DATA / MATCH FORM</span><h1>إحصائيات مسيرتك</h1><p>كل رقم هنا مبني على حالة الحفظ وسجل المباريات؛ فصلنا الإحصائيات عن الشاشة الرئيسية عشان تبقى أسهل في المتابعة.</p></div>
+      <div class="hub-page-heading"><span class="hub-overline">PLAYER DATA / MATCH FORM</span><h1>إحصائيات مسيرتك</h1><p>كل رقم هنا مبني على حالة الحفظ وسجل المباريات؛ فصلنا الإحصائيات عن الشاشة الرئيسية عشان تبقى أسهل في المتابعة.</p><p id="statsPositionContext" class="sectionNote">مركزك الحالي يحدد طريقة قراءة أرقام الأداء والتطوير.</p></div>
       <div class="grid">
         <article class="card span12 hub-stats-summary">
           <div class="kpiGrid">
@@ -1000,6 +1000,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
             <div class="kpi"><div class="kpiNum" id="statsCareerGoals">0</div><div class="kpiLabel">أهداف</div></div>
             <div class="kpi"><div class="kpiNum" id="statsCareerAssists">0</div><div class="kpiLabel">صناعات</div></div>
             <div class="kpi"><div class="kpiNum" id="statsSeasonApps">0</div><div class="kpiLabel">مباريات الموسم</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsGoalsPer90">0.00</div><div class="kpiLabel">أهداف لكل 90 دقيقة</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsAssistsPer90">0.00</div><div class="kpiLabel">صناعات لكل 90 دقيقة</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsMinutesPerAppearance">0</div><div class="kpiLabel">متوسط دقائق المشاركة</div></div>
           </div>
         </article>
         <article class="card span8">
@@ -1243,7 +1246,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   };
   const CAREER_ATTRIBUTE = {
     "حارس مرمى": "goalkeeping", "قلب دفاع": "physical", "ظهير": "speed",
-    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "shooting"
+    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "dribbling", "رأس حربة": "shooting"
   };
 
   const DEVELOPMENT_PLANS = {
@@ -1253,7 +1256,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "وسط دفاعي": { title: "محور ارتكاز", summary: "اكسب الالتحامات واقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية.", primary: ["defending", "physical"], secondary: ["vision", "fitness", "composure", "passing"], matchSkill: "defending" },
     "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
     "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ووازن ده بالقوة وقت الالتحام ثم حسّن الإنهاء وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness", "physical"], matchSkill: "dribbling" },
-    "مهاجم": { title: "مهاجم هدّاف", summary: "حوّل الفرص لأهداف بالتسديد والهدوء، وادعمهم بالتحرك والسرعة والرؤية داخل المنطقة.", primary: ["shooting"], secondary: ["composure", "speed", "vision"], matchSkill: "shooting" }
+    "مهاجم": { title: "مهاجم متحرك", summary: "مهاجم يشارك في بناء الهجمة، يتحرك بين الخطوط، يراوغ ويدخل المساحات ويصنع الفرص بجانب التسجيل. طوّر المراوغة والسرعة والتمرير مع إنهاء جيد.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "passing", "composure"], matchSkill: "dribbling" },
+    "رأس حربة": { title: "رأس حربة هدّاف", summary: "مهمتك الأساسية إنهاء الهجمة داخل المنطقة، استغلال العرضيات والكرات البينية، وحماية الكرة تحت ضغط المدافعين. ركّز على التسديد والهدوء والقوة البدنية.", primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
     const position = typeof state === "string" ? state : String(state && state.pos || "جناح");
@@ -1278,7 +1282,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
     "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
     "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
-    "مهاجم": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[48,60] }
+    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[5,12], vision:[51,62], physical:[45,57] },
+    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[5,12], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
     const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
@@ -1369,13 +1374,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   const OVR_WEIGHTS = {
-    "حارس مرمى": { goalkeeping:.48,composure:.12,vision:.08,fitness:.08,passing:.07,physical:.05,speed:.04,defending:.03,dribbling:.025,shooting:.025 },
-    "قلب دفاع": { defending:.23,physical:.17,fitness:.12,speed:.10,composure:.10,passing:.08,vision:.06,dribbling:.05,shooting:.06,goalkeeping:.03 },
-    "ظهير": { speed:.17,defending:.17,fitness:.14,physical:.12,passing:.11,dribbling:.09,vision:.06,composure:.06,shooting:.05,goalkeeping:.03 },
-    "وسط دفاعي": { defending:.18,passing:.16,vision:.13,physical:.12,fitness:.12,composure:.10,speed:.07,dribbling:.04,shooting:.05,goalkeeping:.03 },
-    "وسط مهاجم": { vision:.19,passing:.19,composure:.12,dribbling:.11,shooting:.10,speed:.08,fitness:.08,physical:.04,defending:.06,goalkeeping:.03 },
-    "جناح": { shooting:.16,dribbling:.18,speed:.16,passing:.12,vision:.10,fitness:.10,composure:.08,physical:.04,defending:.04,goalkeeping:.02 },
-    "مهاجم": { shooting:.26,dribbling:.10,speed:.13,composure:.12,fitness:.10,vision:.10,passing:.08,physical:.05,defending:.04,goalkeeping:.02 }
+    "حارس مرمى": { goalkeeping:.52,composure:.14,vision:.12,fitness:.08,passing:.06,physical:.04,speed:.02,defending:.02 },
+    "قلب دفاع": { defending:.25,physical:.20,fitness:.15,speed:.12,composure:.10,passing:.08,vision:.05,dribbling:.03,shooting:.02 },
+    "ظهير": { speed:.20,defending:.18,fitness:.15,physical:.12,passing:.12,dribbling:.08,vision:.05,composure:.05,shooting:.05 },
+    "وسط دفاعي": { defending:.20,passing:.18,vision:.16,physical:.12,fitness:.12,composure:.10,speed:.06,dribbling:.03,shooting:.03 },
+    "وسط مهاجم": { vision:.22,passing:.22,composure:.14,dribbling:.12,shooting:.10,speed:.07,fitness:.07,physical:.03,defending:.03 },
+    "جناح": { shooting:.18,dribbling:.20,speed:.19,passing:.13,vision:.10,fitness:.08,composure:.07,physical:.03,defending:.02 },
+    "مهاجم": { shooting:.22,dribbling:.17,speed:.15,passing:.11,vision:.11,composure:.10,fitness:.08,physical:.04,defending:.02 },
+    "رأس حربة": { shooting:.32,composure:.16,physical:.14,fitness:.10,speed:.09,dribbling:.07,vision:.05,passing:.04,defending:.02,goalkeeping:.01 }
   };
   function overall(state) {
     ensureState(state);
@@ -2017,8 +2023,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       "ظهير": { shooter: 0.11, creator: 0.18, defender: 0.25 },
       "وسط دفاعي": { shooter: 0.13, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.27, creator: 0.36, defender: 0.14 },
-      "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10 },
-      "مهاجم": { shooter: 0.43, creator: 0.13, defender: 0.05 }
+      "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10, finishingBonus: 0 },
+      "مهاجم": { shooter: 0.36, creator: 0.22, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.50, creator: 0.08, defender: 0.04, finishingBonus: 0.05 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
 
@@ -2099,8 +2106,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
     function createPeriod(periodStart, duration, isExtra) {
       const relativeGap = teamPower + homeAdvantage - opponentPower;
-      let ourVolume = 6 + relativeGap / 19 + (tactic === "attack" ? 1.8 : tactic === "defend" ? -0.9 : tactic === "counter" && relativeGap < 0 ? 0.8 : 0);
-      let oppVolume = 6 - relativeGap / 21 + (tactic === "attack" ? 0.8 : tactic === "defend" ? -1.5 : tactic === "counter" && relativeGap < 0 ? -0.3 : 0);
+      // The old baseline generated too few attacking sequences and suppressed season scoring.
+      let ourVolume = 9.5 + relativeGap / 19 + (tactic === "attack" ? 1.8 : tactic === "defend" ? -0.9 : tactic === "counter" && relativeGap < 0 ? 0.8 : 0);
+      let oppVolume = 9.5 - relativeGap / 21 + (tactic === "attack" ? 0.8 : tactic === "defend" ? -1.5 : tactic === "counter" && relativeGap < 0 ? -0.3 : 0);
       const tacticalEffect = ({
         balanced: { our: 0, opponent: 0 },
         press: { our: -0.55, opponent: 0.70 },
@@ -2137,9 +2145,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
-          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055 + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
-          const teamShotChance = clamp(0.15 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
-          const opponentShotChance = clamp(0.17 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
+          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055
+            + (Number(profile.finishingBonus) || 0)
+            + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
+          const teamShotChance = clamp(0.18 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
+          const opponentShotChance = clamp(0.19 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
           const isGoal = random() < (byPlayer ? playerShotChance : isOurs ? teamShotChance : opponentShotChance);
           const shotEvent = events[events.length - 1];
           shotEvent.shooter = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
@@ -2164,7 +2174,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           shotEvent.onTarget = true;
           const scorer = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
           events.push({ type: "goal", minute, side, scorer, creditedToPlayer: byPlayer });
-          if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.12, 0.07, 0.34)) {
+          if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.22, 0.07, 0.34)) {
             stats.assists++;
             stats.keyPasses++;
             events.push({ type: "assist", minute: Math.max(1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
@@ -2332,7 +2342,8 @@ const POSITIONS=[
 {id:"وسط دفاعي",icon:"🧭",short:"CDM",story:"مش أكتر لاعب بيظهر في اللقطات، بس إنت اللي بتقطع الهجمة وتبدأ هجمة جديدة. حلمك تبقى ميزان الفريق.",boost:{passing:4,fitness:3,composure:3,defending:5,vision:3},role:"بديل"},
 {id:"وسط مهاجم",icon:"🎩",short:"CAM",story:"عينك دايمًا شايفة التمريرة اللي محدش واخد باله منها. المدرب عايزك تتحمل مسؤولية صناعة اللعب تحت الضغط.",boost:{passing:5,composure:4,dribbling:2,vision:8},role:"بديل"},
 {id:"جناح",icon:"⚡",short:"W",story:"بدأت تلعب على الخط وتراوغ أي حد يقف قدامك. الكشافين بيحبوا سرعتك، بس لازم تتعلم إمتى تمرر وإمتى تدخل جوه وتسدد.",boost:{speed:5,dribbling:4,shooting:1,vision:2},role:"بديل"},
-{id:"مهاجم",icon:"⚽",short:"ST",story:"من أول ماتش صغير وإنت بتدور على الشباك. الكابتن قالك إن الهداف بيتحاسب على قراراته، مش عدد اللمسات؛ كل فرصة ليها قيمة.",boost:{shooting:5,composure:4,fitness:1,vision:2},role:"بديل"}
+{id:"مهاجم",label:"مهاجم متحرك",icon:"⚽",short:"CF",story:"مهمتك تربط الوسط بالهجوم: تتحرك بين الخطوط، تستلم تحت الضغط، تراوغ وتفتح مساحة لزمايلك، وتسجل لما الفرصة تظهر.",boost:{dribbling:4,speed:4,shooting:2,passing:1,vision:2},role:"بديل"},
+{id:"رأس حربة",label:"رأس حربة",icon:"🎯",short:"ST",story:"إنت نقطة نهاية الهجمة: تتحرك بين قلبي الدفاع، تستغل العرضيات والكرات البينية، وتخلص الفرصة بأقل لمسات. محتاج تسديد وهدوء وقوة في الالتحام.",boost:{shooting:6,composure:4,physical:3,fitness:1,vision:1},role:"بديل"}
 ];
 const EUROPE_LEAGUES=[
 ["إنجلترا","🏴","Premier League","EFL Championship","مانشستر سيتي، ليفربول، أرسنال","ليدز يونايتد، ليستر سيتي، ساوثهامبتون"],
@@ -4119,7 +4130,7 @@ function render(){
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
  setText("heroDescription",`كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك مع ${club().name}، واكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.`);
  setText("headDay",state.day);setText("headMoney",Number(state.money||0).toLocaleString("en-US"));setText("headCurrency",currencyLabel());setText("headEnergy",state.energy);
- setText("playerName",state.name);setText("playerMeta",`${state.age} سنة • ${state.pos} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
+ setText("playerName",state.name);setText("playerMeta",`${state.age} سنة • ${displayPositionLabel(state.pos)} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
  setText("injuryPill",state.injuryDays>0?`مصاب: ${state.injuryDays} يوم`:"سليم");$("injuryPill").className="pill "+(state.injuryDays>0?"red":"green");
  setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":"عقد "+state.contractSeasons+" موسم");
  [["ovBar",ov],["energyBar",state.energy],["moraleBar",state.morale],["trustBar",state.trust]].forEach(([id,v])=>setBar(id,v));
@@ -4434,7 +4445,8 @@ function seasonTrainingPerformanceFocus(){
   case "وسط دفاعي": return tackles+interceptions<2.2?"defending":"passing";
   case "وسط مهاجم": return keyPasses<1.5?"vision":"passing";
   case "جناح": return onTarget<0.8&&chances<1.8?"dribbling":"speed";
-  case "مهاجم": return shots>=1&&onTarget/Math.max(1,shots)<0.38?"shooting":"composure";
+  case "مهاجم": return chances<1.5?"dribbling":keyPasses<1.2?"vision":"speed";
+  case "رأس حربة": return shots>=1&&onTarget/Math.max(1,shots)<0.38?"shooting":"composure";
   default: return "";
  }
 }
@@ -4992,6 +5004,7 @@ function heroStory(){openModal(state.storyTitle,state.storyText,[{label:"تما�
 
 let selectedPosition="جناح";
 function positionById(id){return POSITIONS.find(p=>p.id===id)||POSITIONS.find(p=>p.id==="جناح");}
+function displayPositionLabel(id){return positionById(id)?.label||id||"غير محدد";}
 function populateStartScreen(){
  const leagues=window.LWCatalog?.latestDomesticCompetitions()||[];
  const options=[{country:"مصر",competition:"الدوري المصري — قائمة اللعبة المحلية",season:"بيانات محلية"},...leagues];
@@ -5002,7 +5015,7 @@ function populateStartScreen(){
  const startDivision=$("startDivision");
  if(!select.dataset.bound){select.addEventListener("change",updateStartClubOptions);startDivision.addEventListener("change",updateStartClubOptions);$("startAge").addEventListener("change",()=>{const nextAge=clamp(Number($("startAge").value)||17,12,20);if(nextAge<=15)startDivision.value="1";else if(nextAge<=18)startDivision.value="2";updateStartClubOptions();});select.dataset.bound="1";}
  if(!$("positionGrid").dataset.bound){$("positionGrid").addEventListener("click",e=>{const b=e.target.closest("[data-position]");if(!b)return;selectedPosition=b.dataset.position;document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();});$("positionGrid").dataset.bound="1";}
- $("positionGrid").innerHTML=POSITIONS.map(p=>`<button type="button" class="positionChoice ${p.id==="جناح"?"selected":""}" data-position="${safeHTML(p.id)}"><span class="posIcon">${p.icon}</span><b>${safeHTML(p.id)}</b><small>${safeHTML(p.short)}</small></button>`).join("");
+ $("positionGrid").innerHTML=POSITIONS.map(p=>`<button type="button" class="positionChoice ${p.id==="جناح"?"selected":""}" data-position="${safeHTML(p.id)}"><span class="posIcon">${p.icon}</span><b>${safeHTML(p.label||p.id)}</b><small>${safeHTML(p.short)}</small></button>`).join("");
  selectedPosition=state.careerStarted?(state.pos||"جناح"):"جناح";
  updatePositionStory();updateStartClubOptions();
  const nameInput=$("startName");if(!nameInput.dataset.bound){nameInput.addEventListener("input",()=>nameInput.setCustomValidity(""));nameInput.addEventListener("focus",()=>{const screen=$("startScreen");if(screen?.classList.contains("show"))nameInput.scrollIntoView({block:"center",behavior:"smooth"});});nameInput.addEventListener("click",()=>{const screen=$("startScreen");if(screen?.classList.contains("show"))nameInput.scrollIntoView({block:"center",behavior:"smooth"});});nameInput.dataset.bound="1";}if(state.careerStarted){$("continueSavedBtn").style.display="block";if($("startNationalTeam"))$("startNationalTeam").value=state.nationalTeam||"مصر";nameInput.value=String(state.name||"");$("startAge").value=String(clamp(state.age,12,20));$("startCountry").value=state.leagueCountry||"مصر";$("startDivision").value=String(state.leagueDivision||2);updateStartClubOptions();$("startClub").value=state.clubName||"";document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();}else{$("continueSavedBtn").style.display="none";nameInput.value="";$("startAge").value="17";if($("startNationalTeam"))$("startNationalTeam").value="مصر";$("startDivision").value="2";}const setupScreen=$("startScreen");if(setupScreen)setupScreen.scrollTop=0;

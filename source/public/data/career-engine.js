@@ -16,7 +16,7 @@
   };
   const CAREER_ATTRIBUTE = {
     "حارس مرمى": "goalkeeping", "قلب دفاع": "physical", "ظهير": "speed",
-    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "shooting"
+    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "dribbling", "رأس حربة": "shooting"
   };
 
   const DEVELOPMENT_PLANS = {
@@ -26,7 +26,8 @@
     "وسط دفاعي": { title: "محور ارتكاز", summary: "اكسب الالتحامات واقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية.", primary: ["defending", "physical"], secondary: ["vision", "fitness", "composure", "passing"], matchSkill: "defending" },
     "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
     "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ووازن ده بالقوة وقت الالتحام ثم حسّن الإنهاء وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness", "physical"], matchSkill: "dribbling" },
-    "مهاجم": { title: "مهاجم هدّاف", summary: "حوّل الفرص لأهداف بالتسديد والهدوء، وادعمهم بالتحرك والسرعة والرؤية داخل المنطقة.", primary: ["shooting"], secondary: ["composure", "speed", "vision"], matchSkill: "shooting" }
+    "مهاجم": { title: "مهاجم متحرك", summary: "مهاجم يشارك في بناء الهجمة، يتحرك بين الخطوط، يراوغ ويدخل المساحات ويصنع الفرص بجانب التسجيل. طوّر المراوغة والسرعة والتمرير مع إنهاء جيد.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "passing", "composure"], matchSkill: "dribbling" },
+    "رأس حربة": { title: "رأس حربة هدّاف", summary: "مهمتك الأساسية إنهاء الهجمة داخل المنطقة، استغلال العرضيات والكرات البينية، وحماية الكرة تحت ضغط المدافعين. ركّز على التسديد والهدوء والقوة البدنية.", primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
     const position = typeof state === "string" ? state : String(state && state.pos || "جناح");
@@ -51,7 +52,8 @@
     "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
     "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
     "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
-    "مهاجم": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[48,60] }
+    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[5,12], vision:[51,62], physical:[45,57] },
+    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[5,12], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
     const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
@@ -148,7 +150,8 @@
     "وسط دفاعي": { defending:.20,passing:.18,vision:.16,physical:.12,fitness:.12,composure:.10,speed:.06,dribbling:.03,shooting:.03 },
     "وسط مهاجم": { vision:.22,passing:.22,composure:.14,dribbling:.12,shooting:.10,speed:.07,fitness:.07,physical:.03,defending:.03 },
     "جناح": { shooting:.18,dribbling:.20,speed:.19,passing:.13,vision:.10,fitness:.08,composure:.07,physical:.03,defending:.02 },
-    "مهاجم": { shooting:.30,dribbling:.12,speed:.15,composure:.14,fitness:.09,vision:.08,passing:.07,physical:.03,defending:.02 }
+    "مهاجم": { shooting:.22,dribbling:.17,speed:.15,passing:.11,vision:.11,composure:.10,fitness:.08,physical:.04,defending:.02 },
+    "رأس حربة": { shooting:.32,composure:.16,physical:.14,fitness:.10,speed:.09,dribbling:.07,vision:.05,passing:.04,defending:.02,goalkeeping:.01 }
   };
   function overall(state) {
     ensureState(state);

@@ -32,6 +32,19 @@ const winger = ai.coachAdvice({
 }, 68);
 assert.equal(winger.focus, "speed", "a winger must receive a position-specific primary focus");
 
+const mobileForwardAdvice = ai.coachAdvice({
+  pos: "مهاجم", injuryDays: 0, energy: 85, fatigue: 20, trust: 65, morale: 72,
+  dribbling: 59, speed: 55, shooting: 64, lastRating: 7.4
+}, 68);
+assert.equal(mobileForwardAdvice.focus, "dribbling",
+  "a mobile forward should be coached first on dribbling and movement");
+const centreStrikerAdvice = ai.coachAdvice({
+  pos: "رأس حربة", injuryDays: 0, energy: 85, fatigue: 20, trust: 65, morale: 72,
+  shooting: 59, composure: 55, physical: 58, lastRating: 7.4
+}, 68);
+assert.equal(centreStrikerAdvice.focus, "shooting",
+  "a centre striker should be coached first on finishing/shooting");
+
 const newestForm = ai.formRating({
   careerMatchHistory: [
     ...Array.from({ length: 5 }, (_, i) => ({ scope: "league", rating: 8.8 - i * 0.1, matchId: "new-" + i })),

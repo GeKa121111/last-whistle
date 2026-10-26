@@ -37,6 +37,7 @@
     // before checking role words such as "defensive" or "attacking".
     if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")) return "midfielder";
     if (value.includes("دفاع") || value.includes("ظهير")) return "defender";
+    if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")) return "striker";
     if (value.includes("جناح") || value.includes("مهاجم")) return "attacker";
     return "midfielder";
   }
@@ -84,10 +85,10 @@
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
-    const attackRate = type === "attacker" ? 0.47 : type === "midfielder" ? 0.19 : type === "defender" ? 0.055 : 0.005;
-    const assistRate = type === "attacker" ? 0.28 : type === "midfielder" ? 0.36 : type === "defender" ? 0.10 : 0.015;
+    const attackRate = type === "striker" ? 0.62 : type === "attacker" ? 0.43 : type === "midfielder" ? 0.19 : type === "defender" ? 0.055 : 0.005;
+    const assistRate = type === "striker" ? 0.20 : type === "attacker" ? 0.30 : type === "midfielder" ? 0.36 : type === "defender" ? 0.10 : 0.015;
     const ratingBase = 5.8 + Math.max(0, ovr - 48) * 0.031 + Math.max(0, (Number(player.prestige) || 60) - 65) * 0.002;
-    const goalsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * attackRate + random() * (type === "attacker" ? 7 : 4)));
+    const goalsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * attackRate + random() * (type === "striker" ? 8 : type === "attacker" ? 7 : 4)));
     const assistsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * assistRate + random() * 5));
     const goals = Math.round(goalsFull * scale);
     const assists = Math.round(assistsFull * scale);

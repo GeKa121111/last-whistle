@@ -263,8 +263,12 @@ for (const marker of ["coachAdvice", "recommendPlayerTactic", "chooseOpponentTac
   if (!aiEngineSource.includes(marker)) { console.error("Career AI engine is missing:", marker); process.exit(1); }
 }
 const worldAISource = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
-for (const marker of ["runTransferWindow", "completeSeason", "advanceToSeason", "seasonStats", "marketReports", "transferTargets"]) {
+for (const marker of ["runTransferWindow", "completeSeason", "advanceToSeason", "seasonStats", "marketReports", "transferTargets", 'attacker: ["جناح", "مهاجم", "رأس حربة"]']) {
   if (!worldAISource.includes(marker)) { console.error("Football world AI engine is missing:", marker); process.exit(1); }
+}
+const squadRefreshSource = fs.readFileSync(path.join(root, "scripts", "refresh-world-squads.cjs"), "utf8");
+for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["LW", "RW", "LWF", "RWF"]']) {
+  if (!squadRefreshSource.includes(marker)) { console.error("Sourced squad position normalization collapsed striker roles:", marker); process.exit(1); }
 }
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }

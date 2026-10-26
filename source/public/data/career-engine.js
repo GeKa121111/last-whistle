@@ -199,6 +199,8 @@
       state.trainingXP[key] = Math.max(0, Number(state.trainingXP[key]) || 0);
       if (!Number.isFinite(Number(state[key]))) state[key] = 50;
     }
+    // Migrate legacy saves with the former universal goalkeeping baseline.
+    if (state.pos !== "حارس مرمى") state.goalkeeping = Math.max(10, Math.min(15, Number(state.goalkeeping) || 12));
     return state;
   }
 
@@ -224,8 +226,19 @@
     return Math.round(weighted / (totalWeight || 1));
   }
 
+  function agingProfile(state) {
+    const position = String(state && state.pos || "جناح");
+    if (position === "حارس مرمى") return { fitnessStart: 36, speedStart: 99, physicalStart: 39, capStart: 36, trainingStart: 36 };
+    if (position === "قلب دفاع") return { fitnessStart: 34, speedStart: 35, physicalStart: 36, capStart: 34, trainingStart: 34 };
+    if (position === "ظهير") return { fitnessStart: 31, speedStart: 31, physicalStart: 32, capStart: 31, trainingStart: 31 };
+    if (position === "وسط دفاعي" || position === "وسط مهاجم") return { fitnessStart: 32, speedStart: 33, physicalStart: 33, capStart: 32, trainingStart: 32 };
+    return { fitnessStart: 30, speedStart: 29, physicalStart: 32, capStart: 29, trainingStart: 29 };
+  }
+
   function limitFor(state, key) {
-    const agePenalty = Number(state.age) >= 30 ? Math.min(8, Number(state.age) - 29) : 0;
+    const profile = agingProfile(state);
+    const age = Number(state.age) || 0;
+    const agePenalty = age >= profile.capStart ? Math.min(8, Math.floor((age - profile.capStart) / 2) + 1) : 0;
     const positionBonus = key === CAREER_ATTRIBUTE[state.pos] ? 3 : 0;
     return Math.max(Number(state[key]) || 0, Math.min(99, state.playerPotential + positionBonus - agePenalty));
   }
@@ -281,10 +294,14 @@
 
     state.energy = clamp(state.energy - cost);
     const coachBonus = state.privateCoach ? 8 : 0;
-    const trainingAgeFactor = Number(state.age) >= 30 ? 0.78 : 1;
+    const ageProfile = agingProfile(state);
+    const playerAge = Number(state.age) || 0;
+    const trainingAgeFactor = playerAge >= ageProfile.trainingStart
+      ? (playerAge >= ageProfile.trainingStart + 5 ? 0.78 : 0.9) : 1;
     const fatiguePenalty = 1 - clamp(state.fatigue, 0, 100) * 0.0035;
     const focusMultiplier = trainingFocusMultiplier(state, type);
-    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier));
+    const xpMultiplier = state.xpMultiplier ? 1.25 : 1;
+    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier * xpMultiplier));
     const primaryGain = addTrainingXP(state, type, baseXP);
     const secondaryGains = [];
     for (const [skill, share] of Object.entries(setup.secondary)) {
@@ -517,6 +534,9 @@
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
     if (state.retired) return { ok: false, status: "retired" };
+    if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
+      return { ok: false, status: "direct-rating-purchase-disabled" };
+    }
     if (state[item.id]) return { ok: false, status: "already-owned" };
     const cost = Math.round(Number(item.price));
     const balance = Number(state.money);
@@ -602,12 +622,15 @@
   }
 
   function applySeasonAging(state) {
-    if (Number(state.age) >= 30) {
-      state.fitness = clamp(Number(state.fitness) - 1);
-      if (Number(state.age) >= 33) state.speed = clamp(Number(state.speed) - 1);
-      return Number(state.age) >= 33 ? "مع تقدم العمر، زادت أهمية إدارة السرعة والاستشفاء." : "مع تقدم العمر، حافظ على اللياقة والاستشفاء.";
-    }
-    return "";
+    if (!state || typeof state !== "object") return "";
+    const age = Math.max(0, Number(state.age) || 0);
+    const profile = agingProfile(state);
+    const declines = [];
+    if (age >= profile.fitnessStart) { state.fitness = clamp(Number(state.fitness) - 1); declines.push("اللياقة"); }
+    if (age >= profile.speedStart) { state.speed = clamp(Number(state.speed) - 1); declines.push("السرعة"); }
+    if (age >= profile.physicalStart) { state.physical = clamp(Number(state.physical) - 1); declines.push("القوة البدنية"); }
+    if (!declines.length) return "";
+    return "منحنى العمر الخاص بمركزك (" + String(state.pos || "غير محدد") + ") بدأ يؤثر على " + declines.join(" و") + "؛ راعِ توزيع الأحمال والاستشفاء.";
   }
 
   window.LWCareer = {

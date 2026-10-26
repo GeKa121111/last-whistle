@@ -14,7 +14,8 @@ const expectedPlans = {
   "وسط دفاعي": { primary: "defending", secondary: ["vision", "fitness", "composure"] },
   "وسط مهاجم": { primary: "vision", secondary: ["composure", "dribbling", "shooting"] },
   "جناح": { primary: "dribbling", secondary: ["shooting", "vision", "fitness"] },
-  "مهاجم": { primary: "shooting", secondary: ["composure", "speed", "vision"] }
+  "مهاجم": { primary: "dribbling", secondary: ["speed", "shooting", "vision", "passing", "composure"] },
+  "رأس حربة": { primary: "shooting", secondary: ["composure", "physical", "fitness", "speed"] }
 };
 for (const [position, expected] of Object.entries(expectedPlans)) {
   const plan = career.positionDevelopmentPlan({ pos: position });
@@ -32,7 +33,8 @@ assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"),
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);
 const startRanges = {
-  "مهاجم": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[5,12] },
+  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[5,12] },
+  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[5,12] },
   "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[5,12] },
   "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[5,12] },
   "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[5,12] },
@@ -50,6 +52,27 @@ const wingerStats = career.startingStatsForPosition("جناح", () => 0.5);
 const keeperStats = career.startingStatsForPosition("حارس مرمى", () => 0.5);
 assert.ok(keeperStats.goalkeeping > wingerStats.goalkeeping, "keeper OVR should reward goalkeeping instead of averaging all skills equally");
 assert.ok(wingerStats.shooting > wingerStats.goalkeeping, "winger must not start with goalkeeper-level stats");
+
+const mobileForward = career.positionDevelopmentPlan({ pos: "مهاجم" });
+const centreStriker = career.positionDevelopmentPlan({ pos: "رأس حربة" });
+assert.notDeepEqual(mobileForward.primary, centreStriker.primary,
+  "a mobile forward and a centre striker need different development priorities");
+assert.equal(mobileForward.matchSkill, "dribbling", "the mobile forward's role-defining match skill is dribbling");
+assert.equal(centreStriker.matchSkill, "shooting", "the centre striker's role-defining match skill is finishing/shooting");
+assert.equal(career.trainingFocusMultiplier({ pos: "مهاجم" }, "dribbling"), 1.2);
+assert.equal(career.trainingFocusMultiplier({ pos: "رأس حربة" }, "shooting"), 1.2);
+const positionProbe = { shooting:60, dribbling:60, passing:60, speed:60, fitness:60, composure:60,
+  vision:60, defending:60, goalkeeping:60, physical:60, age:22, playerPotential:85, trainingXP:{}, randomSeed:7 };
+const mobileBaselineOVR = career.overall({ ...positionProbe, pos: "مهاجم" });
+const mobileHighShotOVR = career.overall({ ...positionProbe, pos: "مهاجم", shooting:80 });
+const strikerBaselineOVR = career.overall({ ...positionProbe, pos: "رأس حربة" });
+const strikerHighShotOVR = career.overall({ ...positionProbe, pos: "رأس حربة", shooting:80 });
+const mobileHighDribbleOVR = career.overall({ ...positionProbe, pos: "مهاجم", dribbling:80 });
+const strikerHighDribbleOVR = career.overall({ ...positionProbe, pos: "رأس حربة", dribbling:80 });
+assert.ok(strikerHighShotOVR - strikerBaselineOVR > mobileHighShotOVR - mobileBaselineOVR,
+  "shooting improvement should count more for a centre striker than for a mobile forward");
+assert.ok(mobileHighDribbleOVR - mobileBaselineOVR > strikerHighDribbleOVR - strikerBaselineOVR,
+  "dribbling improvement should count more for a mobile forward than for a centre striker");
 const wingerBase = { ...wingerStats, pos: "جناح", trainingXP: {}, randomSeed: 1, playerPotential: 85 };
 const wingerWithEliteKeeping = { ...wingerBase, goalkeeping: 99 };
 assert.equal(career.overall(wingerBase), career.overall(wingerWithEliteKeeping), "irrelevant goalkeeper stats must not inflate a winger's OVR");

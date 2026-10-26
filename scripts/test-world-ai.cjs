@@ -54,6 +54,27 @@ assert.equal(Object.keys(world.players).length, playerCount, "reconciliation mus
 assert.equal(typeof ai.recruitmentNeeds, "function", "the world AI must expose recruitment-needs analysis");
 const recruitment = ai.recruitmentNeeds(save, db);
 assert.ok(recruitment.length >= clubCount, "recruitment analysis must cover the full club database");
+// Guard the hot path against regressions: indexed recruitment may scan the global
+// player map once, not once per club. The returned recruitment priorities must stay
+// exactly equal to the reference result above.
+const originalPlayerMap = world.players;
+let playerMapScans = 0;
+world.players = new Proxy(originalPlayerMap, {
+  ownKeys(target) {
+    playerMapScans++;
+    return Reflect.ownKeys(target);
+  }
+});
+let indexedRecruitment;
+try {
+  indexedRecruitment = ai.recruitmentNeeds(save, db);
+} finally {
+  world.players = originalPlayerMap;
+}
+assert.equal(playerMapScans, 1,
+  "recruitment analysis must build its player-to-club index in a single pass");
+assert.equal(JSON.stringify(indexedRecruitment), JSON.stringify(recruitment),
+  "indexing must preserve every club's contextual recruitment scores and ordering");
 for (const clubNeed of recruitment) {
   assert.ok(Array.isArray(clubNeed.needs) && clubNeed.needs.length >= 4,
     "every club must evaluate goalkeeper, defence, midfield and attack needs");

@@ -308,10 +308,11 @@
   function rosterPlayers(world, club) {
     return (club.roster || []).map(id => world.players[id]).filter(Boolean);
   }
-  function roleStats(world, club) {
+  function roleStats(world, club, rosterRows) {
+    const all = Array.isArray(rosterRows) ? rosterRows : rosterPlayers(world, club);
     const output = {};
     for (const group of Object.keys(TARGETS)) {
-      const rows = rosterPlayers(world, club).filter(player => player.group === group);
+      const rows = all.filter(player => player.group === group);
       output[group] = { count: rows.length, average: average(rows.map(player => Number(player.ovr) || 50)),
         best: rows.length ? Math.max(...rows.map(player => Number(player.ovr) || 50)) : 0 };
     }
@@ -463,8 +464,8 @@
     if (archetype === "academy-builder") return "technical-discipline";
     return "balanced-rotation";
   }
-  function roleAverages(world, club) {
-    const all = rosterPlayers(world, club);
+  function roleAverages(world, club, rosterRows) {
+    const all = Array.isArray(rosterRows) ? rosterRows : rosterPlayers(world, club);
     const stats = {};
     for (const group of Object.keys(TARGETS)) {
       const rows = all.filter(player => player.group === group);
@@ -497,10 +498,14 @@
     return 5 + deficit * 11 + qualityGap * 1.25 + topQualityGap * 0.9
       + weakUnitPenalty + (row.count === 0 ? 18 : 0) + ageFit + (undercovered ? 7 : 0);
   }
-  function sellingCandidate(world, seller, group, usedPlayers) {
-    const rows = rosterPlayers(world, seller).filter(player => player.group === group && !usedPlayers.has(player.id));
+  function sellingCandidate(world, seller, group, usedPlayers, rosterByClub, playersByClubRole, roleStatsByClub) {
+    const sellerRoster = rosterByClub && rosterByClub.get(seller.id) || rosterPlayers(world, seller);
+    const grouped = playersByClubRole && playersByClubRole.get(seller.id);
+    const groupRows = grouped && grouped[group] ? grouped[group] : sellerRoster.filter(player => player.group === group);
+    const rows = groupRows.filter(player => !usedPlayers.has(player.id));
     if (rows.length <= Math.max(1, Math.min(2, TARGETS[group] - 1))) return null;
-    const quality = roleStats(world, seller)[group];
+    const cachedStats = roleStatsByClub && roleStatsByClub.get(seller.id);
+    const quality = (cachedStats || roleStats(world, seller, sellerRoster))[group];
     const candidates = rows.filter(player => player.ovr < quality.best - 2 || player.age >= 29
       || player.contractSeasons <= 1 || player.ovr < seller.power - 12);
     candidates.sort((a, b) => {
@@ -515,6 +520,23 @@
   function runTransferWindow(world, season) {
     const clubs = Object.values(world.clubs).filter(club => club.division === 1);
     const alreadyUsedClubs = new Set(), alreadyUsedPlayers = new Set(), moves = [];
+
+    // A club can make at most one move in this window. Cache the starting roster
+    // analysis once; clubs that move are excluded from all later buyer/seller scans,
+    // so every remaining club's cached rows stay valid until this window finishes.
+    const rosterByClub = new Map();
+    const playersByClubRole = new Map();
+    const roleStatsByClub = new Map();
+    for (const club of clubs) {
+      const roster = rosterPlayers(world, club);
+      rosterByClub.set(club.id, roster);
+      const grouped = Object.fromEntries(Object.keys(TARGETS).map(group => [group, []]));
+      roster.forEach(player => {
+        if (grouped[player.group]) grouped[player.group].push(player);
+      });
+      playersByClubRole.set(club.id, grouped);
+      roleStatsByClub.set(club.id, roleStats(world, club, roster));
+    }
     const maxMoves = Math.max(10, Math.min(40, Math.round(clubs.length * 0.42)));
     const buyers = clubs.slice().sort((a, b) => {
       const aStrength = a.power + a.prestige * 0.04 + hash(a.id + "|" + season + "|buyer") % 29 / 100;
@@ -526,7 +548,7 @@
       if (alreadyUsedClubs.has(buyer.id)) continue;
       // Avoid squad hoarding: each AI club has a soft roster ceiling before buying.
       if (buyer.roster.length >= 18) continue;
-      const roles = roleAverages(world, buyer);
+      const roles = roleAverages(world, buyer, rosterByClub.get(buyer.id));
       const needs = Object.keys(TARGETS).map(group => ({ group, score: needScore(buyer, group, roles) }))
         .sort((a, b) => b.score - a.score);
       const need = needs[0];
@@ -534,7 +556,7 @@
       const candidates = [];
       for (const seller of clubs) {
         if (seller.id === buyer.id || alreadyUsedClubs.has(seller.id)) continue;
-        const player = sellingCandidate(world, seller, need.group, alreadyUsedPlayers);
+        const player = sellingCandidate(world, seller, need.group, alreadyUsedPlayers, rosterByClub, playersByClubRole, roleStatsByClub);
         if (!player) continue;
         const fee = marketValue(player, seller);
         if (fee > buyer.budget) continue;

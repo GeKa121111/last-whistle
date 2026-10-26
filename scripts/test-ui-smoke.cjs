@@ -82,7 +82,6 @@ const required = [
   'id:"رأس حربة",label:"رأس حربة"',
   "function displayPositionLabel(id)",
   'case "رأس حربة": return shots>=1',
-  '"رأس حربة": ["shooting", "composure", "physical"]',
   'id="skill-physical"',
   'data-action="train-physical"',
   'id="storeCurrency"',
@@ -259,7 +258,7 @@ for (const asset of ["ai-career-engine.js", "ai-career-ui.js", "career-state-sto
   catch (error) { console.error("Career AI JavaScript syntax error in " + asset + ":", error.message); process.exit(1); }
 }
 const aiEngineSource = fs.readFileSync(path.join(root, "public", "ai-career-engine.js"), "utf8");
-for (const marker of ["coachAdvice", "recommendPlayerTactic", "chooseOpponentTactic", "recommendTransfers", "lifestyleAdvice"]) {
+for (const marker of ["coachAdvice", "recommendPlayerTactic", "chooseOpponentTactic", "recommendTransfers", "lifestyleAdvice", '"رأس حربة": ["shooting", "composure", "physical"]', '"مهاجم": ["dribbling", "speed", "vision"]']) {
   if (!aiEngineSource.includes(marker)) { console.error("Career AI engine is missing:", marker); process.exit(1); }
 }
 const worldAISource = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");

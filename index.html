@@ -793,6 +793,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
  body.lw-rebuild #page-home .grid.hub-home-grid>article:nth-child(3),
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
+body.career-active .hero{display:none!important}
 </style>
 <link rel="stylesheet" href="./redesign.css?v=5">
 <script src="./football-world-ai.js?v=10"></script>
@@ -819,7 +820,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   <h3 style="margin-top:17px">اختار مركزك في الملعب</h3><div class="positionGrid" id="positionGrid"></div>
   <div class="positionStory" id="positionStory">اختار مركزك عشان تعرف بداية قصتك.</div>
   <div class="startFoot"><button class="btn primary" id="createCareerBtn">ابدأ المسيرة ⚽</button><button class="btn ghost" id="continueSavedBtn" style="display:none">كمّل الحفظ القديم</button></div>
-  <div class="muted tiny" style="margin-top:10px">قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري؛ لا تمثل سجل FIFA كاملًا. مصر والدرجات غير المتاحة تستخدم بيانات اللعبة المحلية.</div>
+  
  </div>
 </div>
 
@@ -2933,7 +2934,7 @@ function loadGame(){
   if(!raw&&!indexedSave)return false;
   const saved=indexedSave?structuredCloneSafe(indexedSave):JSON.parse(decodeStoredSave(raw));
   if(!saved||typeof saved!=="object")return false;
-  state={...structuredCloneSafe(INITIAL),...saved};
+  state={...structuredCloneSafe(INITIAL),...saved};if(state.careerStarted)setCareerBannerState(true);
   if(saved.physical===undefined)state.physical=legacyPhysicalFallback(state.pos,saved);
   if(saved.contractType===undefined)state.contractType=Number(state.age)<=18&&Number(state.leagueDivision)>=2?"youth-amateur":state.freeAgent?"free-agent":"professional";
   if(!Object.prototype.hasOwnProperty.call(saved,"calendarDay")||!Number.isFinite(Number(saved.calendarDay))||Number(saved.calendarDay)<1)state.calendarDay=Math.max(1,Number(saved.day)||1);
@@ -4210,6 +4211,8 @@ function render(){
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
  setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
+ const readinessEnergy=clamp(Number(state.energy)||0,0,100),readinessFatigue=clamp(Number(state.fatigue)||0,0,100),readinessInjury=Math.max(0,Number(state.injuryDays)||0);
+ setText("homeReadinessHint",readinessInjury>0?`أولوية اليوم: التعافي من الإصابة (${readinessInjury} يوم متبقي).`:readinessEnergy<30||readinessFatigue>=76?`جاهزيتك منخفضة: طاقة ${readinessEnergy}% وإجهاد ${readinessFatigue}%. اختار الراحة والاستشفاء.`:readinessEnergy>=75&&readinessFatigue<45?`جاهزيتك جيدة: طاقة ${readinessEnergy}% وإجهاد ${readinessFatigue}%. تقدر تدخل تدريبًا عاديًا أو تستعد للمباراة.`:`توصية اليوم: تدريب خفيف أو عادي حسب طاقتك (${readinessEnergy}%)، وراجع الاستشفاء قبل المجهود المكثف.`);
 
  // Rendering every hidden page on every training/rest/match made ordinary clicks pay
  // for league-wide rankings, transfer-market cards and all catalogue HTML at once.
@@ -5115,6 +5118,7 @@ function updateStartClubOptions(){
 }
 function updatePositionStory(){const p=positionById(selectedPosition);$("positionStory").textContent=p.icon+" "+p.story;}
 function normalizePlayerName(raw){return String(raw??"").replace(/\s+/g," ").trim().slice(0,24);}
+function setCareerBannerState(active){document.body.classList.toggle("career-active",!!active);}
 function startCareerFromSetup(){
  const nameInput=$("startName");const name=normalizePlayerName(nameInput?.value);
  if(!name){const message="اكتب اسمك في خانة «اسم اللاعب» أعلى النموذج قبل ما تبدأ المسيرة.";nameInput?.setCustomValidity(message);nameInput?.reportValidity?.();if($("startScreen"))$("startScreen").scrollTop=0;nameInput?.scrollIntoView?.({block:"center",behavior:"smooth"});nameInput?.focus();toast(message);return;}
@@ -5122,13 +5126,13 @@ function startCareerFromSetup(){
  const age=clamp(Number($("startAge").value)||17,12,20),academy=age<=15,country=$("startCountry").value||"مصر";
  const division=academy?clamp(Number($("startDivision").value)||1,1,2):age<=18?2:clamp(Number($("startDivision").value)||2,1,2),p=positionById(selectedPosition);
  const fresh=structuredCloneSafe(INITIAL);state=fresh;
- state.name=name;state.age=age;state.pos=p.id;state.nationalTeam=$("startNationalTeam")?.value||"مصر";state.leagueCountry=country;state.leagueDivision=division;state.careerStarted=true;
+ state.name=name;state.age=age;state.pos=p.id;state.nationalTeam=$("startNationalTeam")?.value||"مصر";state.leagueCountry=country;state.leagueDivision=division;state.careerStarted=true;setCareerBannerState(true);
  state.academyCareer=academy;state.academyStartAge=academy?age:0;state.academyYearsCompleted=0;state.academyHistory=[];state.academyGraduated=false;state.academyGraduationPending=false;state.academyReserve=false;state.academyLeagueDivision=academy?division:0;
  state.playerPotential=rand(78,96);state.randomSeed=stableHash(name+"|"+age+"|"+country+"|"+state.nationalTeam+"|"+Date.now())||1831565813;state.trainingIntensity=$("trainingIntensity")?.value||"normal";
  const rawStartingStats=window.LWCareer?.startingStatsForPosition(p.id,()=>randomUnit());
  const startingStats=academy?scaleAcademyStartingStats(rawStartingStats,age):rawStartingStats;
  if(startingStats)Object.assign(state,startingStats);else Object.entries(p.boost).forEach(([k,v])=>state[k]=clamp(state[k]+v));
- state.role=academy?"ناشئ "+academyAgeGroup(age):age<=18?"ناشئ / بديل":p.role;state.contractType=academy?"academy":age<=18?"youth-amateur":division===1?"professional":"amateur";
+ state.role=academy?"ناشئ "+academyAgeGroup(age):age<=18?"ناشئ / بديل":p.role;state.contractType=academy?"academy":age<=18?"youth-amateur":division===1?"professional":"amateur";renderPositionDevelopment();
  state.trust=academy?14:age<=18?22:division===1?32:25;state.energy=85;state.morale=70;state.calendarDay=1;state.day=1;
  state.clubName=$("startClub").value||LEAGUE_ROSTERS[country]?.[division]?.[0]||"مركز شباب النور";
  const source=division===1?catalogLeague(country):null;

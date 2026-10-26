@@ -24,9 +24,9 @@
       "ظهير": { shooter: 0.11, creator: 0.18, defender: 0.25 },
       "وسط دفاعي": { shooter: 0.13, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.27, creator: 0.36, defender: 0.14 },
-      "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10 },
-      "مهاجم": { shooter: 0.36, creator: 0.22, defender: 0.05 },
-      "رأس حربة": { shooter: 0.50, creator: 0.08, defender: 0.04 }
+      "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10, finishingBonus: 0 },
+      "مهاجم": { shooter: 0.36, creator: 0.22, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.50, creator: 0.08, defender: 0.04, finishingBonus: 0.05 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function selectedMinutes(player, available, random) {
@@ -101,8 +101,10 @@
     }
     function createPeriod(periodStart, duration, isExtra) {
       const relativeGap = teamPower + homeAdvantage - opponentPower;
-      let ourVolume = 6 + relativeGap / 19 + (tactic === "attack" ? 1.8 : tactic === "defend" ? -0.9 : tactic === "counter" && relativeGap < 0 ? 0.8 : 0);
-      let oppVolume = 6 - relativeGap / 21 + (tactic === "attack" ? 0.8 : tactic === "defend" ? -1.5 : tactic === "counter" && relativeGap < 0 ? -0.3 : 0);
+      // A full professional match should contain several attacking sequences per side;
+      // the old baseline of six produced too few shots and made player seasons unusually low-scoring.
+      let ourVolume = 9.5 + relativeGap / 19 + (tactic === "attack" ? 1.8 : tactic === "defend" ? -0.9 : tactic === "counter" && relativeGap < 0 ? 0.8 : 0);
+      let oppVolume = 9.5 - relativeGap / 21 + (tactic === "attack" ? 0.8 : tactic === "defend" ? -1.5 : tactic === "counter" && relativeGap < 0 ? -0.3 : 0);
       const tacticalEffect = ({
         balanced: { our: 0, opponent: 0 },
         press: { our: -0.55, opponent: 0.70 },
@@ -136,9 +138,11 @@
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
-          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055 + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
-          const teamShotChance = clamp(0.15 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
-          const opponentShotChance = clamp(0.17 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
+          const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055
+            + (Number(profile.finishingBonus) || 0)
+            + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
+          const teamShotChance = clamp(0.18 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
+          const opponentShotChance = clamp(0.19 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
           const isGoal = random() < (byPlayer ? playerShotChance : isOurs ? teamShotChance : opponentShotChance);
           const shotEvent = events[events.length - 1];
           shotEvent.shooter = byPlayer ? "player" : isOurs ? "teammate" : "opponent";

@@ -214,3 +214,35 @@ assert.equal(JSON.stringify(deployedCareer.purchaseItem(deployedPurchaseState, p
   "deployed/source purchase result must match");
 assert.equal(JSON.stringify(deployedPurchaseState), JSON.stringify(sourcePurchaseState),
   "deployed/source purchase state must match");
+
+
+// Career role selection must react to sustained output without bypassing academy graduation.
+const roleHistory = Array.from({ length: 8 }, (_, index) => ({
+  scope: "league", minutes: 39, rating: 6.35, goals: index % 3 === 0 ? 1 : 0,
+  assists: index % 5 === 0 ? 1 : 0
+}));
+const roleSnapshot = {
+  pos: "رأس حربة", role: "بديل", age: 25, apps: 304, goals: 39, assists: 15, trust: 25,
+  academyCareer: false, academyReserve: false, retired: false
+};
+const roleDecision = career.evaluateSquadRole(roleSnapshot, roleHistory, {
+  scope: "league", minutes: 39, rating: 6.4, goals: 0, assists: 0
+});
+assert.equal(roleDecision.role, "أساسي",
+  "a long-serving striker with sustained career goal contributions must be eligible for a starting role");
+assert.equal(roleDecision.changed, true, "role promotions must report a real change");
+assert.ok(roleDecision.careerContributionsPer90 >= 0.32,
+  "role decision must expose a grounded contribution rate for debugging and tests");
+const protectedAcademyRole = career.evaluateSquadRole({
+  ...roleSnapshot, role: "ناشئ تحت 15", academyCareer: true
+}, roleHistory, { scope: "league", minutes: 39, rating: 9.1, goals: 2, assists: 0 });
+assert.equal(protectedAcademyRole.role, "ناشئ تحت 15",
+  "academy careers must retain their academy role until their dedicated graduation flow");
+const lowOutputRole = career.evaluateSquadRole({
+  pos: "رأس حربة", role: "بديل", age: 19, apps: 3, goals: 0, assists: 0, trust: 10,
+  academyCareer: false, academyReserve: false, retired: false
+}, [{ scope: "league", minutes: 30, rating: 4.5, goals: 0, assists: 0 }], {
+  scope: "league", minutes: 30, rating: 4.4, goals: 0, assists: 0
+});
+assert.equal(lowOutputRole.role, "بديل",
+  "role progression must not promote a low-performing player after only a handful of appearances");

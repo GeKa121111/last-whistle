@@ -50,6 +50,13 @@
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
 
+    const agreedRole = String(state.contractPlayingTime || "");
+    if (["أساسي", "بديل أساسي"].includes(agreedRole)
+      && Number(state.contractPlayingTimeSeason) === (Number(state.season) || 1)) {
+      return { role: agreedRole, changed: agreedRole !== originalRole, reason: "contract-playing-time",
+        recentAverageRating: 0, recentContributionsPer90: 0, careerContributionsPer90: 0 };
+    }
+
     const validRow = row => row && row.scope !== "international" && Number(row.minutes) > 0;
     const current = validRow(currentMatch) ? { ...currentMatch } : null;
     const allRows = [current, ...(Array.isArray(matchHistory) ? matchHistory : [])]
@@ -492,6 +499,60 @@
   }
   function canNegotiateInSeason(state) { return wageNegotiationStatus(state) === "ready"; }
 
+  function playingTimeNegotiationStatus(state) {
+    if (!state) return "invalid-state";
+    if (state.retired) return "retired";
+    if (state.academyCareer || state.academyReserve || state.academyGraduationPending) return "youth";
+    if (state.freeAgent || Number(state.contractSeasons) <= 0) return "free-agent";
+    if (state.loan) return "on-loan";
+    if (state.contractPlayingTime === "أساسي"
+      && Number(state.contractPlayingTimeSeason) === (Number(state.season) || 1)) return "already-agreed";
+    if (Math.max(0, Number(state.daysSinceNegotiation) || 0) < 7) return "cooldown";
+    return "ready";
+  }
+
+  function playingTimeNegotiationChance(state, targetRole, options = {}) {
+    if (!state || !["أساسي", "بديل أساسي"].includes(String(targetRole || ""))) return 0;
+    const playerOVR = overall(state);
+    const clubPower = Math.max(25, Math.min(100, Number(state.clubPower) || 52));
+    const trust = Math.max(0, Math.min(100, Number(state.trust) || 0));
+    const recentRating = Math.max(4, Math.min(9.5,
+      Number.isFinite(Number(options.recentAverageRating))
+        ? Number(options.recentAverageRating) : (Number(state.lastRating) || 6)));
+    const contributionsPer90 = Math.max(0, Math.min(2, Number(options.recentContributionsPer90) || 0));
+    const appearancesBonus = Math.min(8, Math.max(0, Number(state.apps) || 0) / 10);
+    const formBonus = (recentRating - 6) * 5;
+    const outputBonus = Math.min(8, contributionsPer90 * 5);
+    const squadFit = (playerOVR - clubPower) * 0.95;
+    const trustFit = (trust - 50) * 0.18;
+    const starterDemand = targetRole === "أساسي" ? 10 : 0;
+    return Math.round(Math.max(8, Math.min(90,
+      43 + squadFit + trustFit + formBonus + outputBonus + appearancesBonus - starterDemand)));
+  }
+
+  function resolvePlayingTimeNegotiation(state, targetRole, options = {}) {
+    const status = playingTimeNegotiationStatus(state);
+    if (status !== "ready") return { ok: false, status };
+    if (!["أساسي", "بديل أساسي"].includes(String(targetRole || ""))) {
+      return { ok: false, status: "invalid-role" };
+    }
+    const chance = playingTimeNegotiationChance(state, targetRole, options);
+    state.daysSinceNegotiation = 0;
+    const success = nextRandomUnit(state) * 100 < chance;
+    if (!success) {
+      state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) - 1)));
+      return { ok: true, status: "failed", targetRole, chance, trust: state.trust,
+        weeklyWage: Number(state.weeklyWage) || 0, contractSeasons: Number(state.contractSeasons) || 0 };
+    }
+    state.contractPlayingTime = targetRole;
+    state.contractPlayingTimeSeason = Math.max(1, Math.floor(Number(state.season) || 1));
+    state.role = targetRole;
+    state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) + 2)));
+    return { ok: true, status: "success", targetRole, chance, trust: state.trust,
+      weeklyWage: Number(state.weeklyWage) || 0, contractSeasons: Number(state.contractSeasons) || 0,
+      appliesThroughSeason: state.contractPlayingTimeSeason };
+  }
+
   function loanRequestStatus(state, options = {}) {
     if (!state) return "invalid-state";
     if (state.retired) return "retired";
@@ -614,7 +675,7 @@
     ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
-    loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
+    playingTimeNegotiationStatus, playingTimeNegotiationChance, resolvePlayingTimeNegotiation, loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
     resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();

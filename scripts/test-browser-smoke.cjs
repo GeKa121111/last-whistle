@@ -681,6 +681,12 @@ async function main() {
       // Isolate this season-lifecycle test from matches played by earlier smoke fixtures.
       state.seasonApps = 0;
       state.leagueApps = 0;
+      // The CTA computes the midpoint before simulateSeasonBlock() calls ensureLeague().
+      // Keep the target initialized in this clean fixture so the button cannot capture zero.
+      const fixtureLeagueCount = Array.isArray(state.league) && state.league.length >= 2
+        ? state.league.length
+        : 12;
+      state.seasonAppsTarget = Math.max(2, 2 * (fixtureLeagueCount - 1));
       state.leagueRoundIndex = 0;
       state.leagueRoundHistory = [];
       state.seasonGoals = 0;

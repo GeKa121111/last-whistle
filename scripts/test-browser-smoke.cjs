@@ -686,6 +686,8 @@ async function main() {
       state.seasonGoals = 0;
       state.seasonAssists = 0;
       state.seasonPoints = 0;
+      state.seasonFinished = false;
+      state.retired = false;
       state.calendarEvents = [];
       state.playedToday = false;
       state.trainedToday = false;
@@ -724,6 +726,11 @@ async function main() {
           winterBreakPending: !!state.winterBreakPending,
           lastLeagueMatchCalendarDay: Number(state.lastLeagueMatchCalendarDay) || 0,
           pendingCalendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents.length : 0,
+          seasonFinished: !!state.seasonFinished,
+          retired: !!state.retired,
+          leagueCount: Array.isArray(state.league) ? state.league.length : -1,
+          fixtureRoundCount: Array.isArray(state.fixtureSchedule) ? state.fixtureSchedule.length : -1,
+          leagueRoundIndex: Number(state.leagueRoundIndex) || 0,
           modalTitle: title?.textContent || ""
         };
       });

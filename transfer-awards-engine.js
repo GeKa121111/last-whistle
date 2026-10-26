@@ -37,7 +37,7 @@
     // before checking role words such as "defensive" or "attacking".
     if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")) return "midfielder";
     if (value.includes("دفاع") || value.includes("ظهير")) return "defender";
-    if (value.includes("رأسحربة") || value.includes("راسحربه")) return "striker";
+    if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")) return "striker";
     if (value.includes("جناح") || value.includes("مهاجم")) return "attacker";
     return "midfielder";
   }

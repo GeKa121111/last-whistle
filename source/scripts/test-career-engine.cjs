@@ -48,6 +48,11 @@ const blockedMoney = { pos: "جناح", age: 25, money: 1000 };
 const blockedPurchase = career.purchaseItem(blockedMoney, { id: "ovrBoost", price: 100 });
 assert.equal(blockedPurchase.status, "direct-rating-purchase-disabled", "OVR cannot be bought directly");
 assert.equal(blockedMoney.money, 1000, "rejected OVR purchase must not consume money");
+const gkDevelopment = { pos: "حارس مرمى", age: 24, careerXP: 0, levelXP: 0, careerLevel: 1, goalkeeping: 68, playerPotential: 88, fatigue: 0 };
+career.ensureState(gkDevelopment);
+const gkMatchXP = career.matchDevelopment(gkDevelopment, { matchId: "test-gk-clean-sheet", minutes: 90, rating: 7.4, defensiveXP: 18, cleanSheet: true, saves: 3, tackles: 0, interceptions: 0 });
+assert.equal(gkMatchXP.defensiveXP, 18, "defensive XP from match engine must be credited");
+assert.ok(gkMatchXP.xp >= gkMatchXP.baseXP + 18, "defensive XP must increase the match XP total");
 
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);

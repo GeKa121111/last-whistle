@@ -2332,7 +2332,8 @@ const POSITIONS=[
 {id:"وسط دفاعي",icon:"🧭",short:"CDM",story:"مش أكتر لاعب بيظهر في اللقطات، بس إنت اللي بتقطع الهجمة وتبدأ هجمة جديدة. حلمك تبقى ميزان الفريق.",boost:{passing:4,fitness:3,composure:3,defending:5,vision:3},role:"بديل"},
 {id:"وسط مهاجم",icon:"🎩",short:"CAM",story:"عينك دايمًا شايفة التمريرة اللي محدش واخد باله منها. المدرب عايزك تتحمل مسؤولية صناعة اللعب تحت الضغط.",boost:{passing:5,composure:4,dribbling:2,vision:8},role:"بديل"},
 {id:"جناح",icon:"⚡",short:"W",story:"بدأت تلعب على الخط وتراوغ أي حد يقف قدامك. الكشافين بيحبوا سرعتك، بس لازم تتعلم إمتى تمرر وإمتى تدخل جوه وتسدد.",boost:{speed:5,dribbling:4,shooting:1,vision:2},role:"بديل"},
-{id:"مهاجم",icon:"⚽",short:"ST",story:"من أول ماتش صغير وإنت بتدور على الشباك. الكابتن قالك إن الهداف بيتحاسب على قراراته، مش عدد اللمسات؛ كل فرصة ليها قيمة.",boost:{shooting:5,composure:4,fitness:1,vision:2},role:"بديل"}
+{id:"مهاجم",label:"مهاجم متحرك",icon:"⚽",short:"CF",story:"مهمتك تربط الوسط بالهجوم: تتحرك بين الخطوط، تستلم تحت الضغط، تراوغ وتفتح مساحة لزمايلك، وتسجل لما الفرصة تظهر.",boost:{dribbling:4,speed:4,shooting:2,passing:1,vision:2},role:"بديل"},
+{id:"رأس حربة",label:"رأس حربة",icon:"🎯",short:"ST",story:"إنت نقطة نهاية الهجمة: تتحرك بين قلبي الدفاع، تستغل العرضيات والكرات البينية، وتخلص الفرصة بأقل لمسات. محتاج تسديد وهدوء وقوة في الالتحام.",boost:{shooting:6,composure:4,physical:3,fitness:1,vision:1},role:"بديل"}
 ];
 const EUROPE_LEAGUES=[
 ["إنجلترا","🏴","Premier League","EFL Championship","مانشستر سيتي، ليفربول، أرسنال","ليدز يونايتد، ليستر سيتي، ساوثهامبتون"],
@@ -4119,7 +4120,7 @@ function render(){
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
  setText("heroDescription",`كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك مع ${club().name}، واكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.`);
  setText("headDay",state.day);setText("headMoney",Number(state.money||0).toLocaleString("en-US"));setText("headCurrency",currencyLabel());setText("headEnergy",state.energy);
- setText("playerName",state.name);setText("playerMeta",`${state.age} سنة • ${state.pos} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
+ setText("playerName",state.name);setText("playerMeta",`${state.age} سنة • ${displayPositionLabel(state.pos)} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
  setText("injuryPill",state.injuryDays>0?`مصاب: ${state.injuryDays} يوم`:"سليم");$("injuryPill").className="pill "+(state.injuryDays>0?"red":"green");
  setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":"عقد "+state.contractSeasons+" موسم");
  [["ovBar",ov],["energyBar",state.energy],["moraleBar",state.morale],["trustBar",state.trust]].forEach(([id,v])=>setBar(id,v));
@@ -4434,7 +4435,8 @@ function seasonTrainingPerformanceFocus(){
   case "وسط دفاعي": return tackles+interceptions<2.2?"defending":"passing";
   case "وسط مهاجم": return keyPasses<1.5?"vision":"passing";
   case "جناح": return onTarget<0.8&&chances<1.8?"dribbling":"speed";
-  case "مهاجم": return shots>=1&&onTarget/Math.max(1,shots)<0.38?"shooting":"composure";
+  case "مهاجم": return chances<1.5?"dribbling":keyPasses<1.2?"vision":"speed";
+  case "رأس حربة": return shots>=1&&onTarget/Math.max(1,shots)<0.38?"shooting":"composure";
   default: return "";
  }
 }
@@ -4992,6 +4994,7 @@ function heroStory(){openModal(state.storyTitle,state.storyText,[{label:"تما�
 
 let selectedPosition="جناح";
 function positionById(id){return POSITIONS.find(p=>p.id===id)||POSITIONS.find(p=>p.id==="جناح");}
+function displayPositionLabel(id){return positionById(id)?.label||id||"غير محدد";}
 function populateStartScreen(){
  const leagues=window.LWCatalog?.latestDomesticCompetitions()||[];
  const options=[{country:"مصر",competition:"الدوري المصري — قائمة اللعبة المحلية",season:"بيانات محلية"},...leagues];
@@ -5002,7 +5005,7 @@ function populateStartScreen(){
  const startDivision=$("startDivision");
  if(!select.dataset.bound){select.addEventListener("change",updateStartClubOptions);startDivision.addEventListener("change",updateStartClubOptions);$("startAge").addEventListener("change",()=>{const nextAge=clamp(Number($("startAge").value)||17,12,20);if(nextAge<=15)startDivision.value="1";else if(nextAge<=18)startDivision.value="2";updateStartClubOptions();});select.dataset.bound="1";}
  if(!$("positionGrid").dataset.bound){$("positionGrid").addEventListener("click",e=>{const b=e.target.closest("[data-position]");if(!b)return;selectedPosition=b.dataset.position;document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();});$("positionGrid").dataset.bound="1";}
- $("positionGrid").innerHTML=POSITIONS.map(p=>`<button type="button" class="positionChoice ${p.id==="جناح"?"selected":""}" data-position="${safeHTML(p.id)}"><span class="posIcon">${p.icon}</span><b>${safeHTML(p.id)}</b><small>${safeHTML(p.short)}</small></button>`).join("");
+ $("positionGrid").innerHTML=POSITIONS.map(p=>`<button type="button" class="positionChoice ${p.id==="جناح"?"selected":""}" data-position="${safeHTML(p.id)}"><span class="posIcon">${p.icon}</span><b>${safeHTML(p.label||p.id)}</b><small>${safeHTML(p.short)}</small></button>`).join("");
  selectedPosition=state.careerStarted?(state.pos||"جناح"):"جناح";
  updatePositionStory();updateStartClubOptions();
  const nameInput=$("startName");if(!nameInput.dataset.bound){nameInput.addEventListener("input",()=>nameInput.setCustomValidity(""));nameInput.addEventListener("focus",()=>{const screen=$("startScreen");if(screen?.classList.contains("show"))nameInput.scrollIntoView({block:"center",behavior:"smooth"});});nameInput.addEventListener("click",()=>{const screen=$("startScreen");if(screen?.classList.contains("show"))nameInput.scrollIntoView({block:"center",behavior:"smooth"});});nameInput.dataset.bound="1";}if(state.careerStarted){$("continueSavedBtn").style.display="block";if($("startNationalTeam"))$("startNationalTeam").value=state.nationalTeam||"مصر";nameInput.value=String(state.name||"");$("startAge").value=String(clamp(state.age,12,20));$("startCountry").value=state.leagueCountry||"مصر";$("startDivision").value=String(state.leagueDivision||2);updateStartClubOptions();$("startClub").value=state.clubName||"";document.querySelectorAll(".positionChoice").forEach(x=>x.classList.toggle("selected",x.dataset.position===selectedPosition));updatePositionStory();}else{$("continueSavedBtn").style.display="none";nameInput.value="";$("startAge").value="17";if($("startNationalTeam"))$("startNationalTeam").value="مصر";$("startDivision").value="2";}const setupScreen=$("startScreen");if(setupScreen)setupScreen.scrollTop=0;

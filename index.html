@@ -1023,7 +1023,7 @@ body.career-active .hero{display:none!important}
           </div>
           <div class="advancedSkillGrid" aria-label="المهارات التخصصية">
             <div class="progressRow"><span>🛡️ الدفاع</span><div class="bar"><i id="skill-defending"></i></div><b id="val-defending">50</b></div>
-            <div class="progressRow"><span>🧤 الحراسة</span><div class="bar"><i id="skill-goalkeeping"></i></div><b id="val-goalkeeping">50</b></div>
+            <div class="progressRow" id="goalkeepingProgressRow" hidden><span>🧤 الحراسة</span><div class="bar"><i id="skill-goalkeeping"></i></div><b id="val-goalkeeping">50</b></div>
             <div class="progressRow"><span>💪 القوة البدنية</span><div class="bar"><i id="skill-physical"></i></div><b id="val-physical">50</b></div>
             
           </div>
@@ -4224,6 +4224,11 @@ function render(){
  const page=state.currentPage||"home";
  const pageRoot=document.getElementById("page-"+page)||document;
  const ov=overall();
+ const isGoalkeeper=state.pos==="حارس مرمى";
+ const goalkeeperRow=document.getElementById("goalkeepingProgressRow");
+ if(goalkeeperRow){goalkeeperRow.hidden=!isGoalkeeper;goalkeeperRow.style.display=isGoalkeeper?"":"none";}
+ const goalkeeperTrainingButton=document.querySelector('[data-action="train-goalkeeping"]');
+ if(goalkeeperTrainingButton){goalkeeperTrainingButton.hidden=!isGoalkeeper;goalkeeperTrainingButton.style.display=isGoalkeeper?"":"none";goalkeeperTrainingButton.disabled=goalkeeperTrainingButton.disabled||!isGoalkeeper;}
  const homeCountry=state.leagueCountry||"مصر";
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
  setText("heroDescription",`كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك مع ${club().name}، واكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.`);

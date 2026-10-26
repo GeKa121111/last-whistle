@@ -698,9 +698,9 @@ async function main() {
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
-        && title && title.textContent.includes("تكملة النصف الأول");
+        && title && title.textContent.includes("محاكاة الموسم");
     }, null, { timeout: 10000 });
-    await page.locator("#modalChoices button").filter({ hasText: "كمّل لحد الشتاء" }).click();
+    await page.locator("#modalChoices button").filter({ hasText: "ابدأ الموسم" }).click();
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime.getState();
       const title = document.querySelector("#modalTitle");

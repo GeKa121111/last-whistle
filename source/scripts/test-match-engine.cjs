@@ -91,7 +91,7 @@ for (let seed = 81001; seed < 82001; seed++) {
   const base = {
     seed, tactic: "balanced", teamPower: 66, opponentPower: 65,
     player: { role: "أساسي", shooting: 68, composure: 70, passing: 72, vision: 70,
-      fitness: 78, trust: 72, energy: 88, fatigue: 10 }
+      fitness: 78, speed: 70, physical: 68, dribbling: 66, trust: 72, energy: 88, fatigue: 10 }
   };
   const mobile = engine.simulateMatch({ ...base, player: { ...base.player, position: "مهاجم" } });
   const striker = engine.simulateMatch({ ...base, player: { ...base.player, position: "رأس حربة" } });
@@ -102,6 +102,18 @@ assert.ok(centreStrikerGoals > mobileForwardGoals * 1.12,
   "centre-striker role should produce measurably more goals in a season-length sample");
 assert.ok(mobileForwardAssists > centreStrikerAssists,
   "mobile forwards should create more assists than centre strikers over the same sample");
+
+// A starting role should mean more minutes on the pitch than a substitute role.
+const starterMinutesProbe = engine.simulateMatch({
+  seed: 91001, player: { position: "رأس حربة", role: "أساسي", shooting: 68, composure: 70,
+    fitness: 78, speed: 70, physical: 68, trust: 55, energy: 85, fatigue: 10 }
+});
+const substituteMinutesProbe = engine.simulateMatch({
+  seed: 91001, player: { position: "رأس حربة", role: "بديل", shooting: 68, composure: 70,
+    fitness: 78, speed: 70, physical: 68, trust: 55, energy: 85, fatigue: 10 }
+});
+assert.ok(starterMinutesProbe.player.minutes > substituteMinutesProbe.player.minutes,
+  "a promoted striker must receive more match minutes than a substitute");
 
 // Regression sweep for same-minute injuries/red cards: player activity must be ordered before the exit event.
 let injuryExits = 0;

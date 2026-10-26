@@ -47,7 +47,7 @@
     // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before the role wording.
     if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")) return "midfielder";
     if (p.includes("دفاع") || p.includes("ظهير") || p.includes("مدافع")) return "defender";
-    if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربه")) return "attacker";
+    if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربة") || p.includes("راسحربه")) return "attacker";
     return "midfielder";
   }
   function clubKey(name, country) {

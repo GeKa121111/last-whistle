@@ -380,5 +380,73 @@ assert.equal(reloadedRepeat.alreadyAdvanced, true,
 assert.equal(reloadedWorld.transfers.length, world.transfers.length,
   "reloading and replaying the same season must not duplicate transfer deals");
 
+
+// Extend the save/market integration scenario across multiple additional seasons.
+// This deliberately stresses contract expiry, renewals, free agency, transfers,
+// serialized histories, and season-stat immutability beyond the first transition.
+function assertWorldOwnership(worldState, label) {
+  const owners = new Map();
+  for (const club of Object.values(worldState.clubs)) {
+    assert.ok(club.roster.length >= 16 && club.roster.length <= 18,
+      label + ": each club must keep a legal simulated squad size");
+    for (const playerId of club.roster) {
+      assert.ok(!owners.has(playerId), label + ": a player cannot belong to two clubs");
+      owners.set(playerId, club.id);
+      assert.equal(worldState.players[playerId].clubId, club.id,
+        label + ": roster membership must match the player's active club");
+    }
+  }
+  const freeAgents = Object.values(worldState.players).filter(player => player.freeAgent);
+  assert.equal(owners.size + freeAgents.length, Object.keys(worldState.players).length,
+    label + ": every player must be owned by one club or explicitly be a free agent");
+  for (const player of Object.values(worldState.players)) {
+    if (player.freeAgent) assert.equal(player.clubId, "", label + ": free agents must not retain a club");
+    else assert.equal(owners.get(player.id), player.clubId, label + ": contracted players need one roster owner");
+  }
+  const transferIds = worldState.transfers.map(row => row.id);
+  assert.equal(new Set(transferIds).size, transferIds.length,
+    label + ": transfer identifiers must remain unique across seasons");
+}
+for (const nextSeason of [3, 4]) {
+  const priorSeason = nextSeason - 1;
+  const previousStatsSnapshot = JSON.stringify(reloadedWorld.seasonStats[String(priorSeason)] || []);
+  assert.ok(JSON.parse(previousStatsSnapshot).length > 0,
+    "multi-season stress test must start with saved stats for season " + priorSeason);
+  const previousTransferCount = reloadedWorld.transfers.length;
+  const next = ai.advanceToSeason(reloadedSave, nextSeason, db);
+  assert.equal(next.season, nextSeason, "the stress save must advance to season " + nextSeason);
+  assert.equal(next.alreadyAdvanced, false, "each new season transition must be applied once");
+  assert.ok(reloadedWorld.completedSeasons.includes(priorSeason),
+    "the previous season must be completed before season " + nextSeason + " begins");
+  assert.equal(JSON.stringify(reloadedWorld.seasonStats[String(priorSeason)] || []), previousStatsSnapshot,
+    "advancing season " + nextSeason + " must not rewrite season " + priorSeason + " player stats");
+  assert.ok(reloadedWorld.transfers.length >= previousTransferCount,
+    "transfer history must be append-only through season " + nextSeason);
+
+  const lines = ai.getSeasonLines(reloadedSave, nextSeason, 1, db);
+  assert.ok(lines.length > 0, "season " + nextSeason + " must generate player-stat lines");
+  const seasonRows = reloadedWorld.seasonStats[String(nextSeason)] || [];
+  const seasonIds = seasonRows.map(row => row.id);
+  assert.equal(new Set(seasonIds).size, seasonIds.length,
+    "season " + nextSeason + " must not persist duplicate player-stat rows");
+  assertWorldOwnership(reloadedWorld, "season " + nextSeason);
+
+  const roundTripSave = JSON.parse(JSON.stringify(reloadedSave));
+  const roundTripWorld = ai.ensureState(roundTripSave, db);
+  assert.equal(JSON.stringify(roundTripWorld.seasonStats[String(priorSeason)] || []), previousStatsSnapshot,
+    "save/reload must preserve the completed prior-season stats");
+  assert.equal(JSON.stringify(roundTripWorld.seasonStats[String(nextSeason)] || []), JSON.stringify(seasonRows),
+    "save/reload must preserve the active season's generated stats");
+  assert.equal(roundTripWorld.transfers.length, reloadedWorld.transfers.length,
+    "save/reload must preserve every accumulated transfer");
+
+  const repeat = ai.advanceToSeason(roundTripSave, nextSeason, db);
+  assert.equal(repeat.alreadyAdvanced, true,
+    "replaying the season " + nextSeason + " transition after reload must be idempotent");
+  assert.equal(roundTripWorld.transfers.length, reloadedWorld.transfers.length,
+    "replaying a saved market must not duplicate transfer records");
+  assertWorldOwnership(roundTripWorld, "reloaded season " + nextSeason);
+}
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

@@ -2,6 +2,11 @@ name: Refresh 2026/27 world football squads
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/career-position-match-2026
+    paths:
+      - ".github/workflows/refresh-world-squads.yml"
 
 permissions:
   contents: write

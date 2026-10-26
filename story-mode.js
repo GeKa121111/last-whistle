@@ -118,7 +118,67 @@ var eventDefs = [
       {label:"أساعد لاعب أصغر مني",detail:"تأثير إيجابي داخل غرفة الملابس.",effects:{teamChemistry:6,professionalism:4,coachRelationship:2,energy:-3},outcome:"خصصت وقت للاعب أصغر وشاركته خبرتك. الكابتن بدأ يشوف فيك شخصية يعتمد عليها."},
       {label:"أطلب مسؤولية أكبر",detail:"ثقة أعلى وفرصة قيادة مع ضغط إضافي.",effects:{trust:4,morale:4,professionalism:2,energy:-4},outcome:"طلبت دورًا أكبر في المجموعة. المسؤولية الجديدة هتحتاج منك ثباتًا في الأداء."}
     ]
-  }
+  },
+  {
+    id:"academy-foundation",chapter:"YOUTH ACADEMY",title:"اختبار الأكاديمية — اتعلم قبل ما تستعجل",tag:"مرحلة الناشئين",
+    body:"إنت لسه بين 12 و15 سنة. مدرب الأكاديمية وضّح إن الهدف دلوقتي هو بناء الأساسيات واتخاذ القرار، مش مطاردة الشهرة أو الضغط على نفسك عشان تلعب كل دقيقة.",
+    consequence:"التأثير: الانضباط وثقة الجهاز الفني والطاقة.",
+    when:function(s){return Number(s.age)>=12&&Number(s.age)<=15&&(!!s.academyCareer||!!s.academyReserve||Number(s.academyStartAge)>0||/ناشئ|أكاديمية|academy|youth/i.test(String(s.role||"")));},
+    choices:[
+      {label:"أركز على الأساسيات وأسمع للمدرب",detail:"تطوير وانضباط أفضل على المدى الطويل.",effects:{professionalism:5,coachRelationship:4,trust:3,energy:-2},outcome:"اتفقتم على خطة مناسبة لسنك. الأولوية بقت إتقان الأساسيات وقراءة اللعب قبل الاستعجال على الفريق الأول."},
+      {label:"أطلب تحديًا أصعب مع الحفاظ على الراحة",detail:"معنويات وطموح أعلى مع ضغط بسيط.",effects:{morale:4,energy:-3,professionalism:2},outcome:"المدرب وافق على تحدٍ إضافي بشرط الالتزام بالراحة والتعلم. الطريق للفريق الأول بقى هدفًا بخطوات محسوبة."}
+    ]
+  },
+  {
+    id:"role-goalkeeper",chapter:"THE LAST LINE",title:"الحارس — قيادة الخط الأخير",tag:"قرار خاص بمركزك",
+    body:"مدرب الحراس طلب منك تراجع تمركز خط الدفاع وتختار طريقة التعامل مع الكرات العرضية. الحارس مش مجرد تصديات؛ تواصلك وقرارك قبل وصول الكرة ممكن يمنعوا الخطر من الأساس.",
+    consequence:"التأثير: ثقة المدرب والاحترافية والانسجام الدفاعي.",
+    when:function(s){return s.pos==="حارس مرمى"&&Number(s.apps||0)>=1;},
+    choices:[
+      {label:"أنظم الدفاع وأتواصل قبل العرضية",detail:"انسجام دفاعي وثقة الجهاز الفني.",effects:{teamChemistry:5,coachRelationship:3,professionalism:3,trust:2},outcome:"بدأت تنادي على المدافعين وتحدد المسؤوليات قبل لعب العرضية. الجهاز الفني قيّم القيادة بنفس أهمية التصدي."},
+      {label:"أركز على رد الفعل والتصدي أولًا",detail:"تطوير فردي مع فرصة أقل لتنظيم الخط.",effects:{coachRelationship:1,morale:2,energy:-2},outcome:"اشتغلت على توقيت الانقضاض ورد الفعل. المدرب طلب منك توازن بين مهارة التصدي وقيادة المنطقة."}
+    ]
+  },
+  {
+    id:"role-defender",chapter:"DEFENSIVE READ",title:"قلب الدفاع — الخطوة قبل المهاجم",tag:"قرار خاص بمركزك",
+    body:"المهاجم الخصم بدأ يتحرك خلف خطك. لازم تختار بين التقدم لكسر التسلل أو تغطية المساحة خلف الظهير؛ القرار السليم يوقف الهجمة، والخطأ يفتح انفرادًا.",
+    consequence:"التأثير: الانضباط والانسجام وثقة المدرب.",
+    when:function(s){return (s.pos==="قلب دفاع"||s.pos==="ظهير")&&Number(s.apps||0)>=2;},
+    choices:[
+      {label:"أغطي المساحة وأقرأ حركة المهاجم",detail:"انضباط دفاعي واستقرار أكبر.",effects:{professionalism:4,teamChemistry:4,coachRelationship:2,trust:2},outcome:"اخترت التغطية بزاوية تسمح لك باعتراض التمريرة بدل مطاردة الكرة. التحرك الجماعي قلل المساحة خلف الخط."},
+      {label:"أتقدم لكسر التسلل وأرفع الخط",detail:"جرأة أعلى لكن تحتاج تنسيقًا ممتازًا.",effects:{trust:3,morale:2,teamChemistry:-1,energy:-2},outcome:"رفعت الخط وطلبت من زملائك يتحركوا معاك في نفس اللحظة. المدرب شدد على التوقيت والتواصل."}
+    ]
+  },
+  {
+    id:"role-midfielder",chapter:"MIDFIELD CONTROL",title:"لاعب الوسط — ابدأ الهجمة من القرار",tag:"قرار خاص بمركزك",
+    body:"الفريق افتك الكرة في مساحة مزدحمة. قدامك تمريرة آمنة تحفظ الاستحواذ، أو تمريرة تقدمية تكسر خطين وتفتح هجمة خطيرة. قيمة لاعب الوسط في اختيار القرار، مش عدد اللمسات.",
+    consequence:"التأثير: ثقة المدرب والرؤية والانسجام.",
+    when:function(s){return (s.pos==="وسط دفاعي"||s.pos==="وسط مهاجم")&&Number(s.apps||0)>=2;},
+    choices:[
+      {label:"أختار التمريرة التقدمية بعد مسح الملعب",detail:"رؤية واحترافية أعلى مع مخاطرة محسوبة.",effects:{professionalism:4,trust:3,coachRelationship:2,teamChemistry:2},outcome:"بصيت قبل استلام الكرة ومررت بين الخطوط في التوقيت المناسب. الجهاز الفني لاحظ جودة القرار."},
+      {label:"أحافظ على الكرة وأعيد تنظيم الفريق",detail:"استحواذ وانضباط أفضل.",effects:{teamChemistry:4,professionalism:3,morale:1},outcome:"أعدت تدوير اللعب لحد ما ظهرت المساحة المناسبة. التمريرة الآمنة ساعدت الفريق يستعيد شكله."}
+    ]
+  },
+  {
+    id:"role-attacker",chapter:"FINAL THIRD",title:"المهاجم — أنهِ الهجمة أو اصنعها",tag:"قرار خاص بمركزك",
+    body:"وصلت للثلث الأخير والمدافع بيقفل زاوية التسديد. تقدر تنهي الهجمة بنفسك أو تلعب تمريرة لزميل في وضع أفضل. الاختيار مرتبط بمساحة التسديد وجودة الفرصة، مش بمجرد الرغبة في تسجيل هدف.",
+    consequence:"التأثير: المعنويات والاحترافية والانسجام.",
+    when:function(s){return ["جناح","مهاجم","رأس حربة"].indexOf(s.pos)>=0&&Number(s.apps||0)>=2;},
+    choices:[
+      {label:"أختار أفضل فرصة للفريق حتى لو مش هسجل",detail:"احترافية وانسجام وثقة أعلى.",effects:{professionalism:4,teamChemistry:4,coachRelationship:2,trust:2},outcome:"اخترت القرار الأنسب للموقف بدل ما تطارد الإحصائيات الشخصية. الفرصة الأفضل أهم من عدد التسديدات."},
+      {label:"أهاجم المساحة وأنهي الفرصة بنفسي",detail:"ثقة وطموح أعلى مع ضغط إضافي.",effects:{morale:4,coachRelationship:1,energy:-2,professionalism:1},outcome:"تحركت ناحية المساحة وطلبت الكرة في العمق. الجرأة مهمة للمهاجم، بشرط تقييم الزاوية والتوقيت."}
+    ]
+  },
+  {
+    id:"individual-performance-loss",chapter:"AFTER THE WHISTLE",title:"أداء فردي قوي رغم الخسارة",tag:"النتيجة مش كل الحكاية",
+    body:"الفريق خسر، لكن تقييمك الفردي كان 7.5/10 أو أعلى وأداؤك داخل الملعب كان إيجابيًا. المدرب والإعلام فصلوا بين نتيجة المجموعة ومستواك الشخصي.",
+    consequence:"التأثير: المعنويات وثقة المدرب والاحترافية.",
+    when:function(s){var r=s.lastMatchReport||{};return r.outcome==="loss"&&Number(r.minutes)>0&&Number(r.rating)>=7.5;},
+    choices:[
+      {label:"أراجع أسباب استقبال الفريق للأهداف مع المدرب",detail:"تتعلم من الخسارة من غير جلد الذات.",effects:{professionalism:4,coachRelationship:3,trust:2,teamChemistry:2},outcome:"راجعت أسباب الخسارة مع الجهاز الفني، مع الاعتراف إن مستواك الفردي كان قويًا."},
+      {label:"أحافظ على مستواي وأدعم زملائي",detail:"انسجام ومعنويات أفضل بعد نتيجة صعبة.",effects:{teamChemistry:5,morale:3,professionalism:2,coachRelationship:1},outcome:"المدرب والإعلام أشادوا بأدائك رغم الخسارة. دعمت زملاءك وركزت على المباراة القادمة."}
+    ]
+  },
 ];
 function escapeHTML(value){
   return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});
@@ -398,12 +458,17 @@ function acceptMatchReport(report){
   if(!Array.isArray(s.matchNarrativeLedger))s.matchNarrativeLedger=[];
   s.matchNarrativeLedger.unshift({key:summary.key,season:Number(s.season)||1,day:Number(s.day)||1,summary:summary});
   s.matchNarrativeLedger=s.matchNarrativeLedger.slice(0,40);
-  var title=summary.outcome==="win"?"انتصار جديد":summary.outcome==="loss"?"مراجعة بعد الخسارة":"نقطة من المباراة";
-  var body=summary.outcome==="win"?"فريقك فاز "+summary.score.for+"-"+summary.score.against+". ":summary.outcome==="loss"?"الفريق خسر "+summary.score.for+"-"+summary.score.against+". ":"المباراة انتهت "+summary.score.for+"-"+summary.score.against+". ";
-  body+=summary.minutes>0?"شاركت "+summary.minutes+" دقيقة":"لم تشارك في المباراة";
-  if(summary.goals)body+=" وسجلت "+summary.goals+" هدف";
-  if(summary.assists)body+=" وصنعت "+summary.assists+" هدف";
-  if(summary.rating>0)body+="، وتقييمك "+summary.rating.toFixed(1);
+  var strongIndividualLoss=summary.outcome==="loss"&&summary.minutes>0&&summary.rating>=7.5;
+  var title=strongIndividualLoss?"أداء فردي قوي رغم الخسارة":summary.outcome==="win"?"انتصار جديد":summary.outcome==="loss"?"مراجعة بعد الخسارة":"نقطة من المباراة";
+  var body=strongIndividualLoss
+    ?"الفريق خسر "+summary.score.for+"-"+summary.score.against+", لكنك قدمت أداءً قويًا بتقييم "+summary.rating.toFixed(1)+"/10 خلال "+summary.minutes+" دقيقة. المدرب والإعلام أشادوا بأدائك الفردي رغم خيبة النتيجة الجماعية."
+    :summary.outcome==="win"?"فريقك فاز "+summary.score.for+"-"+summary.score.against+". ":summary.outcome==="loss"?"الفريق خسر "+summary.score.for+"-"+summary.score.against+". ":"المباراة انتهت "+summary.score.for+"-"+summary.score.against+". ";
+  if(!strongIndividualLoss){
+    body+=summary.minutes>0?"شاركت "+summary.minutes+" دقيقة":"لم تشارك في المباراة";
+    if(summary.goals)body+=" وسجلت "+summary.goals+" هدف";
+    if(summary.assists)body+=" وصنعت "+summary.assists+" هدف";
+    if(summary.rating>0)body+="، وتقييمك "+summary.rating.toFixed(1);
+  }
   if(!Array.isArray(s.inbox))s.inbox=[];
   s.inbox.unshift({id:"match-report-"+summary.key,title:title,body:body,category:"match",day:Number(s.day)||1,season:Number(s.season)||1,read:false});
   s.inbox=s.inbox.slice(0,80);

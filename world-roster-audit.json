@@ -3,6 +3,18 @@
   "season": "2026/27",
   "source": "FootballSquads.co.uk current squad pages",
   "status": "complete",
+  "ratingNormalization": {
+    "schemaVersion": 1,
+    "source": "global-catalog + continental competition calibration",
+    "factors": {
+      "UEFA": 1,
+      "CONMEBOL": 0.985,
+      "CAF": 0.955,
+      "AFC": 0.97,
+      "OFC": 0.94,
+      "FIFA": 1
+    }
+  },
   "expectedTeamsTotal": 366,
   "leagues": [
     {
@@ -123,7 +135,7 @@
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/italy/2026-2027/seriea.htm",
       "clubs": 20,
-      "players": 626,
+      "players": 635,
       "below18Players": []
     },
     {
@@ -133,7 +145,7 @@
       "expectedTeams": 20,
       "sourceUrl": "https://footballsquads.co.uk/italy/2026-2027/serieb.htm",
       "clubs": 20,
-      "players": 642,
+      "players": 644,
       "below18Players": []
     },
     {
@@ -198,8 +210,8 @@
     }
   ],
   "totalTeams": 366,
-  "totalPlayers": 11934,
-  "snapshotBytes": 2292455,
+  "totalPlayers": 11945,
+  "snapshotBytes": 2308193,
   "allLeagueMinimumsMet": true,
   "supplementalCoverage": {
     "egypt": {

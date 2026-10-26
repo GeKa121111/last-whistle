@@ -134,4 +134,13 @@ assert.ok(ceremony.awards.some(row => row.id === "caf-player"));
 assert.ok(ceremony.awards.some(row => row.id === "uefa-player"));
 assert.ok(ceremony.awards.some(row => row.id === "conmebol-player"));
 
-console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");
+const defenderWithoutWork = { position: "قلب دفاع", ovr: 74, appearances: 28, minutes: 2400, averageRating: 7.1, goals: 1, assists: 2, cleanSheets: 3, leagueStrength: 65 };
+const defenderWithWork = { ...defenderWithoutWork, tackles: 34, interceptions: 29, cleanSheets: 12 };
+assert.ok(engine.performanceIndex(defenderWithWork) > engine.performanceIndex(defenderWithoutWork),
+  "defensive actions and clean sheets must improve a defender's performance score");
+const keeperWithoutWork = { position: "حارس مرمى", ovr: 75, appearances: 30, minutes: 2700, averageRating: 7.0, cleanSheets: 4, saves: 12, leagueStrength: 65 };
+const keeperWithWork = { ...keeperWithoutWork, cleanSheets: 15, saves: 66 };
+assert.ok(engine.performanceIndex(keeperWithWork) > engine.performanceIndex(keeperWithoutWork),
+  "saves and clean sheets must improve a goalkeeper's performance score");
+
+console.log("PASS: realistic offer tiers, role-aware on-field performance, negotiation patience, leaderboards and awards.");

@@ -30,18 +30,41 @@ for (const [position, expected] of Object.entries(expectedPlans)) {
 }
 assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "goalkeeping"), 1.2);
 assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"), 1);
+const legacyOutfield = { pos: "جناح", age: 22, goalkeeping: 50, speed: 60, fitness: 60, physical: 55 };
+career.ensureState(legacyOutfield);
+assert.ok(legacyOutfield.goalkeeping >= 10 && legacyOutfield.goalkeeping <= 15, "legacy field-player goalkeeper stat must be capped at 10-15");
+const wingerAt30 = { pos: "جناح", age: 30, speed: 70, fitness: 70, physical: 60 };
+career.applySeasonAging(wingerAt30);
+assert.equal(wingerAt30.speed, 69, "wing speed should begin declining at 29");
+assert.equal(wingerAt30.fitness, 69, "wing fitness should decline from 30");
+const keeperAt30 = { pos: "حارس مرمى", age: 30, speed: 60, fitness: 70, physical: 55 };
+career.applySeasonAging(keeperAt30);
+assert.equal(keeperAt30.speed, 60, "goalkeepers should not get an early speed penalty");
+assert.equal(keeperAt30.fitness, 70, "goalkeepers should retain physical levels longer than wings");
+const centreBackAt34 = { pos: "قلب دفاع", age: 34, speed: 60, fitness: 70, physical: 65 };
+career.applySeasonAging(centreBackAt34);
+assert.equal(centreBackAt34.fitness, 69, "centre-back fitness decline should start later than a winger");
+const blockedMoney = { pos: "جناح", age: 25, money: 1000 };
+const blockedPurchase = career.purchaseItem(blockedMoney, { id: "ovrBoost", price: 100 });
+assert.equal(blockedPurchase.status, "direct-rating-purchase-disabled", "OVR cannot be bought directly");
+assert.equal(blockedMoney.money, 1000, "rejected OVR purchase must not consume money");
+const gkDevelopment = { pos: "حارس مرمى", age: 24, careerXP: 0, levelXP: 0, careerLevel: 1, goalkeeping: 68, playerPotential: 88, fatigue: 0 };
+career.ensureState(gkDevelopment);
+const gkMatchXP = career.matchDevelopment(gkDevelopment, { matchId: "test-gk-clean-sheet", minutes: 90, rating: 7.4, defensiveXP: 18, cleanSheet: true, saves: 3, tackles: 0, interceptions: 0 });
+assert.equal(gkMatchXP.defensiveXP, 18, "defensive XP from match engine must be credited");
+assert.ok(gkMatchXP.xp >= gkMatchXP.baseXP + 18, "defensive XP must increase the match XP total");
 
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);
 const startRanges = {
-  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[5,12] },
-  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[5,12] },
-  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[5,12] },
-  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[5,12] },
-  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[5,12] },
-  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[5,12] },
-  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[5,12] },
-  "حارس مرمى": { goalkeeping:[58,68], composure:[58,68], vision:[58,68], shooting:[15,35], defending:[15,35] }
+  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[10,15] },
+  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[10,15] },
+  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[10,15] },
+  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[10,15] },
+  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[10,15] },
+  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[10,15] },
+  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[10,15] },
+  "حارس مرمى": { goalkeeping:[62,74], composure:[58,68], vision:[52,65], shooting:[12,20], defending:[15,30] }
 };
 for (const [position, ranges] of Object.entries(startRanges)) {
   const stats = career.startingStatsForPosition(position, () => 0.5);

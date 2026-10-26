@@ -402,6 +402,7 @@
 
   function openTrainingSkill() {
     currentView = "training-skill";
+    var s = API().getState();
     frame("حصة مدرب متخصص", "FOCUSED TRAINING",
       '<p class="lwcx-intro">اختار مهارة واحدة. التكلفة 180 جنيهًا داخل اللعبة و8 طاقة، والتدريب يمنح نقطتين في المهارة المختارة.</p>' +
       '<div class="lwcx-skill-grid">' +
@@ -411,16 +412,24 @@
         actionButton("skill-speed", "السرعة", "انطلاقة أسرع.") +
         actionButton("skill-fitness", "اللياقة", "قدرة بدنية أعلى.") +
         actionButton("skill-composure", "الهدوء", "ثبات تحت الضغط.") +
+        (s.pos === "حارس مرمى" ? actionButton("skill-goalkeeping", "حراسة المرمى", "تدريب تخصصي للحارس فقط.") : "") +
       '</div><div class="lwcx-modal-actions"><button type="button" class="lwcx-button" data-lwcx-action="open-finance">رجوع</button></div>');
   }
 
   function applyFocusedTraining(s, skill) {
+    var allowedSkills = ["shooting", "passing", "dribbling", "speed", "fitness", "composure"];
+    if (s && s.pos === "حارس مرمى") allowedSkills.push("goalkeeping");
+    if (allowedSkills.indexOf(skill) < 0) {
+      var rejectedApi = API();
+      if (rejectedApi && rejectedApi.toast) rejectedApi.toast("المهارة دي مش متاحة لمركزك.");
+      return;
+    }
     if (s.retired || Number(s.injuryDays) > 0 || Number(s.money) < 180 || Number(s.energy) < 8) {
       var api = API();
       if (api && api.toast) api.toast("راجع الرصيد والطاقة والإصابة قبل التمرين.");
       return;
     }
-    var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء" };
+    var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء", goalkeeping: "حراسة المرمى" };
     s.money = Math.max(0, Number(s.money) - 180);
     stat(s, skill, 2);
     stat(s, "energy", -8);
@@ -455,14 +464,16 @@
     currentView = "mentor";
     var s = API().getState();
     var used = !!s.dailyActionUsed && Number(s.dailyActionDay) === Number(s.day);
+    var seniorMentor = Number(s.age) >= 28 && !s.retired;
     frame("العلاقات والتوجيه", "PEOPLE AROUND YOU",
-      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. النظام بيحترم النشاط الجانبي اليومي الموجود في اللعبة.</p>' +
+      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. من سن 28 تقدر كمان تبني إرثك داخل الفريق بإرشاد لاعب ناشئ؛ وكل الأنشطة بتحترم حد النشاط الجانبي اليومي.</p>' +
       '<div class="lwcx-options">' +
         actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", used ? ' disabled' : '') +
         actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", used ? ' disabled' : '') +
+        (seniorMentor ? actionButton("mentor-youth", "إرشاد لاعب ناشئ", "من سن 28: انسجام +5، احترافية +3، خبرة مسيرة +18، مقابل نقطتي طاقة.", used ? ' disabled' : '') : '') +
         actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", used ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>سجل العلاقات</strong><span>' + world(s).mentorSessions + ' جلسة' + '</span></div>' +
-      ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية/.test(row.title); }).slice(0, 4)).map(function (row) {
+      ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية|إرشاد لاعب ناشئ/.test(row.title); }).slice(0, 4)).map(function (row) {
         return '<div class="lwcx-investment-row"><span><strong>' + esc(row.title) + '</strong><small>الموسم ' + esc(row.season) + ' · اليوم ' + esc(row.day) + '</small></span><b>✓</b></div>';
       }).join("") || '<p class="lwcx-empty">لسه مفيش جلسات مسجلة.</p>'),
       used ? "استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد قبل جلسة تانية." : "النشاط بيستهلك فرصة النشاط الجانبي لليوم؛ مش هتقدر تكرر الجلسات في نفس اليوم.");
@@ -489,6 +500,20 @@
       stat(s, "professionalism", 1);
       stat(s, "energy", -1);
       record(s, "دعم لاعب أصغر", "خصصت وقت للاعب أصغر وشاركت معاه خبرتك. انسجام الفريق اتحسن.");
+    } else if (kind === "youth") {
+      if (Number(s.age) < 28) {
+        var mentorApi = API();
+        if (mentorApi && mentorApi.toast) mentorApi.toast("إرشاد اللاعبين الناشئين متاح من سن 28.");
+        return;
+      }
+      stat(s, "teamChemistry", 5);
+      stat(s, "professionalism", 3);
+      stat(s, "trust", 2);
+      stat(s, "energy", -2);
+      stat(s, "careerXP", 18);
+      s.mentoringSessions = Math.max(0, Number(s.mentoringSessions) || 0) + 1;
+      s.mentoringInfluence = Math.max(0, Number(s.mentoringInfluence) || 0) + 1;
+      record(s, "إرشاد لاعب ناشئ", "شاركت خبرتك مع لاعب أصغر، وساعدته يقرأ ضغط المباريات ويتعامل مع الجهاز الفني. الخبرة دي بتبني إرثك داخل الفريق.");
     } else {
       stat(s, "morale", 5);
       stat(s, "energy", 7);
@@ -496,7 +521,7 @@
       record(s, "راحة ذهنية", "اخدت وقت تهدّي فيه الضغط وتراجع أولوياتك. معنوياتك وتعافيك اتحسنوا.");
     }
     s.dailyActionUsed = true;
-    s.dailyActionType = kind === "coach" ? "جلسة توجيه" : kind === "teammate" ? "دعم زميل" : "راحة ذهنية";
+    s.dailyActionType = kind === "coach" ? "جلسة توجيه" : kind === "teammate" ? "دعم زميل" : kind === "youth" ? "إرشاد لاعب ناشئ" : "راحة ذهنية";
     s.dailyActionDay = currentDay;
     s.nightToday = true;
     world(s).mentorSessions++;
@@ -514,7 +539,8 @@
     var awards = (Array.isArray(s.careerAwards) ? s.careerAwards.length : 0) + (Number(s.topScorerAwards) || 0);
     var transfers = Array.isArray(s.transferHistory) ? s.transferHistory.length : 0;
     var stories = Array.isArray(s.storyHistory) ? s.storyHistory.length : 0;
-    var score = apps + goals * 3 + assists * 2 + trophies * 35 + caps * 3 + awards * 12;
+    var mentoringSessions = Math.max(0, Number(s.mentoringSessions) || 0);
+    var score = apps + goals * 3 + assists * 2 + trophies * 35 + caps * 3 + awards * 12 + mentoringSessions * 2;
     var tags = [];
     if (trophies >= 3) tags.push("جامع بطولات");
     if (goals >= 30) tags.push("هداف المسيرة");
@@ -524,24 +550,37 @@
     if (transfers >= 4) tags.push("رحّالة الملاعب");
     if (apps >= 20 && transfers <= 1) tags.push("وفيّ للنادي");
     if (stories >= 8) tags.push("صاحب حكاية استثنائية");
+    if (mentoringSessions >= 10) tags.push("قائد أجيال");
     if (!tags.length) tags.push("الموهبة لسه بتكتب أول فصل");
     var title = score >= 450 ? "أسطورة كروية" : score >= 220 ? "نجم كبير" : score >= 90 ? "اسم معروف" : "بداية الإرث";
     if (s.retired) title = "الإرث النهائي";
-    return { apps: apps, goals: goals, assists: assists, trophies: trophies, caps: caps, awards: awards, transfers: transfers, stories: stories, score: score, tags: tags, title: title };
+    return { apps: apps, goals: goals, assists: assists, trophies: trophies, caps: caps, awards: awards, transfers: transfers, stories: stories, mentoringSessions: mentoringSessions, score: score, tags: tags, title: title };
   }
 
   function openLegacy() {
     currentView = "legacy";
     var s = API().getState();
     var d = legacyData(s);
+    var postCareerPanel = "";
+    if (s.retired && s.postCareerPath === "agent") {
+      postCareerPanel = '<div class="lwcx-subhead"><strong>مسارك بعد الاعتزال</strong><span>وكيل أعمال</span></div><p class="lwcx-intro">بدأت إدارة مسيرة لاعبين داخل عالم اللعبة. اعتمد على خبرتك وسجلّك وعلاقاتك لبناء وكالة مواهب.</p>';
+    } else if (s.retired && s.postCareerPath === "owner") {
+      var existingStake = s.clubOwnership || {};
+      postCareerPanel = '<div class="lwcx-subhead"><strong>مسارك بعد الاعتزال</strong><span>مالك مسيطر</span></div><p class="lwcx-intro">أصبحت تملك '+esc(existingStake.share || 51)+'% من '+esc(existingStake.clubName || s.clubName || "ناديك الأخير")+'. تم حفظ الصفقة في سجل المسيرة.</p>';
+    } else if (s.retired) {
+      var stakeCost = Math.max(75000, Math.round(65000 + (Number(s.clubPower) || 50) * 900));
+      var currencyLabel = API() && typeof API().currency === "function" ? API().currency() : "جنيه";
+      postCareerPanel = '<div class="lwcx-subhead"><strong>فصل جديد بعد الاعتزال</strong><span>اختار المسار</span></div><p class="lwcx-intro">بعد نهاية مسيرتك كلاعب، تقدر تدير مواهب كوكيل أعمال أو تشتري حصة حاكمة 51% في ناديك الأخير مقابل '+stakeCost.toLocaleString("en-US")+' '+esc(currencyLabel)+' داخل اللعبة.</p><div class="lwcx-options">' + actionButton("legacy-agent", "ابدأ مسار وكيل أعمال", "إدارة مواهب وفرص انتقال للاعبين.") + actionButton("legacy-owner", "اشترِ حصة حاكمة 51%", "في "+(s.clubName || "ناديك الأخير")+" مقابل "+stakeCost.toLocaleString("en-US")+" "+currencyLabel+".") + '</div>';
+    }
     frame(s.retired ? "بطاقة الإرث النهائية" : "إرثك لحد النهارده", "CAREER LEGACY",
       '<div class="lwcx-legacy-card"><span class="lwcx-legacy-overline">LAST WHISTLE · PLAYER DOSSIER</span><div class="lwcx-legacy-title">' + esc(d.title) + '</div><div class="lwcx-legacy-player">' + esc(s.name || "لاعب جديد") + '</div><div class="lwcx-legacy-club">' + esc(s.clubName || "النادي الحالي") + ' · سن ' + esc(s.age || 17) + '</div>' +
       '<div class="lwcx-legacy-score"><strong>' + d.score + '</strong><span>نقاط الإرث التقديرية داخل اللعبة</span></div>' +
       '<div class="lwcx-legacy-stats">' +
-        '<div><small>مشاركات</small><b>' + d.apps + '</b></div><div><small>أهداف</small><b>' + d.goals + '</b></div><div><small>صناعة</small><b>' + d.assists + '</b></div><div><small>بطولات</small><b>' + d.trophies + '</b></div><div><small>مباريات دولية</small><b>' + d.caps + '</b></div><div><small>جوائز</small><b>' + d.awards + '</b></div>' +
+        '<div><small>مشاركات</small><b>' + d.apps + '</b></div><div><small>أهداف</small><b>' + d.goals + '</b></div><div><small>صناعة</small><b>' + d.assists + '</b></div><div><small>بطولات</small><b>' + d.trophies + '</b></div><div><small>مباريات دولية</small><b>' + d.caps + '</b></div><div><small>جوائز</small><b>' + d.awards + '</b></div><div><small>جلسات إرشاد</small><b>' + d.mentoringSessions + '</b></div>' +
       '</div><div class="lwcx-legacy-tags">' + d.tags.map(function (tag) { return '<span>' + esc(tag) + '</span>'; }).join("") + '</div></div>' +
       '<div class="lwcx-subhead"><strong>إيه اللي شكّل إرثك؟</strong><span>' + d.stories + ' قرار قصصي</span></div>' +
       '<p class="lwcx-intro">البطاقة بتتحدّث من إحصائيات الحفظ الحالي. نقاط الإرث ملخص تقديري داخل Last Whistle، مش جائزة رسمية ولا بديل عن سجل البطولات.</p>' +
+      postCareerPanel +
       '<div class="lwcx-modal-actions"><button type="button" class="lwcx-button lwcx-button-primary" data-lwcx-action="close">رجوع للمسيرة</button></div>',
       s.retired ? "المسيرة معتزلة بالفعل. أرقام البطاقة مأخوذة من السجل المحفوظ." : "دي بطاقة إرث حية، هتتغير مع أهدافك وبطولاتك وعلاقاتك. الاعتزال الحقيقي يفضل تابعًا لنظام المسيرة الحالي.");
   }
@@ -561,6 +600,28 @@
     if (action === "open-finance") { currentView = "finance"; renderFinance(); return; }
     if (action === "open-mentor") { openMentor(); return; }
     if (action === "open-legacy") { openLegacy(); return; }
+    if (action === "legacy-agent") {
+      if (!s.retired || s.postCareerPath) { if (api.toast) api.toast("مسار ما بعد الاعتزال غير متاح أو تم اختياره بالفعل."); return; }
+      s.postCareerPath = "agent";
+      s.postCareerRecord = { path: "agent", season: Number(s.season) || 1, selectedDay: Number(s.day) || 1 };
+      record(s, "مسار ما بعد الاعتزال", "بدأت مسار وكيل أعمال لإدارة مواهب اللاعبين بعد نهاية مسيرتك.");
+      save(s, "تم حفظ مسارك الجديد بعد الاعتزال.");
+      openLegacy();
+      return;
+    }
+    if (action === "legacy-owner") {
+      if (!s.retired || s.postCareerPath) { if (api.toast) api.toast("مسار ما بعد الاعتزال غير متاح أو تم اختياره بالفعل."); return; }
+      var cost = Math.max(75000, Math.round(65000 + (Number(s.clubPower) || 50) * 900));
+      if (Number(s.money) < cost) { if (api.toast) api.toast("شراء الحصة الحاكمة يحتاج " + cost.toLocaleString("en-US") + " " + (api.currency ? api.currency() : "جنيه") + ". رصيدك الحالي غير كافٍ."); return; }
+      s.money = Math.max(0, Number(s.money) - cost);
+      s.postCareerPath = "owner";
+      s.clubOwnership = { clubName: String(s.clubName || "ناديك الأخير"), share: 51, cost: cost, season: Number(s.season) || 1 };
+      s.postCareerRecord = { path: "owner", season: Number(s.season) || 1, selectedDay: Number(s.day) || 1, cost: cost };
+      record(s, "شراء حصة حاكمة", "اشتريت 51% من " + s.clubOwnership.clubName + " مقابل " + cost.toLocaleString("en-US") + " " + (api.currency ? api.currency() : "جنيه") + " داخل اللعبة.");
+      save(s, "تم حفظ ملكيتك للنادي بعد الاعتزال.");
+      openLegacy();
+      return;
+    }
     if (action === "open-penalty") { penalty = { direction: "", power: 68 }; openPenalty(); return; }
     if (action === "penalty-target") { penalty.direction = element.getAttribute("data-dir") || ""; openPenalty(); return; }
     if (action === "penalty-shoot") { penalty.power = cap((document.getElementById("lwcx-power") || {}).value || penalty.power, 25, 95); shootPenalty(s); return; }

@@ -31,6 +31,14 @@ fs.mkdirSync(rootData, { recursive: true });
 fs.cpSync(sourceData, rootData, { recursive: true, force: true });
 fs.mkdirSync(publicData, { recursive: true });
 fs.cpSync(sourceData, publicData, { recursive: true, force: true });
+// Recover any missing published snapshot from the canonical root data folder.
+const rootSnapshots = path.join(rootData, "snapshots");
+const publicSnapshots = path.join(publicData, "snapshots");
+fs.mkdirSync(publicSnapshots, { recursive: true });
+for (const snapshot of ["fifa-global-2023.json.gz.b64", "openfootball-clubs.json.gz.b64", "football-reference.json.gz.b64", "awards.json.gz.b64"]) {
+  const destination = path.join(publicSnapshots, snapshot);
+  if (!fs.existsSync(destination) && fs.existsSync(path.join(rootSnapshots, snapshot))) fs.copyFileSync(path.join(rootSnapshots, snapshot), destination);
+}
 
 if (!fs.existsSync(path.join(publicDir, "index.html"))) {
   throw new Error("public/index.html is missing");

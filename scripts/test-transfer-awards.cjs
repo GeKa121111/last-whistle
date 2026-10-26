@@ -13,6 +13,25 @@ const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
 assert.equal(engine.version, 1);
 
+// Defensive and attacking midfield labels must both use midfielder production
+// rates. A deterministic same-player fixture makes role-only differences visible.
+const sameMidfielder = {
+  name: "لاعب وسط ثابت", clubName: "نادي اختبار", country: "مصر",
+  ovr: 72, prestige: 65, leagueStrength: 60, age: 24
+};
+const defensiveMidfieldLine = engine.simulatePlayerSeason({
+  ...sameMidfielder, position: "وسط دفاعي"
+}, 2, 1);
+const attackingMidfieldLine = engine.simulatePlayerSeason({
+  ...sameMidfielder, position: "وسط مهاجم"
+}, 2, 1);
+assert.equal(defensiveMidfieldLine.appearances, attackingMidfieldLine.appearances,
+  "midfield role wording must not change deterministic appearance estimates");
+assert.equal(defensiveMidfieldLine.goals, attackingMidfieldLine.goals,
+  "a defensive midfielder must not be assigned defender goal rates");
+assert.equal(defensiveMidfieldLine.assists, attackingMidfieldLine.assists,
+  "an attacking midfielder must not be assigned striker assist rates");
+
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
   country: "مصر", currentClub: "مركز شباب النور", currentClubPower: 52,

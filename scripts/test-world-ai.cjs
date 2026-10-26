@@ -25,7 +25,12 @@ const scotlandFixtureSnapshot = {
 const sandbox = { window: { LWFootballSquadData: scotlandFixtureSnapshot }, console };
 vm.createContext(sandbox);
 const dbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
-const aiSource = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
+const aiSourceRaw = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
+const lineupMarker = "  function makeLineup(world, club) {";
+assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
+const aiSource = aiSourceRaw.replace(lineupMarker, lineupMarker + `
+    global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
+    global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
@@ -124,6 +129,12 @@ assert.equal(world.competitionsBySeason["0"].length, 0, "AFC competition results
 
 
 const firstSeason = ai.completeSeason(save, 1, db);
+const lineupBuilds = Object.values(sandbox.window.__lwLineupBuildsByClub || {});
+assert.ok(lineupBuilds.length > 0, "season simulation must build lineups for clubs playing fixtures");
+assert.ok(lineupBuilds.every(count => count === 1),
+  "each club lineup should be built exactly once during a season simulation");
+assert.ok(lineupBuilds.length < (world.matchesBySeason["1"] || []).length,
+  "the lineup cache should avoid rebuilding a squad for each fixture");
 assert.equal(firstSeason.season, 1);
 assert.equal(firstSeason.alreadyCompleted, false);
 assert.ok(firstSeason.rows.length >= playerCount - 2, "season completion must save statistics for the world player pool");

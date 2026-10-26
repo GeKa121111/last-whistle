@@ -1497,8 +1497,22 @@
   }
   function recruitmentNeeds(save, db) {
     const world = ensureProfiles(save, db);
-    return Object.values(world.clubs || {}).map(club => {
-      const rows = Object.values(world.players || {}).filter(player => player && player.clubId === club.id);
+    const clubs = Object.values(world.clubs || {});
+    // Build one player-to-club index instead of scanning the complete world player
+    // database separately for every club. This keeps recruitment analysis close to
+    // O(players + clubs × squad size), which matters as world saves grow.
+    const playersByClubId = new Map();
+    Object.values(world.players || {}).forEach(player => {
+      if (!player || player.clubId == null) return;
+      let rows = playersByClubId.get(player.clubId);
+      if (!rows) {
+        rows = [];
+        playersByClubId.set(player.clubId, rows);
+      }
+      rows.push(player);
+    });
+    return clubs.map(club => {
+      const rows = playersByClubId.get(club.id) || [];
       const roleNeeds = [
         { id: "goalkeeper", target: 2, label: "حراسة المرمى" },
         { id: "defender", target: 5, label: "الدفاع" },

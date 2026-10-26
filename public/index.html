@@ -4483,7 +4483,12 @@ function runSeasonAITtraining(){
  const ageBonus=age<=15?4:age<=18?3:age<=21?2:age<=27?1:0;
  const potentialBonus=potentialGap>=20?2:potentialGap>=10?1:0;
  const injuryPenalty=Math.min(4,Math.ceil(Math.max(0,Number(state.injuryDays)||0)/7));
- const targetSessions=Math.max(0,Math.min(16,Math.round(Math.max(1,seasonMatchTotal())*.28)+ageBonus+potentialBonus-(age>=30?2:0)-injuryPenalty));
+ // Approximate the focused individual work skipped by fast-season simulation. The plan
+ // budgets about two focused sessions per league fixture; recovery, tactical work and match prep
+ // are represented implicitly instead of simulating every calendar day. Age, potential and injury
+ // status still adjust the workload, and the training engine enforces attribute potential caps.
+ const fixtureCount=Math.max(1,Number(seasonMatchTotal())||1);
+ const targetSessions=Math.max(0,Math.min(96,Math.round(fixtureCount*2.1)+ageBonus+potentialBonus-(age>=30?2:0)-injuryPenalty));
  const seasonStartSessions=Math.max(0,Number(state.seasonDevelopmentSnapshot?.sessions)||0);
  const seasonSessions=Math.max(0,(Number(state.trainingSessions)||0)-seasonStartSessions);
  const alreadyAutomated=Math.min(seasonSessions,report.sessions);

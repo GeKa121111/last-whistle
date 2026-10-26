@@ -844,10 +844,15 @@
     for (let i = 0; i < rows.length; i++) { roll -= weights[i]; if (roll <= 0) return rows[i]; }
     return rows[rows.length - 1];
   }
-  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId) {
+  function lineupForMatch(world, club, cache) {
+    if (!(cache instanceof Map)) return makeLineup(world, club);
+    if (!cache.has(club.id)) cache.set(club.id, makeLineup(world, club));
+    return cache.get(club.id);
+  }
+  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache) {
     const seed = hash([season, division, matchday, home.id, away.id, competitionId || "league", "match-v2"].join("|"));
     const rng = random(seed);
-    const homeLineup = makeLineup(world, home), awayLineup = makeLineup(world, away);
+    const homeLineup = lineupForMatch(world, home, lineupCache), awayLineup = lineupForMatch(world, away, lineupCache);
     const homeStrength = Number(home.power || home.basePower || 55);
     const awayStrength = Number(away.power || away.basePower || 55);
     const xgHome = clamp(1.28 + (homeStrength - awayStrength) * 0.027 + 0.16, 0.28, 3.05);
@@ -979,6 +984,8 @@
     }
     const accumulators = new Map(Object.values(world.players).map(player => [player.id, playerAccumulator()]));
     const tables = {}, allMatches = [], groups = groupRows(world);
+    // The selected XI cannot change during a season simulation; cache it instead of sorting each squad for every fixture.
+    const lineupCache = new Map();
     let sequence = 0;
     for (const [groupKey, clubsRaw] of groups.entries()) {
       const clubs = clubsRaw.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -997,7 +1004,7 @@
             if (!one || !two) continue;
             const home = (round + i) % 2 === 0 ? one : two;
             const away = home.id === one.id ? two : one;
-            const fixture = playMatch(world, home, away, year, division, round + 1, ++sequence, accumulators, "league");
+            const fixture = playMatch(world, home, away, year, division, round + 1, ++sequence, accumulators, "league", lineupCache);
             allMatches.push(fixture); applyResult(leagueTables, fixture);
           }
           const fixed = rotation[0], rest = rotation.slice(1);
@@ -1013,7 +1020,7 @@
             if (!one || !two) continue;
             const home = (round + i) % 2 === 0 ? two : one;
             const away = home.id === two.id ? one : two;
-            const fixture = playMatch(world, home, away, year, division, rounds + round + 1, ++sequence, accumulators, "league");
+            const fixture = playMatch(world, home, away, year, division, rounds + round + 1, ++sequence, accumulators, "league", lineupCache);
             allMatches.push(fixture); applyResult(leagueTables, fixture);
           }
           const fixed = rotation[0], rest = rotation.slice(1);
@@ -1046,7 +1053,7 @@
               else if (twoHomeCount < oneHomeCount) { home = two; away = one; }
               else { home = (round + i) % 2 === 0 ? one : two; away = home.id === one.id ? two : one; }
               const fixture = playMatch(world, home, away, year, division,
-                rounds * 2 + round + 1, ++sequence, accumulators, "league");
+                rounds * 2 + round + 1, ++sequence, accumulators, "league", lineupCache);
               allMatches.push(fixture);
               applyResult(leagueTables, fixture);
               homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
@@ -1081,7 +1088,7 @@
                 else if (twoHomeCount < oneHomeCount) { home = two; away = one; }
                 else { home = (round + i) % 2 === 0 ? one : two; away = home.id === one.id ? two : one; }
                 const fixture = playMatch(world, home, away, year, division,
-                  rounds * 3 + round + 1, ++sequence, accumulators, "league");
+                  rounds * 3 + round + 1, ++sequence, accumulators, "league", lineupCache);
                 allMatches.push(fixture);
                 applyResult(leagueTables, fixture);
                 homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
@@ -1590,7 +1597,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=1");
+    const worker = new global.Worker("./football-world-worker.js?v=2");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

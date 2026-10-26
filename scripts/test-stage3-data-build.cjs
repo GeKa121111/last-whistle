@@ -12,6 +12,10 @@ const read = file => fs.readFileSync(path.join(root, file), "utf8");
 for (const file of [
   "football-world-db.js",
   "public/football-world-db.js",
+  "football-world-ai.js",
+  "public/football-world-ai.js",
+  "football-world-worker.js",
+  "public/football-world-worker.js",
   "source/public/data/global-catalog.js",
   "scripts/build-static.cjs",
   "scripts/refresh-world-squads.cjs",
@@ -55,7 +59,7 @@ assert.equal(db.clubPower("الأهلي", "مصر"), egyptianClub.normalizedOvr,
 
 const build = spawnSync(process.execPath, [path.join(root, "scripts/build-static.cjs")], { cwd: root, encoding: "utf8" });
 assert.equal(build.status, 0, "static build must succeed: " + (build.stderr || build.stdout));
-for (const file of ["index.html", "football-world-db.js", "football-world-rosters.js", "world-roster-audit.json", "sw.js"]) {
+for (const file of ["index.html", "football-world-db.js", "football-world-ai.js", "football-world-worker.js", "football-world-rosters.js", "world-roster-audit.json", "sw.js"]) {
   assert.equal(read(file), read(path.join("public", file)), "root/public canonical file drift: " + file);
 }
 for (const file of [

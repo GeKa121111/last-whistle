@@ -2024,8 +2024,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       "وسط دفاعي": { shooter: 0.13, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.27, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-      "مهاجم": { shooter: 0.36, creator: 0.22, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.50, creator: 0.08, defender: 0.04, finishingBonus: 0.05 }
+      "مهاجم": { shooter: 0.36, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.60, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
 
@@ -2138,12 +2138,23 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           events.push({ type: "shot", minute, side, onTarget: false });
           const isOurs = side === "team";
           const playerCanAct = isOurs && minutes > 0 && minute <= minutes;
-          const involvement = playerCanAct
-            ? clamp(profile.shooter * (minutes / 90) * (0.82 + energy / 500 - fatigue / 450), 0, 0.62)
-            : 0;
-          const byPlayer = playerCanAct && !profile.goalkeeper && random() < involvement;
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
+          // The match timeline already prevents involvement after the player's substitution.
+          // Do not multiply the same minutes ratio a second time: doing so undercounts bench appearances.
+          const roleSkill = position === "رأس حربة"
+            ? shooting * 0.42 + composure * 0.26 + clamp(player.physical, 0, 100) * 0.16
+              + clamp(player.speed, 0, 100) * 0.10 + clamp(player.fitness, 0, 100) * 0.06
+            : position === "مهاجم"
+              ? clamp(player.dribbling, 0, 100) * 0.30 + clamp(player.speed, 0, 100) * 0.26
+                + clamp(player.vision, 0, 100) * 0.18 + shooting * 0.16 + clamp(player.passing, 0, 100) * 0.10
+              : shooting * 0.36 + composure * 0.20 + clamp(player.dribbling, 0, 100) * 0.20
+                + clamp(player.vision, 0, 100) * 0.14 + clamp(player.passing, 0, 100) * 0.10;
+          const involvement = playerCanAct
+            ? clamp(profile.shooter * (0.82 + roleSkill / 100 * 0.36)
+              * (0.82 + energy / 500 - fatigue / 450), 0, 0.70)
+            : 0;
+          const byPlayer = playerCanAct && !profile.goalkeeper && random() < involvement;
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
           const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055
             + (Number(profile.finishingBonus) || 0)

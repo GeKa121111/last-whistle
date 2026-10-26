@@ -464,20 +464,22 @@
     currentView = "mentor";
     var s = API().getState();
     var used = !!s.dailyActionUsed && Number(s.dailyActionDay) === Number(s.day);
+    var seniorMentor = Number(s.age) >= 28 && !s.retired;
     frame("العلاقات والتوجيه", "PEOPLE AROUND YOU",
-      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. النظام بيحترم النشاط الجانبي اليومي الموجود في اللعبة.</p>' +
+      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. من سن 28 تقدر كمان تبني إرثك داخل الفريق بإرشاد لاعب ناشئ؛ وكل الأنشطة بتحترم حد النشاط الجانبي اليومي.</p>' +
       '<div class="lwcx-options">' +
         actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", used ? ' disabled' : '') +
         actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", used ? ' disabled' : '') +
+        (seniorMentor ? actionButton("mentor-youth", "إرشاد لاعب ناشئ", "من سن 28: انسجام +5، احترافية +3، خبرة مسيرة +18، مقابل نقطتي طاقة.", used ? ' disabled' : '') : '') +
         actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", used ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>سجل العلاقات</strong><span>' + world(s).mentorSessions + ' جلسة' + '</span></div>' +
-      ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية/.test(row.title); }).slice(0, 4)).map(function (row) {
+      ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية|إرشاد لاعب ناشئ/.test(row.title); }).slice(0, 4)).map(function (row) {
         return '<div class="lwcx-investment-row"><span><strong>' + esc(row.title) + '</strong><small>الموسم ' + esc(row.season) + ' · اليوم ' + esc(row.day) + '</small></span><b>✓</b></div>';
       }).join("") || '<p class="lwcx-empty">لسه مفيش جلسات مسجلة.</p>'),
       used ? "استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد قبل جلسة تانية." : "النشاط بيستهلك فرصة النشاط الجانبي لليوم؛ مش هتقدر تكرر الجلسات في نفس اليوم.");
   }
 
-  function doMentor(s, kind) {
+
     if (s.retired) return;
     var currentDay = Number(s.day) || 1;
     if (s.dailyActionUsed && Number(s.dailyActionDay) === currentDay) {
@@ -498,6 +500,20 @@
       stat(s, "professionalism", 1);
       stat(s, "energy", -1);
       record(s, "دعم لاعب أصغر", "خصصت وقت للاعب أصغر وشاركت معاه خبرتك. انسجام الفريق اتحسن.");
+    } else if (kind === "youth") {
+      if (Number(s.age) < 28) {
+        var mentorApi = API();
+        if (mentorApi && mentorApi.toast) mentorApi.toast("إرشاد اللاعبين الناشئين متاح من سن 28.");
+        return;
+      }
+      stat(s, "teamChemistry", 5);
+      stat(s, "professionalism", 3);
+      stat(s, "trust", 2);
+      stat(s, "energy", -2);
+      stat(s, "careerXP", 18);
+      s.mentoringSessions = Math.max(0, Number(s.mentoringSessions) || 0) + 1;
+      s.mentoringInfluence = Math.max(0, Number(s.mentoringInfluence) || 0) + 1;
+      record(s, "إرشاد لاعب ناشئ", "شاركت خبرتك مع لاعب أصغر، وساعدته يقرأ ضغط المباريات ويتعامل مع الجهاز الفني. الخبرة دي بتبني إرثك داخل الفريق.");
     } else {
       stat(s, "morale", 5);
       stat(s, "energy", 7);
@@ -505,7 +521,7 @@
       record(s, "راحة ذهنية", "اخدت وقت تهدّي فيه الضغط وتراجع أولوياتك. معنوياتك وتعافيك اتحسنوا.");
     }
     s.dailyActionUsed = true;
-    s.dailyActionType = kind === "coach" ? "جلسة توجيه" : kind === "teammate" ? "دعم زميل" : "راحة ذهنية";
+    s.dailyActionType = kind === "coach" ? "جلسة توجيه" : kind === "teammate" ? "دعم زميل" : kind === "youth" ? "إرشاد لاعب ناشئ" : "راحة ذهنية";
     s.dailyActionDay = currentDay;
     s.nightToday = true;
     world(s).mentorSessions++;

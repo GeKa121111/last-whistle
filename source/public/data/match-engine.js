@@ -25,7 +25,8 @@
       "وسط دفاعي": { shooter: 0.13, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.27, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10 },
-      "مهاجم": { shooter: 0.43, creator: 0.13, defender: 0.05 }
+      "مهاجم": { shooter: 0.36, creator: 0.22, defender: 0.05 },
+      "رأس حربة": { shooter: 0.50, creator: 0.08, defender: 0.04 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function selectedMinutes(player, available, random) {

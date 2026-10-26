@@ -70,6 +70,8 @@ const required = [
   "positionDevelopmentPlan",
   "trainingFocusMultiplier",
   "positionDevelopmentCard",
+  "evaluateSquadRole",
+  "roleDecision.role",
   'id="statsPositionContext"',
   'id="statsGoalsPer90"',
   'id="statsAssistsPer90"',

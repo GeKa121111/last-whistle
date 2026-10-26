@@ -74,8 +74,18 @@
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
     document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});
+    var careerRows=(Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[]).filter(function(row){return row&&Number(row.minutes)>0&&row.scope!=="international";});
+    var careerMinutes=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.minutes)||0);},0);
+    var loggedGoals=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.goals)||0);},0);
+    var loggedAssists=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.assists)||0);},0);
+    var roleLabel=({"حارس مرمى":"حارس مرمى","قلب دفاع":"قلب دفاع","ظهير":"ظهير","وسط دفاعي":"وسط دفاعي","وسط مهاجم":"وسط مهاجم","جناح":"جناح","مهاجم":"مهاجم متحرك","رأس حربة":"رأس حربة"})[String(s.pos||"")]||String(s.pos||"غير محدد");
+    var roleAdvice=({"حارس مرمى":"قيّم الحارس بالتصديات والتقييمات والثبات؛ الأهداف ليست معيار مركزه.","قلب دفاع":"راقب الالتحامات والاعتراضات والتمريرات والتقييم، مش الأهداف بس.","ظهير":"السرعة واللياقة والمساهمات الهجومية مع الواجب الدفاعي أهم من عدد الأهداف وحده.","وسط دفاعي":"قيّم قطع الكرات وجودة التمرير والاستحواذ تحت الضغط بجانب التقييم.","وسط مهاجم":"الرؤية وصناعة الفرص والتمريرات الحاسمة مؤشرات أساسية بجانب التسجيل.","جناح":"تابع المراوغة والسرعة والتسديد وصناعة الفرص؛ مساهماتك التهديفية هي المقياس الهجومي الأوضح.","مهاجم":"دورك ربط الوسط بالهجوم وصناعة الفرص والتحرك بين الخطوط؛ قِس الأهداف والصناعة معًا.","رأس حربة":"دورك إنهاء الهجمة داخل المنطقة؛ تابع الأهداف والتسديدات ومعدل التسجيل لكل 90 دقيقة."})[String(s.pos||"")]||"الأداء يتقاس حسب مركز اللاعب ومساهمته في نتيجة الفريق.";
     text("statsCareerApps",Math.max(Number(s.apps)||0,Number(s.totalCareerAppearances)||0));
     text("statsCareerGoals",Number(s.goals)||0);text("statsCareerAssists",Number(s.assists)||0);text("statsSeasonApps",Number(s.seasonApps)||0);
+    text("statsGoalsPer90",careerMinutes>0?(loggedGoals*90/careerMinutes).toFixed(2):"0.00");
+    text("statsAssistsPer90",careerMinutes>0?(loggedAssists*90/careerMinutes).toFixed(2):"0.00");
+    text("statsMinutesPerAppearance",careerRows.length?Math.round(careerMinutes/careerRows.length):0);
+    text("statsPositionContext","مركزك الحالي: "+roleLabel+" — "+roleAdvice+" المعدلات محسوبة من سجل المباريات المحفوظة.");
     var hint=$("homeReadinessHint");
     if(hint){
       if(injury>0)hint.textContent="حالتك الحالية: إصابة لمدة "+injury+" يوم — افتح الجاهزية عشان تتابع التعافي.";

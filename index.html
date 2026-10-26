@@ -3613,7 +3613,7 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  if(options.rest&&state.recoveryRoom)state.morale=clamp(state.morale+3);
  if(options.rest&&state.privateChef)state.morale=clamp(state.morale+1);
  resetDailyActions();
- if(!options.suppressAutomaticYouthLoan)maybeAutoYouthLoan();
+ if(!options.suppressAutomaticYouthLoan&&typeof maybeAutoYouthLoan==="function")maybeAutoYouthLoan();
 }
 function calendarHasConflict(day, excludeKind=""){
  return (state.calendarEvents||[]).some(e=>Number(e.day)===Number(day)&&e.kind!==excludeKind&&["league-match","cup-match","international-match"].includes(e.kind));

@@ -14,16 +14,17 @@ const expectedPlans = {
   "وسط دفاعي": { primary: "defending", secondary: ["vision", "fitness", "composure"] },
   "وسط مهاجم": { primary: "vision", secondary: ["composure", "dribbling", "shooting"] },
   "جناح": { primary: "dribbling", secondary: ["shooting", "vision", "fitness"] },
-  "مهاجم": { primary: "dribbling", secondary: ["speed", "shooting", "vision", "passing", "composure"] },
+  "مهاجم": { primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "passing", "composure"] },
   "رأس حربة": { primary: "shooting", secondary: ["composure", "physical", "fitness", "speed"] }
 };
 for (const [position, expected] of Object.entries(expectedPlans)) {
   const plan = career.positionDevelopmentPlan({ pos: position });
   assert.equal(plan.position, position, "development plan must match selected position");
   assert.ok(plan.title && plan.summary, "every position must have an explanatory plan");
-  assert.ok(plan.primary.includes(expected.primary), "wrong primary focus for " + position);
+  const primarySkills = Array.isArray(expected.primary) ? expected.primary : [expected.primary];
+  for (const skill of primarySkills) assert.ok(plan.primary.includes(skill), "missing primary focus " + skill + " for " + position);
   for (const skill of expected.secondary) assert.ok(plan.secondary.includes(skill), "missing support skill " + skill + " for " + position);
-  assert.equal(career.trainingFocusMultiplier({ pos: position }, expected.primary), 1.2, "primary focus should grant 20% bonus");
+  assert.equal(career.trainingFocusMultiplier({ pos: position }, primarySkills[0]), 1.2, "primary focus should grant 20% bonus");
   assert.equal(career.trainingFocusMultiplier({ pos: position }, expected.secondary[0]), 1.08, "support focus should grant 8% bonus");
   assert.equal(career.trainingFocusMultiplier({ pos: position }, "not-a-skill"), 1, "off-plan skills remain trainable without a bonus");
 }

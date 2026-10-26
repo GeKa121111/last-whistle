@@ -1271,7 +1271,66 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return 1;
   }
 
-  const APPEARANCE_MILESTONES = [5, 10, 20, 30];
+// Select a squad role from recent form and career output, not a single unusually high rating.
+  // The caller passes post-match career totals and the match that has just been completed.
+  function evaluateSquadRole(state, matchHistory = [], currentMatch = null) {
+    const originalRole = String(state && state.role || "بديل");
+    if (!state || state.academyCareer || state.academyReserve || state.retired) {
+      return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
+        recentContributionsPer90: 0, careerContributionsPer90: 0 };
+    }
+
+    const validRow = row => row && row.scope !== "international" && Number(row.minutes) > 0;
+    const current = validRow(currentMatch) ? { ...currentMatch } : null;
+    const allRows = [current, ...(Array.isArray(matchHistory) ? matchHistory : [])]
+      .filter(validRow);
+    const recent = allRows.slice(0, 8);
+    if (!recent.length) {
+      return { role: originalRole, changed: false, reason: "no-appearances", recentAverageRating: 0,
+        recentContributionsPer90: 0, careerContributionsPer90: 0 };
+    }
+
+    const sum = (rows, key) => rows.reduce((total, row) => total + Math.max(0, Number(row[key]) || 0), 0);
+    const recentMinutes = sum(recent, "minutes");
+    const recentContributions = sum(recent, "goals") + sum(recent, "assists");
+    const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
+    const ratedRows = recent.filter(row => Number(row.rating) > 0);
+    const recentAverageRating = ratedRows.length
+      ? ratedRows.reduce((total, row) => total + Number(row.rating), 0) / ratedRows.length : 0;
+
+    const appearances = Math.max(0, Math.floor(Number(state.apps) || 0));
+    const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
+    // Saves compact long careers, so estimate missing historical minutes from the observed mean.
+    const careerMinutes = Math.max(sum(allRows, "minutes"), appearances * Math.max(1, averageCareerMinutes));
+    const careerContributions = Math.max(0, Number(state.goals) || 0) + Math.max(0, Number(state.assists) || 0);
+    const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
+    const trust = Math.max(0, Math.min(100, Number(state.trust) || 0));
+    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
+    const veteranOutput = roleIsForward && appearances >= 35
+      && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
+    const recentReady = recentAverageRating >= 6.25
+      && (trust >= 22 || recentContributionsPer90 >= 0.25);
+    let role = originalRole;
+
+    // Non-academy youth players start with this display label; it should not lock them out of promotion forever.
+    if (role.startsWith("ناشئ") && appearances >= 3) role = "بديل";
+    if (role === "بديل" && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+    if (role === "بديل أساسي" && appearances >= 16
+      && ((recentAverageRating >= 6.35 && (trust >= 30 || recentContributionsPer90 >= 0.30))
+        || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9))) {
+      role = "أساسي";
+    }
+
+    return {
+      role, changed: role !== originalRole,
+      reason: role === originalRole ? "keep-role" : role === "أساسي" ? "starter-ready" : "rotation-ready",
+      recentAverageRating: Math.round(recentAverageRating * 100) / 100,
+      recentContributionsPer90: Math.round(recentContributionsPer90 * 100) / 100,
+      careerContributionsPer90: Math.round(careerContributionsPer90 * 100) / 100
+    };
+  }
+
+      const APPEARANCE_MILESTONES = [5, 10, 20, 30];
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
 
@@ -1811,7 +1870,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
-    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
+    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();
 
@@ -2024,8 +2083,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       "وسط دفاعي": { shooter: 0.13, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.27, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-      "مهاجم": { shooter: 0.36, creator: 0.22, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.50, creator: 0.08, defender: 0.04, finishingBonus: 0.05 }
+      "مهاجم": { shooter: 0.36, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.60, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
 
@@ -2138,12 +2197,22 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           events.push({ type: "shot", minute, side, onTarget: false });
           const isOurs = side === "team";
           const playerCanAct = isOurs && minutes > 0 && minute <= minutes;
-          const involvement = playerCanAct
-            ? clamp(profile.shooter * (minutes / 90) * (0.82 + energy / 500 - fatigue / 450), 0, 0.62)
-            : 0;
-          const byPlayer = playerCanAct && !profile.goalkeeper && random() < involvement;
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
+          // Match event minutes already guard participation; don't apply the minutes ratio twice.
+          const roleSkill = position === "رأس حربة"
+            ? shooting * 0.42 + composure * 0.26 + clamp(player.physical, 0, 100) * 0.16
+              + clamp(player.speed, 0, 100) * 0.10 + clamp(player.fitness, 0, 100) * 0.06
+            : position === "مهاجم"
+              ? clamp(player.dribbling, 0, 100) * 0.30 + clamp(player.speed, 0, 100) * 0.26
+                + clamp(player.vision, 0, 100) * 0.18 + shooting * 0.16 + clamp(player.passing, 0, 100) * 0.10
+              : shooting * 0.36 + composure * 0.20 + clamp(player.dribbling, 0, 100) * 0.20
+                + clamp(player.vision, 0, 100) * 0.14 + clamp(player.passing, 0, 100) * 0.10;
+          const involvement = playerCanAct
+            ? clamp(profile.shooter * (0.82 + roleSkill / 100 * 0.36)
+              * (0.82 + energy / 500 - fatigue / 450), 0, 0.70)
+            : 0;
+          const byPlayer = playerCanAct && !profile.goalkeeper && random() < involvement;
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
           const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055
             + (Number(profile.finishingBonus) || 0)
@@ -4352,7 +4421,7 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
   teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
   playerAvailable:available,
-  player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
+  player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,speed:state.speed,physical:state.physical,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });
 }
 function applyMatchResult(result,meta){
@@ -4396,10 +4465,17 @@ function applyMatchResult(result,meta){
   if(m.yellowCards>0){state.bookings[key]=(Number(state.bookings[key])||0)+m.yellowCards;if(state.bookings[key]>=5){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,1);state.bookings[key]=0;log(`إيقاف مباراة واحدة في ${competition||"المسابقة"} بعد تراكم 5 إنذارات داخل المحاكاة.`);}}
   if(m.redCards>0){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,2);log(`إيقاف مباراتين في ${competition||"المسابقة"} بعد طرد داخل محاكاة اللعبة.`);}
   if(m.injuryDays>0){state.injuryDays=Math.max(Number(state.injuryDays)||0,Number(m.injuryDays));state.injuryName=Number(m.injuryDays)>=21?"إصابة قوية — مدة تعافٍ طويلة":Number(m.injuryDays)>=10?"إصابة عضلية متوسطة":Number(m.injuryDays)>=5?"شد عضلي":"إجهاد بسيط";}
-  if(state.role==="بديل"&&rating>=7.4&&state.trust>=38)state.role="بديل أساسي";
-  if(state.role==="بديل أساسي"&&rating>=7.6&&state.trust>=52)state.role="أساسي";
-  if(state.role==="أساسي"&&rating<5.7&&state.trust<36)state.role="بديل أساسي";
-  else if(state.role==="بديل أساسي"&&(rating<5.5||state.trust<24))state.role="بديل";
+  if(scope!=="international"&&window.LWCareer?.evaluateSquadRole){
+   const roleDecision=window.LWCareer.evaluateSquadRole(state,state.careerMatchHistory,{
+    scope,minutes,rating,goals,assists
+   });
+   if(roleDecision?.changed){
+    state.role=roleDecision.role;
+    log(state.role==="أساسي"
+      ?"الجهاز الفني رقّاك للتشكيل الأساسي بناءً على مشاركاتك ومساهماتك في المسيرة."
+      :"الجهاز الفني زوّد دورك في التشكيل بناءً على الأداء والإنتاج الهجومي.");
+   }
+  }
  }else if(scope==="league")state.morale=clamp(state.morale-1);
  if(scope==="league"){if(outcome==="فوز"){state.seasonW++;state.seasonPoints+=3;}else if(outcome==="تعادل"){state.seasonD++;state.seasonPoints++;}else state.seasonL++;}
  if(participated&&scope!=="international"&&state.creatorStudio){const audienceGain=6+(rating>=7.5?3:rating>=6.5?1:0);state.followers=(Number(state.followers)||0)+audienceGain;log("زاد جمهورك "+audienceGain+" متابع بعد أداء النادي.");}

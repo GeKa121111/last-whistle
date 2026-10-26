@@ -234,6 +234,41 @@ assert.ok(table.length >= 3, "league table must include the available clubs for 
 assert.equal(table[0].rank, 1);
 assert.ok(table.every((row, index) => row.rank === index + 1 && row.played > 0 && Number.isFinite(row.pts)));
 
+// A separate copy exercises the real transfer-window hot path. Count accesses to
+// each club's roster map: one market snapshot plus the final squad-strength refresh
+// is enough; searching every seller should not repeatedly rebuild the same roster.
+const marketTestSave = JSON.parse(JSON.stringify(save));
+const marketTestWorld = marketTestSave.worldSimulation;
+assert.ok(marketTestWorld.matchesBySeason
+  && Object.prototype.hasOwnProperty.call(marketTestWorld.matchesBySeason, "1"),
+  "the isolated transfer-window test must reuse the already-completed first season");
+marketTestWorld.lastAdvancedTo = 0;
+marketTestWorld.currentSeason = 1;
+Object.values(marketTestWorld.players).forEach(player => {
+  if (player && player.clubId) {
+    player.contractSeasons = 5;
+    player.freeAgent = false;
+  }
+});
+const rosterMapCalls = new Map();
+Object.values(marketTestWorld.clubs).forEach(club => {
+  rosterMapCalls.set(club.id, 0);
+  const roster = club.roster;
+  if (!Array.isArray(roster)) return;
+  club.roster = new Proxy(roster, {
+    get(target, property, receiver) {
+      if (property === "map") rosterMapCalls.set(club.id, (rosterMapCalls.get(club.id) || 0) + 1);
+      return Reflect.get(target, property, receiver);
+    }
+  });
+});
+const marketTestResult = ai.advanceToSeason(marketTestSave, 2, db);
+assert.equal(marketTestResult.season, 2, "the optimized transfer window must complete a normal season transition");
+const maxRosterMapCalls = Math.max(0, ...rosterMapCalls.values());
+assert.ok(maxRosterMapCalls <= 2,
+  "each club roster may be mapped once for the market snapshot and once for final power recalculation; max observed "
+    + maxRosterMapCalls);
+
 const oldTransferCount = world.transfers.length;
 const transition = ai.advanceToSeason(save, 2, db);
 assert.equal(transition.season, 2);

@@ -39,7 +39,13 @@ function createSandbox(position, rows, attributes, plan) {
     },
     clamp: (value, min = 0, max = 100) => Math.max(min, Math.min(max, Math.round(Number(value) || 0))),
     seasonMatchTotal: () => 22,
-    overall: () => 75
+    overall: () => {
+      const current = sandbox.state;
+      const weights = position === "مهاجم"
+        ? { shooting: 0.26, dribbling: 0.10, speed: 0.13, composure: 0.12, fitness: 0.10, vision: 0.10, passing: 0.08, physical: 0.05, defending: 0.04, goalkeeping: 0.02 }
+        : { shooting: 0.10, dribbling: 0.10, speed: 0.10, composure: 0.10, fitness: 0.10, vision: 0.10, passing: 0.10, physical: 0.10, defending: 0.10, goalkeeping: 0.10 };
+      return Math.round(Object.entries(weights).reduce((sum, [key, weight]) => sum + (Number(current[key]) || 0) * weight, 0));
+    }
   };
   vm.createContext(sandbox);
   new vm.Script(source, { filename: "season-training-ai-extract.js" }).runInContext(sandbox);
@@ -73,6 +79,87 @@ const newPlayer = createSandbox("مهاجم", [], {}, {
 });
 assert.equal(newPlayer.seasonTrainingPerformanceFocus(), "",
   "insufficient match history should preserve the normal position/potential training plan");
+
+// Growth happens progressively inside a simulated season, not as a sudden end-only
+// bonus. Young players receive a larger planned training volume than veterans.
+const youthPlan = createSandbox("مهاجم", poorFinishingRows, { age: 15, playerPotential: 98 }, {
+  primary: ["shooting"], secondary: ["composure"]
+});
+youthPlan.ensureSeasonDevelopmentSnapshot();
+const youthSessionsPlanned = youthPlan.seasonAITTrainingTargetSessions(youthPlan.state.seasonTrainingReport);
+const veteranPlan = createSandbox("مهاجم", poorFinishingRows, { age: 32, playerPotential: 98 }, {
+  primary: ["shooting"], secondary: ["composure"]
+});
+veteranPlan.ensureSeasonDevelopmentSnapshot();
+const veteranSessionsPlanned = veteranPlan.seasonAITTrainingTargetSessions(veteranPlan.state.seasonTrainingReport);
+assert.ok(youthSessionsPlanned > veteranSessionsPlanned,
+  "academy-age players should receive a higher annual training plan than veteran players");
+assert.ok(youthSessionsPlanned <= 16 && veteranSessionsPlanned >= 0,
+  "age-based annual plans must remain within safe training-session bounds");
+
+const simulatedSeason = createSandbox("مهاجم", poorFinishingRows, {
+  age: 16, playerPotential: 95, shooting: 70, composure: 70
+}, { primary: ["shooting"], secondary: ["composure"] });
+simulatedSeason.state.seasonAppsTarget = 22;
+simulatedSeason.state.seasonDevelopmentSnapshot = {
+  season: 1, ovr: simulatedSeason.overall(), sessions: 0,
+  attributes: { shooting: 70, dribbling: 72, passing: 72, speed: 72, fitness: 72, composure: 70, defending: 74, goalkeeping: 72, vision: 72, physical: 70 }
+};
+simulatedSeason.state.seasonTrainingReport = {
+  sessions: 0, skills: {}, xp: 0, injuries: 0, completed: false, planVersion: 2,
+  plannedSessions: 10, manualSessions: 0, simulatedSessions: 0
+};
+const startingOverall = simulatedSeason.overall();
+for (let apps = 1; apps <= 11; apps++) {
+  simulatedSeason.state.seasonApps = apps;
+  simulatedSeason.runSeasonAITTrainingOnSimulationProgress();
+}
+assert.equal(simulatedSeason.state.seasonTrainingReport.sessions, 5,
+  "the first half of a season should deliver its scheduled portion of AI training");
+assert.equal(simulatedSeason.state.seasonTrainingReport.simulatedSessions, 5,
+  "progressively simulated training sessions must be tracked separately from manual sessions");
+assert.ok(simulatedSeason.overall() > startingOverall,
+  "training performed during season simulation must be reflected in the player's overall rating");
+assert.equal(simulatedSeason.state.seasonTrainingReport.completed, false,
+  "mid-season training must not finalize the season development report");
+for (let apps = 12; apps <= 22; apps++) {
+  simulatedSeason.state.seasonApps = apps;
+  simulatedSeason.runSeasonAITTrainingOnSimulationProgress();
+}
+assert.equal(simulatedSeason.state.seasonTrainingReport.sessions, 10,
+  "the full season must reach its planned automated training volume");
+const completedSimulation = simulatedSeason.runSeasonAITtraining();
+assert.equal(completedSimulation.ok, true);
+assert.equal(completedSimulation.sessions, 10,
+  "end-of-season completion must not award the same simulated training sessions twice");
+assert.equal(simulatedSeason.state.seasonTrainingReport.completed, true);
+const afterSeasonSimulationSessions = simulatedSeason.state.trainingSessions;
+simulatedSeason.runSeasonAITtraining();
+assert.equal(simulatedSeason.state.trainingSessions, afterSeasonSimulationSessions,
+  "re-entering completed season training must never double-train the player");
+
+// Manual training counts toward the target, so automated sessions fill only the
+// remaining plan instead of granting a second full allocation.
+const mixedTraining = createSandbox("مهاجم", poorFinishingRows, {
+  age: 20, playerPotential: 90
+}, { primary: ["shooting"], secondary: ["composure"] });
+mixedTraining.state.seasonAppsTarget = 22;
+mixedTraining.state.trainingSessions = 3;
+mixedTraining.state.seasonDevelopmentSnapshot = {
+  season: 1, ovr: mixedTraining.overall(), sessions: 0,
+  attributes: { shooting: 75, dribbling: 72, passing: 72, speed: 72, fitness: 72, composure: 70, defending: 74, goalkeeping: 72, vision: 72, physical: 70 }
+};
+mixedTraining.state.seasonTrainingReport = {
+  sessions: 0, skills: {}, xp: 0, injuries: 0, completed: false, planVersion: 2,
+  plannedSessions: 10, manualSessions: 0, simulatedSessions: 0
+};
+mixedTraining.state.seasonApps = 11;
+mixedTraining.runSeasonAITTrainingOnSimulationProgress();
+assert.equal(mixedTraining.state.seasonTrainingReport.sessions, 2,
+  "manual training sessions must reduce the automated first-half quota");
+assert.equal(mixedTraining.state.trainingSessions, 5,
+  "automatic training must preserve the three existing manual sessions");
+assert.equal(mixedTraining.state.seasonTrainingReport.simulatedSessions, 2);
 
 // The whole-season plan runs once at season end, uses age/potential and position,
 // and restores match-day condition after applying the accumulated development.

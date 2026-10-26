@@ -3448,9 +3448,41 @@ function loanTo(target){
  const wasSecondHalf=state.seasonPhase==="secondHalf"||state.seasonPhase==="winterBreak"||!!state.winterBreakPending||matchesAlreadyPlayed>=Math.ceil(previousTarget/2);
  archiveLeagueSegment("loan");
  const original={parentClub:state.clubName,parentCountry:state.leagueCountry,parentDivision:state.leagueDivision,parentCompetition:state.leagueCompetition,parentSource:state.leagueSource,parentPower:state.clubPower,parentTier:state.clubTier,parentIndex:state.clubIndex,parentWage:state.weeklyWage,parentContractSeasons:state.contractSeasons,parentFreeAgent:state.freeAgent};
- state.loan={...original,hostClub:target.club,hostCountry:target.country,startSeason:state.season,returnAfterSeason:state.season};
+ const isAutomaticYouthLoan=state.autoYouthLoanInProgress===true;
+ state.loan={...original,hostClub:target.club,hostCountry:target.country,startSeason:state.season,returnAfterSeason:state.season,autoYouthLoan:isAutomaticYouthLoan};
+ state.autoYouthLoanInProgress=false;
+ if(isAutomaticYouthLoan)log("تم تفعيل إعارة تطوير تلقائية بسبب محدودية دقائق اللعب في سن "+state.age+" سنة.");
  state.clubName=target.club;state.leagueCountry=target.country;state.leagueDivision=1;state.leagueCompetition=target.league;state.leagueSource=`OpenFootball • ${target.season}`;state.clubPower=target.power||clubPowerFor(target.club,target.country);state.clubTier=clubTierForPower(state.clubPower);state.clubIndex=state.clubTier;state.weeklyWage=Math.max(original.parentWage,Math.round(transferWage(target)*0.55));state.role="بديل أساسي";state.trust=clamp(state.trust+3);state.daysSinceTransfer=0;state.transferCooldown=0;state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=Number(state.seasonApps)>0;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed);state.winterBreakPending=false;state.seasonPhase=wasSecondHalf?"secondHalf":"firstHalf";
  state.transferHistory.unshift({season:state.season,day:state.day,text:`إعارة لمدة موسم واحد إلى ${target.club} (${target.country}). النادي الأصلي: ${original.parentClub}. الرجوع مقرر بعد نهاية الموسم.`});log(`انتقلت إعارة إلى ${target.club} لمدة موسم واحد.`);setStory("فرصة إعارة جديدة",`انضممت مؤقتًا إلى ${target.club}. استغل الدقائق، وارجع لناديك الأصلي بمستوى أعلى.`);saveGame(true);render();showPage("contract");toast("تم تسجيل الإعارة داخل المسيرة.");
+}
+function maybeAutoYouthLoan(){
+ if(state.retired||state.loan||state.freeAgent||Number(state.age)<16||Number(state.age)>20)return false;
+ if(state.academyCareer||state.academyReserve||state.academyGraduationPending)return false;
+ if(Number(state.contractSeasons)<=1||Number(state.seasonApps)<2||Number(state.seasonApps)>=8||Number(state.apps)<2)return false;
+ if(state.role==="أساسي")return false;
+ const windowInfo=transferWindow();
+ if(!windowInfo.open||activeCupInProgress())return false;
+ const dayOfYear=((Math.max(1,Number(state.calendarDay)||1)-1)%365)+1;
+ const windowKey=dayOfYear<=62?"summer":"winter";
+ const attemptKey=String(state.season)+":"+windowKey;
+ if(state.autoYouthLoanAttemptKey===attemptKey)return false;
+ const currentOverall=overall();
+ const candidates=transferTargets().filter(t=>t&&t.club&&t.country
+  &&(t.club!==state.clubName||t.country!==state.leagueCountry)
+  &&Number(t.power)<=currentOverall+12&&Number(t.power)>=currentOverall-30)
+  .sort((a,b)=>{
+   const aSame=a.country===state.leagueCountry?0:4;
+   const bSame=b.country===state.leagueCountry?0:4;
+   const aFit=Math.abs(Number(a.power)-(currentOverall-7))+aSame;
+   const bFit=Math.abs(Number(b.power)-(currentOverall-7))+bSame;
+   return aFit-bFit||String(a.club).localeCompare(String(b.club));
+  });
+ if(!candidates.length)return false;
+ state.autoYouthLoanAttemptKey=attemptKey;
+ state.autoYouthLoanInProgress=true;
+ loanTo(candidates[0]);
+ state.autoYouthLoanInProgress=false;
+ return !!(state.loan&&state.loan.autoYouthLoan);
 }
 function returnFromLoan(){
  const l=state.loan;if(!l)return false;
@@ -3581,6 +3613,7 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  if(options.rest&&state.recoveryRoom)state.morale=clamp(state.morale+3);
  if(options.rest&&state.privateChef)state.morale=clamp(state.morale+1);
  resetDailyActions();
+ if(!options.suppressAutomaticYouthLoan)maybeAutoYouthLoan();
 }
 function calendarHasConflict(day, excludeKind=""){
  return (state.calendarEvents||[]).some(e=>Number(e.day)===Number(day)&&e.kind!==excludeKind&&["league-match","cup-match","international-match"].includes(e.kind));

@@ -2637,7 +2637,7 @@ function compactSnapshotForStorage(value){
   transfers:(Array.isArray(source.transfers)?source.transfers:[]).slice(0,150),
   marketReports:(Array.isArray(source.marketReports)?source.marketReports:[]).slice(0,6),
   notes:(Array.isArray(source.notes)?source.notes:[]).slice(0,20),
-  promotionHistory:(Array.isArray(source.promotionHistory)?source.promotionHistory:[]).slice(-10),
+  promotionHistory:(Array.isArray(source.promotionHistory)?source.promotionHistory:[]).slice(0,10),
   playerHistory
  };
  return snapshot;

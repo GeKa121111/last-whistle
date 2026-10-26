@@ -1552,29 +1552,92 @@
     Object.keys(target).forEach(key => { if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key]; });
     Object.keys(source).forEach(key => { target[key] = source[key]; });
   }
+  // Keep one world worker alive for the lifetime of the page. Recreating it after
+  // every dashboard/season request re-imports the multi-megabyte roster bundle and
+  // makes repeated career actions needlessly expensive on mobile devices.
+  let sharedWorldWorker = null;
+  let worldWorkerQueue = [];
+  let activeWorldWorkerRequest = null;
+  let worldWorkerSequence = 0;
+
+  function failWorldWorker(worker, error) {
+    if (sharedWorldWorker !== worker) return;
+    sharedWorldWorker = null;
+    try { worker.terminate(); } catch (_) {}
+    const failed = [];
+    if (activeWorldWorkerRequest) {
+      failed.push(activeWorldWorkerRequest);
+      activeWorldWorkerRequest = null;
+    }
+    if (worldWorkerQueue.length) failed.push.apply(failed, worldWorkerQueue);
+    worldWorkerQueue = [];
+    failed.forEach(request => request.reject(error));
+  }
+
+  function getWorldWorker() {
+    if (sharedWorldWorker) return sharedWorldWorker;
+    const worker = new global.Worker("./football-world-worker.js?v=1");
+    sharedWorldWorker = worker;
+    worker.onmessage = event => {
+      if (sharedWorldWorker !== worker) return;
+      const msg = event && event.data || {};
+      const request = activeWorldWorkerRequest;
+      if (!request || msg.id !== request.id) return;
+      activeWorldWorkerRequest = null;
+      try {
+        if (!msg.ok) {
+          request.reject(new Error(msg.error || "World worker failed"));
+        } else {
+          applySaveResult(request.save, msg.save);
+          if (global.LWStateStore && typeof global.LWStateStore.publish === "function")
+            global.LWStateStore.publish(request.save, { source: "world-worker", command: request.command });
+          request.resolve(msg.result);
+        }
+      } catch (error) {
+        request.reject(error);
+      }
+      pumpWorldWorkerQueue();
+    };
+    const onWorkerError = event => {
+      failWorldWorker(worker, new Error(event && event.message || "World worker crashed"));
+    };
+    worker.onerror = onWorkerError;
+    worker.onmessageerror = () => onWorkerError({ message: "World worker returned an unreadable message" });
+    return worker;
+  }
+
+  function pumpWorldWorkerQueue() {
+    if (activeWorldWorkerRequest || !worldWorkerQueue.length) return;
+    let worker;
+    try {
+      worker = getWorldWorker();
+    } catch (error) {
+      const failed = worldWorkerQueue;
+      worldWorkerQueue = [];
+      failed.forEach(request => request.reject(error));
+      return;
+    }
+    const request = worldWorkerQueue.shift();
+    request.id = "lw-world-" + Date.now() + "-" + (++worldWorkerSequence);
+    activeWorldWorkerRequest = request;
+    try {
+      // Queueing also prevents simultaneous requests from sending stale copies of
+      // the same career save before the previous worker result has been applied.
+      worker.postMessage(Object.assign({
+        id: request.id, command: request.command, save: request.save
+      }, request.data || {}));
+    } catch (error) {
+      activeWorldWorkerRequest = null;
+      request.reject(error);
+      pumpWorldWorkerQueue();
+    }
+  }
+
   function workerRequest(command, save, data) {
     if (typeof global.Worker !== "function") return Promise.reject(new Error("Web Worker is not supported"));
-    const worker = new global.Worker("./football-world-worker.js?v=1");
-    const requestId = "lw-world-" + Date.now() + "-" + Math.random().toString(36).slice(2);
     return new Promise((resolve, reject) => {
-      let settled = false;
-      const clean = () => worker.terminate();
-      worker.onmessage = event => {
-        const msg = event && event.data || {};
-        if (msg.id !== requestId || settled) return;
-        settled = true; clean();
-        if (!msg.ok) { reject(new Error(msg.error || "World worker failed")); return; }
-        applySaveResult(save, msg.save);
-        if (global.LWStateStore && typeof global.LWStateStore.publish === "function")
-          global.LWStateStore.publish(save, { source: "world-worker", command });
-        resolve(msg.result);
-      };
-      worker.onerror = event => {
-        if (settled) return;
-        settled = true; clean();
-        reject(new Error(event && event.message || "World worker crashed"));
-      };
-      worker.postMessage(Object.assign({ id: requestId, command, save }, data || {}));
+      worldWorkerQueue.push({ command, save, data: data || {}, resolve, reject });
+      pumpWorldWorkerQueue();
     });
   }
   function asyncFallback(command, save, data, db) {

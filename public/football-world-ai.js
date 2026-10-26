@@ -484,6 +484,8 @@
   function needScore(club, group, roleStats) {
     const row = roleStats[group];
     if (!row) return 0;
+    // Only target roles with a real depth vacancy; avoid buying a fifth striker by default.
+    if (row.count >= TARGETS[group]) return 0;
     const deficit = Math.max(0, TARGETS[group] - row.count);
     const qualityGap = Math.max(0, club.power - row.average - 4);
     const topQualityGap = Math.max(0, club.power - row.best - 6);
@@ -499,7 +501,9 @@
   }
   function sellingCandidate(world, seller, group, usedPlayers) {
     const rows = rosterPlayers(world, seller).filter(player => player.group === group && !usedPlayers.has(player.id));
-    if (rows.length <= Math.max(1, Math.min(2, TARGETS[group] - 1))) return null;
+    const minimumSafeDepth = group === "goalkeeper" ? 2 : group === "defender" ? 4
+      : group === "midfielder" ? 4 : 3;
+    if (rows.length <= minimumSafeDepth) return null;
     const quality = roleStats(world, seller)[group];
     const candidates = rows.filter(player => player.ovr < quality.best - 2 || player.age >= 29
       || player.contractSeasons <= 1 || player.ovr < seller.power - 12);
@@ -529,8 +533,8 @@
       const roles = roleAverages(world, buyer);
       const needs = Object.keys(TARGETS).map(group => ({ group, score: needScore(buyer, group, roles) }))
         .sort((a, b) => b.score - a.score);
-      const need = needs[0];
-      if (!need || need.score < 4) continue;
+      const need = needs.find(item => item.score >= 4);
+      if (!need) continue;
       const candidates = [];
       for (const seller of clubs) {
         if (seller.id === buyer.id || alreadyUsedClubs.has(seller.id)) continue;

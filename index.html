@@ -1087,7 +1087,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
     <section class="page" id="page-contract">
       <div class="grid">
-        <article class="card span6"><div class="cardHead"><h2>📄 عقدك الحالي</h2><span class="pill green" id="contractStatusPill">ساري</span></div><div class="big" id="contractClub">مركز شباب النور</div><p class="muted small" id="currentClubLeague">الدوري والدولة</p><p class="muted small">المرتب بيتصرف كل 7 أيام داخل اللعبة.</p><div class="kpiGrid"><div class="kpi"><div class="kpiNum" id="weeklyWage">250</div><div class="kpiLabel" id="weeklyWageLabel">ج.م / أسبوع</div></div><div class="kpi"><div class="kpiNum" id="contractYears">2</div><div class="kpiLabel">مواسم متبقية</div></div><div class="kpi"><div class="kpiNum" id="contractTrust">25%</div><div class="kpiLabel">ثقة المدرب</div></div></div><div class="btnRow" style="margin-top:14px"><button class="btn primary" id="negotiateBtn">🤝 تفاوض على العقد</button><button class="btn" id="contractDetailsBtn">تفاصيل العقد</button></div><div class="muted small" id="contractMessage" style="margin-top:10px">خليك ثابت في مستواك عشان موقفك في التفاوض يبقى أقوى.</div></article>
+        <article class="card span6"><div class="cardHead"><h2>📄 عقدك الحالي</h2><span class="pill green" id="contractStatusPill">ساري</span></div><div class="big" id="contractClub">مركز شباب النور</div><p class="muted small" id="currentClubLeague">الدوري والدولة</p><p class="muted small">المرتب بيتصرف كل 7 أيام داخل اللعبة.</p><div class="kpiGrid"><div class="kpi"><div class="kpiNum" id="weeklyWage">250</div><div class="kpiLabel" id="weeklyWageLabel">ج.م / أسبوع</div></div><div class="kpi"><div class="kpiNum" id="contractYears">2</div><div class="kpiLabel">مواسم متبقية</div></div><div class="kpi"><div class="kpiNum" id="contractTrust">25%</div><div class="kpiLabel">ثقة المدرب</div></div></div><div class="btnRow" style="margin-top:14px"><button class="btn primary" id="negotiateBtn">تفاوض على المرتب</button><button class="btn" id="negotiatePlayingTimeBtn" type="button">تفاوض على دورك في التشكيل</button><button class="btn" id="contractDetailsBtn">تفاصيل العقد</button></div><div class="muted small" id="contractPlayingTimeStatus" style="margin-top:10px">لا يوجد ضمان وقت لعب في العقد الحالي.</div><div class="muted small" id="contractMessage" style="margin-top:6px">تقدر تتفاوض على الراتب أو على دورك في التشكيل كل بند لوحده.</div></article>
         <article class="card span6"><h2>⚽ المنافسة على مركزك</h2><p class="muted small">تقييم افتراضي للمنافسة على دورك حسب مستواك وفورمتك وثقة المدرب، وليس قائمة أسماء حقيقية.</p><div id="squadCompetition" class="eventFeed"></div></article>
         <article class="card span6"><h2>🤝 الرعاية والإعلانات</h2><p class="muted small" id="sponsorStatus">تقدر تفاوض على عقد رعاية مرتبط بمشاركاتك وسمعتك.</p><button class="btn primary" id="sponsorBtn" type="button">تفاوض على عقد رعاية</button></article>
         <article class="card span6"><h2>📈 سلم الأندية</h2><p class="muted small">كل نقلة أصعب من اللي قبلها. لازم تثبت إنك جاهز، والعروض مش بتتكرر كل يوم.</p><div id="clubLadder"></div></article>
@@ -1278,6 +1278,13 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     if (!state || state.academyCareer || state.academyReserve || state.retired) {
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
+    }
+
+    const agreedRole = String(state.contractPlayingTime || "");
+    if (["أساسي", "بديل أساسي"].includes(agreedRole)
+      && Number(state.contractPlayingTimeSeason) === (Number(state.season) || 1)) {
+      return { role: agreedRole, changed: agreedRole !== originalRole, reason: "contract-playing-time",
+        recentAverageRating: 0, recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
 
     const validRow = row => row && row.scope !== "international" && Number(row.minutes) > 0;
@@ -1747,6 +1754,60 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
   function canNegotiateInSeason(state) { return wageNegotiationStatus(state) === "ready"; }
 
+  function playingTimeNegotiationStatus(state) {
+    if (!state) return "invalid-state";
+    if (state.retired) return "retired";
+    if (state.academyCareer || state.academyReserve || state.academyGraduationPending) return "youth";
+    if (state.freeAgent || Number(state.contractSeasons) <= 0) return "free-agent";
+    if (state.loan) return "on-loan";
+    if (state.contractPlayingTime === "أساسي"
+      && Number(state.contractPlayingTimeSeason) === (Number(state.season) || 1)) return "already-agreed";
+    if (Math.max(0, Number(state.daysSinceNegotiation) || 0) < 7) return "cooldown";
+    return "ready";
+  }
+
+  function playingTimeNegotiationChance(state, targetRole, options = {}) {
+    if (!state || !["أساسي", "بديل أساسي"].includes(String(targetRole || ""))) return 0;
+    const playerOVR = overall(state);
+    const clubPower = Math.max(25, Math.min(100, Number(state.clubPower) || 52));
+    const trust = Math.max(0, Math.min(100, Number(state.trust) || 0));
+    const recentRating = Math.max(4, Math.min(9.5,
+      Number.isFinite(Number(options.recentAverageRating))
+        ? Number(options.recentAverageRating) : (Number(state.lastRating) || 6)));
+    const contributionsPer90 = Math.max(0, Math.min(2, Number(options.recentContributionsPer90) || 0));
+    const appearancesBonus = Math.min(8, Math.max(0, Number(state.apps) || 0) / 10);
+    const formBonus = (recentRating - 6) * 5;
+    const outputBonus = Math.min(8, contributionsPer90 * 5);
+    const squadFit = (playerOVR - clubPower) * 0.95;
+    const trustFit = (trust - 50) * 0.18;
+    const starterDemand = targetRole === "أساسي" ? 10 : 0;
+    return Math.round(Math.max(8, Math.min(90,
+      43 + squadFit + trustFit + formBonus + outputBonus + appearancesBonus - starterDemand)));
+  }
+
+  function resolvePlayingTimeNegotiation(state, targetRole, options = {}) {
+    const status = playingTimeNegotiationStatus(state);
+    if (status !== "ready") return { ok: false, status };
+    if (!["أساسي", "بديل أساسي"].includes(String(targetRole || ""))) {
+      return { ok: false, status: "invalid-role" };
+    }
+    const chance = playingTimeNegotiationChance(state, targetRole, options);
+    state.daysSinceNegotiation = 0;
+    const success = nextRandomUnit(state) * 100 < chance;
+    if (!success) {
+      state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) - 1)));
+      return { ok: true, status: "failed", targetRole, chance, trust: state.trust,
+        weeklyWage: Number(state.weeklyWage) || 0, contractSeasons: Number(state.contractSeasons) || 0 };
+    }
+    state.contractPlayingTime = targetRole;
+    state.contractPlayingTimeSeason = Math.max(1, Math.floor(Number(state.season) || 1));
+    state.role = targetRole;
+    state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) + 2)));
+    return { ok: true, status: "success", targetRole, chance, trust: state.trust,
+      weeklyWage: Number(state.weeklyWage) || 0, contractSeasons: Number(state.contractSeasons) || 0,
+      appliesThroughSeason: state.contractPlayingTimeSeason };
+  }
+
   function loanRequestStatus(state, options = {}) {
     if (!state) return "invalid-state";
     if (state.retired) return "retired";
@@ -1869,7 +1930,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
-    loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
+    playingTimeNegotiationStatus, playingTimeNegotiationChance, resolvePlayingTimeNegotiation, loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
     resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();
@@ -2630,7 +2691,7 @@ const INITIAL = {
  academyCareer:false,academyStartAge:0,academyYearsCompleted:0,academyHistory:[],academyGraduated:false,academyGraduationPending:false,academyReserve:false,academyLeagueDivision:0,
  schemaVersion:10,contractType:"professional",randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
- contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
+ contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,contractPlayingTime:"",contractPlayingTimeSeason:0,
  boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,
  nationalCalled:false,nationalCaps:0,nationalGoals:0,nationalRating:0,nationalCallups:[],nationalSeasonStats:{},totalCareerAppearances:0,nationalTournamentMatches:0,nationalTournamentPoints:0,nationalTournamentQualified:false,nationalTournamentDone:false,
  trophies:0,topScorerAwards:0,achievements:[],diary:[],storyTitle:"الفصل الأول: فرصة العمر",
@@ -3494,6 +3555,22 @@ function renderContract(){
  const negotiationStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
  const contractHint=state.academyGraduationPending?"أكملت أكاديمية الناشئين. اختار عقد الفريق الأول أو موسم الرديف قبل بدء أي مفاوضات.":state.academyCareer?"أنت ضمن أكاديمية النادي؛ مرتبك صفر خلال مرحلة الناشئين، والتطور والمشاركة هما طريقك للتصعيد في سن 18.":state.academyReserve?"أنت في فريق الرديف لموسم واحد؛ الأداء الجيد هيفتح لك طريق الفريق الأول.":state.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن بدء تفاوض جديد.":state.freeAgent?"انتهى عقدك؛ لا يوجد مرتب حاليًا. استخدم سوق الأندية للحصول على عقد جديد.":Number(state.contractSeasons)<=1?"عقدك ينتهي بنهاية الموسم؛ سيظهر عرض تجديد رسمي عند إتمام الموسم.":negotiationStatus==="cooldown"?`التفاوض القادم متاح بعد ${Math.max(1,7-(Number(state.daysSinceNegotiation)||0))} أيام.`:"تقدر تفاوض على تحسين الراتب ما دام عقدك ساريًا لأكثر من موسم.";
  setText("contractMessage",contractHint);
+ const rolePromiseActive=["أساسي","بديل أساسي"].includes(String(state.contractPlayingTime||""))
+  && Number(state.contractPlayingTimeSeason)===(Number(state.season)||1);
+ setText("contractPlayingTimeStatus",rolePromiseActive
+  ? "بند وقت اللعب متفق عليه: "+state.contractPlayingTime+" حتى نهاية الموسم "+state.contractPlayingTimeSeason+". لا يغيّر المرتب ولا مدة العقد."
+  : "بند وقت اللعب: "+(state.contractPlayingTime?("آخر اتفاق كان "+state.contractPlayingTime+" للموسم "+Number(state.contractPlayingTimeSeason||0)+". "):"لا يوجد ضمان حالي. ")
+    +"تقدر تطلب «أساسي» أو «بديل أساسي» من غير زيادة في الراتب.");
+ const playingTimeStatus=window.LWCareer?.playingTimeNegotiationStatus(state)||"invalid-state";
+ const playingTimeButton=$("negotiatePlayingTimeBtn");
+ if(playingTimeButton){
+  playingTimeButton.disabled=playingTimeStatus!=="ready";
+  playingTimeButton.textContent=playingTimeStatus==="already-agreed"?"ضمان الأساسي متفق عليه"
+    :playingTimeStatus==="cooldown"?"تفاوض على الدور بعد "+Math.max(1,7-(Number(state.daysSinceNegotiation)||0))+" أيام"
+    :playingTimeStatus==="youth"?"متاح بعد التخرج"
+    :playingTimeStatus==="free-agent"?"لا يوجد عقد لتعديله"
+    :playingTimeStatus==="on-loan"?"أنت معار حاليًا":"تفاوض على دورك في التشكيل";
+ }
  const negotiationButton=$("negotiateBtn");if(negotiationButton){negotiationButton.disabled=negotiationStatus!=="ready";negotiationButton.textContent=state.retired?"المسيرة انتهت":state.freeAgent?"لا يوجد عقد للتفاوض":Number(state.contractSeasons)<=1?"انتظار عرض التجديد":negotiationStatus==="cooldown"?"التفاوض متاح لاحقًا":"تفاوض على العقد";}
  renderTransferMarket();
  setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+state.contractSeasons+" موسم");
@@ -4983,6 +5060,51 @@ function negotiate(){
   {label:"أجدد من غير زيادة",action:()=>resolveNegotiation(chance+15,0)}
  ]);
 }
+function playingTimeNegotiationEvidence(){
+ const rows=(Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[])
+  .filter(row=>row&&row.scope!=="international"&&Number(row.minutes)>0).slice(0,8);
+ const minutes=rows.reduce((sum,row)=>sum+Math.max(0,Number(row.minutes)||0),0);
+ const appearances=rows.length;
+ return {
+  recentAverageRating:appearances?rows.reduce((sum,row)=>sum+(Number(row.rating)||0),0)/appearances:(Number(state.lastRating)||6),
+  recentContributionsPer90:minutes>0?rows.reduce((sum,row)=>sum+(Number(row.goals)||0)+(Number(row.assists)||0),0)*90/minutes:0
+ };
+}
+function negotiatePlayingTime(){
+ const engine=window.LWCareer;
+ const status=engine?.playingTimeNegotiationStatus(state)||"invalid-state";
+ const messages={retired:"المسيرة انتهت بالاعتزال؛ مش متاح تعديل بند وقت اللعب.",youth:"تعديل بند وقت اللعب الاحترافي بيبدأ بعد التخرج من الأكاديمية.",free-agent:"أنت لاعب حر؛ اتفق على عقد مع نادٍ الأول.",on-loan:"وأنت معار، النادي المستضيف هو اللي بيحدد مشاركتك؛ تفاوض على الدور بعد العودة.",cooldown:"تمت محاولة تفاوض مؤخرًا. انتظر "+Math.max(1,7-(Number(state.daysSinceNegotiation)||0))+" أيام.", "already-agreed":"النادي وافق بالفعل على ضمان دور أساسي حتى نهاية الموسم."};
+ if(status!=="ready"){toast(messages[status]||"تعديل بند وقت اللعب غير متاح حاليًا.");return;}
+ const evidence=playingTimeNegotiationEvidence();
+ const starterChance=engine.playingTimeNegotiationChance(state,"أساسي",evidence);
+ const rotationChance=engine.playingTimeNegotiationChance(state,"بديل أساسي",evidence);
+ openModal("تفاوض على دورك في التشكيل","ده تفاوض على بند وقت اللعب فقط، مش طلب زيادة. نجاح طلب «أساسي» بيعتمد على تقييمك وقوة النادي وثقة المدرب وفورمتك. لو النادي وافق، هتلعب بالدور المتفق عليه لباقي الموسم الحالي من غير تغيير المرتب أو مدة العقد.",[
+  {label:"أطلب دور «أساسي» — فرصة "+starterChance+"%",className:"primary",action:()=>resolvePlayingTimeNegotiation("أساسي",evidence)},
+  {label:"أطلب «بديل أساسي» — فرصة "+rotationChance+"%",action:()=>resolvePlayingTimeNegotiation("بديل أساسي",evidence)},
+  {label:"إلغاء",action:()=>{}}
+ ]);
+}
+function resolvePlayingTimeNegotiation(targetRole,evidence){
+ const result=window.LWCareer?.resolvePlayingTimeNegotiation(state,targetRole,evidence||{});
+ if(!result?.ok){
+  const messages={retired:"المسيرة انتهت بالاعتزال.",youth:"المفاوضات الاحترافية متاحة بعد التخرج.", "free-agent":"لا يوجد عقد حالي تعدّل بند وقت اللعب فيه.","on-loan":"ارجع من الإعارة قبل التفاوض على دورك مع النادي الأصلي.",cooldown:"استنى قبل محاولة تفاوض جديدة.","already-agreed":"ضمان الأساسي متفق عليه بالفعل.","invalid-role":"اختار دورًا صالحًا في التشكيل."};
+  toast(messages[result?.status]||"تعديل بند وقت اللعب غير متاح.");return;
+ }
+ if(result.status==="success"){
+  const detail=`اتعدل بند وقت اللعب في العقد إلى «${targetRole}» حتى نهاية الموسم ${result.appliesThroughSeason}، من غير زيادة الراتب أو تغيير مدة العقد.`;
+  state.transferHistory.unshift({season:state.season,day:state.day,text:detail});
+  setStory("اتفاق جديد على دورك في التشكيل",detail+" حافظ على مستواك؛ الاتفاق يضمن دور التشكيل لهذا الموسم ولا يلغي منافسة الفريق في الموسم التالي.");
+  log(detail+" الراتب الأسبوعي ما زال "+Number(state.weeklyWage||0)+" جنيه، ومدة العقد "+Number(state.contractSeasons||0)+" موسم.");
+  toast("النادي وافق على بند وقت اللعب. دورك اتحدّث في التشكيل.");
+ }else{
+  const detail="النادي رفض ضمان دور «"+targetRole+"» في التشكيل حاليًا. الراتب ومدة العقد لم يتغيرا؛ حاول بعد 7 أيام أو حسّن فورمتك.";
+  state.transferHistory.unshift({season:state.season,day:state.day,text:detail});
+  setStory("النادي رفض تعديل دور اللعب",detail);
+  log(detail);toast("النادي رفض الطلب. مفيش تغيير في الراتب أو مدة العقد.");
+ }
+ saveGame(true);render();
+}
+
 function resolveNegotiation(chance,level){
  const result=window.LWCareer?.resolveWageNegotiation(state,chance,level);
  if(!result?.ok){const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يوجد عقد حالي للتفاوض عليه.","contract-expiring":"انتظر عرض التجديد الرسمي في نهاية الموسم.",cooldown:"تم تسجيل محاولة تفاوض بالفعل؛ استنى 7 أيام للمحاولة التالية.","invalid-level":"اختيار تفاوض غير صالح."};toast(messages[result?.status]||"التفاوض غير متاح حاليًا.");return;}
@@ -5173,7 +5295,7 @@ function bind(){
   else if(a==="rest")rest();else if(a==="night")nightOut();else if(a==="social")social();else if(a==="coach")talkCoach();else if(a==="match")match();else if(a==="next-day")nextDay();
  }));
  $("heroMatch").addEventListener("click",()=>match());$("heroTrain").addEventListener("click",()=>showPage("training"));$("heroStory").addEventListener("click",heroStory);
- $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة الجهاز الفني: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
+ $("negotiateBtn").addEventListener("click",negotiate);$("negotiatePlayingTimeBtn").addEventListener("click",negotiatePlayingTime);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة الجهاز الفني: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
  $("nationalMatchBtn").addEventListener("click",nationalMatch);$("sponsorBtn").addEventListener("click",negotiateSponsorship);
  $("shopFilters").addEventListener("click",e=>{const b=e.target.closest("[data-shop-category]");if(!b)return;activeShopCategory=b.dataset.shopCategory||"all";renderShop();});
  $("shopItems").addEventListener("click",e=>{const b=e.target.closest("[data-buy]");if(b)buyItem(b.dataset.buy);});

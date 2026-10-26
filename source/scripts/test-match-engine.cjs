@@ -27,6 +27,8 @@ assert.ok(centreStrikerProfile.shooter > mobileForwardProfile.shooter,
   "the centre striker must have a stronger goal-threat profile than the mobile forward");
 assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
   "the mobile forward must contribute more to chance creation than the centre striker");
+assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
+  "the centre striker must receive a distinct finishing advantage");
 let tested = 0;
 for (const position of positions) {
   for (let seed = 1; seed <= 250; seed += 1) {
@@ -67,6 +69,40 @@ for (const position of positions) {
     tested += 1;
   }
 }
+// Season-level sanity check: the match model must not collapse into near-constant 0-0 scores.
+let totalGoals = 0;
+const scoringSamples = 1200;
+for (let seed = 70001; seed < 70001 + scoringSamples; seed++) {
+  const sample = engine.simulateMatch({
+    seed, tactic: "balanced", teamPower: 65, opponentPower: 65,
+    player: { position: "رأس حربة", role: "أساسي", shooting: 65, composure: 65,
+      passing: 60, vision: 60, fitness: 75, trust: 70, energy: 85, fatigue: 12 }
+  });
+  assert.equal(engine.validateResult(sample).ok, true, "season-level scoring sample must remain internally valid");
+  totalGoals += sample.score.for + sample.score.against;
+}
+const averageMatchGoals = totalGoals / scoringSamples;
+assert.ok(averageMatchGoals >= 1.45 && averageMatchGoals <= 3.4,
+  "average full-match scoring should stay plausible: " + averageMatchGoals.toFixed(2));
+
+// A striker should turn more of the shared match opportunity into personal goals than a mobile forward.
+let mobileForwardGoals = 0, centreStrikerGoals = 0, mobileForwardAssists = 0, centreStrikerAssists = 0;
+for (let seed = 81001; seed < 82001; seed++) {
+  const base = {
+    seed, tactic: "balanced", teamPower: 66, opponentPower: 65,
+    player: { role: "أساسي", shooting: 68, composure: 70, passing: 72, vision: 70,
+      fitness: 78, trust: 72, energy: 88, fatigue: 10 }
+  };
+  const mobile = engine.simulateMatch({ ...base, player: { ...base.player, position: "مهاجم" } });
+  const striker = engine.simulateMatch({ ...base, player: { ...base.player, position: "رأس حربة" } });
+  mobileForwardGoals += mobile.player.goals; centreStrikerGoals += striker.player.goals;
+  mobileForwardAssists += mobile.player.assists; centreStrikerAssists += striker.player.assists;
+}
+assert.ok(centreStrikerGoals > mobileForwardGoals * 1.12,
+  "centre-striker role should produce measurably more goals in a season-length sample");
+assert.ok(mobileForwardAssists > centreStrikerAssists,
+  "mobile forwards should create more assists than centre strikers over the same sample");
+
 // Regression sweep for same-minute injuries/red cards: player activity must be ordered before the exit event.
 let injuryExits = 0;
 let redCardExits = 0;

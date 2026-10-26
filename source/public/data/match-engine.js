@@ -78,7 +78,7 @@
     const events = [];
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
-      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0,
+      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, cleanSheet: false, defensiveXP: 0, fouls: 0,
       yellowCards: 0, redCards: 0, injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
       rating: 0, playerAvailable: minutes > 0
     };
@@ -224,8 +224,11 @@
     const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
     const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
-    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 + stats.tackles * 0.18 + stats.interceptions * 0.12 + stats.saves * 0.22 - stats.fouls * 0.1;
-    const positionContext = profile.goalkeeper ? stats.saves * 0.18 - finalAgainst * 0.24 : position === "قلب دفاع" || position === "ظهير" || position === "وسط دفاعي" ? stats.tackles * 0.12 - finalAgainst * 0.06 : 0;
+    const defensiveRole = position === "قلب دفاع" || position === "ظهير" || position === "وسط دفاعي";
+    stats.cleanSheet = minutes > 0 && finalAgainst === 0 && (profile.goalkeeper || defensiveRole);
+    stats.defensiveXP = Math.round(stats.tackles * 2 + stats.interceptions * 2 + stats.saves * 3 + (stats.cleanSheet ? (profile.goalkeeper ? 12 : 7) : 0));
+    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 + stats.tackles * 0.28 + stats.interceptions * 0.24 + stats.saves * 0.34 - stats.fouls * 0.1;
+    const positionContext = profile.goalkeeper ? stats.saves * 0.24 + (stats.cleanSheet ? 0.55 : 0) - finalAgainst * 0.16 : defensiveRole ? stats.tackles * 0.16 + stats.interceptions * 0.14 + (stats.cleanSheet ? 0.32 : 0) - finalAgainst * 0.035 : 0;
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
       stats.rating = Math.round(clamp((6.05 + (impact + positionContext) * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;

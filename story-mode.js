@@ -330,6 +330,7 @@ function chooseStory(id,index){
   if(api.save)api.save();
   if(api.render)api.render();
   if(api.toast)api.toast("اتسجل قرارك واتطبقت نتائجه على المسيرة.");
+  syncMatchContext(s);
   checkTriggers(s,api);
   renderOverview(s);
   renderStoryPanel(s,api);
@@ -375,6 +376,44 @@ function renderOverview(s){
   var transferSource=document.getElementById("seasonTransferAction"),transferCta=document.getElementById("lw-cta-transfers");
   if(transferSource&&transferCta){transferCta.textContent=transferSource.textContent;transferCta.disabled=transferSource.disabled;transferCta.hidden=!!transferSource.hidden;transferCta.style.display=transferSource.hidden?"none":"";}
 }
+
+function finiteNumber(v){var n=Number(v);return Number.isFinite(n)?n:0;}
+function matchNarrativeSummary(report){
+  report=report||{};var score=report.score||{};
+  var gf=finiteNumber(score.for!=null?score.for:report.goalsFor);
+  var ga=finiteNumber(score.against!=null?score.against:report.goalsAgainst);
+  var p=report.player||report.playerStats||{};
+  var minutes=finiteNumber(p.minutes),rating=finiteNumber(p.rating!=null?p.rating:p.averageRating);
+  var goals=finiteNumber(p.goals),assists=finiteNumber(p.assists);
+  var outcome=gf>ga?"win":gf<ga?"loss":"draw";
+  var performance=rating>=8?"excellent":rating>0&&rating<6?"poor":"steady";
+  return {outcome:outcome,score:{for:gf,against:ga},minutes:minutes,rating:rating,goals:goals,assists:assists,performance:performance,
+    key:[Number(report.season)||0,Number(report.week||report.day)||0,gf,ga,minutes,rating,goals,assists].join(":")};
+}
+function acceptMatchReport(report){
+  var api=API(),s=api&&api.getState?api.getState():null;if(!s||!report)return {ok:false,reason:"career-state-unavailable"};
+  var summary=matchNarrativeSummary(report);
+  if(s.lastStoryMatchKey===summary.key)return {ok:true,duplicate:true,summary:summary};
+  s.lastStoryMatchKey=summary.key;s.lastMatchReport=summary;
+  if(!Array.isArray(s.matchNarrativeLedger))s.matchNarrativeLedger=[];
+  s.matchNarrativeLedger.unshift({key:summary.key,season:Number(s.season)||1,day:Number(s.day)||1,summary:summary});
+  s.matchNarrativeLedger=s.matchNarrativeLedger.slice(0,40);
+  var title=summary.outcome==="win"?"انتصار جديد":summary.outcome==="loss"?"مراجعة بعد الخسارة":"نقطة من المباراة";
+  var body=summary.outcome==="win"?"فريقك فاز "+summary.score.for+"-"+summary.score.against+". ":summary.outcome==="loss"?"الفريق خسر "+summary.score.for+"-"+summary.score.against+". ":"المباراة انتهت "+summary.score.for+"-"+summary.score.against+". ";
+  body+=summary.minutes>0?"شاركت "+summary.minutes+" دقيقة":"لم تشارك في المباراة";
+  if(summary.goals)body+=" وسجلت "+summary.goals+" هدف";
+  if(summary.assists)body+=" وصنعت "+summary.assists+" هدف";
+  if(summary.rating>0)body+="، وتقييمك "+summary.rating.toFixed(1);
+  if(!Array.isArray(s.inbox))s.inbox=[];
+  s.inbox.unshift({id:"match-report-"+summary.key,title:title,body:body,category:"match",day:Number(s.day)||1,season:Number(s.season)||1,read:false});
+  s.inbox=s.inbox.slice(0,80);
+  if(api.save)api.save();return {ok:true,summary:summary};
+}
+function syncMatchContext(s){
+  if(!s)return;
+  var report=s.lastMatchReportRaw||s.matchResult||s.lastMatch;
+  if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)acceptMatchReport(report);
+}
 function tick(){
   var api=API();if(!api)return;
   var s=api.getState();if(!s)return;
@@ -397,5 +436,6 @@ function start(){
   window.addEventListener("pageshow",tick);
   window.addEventListener("storage",tick);
 }
+window.LWStoryContext={acceptMatchReport:acceptMatchReport,matchNarrativeSummary:matchNarrativeSummary};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
 })();

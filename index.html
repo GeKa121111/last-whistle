@@ -2254,7 +2254,36 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries };
   }
 
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile };
+
+  function buildStoryReport(result, context) {
+    result = result || {};
+    context = context || {};
+    const score = result.score || {};
+    const player = result.player || {};
+    return {
+      season: Number(context.season) || 1,
+      week: Number(context.week != null ? context.week : context.day) || 1,
+      score: { for: Number(score.for) || 0, against: Number(score.against) || 0 },
+      player: {
+        minutes: Number(player.minutes) || 0,
+        goals: Number(player.goals) || 0,
+        assists: Number(player.assists) || 0,
+        rating: Number(player.rating != null ? player.rating : player.averageRating) || 0,
+        shots: Number(player.shots) || 0,
+        redCards: Number(player.redCards) || 0,
+        yellowCards: Number(player.yellowCards) || 0,
+        injuryDays: Number(player.injuryDays) || 0
+      },
+      events: Array.isArray(result.events) ? result.events.map(event => ({
+        minute: Number(event.minute) || 0,
+        type: String(event.type || ""),
+        side: String(event.side || ""),
+        description: String(event.description || event.text || "")
+      })) : [],
+      metadata: result.metadata || {}
+    };
+  }
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, buildStoryReport };
 })();
 
 </script>

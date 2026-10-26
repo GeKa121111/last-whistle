@@ -453,6 +453,87 @@
     };
   }
 
+
+  // Stage 2: shared performance-led valuation and competition-aware wage guardrails.
+  function performanceIndex(player) {
+    player = player || {};
+    const apps = Math.max(0, Number(player.appearances || player.apps) || 0);
+    const minutes = Math.max(0, Number(player.minutes) || apps * 65);
+    const rating = clamp(player.averageRating || player.form || 0, 0, 10);
+    const goals = Math.max(0, Number(player.goals) || 0);
+    const assists = Math.max(0, Number(player.assists) || 0);
+    const cleanSheets = Math.max(0, Number(player.cleanSheets) || 0);
+    const strength = clamp(player.leagueStrength || 60, 25, 100);
+    const participation = clamp(minutes / Math.max(1, apps * 90), 0, 1);
+    const role = roleType(player.position);
+    const contribution = role === "attacker" ? goals * 1.05 + assists * .72
+      : role === "midfielder" ? goals * .9 + assists * .95
+      : role === "defender" ? goals * .55 + assists * .6 + cleanSheets * .32
+      : goals * .2 + cleanSheets * .55;
+    const sampleFactor = clamp(apps / 18, .35, 1);
+    return Number(clamp((rating * 6.2 + contribution * .42 + strength * .075 + participation * 7) * sampleFactor, 0, 100).toFixed(2));
+  }
+
+  function leagueWageCeiling(league) {
+    const key = normalized(typeof league === "object" ? (league.name || league.country || league.id) : league);
+    const ceilings = [
+      [/premierleague|england|انجلترا/, 450000],
+      [/saudi|السعوديه|روشن/, 600000],
+      [/laliga|spain|اسبانيا/, 350000],
+      [/bundesliga|germany|المانيا/, 320000],
+      [/seriea|italy|ايطاليا/, 300000],
+      [/ligue1|france|فرنسا/, 260000],
+      [/egypt|مصر|egyptian/, 140000],
+      [/championship|second|درجةثانيه/, 90000]
+    ];
+    for (const row of ceilings) if (row[0].test(key)) return row[1];
+    return 180000;
+  }
+
+  function capWageOffer(wage, league, player) {
+    const ceiling = leagueWageCeiling(league);
+    const performance = performanceIndex(player);
+    const floor = Math.min(ceiling, Math.max(250, Number(player && player.wage) || 250));
+    const performanceCap = ceiling * (.24 + .76 * performance / 100);
+    return Math.round(clamp(wage, floor, Math.max(floor, Math.min(ceiling, performanceCap))));
+  }
+
+  function buildLoanProposal(input) {
+    input = input || {};
+    const player = input.player || {};
+    const age = Number(player.age) || 24;
+    const apps = Number(player.appearances || player.apps) || 0;
+    const durationMonths = Number(input.durationMonths) === 6 ? 6 : 12;
+    const isYouth = age < 23;
+    const minutesTarget = isYouth ? (durationMonths === 6 ? 700 : 1400) : (durationMonths === 6 ? 450 : 900);
+    const wageShare = clamp(input.wageShare === undefined ? (isYouth ? .35 : .5) : input.wageShare, 0, 1);
+    return {
+      type: "loan", durationMonths, minutesTarget,
+      loanFee: Math.round(Math.max(0, Number(input.loanFee) || 0)),
+      wageShare, optionToBuy: !!input.optionToBuy,
+      buyOptionFee: input.optionToBuy ? Math.round(Math.max(0, Number(input.buyOptionFee) || Number(player.marketValue || 0))) : 0,
+      developmentPriority: isYouth && apps < 12,
+      recallClause: true
+    };
+  }
+
+  function evaluateSeasonPerformance(player) {
+    player = player || {};
+    const score = performanceIndex(player);
+    const apps = Math.max(0, Number(player.appearances || player.apps) || 0);
+    const minutes = Math.max(0, Number(player.minutes) || apps * 65);
+    const ovr = clamp(player.ovr || player.power || 50, 35, 99);
+    const age = Math.max(16, Number(player.age) || 24);
+    const development = age < 23 ? Math.max(0, 23 - age) * .55 : age > 30 ? -(age - 30) * .7 : 0;
+    return {
+      score: Number(clamp(score + development + Math.min(5, minutes / 900), 0, 100).toFixed(2)),
+      marketValueMultiplier: Number(clamp(.55 + score / 85 + development / 100, .45, 1.9).toFixed(3)),
+      transferReadiness: clamp((score * .62) + Math.min(18, apps * .45) + Math.max(0, ovr - 60) * .18, 0, 100),
+      performanceSample: apps,
+      minutes
+    };
+  }
+
   global.LWTransferAwards = Object.freeze({
     version: 1,
     generateOffers: generateOffers,
@@ -460,6 +541,11 @@
     evaluateNegotiation: evaluateNegotiation,
     simulatePlayerSeason: simulatePlayerSeason,
     buildLeagueLeaderboard: buildLeagueLeaderboard,
-    buildSeasonAwardCeremony: buildSeasonAwardCeremony
+    buildSeasonAwardCeremony: buildSeasonAwardCeremony,
+    performanceIndex: performanceIndex,
+    leagueWageCeiling: leagueWageCeiling,
+    capWageOffer: capWageOffer,
+    buildLoanProposal: buildLoanProposal,
+    evaluateSeasonPerformance: evaluateSeasonPerformance
   });
 })(window);

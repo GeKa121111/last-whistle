@@ -13,7 +13,7 @@
     goalkeeper: ["حارس مرمى"],
     defender: ["قلب دفاع", "ظهير"],
     midfielder: ["وسط دفاعي", "وسط مهاجم"],
-    attacker: ["جناح", "مهاجم"]
+    attacker: ["جناح", "مهاجم", "رأس حربة"]
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;

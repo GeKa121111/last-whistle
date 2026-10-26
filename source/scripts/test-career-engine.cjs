@@ -246,3 +246,63 @@ const lowOutputRole = career.evaluateSquadRole({
 });
 assert.equal(lowOutputRole.role, "بديل",
   "role progression must not promote a low-performing player after only a handful of appearances");
+
+
+// Contract playing-time negotiations are separate from wage negotiations and affect match-role minutes.
+const contractRoleBase = {
+  ...positionProbe, pos: "رأس حربة", role: "بديل", age: 24, season: 2, clubPower: 52,
+  trust: 78, apps: 30, goals: 12, assists: 8, contractSeasons: 2, weeklyWage: 1750,
+  freeAgent: false, retired: false, academyCareer: false, academyReserve: false,
+  academyGraduationPending: false, loan: null, daysSinceNegotiation: 99, randomSeed: 1,
+  lastRating: 7.1
+};
+const contractEvidence = { recentAverageRating: 7.1, recentContributionsPer90: 0.55 };
+assert.equal(career.playingTimeNegotiationStatus(contractRoleBase), "ready",
+  "a player with a live contract should be able to negotiate playing time independently of wage increases");
+const starterChance = career.playingTimeNegotiationChance(contractRoleBase, "أساسي", contractEvidence);
+const rotationChance = career.playingTimeNegotiationChance(contractRoleBase, "بديل أساسي", contractEvidence);
+assert.ok(starterChance >= 8 && starterChance <= 90, "starting-role negotiation chance must be bounded");
+assert.ok(rotationChance > starterChance, "a more modest squad-role request should be easier for a club to accept");
+let acceptedPlayingTime = null;
+for (let seed = 1; seed <= 100 && !acceptedPlayingTime; seed += 1) {
+  const candidate = { ...contractRoleBase, randomSeed: seed };
+  const beforeWage = candidate.weeklyWage, beforeTerms = candidate.contractSeasons;
+  const result = career.resolvePlayingTimeNegotiation(candidate, "أساسي", contractEvidence);
+  if (result.ok && result.status === "success") acceptedPlayingTime = { candidate, result, beforeWage, beforeTerms };
+}
+assert.ok(acceptedPlayingTime, "a strong player should be able to secure a starting-role clause in a deterministic seed sweep");
+assert.equal(acceptedPlayingTime.candidate.role, "أساسي", "accepted playing-time clauses must change the squad role");
+assert.equal(acceptedPlayingTime.candidate.contractPlayingTime, "أساسي", "the agreed role must be saved in the contract state");
+assert.equal(acceptedPlayingTime.candidate.contractPlayingTimeSeason, 2, "the role guarantee must be scoped to the current season");
+assert.equal(acceptedPlayingTime.candidate.weeklyWage, acceptedPlayingTime.beforeWage, "role clauses must not silently increase salary");
+assert.equal(acceptedPlayingTime.candidate.contractSeasons, acceptedPlayingTime.beforeTerms, "role clauses must not silently change contract length");
+assert.equal(career.playingTimeNegotiationStatus(acceptedPlayingTime.candidate), "already-agreed",
+  "the starting-role guarantee must be shown as agreed during the season");
+const enforceClause = career.evaluateSquadRole({
+  ...acceptedPlayingTime.candidate, role: "بديل", season: 2
+}, [], { scope: "league", minutes: 32, rating: 5.1, goals: 0, assists: 0 });
+assert.equal(enforceClause.role, "أساسي",
+  "AI role progression must honour an active starter clause even after a low-rated match");
+const expiredClause = career.evaluateSquadRole({
+  ...acceptedPlayingTime.candidate, role: "بديل", season: 3
+}, [], { scope: "league", minutes: 32, rating: 5.1, goals: 0, assists: 0 });
+assert.equal(expiredClause.role, "بديل", "a one-season guarantee must not persist into the next season");
+const protectedPlayingTime = { ...contractRoleBase, academyCareer: true };
+assert.equal(career.playingTimeNegotiationStatus(protectedPlayingTime), "youth",
+  "academy players must use the academy promotion path instead of a professional contract amendment");
+const expiringFreeAgent = { ...contractRoleBase, freeAgent: true };
+assert.equal(career.playingTimeNegotiationStatus(expiringFreeAgent), "free-agent",
+  "a player without a club contract cannot renegotiate playing time");
+const cooldownContract = { ...contractRoleBase, daysSinceNegotiation: 2 };
+assert.equal(career.playingTimeNegotiationStatus(cooldownContract), "cooldown",
+  "playing-time negotiations must respect the existing seven-day negotiation cooldown");
+let failedPlayingTime = null;
+for (let seed = 1; seed <= 100 && !failedPlayingTime; seed += 1) {
+  const candidate = { ...contractRoleBase, trust: 8, clubPower: 99, playerPotential: 45, randomSeed: seed,
+    weeklyWage: 1750, contractSeasons: 2, goals: 0, assists: 0, apps: 2 };
+  const result = career.resolvePlayingTimeNegotiation(candidate, "أساسي", { recentAverageRating: 4.5, recentContributionsPer90: 0 });
+  if (result.ok && result.status === "failed") failedPlayingTime = { candidate, result };
+}
+assert.ok(failedPlayingTime, "a weak player negotiating against a much stronger club must have a realistic refusal path");
+assert.equal(failedPlayingTime.candidate.weeklyWage, 1750, "a failed role negotiation must not change wage");
+assert.equal(failedPlayingTime.candidate.contractSeasons, 2, "a failed role negotiation must not change contract length");

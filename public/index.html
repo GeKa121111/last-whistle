@@ -4323,6 +4323,7 @@ function checkAction(kind,cost){
 }
 function train(type){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
+ if(type==="goalkeeping"&&state.pos!=="حارس مرمى"){toast("تدريب الحراسة متاح لحارس المرمى فقط.");return;}
  const costs={shooting:18,dribbling:16,fitness:22,passing:14,defending:18,goalkeeping:19,vision:12,composure:10,speed:20,physical:20};
  const titles={shooting:"التسديد",dribbling:"المراوغة",fitness:"اللياقة والسرعة",passing:"التمرير والرؤية",defending:"التمركز والدفاع",goalkeeping:"حراسة المرمى",vision:"الرؤية وصناعة اللعب",composure:"الهدوء تحت الضغط",speed:"السرعة والانطلاق",physical:"القوة البدنية والالتحامات"};
  if(!window.LWCareer){toast("محرك التطوير غير متاح حاليًا.");return;}

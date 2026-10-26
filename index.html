@@ -4499,7 +4499,10 @@ function runSeasonAITtraining(){
    state.energy=90;state.fatigue=18;state.injuryDays=0;state.injuryName="";
    state.playedToday=false;state.trainedToday=false;state.trainingIntensity="normal";
    const result=career.train(state,focus,{random:()=>0.999999});
-   if(!result?.ok)break;
+   if(!result?.ok){
+    errorMessage=String(result?.error||result?.reason||"Annual training session was not accepted");
+    break;
+   }
    report.sessions++;
    report.skills[focus]=(Number(report.skills[focus])||0)+1;
    report.xp+=Number(result.xp)||0;
@@ -4510,9 +4513,12 @@ function runSeasonAITtraining(){
  finally{Object.assign(state,original);}
  report.plannedSessions=targetSessions;
  report.manualSessions=manualSessions;
- report.completed=true;
+ // A thrown/rejected training call must remain retryable. Keep already-applied
+ // sessions in the report so the next attempt resumes without double-training.
+ report.completed=!errorMessage;
  report.completedSeason=currentSeason;
  if(errorMessage)report.error=errorMessage;
+ else delete report.error;
  state.seasonTrainingReport=report;
  return {ok:!errorMessage,sessions:report.sessions,plannedSessions:targetSessions,manualSessions,lastFocus,error:errorMessage};
 }

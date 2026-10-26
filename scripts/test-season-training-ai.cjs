@@ -105,4 +105,39 @@ assert.equal(incomplete.state.trainingSessions, 0, "an incomplete season must no
 const completedSessions = annual.state.seasonTrainingReport.sessions;
 annual.runSeasonAITtraining();
 assert.equal(annual.state.seasonTrainingReport.sessions, completedSessions, "re-entering the annual batch must not double-train the player");
+
+// A temporary exception after one successful annual session must not falsely
+// mark the report complete. A subsequent call must resume with the remaining
+// work and retain the already-applied session count.
+const flaky = createSandbox("مهاجم", poorFinishingRows, { shooting: 75, composure: 70 }, {
+  primary: ["shooting"], secondary: ["composure"]
+});
+flaky.state.seasonApps = 22;
+flaky.state.seasonDevelopmentSnapshot = {
+  season: 1, ovr: 75, sessions: 0,
+  attributes: { shooting: 75, dribbling: 72, passing: 72, speed: 72, fitness: 72, composure: 70, defending: 74, goalkeeping: 72, vision: 72, physical: 70 }
+};
+flaky.state.seasonTrainingReport = { sessions: 0, skills: {}, xp: 0, injuries: 0, completed: false };
+const reliableTrain = flaky.window.LWCareer.train;
+let calls = 0;
+flaky.window.LWCareer.train = (state, focus, options) => {
+  calls++;
+  if (calls === 2) throw new Error("temporary training failure");
+  return reliableTrain(state, focus, options);
+};
+const interrupted = flaky.runSeasonAITtraining();
+assert.equal(interrupted.ok, false, "a partial annual training failure must be reported");
+assert.equal(flaky.state.seasonTrainingReport.completed, false,
+  "a failed annual batch must remain retryable instead of being marked completed");
+assert.equal(flaky.state.seasonTrainingReport.sessions, 1,
+  "the report must retain the one successful session before the failure");
+flaky.window.LWCareer.train = reliableTrain;
+const retried = flaky.runSeasonAITtraining();
+assert.equal(retried.ok, true, "the subsequent annual training retry should finish the remaining sessions");
+assert.equal(flaky.state.seasonTrainingReport.completed, true,
+  "the report must be completed only after the retry succeeds");
+assert.equal(flaky.state.seasonTrainingReport.sessions, retried.plannedSessions,
+  "retrying must finish the plan without losing or duplicating successful sessions");
+assert.equal(flaky.state.trainingSessions, retried.plannedSessions,
+  "the career training-session count must match the once-applied annual plan");
 console.log("PASS: match evidence, position-specific focus, potential caps and one-time season-end training all work.");

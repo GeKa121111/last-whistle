@@ -1590,10 +1590,17 @@ body.career-active .hero{display:none!important}
     const performanceFactor = 0.72 + rating * 0.047;
     const potentialFactor = clamp(0.82 + (Number(state.playerPotential) - overall(state)) * 0.012, 0.68, 1.24);
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
-    const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
+    const baseXP = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
+    const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
+    const defensiveXP = Math.max(0, Number(data.defensiveXP) || Math.round(
+      (Number(matchStats.tackles) || 0) * 2 + (Number(matchStats.interceptions) || 0) * 2
+      + (Number(matchStats.saves) || 0) * 3
+      + (data.cleanSheet ? (state.pos === "حارس مرمى" ? 12 : 7) : 0)
+    ));
+    const xp = baseXP + defensiveXP;
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
-    const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
+    const gained = addTrainingXP(state, skill, Math.round((baseXP * 0.75 + defensiveXP * 0.35) * focusMultiplier));
     const milestones = [];
     if (qualifying) {
       for (const threshold of APPEARANCE_MILESTONES) {
@@ -1608,7 +1615,7 @@ body.career-active .hero{display:none!important}
         }
       }
     }
-    return { gained, skill, xp, levels, qualifying, milestones, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
+    return { gained, skill, xp, baseXP, defensiveXP, levels, qualifying, milestones, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
   }
 
   function hash(text) {
@@ -4134,6 +4141,10 @@ function renderPerformanceInsights(){
  const goals=recent.reduce((sum,row)=>sum+(Number(row.goals)||0),0);
  const assists=recent.reduce((sum,row)=>sum+(Number(row.assists)||0),0);
  const contributions=goals+assists;
+ const tackles=recent.reduce((sum,row)=>sum+(Number(row.stats?.tackles)||0),0);
+ const interceptions=recent.reduce((sum,row)=>sum+(Number(row.stats?.interceptions)||0),0);
+ const saves=recent.reduce((sum,row)=>sum+(Number(row.stats?.saves)||0),0);
+ const cleanSheets=recent.filter(row=>!!row.stats?.cleanSheet).length;
  const latest=recent[0];
  const older=recent.slice(3);
  const newer=recent.slice(0,Math.min(3,recent.length));
@@ -4153,9 +4164,9 @@ function renderPerformanceInsights(){
    const result=Number(row.teamGoals)>Number(row.oppGoals)?"فوز":Number(row.teamGoals)<Number(row.oppGoals)?"خسارة":"تعادل";
    const opponent=safeHTML(row.opponent||"منافس");
    const clubName=safeHTML(row.club||club().name);
-   return `<div class="dataCard"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${index===0?"آخر مباراة":`مباراة ${index+1}`} • ${result}</b><span class="pill ${rating>=7?"green":rating<6?"red":""}">${rating.toFixed(1)}/10</span></div><p>${clubName} ${score} ${opponent}<br>${Number(row.minutes)||0} دقيقة • ${Number(row.goals)||0} هدف • ${Number(row.assists)||0} صناعة</p><div class="progressRow"><span>التقييم</span><div class="bar indigo"><i style="width:${width}%"></i></div><b>${rating.toFixed(1)}</b></div></div>`;
+   return `<div class="dataCard"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${index===0?"آخر مباراة":`مباراة ${index+1}`} • ${result}</b><span class="pill ${rating>=7?"green":rating<6?"red":""}">${rating.toFixed(1)}/10</span></div><p>${clubName} ${score} ${opponent}<br>${Number(row.minutes)||0} دقيقة • ${Number(row.goals)||0} هدف • ${Number(row.assists)||0} صناعة<br>افتكاك ${Number(row.stats?.tackles)||0} • اعتراض ${Number(row.stats?.interceptions)||0} • تصديات ${Number(row.stats?.saves)||0}${row.stats?.cleanSheet?" • شباك نظيفة":""}</p><div class="progressRow"><span>التقييم</span><div class="bar indigo"><i style="width:${width}%"></i></div><b>${rating.toFixed(1)}</b></div></div>`;
  }).join("");
- root.innerHTML=`<div class="kpiGrid" style="margin:10px 0 14px"><div class="kpi"><div class="kpiNum">${avg.toFixed(2)}</div><div class="kpiLabel">متوسط التقييم • آخر ${recent.length}</div></div><div class="kpi"><div class="kpiNum">${goals}</div><div class="kpiLabel">أهداف</div></div><div class="kpi"><div class="kpiNum">${assists}</div><div class="kpiLabel">صناعات</div></div><div class="kpi"><div class="kpiNum">${contributions}</div><div class="kpiLabel">مساهمات تهديفية</div></div></div><div class="sectionNote"><b>نصيحة الكابتن:</b> ${tip}</div><div class="dataGrid" style="margin-top:12px">${rows}</div>`;
+ root.innerHTML=`<div class="kpiGrid" style="margin:10px 0 14px"><div class="kpi"><div class="kpiNum">${avg.toFixed(2)}</div><div class="kpiLabel">متوسط التقييم • آخر ${recent.length}</div></div><div class="kpi"><div class="kpiNum">${goals}</div><div class="kpiLabel">أهداف</div></div><div class="kpi"><div class="kpiNum">${assists}</div><div class="kpiLabel">صناعات</div></div><div class="kpi"><div class="kpiNum">${contributions}</div><div class="kpiLabel">مساهمات تهديفية</div></div><div class="kpi"><div class="kpiNum">${tackles}</div><div class="kpiLabel">افتكاكات ناجحة</div></div><div class="kpi"><div class="kpiNum">${interceptions}</div><div class="kpiLabel">اعتراضات</div></div><div class="kpi"><div class="kpiNum">${saves}</div><div class="kpiLabel">تصديات</div></div><div class="kpi"><div class="kpiNum">${cleanSheets}</div><div class="kpiLabel">شباك نظيفة</div></div></div><div class="sectionNote"><b>نصيحة الكابتن:</b> ${tip}</div><div class="dataGrid" style="margin-top:12px">${rows}</div>`;
 }
 
 function renderPositionDevelopment(){
@@ -4437,8 +4448,9 @@ function applyMatchResult(result,meta){
    if(scope!=="league"){comp.appearances++;comp.qualifyingAppearances+=minutes>=20?1:0;comp.minutes+=minutes;comp.goals+=goals;comp.assists+=assists;}
   }
   state.lastRating=rating;state.averageRatingSum=(Number(state.averageRatingSum)||0)+rating;state.averageRatingCount=(Number(state.averageRatingCount)||0)+1;if(scope==="league"){state.leagueRatingSum=(Number(state.leagueRatingSum)||0)+rating;state.leagueRatingCount=(Number(state.leagueRatingCount)||0)+1;}
-  const development=window.LWCareer?.matchDevelopment(state,{matchId:id,minutes,rating,goals,assists,competitionKey:`${scope}|${country}|${competition}`})||{};
+  const development=window.LWCareer?.matchDevelopment(state,{matchId:id,minutes,rating,goals,assists,defensiveXP:Number(m.defensiveXP)||0,cleanSheet:!!m.cleanSheet,stats:{tackles:Number(m.tackles)||0,interceptions:Number(m.interceptions)||0,saves:Number(m.saves)||0},competitionKey:`${scope}|${country}|${competition}`})||{};
   if(development.levels)log(`ارتقيت إلى مستوى المسيرة ${state.careerLevel} بعد المباراة.`);
+  if(Number(development.defensiveXP)>0)log(`مكافأة دفاعية: +${Number(development.defensiveXP)} XP من التصديات والافتكاكات والكلين شيت.`);
   for(const milestone of development.milestones||[])log(`معلم تطور جديد: ${milestone.appearances} مشاركة مؤهلة (20 دقيقة أو أكثر) • ${SKILL_AR[milestone.skill]||milestone.skill}${milestone.gained?` +${milestone.gained}`:" • خبرة متراكمة"}.`);
   state.energy=clamp(state.energy-Math.round(10+minutes*.24+(meta.tactic==="attack"?3:0)+(Number(state.fatigue)||0)/20));
   state.fatigue=clamp((Number(state.fatigue)||0)+Math.round(minutes*.19));
@@ -4470,7 +4482,7 @@ function applyMatchResult(result,meta){
  if(scope==="league"){if(outcome==="فوز"){state.seasonW++;state.seasonPoints+=3;}else if(outcome==="تعادل"){state.seasonD++;state.seasonPoints++;}else state.seasonL++;}
  if(participated&&scope!=="international"&&state.creatorStudio){const audienceGain=6+(rating>=7.5?3:rating>=6.5?1:0);state.followers=(Number(state.followers)||0)+audienceGain;log("زاد جمهورك "+audienceGain+" متابع بعد أداء النادي.");}
  state.playedToday=true;
- const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
+ const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,cleanSheet:!!m.cleanSheet,defensiveXP:Number(m.defensiveXP)||0,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
  state.careerMatchHistory.unshift(record);state.careerMatchHistory=state.careerMatchHistory.slice(0,800);
  if(scope==="league"){state.seasonLog.push(record);}
  if(scope==="international"){state.internationalHistory.unshift(record);state.internationalHistory=state.internationalHistory.slice(0,250);state.internationalPlayed=true;}

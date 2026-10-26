@@ -41,6 +41,65 @@
     return 1;
   }
 
+  // Select a squad role from recent form and career output, not a single unusually high rating.
+  // The caller passes post-match career totals and the match that has just been completed.
+  function evaluateSquadRole(state, matchHistory = [], currentMatch = null) {
+    const originalRole = String(state && state.role || "بديل");
+    if (!state || state.academyCareer || state.academyReserve || state.retired) {
+      return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
+        recentContributionsPer90: 0, careerContributionsPer90: 0 };
+    }
+
+    const validRow = row => row && row.scope !== "international" && Number(row.minutes) > 0;
+    const current = validRow(currentMatch) ? { ...currentMatch } : null;
+    const allRows = [current, ...(Array.isArray(matchHistory) ? matchHistory : [])]
+      .filter(validRow);
+    const recent = allRows.slice(0, 8);
+    if (!recent.length) {
+      return { role: originalRole, changed: false, reason: "no-appearances", recentAverageRating: 0,
+        recentContributionsPer90: 0, careerContributionsPer90: 0 };
+    }
+
+    const sum = (rows, key) => rows.reduce((total, row) => total + Math.max(0, Number(row[key]) || 0), 0);
+    const recentMinutes = sum(recent, "minutes");
+    const recentContributions = sum(recent, "goals") + sum(recent, "assists");
+    const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
+    const ratedRows = recent.filter(row => Number(row.rating) > 0);
+    const recentAverageRating = ratedRows.length
+      ? ratedRows.reduce((total, row) => total + Number(row.rating), 0) / ratedRows.length : 0;
+
+    const appearances = Math.max(0, Math.floor(Number(state.apps) || 0));
+    const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
+    // Saves compact long careers, so estimate missing historical minutes from the observed mean.
+    const careerMinutes = Math.max(sum(allRows, "minutes"), appearances * Math.max(1, averageCareerMinutes));
+    const careerContributions = Math.max(0, Number(state.goals) || 0) + Math.max(0, Number(state.assists) || 0);
+    const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
+    const trust = Math.max(0, Math.min(100, Number(state.trust) || 0));
+    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
+    const veteranOutput = roleIsForward && appearances >= 35
+      && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
+    const recentReady = recentAverageRating >= 6.25
+      && (trust >= 22 || recentContributionsPer90 >= 0.25);
+    let role = originalRole;
+
+    // Non-academy youth players start with this display label; it should not lock them out of promotion forever.
+    if (role.startsWith("ناشئ") && appearances >= 3) role = "بديل";
+    if (role === "بديل" && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+    if (role === "بديل أساسي" && appearances >= 16
+      && ((recentAverageRating >= 6.35 && (trust >= 30 || recentContributionsPer90 >= 0.30))
+        || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9))) {
+      role = "أساسي";
+    }
+
+    return {
+      role, changed: role !== originalRole,
+      reason: role === originalRole ? "keep-role" : role === "أساسي" ? "starter-ready" : "rotation-ready",
+      recentAverageRating: Math.round(recentAverageRating * 100) / 100,
+      recentContributionsPer90: Math.round(recentContributionsPer90 * 100) / 100,
+      careerContributionsPer90: Math.round(careerContributionsPer90 * 100) / 100
+    };
+  }
+
   const APPEARANCE_MILESTONES = [5, 10, 20, 30];
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
@@ -556,6 +615,6 @@
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
-    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, trainingTypes: Object.keys(CONFIG)
+    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();

@@ -674,10 +674,33 @@ async function main() {
       state.academyReserve = false;
       state.academyGraduationPending = false;
       state.academyGraduated = true;
-      // Start so the 17th simulated match itself lands inside the natural January window.
-      // The window check happens before the five-day post-match recovery advance.
-      state.calendarDay = 104;
+      // Isolate this season-lifecycle test from matches played by earlier smoke fixtures.
+      state.seasonApps = 0;
+      state.leagueApps = 0;
+      // The CTA computes the midpoint before simulateSeasonBlock() calls ensureLeague().
+      // Keep the target initialized in this clean fixture so the button cannot capture zero.
+      const fixtureLeagueCount = Array.isArray(state.league) && state.league.length >= 2
+        ? state.league.length
+        : 12;
+      state.seasonAppsTarget = Math.max(2, 2 * (fixtureLeagueCount - 1));
+      // Avoid match-ID collisions with earlier fixtures in this same browser smoke run.
+      state.leagueSegmentId = "browser-season-lifecycle-" + Date.now();
+      state.leagueSegmentIsPartial = false;
+      // simulateSeasonBlock checks the winter window after 5 days of match recovery.
+      // Place the midpoint fixture on calendar day 184 (start of the natural winter window).
+      const fixtureMidpoint = Math.ceil(state.seasonAppsTarget / 2);
+      state.calendarDay = 184 - Math.max(0, fixtureMidpoint - 1) * 5;
       state.day = Math.max(Number(state.day) || 1, 100);
+      state.leagueRoundIndex = 0;
+      state.leagueRoundHistory = [];
+      state.seasonGoals = 0;
+      state.seasonAssists = 0;
+      state.seasonPoints = 0;
+      state.seasonFinished = false;
+      state.retired = false;
+      state.calendarEvents = [];
+      state.playedToday = false;
+      state.trainedToday = false;
       state.lastLeagueMatchCalendarDay = 0;
       state.winterBreakPending = false;
       state.seasonPhase = "firstHalf";
@@ -690,16 +713,39 @@ async function main() {
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
-        && title && title.textContent.includes("تكملة النصف الأول");
+        && title && title.textContent.includes("محاكاة الموسم");
     }, null, { timeout: 10000 });
-    await page.locator("#modalChoices button").filter({ hasText: "كمّل لحد الشتاء" }).click();
-    await page.waitForFunction(() => {
-      const state = window.LWStoryRuntime.getState();
-      const title = document.querySelector("#modalTitle");
-      return state.winterBreakPending === true
-        && Number(state.seasonApps) >= Math.ceil((Number(state.seasonAppsTarget) || 34) / 2)
-        && title && title.textContent.includes("ملخص منتصف الموسم");
-    }, null, { timeout: 30000 });
+    await page.locator("#modalChoices button").filter({ hasText: "ابدأ الموسم" }).click();
+    try {
+      await page.waitForFunction(() => {
+        const state = window.LWStoryRuntime.getState();
+        const title = document.querySelector("#modalTitle");
+        return state.winterBreakPending === true
+          && Number(state.seasonApps) >= Math.ceil((Number(state.seasonAppsTarget) || 34) / 2)
+          && title && title.textContent.includes("ملخص منتصف الموسم");
+      }, null, { timeout: 30000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        const title = document.querySelector("#modalTitle");
+        return {
+          calendarDay: Number(state.calendarDay) || 0,
+          seasonApps: Number(state.seasonApps) || 0,
+          seasonAppsTarget: Number(state.seasonAppsTarget) || 0,
+          seasonPhase: state.seasonPhase || "",
+          winterBreakPending: !!state.winterBreakPending,
+          lastLeagueMatchCalendarDay: Number(state.lastLeagueMatchCalendarDay) || 0,
+          pendingCalendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents.length : 0,
+          seasonFinished: !!state.seasonFinished,
+          retired: !!state.retired,
+          leagueCount: Array.isArray(state.league) ? state.league.length : -1,
+          fixtureRoundCount: Array.isArray(state.fixtureSchedule) ? state.fixtureSchedule.length : -1,
+          leagueRoundIndex: Number(state.leagueRoundIndex) || 0,
+          modalTitle: title?.textContent || ""
+        };
+      });
+      throw new Error("Season did not reach winter break: " + JSON.stringify(diagnostic) + "; " + error.message);
+    }
     results.push("first-half simulation reaches the winter break");
 
     await page.locator("#modalChoices button").filter({ hasText: "راجع انتقالات الشتاء" }).click();

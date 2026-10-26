@@ -4352,7 +4352,7 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
   teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
   playerAvailable:available,
-  player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
+  player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,speed:state.speed,physical:state.physical,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });
 }
 function applyMatchResult(result,meta){
@@ -4396,10 +4396,17 @@ function applyMatchResult(result,meta){
   if(m.yellowCards>0){state.bookings[key]=(Number(state.bookings[key])||0)+m.yellowCards;if(state.bookings[key]>=5){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,1);state.bookings[key]=0;log(`إيقاف مباراة واحدة في ${competition||"المسابقة"} بعد تراكم 5 إنذارات داخل المحاكاة.`);}}
   if(m.redCards>0){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,2);log(`إيقاف مباراتين في ${competition||"المسابقة"} بعد طرد داخل محاكاة اللعبة.`);}
   if(m.injuryDays>0){state.injuryDays=Math.max(Number(state.injuryDays)||0,Number(m.injuryDays));state.injuryName=Number(m.injuryDays)>=21?"إصابة قوية — مدة تعافٍ طويلة":Number(m.injuryDays)>=10?"إصابة عضلية متوسطة":Number(m.injuryDays)>=5?"شد عضلي":"إجهاد بسيط";}
-  if(state.role==="بديل"&&rating>=7.4&&state.trust>=38)state.role="بديل أساسي";
-  if(state.role==="بديل أساسي"&&rating>=7.6&&state.trust>=52)state.role="أساسي";
-  if(state.role==="أساسي"&&rating<5.7&&state.trust<36)state.role="بديل أساسي";
-  else if(state.role==="بديل أساسي"&&(rating<5.5||state.trust<24))state.role="بديل";
+  if(scope!=="international"&&window.LWCareer?.evaluateSquadRole){
+   const roleDecision=window.LWCareer.evaluateSquadRole(state,state.careerMatchHistory,{
+    scope,minutes,rating,goals,assists
+   });
+   if(roleDecision?.changed){
+    state.role=roleDecision.role;
+    log(state.role==="أساسي"
+      ?"الجهاز الفني رقّاك للتشكيل الأساسي بناءً على مشاركاتك ومساهماتك في المسيرة."
+      :"الجهاز الفني زوّد دورك في التشكيل بناءً على الأداء والإنتاج الهجومي.");
+   }
+  }
  }else if(scope==="league")state.morale=clamp(state.morale-1);
  if(scope==="league"){if(outcome==="فوز"){state.seasonW++;state.seasonPoints+=3;}else if(outcome==="تعادل"){state.seasonD++;state.seasonPoints++;}else state.seasonL++;}
  if(participated&&scope!=="international"&&state.creatorStudio){const audienceGain=6+(rating>=7.5?3:rating>=6.5?1:0);state.followers=(Number(state.followers)||0)+audienceGain;log("زاد جمهورك "+audienceGain+" متابع بعد أداء النادي.");}

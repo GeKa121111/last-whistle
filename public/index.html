@@ -977,7 +977,7 @@ body.career-active .hero{display:none!important}
             <button class="btn actionBtn" data-action="train-fitness"><span class="actionTitle">🏃 لياقة وسرعة</span><span class="actionDesc">اللياقة والانطلاق • إجهاد بدني أكبر</span></button>
             <button class="btn actionBtn" data-action="train-passing"><span class="actionTitle">🤝 تمرير جماعي</span><span class="actionDesc">التمرير والرؤية</span></button>
             <button class="btn actionBtn" data-action="train-defending"><span class="actionTitle">🛡️ تمركز ودفاع</span><span class="actionDesc">التمركز وقراءة اللعب</span></button>
-            <button class="btn actionBtn" data-action="train-goalkeeping"><span class="actionTitle">🧤 تدريب الحراسة</span><span class="actionDesc">متاح لحارس المرمى فقط</span></button>
+            <button hidden class="btn actionBtn" data-action="train-goalkeeping"><span class="actionTitle">🧤 تدريب الحراسة</span><span class="actionDesc">متاح لحارس المرمى فقط</span></button>
             <button class="btn actionBtn" data-action="train-vision"><span class="actionTitle">👁️ رؤية وصناعة لعب</span><span class="actionDesc">قراءة المساحات والقرار</span></button>
             <button class="btn actionBtn" data-action="train-physical"><span class="actionTitle">💪 قوة بدنية والالتحامات</span><span class="actionDesc">الثبات في المواجهات والالتحام البدني</span></button>
             <button class="btn actionBtn" data-action="train-composure"><span class="actionTitle">🧠 هدوء تحت الضغط</span><span class="actionDesc">الاتزان والتركيز وقت الحسم</span></button>
@@ -1429,6 +1429,7 @@ body.career-active .hero{display:none!important}
       state.trainingXP[key] = Math.max(0, Number(state.trainingXP[key]) || 0);
       if (!Number.isFinite(Number(state[key]))) state[key] = 50;
     }
+    if (state.pos !== "حارس مرمى") state.goalkeeping = Math.max(10, Math.min(15, Number(state.goalkeeping) || 12));
     return state;
   }
 
@@ -1454,8 +1455,18 @@ body.career-active .hero{display:none!important}
     return Math.round(weighted / (totalWeight || 1));
   }
 
+  function agingProfile(state) {
+    const position = String(state && state.pos || "جناح");
+    if (position === "حارس مرمى") return { fitnessStart: 36, speedStart: 99, physicalStart: 39, capStart: 36, trainingStart: 36 };
+    if (position === "قلب دفاع") return { fitnessStart: 34, speedStart: 35, physicalStart: 36, capStart: 34, trainingStart: 34 };
+    if (position === "ظهير") return { fitnessStart: 31, speedStart: 31, physicalStart: 32, capStart: 31, trainingStart: 31 };
+    if (position === "وسط دفاعي" || position === "وسط مهاجم") return { fitnessStart: 32, speedStart: 33, physicalStart: 33, capStart: 32, trainingStart: 32 };
+    return { fitnessStart: 30, speedStart: 29, physicalStart: 32, capStart: 29, trainingStart: 29 };
+  }
   function limitFor(state, key) {
-    const agePenalty = Number(state.age) >= 30 ? Math.min(8, Number(state.age) - 29) : 0;
+    const profile = agingProfile(state);
+    const age = Number(state.age) || 0;
+    const agePenalty = age >= profile.capStart ? Math.min(8, Math.floor((age - profile.capStart) / 2) + 1) : 0;
     const positionBonus = key === CAREER_ATTRIBUTE[state.pos] ? 3 : 0;
     return Math.max(Number(state[key]) || 0, Math.min(99, state.playerPotential + positionBonus - agePenalty));
   }
@@ -1511,10 +1522,14 @@ body.career-active .hero{display:none!important}
 
     state.energy = clamp(state.energy - cost);
     const coachBonus = state.privateCoach ? 8 : 0;
-    const trainingAgeFactor = Number(state.age) >= 30 ? 0.78 : 1;
+    const ageProfile = agingProfile(state);
+    const playerAge = Number(state.age) || 0;
+    const trainingAgeFactor = playerAge >= ageProfile.trainingStart
+      ? (playerAge >= ageProfile.trainingStart + 5 ? 0.78 : 0.9) : 1;
     const fatiguePenalty = 1 - clamp(state.fatigue, 0, 100) * 0.0035;
     const focusMultiplier = trainingFocusMultiplier(state, type);
-    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier));
+    const xpMultiplier = state.xpMultiplier ? 1.25 : 1;
+    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier * xpMultiplier));
     const primaryGain = addTrainingXP(state, type, baseXP);
     const secondaryGains = [];
     for (const [skill, share] of Object.entries(setup.secondary)) {
@@ -1747,6 +1762,9 @@ body.career-active .hero{display:none!important}
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
     if (state.retired) return { ok: false, status: "retired" };
+    if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
+      return { ok: false, status: "direct-rating-purchase-disabled" };
+    }
     if (state[item.id]) return { ok: false, status: "already-owned" };
     const cost = Math.round(Number(item.price));
     const balance = Number(state.money);
@@ -1832,12 +1850,15 @@ body.career-active .hero{display:none!important}
   }
 
   function applySeasonAging(state) {
-    if (Number(state.age) >= 30) {
-      state.fitness = clamp(Number(state.fitness) - 1);
-      if (Number(state.age) >= 33) state.speed = clamp(Number(state.speed) - 1);
-      return Number(state.age) >= 33 ? "مع تقدم العمر، زادت أهمية إدارة السرعة والاستشفاء." : "مع تقدم العمر، حافظ على اللياقة والاستشفاء.";
-    }
-    return "";
+    if (!state || typeof state !== "object") return "";
+    const age = Math.max(0, Number(state.age) || 0);
+    const profile = agingProfile(state);
+    const declines = [];
+    if (age >= profile.fitnessStart) { state.fitness = clamp(Number(state.fitness) - 1); declines.push("اللياقة"); }
+    if (age >= profile.speedStart) { state.speed = clamp(Number(state.speed) - 1); declines.push("السرعة"); }
+    if (age >= profile.physicalStart) { state.physical = clamp(Number(state.physical) - 1); declines.push("القوة البدنية"); }
+    if (!declines.length) return "";
+    return "منحنى العمر الخاص بمركزك (" + String(state.pos || "غير محدد") + ") بدأ يؤثر على " + declines.join(" و") + "؛ راعِ توزيع الأحمال والاستشفاء.";
   }
 
   window.LWCareer = {
@@ -2574,7 +2595,7 @@ const REAL_PLAYERS = (() => {
 const INITIAL = {
  name:"يوسف حسن",age:17,pos:"جناح",nationalTeam:"مصر",clubIndex:0,role:"بديل",day:1,season:1,energy:80,morale:65,trust:25,fatigue:0,
  careerStarted:false,leagueCountry:"مصر",leagueDivision:2,clubName:"مركز شباب النور",clubTier:0,calendarDay:1,lastOfferWindow:"",lastTransferDay:-99,averageRatingSum:0,averageRatingCount:0,leagueRatingSum:0,leagueRatingCount:0,pendingTransfer:null,favoriteLeague:"",transferOffers:[],transferOffersWindowId:"",transferNegotiation:null,currentReleaseClause:0,goalBonusPerGoal:0,cleanSheetBonus:0,currentCompetitions:[],trophyCabinet:[],awardCeremonies:[],
- shooting:52,dribbling:61,passing:55,speed:67,fitness:60,composure:48,defending:50,goalkeeping:50,vision:50,physical:50,playerPotential:82,careerXP:0,levelXP:0,careerLevel:1,trainingSessions:0,trainingXP:{},trainingIntensity:"normal",careerAwards:[],careerAppearances:0,careerMinutes:0,qualifyingAppearances:0,careerMilestonesEarned:[],progressionMatchIds:[],competitionStats:{},clubPower:52,leagueCompetition:"",leagueSource:"",
+ shooting:52,dribbling:61,passing:55,speed:67,fitness:60,composure:48,defending:50,goalkeeping:12,vision:50,physical:50,playerPotential:82,careerXP:0,levelXP:0,careerLevel:1,trainingSessions:0,trainingXP:{},trainingIntensity:"normal",careerAwards:[],careerAppearances:0,careerMinutes:0,qualifyingAppearances:0,careerMilestonesEarned:[],progressionMatchIds:[],competitionStats:{},clubPower:52,leagueCompetition:"",leagueSource:"",
  money:450,followers:120,goals:0,assists:0,apps:0,lastRating:0,
  academyCareer:false,academyStartAge:0,academyYearsCompleted:0,academyHistory:[],academyGraduated:false,academyGraduationPending:false,academyReserve:false,academyLeagueDivision:0,
  schemaVersion:10,contractType:"professional",randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
@@ -3483,7 +3504,9 @@ const SHOP=[
  {id:"mediaTraining",category:"life",icon:"🎙️",name:"تدريب إعلامي",price:1400,desc:"تتعلم تتعامل مع الصحافة وتختار كلماتك بدون ما تضر صورتك أو علاقتك بالمدرب.",effect:"احترافية +5 • سمعة إعلامية +8 • يقلل ضرر التصريحات المثيرة للجدل"},
  {id:"creatorStudio",category:"life",icon:"📱",name:"استوديو محتوى شخصي",price:2500,desc:"تطوّر حضورك الرقمي وتستفيد من الأداء الجيد لبناء جمهور أكبر.",effect:"+25 متابع عند الشراء • متابعون إضافيون بعد مباريات النادي • عروض رعاية أعلى"},
  {id:"stylist",category:"life",icon:"🧥",name:"مستشار مظهر وإطلالة",price:1300,desc:"يحسّن صورتك العامة وظهورك الإعلامي من غير ما يغيّر مستواك داخل الملعب.",effect:"سمعة إعلامية +10 • +15 متابع • عروض رعاية أفضل"},
- {id:"charityFoundation",category:"life",icon:"🤝",name:"مبادرة مجتمعية",price:2200,desc:"تستثمر جزءًا من دخلك في مبادرة محلية، فتقوي صورتك المهنية وعلاقتك بالفريق.",effect:"احترافية +5 • انسجام الفريق +8 • أثر أقوى لدعم الزملاء"}
+ {id:"charityFoundation",category:"life",icon:"🤝",name:"مبادرة مجتمعية",price:2200,desc:"تستثمر جزءًا من دخلك في مبادرة محلية، فتقوي صورتك المهنية وعلاقتك بالفريق.",effect:"احترافية +5 • انسجام الفريق +8 • أثر أقوى لدعم الزملاء"},
+ {id:"xpMultiplier",category:"development",icon:"📈",name:"مضاعف الخبرة التدريبي",price:4500,desc:"استثمار دائم يرفع حصيلة الخبرة من كل حصة تدريبية دون شراء نقاط تقييم جاهزة.",effect:"خبرة التدريب +25% بشكل دائم"},
+ {id:"recoveryBoost",category:"recovery",icon:"🧊",name:"برنامج الاستشفاء السريع",price:3200,desc:"برنامج تعافٍ متقدم يساعدك على استعادة طاقة إضافية مع مرور أيام المسيرة.",effect:"+3 طاقة إضافية لكل يوم داخل المسيرة"}
 ];
 let activeShopCategory="all";
 function shopCategoryName(category){
@@ -3543,7 +3566,7 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
  const wages=Math.max(0,newWeek-oldWeek);if(wages&&state.weeklyWage>0){state.money+=wages*(Number(state.weeklyWage)||0);log(`استلمت ${wages} مرتب أسبوعي أثناء ${reason}: ${wages*(Number(state.weeklyWage)||0)}.`);}
- const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
+ const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(state.recoveryBoost?3:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
  state.energy=clamp(state.energy+n*dailyRecovery);
  state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8)-n*(state.sleepCoach?2:0)-(options.rest&&state.physio?n*3:0)-(options.rest&&state.recoveryRoom?n*2:0));
  state.injuryDays=Math.max(0,(state.injuryDays||0)-n-(options.rest&&state.physio?n:0));if(!state.injuryDays)state.injuryName="";
@@ -3940,6 +3963,19 @@ function renderWorldAIDashboard(){
  if(!box||!window.LWWorldAI)return;
  if(!state.worldSimulation){
   if(state.careerStarted)scheduleWorldSimulationInitialization();
+  const catalogDb=window.LWWorldDB;
+  const catalogClubs=typeof catalogDb?.clubs==="function"?(catalogDb.clubs()||[]):[];
+  const catalogPlayers=catalogClubs.reduce((sum,club)=>sum+(Array.isArray(club.players)?club.players.length:0),0);
+  setText("worldAIHomeTeams",catalogClubs.length);
+  setText("worldAIHomePlayers",catalogPlayers);
+  setText("worldAITotalClubs",catalogClubs.length);
+  setText("worldAITotalPlayers",catalogPlayers);
+  setText("worldAIHomeMoves",0);
+  setText("worldAIMarketMoves",0);
+  setText("worldAIHomeStatus","كتالوج الأندية جاهز");
+  setText("worldAIHomePulse","تم تحميل كتالوج الأندية واللاعبين. محاكاة الانتقالات والتطور الموسمي تبدأ مع المسيرة.");
+  setText("worldAIOverallSummary","الكتالوج الحالي يضم "+catalogClubs.length+" ناديًا و"+catalogPlayers+" لاعبًا. تبدأ محاكاة الانتقالات والتطور الموسمي عند فتح المسيرة.");
+  setText("worldAISeasonTag","الكتالوج الأساسي • قبل بدء المسيرة");
   return;
  }
  const currentWorld=state.worldSimulation||null;
@@ -4215,7 +4251,10 @@ function render(){
   else if(action.startsWith("train-")){
    button.disabled=!!state.retired||Number(state.injuryDays)>0||!!state.playedToday||!!state.trainedToday;
    if(action==="train-goalkeeping"){
-    button.disabled=button.disabled||state.pos!=="حارس مرمى";
+    const isGoalkeeper=state.pos==="حارس مرمى";
+    button.hidden=!isGoalkeeper;
+    button.style.display=isGoalkeeper?"":"none";
+    button.disabled=button.disabled||!isGoalkeeper;
     button.title=state.pos!=="حارس مرمى"?"هذا التمرين متاح لمركز حارس المرمى فقط":"";
    }
   }else if(action==="coach")button.disabled=!!state.retired||!canUseDailyAction();

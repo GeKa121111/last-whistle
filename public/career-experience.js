@@ -479,7 +479,7 @@
       used ? "استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد قبل جلسة تانية." : "النشاط بيستهلك فرصة النشاط الجانبي لليوم؛ مش هتقدر تكرر الجلسات في نفس اليوم.");
   }
 
-
+  function doMentor(s, kind) {
     if (s.retired) return;
     var currentDay = Number(s.day) || 1;
     if (s.dailyActionUsed && Number(s.dailyActionDay) === currentDay) {

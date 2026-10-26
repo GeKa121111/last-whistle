@@ -362,10 +362,17 @@
     const performanceFactor = 0.72 + rating * 0.047;
     const potentialFactor = clamp(0.82 + (Number(state.playerPotential) - overall(state)) * 0.012, 0.68, 1.24);
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
-    const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
+    const baseXP = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
+    const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
+    const defensiveXP = Math.max(0, Number(data.defensiveXP) || Math.round(
+      (Number(matchStats.tackles) || 0) * 2 + (Number(matchStats.interceptions) || 0) * 2
+      + (Number(matchStats.saves) || 0) * 3
+      + (data.cleanSheet ? (state.pos === "حارس مرمى" ? 12 : 7) : 0)
+    ));
+    const xp = baseXP + defensiveXP;
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
-    const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
+    const gained = addTrainingXP(state, skill, Math.round((baseXP * 0.75 + defensiveXP * 0.35) * focusMultiplier));
     const milestones = [];
     if (qualifying) {
       for (const threshold of APPEARANCE_MILESTONES) {
@@ -380,7 +387,7 @@
         }
       }
     }
-    return { gained, skill, xp, levels, qualifying, milestones, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
+    return { gained, skill, xp, baseXP, defensiveXP, levels, qualifying, milestones, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
   }
 
   function hash(text) {

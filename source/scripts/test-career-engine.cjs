@@ -30,6 +30,24 @@ for (const [position, expected] of Object.entries(expectedPlans)) {
 }
 assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "goalkeeping"), 1.2);
 assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"), 1);
+const legacyOutfield = { pos: "جناح", age: 22, goalkeeping: 50, speed: 60, fitness: 60, physical: 55 };
+career.ensureState(legacyOutfield);
+assert.ok(legacyOutfield.goalkeeping >= 10 && legacyOutfield.goalkeeping <= 15, "legacy field-player goalkeeper stat must be capped at 10-15");
+const wingerAt30 = { pos: "جناح", age: 30, speed: 70, fitness: 70, physical: 60 };
+career.applySeasonAging(wingerAt30);
+assert.equal(wingerAt30.speed, 69, "wing speed should begin declining at 29");
+assert.equal(wingerAt30.fitness, 69, "wing fitness should decline from 30");
+const keeperAt30 = { pos: "حارس مرمى", age: 30, speed: 60, fitness: 70, physical: 55 };
+career.applySeasonAging(keeperAt30);
+assert.equal(keeperAt30.speed, 60, "goalkeepers should not get an early speed penalty");
+assert.equal(keeperAt30.fitness, 70, "goalkeepers should retain physical levels longer than wings");
+const centreBackAt34 = { pos: "قلب دفاع", age: 34, speed: 60, fitness: 70, physical: 65 };
+career.applySeasonAging(centreBackAt34);
+assert.equal(centreBackAt34.fitness, 69, "centre-back fitness decline should start later than a winger");
+const blockedMoney = { pos: "جناح", age: 25, money: 1000 };
+const blockedPurchase = career.purchaseItem(blockedMoney, { id: "ovrBoost", price: 100 });
+assert.equal(blockedPurchase.status, "direct-rating-purchase-disabled", "OVR cannot be bought directly");
+assert.equal(blockedMoney.money, 1000, "rejected OVR purchase must not consume money");
 
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);

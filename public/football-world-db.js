@@ -549,6 +549,47 @@
     }
     return players;
   }
+
+  var CONTINENTAL_RATING_FACTORS = Object.freeze({ UEFA: 1, CONMEBOL: 0.985, CAF: 0.955, AFC: 0.97, OFC: 0.94, FIFA: 1 });
+  function ratingProfileForLeague(item) {
+    item = item || {};
+    var league = leagueById(item.leagueId) || {};
+    var division = Math.max(1, Number(item.division) || 1);
+    var confederation = league.confederation || item.confederation || "FIFA";
+    var catalog = window.LWCatalog;
+    if (catalog && typeof catalog.ratingProfile === "function") {
+      try {
+        var sourced = catalog.ratingProfile(item.country || league.country, {
+          englishCountry: league.englishCountry, confederation: confederation,
+          leagueStrength: Number(league.strength) || 60, division: division
+        });
+        if (sourced && sourced.confederation) confederation = sourced.confederation;
+      } catch (_) { /* Keep the deterministic local fallback. */ }
+    }
+    var snapshotFactors = SQUAD_SNAPSHOT && SQUAD_SNAPSHOT.ratingNormalization && SQUAD_SNAPSHOT.ratingNormalization.factors || {};
+    var snapshotFactor = Number(snapshotFactors[confederation]);
+    var factor = Number.isFinite(snapshotFactor) && snapshotFactor > 0 ? Math.max(0.9, Math.min(1, snapshotFactor)) : (CONTINENTAL_RATING_FACTORS[confederation] || 0.97);
+    var strength = Math.max(35, Math.min(100, (Number(league.strength) || 60) - (division >= 2 ? 18 : 0)));
+    return { confederation: confederation, coefficient: factor, leagueStrength: strength,
+      baseline: 52 + strength * 0.12, division: division, source: catalog && typeof catalog.ratingProfile === "function" ? "global-catalog+league-profile" : "league-profile-fallback" };
+  }
+  function normalizeRating(value, profile) {
+    profile = profile || {};
+    var raw = Math.max(35, Math.min(99, Number(value) || 60));
+    var baseline = Number.isFinite(Number(profile.baseline)) ? Number(profile.baseline) : 60;
+    var factor = Math.max(0.9, Math.min(1, Number(profile.coefficient) || 0.97));
+    return Math.round(Math.max(35, Math.min(99, baseline + (raw - baseline) * factor)));
+  }
+  function normalizedPlayer(player, profile) {
+    var copy = Object.assign({}, player);
+    var base = Number(copy.baseOvr != null ? copy.baseOvr : copy.ovr);
+    if (!Number.isFinite(base)) base = 60;
+    copy.baseOvr = base;
+    copy.normalizedOvr = normalizeRating(base, profile);
+    copy.continentalRatingFactor = Number(profile.coefficient) || 0.97;
+    copy.ratingNormalizationSource = profile.source || "league-profile-fallback";
+    return copy;
+  }
   function normalizeClub(item) {
     var profile = leagueById(item.leagueId);
     var division = Math.max(1, Number(item.division) || 1);
@@ -557,15 +598,18 @@
       ? item.fullRoster.map(function (player) { return Object.assign({}, player); })
       : buildPlayerRecords(item);
     var curatedNames = (item.stars || []).slice();
+    var ratingProfile = ratingProfileForLeague(item);
     var rosterSource = item.rosterSource || "";
     if (!hasCurrentRoster && players.length < 25) {
       players = generatedBackupRecords(item, players);
       if (!rosterSource) rosterSource = curatedNames.length ? "curated highlights + generated in-game backups" : "generated in-game squad; no verified full-roster source";
     }
+    players = players.map(function (player) { return normalizedPlayer(player, ratingProfile); });
     return {name:item.name,aliases:(item.aliases || []).slice(),country:item.country,leagueId:item.leagueId,division:division,
       leagueName:profile ? (division >= 2 ? profile.tier2 : profile.league) : "",
       leagueEnglish:profile ? (division >= 2 ? profile.tier2English : profile.english) : "",
-      ovr:item.ovr,prestige:item.prestige,stars:curatedNames.length ? curatedNames : (hasCurrentRoster ? players.map(function (player) { return player.name; }) : curatedNames),
+      ovr:item.ovr,baseOvr:item.ovr,normalizedOvr:normalizeRating(item.ovr, ratingProfile),continentalRatingFactor:ratingProfile.coefficient,
+      ratingNormalizationSource:ratingProfile.source,prestige:item.prestige,stars:curatedNames.length ? curatedNames : (hasCurrentRoster ? players.map(function (player) { return player.name; }) : curatedNames),
       players:players,season:SEASON,ratingType:"simulation-estimate",
       rosterStatus:hasCurrentRoster ? "current-squad" : curatedNames.length ? "curated-highlights+generated-backups" : "generated-squad",
       rosterSource:rosterSource,sourceUrl:item.sourceUrl || ""};
@@ -686,6 +730,7 @@
     }); },
     competitionsForCountry:competitionsForCountry,simulationCupDefinitions:simulationCupDefinitions,
     profileForClub:function (name) { var item=findClub(name);return item?profileSummary(item.country):null; },
-    clubPower:function (name,country) { var item=findClub(name,country);return item?item.ovr:null; },normalize:normalize
+    clubPower:function (name,country) { var item=findClub(name,country);if(!item)return null;return normalizeRating(item.ovr,ratingProfileForLeague(item)); },
+    ratingProfileForLeague:ratingProfileForLeague,normalizeRating:normalizeRating,continentalRatingFactors:CONTINENTAL_RATING_FACTORS,normalize:normalize
   };
 })();

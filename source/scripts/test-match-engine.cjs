@@ -29,6 +29,23 @@ assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
   "the mobile forward must contribute more to chance creation than the centre striker");
 assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
   "the centre striker must receive a distinct finishing advantage");
+// Compare actual event outcomes, not just the role configuration. A centre striker
+// should receive more individual goal credit than an otherwise identical mobile forward.
+const productionBase = {
+  role: "أساسي", name: "هداف الاختبار", shooting: 82, composure: 80,
+  dribbling: 70, speed: 72, vision: 68, passing: 65, physical: 75,
+  fitness: 90, trust: 85, energy: 95, fatigue: 5
+};
+let mobileForwardGoals = 0;
+let centreStrikerGoals = 0;
+for (let seed = 1; seed <= 500; seed += 1) {
+  const common = { seed, home: true, teamPower: 72, opponentPower: 68, player: productionBase };
+  mobileForwardGoals += engine.simulateMatch({ ...common, player: { ...productionBase, position: "مهاجم" } }).stats.goals;
+  centreStrikerGoals += engine.simulateMatch({ ...common, player: { ...productionBase, position: "رأس حربة" } }).stats.goals;
+}
+assert.ok(centreStrikerGoals > mobileForwardGoals,
+  "across a seeded season-sized sample, a centre striker must score more than an identical mobile forward");
+
 let tested = 0;
 for (const position of positions) {
   for (let seed = 1; seed <= 250; seed += 1) {

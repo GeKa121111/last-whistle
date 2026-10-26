@@ -686,6 +686,9 @@ async function main() {
       state.seasonGoals = 0;
       state.seasonAssists = 0;
       state.seasonPoints = 0;
+      state.calendarEvents = [];
+      state.playedToday = false;
+      state.trainedToday = false;
       state.lastLeagueMatchCalendarDay = 0;
       state.winterBreakPending = false;
       state.seasonPhase = "firstHalf";
@@ -701,13 +704,31 @@ async function main() {
         && title && title.textContent.includes("محاكاة الموسم");
     }, null, { timeout: 10000 });
     await page.locator("#modalChoices button").filter({ hasText: "ابدأ الموسم" }).click();
-    await page.waitForFunction(() => {
-      const state = window.LWStoryRuntime.getState();
-      const title = document.querySelector("#modalTitle");
-      return state.winterBreakPending === true
-        && Number(state.seasonApps) >= Math.ceil((Number(state.seasonAppsTarget) || 34) / 2)
-        && title && title.textContent.includes("ملخص منتصف الموسم");
-    }, null, { timeout: 30000 });
+    try {
+      await page.waitForFunction(() => {
+        const state = window.LWStoryRuntime.getState();
+        const title = document.querySelector("#modalTitle");
+        return state.winterBreakPending === true
+          && Number(state.seasonApps) >= Math.ceil((Number(state.seasonAppsTarget) || 34) / 2)
+          && title && title.textContent.includes("ملخص منتصف الموسم");
+      }, null, { timeout: 30000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        const title = document.querySelector("#modalTitle");
+        return {
+          calendarDay: Number(state.calendarDay) || 0,
+          seasonApps: Number(state.seasonApps) || 0,
+          seasonAppsTarget: Number(state.seasonAppsTarget) || 0,
+          seasonPhase: state.seasonPhase || "",
+          winterBreakPending: !!state.winterBreakPending,
+          lastLeagueMatchCalendarDay: Number(state.lastLeagueMatchCalendarDay) || 0,
+          pendingCalendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents.length : 0,
+          modalTitle: title?.textContent || ""
+        };
+      });
+      throw new Error("Season did not reach winter break: " + JSON.stringify(diagnostic) + "; " + error.message);
+    }
     results.push("first-half simulation reaches the winter break");
 
     await page.locator("#modalChoices button").filter({ hasText: "راجع انتقالات الشتاء" }).click();

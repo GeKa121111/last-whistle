@@ -3242,11 +3242,23 @@ function transferWage(target){
  return target?.currency==="ج.م"?Math.max(250,Math.round(350+power*28+ovr*12)):Math.max(80,Math.round(80+power*18+ovr*10));
 }
 function transferPlayerProfile(){
+ const rating=Number(transferAverageRating())||6.1;
+ const rows=(Array.isArray(state.seasonLog)?state.seasonLog:[]).filter(row=>row&&Number(row.minutes)>0);
+ const defensive=rows.reduce((tot,row)=>{
+  const stats=row.stats||{};
+  tot.tackles+=Number(stats.tackles)||0;
+  tot.interceptions+=Number(stats.interceptions)||0;
+  tot.saves+=Number(stats.saves)||0;
+  tot.cleanSheets+=stats.cleanSheet?1:0;
+  tot.minutes+=Number(row.minutes)||0;
+  return tot;
+ },{tackles:0,interceptions:0,saves:0,cleanSheets:0,minutes:0});
  return {name:String(state.name||"اللاعب"),age:Number(state.age)||18,position:String(state.pos||"غير محدد"),
   ovr:overall(),potential:Number(state.playerPotential)||60,role:String(state.role||"بديل"),
   country:String(state.leagueCountry||"مصر"),currentClub:String(state.clubName||""),
-  currentClubPower:Number(state.clubPower)||52,form:Number(transferAverageRating())||6.1,
+  currentClubPower:Number(state.clubPower)||52,form:rating,averageRating:rating,minutes:defensive.minutes,
   appearances:Number(state.apps)||0,goals:Number(state.seasonGoals)||0,assists:Number(state.seasonAssists)||0,
+  tackles:defensive.tackles,interceptions:defensive.interceptions,saves:defensive.saves,cleanSheets:defensive.cleanSheets,
   trust:Number(state.trust)||0};
 }
 function ensureTransferOffers(){

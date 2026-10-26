@@ -110,12 +110,17 @@ simulatedSeason.state.seasonTrainingReport = {
   plannedSessions: 10, manualSessions: 0, simulatedSessions: 0
 };
 const startingOverall = simulatedSeason.overall();
+const firstHalfTrainingTrace = [];
 for (let apps = 1; apps <= 11; apps++) {
   simulatedSeason.state.seasonApps = apps;
-  simulatedSeason.runSeasonAITTrainingOnSimulationProgress();
+  firstHalfTrainingTrace.push(simulatedSeason.runSeasonAITTrainingOnSimulationProgress());
 }
 assert.equal(simulatedSeason.state.seasonTrainingReport.sessions, 5,
-  "the first half of a season should deliver its scheduled portion of AI training");
+  "the first half of a season should deliver its scheduled portion of AI training; trace="
+    + JSON.stringify({ trace: firstHalfTrainingTrace, report: simulatedSeason.state.seasonTrainingReport,
+      trainingSessions: simulatedSeason.state.trainingSessions, shooting: simulatedSeason.state.shooting,
+      composure: simulatedSeason.state.composure, age: simulatedSeason.state.age, energy: simulatedSeason.state.energy,
+      fatigue: simulatedSeason.state.fatigue, injuryDays: simulatedSeason.state.injuryDays }));
 assert.equal(simulatedSeason.state.seasonTrainingReport.simulatedSessions, 5,
   "progressively simulated training sessions must be tracked separately from manual sessions");
 assert.ok(simulatedSeason.overall() > startingOverall,

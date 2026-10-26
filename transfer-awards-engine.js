@@ -467,13 +467,18 @@
     const goals = Math.max(0, Number(player.goals) || 0);
     const assists = Math.max(0, Number(player.assists) || 0);
     const cleanSheets = Math.max(0, Number(player.cleanSheets) || 0);
+    const tackles = Math.max(0, Number(player.tackles) || 0);
+    const interceptions = Math.max(0, Number(player.interceptions) || 0);
+    const saves = Math.max(0, Number(player.saves) || 0);
     const strength = clamp(player.leagueStrength || 60, 25, 100);
     const participation = clamp(minutes / Math.max(1, apps * 90), 0, 1);
     const role = roleType(player.position);
+    const defensiveWork = Math.min(30, tackles) * .22 + Math.min(30, interceptions) * .3;
+    // Position-aware performance: defensive actions matter even without goals or assists.
     const contribution = role === "attacker" ? goals * 1.05 + assists * .72
-      : role === "midfielder" ? goals * .9 + assists * .95
-      : role === "defender" ? goals * .55 + assists * .6 + cleanSheets * .32
-      : goals * .2 + cleanSheets * .55;
+      : role === "midfielder" ? goals * .9 + assists * .95 + defensiveWork * .55
+      : role === "defender" ? goals * .55 + assists * .6 + cleanSheets * .42 + defensiveWork
+      : goals * .2 + cleanSheets * .65 + Math.min(70, saves) * .12 + Math.min(12, interceptions) * .08;
     const sampleFactor = clamp(apps / 18, .35, 1);
     return Number(clamp((rating * 6.2 + contribution * .42 + strength * .075 + participation * 7) * sampleFactor, 0, 100).toFixed(2));
   }

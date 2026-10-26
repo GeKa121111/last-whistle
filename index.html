@@ -795,7 +795,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 }
 </style>
 <link rel="stylesheet" href="./redesign.css?v=5">
-<script src="./football-world-ai.js?v=10"></script>
+<script src="./football-world-ai.js?v=11"></script>
 </head>
 <body>
 
@@ -4464,64 +4464,140 @@ function chooseSeasonTrainingFocus(){
  });
  return eligible[0]?.skill||"";
 }
-function runSeasonAITtraining(){
- const career=window.LWCareer;
- if(!career||typeof career.train!=="function"||state.retired)return null;
- if(Number(state.seasonApps)<seasonMatchTotal())return {skipped:"season-incomplete"};
- ensureSeasonDevelopmentSnapshot();
- const currentSeason=Math.max(1,Number(state.season)||1);
- const report=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"
-  ?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0,completed:false};
- report.skills=report.skills&&typeof report.skills==="object"?report.skills:{};
- report.sessions=Math.max(0,Number(report.sessions)||0);
- report.xp=Math.max(0,Number(report.xp)||0);
- report.injuries=Math.max(0,Number(report.injuries)||0);
- if(report.completed&&Number(report.completedSeason)===currentSeason)return {skipped:"already-complete",sessions:report.sessions};
+function calculateSeasonAITTrainingTargetSessions(){
  const age=Math.max(12,Number(state.age)||17);
  const potential=clamp(Number(state.playerPotential)||82,65,97);
  const potentialGap=potential-overall();
  const ageBonus=age<=15?4:age<=18?3:age<=21?2:age<=27?1:0;
  const potentialBonus=potentialGap>=20?2:potentialGap>=10?1:0;
  const injuryPenalty=Math.min(4,Math.ceil(Math.max(0,Number(state.injuryDays)||0)/7));
- const targetSessions=Math.max(0,Math.min(16,Math.round(Math.max(1,seasonMatchTotal())*.28)+ageBonus+potentialBonus-(age>=30?2:0)-injuryPenalty));
+ return Math.max(0,Math.min(16,Math.round(Math.max(1,seasonMatchTotal())*.28)
+  +ageBonus+potentialBonus-(age>=30?2:0)-injuryPenalty));
+}
+function seasonAITTrainingTargetSessions(report){
+ if(!report||typeof report!=="object")return calculateSeasonAITTrainingTargetSessions();
+ if(Number(report.planVersion)===2&&Number.isFinite(Number(report.plannedSessions))){
+  return Math.max(0,Math.min(16,Math.round(Number(report.plannedSessions))));
+ }
+ report.plannedSessions=calculateSeasonAITTrainingTargetSessions();
+ report.planVersion=2;
+ return report.plannedSessions;
+}
+function currentSeasonAITTrainingCounts(report){
  const seasonStartSessions=Math.max(0,Number(state.seasonDevelopmentSnapshot?.sessions)||0);
  const seasonSessions=Math.max(0,(Number(state.trainingSessions)||0)-seasonStartSessions);
- const alreadyAutomated=Math.min(seasonSessions,report.sessions);
- const manualSessions=Math.max(0,seasonSessions-alreadyAutomated);
- const remaining=Math.max(0,targetSessions-manualSessions-alreadyAutomated);
- const original={energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,injuryName:state.injuryName,playedToday:state.playedToday,trainedToday:state.trainedToday,trainingIntensity:state.trainingIntensity};
- let lastFocus="",errorMessage="";
+ const automatedSessions=Math.min(seasonSessions,Math.max(0,Number(report?.sessions)||0));
+ return {seasonSessions,automatedSessions,manualSessions:Math.max(0,seasonSessions-automatedSessions)};
+}
+function runOneSeasonAITTrainingSession(report){
+ const career=window.LWCareer;
+ if(!career||typeof career.train!=="function")return {ok:false,skipped:"training-unavailable"};
+ if(report.noEligibleSkill)return {ok:false,skipped:"no-eligible-skill"};
+ const focus=chooseSeasonTrainingFocus();
+ if(!focus){report.noEligibleSkill=true;return {ok:false,skipped:"no-eligible-skill"};}
+ const original={energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,
+  injuryName:state.injuryName,playedToday:state.playedToday,trainedToday:state.trainedToday,
+  trainingIntensity:state.trainingIntensity};
  try{
-  for(let i=0;i<remaining;i++){
-   const focus=chooseSeasonTrainingFocus();
-   if(!focus)break;
-   // Each annual session represents a separate training day with recovery, not a same-day exploit.
-   state.energy=90;state.fatigue=18;state.injuryDays=0;state.injuryName="";
-   state.playedToday=false;state.trainedToday=false;state.trainingIntensity="normal";
-   const result=career.train(state,focus,{random:()=>0.999999});
-   if(!result?.ok)break;
-   report.sessions++;
-   report.skills[focus]=(Number(report.skills[focus])||0)+1;
-   report.xp+=Number(result.xp)||0;
-   if(result.injured)report.injuries++;
-   report.lastFocus=focus;lastFocus=focus;
+  // A simulated session gets its own recovered training-day context. Preserve the
+  // player's real match-day condition afterward; the session still updates skills,
+  // training XP, career XP, session totals and the seasonal development report.
+  state.energy=90;state.fatigue=18;state.injuryDays=0;state.injuryName="";
+  state.playedToday=false;state.trainedToday=false;state.trainingIntensity="normal";
+  const result=career.train(state,focus,{random:()=>0.999999});
+  if(!result?.ok)return {ok:false,skipped:result?.message||"training-rejected"};
+  report.sessions=Math.max(0,Number(report.sessions)||0)+1;
+  report.skills=report.skills&&typeof report.skills==="object"?report.skills:{};
+  report.skills[focus]=(Number(report.skills[focus])||0)+1;
+  report.xp=Math.max(0,Number(report.xp)||0)+(Number(result.xp)||0);
+  report.injuries=Math.max(0,Number(report.injuries)||0)+(result.injured?1:0);
+  report.lastFocus=focus;
+  return {ok:true,focus,xp:Number(result.xp)||0,gain:Number(result.gain)||0,injured:!!result.injured};
+ }catch(error){
+  return {ok:false,error:String(error?.message||error)};
+ }finally{
+  Object.assign(state,original);
+ }
+}
+function runSeasonAITTrainingOnSimulationProgress(){
+ const career=window.LWCareer;
+ if(!career||typeof career.train!=="function"||state.retired)return null;
+ if(state.seasonFinished)return {skipped:"season-finished"};
+ if(Number(state.seasonApps)<=0)return {skipped:"no-appearances-yet"};
+ ensureSeasonDevelopmentSnapshot();
+ const currentSeason=Math.max(1,Number(state.season)||1);
+ const report=state.seasonTrainingReport;
+ if(report.completed&&Number(report.completedSeason)===currentSeason)return {skipped:"already-complete",sessions:report.sessions};
+ const targetSessions=seasonAITTrainingTargetSessions(report);
+ const counts=currentSeasonAITTrainingCounts(report);
+ const totalMatches=Math.max(1,seasonMatchTotal());
+ const progress=clamp((Number(state.seasonApps)||0)/totalMatches,0,1);
+ const sessionsDueByProgress=Math.floor(targetSessions*progress+1e-9);
+ const desiredAutomatedSessions=Math.max(0,Math.min(targetSessions-counts.manualSessions,
+  sessionsDueByProgress-counts.manualSessions));
+ if(Number(report.sessions)>=desiredAutomatedSessions)return {skipped:"not-due",sessions:report.sessions,
+  plannedSessions:targetSessions,progress:Math.round(progress*100)};
+ // Postpone a session during injury or very low readiness; later recovery rounds
+ // may deliver the planned session without forcing fatigue into the next match.
+ if(Number(state.injuryDays)>0||Number(state.energy)<25||Number(state.fatigue)>=85)
+  return {skipped:"recovery-required",sessions:report.sessions,plannedSessions:targetSessions};
+ const result=runOneSeasonAITTrainingSession(report);
+ if(result.ok){
+  report.simulatedSessions=Math.max(0,Number(report.simulatedSessions)||0)+1;
+  report.lastSimulatedAtAppearance=Number(state.seasonApps)||0;
+  report.manualSessions=counts.manualSessions;
+ }
+ return {...result,sessions:report.sessions,plannedSessions:targetSessions,progress:Math.round(progress*100)};
+}
+function runSeasonAITtraining(){
+ const career=window.LWCareer;
+ if(!career||typeof career.train!=="function"||state.retired)return null;
+ if(Number(state.seasonApps)<seasonMatchTotal())return {skipped:"season-incomplete"};
+ ensureSeasonDevelopmentSnapshot();
+ const currentSeason=Math.max(1,Number(state.season)||1);
+ const report=state.seasonTrainingReport;
+ if(report.completed&&Number(report.completedSeason)===currentSeason)return {skipped:"already-complete",sessions:report.sessions};
+ const targetSessions=seasonAITTrainingTargetSessions(report);
+ const counts=currentSeasonAITTrainingCounts(report);
+ const manualSessions=counts.manualSessions;
+ const remaining=Math.max(0,targetSessions-manualSessions-counts.automatedSessions);
+ let lastFocus="",errorMessage="";
+ for(let i=0;i<remaining;i++){
+  const result=runOneSeasonAITTrainingSession(report);
+  if(!result?.ok){
+   if(result?.error)errorMessage=result.error;
+   break;
   }
- }catch(error){errorMessage=String(error?.message||error);}
- finally{Object.assign(state,original);}
+  lastFocus=result.focus||lastFocus;
+ }
  report.plannedSessions=targetSessions;
  report.manualSessions=manualSessions;
  report.completed=true;
  report.completedSeason=currentSeason;
  if(errorMessage)report.error=errorMessage;
  state.seasonTrainingReport=report;
- return {ok:!errorMessage,sessions:report.sessions,plannedSessions:targetSessions,manualSessions,lastFocus,error:errorMessage};
+ return {ok:!errorMessage,sessions:report.sessions,plannedSessions:targetSessions,manualSessions,
+  simulatedSessions:Number(report.simulatedSessions)||0,lastFocus:lastFocus||report.lastFocus||"",error:errorMessage};
 }
 function ensureSeasonDevelopmentSnapshot(){
- if(state.seasonDevelopmentSnapshot&&Number(state.seasonDevelopmentSnapshot.season)===Number(state.season))return;
- const skills=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"],attributes={};
- skills.forEach(key=>attributes[key]=Number(state[key])||0);
- state.seasonDevelopmentSnapshot={season:Number(state.season)||1,ovr:overall(),attributes,sessions:Number(state.trainingSessions)||0};
- state.seasonTrainingReport={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,completed:false};
+ const currentSeason=Math.max(1,Number(state.season)||1);
+ if(!state.seasonDevelopmentSnapshot||Number(state.seasonDevelopmentSnapshot.season)!==currentSeason){
+  const skills=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"],attributes={};
+  skills.forEach(key=>attributes[key]=Number(state[key])||0);
+  state.seasonDevelopmentSnapshot={season:currentSeason,ovr:overall(),attributes,sessions:Number(state.trainingSessions)||0};
+  state.seasonTrainingReport={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,
+   simulatedSessions:0,completed:false,planVersion:0};
+ }
+ let report=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"?state.seasonTrainingReport:null;
+ if(!report)report={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,
+  simulatedSessions:0,completed:false,planVersion:0};
+ report.skills=report.skills&&typeof report.skills==="object"?report.skills:{};
+ report.sessions=Math.max(0,Number(report.sessions)||0);
+ report.xp=Math.max(0,Number(report.xp)||0);
+ report.injuries=Math.max(0,Number(report.injuries)||0);
+ report.simulatedSessions=Math.max(0,Number(report.simulatedSessions)||0);
+ seasonAITTrainingTargetSessions(report);
+ state.seasonTrainingReport=report;
 }
 function simulateSeasonBlock(targetApps){
  if(reconcileWinterBreakState())saveGame(true);
@@ -4536,7 +4612,7 @@ function simulateSeasonBlock(targetApps){
   let fixture=round.find(pair=>Array.isArray(pair)&&pair.includes(ours));
   if(!fixture){
    // Odd-sized league: the player has a bye, but the other fixtures still count.
-   simulateOtherFixtures(roundIndex,null);recordLeagueByeRound(roundIndex);state.leagueRoundIndex=roundIndex+1;state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;advanceCalendarDays(1,"استشفاء خلال أسبوع الراحة");advanceCalendarDays(4,"استشفاء قبل الجولة التالية");simulated++;continue;
+   simulateOtherFixtures(roundIndex,null);recordLeagueByeRound(roundIndex);state.leagueRoundIndex=roundIndex+1;state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;advanceCalendarDays(1,"استشفاء خلال أسبوع الراحة");advanceCalendarDays(4,"استشفاء قبل الجولة التالية");runSeasonAITTrainingOnSimulationProgress();simulated++;continue;
   }
   const opponent=fixture.find(name=>name!==ours),opponentTeam=state.league.find(team=>team.name===opponent);if(!opponent||!opponentTeam)break;
   // Keep calendar, recovery and wages in sync with manual fixtures, including a
@@ -4555,7 +4631,7 @@ function simulateSeasonBlock(targetApps){
   const injuryText=result.player.injuryDays?` إصابة ${result.player.injuryDays} يوم.`:"";
   simulated++;
   // AI-managed development: one position-specific training day, followed by recovery before the next fixture.
-  advanceCalendarDays(1,"استشفاء بعد المباراة");advanceCalendarDays(4,"استشفاء وتجهيز للمباراة التالية");
+  advanceCalendarDays(1,"استشفاء بعد المباراة");advanceCalendarDays(4,"استشفاء وتجهيز للمباراة التالية");runSeasonAITTrainingOnSimulationProgress();
   if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&state.seasonPhase==="firstHalf"&&state.seasonApps>=seasonMidpoint()&&state.seasonApps<seasonMatchTotal()&&!state.winterBreakPending){state.seasonPhase="winterBreak";state.winterBreakPending=true;state.journeyTransferReviewed=false;setStory("وصلنا لنص الموسم",`خلصت أول ${state.seasonApps} مباريات ووصلنا لنافذة يناير. راجع السوق أو قرر الاستمرار قبل النصف التاني.`);log("وصلت لنقطة التوقف الشتوية داخل نافذة يناير الطبيعية.");break;}
   if(injuryText)log(`${state.name} سيغيب ${result.player.injuryDays} يومًا بعد المباراة.`);
  }
@@ -4729,7 +4805,7 @@ function finishSeason(){
   const changes=keys.map(key=>({key,delta:(Number(state[key])||0)-(Number(dev.attributes?.[key])||0)})).filter(row=>row.delta>0).sort((a,b)=>b.delta-a.delta);
   const labels={shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",defending:"الدفاع",goalkeeping:"حراسة المرمى",vision:"الرؤية",physical:"القوة البدنية"};
   const delta=overall()-(Number(dev.ovr)||overall());
-  developmentNote="\n\nتقرير تطور اللاعب بالـ AI: التقييم العام "+dev.ovr+" ← "+overall()+" ("+(delta>=0?"+":"")+delta+"). حصص التدريب التلقائية: "+(Number(training?.sessions)||0)+"، خبرة تدريب: "+(Number(training?.xp)||0)+". "+(changes.length?"أبرز التحسينات: "+changes.slice(0,4).map(row=>labels[row.key]+" +"+row.delta).join("، ")+".":"لم ترتفع المهارات الأساسية نقطة كاملة خلال هذا الموسم.")+(Number(training?.sessions)>0?" الخطة الآلية اتحددت حسب المركز والإمكانات والجاهزية.":" التغيرات محسوبة مقارنة ببداية الموسم.");
+  developmentNote="\n\nتقرير تطور اللاعب بالـ AI: التقييم العام "+dev.ovr+" ← "+overall()+" ("+(delta>=0?"+":"")+delta+"). حصص التدريب المحاكاة أثناء الموسم: "+(Number(training?.simulatedSessions)||0)+" من إجمالي "+(Number(training?.sessions)||0)+"، خبرة تدريب: "+(Number(training?.xp)||0)+". "+(changes.length?"أبرز التحسينات: "+changes.slice(0,4).map(row=>labels[row.key]+" +"+row.delta).join("، ")+".":"لم ترتفع المهارات الأساسية نقطة كاملة خلال هذا الموسم.")+(Number(training?.sessions)>0?" الخطة الآلية اتحددت حسب المركز والإمكانات والجاهزية.":" التغيرات محسوبة مقارنة ببداية الموسم.");
   state.seasonDevelopmentHistory=Array.isArray(state.seasonDevelopmentHistory)?state.seasonDevelopmentHistory:[];
   if(!state.seasonDevelopmentHistory.some(row=>Number(row.season)===Number(state.season))){
    state.seasonDevelopmentHistory.unshift({season:Number(state.season),ovrBefore:dev.ovr,ovrAfter:overall(),sessions:Number(training?.sessions)||0,xp:Number(training?.xp)||0,skills:changes.slice(0,10),injuries:Number(training?.injuries)||0});

@@ -20,7 +20,13 @@ vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
-const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم"];
+const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+const mobileForwardProfile = engine.positionProfile("مهاجم");
+const centreStrikerProfile = engine.positionProfile("رأس حربة");
+assert.ok(centreStrikerProfile.shooter > mobileForwardProfile.shooter,
+  "the centre striker must have a stronger goal-threat profile than the mobile forward");
+assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
+  "the mobile forward must contribute more to chance creation than the centre striker");
 let tested = 0;
 for (const position of positions) {
   for (let seed = 1; seed <= 250; seed += 1) {

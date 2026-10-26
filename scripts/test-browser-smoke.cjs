@@ -674,10 +674,6 @@ async function main() {
       state.academyReserve = false;
       state.academyGraduationPending = false;
       state.academyGraduated = true;
-      // Start so the 17th simulated match itself lands inside the natural January window.
-      // The window check happens before the five-day post-match recovery advance.
-      state.calendarDay = 104;
-      state.day = Math.max(Number(state.day) || 1, 100);
       // Isolate this season-lifecycle test from matches played by earlier smoke fixtures.
       state.seasonApps = 0;
       state.leagueApps = 0;
@@ -687,6 +683,11 @@ async function main() {
         ? state.league.length
         : 12;
       state.seasonAppsTarget = Math.max(2, 2 * (fixtureLeagueCount - 1));
+      // simulateSeasonBlock checks the winter window after 5 days of match recovery.
+      // Place the midpoint fixture on calendar day 184 (start of the natural winter window).
+      const fixtureMidpoint = Math.ceil(state.seasonAppsTarget / 2);
+      state.calendarDay = 184 - Math.max(0, fixtureMidpoint - 1) * 5;
+      state.day = Math.max(Number(state.day) || 1, 100);
       state.leagueRoundIndex = 0;
       state.leagueRoundHistory = [];
       state.seasonGoals = 0;

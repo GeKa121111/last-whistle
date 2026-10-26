@@ -10,7 +10,8 @@
     "وسط دفاعي": ["defending", "passing"],
     "وسط مهاجم": ["passing", "vision"],
     "جناح": ["speed", "dribbling"],
-    "مهاجم": ["shooting", "composure"]
+    "مهاجم": ["dribbling", "speed", "vision"],
+    "رأس حربة": ["shooting", "composure", "physical"]
   });
   const SKILL_LABELS = Object.freeze({
     goalkeeping: "حراسة المرمى", composure: "الهدوء", defending: "الدفاع",

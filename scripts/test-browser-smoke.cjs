@@ -678,6 +678,14 @@ async function main() {
       // The window check happens before the five-day post-match recovery advance.
       state.calendarDay = 104;
       state.day = Math.max(Number(state.day) || 1, 100);
+      // Isolate this season-lifecycle test from matches played by earlier smoke fixtures.
+      state.seasonApps = 0;
+      state.leagueApps = 0;
+      state.leagueRoundIndex = 0;
+      state.leagueRoundHistory = [];
+      state.seasonGoals = 0;
+      state.seasonAssists = 0;
+      state.seasonPoints = 0;
       state.lastLeagueMatchCalendarDay = 0;
       state.winterBreakPending = false;
       state.seasonPhase = "firstHalf";

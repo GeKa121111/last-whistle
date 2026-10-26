@@ -61,8 +61,8 @@ const poorFinishingRows = [0, 1, 2].map(() => ({
   minutes: 90, oppGoals: 1,
   stats: { shots: 4, shotsOnTarget: 1, keyPasses: 0, chances: 1, tackles: 0, interceptions: 0, saves: 0 }
 }));
-const striker = createSandbox("مهاجم", poorFinishingRows, { shooting: 75, composure: 70 }, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+const striker = createSandbox("رأس حربة", poorFinishingRows, { shooting: 75, composure: 70 }, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 });
 assert.equal(striker.seasonTrainingPerformanceFocus(), "shooting",
   "a striker with repeated low shot accuracy should focus on shooting");
@@ -80,15 +80,15 @@ assert.equal(defender.seasonTrainingPerformanceFocus(), "defending",
   "a centre-back with low tackle/interception output should focus on defending");
 
 const newPlayer = createSandbox("مهاجم", [], {}, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 });
 assert.equal(newPlayer.seasonTrainingPerformanceFocus(), "",
   "insufficient match history should preserve the normal position/potential training plan");
 
 // The whole-season plan runs once at season end, uses age/potential and position,
 // and restores match-day condition after applying the accumulated development.
-const annual = createSandbox("مهاجم", poorFinishingRows, { shooting: 75, composure: 70 }, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+const annual = createSandbox("رأس حربة", poorFinishingRows, { shooting: 75, composure: 70 }, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 });
 annual.state.seasonApps = 22;
 annual.state.seasonDevelopmentSnapshot = {
@@ -112,7 +112,7 @@ assert.equal(annual.state.seasonTrainingReport.completed, true, "the season repo
 assert.equal(annual.state.seasonTrainingReport.completedSeason, 1, "the report should be tied to the season just finished");
 
 const longSeason = createSandbox("مهاجم", poorFinishingRows, { shooting: 75, composure: 70 }, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 }, 38);
 longSeason.state.seasonApps = 38;
 const longSeasonResult = longSeason.runSeasonAITtraining();
@@ -122,7 +122,7 @@ assert.equal(longSeasonResult.sessions, longSeasonResult.plannedSessions,
   "the longer season must receive the entire planned workload when skills have headroom");
 
 const partlyManual = createSandbox("مهاجم", poorFinishingRows, { shooting: 75, composure: 70 }, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 });
 partlyManual.state.seasonApps = 22;
 partlyManual.state.trainingSessions = 5;
@@ -138,8 +138,8 @@ assert.equal(manualResult.sessions + manualResult.manualSessions, manualResult.p
 assert.equal(partlyManual.state.trainingSessions, manualResult.plannedSessions,
   "manual and automatic sessions must reconcile without double-counting");
 for (const key of Object.keys(originalCondition)) assert.equal(annual.state[key], originalCondition[key], "annual training must restore " + key);
-const incomplete = createSandbox("مهاجم", [], {}, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+const incomplete = createSandbox("رأس حربة", [], {}, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 });
 assert.equal(incomplete.runSeasonAITtraining().skipped, "season-incomplete", "the annual batch must not apply before the full season is complete");
 assert.equal(incomplete.state.trainingSessions, 0, "an incomplete season must not receive the annual AI training batch");
@@ -150,8 +150,8 @@ assert.equal(annual.state.seasonTrainingReport.sessions, completedSessions, "re-
 // A temporary exception after one successful annual session must not falsely
 // mark the report complete. A subsequent call must resume with the remaining
 // work and retain the already-applied session count.
-const flaky = createSandbox("مهاجم", poorFinishingRows, { shooting: 75, composure: 70 }, {
-  primary: ["shooting"], secondary: ["composure", "speed", "vision"]
+const flaky = createSandbox("رأس حربة", poorFinishingRows, { shooting: 75, composure: 70 }, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
 });
 flaky.state.seasonApps = 22;
 flaky.state.seasonDevelopmentSnapshot = {

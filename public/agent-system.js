@@ -202,12 +202,6 @@
   }
   function rel(s){return s&&s.agentProfile?cap(s.agentProfile.relationship,0,100):50;}
   function canUseAgent(s){return !!(s&&s.careerStarted&&!s.retired);}
-  function isExpired(s,p){return !!(p&&p.contractMode!=="open-ended"&&Number(s.season)>=Number(p.expiresSeason)&&Number(s.season)>Number(p.hiredSeason));}
-  function checkExpiry(s){
-    var p=s.agentProfile;if(!s.agent||!p||!isExpired(s,p))return false;
-    var name=p.name||"الوكيل";s.agent=false;s.agentProfile=null;
-    record(s,"انتهاء عقد الوكيل","انتهى اتفاق التمثيل مع "+name+" بعد اكتمال مدته. تقدر تختار وكيلًا جديدًا من صفحة العقد والانتقالات.");return true;
-  }
   function currentChapter(s){
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p||p.storyStage>=cfg.chapters.length)return null;
     var stage=Number(p.storyStage)||0,apps=Number(s.apps)||0;
@@ -459,7 +453,7 @@
   }
   function tick(){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
-    var changed=ensureState(s),expired=checkExpiry(s);if(expired)changed=true;
+    var changed=ensureState(s);
     if(s.agent&&renewRelationship(s))changed=true;
     if(ensurePanel())renderPanel(s);
     if(changed&&api.save)api.save();

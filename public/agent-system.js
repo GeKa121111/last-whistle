@@ -461,12 +461,12 @@
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
     var changed=ensureState(s),expired=checkExpiry(s);if(expired)changed=true;
     if(s.agent&&renewRelationship(s))changed=true;
-    var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
+    var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[0]:null;
     var snapshot=[
       s.careerStarted,s.agent,s.agentLead,s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
       s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
-      history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
+      history.length,latest&&latest.id,latest&&latest.type,latest&&latest.title,latest&&latest.text,latest&&latest.day,latest&&latest.season
     ].join("|");
     var ready=ensurePanel();
     if(ready&&(snapshot!==lastSnapshot||!panelWasRendered)){

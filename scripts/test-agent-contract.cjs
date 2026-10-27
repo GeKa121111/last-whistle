@@ -12,19 +12,28 @@ assert.ok(!source.includes("اتفاق جديد لمدة موسمين"), "agent-
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v72";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v73";'),
   "open-ended agent contracts must invalidate the old offline cache");
 
 const documentListeners = Object.create(null);
 const windowListeners = Object.create(null);
+let intervalCallback = null;
 const elements = new Map();
-const makeNode = id => ({
-  id: id || "", hidden: false, innerHTML: "", textContent: "", className: "",
-  setAttribute() {}, addEventListener() {}, focus() {},
-  insertAdjacentElement(_where, node) { elements.set(node.id, node); },
-  querySelector() { return makeNode("dialog-close"); },
-  appendChild(node) { elements.set(node.id, node); }
-});
+let innerHTMLWrites = 0;
+const makeNode = id => {
+  const node = {
+    id: id || "", hidden: false, textContent: "", className: "",
+    setAttribute() {}, addEventListener() {}, focus() {},
+    insertAdjacentElement(_where, child) { elements.set(child.id, child); },
+    querySelector() { return makeNode("dialog-close"); },
+    appendChild(child) { elements.set(child.id, child); }
+  };
+  Object.defineProperty(node, "innerHTML", {
+    get() { return node._innerHTML || ""; },
+    set(value) { innerHTMLWrites++; node._innerHTML = String(value); }
+  });
+  return node;
+};
 const contractGrid = makeNode("contract-grid");
 const document = {
   readyState: "loading",
@@ -64,13 +73,26 @@ const api = {
 const window = {
   LWStoryRuntime: api,
   addEventListener(type, callback) { windowListeners[type] = callback; },
-  setInterval() { return 1; }
+  setInterval(callback) { intervalCallback = callback; return 1; }
 };
 const context = { window, document, console };
 vm.createContext(context);
 vm.runInContext(source, context, { filename: "agent-system.js" });
 assert.ok(window.LWAgentRuntime, "agent runtime must initialize");
 for (const callback of documentListeners.DOMContentLoaded || []) callback();
+assert.equal(typeof intervalCallback, "function", "agent panel refresh must be scheduled");
+const initialPanelWrites = innerHTMLWrites;
+intervalCallback();
+assert.equal(innerHTMLWrites, initialPanelWrites,
+  "an unchanged agent snapshot must not rebuild the panel on every timer tick");
+state.agentLead = true;
+intervalCallback();
+assert.ok(innerHTMLWrites > initialPanelWrites,
+  "a visible career state change should refresh the agent panel");
+const updatedPanelWrites = innerHTMLWrites;
+intervalCallback();
+assert.equal(innerHTMLWrites, updatedPanelWrites,
+  "the panel must remain stable after the changed snapshot has been rendered");
 
 function click(action, agentId) {
   const button = {

@@ -2694,7 +2694,7 @@ const INITIAL = {
  schemaVersion:10,contractType:"professional",randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
- boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,
+ boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,postCareer:null,
  nationalCalled:false,nationalCaps:0,nationalGoals:0,nationalRating:0,nationalCallups:[],nationalSeasonStats:{},totalCareerAppearances:0,nationalTournamentMatches:0,nationalTournamentPoints:0,nationalTournamentQualified:false,nationalTournamentDone:false,
  trophies:0,topScorerAwards:0,achievements:[],diary:[],storyTitle:"الفصل الأول: فرصة العمر",
  storyText:"النهارده أول يوم ليك في مركز شباب النور. الكابتن شريف بصّلك وقال: «الموهبة مهمة، بس الالتزام هو اللي بيخلي اللاعب يكمل». قدامك موسم طويل، وكل يوم ممكن يغيّر مستقبلك.",
@@ -3639,7 +3639,8 @@ function renderShop(){
 }
 function renderDiary(){
  setText("diaryCount",state.diary.length+" حدث");
- $("diaryList").innerHTML=state.diary.length?state.diary.map(e=>`<div class="feedItem"><b>الموسم ${e.season||state.season} • اليوم ${e.day||state.day}</b>${e.text}</div>`).join(""):'<div class="empty">المذكرات لسه فاضية.</div>';
+ const postCareerPanel=state.retired?('<div class="feedItem"><b>مرحلة ما بعد الاعتزال</b><p>'+(state.postCareer?('المسار الحالي: '+safeHTML(state.postCareer.path==="agent"?"وكيل لاعبين":"مستثمر في النادي")+' • '+safeHTML(state.postCareer.lastAction||"ابدأ نشاطك التالي.")):"مسيرتك الرياضية محفوظة. اختار مسار وكيل لاعبين أو مستثمر للبدء.")+'</p><button class="btn" data-post-career-menu>إدارة المسار</button></div>'):"";
+ $("diaryList").innerHTML=postCareerPanel+(state.diary.length?state.diary.map(e=>`<div class="feedItem"><b>الموسم ${e.season||state.season} • اليوم ${e.day||state.day}</b>${e.text}</div>`).join(""):'<div class="empty">المذكرات لسه فاضية.</div>');
  const seasons=Array.isArray(state.seasonHistory)?state.seasonHistory:[],archives=Array.isArray(state.leagueArchives)?state.leagueArchives:[];
  setText("seasonArchiveCount",`${seasons.length} موسم`);setText("leagueArchiveCount",`${archives.length} مرحلة`);
  $("seasonArchiveList").innerHTML=seasons.length?seasons.map(row=>`<details class="feedItem"><summary><b>الموسم ${Number(row.season)||"—"} • ${safeHTML(row.club||"النادي غير محفوظ")}</b><span class="muted small"> ${safeHTML(row.country||"")} • ${safeHTML(row.competition||"")}</span></summary><p>${safeHTML(row.summary||"لا يوجد ملخص محفوظ.")}</p><div class="muted small">مباريات النادي في الموسم: ${Number(row.apps)||0} • أهداف: ${Number(row.goals)||0} • صناعات: ${Number(row.assists)||0} • فوز/تعادل/خسارة: ${Number(row.wins)||0}/${Number(row.draws)||0}/${Number(row.losses)||0} • نقاط: ${Number(row.points)||0} • مباريات مسجلة: ${Number(row.matchCount)||0}</div>${row.awards?.length?`<p>الجوائز: ${row.awards.map(a=>safeHTML(a.title||a.id||"جائزة")).join("، ")}</p>`:""}</details>`).join(""):'<div class="empty">سجل المواسم هيظهر بعد نهاية أول موسم مكتمل.</div>';
@@ -4830,10 +4831,86 @@ function seedLeagueHistory(throughRounds){
 }
 
 function retireCareer(){
- if(state.retired&&state.retirementRecord){toast("سجل الاعتزال محفوظ بالفعل.");return;}
+ if(state.retired&&state.retirementRecord){openPostCareerMenu();return;}
  state.retired=true;state.retirementRecord={season:Number(state.season)||1,age:Number(state.age)||40,club:club().name,overall:overall(),apps:Number(state.apps)||0,goals:Number(state.goals)||0,assists:Number(state.assists)||0,trophies:Number(state.trophies)||0,retiredAtDay:Number(state.day)||0};
  state.seasonFinished=true;log(`اعتزلت في سن ${state.age} بعد موسم ${state.season}. إجمالي المشاركات ${state.apps}، الأهداف ${state.goals}، الصناعات ${state.assists}.`);saveGame(true);render();
- openModal("أسطورة انتهت مسيرتها",`اعتزل ${state.name} في سن ${state.age}.\nالنادي الأخير: ${club().name}\nالتقييم: ${overall()}\nالمشاركات: ${state.apps} • الأهداف: ${state.goals} • الصناعات: ${state.assists} • البطولات: ${state.trophies}.\nتم حفظ سجل الاعتزال في المسيرة.`,[{label:"عرض المذكرات",className:"primary",action:()=>showPage("diary")},{label:"مسيرة جديدة",action:newCareer}]);
+ openModal("أسطورة انتهت مسيرتها",`اعتزل ${state.name} في سن ${state.age}.\nالنادي الأخير: ${club().name}\nالتقييم: ${overall()}\nالمشاركات: ${state.apps} • الأهداف: ${state.goals} • الصناعات: ${state.assists} • البطولات: ${state.trophies}.\nتم حفظ سجل الاعتزال في المسيرة.`,[{label:"مسار ما بعد الاعتزال",className:"primary",action:()=>openPostCareerMenu()},{label:"عرض المذكرات",action:()=>showPage("diary")},{label:"مسيرة جديدة",action:newCareer}]);
+}
+function startPostCareerPath(path){
+ if(!state.retired||!state.retirementRecord){toast("مسارات ما بعد الاعتزال بتبدأ بعد تسجيل الاعتزال.");return;}
+ if(!["agent","investor"].includes(path)){toast("المسار غير معروف.");return;}
+ if(state.postCareer){openPostCareerMenu();return;}
+ const role=path==="agent"?"وكيل لاعبين":"مستثمر في النادي";
+ state.postCareer={path:path,clubName:club().name,shares:0,investment:0,clients:0,reputation:clamp(Number(state.professionalism)||65),earnings:0,actions:0,yearsOperated:0,dividendsDue:0,startedSeason:Number(state.season)||1,lastAction:"بدأت مسارك كـ"+role};
+ log("بدأت مرحلة ما بعد الاعتزال: "+role+".");
+ setStory("فصل جديد بعد صافرة النهاية",path==="agent"?"خبرتك داخل الملعب هتساعدك تكتشف مواهب وتفاوض على عقود لاعبين.":"بدأت طريق الاستثمار الرياضي بحصة صغيرة قابلة للزيادة في النادي.");
+ saveGame(true);render();openPostCareerMenu();
+}
+function openPostCareerMenu(){
+ if(!state.retired||!state.retirementRecord){toast("أنه مسيرتك وسجّل الاعتزال الأول.");return;}
+ const post=state.postCareer;
+ if(!post){
+  openModal("اختار مسارك بعد الاعتزال","مش لازم تنتهي حياتك الكروية بعد آخر مباراة. اختار طريق مهني جديد، وكل نشاط هيتسجل في المذكرات.",[
+   {label:"وكيل لاعبين",className:"primary",action:()=>startPostCareerPath("agent")},
+   {label:"شراء حصة في النادي",action:()=>startPostCareerPath("investor")},
+   {label:"عرض المذكرات",action:()=>showPage("diary")},
+   {label:"مسيرة جديدة",action:newCareer}
+  ]);return;
+ }
+ if(post.path==="agent"){
+  openModal("وكالة اللاعبين","العمل: وكيل لاعبين • العملاء: "+(Number(post.clients)||0)+" • السمعة: "+(Number(post.reputation)||0)+"/100\nالأرباح من الوكالة: "+(Number(post.earnings)||0)+" "+currencyLabel()+"\nآخر نشاط: "+(post.lastAction||"لم يبدأ أي نشاط بعد"),[
+   {label:"استكشاف لاعب واعد",className:"primary",action:()=>performPostCareerAction("scout")},
+   {label:"التفاوض على عقد لاعب",action:()=>performPostCareerAction("negotiate")},
+   {label:"عرض المذكرات",action:()=>showPage("diary")},
+   {label:"مسيرة جديدة",action:newCareer}
+  ]);
+ }else{
+  openModal("استثماراتك في النادي","النادي: "+(post.clubName||club().name)+" • حصة الملكية: "+(Number(post.shares)||0)+"%.\nإجمالي الاستثمار: "+(Number(post.investment)||0)+" "+currencyLabel()+" • العائد التراكمي: "+(Number(post.earnings)||0)+" "+currencyLabel()+".\nسنوات الاستثمار الافتراضية: "+(Number(post.yearsOperated)||0)+" • عوائد مستحقة: "+(Number(post.dividendsDue)||0)+"\nآخر نشاط: "+(post.lastAction||"لم يبدأ أي نشاط بعد"),[
+   {label:"شراء حصة إضافية 1%",className:"primary",action:()=>performPostCareerAction("buy-share")},
+   {label:"إدارة سنة استثمارية",action:()=>performPostCareerAction("operate-year")},
+   {label:"تحصيل عائد استثماري",action:()=>performPostCareerAction("dividend")},
+   {label:"عرض المذكرات",action:()=>showPage("diary")},
+   {label:"مسيرة جديدة",action:newCareer}
+  ]);
+ }
+}
+function performPostCareerAction(action){
+ const post=state.postCareer;
+ if(!state.retired||!state.retirementRecord||!post){toast("اختار مسار ما بعد الاعتزال الأول.");return;}
+ post.actions=Math.max(0,Number(post.actions)||0)+1;
+ if(post.path==="agent"){
+  if(action==="scout"){
+   const cost=Math.max(600,Math.round(900+(100-clamp(post.reputation))*8));
+   if(Number(state.money)<cost){post.actions--;toast("الميزانية مش كفاية لاستكشاف لاعب. احتفظ بمبلغ "+cost+" "+currencyLabel()+".");return;}
+   state.money-=cost;
+   const success=randomUnit()*100<clamp(42+clamp(post.reputation)*0.45,45,90);
+   if(success){
+    post.clients=Math.max(0,Number(post.clients)||0)+1;post.reputation=clamp(Number(post.reputation)+4);
+    const fee=Math.round(1600+post.reputation*28+post.clients*220);state.money+=fee;post.earnings=(Number(post.earnings)||0)+fee;
+    post.lastAction="اكتشاف موهبة جديدة وتوقيعها مع الوكالة؛ أتعاب "+fee+" "+currencyLabel()+".";
+    setStory("صفقة أولى ناجحة","استكشفت لاعبًا واعدًا وانضم لوكالتك. سمعتك وأتعابك هتكبر مع جودة اختياراتك.");
+   }else{post.reputation=clamp(Number(post.reputation)+1);post.lastAction="استكشاف لم ينتج عنه توقيع؛ اتعلمت من البحث وخبرتك زادت.";setStory("مش كل الموهوبين بيتعاقدوا","رحلة الكشاف مش مضمونة؛ راجع اختياراتك وحاول من جديد بميزانية مناسبة.");}
+  }else if(action==="negotiate"){
+   if((Number(post.clients)||0)<1){post.actions--;toast("لازم تكتشف أول لاعب وتضيفه لوكالتك قبل التفاوض.");return;}
+   const success=randomUnit()*100<clamp(48+clamp(post.reputation)*0.42,48,90);
+   if(success){const fee=Math.round(1200+post.reputation*24+post.clients*180);state.money+=fee;post.earnings=(Number(post.earnings)||0)+fee;post.reputation=clamp(Number(post.reputation)+2);post.lastAction="تفاوض ناجح على عقد لاعب؛ أتعاب الوكالة "+fee+" "+currencyLabel()+".";setStory("عقد جديد للاعبك","نجحت في التفاوض على عقد أفضل لموكلك، وده عزز سمعة الوكالة وزاد دخلك.");}
+   else{post.reputation=clamp(Number(post.reputation)-1);post.lastAction="التفاوض على العقد لم ينجح؛ محتاج تجهز شروطًا أفضل للمحاولة القادمة.";setStory("التفاوض محتاج صبر","العقد لم يتم، لكن تقدر تعيد التفاوض بعد مراجعة الشروط.");}
+  }else{post.actions--;toast("النشاط غير متاح في مسار الوكالة.");return;}
+ }else if(post.path==="investor"){
+  if(action==="buy-share"){
+   const shares=clamp(Number(post.shares)||0,0,10);if(shares>=10){post.actions--;toast("وصلت للحد الأقصى للحصة الافتراضية 10%.");return;}
+   const cost=Math.round(2500+(Number(state.clubPower)||50)*120+shares*2000);if(Number(state.money)<cost){post.actions--;toast("الميزانية مش كفاية لشراء 1%. تحتاج "+cost+" "+currencyLabel()+".");return;}
+   state.money-=cost;post.shares=shares+1;post.investment=(Number(post.investment)||0)+cost;post.lastAction="شراء "+post.shares+"% في "+(post.clubName||club().name)+" مقابل "+cost+" "+currencyLabel()+".";setStory("خطوة في الاستثمار الرياضي","زادت حصتك في النادي. العائد التالي تقديري داخل اللعبة ومرتبط بنسبة الملكية وقوة النادي.");
+  }else if(action==="operate-year"){
+   const shares=clamp(Number(post.shares)||0,0,10);if(shares<1){post.actions--;toast("اشترِ حصة واحدة على الأقل قبل إدارة سنة استثمارية.");return;}
+   const expense=Math.round(500+shares*250);if(Number(state.money)<expense){post.actions--;toast("الميزانية مش كفاية لإدارة سنة الاستثمار. تحتاج "+expense+" "+currencyLabel()+".");return;}
+   state.money-=expense;post.yearsOperated=(Number(post.yearsOperated)||0)+1;post.dividendsDue=(Number(post.dividendsDue)||0)+1;post.lastAction="أدرت سنة استثمارية افتراضية بتكلفة "+expense+" "+currencyLabel()+"؛ يوجد عائد واحد مستحق.";setStory("سنة استثمار جديدة","استثمرت وقتًا وميزانية في إدارة النادي. تحصيل العائد يتوقف على حصتك وقوة النادي داخل اللعبة.");
+  }else if(action==="dividend"){
+   const shares=clamp(Number(post.shares)||0,0,10);if(shares<1){post.actions--;toast("اشتري حصة واحدة على الأقل قبل تحصيل العائد.");return;}if((Number(post.dividendsDue)||0)<1){post.actions--;toast("مفيش عائد مستحق. أدر سنة استثمارية جديدة أولًا.");return;}
+   const payout=Math.max(0,Math.round(shares*((Number(state.clubPower)||50)*75+800)/10));state.money+=payout;post.dividendsDue=Math.max(0,Number(post.dividendsDue)-1);post.earnings=(Number(post.earnings)||0)+payout;post.lastAction="عائد استثماري محاكاة "+payout+" "+currencyLabel()+" مقابل حصة "+shares+"%.";setStory("عائد الاستثمار","استلمت عائدًا افتراضيًا من حصتك في النادي. الأرقام جزء من المحاكاة وليست توقعًا ماليًا واقعيًا.");
+  }else{post.actions--;toast("النشاط غير متاح في مسار الاستثمار.");return;}
+ }else{post.actions--;toast("مسار ما بعد الاعتزال غير صالح.");return;}
+ log(post.lastAction);saveGame(true);render();openPostCareerMenu();
 }
 function proceedSeasonTransition(viewLeague=false){
  if(window.LWCareer?.shouldRetire(state,40)||state.retired){retireCareer();return;}
@@ -5235,6 +5312,7 @@ function scheduleGlobalCatalogRender(){
 function bind(){
  populateStartScreen();
  $("createCareerBtn").addEventListener("click",startCareerFromSetup);
+ $("diaryList").addEventListener("click",e=>{if(e.target.closest("[data-post-career-menu]"))openPostCareerMenu();});
  $("continueSavedBtn").addEventListener("click",()=>{$("startScreen").classList.remove("show");showPage(state.currentPage||"home");toast("رجعنا لمسيرتك يا كابتن.");});
  $("leagueSearch").addEventListener("input",scheduleGlobalCatalogRender);$("confederationFilter").addEventListener("change",scheduleGlobalCatalogRender);$("rosterFilter").addEventListener("change",scheduleGlobalCatalogRender);$("transferSearch").addEventListener("input",renderTransferMarket);
  $("trainingIntensity").addEventListener("change",e=>{state.trainingIntensity=e.target.value;saveGame(true);toast("اتحفظت شدة التدريب للمسيرة.");});

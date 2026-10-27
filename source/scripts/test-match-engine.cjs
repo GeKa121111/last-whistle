@@ -7,6 +7,12 @@ const vm = require("node:vm");
 global.window = global;
 require(path.join(__dirname, "..", "public", "data", "match-engine.js"));
 
+const rootEngineSource = fs.readFileSync(path.join(__dirname, "..", "..", "data", "match-engine.js"), "utf8");
+const deployedEngineSource = fs.readFileSync(path.join(__dirname, "..", "..", "public", "data", "match-engine.js"), "utf8");
+const sourceEngineSource = fs.readFileSync(path.join(__dirname, "..", "public", "data", "match-engine.js"), "utf8");
+assert.equal(rootEngineSource, deployedEngineSource, "root and deployed match-engine source files must stay synchronized");
+assert.equal(rootEngineSource, sourceEngineSource, "source/public and root match-engine files must stay synchronized");
+
 const engine = global.LWMatch;
 assert.ok(engine && typeof engine.simulateMatch === "function", "match engine must expose simulateMatch");
 

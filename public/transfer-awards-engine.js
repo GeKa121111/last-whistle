@@ -102,8 +102,15 @@
       "فرانكو ماستانتونو": 18,
       "نيكو أوريلي": 21
     };
-    if (knownYoung[player.name] !== undefined) return knownYoung[player.name];
-    return 24 + (stableHash(player.name + "|" + season) % 10);
+    const name = String(player && player.name || "");
+    const firstSeasonAge = Object.prototype.hasOwnProperty.call(knownYoung, name)
+      ? knownYoung[name]
+      : 24 + (stableHash(name) % 10);
+    const seasonNumber = Math.max(1, Math.floor(Number(season) || 1));
+    // The age seed belongs to the player, not the season. Advance that baseline
+    // by one year per career-world season so an unsourced player's age never jumps
+    // backwards or changes randomly between award ceremonies.
+    return Math.min(40, firstSeasonAge + seasonNumber - 1);
   }
 
   function simulatePlayerSeason(player, season, progress) {

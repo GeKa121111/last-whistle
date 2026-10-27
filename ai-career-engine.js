@@ -471,8 +471,12 @@
   const originalTransfers = base.recommendTransfers;
   function recommendTransfers(state, clubs, overall) {
     const context = contextSnapshot(state, overall);
+    const normalizeClubPart = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
     return originalTransfers(state, clubs, overall).map(row => {
-      const club = (Array.isArray(clubs) ? clubs : []).find(item => item && String(item.name) === row.name);
+      const club = (Array.isArray(clubs) ? clubs : []).find(item => item
+        && normalizeClubPart(item.name) === normalizeClubPart(row.name)
+        && normalizeClubPart(item.country) === normalizeClubPart(row.country)
+        && clamp(num(item.ovr || item.power || 55, 55), 25, 99) === row.power);
       const prestige = clamp(num(club && club.prestige, 50), 0, 100);
       const rotationRisk = context.minutesLastFive < 130 && num(club && (club.power || club.ovr), 55) > context.overall + 8;
       const youthPath = context.stage === "academy" || context.stage === "development";

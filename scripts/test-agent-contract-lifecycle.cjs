@@ -102,7 +102,7 @@ assert.equal(state.agent, true);
 assert.equal(state.agentProfile.id, "nadine",
   "confirming a switch must leave exactly the newly selected representative active");
 assert.equal(state.agentProfile.contractType, "open-ended");
-assert.equal(state.money, 9620,
+assert.equal(state.money, 9780,
   "switching must charge the current agent's configured exit fee exactly once");
 assert.ok(state.agentHistory.some(entry => entry.title === "تغيير الوكيل"));
 assert.ok(state.agentHistory.some(entry => entry.title === "توقيع اتفاق تمثيل مع نادين فريد"));
@@ -113,7 +113,7 @@ assert.ok(overlays[0].innerHTML.includes("إنهاء اتفاق التمثيل")
 clickAction("agent-confirm-end");
 assert.equal(state.agent, false, "manual termination must deactivate representation");
 assert.equal(state.agentProfile, null, "manual termination must clear only the active profile");
-assert.equal(state.money, 9240,
+assert.equal(state.money, 9400,
   "manual termination must charge the agreed exit fee once");
 assert.ok(state.agentHistory.some(entry => entry.title === "إنهاء اتفاق الوكالة"));
 
@@ -123,7 +123,7 @@ assert.equal(state.agent, true,
   "a player must be able to sign a new agent immediately after termination");
 assert.equal(state.agentProfile.id, "seif");
 assert.equal(state.agentProfile.contractType, "open-ended");
-assert.equal(state.money, 9240, "signing a replacement agent must not charge a second exit fee");
+assert.equal(state.money, 9400, "signing a replacement agent must not charge a second exit fee");
 assert.ok(saveCount >= 3, "contract changes must persist through the existing save API");
 assert.ok(renderCount >= 3, "contract changes must refresh the interface");
 

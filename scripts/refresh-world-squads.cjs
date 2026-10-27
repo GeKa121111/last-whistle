@@ -120,13 +120,25 @@ function roleFor(position) {
   return "";
 }
 
-function parseAge(dob) {
-  const m = String(dob || "").match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/);
+function seasonReferenceDate(seasonLabel) {
+  const label = String(seasonLabel || SEASON).trim();
+  const calendarYearSeason = label.match(/^(\\d{4})\\s+Apertura$/i);
+  if (calendarYearSeason) return new Date(Date.UTC(Number(calendarYearSeason[1]), 0, 1));
+  const splitSeason = label.match(/^(\\d{4})\\/(?:\\d{2}|\\d{4})$/);
+  if (splitSeason) return new Date(Date.UTC(Number(splitSeason[1]), 6, 1));
+  const fallbackYear = Number(String(SEASON).match(/^\\d{4}/)?.[0]) || 2026;
+  return new Date(Date.UTC(fallbackYear, 6, 1));
+}
+
+function parseAge(dob, referenceDate = seasonReferenceDate(SEASON)) {
+  const m = String(dob || "").match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{2}|\\d{4})$/);
   if (!m) return null;
   let year = Number(m[3]);
   if (year < 100) year += year >= 40 ? 1900 : 2000;
   const month = Number(m[2]), day = Number(m[1]);
-  const seasonDate = new Date();
+  const seasonDate = referenceDate instanceof Date && Number.isFinite(referenceDate.getTime())
+    ? referenceDate
+    : seasonReferenceDate(SEASON);
   let age = seasonDate.getUTCFullYear() - year;
   if (seasonDate.getUTCMonth() + 1 < month ||
       (seasonDate.getUTCMonth() + 1 === month && seasonDate.getUTCDate() < day)) age--;
@@ -185,7 +197,7 @@ function parseTeamLinks(indexHtml, indexUrl, teamDirectory) {
   }
   return teams;
 }
-function parsePlayers(teamHtml) {
+function parsePlayers(teamHtml, referenceDate = seasonReferenceDate(SEASON)) {
   const cutoff = teamHtml.search(/Players\s+no\s+longer\s+at\s+this\s+club/i);
   const activeHtml = cutoff >= 0 ? teamHtml.slice(0, cutoff) : teamHtml;
   const players = [];
@@ -204,7 +216,7 @@ function parsePlayers(teamHtml) {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const shirt = Number.parseInt(cells[0], 10);
-    const age = parseAge(cells[6]);
+    const age = parseAge(cells[6], referenceDate);
     players.push({
       name,
       number: Number.isFinite(shirt) && shirt > 0 ? shirt : null,
@@ -257,7 +269,7 @@ async function main() {
     for (const team of teams) {
       const html = await fetchHtml(team.url);
       const teamName = extractTeamName(html, team.name);
-      const players = parsePlayers(html);
+      const players = parsePlayers(html, seasonReferenceDate(league.sourceSeason || SEASON));
       if (players.length < 12) {
         throw new Error("Only " + players.length + " current players parsed for " + teamName + " (" + team.url + ")");
       }
@@ -316,7 +328,11 @@ async function main() {
   console.log("World roster refresh complete:\n" + JSON.stringify(report, null, 2));
 }
 
-main().catch(error => {
-  console.error("World roster refresh FAILED:", error && error.stack || error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error("World roster refresh FAILED:", error && error.stack || error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { parseAge, seasonReferenceDate, roleFor };

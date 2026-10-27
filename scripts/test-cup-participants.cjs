@@ -7,6 +7,12 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const worldDbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
+const summaryStart = html.indexOf("function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){");
+const summaryEnd = html.indexOf("\nfunction playCupMatch()", summaryStart);
+assert.ok(summaryStart >= 0 && summaryEnd > summaryStart, "cup result summary helper must exist");
+const summarySource = html.slice(summaryStart, summaryEnd) + "\nthis.cupLegResultSummary = cupLegResultSummary;";
+assert.ok(html.includes("cupLegResultSummary(result,opponent,isTwoLegTie&&tieLegAtKickoff===2)"),
+  "the cup flow must explain the actual leg result and aggregate result separately");
 const start = html.indexOf("function cupParticipants(comp,count){");
 const end = html.indexOf("\nfunction cupConfig", start);
 assert.ok(start >= 0 && end > start, "cup participant builder must exist");
@@ -36,6 +42,20 @@ assert.ok(worldClubs.every(club => club && club.name && !Object.prototype.hasOwn
   "the cup selector must use lightweight club metadata without generating or copying player lists");
 assert.ok(worldClubs.length >= 32, "the world database must provide enough real clubs for supported cups");
 vm.runInContext(source, sandbox, { filename: "cup-participants" });
+vm.runInContext(summarySource, sandbox, { filename: "cup-leg-result-summary" });
+const aggregateDraw = sandbox.cupLegResultSummary({
+  score: { for: 0, against: 0 }, matchOutcome: "تعادل", outcome: "فوز",
+  metadata: { aggregateOffset: 1 }, shootout: { used: false }
+}, "المنافس", true);
+assert.match(aggregateDraw.legText, /تعادلت 0-0/, "a drawn second leg must be described as a draw");
+assert.match(aggregateDraw.aggregateText, /لصالحك/, "aggregate progression should be described separately");
+const lostTieDespiteWinningLeg = sandbox.cupLegResultSummary({
+  score: { for: 2, against: 0 }, matchOutcome: "فوز", outcome: "خسارة",
+  metadata: { aggregateOffset: -3 }, shootout: { used: false }
+}, "المنافس", true);
+assert.match(lostTieDespiteWinningLeg.legText, /فزت 2-0/, "the actual second-leg win must be preserved in the narrative");
+assert.match(lostTieDespiteWinningLeg.aggregateText, /لصالح المنافس/, "the aggregate loss must be explicit when the player wins the leg but is eliminated");
+
 
 const count = 32;
 const currentClub = "النادي الحالي";

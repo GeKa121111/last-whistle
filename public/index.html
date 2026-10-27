@@ -4903,7 +4903,7 @@ function performPostCareerAction(action){
    state.money-=cost;post.shares=shares+1;post.investment=(Number(post.investment)||0)+cost;post.lastAction="شراء "+post.shares+"% في "+(post.clubName||club().name)+" مقابل "+cost+" "+currencyLabel()+".";setStory("خطوة في الاستثمار الرياضي","زادت حصتك في النادي. العائد التالي تقديري داخل اللعبة ومرتبط بنسبة الملكية وقوة النادي.");
   }else if(action==="operate-year"){
    const shares=clamp(Number(post.shares)||0,0,10);if(shares<1){post.actions--;toast("اشترِ حصة واحدة على الأقل قبل إدارة سنة استثمارية.");return;}
-   const expense=Math.round(500+shares*250);if(Number(state.money)<expense){post.actions--;toast("الميزانية مش كفاية لإدارة سنة الاستثمار. تحتاج "+expense+" "+currencyLabel()+".");return;}
+   const expense=Math.round(250+shares*100);if(Number(state.money)<expense){post.actions--;toast("الميزانية مش كفاية لإدارة سنة الاستثمار. تحتاج "+expense+" "+currencyLabel()+".");return;}
    state.money-=expense;post.yearsOperated=(Number(post.yearsOperated)||0)+1;post.dividendsDue=(Number(post.dividendsDue)||0)+1;post.lastAction="أدرت سنة استثمارية افتراضية بتكلفة "+expense+" "+currencyLabel()+"؛ يوجد عائد واحد مستحق.";setStory("سنة استثمار جديدة","استثمرت وقتًا وميزانية في إدارة النادي. تحصيل العائد يتوقف على حصتك وقوة النادي داخل اللعبة.");
   }else if(action==="dividend"){
    const shares=clamp(Number(post.shares)||0,0,10);if(shares<1){post.actions--;toast("اشتري حصة واحدة على الأقل قبل تحصيل العائد.");return;}if((Number(post.dividendsDue)||0)<1){post.actions--;toast("مفيش عائد مستحق. أدر سنة استثمارية جديدة أولًا.");return;}

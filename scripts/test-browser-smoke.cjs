@@ -179,7 +179,7 @@ async function main() {
     assert.ok(startingContext.dribbling >= 55 && startingContext.dribbling <= 68, "a winger starts with winger-level dribbling");
     assert.ok(startingContext.speed >= 55 && startingContext.speed <= 68, "a winger starts with winger-level speed");
     assert.ok(startingContext.defending >= 15 && startingContext.defending <= 28, "a winger does not start as a defender");
-    assert.ok(startingContext.goalkeeping >= 5 && startingContext.goalkeeping <= 12, "a winger does not start as a goalkeeper");
+    assert.ok(startingContext.goalkeeping >= 10 && startingContext.goalkeeping <= 15, "outfield goalkeeper skill stays within the low 10–15 range");
     assert.ok(startingContext.physical >= 45 && startingContext.physical <= 58, "physical skill is initialized by position");
     assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
       "header, player summary, and store must use the Egyptian currency for an Egyptian league");
@@ -327,9 +327,16 @@ async function main() {
     );
     results.push("11-section navigation and store rendering");
 
+    await page.evaluate(async () => {
+      const state = window.LWStoryRuntime.getState();
+      state.money = 3000;
+      const saved = window.LWStoryRuntime.save();
+      if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
+    });
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
-    await page.locator('#shopItems [data-buy="boots"]').click();
+    await page.locator('#shopItems [data-buy="xpMultiplier"]').click();
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
@@ -338,8 +345,8 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "اشتري دلوقتي" }).click();
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime.getState();
-      return state.boots === true && Number(state.money) === 50
-        && document.querySelector("#inventory").textContent.includes("حذاء احترافي");
+      return state.xpMultiplier === true && Number(state.money) === 600
+        && document.querySelector("#inventory").textContent.includes("مضاعف خبرة المسيرة");
     }, null, { timeout: 15000 });
     results.push("store purchase changes balance and inventory");
 
@@ -357,13 +364,13 @@ async function main() {
       }
       const raw = localStorage.getItem("lastWhistleCareer_v4") || "";
       return {
-        stateMoney: Number(state.money), stateBoots: !!state.boots,
+        stateMoney: Number(state.money), stateXPMultiplier: !!state.xpMultiplier,
         stateChars, worldChars,
         worldPlayers: Object.keys(state.worldSimulation?.players || {}).length,
         worldClubs: Object.keys(state.worldSimulation?.clubs || {}).length,
         worldProperties: Object.entries(state.worldSimulation || {}).map(([key, value]) => ({ key, chars: (() => { try { return JSON.stringify(value).length; } catch { return -1; } })(), count: Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value).length : null })).sort((a,b) => b.chars-a.chars).slice(0,12),
         saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
-        afterSavedBoots: afterSave ? !!afterSave.boots : null,
+        afterSavedXPMultiplier: afterSave ? !!afterSave.xpMultiplier : null,
         afterSavedChars: afterSave ? JSON.stringify(afterSave).length : raw.length,
         storageBackend: afterSave ? "IndexedDB" : "legacy-fallback"
       };
@@ -371,11 +378,11 @@ async function main() {
     console.log("PURCHASE_SAVE_QUEUE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
     assert.equal(saveDiagnostic.saveSucceeded, true,
       "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
-    assert.equal(saveDiagnostic.afterSavedMoney, 50, "IndexedDB must persist the post-purchase balance");
-    assert.equal(saveDiagnostic.afterSavedBoots, true, "IndexedDB must persist store ownership");
+    assert.equal(saveDiagnostic.afterSavedMoney, 600, "IndexedDB must persist the post-purchase balance");
+    assert.equal(saveDiagnostic.afterSavedXPMultiplier, true, "IndexedDB must persist store ownership");
     const persistedPurchase = {
       money: saveDiagnostic.afterSavedMoney,
-      boots: saveDiagnostic.afterSavedBoots,
+      xpMultiplier: saveDiagnostic.afterSavedXPMultiplier,
       chars: saveDiagnostic.afterSavedChars,
       storageBackend: saveDiagnostic.storageBackend
     };
@@ -385,7 +392,7 @@ async function main() {
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime && window.LWStoryRuntime.getState();
       return state && state.careerStarted && state.name === "Mohamed Ahmed"
-        && state.boots === true && Number(state.money) === 50
+        && state.xpMultiplier === true && Number(state.money) === 600
         && Number(state.schemaVersion) === 10
         && !document.querySelector("#startScreen").classList.contains("show");
     }, null, { timeout: 20000 });
@@ -413,15 +420,15 @@ async function main() {
       return {
         name: save.name,
         money: Number(save.money),
-        boots: !!save.boots,
+        xpMultiplier: !!save.xpMultiplier,
         worldPlayers: Object.keys(save.worldSimulation?.players || {}).length,
         worldClubs: Object.keys(save.worldSimulation?.clubs || {}).length,
         hasSeasonDevelopment: !!save.seasonTrainingReport || !!save.seasonDevelopmentSnapshot
       };
     }, backupPayload.career);
     assert.equal(exportedBackupFacts.name, "Mohamed Ahmed");
-    assert.equal(exportedBackupFacts.money, 50);
-    assert.equal(exportedBackupFacts.boots, true);
+    assert.equal(exportedBackupFacts.money, 600);
+    assert.equal(exportedBackupFacts.xpMultiplier, true);
     assert.ok(exportedBackupFacts.worldPlayers > 1000, "backup must include the full player-world database");
     assert.ok(exportedBackupFacts.worldClubs > 100, "backup must include the world club database");
     // Make the live state observably different so the restore assertion cannot pass
@@ -474,8 +481,8 @@ async function main() {
       "backup restore must complete successfully; observed notices: " + restoreNotice);
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime?.getState();
-      return state && state.name === "Mohamed Ahmed" && state.boots === true
-        && Number(state.money) === 50
+      return state && state.name === "Mohamed Ahmed" && state.xpMultiplier === true
+        && Number(state.money) === 600
         && Object.keys(state.worldSimulation?.players || {}).length > 1000
         && Object.keys(state.worldSimulation?.clubs || {}).length > 100;
     }, null, { timeout: 30000 });

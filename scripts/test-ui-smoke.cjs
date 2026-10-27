@@ -11,7 +11,10 @@ if (rootHtml !== html) { console.error("Root index.html and public/index.html ar
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v56";')) {
+if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
+  console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
+}
+if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v70";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
@@ -79,6 +82,23 @@ const required = [
   'label:"مهاجم متحرك"',
   'label:"رأس حربة"',
   "function startingStatsForPosition",
+  "function positionPerformanceImpact",
+  'id:"xpMultiplier"',
+  "const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;",
+  "renderPositionDevelopment();",
+  "goalkeeperTrainingButton.hidden=!isGoalkeeper",
+  "homeReadinessHint",
+  'const careerWelcomeBanner=document.querySelector(".hero")',
+  'careerWelcomeBanner.hidden=!!state.careerStarted',
+  "rosterCoverage",
+  "totalDatabasePlayers",
+  "totalGeneratedPlayers",
+  "function startPostCareerPath(path)",
+  "function openPostCareerMenu()",
+  "function performPostCareerAction(action)",
+  "data-post-career-menu",
+  "state.postCareer",
+  "dividendsDue",
   "const OVR_WEIGHTS",
   'label:"مهاجم متحرك"',
   'id:"رأس حربة",label:"رأس حربة"',
@@ -274,7 +294,7 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v56")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+if (!workerSource.includes("last-whistle-static-v70")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
 for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=8", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=4", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
@@ -417,7 +437,7 @@ const extractTopLevelFunction = (source, functionName) => {
   return source.slice(start, next < 0 ? source.length : next);
 };
 const transferJourneyFunctions = [
-  "setJourneyAction", "canAccessTransferMarket", "runSeasonJourneyAction", "renderSeasonJourney", "openTransferMarketPage"
+  "setJourneyAction", "canAccessTransferMarket", "runSeasonJourneyAction", "seasonCareerChallenge", "renderSeasonJourney", "openTransferMarketPage"
 ].map((name) => extractTopLevelFunction(html, name)).join("\n");
 const interactionState = {
   careerStarted: true, retired: false, age: 19, academyCareer: false, day: 3, calendarDay: 15, season: 1, seasonApps: 2,

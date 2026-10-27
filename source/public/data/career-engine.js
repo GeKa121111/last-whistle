@@ -106,13 +106,13 @@
 
   const STARTING_RANGES = {
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
-    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[40,50], physical:[55,66] },
-    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[45,55], physical:[52,62] },
-    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
-    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
-    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
-    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[5,12], vision:[51,62], physical:[45,57] },
-    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[5,12], vision:[42,54], physical:[53,65] }
+    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[40,50], physical:[55,66] },
+    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[45,55], physical:[52,62] },
+    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[10,15], vision:[55,65], physical:[52,62] },
+    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[10,15], vision:[55,65], physical:[40,55] },
+    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[10,15], vision:[50,60], physical:[45,58] },
+    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[10,15], vision:[51,62], physical:[45,57] },
+    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[10,15], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
     const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
@@ -217,6 +217,7 @@
     const weights = OVR_WEIGHTS[state.pos] || OVR_WEIGHTS["جناح"];
     let weighted = 0, totalWeight = 0;
     for (const [key, weight] of Object.entries(weights)) {
+      if (state.pos !== "حارس مرمى" && key === "goalkeeping") continue;
       const value = Number(state[key]);
       weighted += (Number.isFinite(value) ? value : 0) * weight;
       totalWeight += weight;
@@ -284,7 +285,8 @@
     const trainingAgeFactor = Number(state.age) >= 30 ? 0.78 : 1;
     const fatiguePenalty = 1 - clamp(state.fatigue, 0, 100) * 0.0035;
     const focusMultiplier = trainingFocusMultiplier(state, type);
-    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier));
+    const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
+    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier * storeXPMultiplier));
     const primaryGain = addTrainingXP(state, type, baseXP);
     const secondaryGains = [];
     for (const [skill, share] of Object.entries(setup.secondary)) {
@@ -345,10 +347,37 @@
     const performanceFactor = 0.72 + rating * 0.047;
     const potentialFactor = clamp(0.82 + (Number(state.playerPotential) - overall(state)) * 0.012, 0.68, 1.24);
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
-    const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
+    const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
+    const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
+    const tackles = Math.max(0, Number(matchStats.tackles) || 0);
+    const interceptions = Math.max(0, Number(matchStats.interceptions) || 0);
+    const saves = Math.max(0, Number(matchStats.saves) || 0);
+    const keyPasses = Math.max(0, Number(matchStats.keyPasses) || 0);
+    const cleanSheet = matchStats.cleanSheet === true;
+    const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
+    const positionActionXP = state.pos === "حارس مرمى"
+      ? Math.min(16, saves * 2 + (cleanSheet ? 5 : 0))
+      : defensivePosition
+        ? Math.min(20, tackles * 2 + interceptions * 2.5 + (cleanSheet ? 4 : 0))
+        : state.pos === "وسط مهاجم"
+          ? Math.min(10, keyPasses * 1.4)
+          : Math.min(12, Math.max(0, Number(data.goals) || 0) * 4 + Math.max(0, Number(data.assists) || 0) * 2);
+    const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
+      + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
     const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
+    let defensiveXP = 0, goalkeeperXP = 0;
+    if (defensivePosition && (tackles > 0 || interceptions > 0 || cleanSheet)) {
+      defensiveXP = Math.round((tackles * 2 + interceptions * 3 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+        * trainingFocusMultiplier(state, "defending") * Math.min(1, played / 75));
+      addTrainingXP(state, "defending", defensiveXP);
+    }
+    if (state.pos === "حارس مرمى" && (saves > 0 || cleanSheet)) {
+      goalkeeperXP = Math.round((saves * 2.2 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+        * trainingFocusMultiplier(state, "goalkeeping") * Math.min(1, played / 75));
+      addTrainingXP(state, "goalkeeping", goalkeeperXP);
+    }
     const milestones = [];
     if (qualifying) {
       for (const threshold of APPEARANCE_MILESTONES) {
@@ -363,7 +392,7 @@
         }
       }
     }
-    return { gained, skill, xp, levels, qualifying, milestones, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
+    return { gained, skill, xp, levels, qualifying, milestones, defensiveXP, goalkeeperXP, positionActionXP, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
   }
 
   function hash(text) {
@@ -602,12 +631,28 @@
   }
 
   function applySeasonAging(state) {
-    if (Number(state.age) >= 30) {
-      state.fitness = clamp(Number(state.fitness) - 1);
-      if (Number(state.age) >= 33) state.speed = clamp(Number(state.speed) - 1);
-      return Number(state.age) >= 33 ? "مع تقدم العمر، زادت أهمية إدارة السرعة والاستشفاء." : "مع تقدم العمر، حافظ على اللياقة والاستشفاء.";
+    if (!state || typeof state !== "object") return "";
+    const age = Math.max(0, Number(state.age) || 0);
+    const position = String(state.pos || "");
+    if (age < 30) return "";
+    const notes = [];
+    if (position === "حارس مرمى") {
+      // Goalkeepers tend to retain their core role skills longer than outfield players.
+      if (age >= 33) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
+      if (age >= 37) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
+      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن." : "خبرتك وتمركزك يساعدانك على الحفاظ على مستواك كحارس.";
     }
-    return "";
+    state.fitness = clamp(Number(state.fitness) - 1);
+    notes.push("اللياقة");
+    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position)) {
+      state.speed = clamp(Number(state.speed) - 1);
+      notes.push("السرعة");
+    }
+    if (age >= 35) {
+      state.physical = clamp(Number(state.physical) - 1);
+      notes.push("القوة البدنية");
+    }
+    return "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء.";
   }
 
   window.LWCareer = {

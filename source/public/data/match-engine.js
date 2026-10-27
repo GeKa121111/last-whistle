@@ -43,8 +43,60 @@
     if (fatigue > 70) minutes -= 12;
     return Math.round(clamp(minutes, 0, 90));
   }
+  function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    const tackles = Math.max(0, Number(stats.tackles) || 0);
+    const interceptions = Math.max(0, Number(stats.interceptions) || 0);
+    const saves = Math.max(0, Number(stats.saves) || 0);
+    const conceded = Math.max(0, Number(goalsAgainst) || 0);
+    const cleanSheetBonus = stats.cleanSheet === true ? 0.55 : 0;
+    if (position === "حارس مرمى") return saves * 0.38 + cleanSheetBonus - Math.min(4, conceded) * 0.06;
+    if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
+      return tackles * 0.16 + interceptions * 0.18 + cleanSheetBonus * 0.65;
+    }
+    if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12;
+    if (position === "جناح") return tackles * 0.08 + interceptions * 0.09;
+    return tackles * 0.05 + interceptions * 0.06;
+  }
+  function playerConcededGoals(minutes, events = [], redCardMinute = null) {
+    const played = Math.max(0, Number(minutes) || 0);
+    const timeline = Array.isArray(events) ? events : [];
+    const exits = timeline
+      .filter(event => event && event.side === "player"
+        && ["substitution", "injury", "red-card"].includes(event.type))
+      .map(event => ({ type: event.type, minute: Number(event.minute) }))
+      .filter(event => Number.isFinite(event.minute))
+      .sort((a, b) => a.minute - b.minute);
+    const firstExit = exits[0] || null;
+    const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
+    const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
+      : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
+    // Prefer a recorded substitution/injury time over the public minutes counter, which
+    // may be rounded or capped. If no exit event exists, a sub-90 appearance implies
+    // the player left at that minute; a full 90 keeps extra-time accountability.
+    const exitMinute = firstExit && ["substitution", "injury"].includes(firstExit.type)
+      ? firstExit.minute
+      : dismissalMinute == null && played < 90 ? played : null;
+    return timeline.filter(event => {
+      if (!event || event.type !== "goal" || event.side !== "opponent") return false;
+      const minute = Number(event.minute);
+      if (!Number.isFinite(minute)) return false;
+      // A red card ends participation, but this career model still attributes later
+      // concessions to the dismissed player. A substitution or injury ends responsibility.
+      if (dismissalMinute != null && minute > dismissalMinute) return true;
+      if (exitMinute != null) return minute <= exitMinute;
+      return minute <= played || played >= 90;
+    }).length;
+  }
+  function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
+    const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
+    const played = Math.max(0, Number(minutes) || 0);
+    return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;
+  }
   function simulateMatch(options = {}) {
-    const random = seededRandom(options.seed === undefined ? hash(JSON.stringify(options)) : options.seed);
+    const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
+    const random = seededRandom(simulationSeed);
+    // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
+    const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -78,7 +130,7 @@
     const events = [];
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
-      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0,
+      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, cleanSheet: false,
       yellowCards: 0, redCards: 0, injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
       rating: 0, playerAvailable: minutes > 0
     };
@@ -186,13 +238,26 @@
       sideChances("team", ourChances);
       sideChances("opponent", oppChances);
       const playerActiveDuration = Math.max(0, Math.min(duration, minutes - periodStart));
-      if (playerActiveDuration > 0 && random() < clamp(profile.defender * (playerActiveDuration / 90) * (0.3 + fatigue / 300), 0, 0.46)) {
-        stats.tackles++;
-        events.push({ type: "tackle", minute: periodStart + 1 + Math.floor(random() * playerActiveDuration), side: "player", actor: String(player.name || "اللاعب") });
-      }
-      if (playerActiveDuration > 0 && random() < clamp(profile.defender * 0.32 * (playerActiveDuration / 90), 0, 0.20)) {
-        stats.interceptions++;
-        events.push({ type: "interception", minute: periodStart + 1 + Math.floor(random() * playerActiveDuration), side: "player", actor: String(player.name || "اللاعب") });
+      if (playerActiveDuration > 0 && !profile.goalkeeper) {
+        // Sample roughly one defensive opportunity per nine minutes played. The old
+        // one-roll-per-half logic produced well under one tackle per full match.
+        const actionTrials = Math.ceil(playerActiveDuration / 9);
+        const activityFactor = clamp(1 - fatigue * 0.003, 0.70, 1);
+        const defenderWeight = clamp(profile.defender, 0, 1);
+        const tackleChance = clamp((0.08 + defenderWeight * 0.42) * activityFactor, 0.05, 0.45);
+        const interceptionChance = clamp((0.045 + defenderWeight * 0.30) * activityFactor, 0.03, 0.30);
+        for (let attempt = 0; attempt < actionTrials; attempt += 1) {
+          if (defensiveRandom() < tackleChance) {
+            stats.tackles++;
+            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
+          }
+          if (defensiveRandom() < interceptionChance) {
+            stats.interceptions++;
+            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
+          }
+        }
       }
       if (random() < 0.16) events.push({ type: "foul", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
       if (random() < 0.06) events.push({ type: "offside", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
@@ -224,11 +289,13 @@
     const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
     const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
-    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 + stats.tackles * 0.18 + stats.interceptions * 0.12 + stats.saves * 0.22 - stats.fouls * 0.1;
-    const positionContext = profile.goalkeeper ? stats.saves * 0.18 - finalAgainst * 0.24 : position === "قلب دفاع" || position === "ظهير" || position === "وسط دفاعي" ? stats.tackles * 0.12 - finalAgainst * 0.06 : 0;
+    stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
+    const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
+    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded);
+    
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
-      stats.rating = Math.round(clamp((6.05 + (impact + positionContext) * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
+      stats.rating = Math.round(clamp((6.05 + impact * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
     if (minutes > 0 && minutes < 90 && !redCard && !injured) events.push({ type: "substitution", minute: minutes, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
@@ -252,6 +319,8 @@
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;
     const assists = result.events.filter(event => event.type === "assist").length;
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
+    const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
+    const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
       && ["red-card", "injury", "yellow-card", "tackle", "interception"].includes(event.type));
     const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
@@ -267,16 +336,22 @@
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;
     const yellowCards = result.events.filter(event => event.type === "yellow-card" && event.side === "player").length;
     const injuries = result.events.filter(event => event.type === "injury" && event.side === "player").length;
-    const valid = teamGoals === result.score.for && opponentGoals === result.score.against
+    const redCardEvent = result.events.find(event => event.type === "red-card" && event.side === "player");
+    const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
+      result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
+    const valid = cleanSheetConsistent
+      && teamGoals === result.score.for && opponentGoals === result.score.against
       && playerGoals === result.player.goals && assists === result.player.assists
       && result.player.goals <= shots && result.player.assists <= teamGoals
       && (!positionProfile(result.metadata?.position || "").goalkeeper || result.player.goals === 0)
-      && result.player.shots === shots && playerEventsInBounds
-      && eventsChronological && noPlayerActivityAfterExit
+      && result.player.shots === shots
+      && tackles === Number(result.player.tackles || 0)
+      && interceptions === Number(result.player.interceptions || 0)
+      && playerEventsInBounds && eventsChronological && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
   }
 
   function buildStoryReport(result, context) {
@@ -296,7 +371,11 @@
         shots: Number(player.shots) || 0,
         redCards: Number(player.redCards) || 0,
         yellowCards: Number(player.yellowCards) || 0,
-        injuryDays: Number(player.injuryDays) || 0
+        injuryDays: Number(player.injuryDays) || 0,
+        tackles: Number(player.tackles) || 0,
+        interceptions: Number(player.interceptions) || 0,
+        saves: Number(player.saves) || 0,
+        cleanSheet: player.cleanSheet === true
       },
       events: Array.isArray(result.events) ? result.events.map(event => ({
         minute: Number(event.minute) || 0,
@@ -307,5 +386,5 @@
       metadata: result.metadata || {}
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();

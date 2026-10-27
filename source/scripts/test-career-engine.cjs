@@ -34,13 +34,13 @@ assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"),
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);
 const startRanges = {
-  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[5,12] },
-  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[5,12] },
-  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[5,12] },
-  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[5,12] },
-  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[5,12] },
-  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[5,12] },
-  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[5,12] },
+  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[10,15] },
+  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[10,15] },
+  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[10,15] },
+  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[10,15] },
+  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[10,15] },
+  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[10,15] },
+  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[10,15] },
   "حارس مرمى": { goalkeeping:[58,68], composure:[58,68], vision:[58,68], shooting:[15,35], defending:[15,35] }
 };
 for (const [position, ranges] of Object.entries(startRanges)) {
@@ -155,6 +155,80 @@ assert.equal(career.shouldRetire({ age: 39 }), false);
 const trainingState = { ...player, playedToday: true, trainedToday: false, injuryDays: 0 };
 assert.equal(career.train(trainingState, "shooting").ok, false, "training must be blocked on match day");
 assert.equal(career.train({ ...player, pos: "مهاجم", playedToday: false, trainedToday: false }, "unknown").ok, false);
+
+function makeProgressionFixture(xpMultiplier = false) {
+  return {
+    pos: "رأس حربة", age: 22, playerPotential: 92, shooting: 62, dribbling: 58,
+    passing: 54, speed: 58, fitness: 60, composure: 60, defending: 24,
+    goalkeeping: 12, vision: 52, physical: 61, energy: 100, fatigue: 0,
+    trainingIntensity: "normal", trainedToday: false, playedToday: false,
+    injuryDays: 0, money: 5000, randomSeed: 1234, trainingXP: {},
+    careerXP: 0, levelXP: 0, careerLevel: 1, careerMilestonesEarned: [],
+    progressionMatchIds: [], competitionStats: {}, qualifyingAppearances: 0,
+    careerAppearances: 0, careerMinutes: 0, apps: 0, seasonLog: [],
+    xpMultiplier
+  };
+}
+const ordinaryTraining = career.train(makeProgressionFixture(false), "shooting", { random: () => 0.99 });
+const boostedTraining = career.train(makeProgressionFixture(true), "shooting", { random: () => 0.99 });
+assert.equal(ordinaryTraining.ok, true);
+assert.equal(boostedTraining.ok, true);
+assert.ok(boostedTraining.xp > ordinaryTraining.xp, "the store XP multiplier must boost training XP without directly increasing OVR");
+const ordinaryMatchXP = career.matchDevelopment(makeProgressionFixture(false), {
+  matchId: "ordinary-xp-match", minutes: 90, rating: 8, goals: 1, assists: 0
+});
+const boostedMatchXP = career.matchDevelopment(makeProgressionFixture(true), {
+  matchId: "boosted-xp-match", minutes: 90, rating: 8, goals: 1, assists: 0
+});
+assert.ok(boostedMatchXP.xp > ordinaryMatchXP.xp, "the store XP multiplier must increase match progression XP");
+
+const quietDefender = makeProgressionFixture(false);
+quietDefender.pos = "قلب دفاع";
+const activeDefender = makeProgressionFixture(false);
+activeDefender.pos = "قلب دفاع";
+const quietDefenderResult = career.matchDevelopment(quietDefender, {
+  matchId: "quiet-defence-match", minutes: 90, rating: 7.2, goals: 0, assists: 0,
+  tackles: 0, interceptions: 0, saves: 0, keyPasses: 0, cleanSheet: false
+});
+const activeDefenderResult = career.matchDevelopment(activeDefender, {
+  matchId: "active-defence-match", minutes: 90, rating: 7.2, goals: 0, assists: 0,
+  tackles: 4, interceptions: 3, saves: 0, keyPasses: 0, cleanSheet: true
+});
+assert.ok(activeDefenderResult.xp > quietDefenderResult.xp, "defensive actions and clean sheets must contribute to match XP");
+assert.ok(activeDefenderResult.defensiveXP > 0, "defensive players must bank extra defending-skill XP from tackles and interceptions");
+assert.ok(activeDefender.trainingXP.defending > quietDefender.trainingXP.defending,
+  "defending skill progress must reflect actual defensive actions");
+const inactiveKeeper = makeProgressionFixture(false);
+inactiveKeeper.pos = "حارس مرمى";
+const activeKeeper = makeProgressionFixture(false);
+activeKeeper.pos = "حارس مرمى";
+const inactiveKeeperResult = career.matchDevelopment(inactiveKeeper, {
+  matchId: "inactive-keeper-match", minutes: 90, rating: 7.2, goals: 0, assists: 0, saves: 0, cleanSheet: false
+});
+const activeKeeperResult = career.matchDevelopment(activeKeeper, {
+  matchId: "active-keeper-match", minutes: 90, rating: 7.2, goals: 0, assists: 0, saves: 5, cleanSheet: true
+});
+assert.ok(activeKeeperResult.xp > inactiveKeeperResult.xp, "goalkeeper saves and clean sheets must contribute to match XP");
+assert.ok(activeKeeperResult.goalkeeperXP > 0, "goalkeeper match actions must explicitly award goalkeeper-skill XP");
+assert.ok(activeKeeper.trainingXP.goalkeeping > inactiveKeeper.trainingXP.goalkeeping,
+  "saves and clean sheets must advance the goalkeeper skill itself");
+
+const fieldAgeCurve = { pos: "جناح", age: 34, fitness: 75, speed: 80, physical: 70 };
+career.applySeasonAging(fieldAgeCurve);
+assert.equal(fieldAgeCurve.fitness, 74, "field players should gradually lose fitness from age 30");
+assert.equal(fieldAgeCurve.speed, 79, "pace-dependent field roles should start losing speed after age 31");
+assert.equal(fieldAgeCurve.physical, 70, "physical decline should not start before the later-career phase");
+const veteranFieldCurve = { pos: "قلب دفاع", age: 35, fitness: 75, speed: 80, physical: 70 };
+career.applySeasonAging(veteranFieldCurve);
+assert.equal(veteranFieldCurve.physical, 69, "older field players should begin a modest physical decline");
+const veteranKeeperCurve = { pos: "حارس مرمى", age: 32, fitness: 75, physical: 72 };
+career.applySeasonAging(veteranKeeperCurve);
+assert.equal(veteranKeeperCurve.fitness, 75, "goalkeepers should retain fitness longer than outfield players");
+career.applySeasonAging({ ...veteranKeeperCurve, age: 37, fitness: 75, physical: 72 });
+const oldestKeeperCurve = { pos: "حارس مرمى", age: 37, fitness: 75, physical: 72 };
+career.applySeasonAging(oldestKeeperCurve);
+assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
+assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
 
 const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false };
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "group");

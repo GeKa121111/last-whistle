@@ -23,6 +23,9 @@ const functions = [
   "rest",
   "talkCoach",
   "normalizePlayerName",
+  "matchCleanSheetContractBonus",
+  "performanceAdviceForRole",
+  "seasonCareerChallenge",
   "startCareerFromSetup",
   "openTransferMarketPage"
 ].map(extractFunction).join("\n");
@@ -66,6 +69,73 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(functions, sandbox, { filename: "actual-career-actions" });
+
+assert.equal(typeof sandbox.matchCleanSheetContractBonus, "function",
+  "clean-sheet contract bonus helper must be testable");
+const bonusState = { cleanSheetBonus: 250 };
+assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanSheet: true } }, false), 250,
+  "a player-earned clean sheet must unlock the contracted clean-sheet bonus");
+assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanSheet: false }, score: { against: 0 } }, false), 0,
+  "a team clean sheet must not pay a personal bonus to an outfield player who did not earn it");
+assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanSheet: false }, score: { against: 0 } }, true), 0,
+  "academy/reserve players marked as unpaid must not receive the clean-sheet bonus");
+assert.equal(sandbox.matchCleanSheetContractBonus({ cleanSheetBonus: -20 }, { player: { cleanSheet: true } }, false), 0,
+  "negative contract bonus amounts must be clamped to zero");
+
+const defenderAdvice = sandbox.performanceAdviceForRole("قلب دفاع",
+  { goals: 0, assists: 0, tackles: 0, interceptions: 0, saves: 0, cleanSheets: 0, keyPasses: 0, shotsOnTarget: 0 },
+  6.8, 85, 15);
+assert.ok(defenderAdvice.includes("تمركز") && !defenderAdvice.includes("مناطق أخطر"),
+  "defenders should receive positioning/tackling advice, not generic attacking advice");
+const goalkeeperAdvice = sandbox.performanceAdviceForRole("حارس مرمى",
+  { goals: 0, assists: 0, saves: 0, cleanSheets: 0 }, 5.9, 85, 15);
+assert.ok(goalkeeperAdvice.includes("حراسة المرمى"),
+  "goalkeepers with low ratings should receive goalkeeper-specific advice");
+const strikerAdvice = sandbox.performanceAdviceForRole("رأس حربة",
+  { goals: 0, assists: 0, shotsOnTarget: 0, keyPasses: 0 }, 6.8, 85, 15);
+assert.ok(strikerAdvice.includes("المهاجم") || strikerAdvice.includes("التوقيت"),
+  "strikers without attacking contributions should receive forward-specific advice");
+const tiredKeeperAdvice = sandbox.performanceAdviceForRole("حارس مرمى",
+  { goals: 0, assists: 0, saves: 0, cleanSheets: 0 }, 5.9, 30, 80);
+assert.ok(tiredKeeperAdvice.includes("الراحة"),
+  "low energy must prioritize recovery over role-specific coaching advice");
+
+const keeperChallenge = sandbox.seasonCareerChallenge({
+  pos: "حارس مرمى", season: 3, seasonGoals: 0, seasonAssists: 0,
+  careerMatchHistory: [{ season: 3, minutes: 90, stats: { saves: 5, cleanSheet: true } }]
+});
+assert.equal(keeperChallenge.progress, 10,
+  "goalkeeper challenge should count nested saves and a clean sheet");
+assert.equal(keeperChallenge.done, true, "goalkeeper challenge should complete on its own defensive objective");
+assert.ok(keeperChallenge.description.includes("تحدي الحراسة"),
+  "goalkeeper challenge should use a goalkeeper-specific description");
+const defenderChallenge = sandbox.seasonCareerChallenge({
+  pos: "قلب دفاع", season: 3,
+  careerMatchHistory: [{ season: 3, minutes: 90, stats: { tackles: 5, interceptions: 4, cleanSheet: true } }]
+});
+assert.equal(defenderChallenge.progress, 12,
+  "defender challenge should combine tackles, interceptions, and clean-sheet credit");
+assert.equal(defenderChallenge.done, true, "defender challenge should not depend on scoring goals");
+const creatorChallenge = sandbox.seasonCareerChallenge({
+  pos: "وسط مهاجم", season: 3, seasonAssists: 0,
+  careerMatchHistory: [{ season: 3, scope: "cup", minutes: 90, goals: 0, assists: 2, stats: { keyPasses: 4 } }]
+});
+assert.equal(creatorChallenge.progress, 8,
+  "attacking midfield challenge should reward key passes and assists");
+assert.equal(creatorChallenge.done, true, "creative midfield challenge should reward creation without requiring goals");
+const strikerChallenge = sandbox.seasonCareerChallenge({
+  pos: "رأس حربة", season: 3, seasonGoals: 0, seasonAssists: 0,
+  careerMatchHistory: [{ season: 3, scope: "cup", minutes: 75, goals: 2, assists: 0, stats: {} }]
+});
+assert.equal(strikerChallenge.progress, 2, "striker challenge should continue to track goals and assists");
+assert.equal(strikerChallenge.done, false, "striker challenge should require three attacking contributions");
+
+const priorSeasonChallenge = sandbox.seasonCareerChallenge({
+  pos: "رأس حربة", season: 4, seasonGoals: 9, seasonAssists: 9,
+  careerMatchHistory: [{ season: 3, scope: "cup", minutes: 90, goals: 4, assists: 1, stats: {} }]
+});
+assert.equal(priorSeasonChallenge.progress, 0,
+  "previous-season goals and assists must not leak into the current season challenge");
 
 
 // Player setup must normalize names and keep the career from starting when the name is empty.

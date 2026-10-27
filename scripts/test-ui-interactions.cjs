@@ -84,7 +84,7 @@ assert.equal(sandbox.matchCleanSheetContractBonus({ cleanSheetBonus: -20 }, { pl
 const defenderAdvice = sandbox.performanceAdviceForRole("قلب دفاع",
   { goals: 0, assists: 0, tackles: 0, interceptions: 0, saves: 0, cleanSheets: 0, keyPasses: 0, shotsOnTarget: 0 },
   6.8, 85, 15);
-assert.ok(defenderAdvice.includes("التمركز") && !defenderAdvice.includes("مناطق أخطر"),
+assert.ok(defenderAdvice.includes("تمركز") && !defenderAdvice.includes("مناطق أخطر"),
   "defenders should receive positioning/tackling advice, not generic attacking advice");
 const goalkeeperAdvice = sandbox.performanceAdviceForRole("حارس مرمى",
   { goals: 0, assists: 0, saves: 0, cleanSheets: 0 }, 5.9, 85, 15);

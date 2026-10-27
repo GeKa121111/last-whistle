@@ -460,7 +460,9 @@ if (closedWindow.open || closedWindow.days !== 84) { console.error("Transfer tes
 const staleWinterPause = evaluateTransferWindow({ calendarDay: 100, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
 if (staleWinterPause.open) { console.error("Transfer test failed: a stale pending winter pause must not force the market open outside January.", JSON.stringify(staleWinterPause)); process.exit(1); }
 const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
-if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
+if (!winterPause.open || winterPause.id !== "winter-0") { console.error("Transfer test failed: the winter window must use a stable calendar-year ID inside January.", JSON.stringify(winterPause)); process.exit(1); }
+const winterPauseContinued = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: false, freeAgent: false });
+if (winterPauseContinued.id !== winterPause.id) { console.error("Transfer test failed: continuing into the second half must not change the active winter-window ID.", JSON.stringify({ winterPause, winterPauseContinued })); process.exit(1); }
 
 const marketAccessStart = html.indexOf("function canAccessTransferMarket(){");
 const marketAccessEnd = html.indexOf("\nfunction ", marketAccessStart + 1);
@@ -653,7 +655,7 @@ const interactionSandbox = {
     const day = Math.max(1, Number(interactionSandbox.state.calendarDay) || 1);
     const d = ((day - 1) % 365) + 1, year = Math.floor((day - 1) / 365);
     if (d <= 62) return { open: true, id: "summer-" + year, name: "الانتقالات الصيفية", days: 62 - d };
-    if (d >= 184 && d <= 214) return { open: true, id: interactionSandbox.state.winterBreakPending ? "winter-season-" + interactionSandbox.state.season : "winter-" + year, name: "الانتقالات الشتوية", days: 214 - d };
+    if (d >= 184 && d <= 214) return { open: true, id: "winter-" + year, name: "الانتقالات الشتوية", days: 214 - d };
     return { open: false, id: "closed-" + year, name: "السوق مغلق", days: d < 184 ? 184 - d : 365 - d + 1 };
   },
   saveGame: () => { interactionSaveCount++; return true; },
@@ -719,6 +721,7 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const offerWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesWindow");
 const offerState = {
   careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
   calendarDay: 15, season: 1, day: 15, apps: 2, clubName: "نادي أ", leagueCountry: "مصر",
@@ -745,6 +748,7 @@ const offerSandbox = {
   setStory: () => {}
 };
 vm.createContext(offerSandbox);
+vm.runInContext(offerWindowMatchSource, offerSandbox, { filename: "transferOfferMatchesWindow" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
 offerSandbox.ensureTransferOffers();
 assert.equal(offerGenerationCalls, 1, "an eligible player should get one offer-generation attempt even if no club fits yet");

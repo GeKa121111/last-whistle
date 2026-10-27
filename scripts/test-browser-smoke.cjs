@@ -872,6 +872,10 @@ async function main() {
         contractSeasons: 3,
         releaseClause: 0
       }];
+      // Simulate continuing into the second half while the January window is still open.
+      // Offers saved by older builds use winter-season-N and must remain negotiable.
+      state.winterBreakPending = false;
+      state.seasonPhase = "secondHalf";
       window.LWStoryRuntime.save();
       window.LWStoryRuntime.showPage("contract");
       window.LWStoryRuntime.render();

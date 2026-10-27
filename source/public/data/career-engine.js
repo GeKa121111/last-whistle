@@ -546,6 +546,9 @@
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
     if (state.retired) return { ok: false, status: "retired" };
+    if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
+      return { ok: false, status: "direct-rating-purchase-disabled" };
+    }
     if (state[item.id]) return { ok: false, status: "already-owned" };
     const cost = Math.round(Number(item.price));
     const balance = Number(state.money);

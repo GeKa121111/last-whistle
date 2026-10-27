@@ -370,7 +370,7 @@ async function main() {
         worldClubs: Object.keys(state.worldSimulation?.clubs || {}).length,
         worldProperties: Object.entries(state.worldSimulation || {}).map(([key, value]) => ({ key, chars: (() => { try { return JSON.stringify(value).length; } catch { return -1; } })(), count: Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value).length : null })).sort((a,b) => b.chars-a.chars).slice(0,12),
         saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
-        afterSavedXPMultiplier: afterSave ? !!afterSave.boots : null,
+        afterSavedXPMultiplier: afterSave ? !!afterSave.xpMultiplier : null,
         afterSavedChars: afterSave ? JSON.stringify(afterSave).length : raw.length,
         storageBackend: afterSave ? "IndexedDB" : "legacy-fallback"
       };
@@ -420,7 +420,7 @@ async function main() {
       return {
         name: save.name,
         money: Number(save.money),
-        boots: !!save.boots,
+        xpMultiplier: !!save.xpMultiplier,
         worldPlayers: Object.keys(save.worldSimulation?.players || {}).length,
         worldClubs: Object.keys(save.worldSimulation?.clubs || {}).length,
         hasSeasonDevelopment: !!save.seasonTrainingReport || !!save.seasonDevelopmentSnapshot

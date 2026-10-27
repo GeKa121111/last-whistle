@@ -141,7 +141,7 @@
     const events = [];
     if (playerStartMinute > 0 && minutes > 0) {
       events.push({ type: "substitution-on", minute: playerStartMinute, side: "player",
-        actor: String(player.name || "اللاعب"), reason: "دخول من مقاعد البدلاء" });
+        actor: String(player.name || "اللاعب"), reason: "دخول من مقاعد البدلاء", description: "دخل اللاعب من مقاعد البدلاء" });
     }
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,

@@ -367,11 +367,16 @@
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
     const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
-    let defensiveXP = 0;
+    let defensiveXP = 0, goalkeeperXP = 0;
     if (defensivePosition && (tackles > 0 || interceptions > 0 || cleanSheet)) {
       defensiveXP = Math.round((tackles * 2 + interceptions * 3 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
         * trainingFocusMultiplier(state, "defending") * Math.min(1, played / 75));
       addTrainingXP(state, "defending", defensiveXP);
+    }
+    if (state.pos === "حارس مرمى" && (saves > 0 || cleanSheet)) {
+      goalkeeperXP = Math.round((saves * 2.2 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+        * trainingFocusMultiplier(state, "goalkeeping") * Math.min(1, played / 75));
+      addTrainingXP(state, "goalkeeping", goalkeeperXP);
     }
     const milestones = [];
     if (qualifying) {
@@ -387,7 +392,7 @@
         }
       }
     }
-    return { gained, skill, xp, levels, qualifying, milestones, defensiveXP, positionActionXP, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
+    return { gained, skill, xp, levels, qualifying, milestones, defensiveXP, goalkeeperXP, positionActionXP, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
   }
 
   function hash(text) {

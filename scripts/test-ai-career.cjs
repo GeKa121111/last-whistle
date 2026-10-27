@@ -135,7 +135,7 @@ assert.ok(recommendations.every(row => row.gap <= 18), "unrealistic elite jumps 
 const duplicateTransferCandidates = [
   { name: "Current Club", country: "Egypt", ovr: 61, prestige: 55 },
   { name: "Suitable FC", country: "Egypt", ovr: 99, prestige: 80 },
-  { name: "suitable fc", country: " egypt ", ovr: 65, prestige: 70 }
+  { name: "Suitable FC", country: " egypt ", ovr: 65, prestige: 70 }
 ];
 const robustRecommendations = ai.recommendTransfers({
   clubName: "  CURRENT CLUB ", leagueCountry: " egypt ", age: 22
@@ -146,6 +146,9 @@ assert.equal(robustRecommendations.filter(row => row.name.trim().toLocaleLowerCa
   "duplicate club entries must collapse to one eligible transfer recommendation");
 assert.equal(robustRecommendations.find(row => row.name.trim().toLocaleLowerCase() === "suitable fc").power, 65,
   "an out-of-range duplicate must not hide a later eligible entry for the same club");
+assert.notEqual(robustRecommendations.find(row => row.name.trim().toLocaleLowerCase() === "suitable fc").fit,
+  "مخاطرة قلة دقائق اللعب",
+  "context-aware transfer scoring must use the selected eligible duplicate, not the first same-name entry");
 
 const life = ai.lifestyleAdvice({ energy: 88, fatigue: 12, money: 500, weeklyWage: 300, contractSeasons: 1 });
 assert.equal(life.page, "contract", "an expiring contract should surface a contract review");

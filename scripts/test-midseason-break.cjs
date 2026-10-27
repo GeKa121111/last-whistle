@@ -80,5 +80,7 @@ assert.ok(html.includes("if(activateMidSeasonBreakIfDue())break;"),
   "season simulation must stop immediately at the shared midpoint transition");
 assert.ok(html.includes("activateMidSeasonBreakIfDue();\n const tactics="),
   "manual matches must use the shared midpoint transition");
+assert.ok(html.includes('setStory(state.winterBreakPending?"وصلنا لنص الموسم — راجع انتقالات الشتاء":"صافرة النهاية: "+result.outcome,story);'),
+  "manual match results must preserve guidance when the winter break activates");
 
 console.log("PASS: winter-break timing follows the actual match midpoint and stays inside the winter transfer window.");

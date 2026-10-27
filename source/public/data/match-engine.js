@@ -69,8 +69,10 @@
       const minute = Number(event.minute) || 0;
       // Substitution/injury ends responsibility. A red card does not; players who stay on
       // the pitch remain accountable in extra time even though the public minutes stat caps at 90.
+      const exitMinute = exitEvent ? Number(exitEvent.minute) : null;
       return minute <= played
         || (dismissalMinute != null && minute > dismissalMinute)
+        || (exitMinute != null && minute > played && minute <= exitMinute)
         || (!exitEvent && minute > played);
     }).length;
   }

@@ -60,6 +60,9 @@
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
     const played = Math.max(0, Number(minutes) || 0);
     const timeline = Array.isArray(events) ? events : [];
+    const entryEvent = timeline.find(event => event && event.type === "substitution-on" && event.side === "player");
+    const rawEntryMinute = entryEvent ? Number(entryEvent.minute) : 0;
+    const entryMinute = Number.isFinite(rawEntryMinute) ? Math.max(0, rawEntryMinute) : 0;
     const exits = timeline
       .filter(event => event && event.side === "player"
         && ["substitution", "injury", "red-card"].includes(event.type))
@@ -70,20 +73,16 @@
     const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
     const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
       : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
-    // A red card, substitution, or injury ends responsibility for later concessions.
-    // Prefer recorded exit events over rounded public minutes; an explicit dismissal
-    // minute is a fallback when older callers provide no red-card event.
-    const exitMinute = firstExit && ["substitution", "injury", "red-card"].includes(firstExit.type)
-      ? firstExit.minute
+    // Substitutes are only responsible for goals after they enter. A recorded exit
+    // wins over duration estimates; a full-match player may remain accountable in ET.
+    const exitMinute = firstExit ? firstExit.minute
       : Number.isFinite(dismissalMinute) ? dismissalMinute
-        : played < 90 ? played : null;
+        : entryMinute > 0 || played < 90 ? entryMinute + played : null;
     return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
       const minute = Number(event.minute);
-      if (!Number.isFinite(minute)) return false;
-      // Goals at the exit minute still count; goals after it belong to the replacement/team.
-      if (exitMinute != null) return minute <= exitMinute;
-      return minute <= played || played >= 90;
+      if (!Number.isFinite(minute) || minute <= entryMinute) return false;
+      return exitMinute == null || minute <= exitMinute;
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
@@ -109,25 +108,41 @@
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
     const plannedMinutes = selectedMinutes(player, !unavailable, random);
-    // Cards/injuries are only real if they happen while the player is on the pitch.
-    // If both are rolled, the first event ends this player's participation, so the later one is cancelled.
+    // A true bench substitute enters late and plays through the end of regulation;
+    // other squad roles retain their existing start-and-exit minute model.
+    const playerStartMinute = plannedMinutes > 0 && String(player.role || "بديل") === "بديل"
+      ? Math.max(0, 90 - plannedMinutes) : 0;
+    const plannedEndMinute = Math.min(90, playerStartMinute + plannedMinutes);
+    // Cards/injuries can only occur inside the player's actual on-pitch interval.
+    // If both are rolled, the first event ends participation and cancels the later one.
     const redCardRolled = plannedMinutes > 0 && random() < 0.0035;
-    const redMinuteRolled = redCardRolled ? Math.floor(38 + random() * 48) : 121;
+    const cardStartMinute = Math.max(playerStartMinute + 1, 38);
+    const cardEndMinute = Math.max(cardStartMinute, plannedEndMinute);
+    const redMinuteRolled = redCardRolled
+      ? Math.floor(cardStartMinute + random() * Math.max(1, cardEndMinute - cardStartMinute + 1)) : 121;
     const injuryChance = plannedMinutes > 0
       ? clamp(0.008 + (100 - clamp(player.energy, 0, 100)) * 0.00032 + clamp(player.fatigue, 0, 100) * 0.00028, 0.008, 0.065)
       : 0;
     const injuryRolled = random() < injuryChance;
-    const injuryMinuteRolled = injuryRolled ? Math.floor(52 + random() * 39) : 121;
-    let redCard = redCardRolled && redMinuteRolled <= plannedMinutes;
-    let injured = injuryRolled && injuryMinuteRolled <= plannedMinutes;
+    const injuryStartMinute = Math.max(playerStartMinute + 1, 52);
+    const injuryEndMinute = Math.max(injuryStartMinute, plannedEndMinute);
+    const injuryMinuteRolled = injuryRolled
+      ? Math.floor(injuryStartMinute + random() * Math.max(1, injuryEndMinute - injuryStartMinute + 1)) : 121;
+    let redCard = redCardRolled && redMinuteRolled > playerStartMinute && redMinuteRolled <= plannedEndMinute;
+    let injured = injuryRolled && injuryMinuteRolled > playerStartMinute && injuryMinuteRolled <= plannedEndMinute;
     if (redCard && injured) {
       if (redMinuteRolled <= injuryMinuteRolled) injured = false;
       else redCard = false;
     }
     const redMinute = redCard ? redMinuteRolled : 121;
     const injuryMinute = injured ? injuryMinuteRolled : 121;
-    const minutes = Math.round(Math.min(plannedMinutes, redMinute, injuryMinute));
+    const minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
+    const playerEndMinute = playerStartMinute + minutes;
     const events = [];
+    if (playerStartMinute > 0 && minutes > 0) {
+      events.push({ type: "substitution-on", minute: playerStartMinute, side: "player",
+        actor: String(player.name || "اللاعب"), reason: "دخول من مقاعد البدلاء" });
+    }
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
       keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, cleanSheet: false,
@@ -149,7 +164,7 @@
     if (injured) events.push({ type: "injury", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), days: stats.injuryDays });
     if (minutes > 0 && !redCard && random() < 0.105) {
       stats.yellowCards = 1;
-      events.push({ type: "yellow-card", minute: Math.max(1, Math.floor(random() * minutes)), side: "player", actor: String(player.name || "اللاعب") });
+      events.push({ type: "yellow-card", minute: playerStartMinute + 1 + Math.floor(random() * minutes), side: "player", actor: String(player.name || "اللاعب") });
     }
     function createPeriod(periodStart, duration, isExtra) {
       const relativeGap = teamPower + homeAdvantage - opponentPower;
@@ -171,7 +186,7 @@
       const ourChances = Math.max(1, Math.round((ourVolume + random() * 3 - 1.5) * scale));
       const oppChances = Math.max(1, Math.round((oppVolume + random() * 3 - 1.5) * scale));
       let goalsFor = 0, goalsAgainst = 0;
-      const keeperActive = profile.goalkeeper && minutes >= periodStart + 1;
+      const keeperActive = profile.goalkeeper && playerEndMinute > periodStart && playerStartMinute < periodStart + duration;
       function minuteOf(index, total) {
         return Math.min(periodStart + duration, periodStart + 1 + Math.floor((index + random() * 0.85) / Math.max(1, total) * duration));
       }
@@ -182,7 +197,7 @@
           if (random() > 0.69) continue;
           events.push({ type: "shot", minute, side, onTarget: false });
           const isOurs = side === "team";
-          const playerCanAct = isOurs && minutes > 0 && minute <= minutes;
+          const playerCanAct = isOurs && minutes > 0 && minute > playerStartMinute && minute <= playerEndMinute;
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
           // The match timeline already prevents involvement after the player's substitution.
@@ -217,7 +232,7 @@
             if (shotEvent.onTarget) stats.shotsOnTarget++;
           }
           if (!isGoal) {
-            if (!isOurs && keeperActive && minute <= minutes && shotEvent.onTarget) {
+            if (!isOurs && keeperActive && minute > playerStartMinute && minute <= playerEndMinute && shotEvent.onTarget) {
               stats.saves++;
               events.push({ type: "save", minute, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
             }
@@ -231,13 +246,15 @@
           if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.22, 0.07, 0.34)) {
             stats.assists++;
             stats.keyPasses++;
-            events.push({ type: "assist", minute: Math.max(1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
+            events.push({ type: "assist", minute: Math.max(playerStartMinute + 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
           }
         }
       }
       sideChances("team", ourChances);
       sideChances("opponent", oppChances);
-      const playerActiveDuration = Math.max(0, Math.min(duration, minutes - periodStart));
+      const playerPeriodStart = Math.max(periodStart, playerStartMinute);
+      const playerPeriodEnd = Math.min(periodStart + duration, playerEndMinute);
+      const playerActiveDuration = Math.max(0, playerPeriodEnd - playerPeriodStart);
       if (playerActiveDuration > 0 && !profile.goalkeeper) {
         // Sample roughly one defensive opportunity per nine minutes played. The old
         // one-roll-per-half logic produced well under one tackle per full match.
@@ -249,12 +266,12 @@
         for (let attempt = 0; attempt < actionTrials; attempt += 1) {
           if (defensiveRandom() < tackleChance) {
             stats.tackles++;
-            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
           if (defensiveRandom() < interceptionChance) {
             stats.interceptions++;
-            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
         }
@@ -267,7 +284,7 @@
         for (let attempt = 0; attempt < foulTrials; attempt += 1) {
           if (foulRandom() < foulChance) {
             stats.fouls++;
-            const minute = periodStart + 1 + Math.floor(foulRandom() * playerActiveDuration);
+            const minute = playerPeriodStart + 1 + Math.floor(foulRandom() * playerActiveDuration);
             events.push({ type: "foul", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
         }
@@ -312,7 +329,7 @@
     // This engine tracks player minutes only through regulation. Extra-time events still
     // affect the team score, but the player is not simulated in either extra-time period.
     // Record the 90-minute exit before calculating clean sheets and conceded-goal impact.
-    if (extraTime.played && minutes >= 90 && !redCard && !injured) {
+    if (extraTime.played && minutes > 0 && playerEndMinute >= 90 && !redCard && !injured) {
       events.push({ type: "substitution", minute: 90, side: "player", actor: String(player.name || "اللاعب"), reason: "عدم المشاركة في الوقت الإضافي" });
     }
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
@@ -323,12 +340,13 @@
       const scale = Math.min(1, minutes / 78);
       stats.rating = Math.round(clamp((6.05 + impact * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
-    if (minutes > 0 && minutes < 90 && !redCard && !injured) events.push({ type: "substitution", minute: minutes, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
+    if (minutes > 0 && playerEndMinute < 90 && !redCard && !injured) events.push({ type: "substitution", minute: playerEndMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
     if (redCard) events.push({ type: "substitution", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد" });
     const sameMinutePriority = event =>
-      event.type === "red-card" || event.type === "injury" ? 1
-        : event.type === "substitution" && event.side === "player" ? 2 : 0;
+      event.type === "substitution-on" && event.side === "player" ? -1
+        : event.type === "red-card" || event.type === "injury" ? 1
+          : event.type === "substitution" && event.side === "player" ? 2 : 0;
     events.sort((a, b) => a.minute - b.minute || sameMinutePriority(a) - sameMinutePriority(b));
     return {
       home: Boolean(options.home), teamName, opponentName, tactic, regulation, extraTime, shootout,
@@ -351,14 +369,21 @@
     const fouls = result.events.filter(event => event.type === "foul" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
       && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
-    const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
-      && Number(event.minute) <= Number(result.player.minutes));
+    const playerEntryEvent = result.events.find(event => event.type === "substitution-on" && event.side === "player");
+    const playerEntryMinute = playerEntryEvent ? Math.max(0, Number(playerEntryEvent.minute) || 0) : 0;
+    const playerExitEvent = result.events
+      .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+      .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+    const playerEndMinute = playerExitEvent ? Number(playerExitEvent.minute)
+      : playerEntryMinute + Number(result.player.minutes || 0);
+    const isPlayerActivityEvent = event => event.creditedToPlayer === true
+      || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
+    const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
+      Number(event.minute) > playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));
     const exitIndex = result.events.findIndex(event => event.side === "player"
       && ["red-card", "injury", "substitution"].includes(event.type));
-    const isPlayerActivityEvent = event => event.creditedToPlayer === true
-      || (event.side === "player" && ["yellow-card", "tackle", "interception", "foul"].includes(event.type));
     const noPlayerActivityAfterExit = exitIndex < 0
       || !result.events.slice(exitIndex + 1).some(isPlayerActivityEvent);
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;

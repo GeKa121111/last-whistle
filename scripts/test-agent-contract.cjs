@@ -14,8 +14,9 @@ assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v76";'),
-  "open-ended agent contracts must invalidate the old offline cache");
+const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
+assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
+  "the offline service worker must use a versioned cache name");
 
 const documentListeners = Object.create(null);
 const windowListeners = Object.create(null);

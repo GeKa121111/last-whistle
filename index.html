@@ -2164,11 +2164,19 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
     const played = Math.max(0, Number(minutes) || 0);
-    return (Array.isArray(events) ? events : []).filter(event => {
+    const timeline = Array.isArray(events) ? events : [];
+    const exitEvent = timeline.find(event => event && event.side === "player"
+      && ["substitution", "injury", "red-card"].includes(event.type));
+    const dismissalMinute = redCardMinute != null ? Number(redCardMinute)
+      : exitEvent && exitEvent.type === "red-card" ? Number(exitEvent.minute) : null;
+    return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
       const minute = Number(event.minute) || 0;
-      // A substitution ends the player's personal defensive window; a red card does not.
-      return minute <= played || (redCardMinute != null && minute > Number(redCardMinute));
+      // Substitution/injury ends responsibility. A red card does not; players who stay on
+      // the pitch remain accountable in extra time even though the public minutes stat caps at 90.
+      return minute <= played
+        || (dismissalMinute != null && minute > dismissalMinute)
+        || (!exitEvent && minute > played);
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {

@@ -50,6 +50,33 @@
     if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربة") || p.includes("راسحربه")) return "attacker";
     return "midfielder";
   }
+  function positionProductionProfile(position) {
+    const p = normalize(position);
+    // Centre strikers should finish moves more often; mobile forwards and wingers
+    // should contribute more assists rather than sharing one generic attacker rate.
+    if (p === "st" || p === "cf" || p === "f" || p === "striker"
+      || p.includes("راسحربة") || p.includes("راسحربه")
+      || p.includes("centreforward") || p.includes("centerforward")) {
+      return { role: "centre-striker", goalWeight: 3.25, assistWeight: 0.72, attackRate: 0.44, assistRate: 0.14 };
+    }
+    if (p.includes("جناح") || ["lw", "rw", "lwf", "rwf", "wf"].includes(p)
+      || p.includes("winger") || p.includes("wing")) {
+      return { role: "winger", goalWeight: 2.05, assistWeight: 1.8, attackRate: 0.27, assistRate: 0.31 };
+    }
+    if (p.includes("مهاجم") || p === "ss" || p === "fw"
+      || p.includes("secondstriker") || p.includes("forward") || p.includes("striker")) {
+      return { role: "mobile-forward", goalWeight: 2.35, assistWeight: 1.55, attackRate: 0.31, assistRate: 0.28 };
+    }
+    const group = groupForPosition(position);
+    if (group === "goalkeeper") return { role: group, goalWeight: 0.03, assistWeight: 0.04, attackRate: 0.0015, assistRate: 0.002 };
+    if (group === "defender") return { role: group, goalWeight: 0.42, assistWeight: 0.7, attackRate: 0.038, assistRate: 0.055 };
+    if (group === "midfielder") return { role: group, goalWeight: 1.2, assistWeight: 1.8, attackRate: 0.115, assistRate: 0.215 };
+    return { role: "mobile-forward", goalWeight: 2.35, assistWeight: 1.55, attackRate: 0.31, assistRate: 0.28 };
+  }
+  function playerRoleWeight(player, purpose) {
+    const profile = positionProductionProfile(player && player.position);
+    return purpose === "goal" ? profile.goalWeight : profile.assistWeight;
+  }
   function clubKey(name, country) {
     return normalize(country) + "|" + normalize(name);
   }
@@ -328,8 +355,9 @@
     const roleStrength = peers.length ? (peers.slice().sort((a, b) => b.ovr - a.ovr).findIndex(row => row.id === player.id)) : 0;
     const expectedApps = clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), 4, matches);
     const appearances = Math.round(expectedApps * clamp(progress, 0, 1));
-    const rate = group === "attacker" ? 0.31 : group === "midfielder" ? 0.115 : group === "defender" ? 0.038 : 0.0015;
-    const assistRate = group === "attacker" ? 0.18 : group === "midfielder" ? 0.215 : group === "defender" ? 0.055 : 0.002;
+    const production = positionProductionProfile(player.position);
+    const rate = production.attackRate;
+    const assistRate = production.assistRate;
     const performanceMultiplier = clamp(0.72 + ovr / 100 * 0.38 + (power - 65) * 0.002, 0.72, 1.18);
     const fullGoals = Math.max(0, Math.round(expectedApps * rate * performanceMultiplier + rng() * (group === "attacker" ? 5.5 : 2.1) - 1));
     const fullAssists = Math.max(0, Math.round(expectedApps * assistRate * performanceMultiplier + rng() * 3.2 - 0.5));
@@ -748,8 +776,9 @@
     };
   }
   global.LWWorldAI = Object.freeze({
-    version: VERSION, normalize, clubKey, groupForPosition, ensureState, completeSeason, advanceToSeason,
-    getSeasonLines, getClubPower, transferTargets, getLeagueTable, leaderboard, dashboard
+    version: VERSION, normalize, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
+    ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
+    getLeagueTable, leaderboard, dashboard
   });
 })(window);
 
@@ -839,9 +868,11 @@
     if (!rows.length) return null;
     const weights = rows.map(player => {
       const group = player.group || base.groupForPosition(player.position);
-      const role = purpose === "goal" ? ({ attacker: 2.4, midfielder: 1.2, defender: 0.42, goalkeeper: 0.03 })[group]
+      const fallbackRole = purpose === "goal" ? ({ attacker: 2.4, midfielder: 1.2, defender: 0.42, goalkeeper: 0.03 })[group]
         : ({ attacker: 1.3, midfielder: 1.8, defender: 0.7, goalkeeper: 0.04 })[group];
-      return Math.max(0.05, (Number(player.ovr) || 50) - 27) * (role || 1);
+      const role = typeof base.playerRoleWeight === "function"
+        ? base.playerRoleWeight(player, purpose) : fallbackRole;
+      return Math.max(0.05, (Number(player.ovr) || 50) - 27) * (Number(role) || 1);
     });
     let roll = rng() * weights.reduce((sum, value) => sum + value, 0);
     for (let i = 0; i < rows.length; i++) { roll -= weights[i]; if (roll <= 0) return rows[i]; }
@@ -1623,7 +1654,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=3");
+    const worker = new global.Worker("./football-world-worker.js?v=4");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

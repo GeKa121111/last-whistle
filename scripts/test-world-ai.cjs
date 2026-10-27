@@ -36,6 +36,23 @@ new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContex
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
+assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");
+const centreStrikerProfile = ai.positionProductionProfile("رأس حربة");
+const mobileForwardProfile = ai.positionProductionProfile("مهاجم");
+const wingerProfile = ai.positionProductionProfile("جناح");
+assert.ok(centreStrikerProfile.attackRate > mobileForwardProfile.attackRate,
+  "centre strikers must have a higher goal rate than mobile forwards");
+assert.ok(centreStrikerProfile.goalWeight > mobileForwardProfile.goalWeight,
+  "actual match goal selection must favour centre strikers over mobile forwards");
+assert.ok(centreStrikerProfile.assistRate < mobileForwardProfile.assistRate,
+  "mobile forwards must contribute more assists than centre strikers");
+assert.ok(wingerProfile.assistRate > centreStrikerProfile.assistRate,
+  "wingers must retain a stronger assist profile than centre strikers");
+assert.ok(ai.playerRoleWeight({ position: "رأس حربة" }, "goal") > ai.playerRoleWeight({ position: "مهاجم" }, "goal"),
+  "the match engine must weight centre strikers more heavily as goal scorers");
+assert.ok(ai.playerRoleWeight({ position: "مهاجم" }, "assist") > ai.playerRoleWeight({ position: "رأس حربة" }, "assist"),
+  "the match engine must weight mobile forwards more heavily for assists");
 
 const save = {
   season: 1, age: 20, name: "لاعب اختبار", pos: "جناح",

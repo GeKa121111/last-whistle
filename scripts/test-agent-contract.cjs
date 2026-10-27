@@ -109,6 +109,22 @@ assert.equal(state.agentProfile.expiresSeason, null, "legacy expiry dates must b
 assert.equal(state.agentHistory.some(event => event.title === "انتهاء عقد الوكيل"), false,
   "season progression must not auto-terminate an open-ended contract");
 
+// A termination dialog opened before retirement must not charge or end the agreement afterward.
+click("agent-active", "hossam");
+click("agent-end-current", "hossam");
+const moneyBeforeRetiredTermination = state.money;
+state.retired = true;
+click("agent-confirm-end", "hossam");
+assert.equal(state.agent, true, "a stale termination confirmation must not remove the representative after retirement");
+assert.equal(state.agentProfile.id, "hossam", "a stale termination confirmation must preserve the active representative");
+assert.equal(state.money, moneyBeforeRetiredTermination, "a stale termination confirmation must not charge an exit fee");
+assert.equal(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"), false,
+  "a blocked post-retirement termination must not create a termination record");
+click("agent-end-current", "hossam");
+assert.equal(state.agent, true, "opening a termination dialog after retirement must be blocked");
+assert.equal(state.money, moneyBeforeRetiredTermination, "blocked post-retirement actions must not change the balance");
+state.retired = false;
+
 // A stale switch dialog must not charge or remove the agent after the career becomes ineligible.
 click("agent-meet", "nadine");
 const moneyBeforeBlockedSwitch = state.money;

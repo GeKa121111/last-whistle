@@ -13,6 +13,8 @@ assert.equal(appHtml, fs.readFileSync(path.join(root, "public", "index.html"), "
   "root and public app shells must stay synchronized");
 assert.ok(appHtml.includes("cleanSheets:stats.cleanSheets") && appHtml.includes("saves:stats.saves"),
   "the career award ceremony must receive the player's actual defensive season totals");
+assert.ok(appHtml.includes('"id":"golden-glove","name":"القفاز الذهبي"'),
+  "the award catalogue must list Golden Glove for the season award UI");
 assert.ok(appHtml.includes('"golden-glove":1200'),
   "winning the Golden Glove must grant the configured in-game reward");
 const sandbox = { window: {}, console, Date, Math, Number, String, Array, Object, Set };

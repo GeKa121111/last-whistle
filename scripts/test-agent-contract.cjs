@@ -107,8 +107,17 @@ assert.equal(state.agentProfile.expiresSeason, null, "legacy expiry dates must b
 assert.equal(state.agentHistory.some(event => event.title === "انتهاء عقد الوكيل"), false,
   "season progression must not auto-terminate an open-ended contract");
 
-// The player can switch directly from the current representative to another one.
+// A stale switch dialog must not charge or remove the agent after the career becomes ineligible.
 click("agent-meet", "nadine");
+const moneyBeforeBlockedSwitch = state.money;
+state.retired = true;
+click("agent-switch-sign", "nadine");
+assert.equal(state.agent, true, "a blocked stale switch must preserve the current representative");
+assert.equal(state.agentProfile.id, "hossam", "a blocked stale switch must not replace the current agent");
+assert.equal(state.money, moneyBeforeBlockedSwitch, "a blocked stale switch must not charge the exit fee");
+state.retired = false;
+
+// The player can switch directly from the current representative to another one.
 click("agent-switch-sign", "nadine");
 assert.equal(state.agent, true, "switching agents should leave representation active");
 assert.equal(state.agentProfile.id, "nadine", "switching must sign the newly selected agent");
@@ -129,4 +138,4 @@ assert.equal(state.agentProfile.id, "karim", "the new representative must become
 assert.ok(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"),
   "voluntary termination should be recorded in the agent history");
 
-console.log("PASS: open-ended agent contracts persist across seasons, migrate old saves, and can be terminated or switched.");
+console.log("PASS: open-ended agent contracts persist across seasons, migrate old saves, reject stale switches, and can be terminated or switched.");

@@ -327,6 +327,23 @@
     const averageRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : base.formRating(state);
     const goals = played.reduce((sum, row) => sum + Math.max(0, num(row.goals, 0)), 0);
     const assists = played.reduce((sum, row) => sum + Math.max(0, num(row.assists, 0)), 0);
+    const tackles = played.reduce((sum, row) => sum + Math.max(0, num(row.tackles, 0)), 0);
+    const interceptions = played.reduce((sum, row) => sum + Math.max(0, num(row.interceptions, 0)), 0);
+    const saves = played.reduce((sum, row) => sum + Math.max(0, num(row.saves, 0)), 0);
+    const keyPasses = played.reduce((sum, row) => sum + Math.max(0, num(row.keyPasses, 0)), 0);
+    const shotsOnTarget = played.reduce((sum, row) => sum + Math.max(0, num(row.shotsOnTarget, 0)), 0);
+    const cleanSheets = played.filter(row => row.cleanSheet === true).length;
+    const position = String(state.pos || state.position || "غير محدد");
+    const goalkeeperContribution = /حارس/.test(position) && (saves >= 2 || cleanSheets > 0);
+    const defensiveContribution = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)
+      && (tackles >= 3 || interceptions >= 2 || cleanSheets > 0);
+    const creatorContribution = position === "وسط مهاجم"
+      && (keyPasses >= 2 || goals > 0 || assists > 0 || tackles >= 3 || interceptions >= 2);
+    const attackerContribution = ["جناح", "مهاجم", "مهاجم متحرك", "رأس حربة"].includes(position)
+      && (goals > 0 || assists > 0 || shotsOnTarget >= 2 || keyPasses >= 2);
+    const roleContributionLastFive = goalkeeperContribution || defensiveContribution
+      || creatorContribution || attackerContribution
+      || goals > 0 || assists > 0 || keyPasses >= 2;
     const minutesLastFive = played.reduce((sum, row) => sum + Math.max(0, num(row.minutes, 0)), 0);
     const ledger = ledgerOf(state), currentSeason = seasonOf(state);
     const recentDecision = ledger.decisions.find(row => row && Number(row.season) === currentSeason);
@@ -340,7 +357,9 @@
       position: String(state.pos || state.position || "غير محدد"), clubName: String(state.clubName || ""),
       overall: clamp(num(overall, num(state.ovr, 50)), 0, 99), recentMatches: played.length,
       averageRating: Number(averageRating.toFixed(2)), goalsLastFive: goals, assistsLastFive: assists,
-      minutesLastFive, lastResult: getLastResult(played[0]), leaguePosition: rank.rank,
+      tacklesLastFive: tackles, interceptionsLastFive: interceptions, savesLastFive: saves,
+      keyPassesLastFive: keyPasses, shotsOnTargetLastFive: shotsOnTarget, cleanSheetsLastFive: cleanSheets,
+      roleContributionLastFive, minutesLastFive, lastResult: getLastResult(played[0]), leaguePosition: rank.rank,
       leaguePoints: rank.points, leagueTeamCount: rank.teams, coachRelationship, contractSeasons,
       freeAgent, energy: clamp(state.energy, 0, 100), fatigue: clamp(state.fatigue, 0, 100),
       injuryDays: Math.max(0, num(state.injuryDays, 0)), decisionHistoryCount: ledger.decisions.length,
@@ -351,8 +370,7 @@
   function utilities(context) {
     const recovery = context.injuryDays > 0 ? 100 : Math.max(0, 32 - context.energy) * 2.2 + Math.max(0, context.fatigue - 68) * 1.5;
     const playingTime = Math.max(0, 330 - context.minutesLastFive) / 3.5 + Math.max(0, 45 - context.coachRelationship) * 0.45;
-    const individualContribution = context.goalsLastFive > 0 || context.assistsLastFive > 0;
-    const poorIndividualForm = context.averageRating < 6.4 && !individualContribution;
+    const poorIndividualForm = context.averageRating < 6.4 && !context.roleContributionLastFive;
     const form = Math.max(0, 6.7 - context.averageRating) * 11
       + (context.lastResult.outcome === "loss" && poorIndividualForm ? 2 : 0);
     const contract = context.freeAgent ? 18 : context.contractSeasons <= 1 ? 24 : context.contractSeasons === 2 ? 10 : 0;
@@ -463,7 +481,10 @@
     version: base.version,
     ageStages: AGE_STAGES,
     contextSnapshot,
-    utilityScores: (state, overall) => utilities(contextSnapshot(state, overall)),
+    utilityScores: (state, overall) => {
+      const context = contextSnapshot(state, overall);
+      return Object.assign({}, utilities(context), { context });
+    },
     hasEvent, recordEvent, recordDecision, resolveDecision, recordRecommendation, decisionConsequences,
     coachAdvice, recommendTransfers
   }));

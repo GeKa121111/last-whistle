@@ -12,10 +12,10 @@ const publicSource = fs.readFileSync(path.join(root, "public", "agent-system.js"
 assert.equal(source, publicSource, "root and public agent runtimes must stay in sync");
 assert.doesNotMatch(source, /checkExpiry|isExpired\(/,
   "agent representation must not be removed automatically at a season boundary");
-assert.ok(source.includes('p.contractType="open-ended"'),
-  "existing agent saves must migrate to open-ended representation");
-assert.ok(source.includes("الاتفاق مفتوح المدة") && source.includes("تقدر تنهيه في أي وقت"),
-  "the current-agent panel must clearly show the indefinite contract and manual exit");
+assert.ok(source.includes('p.contractType="auto-renewing"') && source.includes("function renewAgreement(s)"),
+  "existing agent saves must migrate to automatic renewal");
+assert.ok(source.includes("التجديد التلقائي كل موسمين") && source.includes("التجديد القادم: الموسم"),
+  "the current-agent panel must show automatic renewal and the next term boundary");
 
 const documentListeners = {};
 const windowListeners = {};
@@ -71,12 +71,14 @@ vm.runInNewContext(source, sandbox, { filename: "agent-system.js" });
 assert.equal(state.agent, true,
   "an existing representative must remain active after the legacy two-season expiry");
 assert.equal(state.agentProfile.id, "hossam");
-assert.equal(state.agentProfile.contractType, "open-ended");
+assert.equal(state.agentProfile.contractType, "auto-renewing");
+assert.equal(state.agentProfile.expiresSeason, 11, "a legacy expired term must renew beyond the current season instead of ending the agent");
 state.season = 99;
 windowListeners.pageshow();
 assert.equal(state.agent, true,
   "season progression and page refresh must not automatically terminate representation");
 assert.equal(state.agentProfile.id, "hossam");
+assert.equal(state.agentProfile.expiresSeason, 101, "large season jumps must renew the term beyond the current season");
 
 function clickAction(action, attrs = {}) {
   const button = {
@@ -107,7 +109,7 @@ clickAction("agent-switch-sign", { agentId: "nadine" });
 assert.equal(state.agent, true);
 assert.equal(state.agentProfile.id, "nadine",
   "confirming a switch must leave exactly the newly selected representative active");
-assert.equal(state.agentProfile.contractType, "open-ended");
+assert.equal(state.agentProfile.contractType, "auto-renewing");
 assert.equal(state.money, 9780,
   "switching must charge the current agent's configured exit fee exactly once");
 assert.ok(state.agentHistory.some(entry => entry.title === "تغيير الوكيل"));
@@ -128,9 +130,9 @@ clickAction("agent-sign", { agentId: "seif" });
 assert.equal(state.agent, true,
   "a player must be able to sign a new agent immediately after termination");
 assert.equal(state.agentProfile.id, "seif");
-assert.equal(state.agentProfile.contractType, "open-ended");
+assert.equal(state.agentProfile.contractType, "auto-renewing");
 assert.equal(state.money, 9400, "signing a replacement agent must not charge a second exit fee");
 assert.ok(saveCount >= 3, "contract changes must persist through the existing save API");
 assert.ok(renderCount >= 3, "contract changes must refresh the interface");
 
-console.log("PASS: open-ended agent contracts, legacy-save migration, manual termination, and agent switching.");
+console.log("PASS: auto-renewing agent contracts, legacy-save migration, manual termination, and agent switching.");

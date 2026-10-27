@@ -819,7 +819,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   <h3 style="margin-top:17px">اختار مركزك في الملعب</h3><div class="positionGrid" id="positionGrid"></div>
   <div class="positionStory" id="positionStory">اختار مركزك عشان تعرف بداية قصتك.</div>
   <div class="startFoot"><button class="btn primary" id="createCareerBtn">ابدأ المسيرة ⚽</button><button class="btn ghost" id="continueSavedBtn" style="display:none">كمّل الحفظ القديم</button></div>
-  <div class="muted tiny" style="margin-top:10px">قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري؛ لا تمثل سجل FIFA كاملًا. مصر والدرجات غير المتاحة تستخدم بيانات اللعبة المحلية.</div>
+  
  </div>
 </div>
 
@@ -1336,13 +1336,13 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
   const STARTING_RANGES = {
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
-    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[40,50], physical:[55,66] },
-    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[45,55], physical:[52,62] },
-    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
-    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
-    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
-    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[5,12], vision:[51,62], physical:[45,57] },
-    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[5,12], vision:[42,54], physical:[53,65] }
+    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[40,50], physical:[55,66] },
+    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[45,55], physical:[52,62] },
+    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[10,15], vision:[55,65], physical:[52,62] },
+    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[10,15], vision:[55,65], physical:[40,55] },
+    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[10,15], vision:[50,60], physical:[45,58] },
+    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[10,15], vision:[51,62], physical:[45,57] },
+    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[10,15], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
     const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
@@ -1447,6 +1447,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const weights = OVR_WEIGHTS[state.pos] || OVR_WEIGHTS["جناح"];
     let weighted = 0, totalWeight = 0;
     for (const [key, weight] of Object.entries(weights)) {
+      if (state.pos !== "حارس مرمى" && key === "goalkeeping") continue;
       const value = Number(state[key]);
       weighted += (Number.isFinite(value) ? value : 0) * weight;
       totalWeight += weight;
@@ -4211,8 +4212,25 @@ function renderPositionDevelopment(){
 }
 function render(){
  const page=state.currentPage||"home";
+ const isGoalkeeper=state.pos==="حارس مرمى";
+ if(!isGoalkeeper)state.goalkeeping=clamp(Number(state.goalkeeping)||12,10,15);
+ const goalkeeperSkillRow=$("skill-goalkeeping")?.closest(".progressRow");
+ if(goalkeeperSkillRow){goalkeeperSkillRow.hidden=!isGoalkeeper;goalkeeperSkillRow.style.display=isGoalkeeper?"":"none";}
+ const goalkeeperTrainingButton=document.querySelector('#page-training [data-action="train-goalkeeping"]');
+ if(goalkeeperTrainingButton){goalkeeperTrainingButton.hidden=!isGoalkeeper;goalkeeperTrainingButton.style.display=isGoalkeeper?"":"none";}
  const pageRoot=document.getElementById("page-"+page)||document;
  const ov=overall();
+ const hint=$("homeReadinessHint");
+ if(hint){
+  const energy=clamp(Number(state.energy)||0,0,100),fitness=clamp(Number(state.fitness)||0,0,100),fatigue=clamp(Number(state.fatigue)||0,0,100),injury=Math.max(0,Number(state.injuryDays)||0);
+  const readiness=Math.round(energy*.42+fitness*.36+(100-fatigue)*.22);
+  const advice=window.LWCareerAI&&typeof window.LWCareerAI.coachAdvice==="function"?window.LWCareerAI.coachAdvice(state,ov):null;
+  const labels={goalkeeping:"الحراسة ورد الفعل",defending:"الدفاع والتمركز",physical:"القوة والالتحامات",speed:"السرعة",fitness:"اللياقة",passing:"التمرير",vision:"الرؤية وصناعة اللعب",composure:"الهدوء تحت الضغط",dribbling:"المراوغة",shooting:"التسديد والإنهاء"};
+  if(!state.careerStarted)hint.textContent="ابدأ المسيرة لعرض جاهزيتك وتوصية مناسبة لمركزك.";
+  else if(injury>0)hint.textContent="الجاهزية "+readiness+"/100 • الأولوية للاستشفاء: باقي "+injury+" يوم على التعافي.";
+  else if(energy<30||fatigue>=76)hint.textContent="الجاهزية "+readiness+"/100 • التوصية: راحة واستشفاء قبل التدريب أو المباراة.";
+  else hint.textContent="الجاهزية "+readiness+"/100 • توصية اليوم: "+(labels[advice?.focus]||labels[isGoalkeeper?"goalkeeping":"fitness"]||"تدريب مناسب لمركزك")+".";
+ }
  const homeCountry=state.leagueCountry||"مصر";
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
  setText("heroDescription",`كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك مع ${club().name}، واكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.`);
@@ -4498,7 +4516,7 @@ function applyMatchResult(result,meta){
  if(scope==="league"){if(outcome==="فوز"){state.seasonW++;state.seasonPoints+=3;}else if(outcome==="تعادل"){state.seasonD++;state.seasonPoints++;}else state.seasonL++;}
  if(participated&&scope!=="international"&&state.creatorStudio){const audienceGain=6+(rating>=7.5?3:rating>=6.5?1:0);state.followers=(Number(state.followers)||0)+audienceGain;log("زاد جمهورك "+audienceGain+" متابع بعد أداء النادي.");}
  state.playedToday=true;
- const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
+ const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,cleanSheet:!!m.cleanSheet,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
  state.careerMatchHistory.unshift(record);state.careerMatchHistory=state.careerMatchHistory.slice(0,800);
  if(scope==="league"){state.seasonLog.push(record);}
  if(scope==="international"){state.internationalHistory.unshift(record);state.internationalHistory=state.internationalHistory.slice(0,250);state.internationalPlayed=true;}
@@ -5128,7 +5146,7 @@ function updateStartClubOptions(){
  clubSelect.innerHTML=roster.map(name=>'<option value="'+safeHTML(name)+'">'+(academy?"أكاديمية ":"")+safeHTML(name)+'</option>').join("");
  if(!roster.length)clubSelect.innerHTML=`<option value="${safeHTML(state.clubName||"مركز شباب النور")}">${safeHTML(state.clubName||"مركز شباب النور")}</option>`;
  if(roster.includes(previous))clubSelect.value=previous;
- const sourceText=academy?"اختر النادي الأم؛ هتبدأ داخل أكاديمية الناشئين التابعة له. فئات الناشئين ومبارياتها محاكاة داخل اللعبة.":sourced?`${sourced.competition} • ${sourced.season} • OpenFootball / CC0`:division===2?"قائمة أكاديميات ودرجة ثانية مناسبة لبداية المسيرة":country==="مصر"?"قائمة محلية موروثة من اللعبة؛ الموسم الحالي غير موثق في ملف OpenFootball.":"القائمة المحلية المتاحة للدوري المختار.";
+ const sourceText=academy?"اختر النادي الأم؛ هتبدأ داخل أكاديمية الناشئين التابعة له. فئات الناشئين ومبارياتها محاكاة داخل اللعبة.":sourced?`${sourced.competition} • ${sourced.season} • OpenFootball / CC0`:division===2?"قائمة أكاديميات ودرجة ثانية مناسبة لبداية المسيرة":country==="مصر"?"قائمة أندية محلية داخل اللعبة.":"القائمة المحلية المتاحة للدوري المختار.";
  setText("startClubSource",sourceText);
 }
 function updatePositionStory(){const p=positionById(selectedPosition);$("positionStory").textContent=p.icon+" "+p.story;}

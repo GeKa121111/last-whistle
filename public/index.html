@@ -1579,18 +1579,21 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
     const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
-    const tackles = Math.max(0, Number(matchStats.tackles) || 0);
+    const tackles = Math.max(0, Number(matchStats.tacklesWon != null ? matchStats.tacklesWon : matchStats.tackles) || 0);
     const interceptions = Math.max(0, Number(matchStats.interceptions) || 0);
     const saves = Math.max(0, Number(matchStats.saves) || 0);
+    const penaltiesSaved = Math.max(0, Number(matchStats.penaltiesSaved) || 0);
+    const clearances = Math.max(0, Number(matchStats.clearances) || 0);
+    const recoveries = Math.max(0, Number(matchStats.ballRecoveries) || 0);
     const keyPasses = Math.max(0, Number(matchStats.keyPasses) || 0);
     const cleanSheet = matchStats.cleanSheet === true;
     const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
     const positionActionXP = state.pos === "حارس مرمى"
-      ? Math.min(16, saves * 2 + (cleanSheet ? 5 : 0))
+      ? Math.min(18, saves * 2 + penaltiesSaved * 5 + (cleanSheet ? 5 : 0))
       : defensivePosition
-        ? Math.min(20, tackles * 2 + interceptions * 2.5 + (cleanSheet ? 4 : 0))
+        ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
         : state.pos === "وسط مهاجم"
-          ? Math.min(10, keyPasses * 1.4)
+          ? Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
           : Math.min(12, Math.max(0, Number(data.goals) || 0) * 4 + Math.max(0, Number(data.assists) || 0) * 2);
     const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
       + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
@@ -1719,7 +1722,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       const award = {
         id: definition.id, title: definition.title, season: Number(state.season) || 1,
         club: String(state.clubName || ""), country, competition, note: definition.note,
-        date: new Date().toISOString()
+        date: calendarGameDateISO(state)
       };
       state.careerAwards.unshift(award);
       won.push(award);
@@ -1898,31 +1901,38 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
   function applySeasonAging(state) {
     if (!state || typeof state !== "object") return "";
-    const age = Math.max(0, Number(state.age) || 0);
-    const position = String(state.pos || "");
-    if (age < 30) return "";
-    const notes = [];
+    const age = Math.max(0, Number(state.age) || 0), position = String(state.pos || "");
+    const highProfessionalism = Number(state.professionalism) > 80;
+    const decayThisSeason = !highProfessionalism || age % 2 === 0;
     if (position === "حارس مرمى") {
-      // Goalkeepers tend to retain their core role skills longer than outfield players.
-      if (age >= 33) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
-      if (age >= 37) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
-      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن." : "خبرتك وتمركزك يساعدانك على الحفاظ على مستواك كحارس.";
+      if (age < 35) return "";
+      const notes = [];
+      if (decayThisSeason) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
+      if (age >= 37 && decayThisSeason) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
+      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن."
+        : "احترافيتك وخبرتك ساعدتاك على إبطاء تراجع السمات البدنية.";
     }
-    state.fitness = clamp(Number(state.fitness) - 1);
-    notes.push("اللياقة");
-    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position)) {
-      state.speed = clamp(Number(state.speed) - 1);
-      notes.push("السرعة");
+    if (age < 32) return "";
+    const notes = [];
+    if (decayThisSeason) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
+    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position) && decayThisSeason) {
+      state.speed = clamp(Number(state.speed) - 1); notes.push("السرعة");
     }
-    if (age >= 35) {
-      state.physical = clamp(Number(state.physical) - 1);
-      notes.push("القوة البدنية");
-    }
-    return "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء.";
+    if (age >= 35 && decayThisSeason) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
+    return notes.length ? "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء."
+      : "الاحترافية ساعدتك على تقليل تراجع السمات في هذا الموسم.";
+  }
+
+  function calendarGameDateISO(state) {
+    const calendarDay = Math.max(1, Math.floor(Number(state && state.calendarDay) || 1));
+    const elapsed = calendarDay - 1, gameYear = 2024 + Math.floor(elapsed / 365), dayInSeason = elapsed % 365;
+    const reference = new Date(Date.UTC(2021, 7, 1) + dayInSeason * 86400000);
+    const pad = value => String(value).padStart(2, "0");
+    return String(gameYear).padStart(4, "0") + "-" + pad(reference.getUTCMonth() + 1) + "-" + pad(reference.getUTCDate()) + "T00:00:00.000Z";
   }
 
   window.LWCareer = {
-    ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
+    calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
@@ -2160,18 +2170,22 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
-    const tackles = Math.max(0, Number(stats.tackles) || 0);
+    const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
+    const penaltiesSaved = Math.max(0, Number(stats.penaltiesSaved) || 0);
+    const clearances = Math.max(0, Number(stats.clearances) || 0);
+    const recoveries = Math.max(0, Number(stats.ballRecoveries) || 0);
+    const keyPasses = Math.max(0, Number(stats.keyPasses) || 0);
     const conceded = Math.max(0, Number(goalsAgainst) || 0);
-    const cleanSheetBonus = stats.cleanSheet === true ? 0.55 : 0;
-    if (position === "حارس مرمى") return saves * 0.38 + cleanSheetBonus - Math.min(4, conceded) * 0.06;
+    const cleanSheetBonus = stats.cleanSheet === true ? 1.1 : 0;
+    if (position === "حارس مرمى") return saves * 0.42 + penaltiesSaved * 0.75 + cleanSheetBonus - Math.min(4, conceded) * 0.045;
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
-      return tackles * 0.16 + interceptions * 0.18 + cleanSheetBonus * 0.65;
+      return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
-    if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12;
-    if (position === "جناح") return tackles * 0.08 + interceptions * 0.09;
-    return tackles * 0.05 + interceptions * 0.06;
+    if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
+    if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
+    return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
   }
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
     const played = Math.max(0, Number(minutes) || 0);
@@ -2246,8 +2260,10 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const events = [];
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
-      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, cleanSheet: false,
-      yellowCards: 0, redCards: 0, injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
+      keyPasses: 0, tackles: 0, tacklesWon: 0, interceptions: 0, saves: 0, penaltiesSaved: 0,
+      clearances: 0, ballRecoveries: 0, passAttempts: 0, passesCompleted: 0, passingAccuracy: 0,
+      fouls: 0, cleanSheet: false, yellowCards: 0, redCards: 0,
+      injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
       rating: 0, playerAvailable: minutes > 0
     };
     const regulation = { for: 0, against: 0 };
@@ -2373,6 +2389,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         for (let attempt = 0; attempt < actionTrials; attempt += 1) {
           if (defensiveRandom() < tackleChance) {
             stats.tackles++;
+            stats.tacklesWon++;
             const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
@@ -2380,8 +2397,27 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
             stats.interceptions++;
             const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
+            if (defensiveRandom() < 0.48) {
+              stats.ballRecoveries++;
+              const recoveryMinute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+              events.push({ type: "recovery", minute: recoveryMinute, side: "player", actor: String(player.name || "اللاعب") });
+            }
+          }
+          const clearanceChance = clamp((0.025 + defenderWeight * 0.30) * activityFactor, 0.02, 0.34);
+          if (defensiveRandom() < clearanceChance) {
+            stats.clearances++;
+            const clearanceMinute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            events.push({ type: "clearance", minute: clearanceMinute, side: "player", actor: String(player.name || "اللاعب") });
           }
         }
+        const passTrials = Math.max(1, Math.floor(playerActiveDuration / 3));
+        const passingSkill = clamp(player.passing, 0, 100);
+        for (let attempt = 0; attempt < passTrials; attempt += 1) {
+          stats.passAttempts++;
+          if (defensiveRandom() < clamp(0.56 + passingSkill * 0.0042, 0.56, 0.98)) stats.passesCompleted++;
+        }
+        stats.passingAccuracy = stats.passAttempts > 0
+          ? Math.round(stats.passesCompleted / stats.passAttempts * 1000) / 10 : 0;
       }
       if (random() < 0.16) events.push({ type: "foul", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
       if (random() < 0.06) events.push({ type: "offside", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
@@ -2416,12 +2452,23 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       }
     }
 
-    const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
-    const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
+    const aggregateResult = aggregateOffset + finalFor - finalAgainst;
+    const win = aggregateResult > 0 || (aggregateResult === 0 && shootout.won === true);
+    const draw = aggregateResult === 0 && !shootout.used;
+    const officialOutcome = finalFor > finalAgainst ? "فوز" : finalFor < finalAgainst ? "خسارة" : "تعادل";
+    const advancementWinner = shootout.used ? (shootout.won ? teamName : opponentName)
+      : aggregateResult > 0 ? teamName : aggregateResult < 0 ? opponentName : "";
+    if (shootout.used && shootout.won === true && profile.goalkeeper && minutes >= 90) {
+      stats.penaltiesSaved = 1;
+      events.push({ type: "penalty-save", minute: 120, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
+    }
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
-    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded);
+    const passingImpact = ["وسط مهاجم", "وسط دفاعي"].includes(position)
+      ? Math.min(0.65, Math.max(0, stats.passingAccuracy - 70) * 0.018 + Math.min(5, stats.keyPasses) * 0.08) : 0;
+    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16
+      - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded) + passingImpact;
     
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
@@ -2440,6 +2487,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       regulation, extraTime, shootout,
       score: { for: finalFor, against: finalAgainst },
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
+      officialOutcome, advancementWinner,
       player: stats, events,
       metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ }
     };
@@ -2454,8 +2502,12 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
     const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
+    const saves = result.events.filter(event => event.type === "save" && event.creditedToPlayer).length;
+    const penaltiesSaved = result.events.filter(event => event.type === "penalty-save" && event.creditedToPlayer).length;
+    const clearances = result.events.filter(event => event.type === "clearance" && event.side === "player").length;
+    const ballRecoveries = result.events.filter(event => event.type === "recovery" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
-      && ["red-card", "injury", "yellow-card", "tackle", "interception"].includes(event.type));
+      && ["red-card", "injury", "yellow-card", "tackle", "interception", "clearance", "recovery"].includes(event.type));
     const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
       && Number(event.minute) <= Number(result.player.minutes));
     const eventsChronological = result.events.every((event, index) => index === 0
@@ -2463,7 +2515,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const exitIndex = result.events.findIndex(event => event.side === "player"
       && ["red-card", "injury", "substitution"].includes(event.type));
     const isPlayerActivityEvent = event => event.creditedToPlayer === true
-      || (event.side === "player" && ["yellow-card", "tackle", "interception"].includes(event.type));
+      || (event.side === "player" && ["yellow-card", "tackle", "interception", "clearance", "recovery"].includes(event.type));
     const noPlayerActivityAfterExit = exitIndex < 0
       || !result.events.slice(exitIndex + 1).some(isPlayerActivityEvent);
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;
@@ -2472,6 +2524,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const redCardEvent = result.events.find(event => event.type === "red-card" && event.side === "player");
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
+    const expectedPassingAccuracy = Number(result.player.passAttempts) > 0
+      ? Math.round(Number(result.player.passesCompleted) / Number(result.player.passAttempts) * 1000) / 10 : 0;
     const valid = cleanSheetConsistent
       && teamGoals === result.score.for && opponentGoals === result.score.against
       && playerGoals === result.player.goals && assists === result.player.assists
@@ -2480,11 +2534,18 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       && result.player.shots === shots
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
+      && tackles === Number(result.player.tacklesWon || 0)
+      && saves === Number(result.player.saves || 0)
+      && penaltiesSaved === Number(result.player.penaltiesSaved || 0)
+      && clearances === Number(result.player.clearances || 0)
+      && ballRecoveries === Number(result.player.ballRecoveries || 0)
+      && Number(result.player.passesCompleted || 0) <= Number(result.player.passAttempts || 0)
+      && Number(result.player.passingAccuracy || 0) === expectedPassingAccuracy
       && playerEventsInBounds && eventsChronological && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
   }
 
 
@@ -2509,6 +2570,13 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         tackles: Number(player.tackles) || 0,
         interceptions: Number(player.interceptions) || 0,
         saves: Number(player.saves) || 0,
+        penaltiesSaved: Number(player.penaltiesSaved) || 0,
+        tacklesWon: Number(player.tacklesWon) || 0,
+        clearances: Number(player.clearances) || 0,
+        ballRecoveries: Number(player.ballRecoveries) || 0,
+        passAttempts: Number(player.passAttempts) || 0,
+        passesCompleted: Number(player.passesCompleted) || 0,
+        passingAccuracy: Number(player.passingAccuracy) || 0,
         cleanSheet: player.cleanSheet === true
       },
       events: Array.isArray(result.events) ? result.events.map(event => ({
@@ -2775,6 +2843,14 @@ const INITIAL = {
  professionalism:65,mediaReputation:20,teamChemistry:50,coachRelationship:35,pressHistory:[],relationshipHistory:[],storyFlags:{},storyHistory:[],storyPendingId:""
 };
 let state = structuredCloneSafe(INITIAL);
+function gameDateISO(calendarDay=state?.calendarDay) {
+ const elapsed=Math.max(0,Math.floor(Number(calendarDay)||1)-1);
+ const gameYear=2024+Math.floor(elapsed/365),dayInSeason=elapsed%365;
+ const reference=new Date(Date.UTC(2021,7,1)+dayInSeason*86400000);
+ const pad=value=>String(value).padStart(2,"0");
+ return String(gameYear).padStart(4,"0")+"-"+pad(reference.getUTCMonth()+1)+"-"+pad(reference.getUTCDate())+"T00:00:00.000Z";
+}
+state.currentDate=gameDateISO(state.calendarDay);
 let modalResolver = null;
 let toastTimer = null;
 function structuredCloneSafe(obj){try{return JSON.parse(JSON.stringify(obj));}catch(e){return {...obj};}}
@@ -3075,7 +3151,7 @@ function loadGame(){
   state.pressHistory=Array.isArray(state.pressHistory)?state.pressHistory:[];state.relationshipHistory=Array.isArray(state.relationshipHistory)?state.relationshipHistory:[];
   for(const key of ["professionalism","mediaReputation","teamChemistry","coachRelationship"])state[key]=clamp(state[key]??INITIAL[key]);
   if(Number(saved.schemaVersion||3)<4)window.LWCareer?.rebuildLegacyCareerStats(state);if(Number(saved.schemaVersion||3)<5||saved.leagueRatingSum===undefined||saved.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(state);
-  state.schemaVersion=10;if(window.LWCareer)window.LWCareer.ensureState(state);if(saved.careerStarted===undefined)state.careerStarted=true;
+  state.schemaVersion=10;if(window.LWCareer)window.LWCareer.ensureState(state);state.currentDate=gameDateISO(state.calendarDay);if(saved.careerStarted===undefined)state.careerStarted=true;
   state.diary=Array.isArray(state.diary)?state.diary.slice(0,40):[];
   state.achievements=Array.isArray(state.achievements)?state.achievements:[];
   state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers.filter(item=>item&&typeof item.id==="string"&&typeof item.club==="string").slice(-40):[];state.transferOffersWindowId=String(state.transferOffersWindowId||"");state.transferNegotiation=state.transferNegotiation&&typeof state.transferNegotiation==="object"?state.transferNegotiation:null;state.currentCompetitions=Array.isArray(state.currentCompetitions)?state.currentCompetitions:[];state.trophyCabinet=Array.isArray(state.trophyCabinet)?state.trophyCabinet:[];state.awardCeremonies=Array.isArray(state.awardCeremonies)?state.awardCeremonies:[];state.currentReleaseClause=Math.max(0,Number(state.currentReleaseClause)||0);state.goalBonusPerGoal=Math.max(0,Number(state.goalBonusPerGoal)||0);state.cleanSheetBonus=Math.max(0,Number(state.cleanSheetBonus)||0);delete state.transferShortlist;
@@ -3724,13 +3800,34 @@ function calendarDateLabel(){const d=((state.calendarDay-1)%365)+1;const months=
 function resetDailyActions(){state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionUsed=false;state.dailyActionType="";state.dailyActionDay=state.day;}
 function canUseDailyAction(){const currentDay=Math.max(1,Number(state.day)||1);if(!Number.isFinite(Number(state.dailyActionDay))||Number(state.dailyActionDay)!==currentDay){state.dailyActionDay=currentDay;state.dailyActionUsed=false;state.dailyActionType="";state.nightToday=false;}else if(state.nightToday&&!state.dailyActionUsed){state.dailyActionUsed=true;state.dailyActionType=String(state.dailyActionType||"نشاط جانبي");}return !state.dailyActionUsed;}
 function useDailyAction(type){if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return false;}state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=true;state.dailyActionType=String(type||"نشاط");state.nightToday=true;return true;}
+function maybeCallUpNationalTeam() {
+ if(state.nationalCalled||state.retired||isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending)return false;
+ const recentForm=(state.seasonLog||[]).filter(row=>Number(row.minutes)>0&&Number.isFinite(Number(row.rating))).slice(-8);
+ const formAverage=recentForm.length?recentForm.reduce((sum,row)=>sum+Number(row.rating),0)/recentForm.length:0;
+ if(state.age<18||overall()<68||state.clubIndex<=0||state.age>=40||recentForm.length<3||formAverage<6.25||Number(state.apps)<5)return false;
+ state.nationalCalled=true;state.internationalPlayed=false;
+ state.nationalCallups=Array.isArray(state.nationalCallups)?state.nationalCallups:[];
+ if(!state.nationalCallups.some(row=>Number(row.season)===Number(state.season))){
+  state.nationalCallups.unshift({season:Number(state.season),age:Number(state.age),team:String(state.nationalTeam||"مصر"),club:String(state.clubName||""),rating:Math.round(overall()),form:Number(formAverage.toFixed(2))});
+ }
+ log(`استدعاء رسمي لمنتخب ${state.nationalTeam||"مصر"} قبل التوقف الدولي في الموسم ${state.season}!`);
+ return true;
+}
 function advanceCalendarDays(days,reason="نشاط",options={}){
  const n=Math.max(0,Math.floor(Number(days)||0));if(!n)return;
  const oldDay=Number(state.calendarDay)||1,newDay=oldDay+n;
  const oldWeek=Math.floor((Math.max(1,oldDay)-1)/7),newWeek=Math.floor((Math.max(1,newDay)-1)/7);
- state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
+ state.calendarDay=newDay;state.currentDate=(window.LWCareer&&typeof window.LWCareer.calendarGameDateISO==="function"?window.LWCareer.calendarGameDateISO({calendarDay:newDay}):state.currentDate||"2024-08-01T00:00:00.000Z");state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
- const wages=Math.max(0,newWeek-oldWeek);if(wages&&state.weeklyWage>0){state.money+=wages*(Number(state.weeklyWage)||0);log(`استلمت ${wages} مرتب أسبوعي أثناء ${reason}: ${wages*(Number(state.weeklyWage)||0)}.`);}
+ const wages=Math.max(0,newWeek-oldWeek),grossWeeklyWage=Math.max(0,Number(state.weeklyWage)||0);
+ if(wages&&grossWeeklyWage>0){
+  const grossPay=wages*grossWeeklyWage;
+  const rate=Math.max(0,Math.min(.14,Number(window.LWAgentRuntime?.commissionRate?.(state))||0));
+  const commission=Math.min(grossPay,Math.round(grossPay*rate)),netPay=grossPay-commission;
+  state.money=(Number(state.money)||0)+netPay;
+  if(commission){state.agentCommissionPaid=Math.max(0,Number(state.agentCommissionPaid)||0)+commission;log(`عمولة الوكيل عن ${wages} مرتب أسبوعي: ${commission} جنيه.`);}
+  log(`استلمت ${wages} مرتب أسبوعي صافي ${netPay} جنيه أثناء ${reason}.`);
+}
  const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
  state.energy=clamp(state.energy+n*dailyRecovery);
  state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8)-n*(state.sleepCoach?2:0)-(options.rest&&state.physio?n*3:0)-(options.rest&&state.recoveryRoom?n*2:0));
@@ -3739,6 +3836,10 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  if(options.rest&&state.recoveryRoom)state.morale=clamp(state.morale+3);
  if(options.rest&&state.privateChef)state.morale=clamp(state.morale+1);
  resetDailyActions();
+ for(let day=oldDay+1;day<=newDay;day++){
+  const dayOfYear=((day-1)%365)+1;
+  if([95,185,275,335].includes(dayOfYear))maybeCallUpNationalTeam();
+ }
 }
 function calendarHasConflict(day, excludeKind=""){
  return (state.calendarEvents||[]).some(e=>Number(e.day)===Number(day)&&e.kind!==excludeKind&&["league-match","cup-match","international-match"].includes(e.kind));
@@ -3947,7 +4048,13 @@ function playerCurrentSeasonStats(rows){
  const goals=rows.reduce((total,row)=>total+(Number(row.goals)||0),0);
  const assists=rows.reduce((total,row)=>total+(Number(row.assists)||0),0);
  const averageRating=apps?rows.reduce((total,row)=>total+(Number(row.rating)||0),0)/apps:0;
- return {appearances:apps,goals:goals,assists:assists,averageRating:Number(averageRating.toFixed(2))};
+ const sumStat=key=>rows.reduce((total,row)=>total+(Number(row.stats&&row.stats[key])||0),0);
+ return {
+  appearances:apps,goals:goals,assists:assists,averageRating:Number(averageRating.toFixed(2)),
+  cleanSheets:rows.filter(row=>row.stats&&row.stats.cleanSheet===true).length,
+  saves:sumStat("saves"),penaltiesSaved:sumStat("penaltiesSaved"),tacklesWon:sumStat("tacklesWon"),
+  interceptions:sumStat("interceptions"),clearances:sumStat("clearances"),ballRecoveries:sumStat("ballRecoveries"),keyPasses:sumStat("keyPasses")
+ };
 }
 function currentLeaguePlayerPool(){
  const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
@@ -4038,13 +4145,15 @@ function buildSeasonAwardCeremony(place){
   name:String(state.name||"اللاعب"),club:club().name,country:String(state.leagueCountry||"مصر"),
   position:String(state.pos||"غير محدد"),age:Number(state.age)||18,ovr:overall(),appearances:stats.appearances,
   goals:stats.goals,assists:stats.assists,averageRating:stats.averageRating,trophies:trophyCount,
+  cleanSheets:stats.cleanSheets,saves:stats.saves,penaltiesSaved:stats.penaltiesSaved,tacklesWon:stats.tacklesWon,
+  interceptions:stats.interceptions,clearances:stats.clearances,ballRecoveries:stats.ballRecoveries,keyPasses:stats.keyPasses,
   potential:Number(state.playerPotential)||60,professionalism:Number(state.professionalism)||50,
   confederation:profile.confederation||"",originConfederation:nationalConfederation||profile.confederation||"",
   leagueStrength:Number(profile.strength)||60
  };
  const engine=window.LWTransferAwards;
  if(!engine?.buildSeasonAwardCeremony)return null;
- const ceremony=engine.buildSeasonAwardCeremony({season:season,player:player,realPlayers:seasonRealPlayerDirectory()});
+ const ceremony=engine.buildSeasonAwardCeremony({season:season,player:player,realPlayers:seasonRealPlayerDirectory(),currentDate:state.currentDate||gameDateISO(),calendarDay:state.calendarDay});
  ceremony.teamRank=Number(place)||0;
  ceremony.playerAwards=Array.isArray(ceremony.playerAwards)?ceremony.playerAwards:[];
  state.careerAwards=Array.isArray(state.careerAwards)?state.careerAwards:[];
@@ -4055,7 +4164,7 @@ function buildSeasonAwardCeremony(place){
  state.careerAwards=state.careerAwards.slice(0,200);
  state.awardCeremonies=Array.isArray(state.awardCeremonies)?state.awardCeremonies:[];
  state.awardCeremonies.unshift(ceremony);state.awardCeremonies=state.awardCeremonies.slice(0,20);
- const rewards={"ballon-dor":2000,"fifa-the-best":1500,"world-golden-shoe":1000,"golden-boy":850,"caf-player":1000,"uefa-player":1500,"conmebol-player":1000};
+ const rewards={"ballon-dor":2000,"fifa-the-best":1500,"world-golden-shoe":1000,"golden-boy":850,"caf-player":1000,"uefa-player":1500,"conmebol-player":1000,"golden-glove":1000};
  for(const award of ceremony.playerAwards)state.money+=(rewards[award.id]||500);
  return ceremony;
 }
@@ -4684,13 +4793,13 @@ function matchCleanSheetContractBonus(state,result,youthNoPay=false){
 function applyMatchResult(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
  const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
- if(state.recordedMatchIds.includes(id))return false;
+ if(state.recordedMatchIds.includes(id)||(Array.isArray(state.careerMatchHistory)&&state.careerMatchHistory.some(row=>row&&String(row.id||"")===id)))return false;
  state.recordedMatchIds.push(id);if(state.recordedMatchIds.length>4000)state.recordedMatchIds.splice(0,state.recordedMatchIds.length-4000);
  const scope=meta.scope||"league",competition=meta.competition||"",country=meta.country||state.leagueCountry||"",key=disciplineKey(scope,country,competition);
  const suspendedAtKickoff=!!meta.suspendedAtKickoff;
  if(suspendedAtKickoff){state.suspensions[key]=Math.max(0,(Number(state.suspensions[key])||0)-1);}
  const m=result.player,minutes=Math.max(0,Number(m.minutes)||0),goals=Math.max(0,Number(m.goals)||0),assists=Math.max(0,Number(m.assists)||0),rating=minutes>0?Number(m.rating)||0:0;
- const outcome=String(meta.outcome||result.outcome||"تعادل"),participated=minutes>0;
+ const outcome=String(scope==="cup"?(result.officialOutcome||"تعادل"):(meta.outcome||result.outcome||"تعادل")),participated=minutes>0;
  let matchPay=0;
  if(participated){
   if(scope==="international"){
@@ -4737,7 +4846,7 @@ function applyMatchResult(result,meta){
  if(scope==="league"){if(outcome==="فوز"){state.seasonW++;state.seasonPoints+=3;}else if(outcome==="تعادل"){state.seasonD++;state.seasonPoints++;}else state.seasonL++;}
  if(participated&&scope!=="international"&&state.creatorStudio){const audienceGain=6+(rating>=7.5?3:rating>=6.5?1:0);state.followers=(Number(state.followers)||0)+audienceGain;log("زاد جمهورك "+audienceGain+" متابع بعد أداء النادي.");}
  state.playedToday=true;
- const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,cleanSheet:!!m.cleanSheet,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
+ const record={id,segmentId:state.leagueSegmentId||"",season:Number(state.season)||1,day:Number(state.day)||1,calendarDay:Number(state.calendarDay)||1,date:state.currentDate||gameDateISO(),scope,country,competition,leagueCountry:country,leagueCompetition:competition,club:String(meta.teamName||club().name),opponent:String(meta.opponent||result.opponentName||""),teamGoals:Number(result.score.for)||0,oppGoals:Number(result.score.against)||0,outcome,officialOutcome:String(result.officialOutcome||outcome),advancementWinner:String(result.advancementWinner||""),rating,minutes,goals,assists,playerAvailable:participated,appearanceQualified:minutes>=20,tactic:meta.tactic||result.tactic,home:!!meta.home,matchday:Number(meta.matchday)||0,matchPay,stats:{shots:m.shots,shotsOnTarget:m.shotsOnTarget,chances:m.chances,keyPasses:m.keyPasses,tackles:m.tackles,tacklesWon:m.tacklesWon,interceptions:m.interceptions,clearances:m.clearances,ballRecoveries:m.ballRecoveries,passAttempts:m.passAttempts,passesCompleted:m.passesCompleted,passingAccuracy:m.passingAccuracy,saves:m.saves,penaltiesSaved:m.penaltiesSaved,cleanSheet:!!m.cleanSheet,yellowCards:m.yellowCards,redCards:m.redCards},events:result.events,extraTime:result.extraTime,shootout:result.shootout};
  state.careerMatchHistory.unshift(record);state.careerMatchHistory=state.careerMatchHistory.slice(0,800);
  if(scope==="league"){state.seasonLog.push(record);}
  if(scope==="international"){state.internationalHistory.unshift(record);state.internationalHistory=state.internationalHistory.slice(0,250);state.internationalPlayed=true;}
@@ -4748,8 +4857,8 @@ function applyMatchResult(result,meta){
  return {record,matchPay,participated};
 }
 function formatMatchEvents(events){
- const labels={goal:"هدف",assist:"تمريرة حاسمة",save:"تصدي",tackle:"افتكاك",interception:"اعتراض",foul:"مخالفة",offside:"تسلل", "yellow-card":"إنذار", "red-card":"طرد",injury:"إصابة",substitution:"تبديل"};
- return (events||[]).filter(e=>["goal","assist","save","yellow-card","red-card","injury","substitution","offside"].includes(e.type)).slice(0,12).map(e=>`${e.minute}' ${labels[e.type]||e.type}${e.side==="player"?` • ${e.reason||state.name}`:""}`).join(" • ");
+ const labels={goal:"هدف",assist:"تمريرة حاسمة",save:"تصدي","penalty-save":"تصدي ركلة جزاء",tackle:"افتكاك",interception:"اعتراض",clearance:"تشتيت",recovery:"استرجاع كرة",foul:"مخالفة",offside:"تسلل","yellow-card":"إنذار","red-card":"طرد",injury:"إصابة",substitution:"تبديل"};
+ return (events||[]).filter(e=>["goal","assist","save","penalty-save","tackle","interception","clearance","recovery","yellow-card","red-card","injury","substitution","offside"].includes(e.type)).slice(0,12).map(e=>`${e.minute}' ${labels[e.type]||e.type}${e.side==="player"?` • ${e.reason||state.name}`:""}`).join(" • ");
 }
 function recordLeagueRound(roundIndex,fixture,opponent,scoreFor,scoreAgainst,result){
  const ours=clubNameForLeague(),match=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory.find(row=>row.id===result?.record?.id):null;
@@ -5173,13 +5282,7 @@ function finishSeason(){
  const summary=`النادي الحالي: المركز ${place} من ${state.league.length} • سجل النادي في المرحلة الحالية: ${state.seasonW} فوز / ${state.seasonD} تعادل / ${state.seasonL} خسارة • أهدافك وصناعاتك محسوبة للموسم عبر الأندية: ${state.seasonGoals} هدف و${state.seasonAssists} صناعة.`+developmentNote+prize;
  state.seasonSummary=summary;archiveLeagueSegment("season-end",place);archiveSeasonRecord();log("نهاية الموسم "+state.season+": "+summary);
  // استدعاء المنتخب في نهاية الموسم حسب الشروط
- const recentForm=(state.seasonLog||[]).filter(r=>Number(r.minutes)>0&&Number.isFinite(Number(r.rating))).slice(-8);
- const formAverage=recentForm.length?recentForm.reduce((sum,r)=>sum+Number(r.rating),0)/recentForm.length:0;
- if(!academySeason&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending&&state.age>=18&&overall()>=68&&state.clubIndex>0&&state.age<40&&recentForm.length>=3&&formAverage>=6.25&&Number(state.apps)>=5){
-  state.nationalCalled=true;state.internationalPlayed=false;state.nationalCallups=Array.isArray(state.nationalCallups)?state.nationalCallups:[];
-  if(!state.nationalCallups.some(row=>Number(row.season)===Number(state.season))){state.nationalCallups.unshift({season:Number(state.season),age:Number(state.age),team:String(state.nationalTeam||"مصر"),club:String(state.clubName||""),rating:Math.round(overall()),form:Number(formAverage.toFixed(2))});}
-  log(`استدعاء رسمي لمنتخب ${state.nationalTeam||"مصر"} في الموسم ${state.season}!`);
- }
+ maybeCallUpNationalTeam();
  const oldSeason=state.season;
  if(Number(state.age)>=40){
   openModal("نهاية المسيرة — حفل الجوائز والاعتزال",summary+`\n\n${ceremony?awardCeremonySummary(ceremony):""}\nوصلت لسن ${state.age} سنة. دي نهاية الموسم الأخير، وتقدر تقفل مسيرتك وتحفظ سجل إنجازاتك.`,[

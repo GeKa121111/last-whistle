@@ -3817,7 +3817,7 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  const n=Math.max(0,Math.floor(Number(days)||0));if(!n)return;
  const oldDay=Number(state.calendarDay)||1,newDay=oldDay+n;
  const oldWeek=Math.floor((Math.max(1,oldDay)-1)/7),newWeek=Math.floor((Math.max(1,newDay)-1)/7);
- state.calendarDay=newDay;state.currentDate=gameDateISO(newDay);state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
+ state.calendarDay=newDay;state.currentDate=(window.LWCareer&&typeof window.LWCareer.calendarGameDateISO==="function"?window.LWCareer.calendarGameDateISO({calendarDay:newDay}):state.currentDate||"2024-08-01T00:00:00.000Z");state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
  const wages=Math.max(0,newWeek-oldWeek),grossWeeklyWage=Math.max(0,Number(state.weeklyWage)||0);
  if(wages&&grossWeeklyWage>0){

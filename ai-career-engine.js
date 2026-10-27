@@ -320,8 +320,11 @@
   }
   function contextSnapshot(state, overall) {
     state = state || {};
-    const raw = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory :
-      Array.isArray(state.seasonLog) ? state.seasonLog : [];
+    const careerHistory = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [];
+    // New match history is stored newest-first. Legacy seasonLog is appended oldest-first,
+    // so use it only when the newer history has no records and reverse it before slicing.
+    const raw = careerHistory.length ? careerHistory :
+      Array.isArray(state.seasonLog) ? state.seasonLog.slice().reverse() : [];
     const played = raw.filter(row => row && (row.minutes == null ? num(row.rating, 0) > 0 : num(row.minutes, 0) > 0)).slice(0, 5);
     const ratings = played.map(row => num(row.rating, NaN)).filter(value => Number.isFinite(value) && value >= 0 && value <= 10);
     const averageRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : base.formRating(state);

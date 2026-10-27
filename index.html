@@ -4048,7 +4048,13 @@ function playerCurrentSeasonStats(rows){
  const goals=rows.reduce((total,row)=>total+(Number(row.goals)||0),0);
  const assists=rows.reduce((total,row)=>total+(Number(row.assists)||0),0);
  const averageRating=apps?rows.reduce((total,row)=>total+(Number(row.rating)||0),0)/apps:0;
- return {appearances:apps,goals:goals,assists:assists,averageRating:Number(averageRating.toFixed(2))};
+ const sumStat=key=>rows.reduce((total,row)=>total+(Number(row.stats&&row.stats[key])||0),0);
+ return {
+  appearances:apps,goals:goals,assists:assists,averageRating:Number(averageRating.toFixed(2)),
+  cleanSheets:rows.filter(row=>row.stats&&row.stats.cleanSheet===true).length,
+  saves:sumStat("saves"),penaltiesSaved:sumStat("penaltiesSaved"),tacklesWon:sumStat("tacklesWon"),
+  interceptions:sumStat("interceptions"),clearances:sumStat("clearances"),ballRecoveries:sumStat("ballRecoveries"),keyPasses:sumStat("keyPasses")
+ };
 }
 function currentLeaguePlayerPool(){
  const country=String(state.leagueCountry||"مصر"),division=Math.max(1,Number(state.leagueDivision)||1);
@@ -4139,13 +4145,15 @@ function buildSeasonAwardCeremony(place){
   name:String(state.name||"اللاعب"),club:club().name,country:String(state.leagueCountry||"مصر"),
   position:String(state.pos||"غير محدد"),age:Number(state.age)||18,ovr:overall(),appearances:stats.appearances,
   goals:stats.goals,assists:stats.assists,averageRating:stats.averageRating,trophies:trophyCount,
+  cleanSheets:stats.cleanSheets,saves:stats.saves,penaltiesSaved:stats.penaltiesSaved,tacklesWon:stats.tacklesWon,
+  interceptions:stats.interceptions,clearances:stats.clearances,ballRecoveries:stats.ballRecoveries,keyPasses:stats.keyPasses,
   potential:Number(state.playerPotential)||60,professionalism:Number(state.professionalism)||50,
   confederation:profile.confederation||"",originConfederation:nationalConfederation||profile.confederation||"",
   leagueStrength:Number(profile.strength)||60
  };
  const engine=window.LWTransferAwards;
  if(!engine?.buildSeasonAwardCeremony)return null;
- const ceremony=engine.buildSeasonAwardCeremony({season:season,player:player,realPlayers:seasonRealPlayerDirectory()});
+ const ceremony=engine.buildSeasonAwardCeremony({season:season,player:player,realPlayers:seasonRealPlayerDirectory(),currentDate:state.currentDate||gameDateISO(),calendarDay:state.calendarDay});
  ceremony.teamRank=Number(place)||0;
  ceremony.playerAwards=Array.isArray(ceremony.playerAwards)?ceremony.playerAwards:[];
  state.careerAwards=Array.isArray(state.careerAwards)?state.careerAwards:[];
@@ -4156,7 +4164,7 @@ function buildSeasonAwardCeremony(place){
  state.careerAwards=state.careerAwards.slice(0,200);
  state.awardCeremonies=Array.isArray(state.awardCeremonies)?state.awardCeremonies:[];
  state.awardCeremonies.unshift(ceremony);state.awardCeremonies=state.awardCeremonies.slice(0,20);
- const rewards={"ballon-dor":2000,"fifa-the-best":1500,"world-golden-shoe":1000,"golden-boy":850,"caf-player":1000,"uefa-player":1500,"conmebol-player":1000};
+ const rewards={"ballon-dor":2000,"fifa-the-best":1500,"world-golden-shoe":1000,"golden-boy":850,"caf-player":1000,"uefa-player":1500,"conmebol-player":1000,"golden-glove":1000};
  for(const award of ceremony.playerAwards)state.money+=(rewards[award.id]||500);
  return ceremony;
 }

@@ -14,8 +14,9 @@ if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and publi
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
   console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
 }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v77";')) {
-  console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
+const cacheDeclaration = serviceWorker.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
+if (!cacheDeclaration || !/last-whistle-static-v\d+/.test(cacheDeclaration)) {
+  console.error("Service worker must use a versioned cache name."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
 if (!storySource.includes("lastRenderedStoryPanelSignature")
@@ -130,7 +131,7 @@ const required = [
   "renderPositionDevelopment",
   "story-ui.css?v=1",
   "story-mode.js?v=10",
-  "career-experience.js?v=2",
+  "career-experience.js?v=3",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
   "career-hub.js?v=1",
@@ -345,8 +346,11 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v77")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=10", "career-experience.css?v=1", "career-experience.js?v=2", "agent-system.css?v=1", "agent-system.js?v=2", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=6"]) {
+const workerCacheDeclaration = workerSource.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
+if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
+  console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
+}
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=10", "career-experience.css?v=1", "career-experience.js?v=3", "agent-system.css?v=1", "agent-system.js?v=2", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=6"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

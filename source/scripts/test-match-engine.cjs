@@ -62,6 +62,15 @@ assert.equal(engine.playerConcededGoals(65, [
 assert.equal(browserEngine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
   "the deployed engine must attribute extra-time concessions exactly like the source");
 
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [{ type: "goal", side: "opponent", minute: 105 }]), false,
+  "a defender who stays on the pitch into extra time must not receive a clean sheet after conceding");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [
+  { type: "substitution", side: "player", minute: 90 },
+  { type: "goal", side: "opponent", minute: 105 }
+]), true, "a defender substituted before extra time should retain the clean sheet");
+assert.equal(browserEngine.playerEarnsCleanSheet("قلب دفاع", 90, [{ type: "goal", side: "opponent", minute: 105 }]), false,
+  "the deployed engine must not credit a false extra-time clean sheet");
+
 const cleanSheetValidationProbe = engine.simulateMatch({
   seed: 942771, teamPower: 65, opponentPower: 65,
   player: { position: "قلب دفاع", role: "أساسي", shooting: 55, passing: 65, vision: 60,

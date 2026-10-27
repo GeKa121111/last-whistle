@@ -1804,6 +1804,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
       return { ok: false, status: "direct-rating-purchase-disabled" };
     }
+    // Only IDs present in the player shop may be purchased. Keep "boots" for legacy saves/tests.
+    const allowedStoreItems = [
+      "boots", "xpMultiplier", "speedBoots", "strengthProgram", "privateCoach",
+      "homeGym", "videoAnalyst", "diet", "sleepCoach", "physio", "recoveryRoom",
+      "privateChef", "homeUpgrade", "sportsPsych", "mediaTraining", "creatorStudio",
+      "stylist", "charityFoundation"
+    ];
+    if (!allowedStoreItems.includes(item.id)) return { ok: false, status: "invalid-item" };
     if (state[item.id]) return { ok: false, status: "already-owned" };
     const cost = Math.round(Number(item.price));
     const balance = Number(state.money);

@@ -334,6 +334,15 @@ async function main() {
       status: "direct-rating-purchase-disabled", money: 1000, ownsBoost: false
     }, "the embedded career engine must reject direct OVR purchases without mutating the save");
     results.push("embedded career engine blocks direct OVR purchase");
+    const unknownStorePurchase = await page.evaluate(() => {
+      const state = { pos: "جناح", age: 25, money: 1000 };
+      const result = window.LWCareer.purchaseItem(state, { id: "futureMysteryBoost", price: 100 });
+      return { status: result.status, money: state.money, ownsItem: Boolean(state.futureMysteryBoost) };
+    });
+    assert.deepEqual(unknownStorePurchase, {
+      status: "invalid-item", money: 1000, ownsItem: false
+    }, "the embedded career engine must reject unknown store IDs without mutating the save");
+    results.push("embedded career engine blocks unknown store IDs");
     results.push("11-section navigation and store rendering");
 
     await page.evaluate(async () => {

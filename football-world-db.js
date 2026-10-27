@@ -686,6 +686,7 @@
     version:VERSION,season:SEASON,ratingNote:RATINGS_NOTE,
     leagues:function () { return LEAGUES.map(function (item) { return profileSummary(item.country); }); },
     leagueById:leagueById,leagueByCountry:leagueByCountry,leagueFor:leagueFor,
+    clubNames:function () { return CLUBS.map(function (item) { return {name:item.name,country:item.country,leagueId:item.leagueId,division:Math.max(1,Number(item.division)||1)}; }); },
     clubs:function () { return CLUBS.map(normalizeClub); },clubsForCountry:clubsForCountry,
     rosterCoverage:function () {
       var byLeague = {};

@@ -3449,9 +3449,11 @@ function ensureTransferOffers(){
   Number(profile.potential)||0,
   String(profile.position||"")
  ]);
- const hasOffersForWindow=state.transferOffers.some(offer=>offer&&offer.windowId===windowId);
- if(state.transferOffersWindowId===windowId&&(hasOffersForWindow||String(state.transferOffersAttemptKey||"")===attemptKey))return;
- state.transferOffers=state.transferOffers.map(offer=>offer&&offer.status==="pending"&&offer.windowId!==windowId?{...offer,status:"expired"}:offer);
+ const hasOffersForWindow=state.transferOffers.some(offer=>transferOfferMatchesWindow(offer,windowId,windowInfo));
+ const legacyWindowId=windowInfo.open&&windowInfo.name==="الانتقالات الشتوية"?"winter-season-"+(Number(state.season)||0):"";
+ const storedWindowMatches=state.transferOffersWindowId===windowId||(legacyWindowId&&state.transferOffersWindowId===legacyWindowId);
+ if(storedWindowMatches&&(hasOffersForWindow||String(state.transferOffersAttemptKey||"")===attemptKey))return;
+ state.transferOffers=state.transferOffers.map(offer=>offer&&offer.status==="pending"&&!transferOfferMatchesWindow(offer,windowId,windowInfo)?{...offer,status:"expired"}:offer);
  const targets=transferTargets().filter(target=>!(target.club===state.clubName&&target.country===state.leagueCountry)
   &&!(Number(target.division)>=2&&target.country!==state.leagueCountry)&&!(target.power>=70&&profile.ovr<60));
  const offers=window.LWTransferAwards?.generateOffers({player:profile,targets:targets,windowId:windowId,currentClubPower:state.clubPower})||[];
@@ -3464,8 +3466,9 @@ function ensureTransferOffers(){
 }
 function offerIsAvailable(offer){
  const windowInfo=transferWindow();
+ const windowMatches=windowInfo.open?transferOfferMatchesWindow(offer,windowInfo.id,windowInfo):!!state.freeAgent;
  return !!offer&&canAccessTransferMarket()&&offer.status==="pending"&&(windowInfo.open||state.freeAgent)
-  &&(!windowInfo.open||offer.windowId===windowInfo.id)&&!state.retired&&!state.loan
+  &&windowMatches&&!state.retired&&!state.loan
   &&!activeCupInProgress()&&Number(state.transferCooldown||0)<=0;
 }
 function beginTransferNegotiation(id){
@@ -3788,7 +3791,13 @@ function calendarHasConflict(day, excludeKind=""){
 function nextAvailableMatchDay(start,kind){let d=Number(start)||state.calendarDay;while(calendarHasConflict(d,kind))d++;return d;}
 function seasonMatchIntervalDays(){const matches=Math.max(1,Number(seasonMatchTotal())||1);return Math.max(5,Math.min(15,Math.ceil(300/matches)));}
 function daysUntilNextSummerWindow(calendarDay=state.calendarDay){const day=Math.max(1,Number(calendarDay)||1),d=((day-1)%365)+1;return d<=62?0:365-d+1;}
-function transferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1,year=Math.floor((calendarDay-1)/365);if(d<=62)return {open:true,id:"summer-"+year,name:"الانتقالات الصيفية",days:62-d};if(d>=184&&d<=214)return {open:true,id:state.winterBreakPending?"winter-season-"+state.season:"winter-"+year,name:"الانتقالات الشتوية",days:214-d};return {open:false,id:"closed-"+year,name:"السوق مغلق",days:d<184?184-d:365-d+1};}
+function transferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1,year=Math.floor((calendarDay-1)/365);if(d<=62)return {open:true,id:"summer-"+year,name:"الانتقالات الصيفية",days:62-d};if(d>=184&&d<=214)return {open:true,id:"winter-"+year,name:"الانتقالات الشتوية",days:214-d};return {open:false,id:"closed-"+year,name:"السوق مغلق",days:d<184?184-d:365-d+1};}
+function transferOfferMatchesWindow(offer,windowId,windowInfo){
+ if(!offer)return false;
+ if(String(offer.windowId||"")===String(windowId||""))return true;
+ return !!windowInfo&&windowInfo.open&&windowInfo.name==="الانتقالات الشتوية"
+  &&String(offer.windowId||"")==="winter-season-"+(Number(state.season)||0);
+}
 function canAccessTransferMarket(){return !state.retired&&Number(state.age)>=18&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending;}
 function isNaturalWinterTransferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1;return d>=184&&d<=214;}
 function reconcileWinterBreakState(){if(!state.winterBreakPending)return false;if(canAccessTransferMarket()&&isNaturalWinterTransferWindow())return false;state.winterBreakPending=false;if(state.seasonPhase==="winterBreak")state.seasonPhase="secondHalf";return true;}

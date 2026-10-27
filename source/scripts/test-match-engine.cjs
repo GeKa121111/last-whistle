@@ -53,7 +53,7 @@ assert.equal(engine.playerConcededGoals(65, [{ type: "goal", side: "opponent", m
   "a goal conceded while the goalkeeper is playing must affect their rating");
 assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent)), 0,
   "the substituted goalkeeper should not be penalized for a late concession");
-assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent, 64)), -0.06,
+assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent, 64)), -0.045,
   "the sent-off goalkeeper should be penalized for a concession after the dismissal");
 assert.equal(browserEngine.playerConcededGoals(65, lateConcessionEvent), 0,
   "the browser engine must match source attribution rules");
@@ -129,8 +129,10 @@ assert.equal(browserEngine.playerEarnsCleanSheet("قلب دفاع", 65, lateConc
 const goalkeeperImpact = engine.positionPerformanceImpact("حارس مرمى", { saves: 4, cleanSheet: true }, 0);
 const centreBackImpact = engine.positionPerformanceImpact("قلب دفاع", { tackles: 4, interceptions: 3 }, 2);
 const wingerDefensiveImpact = engine.positionPerformanceImpact("جناح", { tackles: 4, interceptions: 3 }, 2);
-assert.ok(goalkeeperImpact > 1.4, "multiple saves and a clean sheet must meaningfully improve a goalkeeper rating");
+assert.ok(goalkeeperImpact > 2.5, "multiple saves and a clean sheet must meaningfully improve a goalkeeper rating");
 assert.ok(centreBackImpact > wingerDefensiveImpact, "tackles and interceptions must matter more for defenders than for forwards");
+assert.ok(engine.positionPerformanceImpact("قلب دفاع", { tacklesWon: 3, interceptions: 2, clearances: 2, cleanSheet: true }, 0) > 2,
+  "clean sheets and defensive actions should meaningfully improve defender ratings");
 assert.equal(engine.positionPerformanceImpact("قلب دفاع", { tackles: 0, interceptions: 0, cleanSheet: false }, 4), 0,
   "goals conceded by the team must not directly subtract defensive-player impact");
 let tested = 0;
@@ -163,6 +165,14 @@ for (const position of positions) {
     assert.deepEqual(first, second, "a fixed seed must produce the same match");
     const integrity = engine.validateResult(first);
     assert.equal(integrity.ok, true, "inconsistent source match for position " + position + ", seed " + seed + ": " + JSON.stringify(integrity));
+    assert.equal(first.player.tacklesWon, first.player.tackles, "successful tackles must reconcile with tackle events");
+    assert.ok(first.player.passesCompleted <= first.player.passAttempts, "completed passes cannot exceed attempts");
+    assert.equal(first.player.passingAccuracy, first.player.passAttempts ? Math.round(first.player.passesCompleted / first.player.passAttempts * 1000) / 10 : 0,
+      "passing accuracy must reconcile with attempts and completions");
+    assert.equal(first.officialOutcome, first.score.for > first.score.against ? "فوز" : first.score.for < first.score.against ? "خسارة" : "تعادل",
+      "official result must follow goals independently of penalty-shootout advancement");
+    assert.equal(first.player.clearances, first.events.filter(event => event.type === "clearance" && event.side === "player").length);
+    assert.equal(first.player.ballRecoveries, first.events.filter(event => event.type === "recovery" && event.side === "player").length);
     const deployed = browserEngine.simulateMatch(options);
     assert.equal(JSON.stringify(deployed), JSON.stringify(first), "deployed match engine must match the tested source for position " + position + ", seed " + seed);
     const deployedIntegrity = browserEngine.validateResult(deployed);

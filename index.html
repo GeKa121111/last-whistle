@@ -5191,7 +5191,11 @@ function updateStartClubOptions(){
  if(!roster.length)clubSelect.innerHTML=`<option value="${safeHTML(state.clubName||"مركز شباب النور")}">${safeHTML(state.clubName||"مركز شباب النور")}</option>`;
  if(roster.includes(previous))clubSelect.value=previous;
  const sourceText=academy?"اختر النادي الأم؛ هتبدأ داخل أكاديمية الناشئين التابعة له. فئات الناشئين ومبارياتها محاكاة داخل اللعبة.":sourced?`${sourced.competition} • ${sourced.season} • OpenFootball / CC0`:division===2?"قائمة أكاديميات ودرجة ثانية مناسبة لبداية المسيرة":country==="مصر"?"قائمة أندية محلية داخل اللعبة.":"القائمة المحلية المتاحة للدوري المختار.";
- setText("startClubSource",sourceText);
+ const coverage=window.LWWorldDB?.rosterCoverage?.();
+ const countText=coverage
+  ? "قاعدة بيانات العالم "+(coverage.season||"الحالية")+": "+(Number(coverage.totalClubs)||0)+" ناديًا و"+(Number(coverage.totalDatabasePlayers)||0)+" لاعبًا ("+(Number(coverage.totalRealPlayers)||0)+" لاعبًا موثقًا، و"+(Number(coverage.totalGeneratedPlayers)||0)+" لاعب مولّد للتوازن)."
+  : "قاعدة بيانات الأندية واللاعبين يتم تحميلها؛ الأرقام ستظهر بعد اكتمال التحميل.";
+ setText("startClubSource",sourceText+" • "+countText);
 }
 function updatePositionStory(){const p=positionById(selectedPosition);$("positionStory").textContent=p.icon+" "+p.story;}
 function normalizePlayerName(raw){return String(raw??"").replace(/\s+/g," ").trim().slice(0,24);}

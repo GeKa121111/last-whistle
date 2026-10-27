@@ -16,6 +16,21 @@ assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchro
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
+assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
+  "career award dates must start on the in-game season date, not the machine clock");
+assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z",
+  "the in-game date must advance deterministically across season boundaries");
+const inlineDateStart = rootHtml.indexOf("function calendarGameDateISO(state)");
+const inlineDateEnd = rootHtml.indexOf("\nfunction ", inlineDateStart + 10);
+assert.ok(inlineDateStart >= 0 && inlineDateEnd > inlineDateStart,
+  "the app shell must include the same game-calendar date helper");
+const inlineDateContext = {};
+vm.createContext(inlineDateContext);
+vm.runInContext(rootHtml.slice(inlineDateStart, inlineDateEnd)
+  + "\nthis.calendarGameDateISO = calendarGameDateISO;", inlineDateContext);
+assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
+  "the browser career engine must use the same game-calendar date");
+
 const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");
 const inlineStatsStart = rootHtml.indexOf("  function startingStatsForPosition(position", inlineRangesStart);
 const inlineStatsEnd = rootHtml.indexOf("\n\n  function uniqueMatchRows", inlineStatsStart);

@@ -78,7 +78,7 @@ const required = [
   "function isNaturalWinterTransferWindow()",
   "function activateMidSeasonBreakIfDue(){",
   "if(activateMidSeasonBreakIfDue())break;",
-  'activateMidSeasonBreakIfDue();\\n const tactics=',
+  "activateMidSeasonBreakIfDue();",
   "const developmentResult=runSeasonAITtraining();",
   "report.completedSeason=currentSeason",
   "transferButton.hidden=!transferVisible",

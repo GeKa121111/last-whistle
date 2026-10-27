@@ -60,20 +60,31 @@
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
     const played = Math.max(0, Number(minutes) || 0);
     const timeline = Array.isArray(events) ? events : [];
-    const exitEvent = timeline.find(event => event && event.side === "player"
-      && ["substitution", "injury", "red-card"].includes(event.type));
-    const dismissalMinute = redCardMinute != null ? Number(redCardMinute)
-      : exitEvent && exitEvent.type === "red-card" ? Number(exitEvent.minute) : null;
+    const exits = timeline
+      .filter(event => event && event.side === "player"
+        && ["substitution", "injury", "red-card"].includes(event.type))
+      .map(event => ({ type: event.type, minute: Number(event.minute) }))
+      .filter(event => Number.isFinite(event.minute))
+      .sort((a, b) => a.minute - b.minute);
+    const firstExit = exits[0] || null;
+    const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
+    const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
+      : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
+    // Prefer a recorded substitution/injury time over the public minutes counter, which
+    // may be rounded or capped. If no exit event exists, a sub-90 appearance implies
+    // the player left at that minute; a full 90 keeps extra-time accountability.
+    const exitMinute = firstExit && ["substitution", "injury"].includes(firstExit.type)
+      ? firstExit.minute
+      : dismissalMinute == null && played < 90 ? played : null;
     return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
-      const minute = Number(event.minute) || 0;
-      // Substitution/injury ends responsibility. A red card does not; players who stay on
-      // the pitch remain accountable in extra time even though the public minutes stat caps at 90.
-      const exitMinute = exitEvent ? Number(exitEvent.minute) : null;
-      return minute <= played
-        || (dismissalMinute != null && minute > dismissalMinute)
-        || (exitMinute != null && minute > played && minute <= exitMinute)
-        || (!exitEvent && minute > played);
+      const minute = Number(event.minute);
+      if (!Number.isFinite(minute)) return false;
+      // A red card ends participation, but this career model still attributes later
+      // concessions to the dismissed player. A substitution or injury ends responsibility.
+      if (dismissalMinute != null && minute > dismissalMinute) return true;
+      if (exitMinute != null) return minute <= exitMinute;
+      return minute <= played || played >= 90;
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {

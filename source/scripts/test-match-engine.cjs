@@ -38,6 +38,15 @@ assert.equal(typeof browserEngine.playerConcededGoals, "function", "deployed goa
 const lateConcessionEvent = [{ type: "goal", side: "opponent", minute: 82 }];
 assert.equal(engine.playerConcededGoals(65, lateConcessionEvent), 0,
   "a goal after substitution must not be counted against the replaced goalkeeper");
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "goal", side: "opponent", minute: 50 },
+  { type: "substitution", side: "player", minute: 60 },
+  { type: "goal", side: "opponent", minute: 82 }
+]), 1, "an explicit substitution minute must count only concessions before the player exits");
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "injury", side: "player", minute: 60 },
+  { type: "goal", side: "opponent", minute: 82 }
+]), 0, "a goal after an injury exit must not be attributed to the injured player");
 assert.equal(engine.playerConcededGoals(65, lateConcessionEvent, 64), 1,
   "a goal after a red card must still be counted against the dismissed goalkeeper");
 assert.equal(engine.playerConcededGoals(65, [{ type: "goal", side: "opponent", minute: 50 }]), 1,

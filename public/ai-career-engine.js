@@ -351,7 +351,10 @@
   function utilities(context) {
     const recovery = context.injuryDays > 0 ? 100 : Math.max(0, 32 - context.energy) * 2.2 + Math.max(0, context.fatigue - 68) * 1.5;
     const playingTime = Math.max(0, 330 - context.minutesLastFive) / 3.5 + Math.max(0, 45 - context.coachRelationship) * 0.45;
-    const form = Math.max(0, 6.7 - context.averageRating) * 11 + (context.lastResult.outcome === "loss" && context.averageRating < 6.4 ? 2 : 0);
+    const individualContribution = context.goalsLastFive > 0 || context.assistsLastFive > 0;
+    const poorIndividualForm = context.averageRating < 6.4 && !individualContribution;
+    const form = Math.max(0, 6.7 - context.averageRating) * 11
+      + (context.lastResult.outcome === "loss" && poorIndividualForm ? 2 : 0);
     const contract = context.freeAgent ? 18 : context.contractSeasons <= 1 ? 24 : context.contractSeasons === 2 ? 10 : 0;
     const development = context.stage === "academy" ? 24 : context.stage === "development" ? 18 : context.stage === "veteran" ? 13 : 8;
     const leadership = context.stage === "veteran" && context.averageRating >= 7.1 ? 15 : 0;

@@ -186,7 +186,7 @@ function parseTeamLinks(indexHtml, indexUrl, teamDirectory) {
   for (const match of indexHtml.matchAll(re)) {
     let url;
     try { url = new URL(decodeEntities(match[2]), indexUrl); } catch { continue; }
-    if (!/^https?:$/.test(url.protocol) || !url.pathname.toLowerCase().endsWith(".htm")) continue;
+    if (!/^https?:$/.test(url.protocol) || !/\.html?$/i.test(url.pathname)) continue;
     if (!url.pathname.startsWith(basePrefix) || url.pathname === basePrefix) continue;
     if (seen.has(url.href)) continue;
     const linkText = plainText(match[3]);
@@ -335,4 +335,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseAge, seasonReferenceDate, roleFor };
+module.exports = { parseAge, seasonReferenceDate, roleFor, parseTeamLinks };

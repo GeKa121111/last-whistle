@@ -24,6 +24,7 @@ const functions = [
   "talkCoach",
   "normalizePlayerName",
   "matchCleanSheetContractBonus",
+  "performanceAdviceForRole",
   "startCareerFromSetup",
   "openTransferMarketPage"
 ].map(extractFunction).join("\n");
@@ -79,6 +80,24 @@ assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanS
   "academy/reserve players marked as unpaid must not receive the clean-sheet bonus");
 assert.equal(sandbox.matchCleanSheetContractBonus({ cleanSheetBonus: -20 }, { player: { cleanSheet: true } }, false), 0,
   "negative contract bonus amounts must be clamped to zero");
+
+const defenderAdvice = sandbox.performanceAdviceForRole("قلب دفاع",
+  { goals: 0, assists: 0, tackles: 0, interceptions: 0, saves: 0, cleanSheets: 0, keyPasses: 0, shotsOnTarget: 0 },
+  6.8, 85, 15);
+assert.ok(defenderAdvice.includes("التمركز") && !defenderAdvice.includes("مناطق أخطر"),
+  "defenders should receive positioning/tackling advice, not generic attacking advice");
+const goalkeeperAdvice = sandbox.performanceAdviceForRole("حارس مرمى",
+  { goals: 0, assists: 0, saves: 0, cleanSheets: 0 }, 5.9, 85, 15);
+assert.ok(goalkeeperAdvice.includes("حراسة المرمى"),
+  "goalkeepers with low ratings should receive goalkeeper-specific advice");
+const strikerAdvice = sandbox.performanceAdviceForRole("رأس حربة",
+  { goals: 0, assists: 0, shotsOnTarget: 0, keyPasses: 0 }, 6.8, 85, 15);
+assert.ok(strikerAdvice.includes("المهاجم") || strikerAdvice.includes("التوقيت"),
+  "strikers without attacking contributions should receive forward-specific advice");
+const tiredKeeperAdvice = sandbox.performanceAdviceForRole("حارس مرمى",
+  { goals: 0, assists: 0, saves: 0, cleanSheets: 0 }, 5.9, 30, 80);
+assert.ok(tiredKeeperAdvice.includes("الراحة"),
+  "low energy must prioritize recovery over role-specific coaching advice");
 
 
 // Player setup must normalize names and keep the career from starting when the name is empty.

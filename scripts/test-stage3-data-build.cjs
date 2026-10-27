@@ -9,6 +9,16 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
+const { parseAge, seasonReferenceDate } = require(path.join(root, "scripts", "refresh-world-squads.cjs"));
+assert.equal(parseAge("01/07/2008"), 18, "league-season age should be evaluated at the 1 July season start");
+assert.equal(parseAge("02/07/2008"), 17, "a birthday after season start must not age a player early");
+assert.equal(parseAge("01/07/08"), 18, "two-digit birth years should use the same season reference date");
+assert.equal(parseAge("01/01/2008", seasonReferenceDate("2026 Apertura")), 18,
+  "calendar-year Apertura squads should use the source season's January reference date");
+assert.equal(parseAge("02/01/2008", seasonReferenceDate("2026 Apertura")), 17,
+  "calendar-year season birthdays must be compared against the calendar-year reference date");
+assert.equal(parseAge("not-a-date"), null, "unparseable birth dates must remain unknown");
+
 for (const file of [
   "football-world-db.js",
   "public/football-world-db.js",

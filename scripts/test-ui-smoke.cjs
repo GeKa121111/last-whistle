@@ -14,7 +14,7 @@ if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and publi
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
   console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
 }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v71";')) {
+if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v72";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
@@ -113,7 +113,7 @@ const required = [
   "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=8",
+  "story-mode.js?v=9",
   "career-experience.js?v=1",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
@@ -256,6 +256,41 @@ try {
   process.exit(1);
 }
 
+const storyEventArrayStart = storyModeSyntaxSource.indexOf("var eventDefs = [");
+const storyEventArrayOpen = storyModeSyntaxSource.indexOf("[", storyEventArrayStart);
+const storyEventArrayEnd = storyModeSyntaxSource.indexOf("\n];", storyEventArrayOpen);
+if (storyEventArrayStart < 0 || storyEventArrayOpen < 0 || storyEventArrayEnd < 0) {
+  console.error("Role story events are missing or malformed.");
+  process.exit(1);
+}
+const storyEventDefs = vm.runInNewContext(storyModeSyntaxSource.slice(storyEventArrayOpen, storyEventArrayEnd + 2));
+const storyEventById = new Map(storyEventDefs.map(event => [event.id, event]));
+const storyEligibilityCases = [
+  ["academy-foundation", { age: 13, academyCareer: true }, true],
+  ["academy-foundation", { age: 16, academyCareer: true }, false],
+  ["role-goalkeeper", { pos: "حارس مرمى", apps: 1 }, true],
+  ["role-goalkeeper", { pos: "رأس حربة", apps: 5 }, false],
+  ["role-defender", { pos: "قلب دفاع", apps: 2 }, true],
+  ["role-defender", { pos: "وسط دفاعي", apps: 5 }, false],
+  ["role-midfielder", { pos: "وسط دفاعي", apps: 2 }, true],
+  ["role-midfielder", { pos: "جناح", apps: 5 }, false],
+  ["role-attacker", { pos: "رأس حربة", apps: 2 }, true],
+  ["role-attacker", { pos: "قلب دفاع", apps: 5 }, false],
+  ["individual-performance-loss", { lastMatchReport: { outcome: "loss", minutes: 90, rating: 7.5 } }, true],
+  ["individual-performance-loss", { lastMatchReport: { outcome: "loss", minutes: 0, rating: 8.4 } }, false]
+];
+for (const [id, state, expected] of storyEligibilityCases) {
+  const event = storyEventById.get(id);
+  assert.ok(event, "required career story event must exist: " + id);
+  assert.ok(Array.isArray(event.choices) && event.choices.length >= 2,
+    "career story event must provide at least two choices: " + id);
+  assert.equal(event.when(state), expected, "career story eligibility mismatch for " + id + " and " + JSON.stringify(state));
+}
+if (!storyModeSyntaxSource.includes('var strongIndividualLoss=summary.outcome==="loss"&&summary.minutes>0&&summary.rating>=7.5;')) {
+  console.error("Strong individual performance after a loss must require playing minutes and a 7.5+ rating.");
+  process.exit(1);
+}
+
 const agentSource = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
 try { new vm.Script(agentSource, { filename: "public/agent-system.js" }); } catch (error) { console.error("Agent system JavaScript syntax error:", error.message); process.exit(1); }
 for (const marker of ["حسام الجندي", "نادين فريد", "سيف مراد", "كريم منصور", "رامي رأفت", "سليم فوزي", "currentChapter", "contractTerms", "prioritizeTargets", "chargeFee"]) { if (!agentSource.includes(marker)) { console.error("Agent-system smoke test failed. Missing marker:", marker); process.exit(1); } }
@@ -294,8 +329,8 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v71")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=8", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=4", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
+if (!workerSource.includes("last-whistle-static-v72")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=9", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=4", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

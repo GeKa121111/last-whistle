@@ -11,6 +11,8 @@ assert.equal(rootEngine, source, "root and public award engines must stay synchr
 const appHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.equal(appHtml, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"),
   "root and public app shells must stay synchronized");
+assert.ok(appHtml.includes("currentDate:window.LWCareer?.calendarGameDateISO?.(state)"),
+  "the app must pass its in-game calendar date into the global award ceremony");
 assert.ok(appHtml.includes("cleanSheets:stats.cleanSheets") && appHtml.includes("saves:stats.saves"),
   "the career award ceremony must receive the player's actual defensive season totals");
 assert.ok(appHtml.includes('"id":"golden-glove","name":"القفاز الذهبي"'),
@@ -137,9 +139,12 @@ const realPlayers = [
 ];
 const ceremony = engine.buildSeasonAwardCeremony({
   season: 4,
+  currentDate: "2028-02-14T00:00:00.000Z",
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+assert.equal(ceremony.createdAt, "2028-02-14T00:00:00.000Z",
+  "award ceremony timestamps must use the supplied in-game calendar date");
 assert.equal(ceremony.ballonDor.topFive.length, 5, "the Ballon d'Or ceremony must show exactly five nominees");
 assert.ok(ceremony.ballonDor.topFive.some(row => row.isUser), "a standout career player must be eligible for the global shortlist");
 assert.ok(ceremony.awards.some(row => row.id === "fifa-the-best"));

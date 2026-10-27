@@ -519,12 +519,14 @@
     currentView = "mentor";
     var s = API().getState();
     var used = !!s.dailyActionUsed && Number(s.dailyActionDay) === Number(s.day);
+    var unavailable = !s.careerStarted || !!s.retired;
+    var energy = Number(s.energy) || 0;
     frame("العلاقات والتوجيه", "PEOPLE AROUND YOU",
-      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. النظام بيحترم النشاط الجانبي اليومي الموجود في اللعبة.</p>' +
+      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. جلسة المدرب تحتاج 3 طاقة، ودعم الزميل يحتاج طاقة واحدة؛ الراحة الذهنية متاحة حتى مع الطاقة المنخفضة.</p>' +
       '<div class="lwcx-options">' +
-        actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", used ? ' disabled' : '') +
-        actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", used ? ' disabled' : '') +
-        actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", used ? ' disabled' : '') +
+        actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", (used || unavailable || energy < 3) ? ' disabled' : '') +
+        actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", (used || unavailable || energy < 1) ? ' disabled' : '') +
+        actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", (used || unavailable) ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>سجل العلاقات</strong><span>' + world(s).mentorSessions + ' جلسة' + '</span></div>' +
       ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية/.test(row.title); }).slice(0, 4)).map(function (row) {
         return '<div class="lwcx-investment-row"><span><strong>' + esc(row.title) + '</strong><small>الموسم ' + esc(row.season) + ' · اليوم ' + esc(row.day) + '</small></span><b>✓</b></div>';
@@ -533,11 +535,28 @@
   }
 
   function doMentor(s, kind) {
-    if (s.retired) return;
+    var api = API();
+    if (!s || !s.careerStarted || s.retired) {
+      if (api && api.toast) api.toast(s && s.retired
+        ? "المسيرة انتهت بالاعتزال؛ أنشطة المسيرة اليومية مش متاحة."
+        : "ابدأ مسيرتك الأول علشان تستخدم أنشطة العلاقات.");
+      closeModal();
+      return;
+    }
+    if (["coach", "teammate", "reset"].indexOf(kind) < 0) {
+      if (api && api.toast) api.toast("النشاط ده مش متاح.");
+      return;
+    }
     var currentDay = Number(s.day) || 1;
     if (s.dailyActionUsed && Number(s.dailyActionDay) === currentDay) {
       var api = API();
       if (api && api.toast) api.toast("استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد.");
+      openMentor();
+      return;
+    }
+    var requiredEnergy = kind === "coach" ? 3 : kind === "teammate" ? 1 : 0;
+    if ((Number(s.energy) || 0) < requiredEnergy) {
+      if (api && api.toast) api.toast("طاقتك مش كفاية للنشاط ده. ارتاح الأول أو اختار الراحة الذهنية.");
       openMentor();
       return;
     }

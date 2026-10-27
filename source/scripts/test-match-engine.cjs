@@ -55,6 +55,23 @@ assert.equal(engine.playerConcededGoals(90, [
   { type: "substitution", side: "player", minute: 90 },
   { type: "goal", side: "opponent", minute: 105 }
 ]), 0, "a player substituted at the end of regulation must not be penalized for extra-time goals");
+
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "goal", side: "opponent", minute: 100 },
+  { type: "substitution", side: "player", minute: 105 }
+]), 1, "a goal conceded during extra time before a late extra-time substitution must count against the player");
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "substitution", side: "player", minute: 105 },
+  { type: "goal", side: "opponent", minute: 110 }
+]), 0, "a goal after an extra-time substitution must not count against the replaced player");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [
+  { type: "goal", side: "opponent", minute: 100 },
+  { type: "substitution", side: "player", minute: 105 }
+]), false, "an extra-time concession before substitution must prevent a clean sheet");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [
+  { type: "substitution", side: "player", minute: 105 },
+  { type: "goal", side: "opponent", minute: 110 }
+]), true, "an extra-time concession after substitution must not remove the clean sheet");
 assert.equal(engine.playerConcededGoals(65, [
   { type: "red-card", side: "player", minute: 64 },
   { type: "goal", side: "opponent", minute: 82 }

@@ -3797,11 +3797,12 @@ function activateMidSeasonBreakIfDue(){
  return true;
 }
 function cupParticipants(comp,count){
- const base=[...(comp.teams||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[1]||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[2]||[]),...Object.values(LEAGUE_ROSTERS).flatMap(x=>[...(x[1]||[]),...(x[2]||[])])];
- const unique=[...new Set(base.filter(n=>n&&n!==clubNameForLeague()))];
- const teams=[clubNameForLeague(),...unique];
- while(teams.length<count)teams.push(`نادي مشارك ${teams.length+1}`);
- return teams.slice(0,count);
+ const worldClubs=window.LWWorldDB&&typeof window.LWWorldDB.clubs==="function"?window.LWWorldDB.clubs():[];
+ const worldTeams=worldClubs.map(club=>club&&club.name).filter(Boolean);
+ const base=[...(comp.teams||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[1]||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[2]||[]),...Object.values(LEAGUE_ROSTERS).flatMap(x=>[...(x[1]||[]),...(x[2]||[])]),...worldTeams];
+ const currentClub=clubNameForLeague();
+ const unique=[...new Set(base.filter(n=>n&&n!==currentClub))];
+ return [currentClub,...unique].slice(0,Math.max(0,Number(count)||0));
 }
 function cupConfig(comp){
  if(comp.system==='supercup')return {teams:2,phase:'knockout',phaseGames:0,rounds:['النهائي'],twoLegs:[false]};
@@ -3830,6 +3831,7 @@ function enterCup(name){
  if(activeCupInProgress()){toast('عندك بطولة شغالة بالفعل؛ خلّصها الأول.');render();return;}
  if(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&Number(state.cupState.createdSeason||state.season)<Number(state.season))closeUnfinishedCupAtSeasonEnd();
  const cfg=cupConfig(comp),teams=cupParticipants(comp,cfg.teams);
+ if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}
  const groupSize=(comp.system==='caf'||comp.system==='conmebol'||comp.system==='world32')?4:0;
  const groups=groupSize?Array.from({length:Math.ceil(teams.length/groupSize)},(_,i)=>teams.slice(i*groupSize,(i+1)*groupSize)):[];
  state.cupState={name:comp.name,system:comp.system||'knockout',teams,stage:0,phase:cfg.phase,phaseGames:cfg.phaseGames,phasePlayed:0,points:0,gd:0,gf:0,rounds:cfg.rounds,twoLegs:cfg.twoLegs||[],tieLeg:1,tieAggregate:0,tieOpponent:'',eliminated:false,champion:false,history:[],matchesPlayed:0,createdSeason:state.season,createdCalendarDay:state.calendarDay,rank:null,opponent:teams[1],bracketWins:0,leagueOpponents:[],phaseResults:[],standings:teams.map(name=>({name,played:0,w:0,d:0,l:0,gf:0,ga:0,pts:0})),groups,playerGroup:groups.findIndex(g=>g.includes(clubNameForLeague()))};

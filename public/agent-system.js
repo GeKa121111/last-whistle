@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   var API = function(){return window.LWStoryRuntime||null;};
-  var panel=null, overlay=null, selectedAgentId="", quotedFeeRate=null, lastSnapshot="";
+  var panel=null, overlay=null, selectedAgentId="", quotedFeeRate=null, lastSnapshot="", panelWasRendered=false;
 
   var AGENTS = [
     {
@@ -461,9 +461,23 @@
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
     var changed=ensureState(s),expired=checkExpiry(s);if(expired)changed=true;
     if(s.agent&&renewRelationship(s))changed=true;
-    if(ensurePanel())renderPanel(s);
+    var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
+    var snapshot=[
+      s.careerStarted,s.agent,s.agentLead,s.retired,
+      p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
+      s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
+      history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
+    ].join("|");
+    var ready=ensurePanel();
+    if(ready&&(snapshot!==lastSnapshot||!panelWasRendered)){
+      renderPanel(s);
+      panelWasRendered=true;
+    }else if(!ready){
+      // The contract page may mount after the first tick. Render once it exists.
+      panelWasRendered=false;
+    }
     if(changed&&api.save)api.save();
-    lastSnapshot=[s.careerStarted,s.agent,s.agentProfile&&s.agentProfile.id,s.agentProfile&&s.agentProfile.relationship,s.agentProfile&&s.agentProfile.storyStage,s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage].join("|");
+    lastSnapshot=snapshot;
   }
   document.addEventListener("click",function(event){
     var b=event.target&&event.target.closest?event.target.closest("[data-lwag-action]"):null;

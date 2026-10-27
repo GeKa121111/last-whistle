@@ -5065,7 +5065,7 @@ function resolveNegotiation(chance,level){
  if(result.status==="success"){
   const agentOutcome=window.LWAgentRuntime?.afterNegotiation(state,result);
   state.transferHistory.unshift({season:state.season,day:state.day,text:`نجحت المفاوضات: المرتب زاد من ${result.oldWage} إلى ${result.wage} ${currencyLabel()} أسبوعيًا.`});
-  setStory("مفاوضات ناجحة","عرفت تتكلم في الوقت المناسب، والنادي وافق على تحسين عقدك. حافظ على مستواك عشان تستحق الزيادة.");log("نجحت مفاوضات العقد. المرتب الأسبوعي "+state.weeklyWage+" جنيه.");toast("مبروك! المفاوضات نجحت.");
+  setStory("مفاوضات ناجحة","عرفت تتكلم في الوقت المناسب، والنادي وافق على تحسين عقدك. حافظ على مستواك عشان تستحق الزيادة.");log("نجحت مفاوضات العقد. المرتب الأسبوعي "+state.weeklyWage+" "+currencyLabel()+".");toast("مبروك! المفاوضات نجحت.");
  }else{
   window.LWAgentRuntime?.afterNegotiation(state,result);
   state.transferHistory.unshift({season:state.season,day:state.day,text:"فشلت مفاوضات العقد. لازم تستنى 7 أيام قبل المحاولة مرة تانية."});
@@ -5115,7 +5115,7 @@ function applyStorePurchaseBonus(id){
 function buyItem(id){
  const item=SHOP.find(i=>i.id===id);if(!item||state[id])return;
  if(state.retired){toast("المسيرة انتهت؛ المتجر غير متاح بعد الاعتزال.");return;}
- if(state.money<item.price){toast("فلوسك مش كفاية. محتاج "+item.price+" جنيه.");return;}
+ if(state.money<item.price){toast("فلوسك مش كفاية. محتاج "+item.price+" "+currencyLabel()+".");return;}
  let committed=false;
  openModal("تأكيد الشراء",`هتشتري ${item.name} مقابل ${item.price} ${currencyLabel()}. ${item.desc}`,[
   {label:"اشتري دلوقتي",className:"primary",action:()=>{if(committed)return;committed=true;const result=window.LWCareer?.purchaseItem(state,item);if(!result?.ok){const messages={retired:"المسيرة انتهت؛ المتجر غير متاح.","already-owned":"العنصر اتشترى بالفعل.","insufficient-funds":"فلوسك مش كفاية.","invalid-item":"العنصر غير صالح."};toast(messages[result?.status]||"تعذر إتمام الشراء.");render();return;}applyStorePurchaseBonus(id);log("اشتريت "+item.name+".");setStory("استثمار في مستقبلك","اشتريت "+item.name+". التأثير: "+item.effect);saveGame(true);render();toast("مبروك الشراء يا كابتن!");}},

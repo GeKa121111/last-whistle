@@ -11,6 +11,9 @@ if (rootHtml !== html) { console.error("Root index.html and public/index.html ar
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
+if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
+  console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
+}
 if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v57";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
@@ -79,6 +82,9 @@ const required = [
   'label:"مهاجم متحرك"',
   'label:"رأس حربة"',
   "function startingStatsForPosition",
+  "function positionPerformanceImpact",
+  "goalkeeperTrainingButton.hidden=!isGoalkeeper",
+  "homeReadinessHint",
   "const OVR_WEIGHTS",
   'label:"مهاجم متحرك"',
   'id:"رأس حربة",label:"رأس حربة"',

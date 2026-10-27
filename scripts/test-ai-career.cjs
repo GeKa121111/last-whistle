@@ -132,6 +132,21 @@ assert.ok(recommendations.every(row => row.name !== "النادي الحالي")
 assert.ok(recommendations.every(row => Number.isFinite(row.score) === false), "recommendation internals must not leak into UI result objects");
 assert.ok(recommendations.every(row => row.gap <= 18), "unrealistic elite jumps must be filtered out");
 
+const duplicateTransferCandidates = [
+  { name: "Current Club", country: "Egypt", ovr: 61, prestige: 55 },
+  { name: "Suitable FC", country: "Egypt", ovr: 99, prestige: 80 },
+  { name: "suitable fc", country: " egypt ", ovr: 65, prestige: 70 }
+];
+const robustRecommendations = ai.recommendTransfers({
+  clubName: "  CURRENT CLUB ", leagueCountry: " egypt ", age: 22
+}, duplicateTransferCandidates, 61);
+assert.ok(!robustRecommendations.some(row => row.name.trim().toLocaleLowerCase() === "current club"),
+  "the current club must stay excluded despite case and whitespace differences");
+assert.equal(robustRecommendations.filter(row => row.name.trim().toLocaleLowerCase() === "suitable fc").length, 1,
+  "duplicate club entries must collapse to one eligible transfer recommendation");
+assert.equal(robustRecommendations.find(row => row.name.trim().toLocaleLowerCase() === "suitable fc").power, 65,
+  "an out-of-range duplicate must not hide a later eligible entry for the same club");
+
 const life = ai.lifestyleAdvice({ energy: 88, fatigue: 12, money: 500, weeklyWage: 300, contractSeasons: 1 });
 assert.equal(life.page, "contract", "an expiring contract should surface a contract review");
 

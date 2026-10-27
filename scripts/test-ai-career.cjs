@@ -163,7 +163,7 @@ const savedKeeper = ai.utilityScores({
   pos: "حارس مرمى", age: 29, energy: 85, fatigue: 15, trust: 65,
   contractSeasons: 3,
   careerMatchHistory: [{
-    scope: "league", minutes: 90, rating: 6.0, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1,
+    scope: "league", minutes: 90, rating: 6.0, goals: 0, assists: 0, teamGoals: 0, oppGoals: 0,
     stats: { saves: 3, cleanSheet: true }
   }]
 }, 70);

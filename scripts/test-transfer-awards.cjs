@@ -118,7 +118,8 @@ const realPlayers = [
   { name: "محمد صلاح", clubName: "ليفربول", country: "إنجلترا", position: "جناح", ovr: 90, prestige: 97, leagueStrength: 98, age: 34, confederation: "UEFA", originConfederation: "CAF" },
   { name: "إمام عاشور", clubName: "الأهلي", country: "مصر", position: "وسط مهاجم", ovr: 82, prestige: 94, leagueStrength: 72, age: 28, confederation: "CAF", originConfederation: "CAF" },
   { name: "إيرلينغ هالاند", clubName: "مانشستر سيتي", country: "إنجلترا", position: "مهاجم", ovr: 92, prestige: 99, leagueStrength: 98, age: 26, confederation: "UEFA", originConfederation: "UEFA" },
-  { name: "فيتور روكي", clubName: "بالميراس", country: "البرازيل", position: "مهاجم", ovr: 84, prestige: 90, leagueStrength: 84, age: 21, confederation: "CONMEBOL", originConfederation: "CONMEBOL" }
+  { name: "فيتور روكي", clubName: "بالميراس", country: "البرازيل", position: "مهاجم", ovr: 84, prestige: 90, leagueStrength: 84, age: 21, confederation: "CONMEBOL", originConfederation: "CONMEBOL" },
+  { name: "حارس الاختبار", clubName: "نادي الحراسة", country: "مصر", position: "حارس مرمى", ovr: 86, prestige: 80, leagueStrength: 72, age: 27, appearances: 30, averageRating: 8.1, cleanSheets: 21, saves: 92, penaltiesSaved: 3, confederation: "CAF", originConfederation: "CAF" }
 ];
 const ceremony = engine.buildSeasonAwardCeremony({
   season: 4,
@@ -133,5 +134,6 @@ assert.ok(ceremony.awards.some(row => row.id === "golden-boy"));
 assert.ok(ceremony.awards.some(row => row.id === "caf-player"));
 assert.ok(ceremony.awards.some(row => row.id === "uefa-player"));
 assert.ok(ceremony.awards.some(row => row.id === "conmebol-player"));
+assert.ok(ceremony.awards.some(row => row.id === "golden-glove"), "eligible keepers must be represented in the Golden Glove award");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

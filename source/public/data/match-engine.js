@@ -302,6 +302,12 @@
     const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
     const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
+    // This engine tracks player minutes only through regulation. Extra-time events still
+    // affect the team score, but the player is not simulated in either extra-time period.
+    // Record the 90-minute exit before calculating clean sheets and conceded-goal impact.
+    if (extraTime.played && minutes >= 90 && !redCard && !injured) {
+      events.push({ type: "substitution", minute: 90, side: "player", actor: String(player.name || "اللاعب"), reason: "عدم المشاركة في الوقت الإضافي" });
+    }
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
     const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded);

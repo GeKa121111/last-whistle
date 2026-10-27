@@ -240,6 +240,13 @@ career.applySeasonAging(oldestKeeperCurve);
 assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
 assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
 
+const professionalFieldCurve = { pos: "جناح", age: 33, fitness: 75, speed: 80, physical: 70, professionalism: 90 };
+career.applySeasonAging(professionalFieldCurve);
+assert.equal(professionalFieldCurve.fitness, 75, "professionalism above 80 should slow fitness decline");
+assert.equal(professionalFieldCurve.speed, 80, "professionalism above 80 should slow pace decline");
+assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z");
+assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z");
+
 const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false };
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "group");
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "final-qualified");

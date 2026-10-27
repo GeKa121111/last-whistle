@@ -12,7 +12,7 @@ assert.ok(!source.includes("اتفاق جديد لمدة موسمين"), "agent-
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v72";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v73";'),
   "open-ended agent contracts must invalidate the old offline cache");
 
 const documentListeners = Object.create(null);

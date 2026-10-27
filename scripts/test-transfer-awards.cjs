@@ -6,6 +6,15 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "public", "transfer-awards-engine.js"), "utf8");
+const rootEngine = fs.readFileSync(path.join(root, "transfer-awards-engine.js"), "utf8");
+assert.equal(rootEngine, source, "root and public award engines must stay synchronized");
+const appHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.equal(appHtml, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"),
+  "root and public app shells must stay synchronized");
+assert.ok(appHtml.includes("cleanSheets:stats.cleanSheets") && appHtml.includes("saves:stats.saves"),
+  "the career award ceremony must receive the player's actual defensive season totals");
+assert.ok(appHtml.includes('"golden-glove":1200'),
+  "winning the Golden Glove must grant the configured in-game reward");
 const sandbox = { window: {}, console, Date, Math, Number, String, Array, Object, Set };
 vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
@@ -161,5 +170,13 @@ assert.equal(userGoldenGlove.winner.name, "حارس مسيرتي",
   "a goalkeeper's actual career clean sheets and saves must be considered for Golden Glove");
 assert.ok(keeperCareer.playerAwards.some(row => row.id === "golden-glove"),
   "winning Golden Glove should be recorded in the player's end-of-season awards");
+const outfieldOnlyCeremony = engine.buildSeasonAwardCeremony({
+  season: 4,
+  player: { name: "لاعب ميداني", club: "فريقي", country: "مصر", position: "جناح", ovr: 80,
+    age: 24, appearances: 30, goals: 12, assists: 9, averageRating: 7.2, leagueStrength: 65 },
+  realPlayers: realPlayers.filter(row => row.position !== "حارس مرمى")
+});
+assert.equal(outfieldOnlyCeremony.awards.some(row => row.id === "golden-glove"), false,
+  "the Golden Glove must be omitted instead of falling back to an ineligible outfield player");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

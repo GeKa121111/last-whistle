@@ -438,6 +438,9 @@ if (!html.includes('$("seasonStageAction").addEventListener("click",()=>runSeaso
   || !html.includes('$("seasonTransferAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonTransferAction").dataset.seasonAction||"transfer-review"))')) {
   console.error("Journey interaction test failed: stable button listeners are not registered."); process.exit(1);
 }
+if (!html.includes("const transferLockDescription=state.retired?") || !html.includes("وصلت لسن 18. اختار عقد الفريق الأول أو موسم الرديف") || !html.includes("أنت في موسم الرديف.")) {
+  console.error("Transfer eligibility UI must explain the exact age, graduation, or reserve lock."); process.exit(1);
+}
 if (!html.includes("function openTransferMarketPage(){") || !html.includes('market.scrollIntoView({behavior:"smooth",block:"start"})')) {
   console.error("Transfer CTA test failed: review button must open and scroll to the transfer market."); process.exit(1);
 }

@@ -437,7 +437,7 @@ const extractTopLevelFunction = (source, functionName) => {
   return source.slice(start, next < 0 ? source.length : next);
 };
 const transferJourneyFunctions = [
-  "setJourneyAction", "canAccessTransferMarket", "runSeasonJourneyAction", "renderSeasonJourney", "openTransferMarketPage"
+  "setJourneyAction", "canAccessTransferMarket", "runSeasonJourneyAction", "seasonCareerChallenge", "renderSeasonJourney", "openTransferMarketPage"
 ].map((name) => extractTopLevelFunction(html, name)).join("\n");
 const interactionState = {
   careerStarted: true, retired: false, age: 19, academyCareer: false, day: 3, calendarDay: 15, season: 1, seasonApps: 2,

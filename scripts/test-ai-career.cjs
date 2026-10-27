@@ -123,6 +123,19 @@ assert.equal(academyAdvice.context.goalsLastFive, 1, "context must aggregate rec
 assert.equal(academyAdvice.context.assistsLastFive, 1, "context must aggregate recent assists");
 assert.equal(academyAdvice.context.leaguePosition, 3, "context must read the player's team position");
 assert.ok(academyAdvice.utilities.development > 0, "the advice must include transparent utility scores");
+const highFormRows = [{ scope: "league", minutes: 90, rating: 8.1, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1, matchId: "loss-high-form" }];
+const highFormLoss = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: highFormRows }, 70);
+const highFormWin = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], teamGoals: 2, oppGoals: 0, matchId: "win-high-form" }] }, 70);
+assert.equal(highFormLoss.form, highFormWin.form,
+  "a strong individual rating must not receive a poor-form penalty just because the team lost");
+const poorFormLoss = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.2, teamGoals: 0, oppGoals: 2 }] }, 70);
+const poorFormWin = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.2, teamGoals: 2, oppGoals: 0 }] }, 70);
+assert.equal(poorFormLoss.form, poorFormWin.form + 2,
+  "team result may contextualize genuinely poor recent individual form, not replace it");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), true, "the AI must persist a new recommendation into its seasonal ledger");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), false, "the same recommendation must not be recorded twice in a season");
 const changedAdvice = ai.coachAdvice(academyState, 58);

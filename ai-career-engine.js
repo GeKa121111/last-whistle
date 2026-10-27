@@ -156,21 +156,25 @@
     clubs = Array.isArray(clubs) ? clubs : [];
     const current = clamp(overall, 35, 99);
     const age = number(state.age, 24);
+    const normalizeClubPart = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const currentClubName = normalizeClubPart(state.clubName);
+    const currentCountry = normalizeClubPart(state.leagueCountry || "مصر");
     const seen = new Set();
     return clubs.filter(club => club && club.name && club.country)
-      .filter(club => !(String(club.name) === String(state.clubName) && String(club.country) === String(state.leagueCountry || "مصر")))
+      .filter(club => !(normalizeClubPart(club.name) === currentClubName
+        && normalizeClubPart(club.country) === currentCountry))
       .map(club => {
         const power = clamp(club.ovr || club.power || 55, 25, 99);
         const gap = power - current;
-        const key = String(club.name).trim().toLocaleLowerCase() + "|" + String(club.country).trim().toLocaleLowerCase();
+        const key = normalizeClubPart(club.name) + "|" + normalizeClubPart(club.country);
         return { name: String(club.name), country: String(club.country), power, prestige: clamp(club.prestige || 50, 0, 100),
           gap, key, score: 100 - Math.abs(gap - 5) * 3.2 + clamp(club.prestige || 50, 0, 100) * 0.12
             - Math.max(0, gap - 14) * 2.5 - Math.max(0, -gap - 18) * 1.1 + (age <= 23 && gap >= 0 ? 3 : 0) };
       })
       .filter(row => {
-        if (seen.has(row.key)) return false;
+        if (row.gap > 18 || row.gap < -22 || seen.has(row.key)) return false;
         seen.add(row.key);
-        return row.gap <= 18 && row.gap >= -22;
+        return true;
       })
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
       .slice(0, 3)

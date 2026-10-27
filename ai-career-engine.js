@@ -327,12 +327,12 @@
     const averageRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : base.formRating(state);
     const goals = played.reduce((sum, row) => sum + Math.max(0, num(row.goals, 0)), 0);
     const assists = played.reduce((sum, row) => sum + Math.max(0, num(row.assists, 0)), 0);
-    const tackles = played.reduce((sum, row) => sum + Math.max(0, num(row.tackles, 0)), 0);
-    const interceptions = played.reduce((sum, row) => sum + Math.max(0, num(row.interceptions, 0)), 0);
-    const saves = played.reduce((sum, row) => sum + Math.max(0, num(row.saves, 0)), 0);
-    const keyPasses = played.reduce((sum, row) => sum + Math.max(0, num(row.keyPasses, 0)), 0);
-    const shotsOnTarget = played.reduce((sum, row) => sum + Math.max(0, num(row.shotsOnTarget, 0)), 0);
-    const cleanSheets = played.filter(row => row.cleanSheet === true).length;
+    const tackles = played.reduce((sum, row) => sum + Math.max(0, num(row.tackles ?? row.stats?.tackles, 0)), 0);
+    const interceptions = played.reduce((sum, row) => sum + Math.max(0, num(row.interceptions ?? row.stats?.interceptions, 0)), 0);
+    const saves = played.reduce((sum, row) => sum + Math.max(0, num(row.saves ?? row.stats?.saves, 0)), 0);
+    const keyPasses = played.reduce((sum, row) => sum + Math.max(0, num(row.keyPasses ?? row.stats?.keyPasses, 0)), 0);
+    const shotsOnTarget = played.reduce((sum, row) => sum + Math.max(0, num(row.shotsOnTarget ?? row.stats?.shotsOnTarget, 0)), 0);
+    const cleanSheets = played.filter(row => row.cleanSheet === true || row.stats?.cleanSheet === true).length;
     const position = String(state.pos || state.position || "غير محدد");
     const goalkeeperContribution = /حارس/.test(position) && (saves >= 2 || cleanSheets > 0);
     const defensiveContribution = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)

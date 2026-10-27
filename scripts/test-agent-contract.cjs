@@ -9,10 +9,12 @@ const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
 assert.equal(source, deployed, "root and deployed agent-system.js must stay synchronized");
 assert.ok(!source.includes("اتفاق جديد لمدة موسمين"), "agent-switch copy must not promise automatic expiry");
+assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
+  "agent representation must not contain an automatic season-expiry path");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v72";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v74";'),
   "open-ended agent contracts must invalidate the old offline cache");
 
 const documentListeners = Object.create(null);
@@ -106,6 +108,22 @@ assert.equal(state.agentProfile.contractMode, "open-ended", "legacy contracts mu
 assert.equal(state.agentProfile.expiresSeason, null, "legacy expiry dates must be cleared");
 assert.equal(state.agentHistory.some(event => event.title === "انتهاء عقد الوكيل"), false,
   "season progression must not auto-terminate an open-ended contract");
+
+// A termination dialog opened before retirement must not charge or end the agreement afterward.
+click("agent-active", "hossam");
+click("agent-end-current", "hossam");
+const moneyBeforeRetiredTermination = state.money;
+state.retired = true;
+click("agent-confirm-end", "hossam");
+assert.equal(state.agent, true, "a stale termination confirmation must not remove the representative after retirement");
+assert.equal(state.agentProfile.id, "hossam", "a stale termination confirmation must preserve the active representative");
+assert.equal(state.money, moneyBeforeRetiredTermination, "a stale termination confirmation must not charge an exit fee");
+assert.equal(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"), false,
+  "a blocked post-retirement termination must not create a termination record");
+click("agent-end-current", "hossam");
+assert.equal(state.agent, true, "opening a termination dialog after retirement must be blocked");
+assert.equal(state.money, moneyBeforeRetiredTermination, "blocked post-retirement actions must not change the balance");
+state.retired = false;
 
 // A stale switch dialog must not charge or remove the agent after the career becomes ineligible.
 click("agent-meet", "nadine");

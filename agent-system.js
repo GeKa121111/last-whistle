@@ -202,12 +202,6 @@
   }
   function rel(s){return s&&s.agentProfile?cap(s.agentProfile.relationship,0,100):50;}
   function canUseAgent(s){return !!(s&&s.careerStarted&&!s.retired);}
-  function isExpired(s,p){return !!(p&&p.contractMode!=="open-ended"&&Number(s.season)>=Number(p.expiresSeason)&&Number(s.season)>Number(p.hiredSeason));}
-  function checkExpiry(s){
-    var p=s.agentProfile;if(!s.agent||!p||!isExpired(s,p))return false;
-    var name=p.name||"الوكيل";s.agent=false;s.agentProfile=null;
-    record(s,"انتهاء عقد الوكيل","انتهى اتفاق التمثيل مع "+name+" بعد اكتمال مدته. تقدر تختار وكيلًا جديدًا من صفحة العقد والانتقالات.");return true;
-  }
   function currentChapter(s){
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p||p.storyStage>=cfg.chapters.length)return null;
     var stage=Number(p.storyStage)||0,apps=Number(s.apps)||0;
@@ -350,12 +344,21 @@
     save(s,"القرار اتسجل في قصة الوكيل واتطبقت نتائجه.");openActive();
   }
   function endCurrent(){
-    var s=API().getState(),p=s.agentProfile;if(!s.agent||!p)return;
+    var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
+    if(!canUseAgent(s)||!s.agent||!p){
+      if(api&&api.toast)api.toast(s&&s.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن تغيير اتفاق الوكالة.":"لا يوجد اتفاق وكالة نشط.");
+      closeDialog();return;
+    }
     var cfg=agentConfig(s)||LEGACY_AGENT,fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
     frame("إنهاء اتفاق التمثيل","END REPRESENTATION",'<div class="lwa-change-notice"><strong>شرط الخروج: '+fee+' جنيه</strong><p>لو أنهيت الاتفاق، هتدفع الشرط من رصيد اللعبة، وبعدها تقدر تختار وكيلًا آخر أو تكمل من غير وكيل.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-confirm-end"'+(Number(s.money)<fee?" disabled":"")+'>أدفع وأنهي الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="close">أكمل معاه</button></div>');
   }
   function confirmEnd(){
-    var s=API().getState(),p=s.agentProfile,cfg=agentConfig(s)||LEGACY_AGENT;if(!p)return;
+    var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
+    if(!canUseAgent(s)||!s.agent||!p){
+      if(api&&api.toast)api.toast(s&&s.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن إنهاء اتفاق الوكالة.":"لا يوجد اتفاق وكالة نشط.");
+      closeDialog();return;
+    }
+    var cfg=agentConfig(s)||LEGACY_AGENT;
     var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
     if(Number(s.money)<fee){API().toast("رصيدك مش كفاية لشرط الخروج. تقدر تكمّل الاتفاق لحد ما تقدر تغيّره.");return;}
     s.money-=fee;record(s,"إنهاء اتفاق الوكالة","أنهيت اتفاق التمثيل مع "+cfg.name+" ودفعت "+fee+" جنيه داخل اللعبة.");
@@ -459,7 +462,7 @@
   }
   function tick(){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
-    var changed=ensureState(s),expired=checkExpiry(s);if(expired)changed=true;
+    var changed=ensureState(s);
     if(s.agent&&renewRelationship(s))changed=true;
     if(ensurePanel())renderPanel(s);
     if(changed&&api.save)api.save();

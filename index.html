@@ -2128,9 +2128,7 @@ function seasonAwards(state, league, teamRank) {
 /* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */
 (() => {
   "use strict";
-
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
-
   function seededRandom(seed) {
     let value = (Number(seed) >>> 0) || 0x9e3779b9;
     return () => {
@@ -2141,13 +2139,11 @@ function seasonAwards(state, league, teamRank) {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-
   function hash(text) {
     let value = 2166136261;
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
-
   function positionProfile(position) {
     return ({
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
@@ -2160,7 +2156,6 @@ function seasonAwards(state, league, teamRank) {
       "رأس حربة": { shooter: 0.60, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
-
   function selectedMinutes(player, available, random) {
     if (!available) return 0;
     const role = String(player.role || "بديل");
@@ -2175,7 +2170,6 @@ function seasonAwards(state, league, teamRank) {
     if (fatigue > 70) minutes -= 12;
     return Math.round(clamp(minutes, 0, 90));
   }
-
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
     const tackles = Math.max(0, Number(stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
@@ -2193,6 +2187,9 @@ function seasonAwards(state, league, teamRank) {
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
     const played = Math.max(0, Number(minutes) || 0);
     const timeline = Array.isArray(events) ? events : [];
+    const entryEvent = timeline.find(event => event && event.type === "substitution-on" && event.side === "player");
+    const rawEntryMinute = entryEvent ? Number(entryEvent.minute) : 0;
+    const entryMinute = Number.isFinite(rawEntryMinute) ? Math.max(0, rawEntryMinute) : 0;
     const exits = timeline
       .filter(event => event && event.side === "player"
         && ["substitution", "injury", "red-card"].includes(event.type))
@@ -2203,20 +2200,16 @@ function seasonAwards(state, league, teamRank) {
     const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
     const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
       : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
-    // A red card, substitution, or injury ends responsibility for later concessions.
-    // Prefer recorded exit events over rounded public minutes; an explicit dismissal
-    // minute is a fallback when older callers provide no red-card event.
-    const exitMinute = firstExit && ["substitution", "injury", "red-card"].includes(firstExit.type)
-      ? firstExit.minute
+    // Substitutes are only responsible for goals after they enter. A recorded exit
+    // wins over duration estimates; a full-match player may remain accountable in ET.
+    const exitMinute = firstExit ? firstExit.minute
       : Number.isFinite(dismissalMinute) ? dismissalMinute
-        : played < 90 ? played : null;
+        : entryMinute > 0 || played < 90 ? entryMinute + played : null;
     return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
       const minute = Number(event.minute);
-      if (!Number.isFinite(minute)) return false;
-      // Goals at the exit minute still count; goals after it belong to the replacement/team.
-      if (exitMinute != null) return minute <= exitMinute;
-      return minute <= played || played >= 90;
+      if (!Number.isFinite(minute) || minute <= entryMinute) return false;
+      return exitMinute == null || minute <= exitMinute;
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
@@ -2242,25 +2235,41 @@ function seasonAwards(state, league, teamRank) {
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
     const plannedMinutes = selectedMinutes(player, !unavailable, random);
-    // Cards/injuries are only real if they happen while the player is on the pitch.
-    // If both are rolled, the first event ends this player's participation, so the later one is cancelled.
+    // A true bench substitute enters late and plays through the end of regulation;
+    // other squad roles retain their existing start-and-exit minute model.
+    const playerStartMinute = plannedMinutes > 0 && String(player.role || "بديل") === "بديل"
+      ? Math.max(0, 90 - plannedMinutes) : 0;
+    const plannedEndMinute = Math.min(90, playerStartMinute + plannedMinutes);
+    // Cards/injuries can only occur inside the player's actual on-pitch interval.
+    // If both are rolled, the first event ends participation and cancels the later one.
     const redCardRolled = plannedMinutes > 0 && random() < 0.0035;
-    const redMinuteRolled = redCardRolled ? Math.floor(38 + random() * 48) : 121;
+    const cardStartMinute = Math.max(playerStartMinute + 1, 38);
+    const cardEndMinute = Math.max(cardStartMinute, plannedEndMinute);
+    const redMinuteRolled = redCardRolled
+      ? Math.floor(cardStartMinute + random() * Math.max(1, cardEndMinute - cardStartMinute + 1)) : 121;
     const injuryChance = plannedMinutes > 0
       ? clamp(0.008 + (100 - clamp(player.energy, 0, 100)) * 0.00032 + clamp(player.fatigue, 0, 100) * 0.00028, 0.008, 0.065)
       : 0;
     const injuryRolled = random() < injuryChance;
-    const injuryMinuteRolled = injuryRolled ? Math.floor(52 + random() * 39) : 121;
-    let redCard = redCardRolled && redMinuteRolled <= plannedMinutes;
-    let injured = injuryRolled && injuryMinuteRolled <= plannedMinutes;
+    const injuryStartMinute = Math.max(playerStartMinute + 1, 52);
+    const injuryEndMinute = Math.max(injuryStartMinute, plannedEndMinute);
+    const injuryMinuteRolled = injuryRolled
+      ? Math.floor(injuryStartMinute + random() * Math.max(1, injuryEndMinute - injuryStartMinute + 1)) : 121;
+    let redCard = redCardRolled && redMinuteRolled > playerStartMinute && redMinuteRolled <= plannedEndMinute;
+    let injured = injuryRolled && injuryMinuteRolled > playerStartMinute && injuryMinuteRolled <= plannedEndMinute;
     if (redCard && injured) {
       if (redMinuteRolled <= injuryMinuteRolled) injured = false;
       else redCard = false;
     }
     const redMinute = redCard ? redMinuteRolled : 121;
     const injuryMinute = injured ? injuryMinuteRolled : 121;
-    const minutes = Math.round(Math.min(plannedMinutes, redMinute, injuryMinute));
+    const minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
+    const playerEndMinute = playerStartMinute + minutes;
     const events = [];
+    if (playerStartMinute > 0 && minutes > 0) {
+      events.push({ type: "substitution-on", minute: playerStartMinute, side: "player",
+        actor: String(player.name || "اللاعب"), reason: "دخول من مقاعد البدلاء" });
+    }
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
       keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, cleanSheet: false,
@@ -2275,22 +2284,19 @@ function seasonAwards(state, league, teamRank) {
     const position = String(player.position || player.pos || "");
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);
-
     if (redCard) {
       stats.redCards = 1;
       events.push({ type: "red-card", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد مباشر في محاكاة اللعبة" });
     }
-    if (injured) {
-      events.push({ type: "injury", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), days: stats.injuryDays });
-    }
+    if (injured) events.push({ type: "injury", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), days: stats.injuryDays });
     if (minutes > 0 && !redCard && random() < 0.105) {
       stats.yellowCards = 1;
-      events.push({ type: "yellow-card", minute: Math.max(1, Math.floor(random() * minutes)), side: "player", actor: String(player.name || "اللاعب") });
+      events.push({ type: "yellow-card", minute: playerStartMinute + 1 + Math.floor(random() * minutes), side: "player", actor: String(player.name || "اللاعب") });
     }
-
     function createPeriod(periodStart, duration, isExtra) {
       const relativeGap = teamPower + homeAdvantage - opponentPower;
-      // The old baseline generated too few attacking sequences and suppressed season scoring.
+      // A full professional match should contain several attacking sequences per side;
+      // the old baseline of six produced too few shots and made player seasons unusually low-scoring.
       let ourVolume = 9.5 + relativeGap / 19 + (tactic === "attack" ? 1.8 : tactic === "defend" ? -0.9 : tactic === "counter" && relativeGap < 0 ? 0.8 : 0);
       let oppVolume = 9.5 - relativeGap / 21 + (tactic === "attack" ? 0.8 : tactic === "defend" ? -1.5 : tactic === "counter" && relativeGap < 0 ? -0.3 : 0);
       const tacticalEffect = ({
@@ -2306,14 +2312,11 @@ function seasonAwards(state, league, teamRank) {
       const scale = duration / 90;
       const ourChances = Math.max(1, Math.round((ourVolume + random() * 3 - 1.5) * scale));
       const oppChances = Math.max(1, Math.round((oppVolume + random() * 3 - 1.5) * scale));
-      let goalsFor = 0;
-      let goalsAgainst = 0;
-      const keeperActive = profile.goalkeeper && minutes >= periodStart + 1;
-
+      let goalsFor = 0, goalsAgainst = 0;
+      const keeperActive = profile.goalkeeper && playerEndMinute > periodStart && playerStartMinute < periodStart + duration;
       function minuteOf(index, total) {
         return Math.min(periodStart + duration, periodStart + 1 + Math.floor((index + random() * 0.85) / Math.max(1, total) * duration));
       }
-
       function sideChances(side, count) {
         for (let i = 0; i < count; i++) {
           const minute = minuteOf(i, count);
@@ -2321,10 +2324,11 @@ function seasonAwards(state, league, teamRank) {
           if (random() > 0.69) continue;
           events.push({ type: "shot", minute, side, onTarget: false });
           const isOurs = side === "team";
-          const playerCanAct = isOurs && minutes > 0 && minute <= minutes;
+          const playerCanAct = isOurs && minutes > 0 && minute > playerStartMinute && minute <= playerEndMinute;
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
-          // Match event minutes already guard participation; don't apply the minutes ratio twice.
+          // The match timeline already prevents involvement after the player's substitution.
+          // Do not multiply the same minutes ratio a second time: doing so undercounts bench appearances.
           const roleSkill = position === "رأس حربة"
             ? shooting * 0.42 + composure * 0.26 + clamp(player.physical, 0, 100) * 0.16
               + clamp(player.speed, 0, 100) * 0.10 + clamp(player.fitness, 0, 100) * 0.06
@@ -2355,30 +2359,29 @@ function seasonAwards(state, league, teamRank) {
             if (shotEvent.onTarget) stats.shotsOnTarget++;
           }
           if (!isGoal) {
-            if (!isOurs && keeperActive && minute <= minutes && shotEvent.onTarget) {
+            if (!isOurs && keeperActive && minute > playerStartMinute && minute <= playerEndMinute && shotEvent.onTarget) {
               stats.saves++;
               events.push({ type: "save", minute, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
             }
             continue;
           }
-          if (isOurs) {
-            goalsFor++;
-            if (byPlayer) stats.goals++;
-          } else goalsAgainst++;
+          if (isOurs) { goalsFor++; if (byPlayer) stats.goals++; }
+          else goalsAgainst++;
           shotEvent.onTarget = true;
           const scorer = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
           events.push({ type: "goal", minute, side, scorer, creditedToPlayer: byPlayer });
           if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.22, 0.07, 0.34)) {
             stats.assists++;
             stats.keyPasses++;
-            events.push({ type: "assist", minute: Math.max(1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
+            events.push({ type: "assist", minute: Math.max(playerStartMinute + 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
           }
         }
       }
-
       sideChances("team", ourChances);
       sideChances("opponent", oppChances);
-      const playerActiveDuration = Math.max(0, Math.min(duration, minutes - periodStart));
+      const playerPeriodStart = Math.max(periodStart, playerStartMinute);
+      const playerPeriodEnd = Math.min(periodStart + duration, playerEndMinute);
+      const playerActiveDuration = Math.max(0, playerPeriodEnd - playerPeriodStart);
       if (playerActiveDuration > 0 && !profile.goalkeeper) {
         // Sample roughly one defensive opportunity per nine minutes played. The old
         // one-roll-per-half logic produced well under one tackle per full match.
@@ -2390,12 +2393,12 @@ function seasonAwards(state, league, teamRank) {
         for (let attempt = 0; attempt < actionTrials; attempt += 1) {
           if (defensiveRandom() < tackleChance) {
             stats.tackles++;
-            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
           if (defensiveRandom() < interceptionChance) {
             stats.interceptions++;
-            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
         }
@@ -2408,7 +2411,7 @@ function seasonAwards(state, league, teamRank) {
         for (let attempt = 0; attempt < foulTrials; attempt += 1) {
           if (foulRandom() < foulChance) {
             stats.fouls++;
-            const minute = periodStart + 1 + Math.floor(foulRandom() * playerActiveDuration);
+            const minute = playerPeriodStart + 1 + Math.floor(foulRandom() * playerActiveDuration);
             events.push({ type: "foul", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
         }
@@ -2417,15 +2420,11 @@ function seasonAwards(state, league, teamRank) {
       if (random() < 0.06) events.push({ type: "offside", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
       return { for: goalsFor, against: goalsAgainst };
     }
-
     const first = createPeriod(0, 90, false);
-    regulation.for = first.for;
-    regulation.against = first.against;
-    let finalFor = regulation.for;
-    let finalAgainst = regulation.against;
+    regulation.for = first.for; regulation.against = first.against;
+    let finalFor = regulation.for, finalAgainst = regulation.against;
     const aggregateOffset = Number(options.aggregateOffset) || 0;
     const needsDecider = options.knockout === true && aggregateOffset + finalFor - finalAgainst === 0;
-
     if (needsDecider) {
       extraTime.played = true;
       const firstExtra = createPeriod(90, 15, true);
@@ -2433,8 +2432,7 @@ function seasonAwards(state, league, teamRank) {
       extraTime.periods = [firstExtra, secondExtra];
       extraTime.for = firstExtra.for + secondExtra.for;
       extraTime.against = firstExtra.against + secondExtra.against;
-      finalFor += extraTime.for;
-      finalAgainst += extraTime.against;
+      finalFor += extraTime.for; finalAgainst += extraTime.against;
       if (aggregateOffset + finalFor - finalAgainst === 0) {
         shootout.used = true;
         const skill = clamp(player.composure, 25, 95);
@@ -2445,7 +2443,6 @@ function seasonAwards(state, league, teamRank) {
         events.push({ type: "penalty-shootout", minute: 120, side: "team", won: shootout.won, scoreFor: shootout.scoreFor, scoreAgainst: shootout.scoreAgainst });
       }
     }
-
     const aggregateMargin = aggregateOffset + finalFor - finalAgainst;
     const matchMargin = finalFor - finalAgainst;
     // The cup tie may be won on aggregate while this individual leg is a draw or loss.
@@ -2459,7 +2456,7 @@ function seasonAwards(state, league, teamRank) {
     // This engine tracks player minutes only through regulation. Extra-time events still
     // affect the team score, but the player is not simulated in either extra-time period.
     // Record the 90-minute exit before calculating clean sheets and conceded-goal impact.
-    if (extraTime.played && minutes >= 90 && !redCard && !injured) {
+    if (extraTime.played && minutes > 0 && playerEndMinute >= 90 && !redCard && !injured) {
       events.push({ type: "substitution", minute: 90, side: "player", actor: String(player.name || "اللاعب"), reason: "عدم المشاركة في الوقت الإضافي" });
     }
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
@@ -2470,17 +2467,16 @@ function seasonAwards(state, league, teamRank) {
       const scale = Math.min(1, minutes / 78);
       stats.rating = Math.round(clamp((6.05 + impact * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
-    if (minutes > 0 && minutes < 90 && !redCard && !injured) events.push({ type: "substitution", minute: minutes, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
+    if (minutes > 0 && playerEndMinute < 90 && !redCard && !injured) events.push({ type: "substitution", minute: playerEndMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
     if (redCard) events.push({ type: "substitution", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد" });
     const sameMinutePriority = event =>
-      event.type === "red-card" || event.type === "injury" ? 1
-        : event.type === "substitution" && event.side === "player" ? 2 : 0;
+      event.type === "substitution-on" && event.side === "player" ? -1
+        : event.type === "red-card" || event.type === "injury" ? 1
+          : event.type === "substitution" && event.side === "player" ? 2 : 0;
     events.sort((a, b) => a.minute - b.minute || sameMinutePriority(a) - sameMinutePriority(b));
-
     return {
-      home: Boolean(options.home), teamName, opponentName, tactic,
-      regulation, extraTime, shootout,
+      home: Boolean(options.home), teamName, opponentName, tactic, regulation, extraTime, shootout,
       score: { for: finalFor, against: finalAgainst },
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
       matchOutcome,
@@ -2488,7 +2484,6 @@ function seasonAwards(state, league, teamRank) {
       metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
   }
-
   function validateResult(result) {
     if (!result || !result.score || !result.player || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
@@ -2501,14 +2496,21 @@ function seasonAwards(state, league, teamRank) {
     const fouls = result.events.filter(event => event.type === "foul" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
       && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
-    const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
-      && Number(event.minute) <= Number(result.player.minutes));
+    const playerEntryEvent = result.events.find(event => event.type === "substitution-on" && event.side === "player");
+    const playerEntryMinute = playerEntryEvent ? Math.max(0, Number(playerEntryEvent.minute) || 0) : 0;
+    const playerExitEvent = result.events
+      .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+      .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+    const playerEndMinute = playerExitEvent ? Number(playerExitEvent.minute)
+      : playerEntryMinute + Number(result.player.minutes || 0);
+    const isPlayerActivityEvent = event => event.creditedToPlayer === true
+      || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
+    const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
+      Number(event.minute) > playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));
     const exitIndex = result.events.findIndex(event => event.side === "player"
       && ["red-card", "injury", "substitution"].includes(event.type));
-    const isPlayerActivityEvent = event => event.creditedToPlayer === true
-      || (event.side === "player" && ["yellow-card", "tackle", "interception", "foul"].includes(event.type));
     const noPlayerActivityAfterExit = exitIndex < 0
       || !result.events.slice(exitIndex + 1).some(isPlayerActivityEvent);
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;
@@ -2536,7 +2538,6 @@ function seasonAwards(state, league, teamRank) {
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
     return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent, matchOutcomeConsistent };
   }
-
 
   function buildStoryReport(result, context) {
     result = result || {};
@@ -2573,7 +2574,6 @@ function seasonAwards(state, league, teamRank) {
   }
   window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();
-
 </script>
 <script>
 (function(){

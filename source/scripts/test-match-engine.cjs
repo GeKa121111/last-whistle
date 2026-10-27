@@ -111,6 +111,45 @@ assert.ok(centreStrikerGoals > mobileForwardGoals * 1.12,
 assert.ok(mobileForwardAssists > centreStrikerAssists,
   "mobile forwards should create more assists than centre strikers over the same sample");
 
+// Defensive actions must be represented at a plausible rate and match the event ledger.
+const defensivePositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+const defensiveTotals = Object.fromEntries(defensivePositions.map(position => [position, { tackles: 0, interceptions: 0 }]));
+const defensiveSampleCount = 250;
+for (const position of defensivePositions) {
+  for (let seed = 30001; seed < 30001 + defensiveSampleCount; seed += 1) {
+    const result = engine.simulateMatch({
+      seed, tactic: "balanced", teamPower: 65, opponentPower: 65,
+      player: {
+        name: "اختبار الإحصاءات الدفاعية", position, role: "أساسي",
+        shooting: 65, passing: 65, vision: 64, composure: 66, fitness: 80,
+        speed: 70, physical: 68, dribbling: 66, trust: 70, energy: 85, fatigue: 15
+      }
+    });
+    const integrity = engine.validateResult(result);
+    assert.equal(integrity.ok, true, "defensive-action ledger failed for " + position + "/" + seed + ": " + JSON.stringify(integrity));
+    const eventTackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
+    const eventInterceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
+    assert.equal(result.player.tackles, eventTackles, "tackle totals must match the event timeline");
+    assert.equal(result.player.interceptions, eventInterceptions, "interception totals must match the event timeline");
+    defensiveTotals[position].tackles += result.player.tackles;
+    defensiveTotals[position].interceptions += result.player.interceptions;
+  }
+}
+const defensiveAverages = Object.fromEntries(defensivePositions.map(position => [position, {
+  tackles: defensiveTotals[position].tackles / defensiveSampleCount,
+  interceptions: defensiveTotals[position].interceptions / defensiveSampleCount
+}]));
+assert.ok(defensiveAverages["قلب دفاع"].tackles > 1.8,
+  "centre-backs should average multiple tackles per full match: " + defensiveAverages["قلب دفاع"].tackles.toFixed(2));
+assert.ok(defensiveAverages["قلب دفاع"].interceptions > 1.1,
+  "centre-backs should register interceptions across a full match: " + defensiveAverages["قلب دفاع"].interceptions.toFixed(2));
+assert.ok(defensiveAverages["قلب دفاع"].tackles > defensiveAverages["رأس حربة"].tackles * 1.5,
+  "centre-backs must perform more tackles than centre strikers");
+assert.ok(defensiveAverages["قلب دفاع"].interceptions > defensiveAverages["رأس حربة"].interceptions * 1.5,
+  "centre-backs must perform more interceptions than centre strikers");
+assert.equal(defensiveAverages["حارس مرمى"].tackles, 0, "goalkeepers must not inherit outfield tackle events");
+assert.equal(defensiveAverages["حارس مرمى"].interceptions, 0, "goalkeepers must not inherit outfield interception events");
+
 // A starting role should mean more minutes on the pitch than a substitute role.
 const starterMinutesProbe = engine.simulateMatch({
   seed: 91001, player: { position: "رأس حربة", role: "أساسي", shooting: 68, composure: 70,
@@ -184,4 +223,4 @@ assert.ok(tacticalSignatures.size > 1, "different opponent tactics must change a
 const unavailable = engine.simulateMatch({ seed: 42, playerAvailable: false, player: { position: "مهاجم", energy: 90 } });
 assert.equal(unavailable.player.minutes, 0, "unavailable player cannot play");
 assert.equal(unavailable.player.goals, 0, "unavailable player cannot score");
-console.log("PASS: " + tested + " deterministic position cases, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");
+console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

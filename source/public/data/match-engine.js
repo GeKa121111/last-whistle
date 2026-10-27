@@ -116,18 +116,20 @@
     // Cards/injuries can only occur inside the player's actual on-pitch interval.
     // If both are rolled, the first event ends participation and cancels the later one.
     const redCardRolled = plannedMinutes > 0 && random() < 0.0035;
-    const cardStartMinute = Math.max(playerStartMinute + 1, 38);
-    const cardEndMinute = Math.max(cardStartMinute, plannedEndMinute);
+    // Preserve the original seeded timing distribution for starters; sample substitutes
+    // inside their actual entry-to-exit interval so they cannot be carded before entering.
+    const redMinuteStart = playerStartMinute > 0 ? playerStartMinute + 1 : 38;
+    const redMinuteSpan = playerStartMinute > 0 ? Math.max(1, plannedEndMinute - playerStartMinute) : 48;
     const redMinuteRolled = redCardRolled
-      ? Math.floor(cardStartMinute + random() * Math.max(1, cardEndMinute - cardStartMinute + 1)) : 121;
+      ? Math.floor(redMinuteStart + random() * redMinuteSpan) : 121;
     const injuryChance = plannedMinutes > 0
       ? clamp(0.008 + (100 - clamp(player.energy, 0, 100)) * 0.00032 + clamp(player.fatigue, 0, 100) * 0.00028, 0.008, 0.065)
       : 0;
     const injuryRolled = random() < injuryChance;
-    const injuryStartMinute = Math.max(playerStartMinute + 1, 52);
-    const injuryEndMinute = Math.max(injuryStartMinute, plannedEndMinute);
+    const injuryMinuteStart = playerStartMinute > 0 ? playerStartMinute + 1 : 52;
+    const injuryMinuteSpan = playerStartMinute > 0 ? Math.max(1, plannedEndMinute - playerStartMinute) : 39;
     const injuryMinuteRolled = injuryRolled
-      ? Math.floor(injuryStartMinute + random() * Math.max(1, injuryEndMinute - injuryStartMinute + 1)) : 121;
+      ? Math.floor(injuryMinuteStart + random() * injuryMinuteSpan) : 121;
     let redCard = redCardRolled && redMinuteRolled > playerStartMinute && redMinuteRolled <= plannedEndMinute;
     let injured = injuryRolled && injuryMinuteRolled > playerStartMinute && injuryMinuteRolled <= plannedEndMinute;
     if (redCard && injured) {

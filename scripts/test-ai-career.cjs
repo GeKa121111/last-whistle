@@ -11,6 +11,8 @@ vm.createContext(sandbox);
 new vm.Script(source, { filename: "public/ai-career-engine.js" }).runInContext(sandbox);
 const ai = sandbox.window.LWCareerAI;
 assert.ok(ai && ai.version === 1, "career AI module must initialize");
+assert.equal(fs.readFileSync(path.join(root, "ai-career-engine.js"), "utf8"), source,
+  "root and public career AI engines must remain synchronized");
 
 const injured = ai.coachAdvice({
   pos: "مهاجم", injuryDays: 4, energy: 90, fatigue: 10, trust: 70, morale: 70,
@@ -54,6 +56,30 @@ const newestForm = ai.formRating({
 });
 assert.ok(newestForm > 8.4 && newestForm < 8.8,
   "adaptive coaching must prioritize the newest five matches, not the oldest rows in newest-first match history");
+
+const legacySeasonLog = [
+  ...Array.from({ length: 5 }, (_, i) => ({
+    scope: "league", minutes: 90, rating: 4.8 + i * 0.1, tactic: "balanced", matchId: "legacy-old-" + i
+  })),
+  ...Array.from({ length: 5 }, (_, i) => ({
+    scope: "league", minutes: 90, rating: 8.4 + i * 0.1, tactic: "attack", matchId: "legacy-new-" + i
+  }))
+];
+const legacyState = { careerMatchHistory: [], seasonLog: legacySeasonLog, lastRating: 6.0 };
+const legacyForm = ai.formRating(legacyState);
+assert.ok(legacyForm > 8.4 && legacyForm < 8.8,
+  "career AI form must fall back to the newest legacy seasonLog rows when modern history is empty");
+const legacyAdvice = ai.coachAdvice({
+  ...legacyState, pos: "رأس حربة", energy: 85, fatigue: 15, trust: 65, morale: 70, shooting: 70
+}, 70);
+assert.equal(legacyAdvice.rating, legacyForm,
+  "coach advice must use the recovered legacy form instead of a stale lastRating");
+const legacyTacticalRead = ai.chooseOpponentTactic({
+  state: { ...legacyState, pos: "مهاجم", energy: 80, fatigue: 15, seasonGoals: 2 },
+  ourTactic: "attack", teamPower: 70, opponentPower: 70, overall: 70
+});
+assert.equal(legacyTacticalRead.tactic, "compact",
+  "opponents should adapt to repeated tactics preserved only in a legacy seasonLog");
 
 const playedForm = ai.formRating({
   careerMatchHistory: [

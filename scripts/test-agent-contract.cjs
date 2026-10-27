@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
 assert.equal(source, deployed, "root and deployed agent-system.js must stay synchronized");
+assert.ok(!source.includes("اتفاق جديد لمدة موسمين"), "agent-switch copy must not promise automatic expiry");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");

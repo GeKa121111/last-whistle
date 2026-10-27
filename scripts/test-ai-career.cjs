@@ -136,6 +136,21 @@ const poorFormWin = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy
   contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.2, teamGoals: 2, oppGoals: 0 }] }, 70);
 assert.equal(poorFormLoss.form, poorFormWin.form + 2,
   "team result may contextualize genuinely poor recent individual form, not replace it");
+const defensiveLoss = ai.utilityScores({ pos: "قلب دفاع", age: 25, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.8, tackles: 5, interceptions: 3,
+    teamGoals: 0, oppGoals: 2, matchId: "defender-loss-with-actions" }] }, 70);
+const defensiveWin = ai.utilityScores({ pos: "قلب دفاع", age: 25, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.8, tackles: 5, interceptions: 3,
+    teamGoals: 2, oppGoals: 0, matchId: "defender-win-with-actions" }] }, 70);
+assert.equal(defensiveLoss.form, defensiveWin.form,
+  "a defender with meaningful tackles and interceptions must not receive an extra loss penalty");
+assert.equal(defensiveLoss.context.tacklesLastFive, 5);
+assert.equal(defensiveLoss.context.interceptionsLastFive, 3);
+const goalkeeperLoss = ai.utilityScores({ pos: "حارس مرمى", age: 28, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.9, saves: 4, cleanSheet: true,
+    teamGoals: 0, oppGoals: 0, matchId: "keeper-shootout-loss" }] }, 70);
+assert.equal(goalkeeperLoss.context.roleContributionLastFive, true,
+  "goalkeeper saves and a clean sheet count as individual contribution");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), true, "the AI must persist a new recommendation into its seasonal ledger");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), false, "the same recommendation must not be recorded twice in a season");
 const changedAdvice = ai.coachAdvice(academyState, 58);

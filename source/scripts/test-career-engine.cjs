@@ -182,6 +182,34 @@ const boostedMatchXP = career.matchDevelopment(makeProgressionFixture(true), {
 });
 assert.ok(boostedMatchXP.xp > ordinaryMatchXP.xp, "the store XP multiplier must increase match progression XP");
 
+const quietDefender = makeProgressionFixture(false);
+quietDefender.pos = "قلب دفاع";
+const activeDefender = makeProgressionFixture(false);
+activeDefender.pos = "قلب دفاع";
+const quietDefenderResult = career.matchDevelopment(quietDefender, {
+  matchId: "quiet-defence-match", minutes: 90, rating: 7.2, goals: 0, assists: 0,
+  tackles: 0, interceptions: 0, saves: 0, keyPasses: 0, cleanSheet: false
+});
+const activeDefenderResult = career.matchDevelopment(activeDefender, {
+  matchId: "active-defence-match", minutes: 90, rating: 7.2, goals: 0, assists: 0,
+  tackles: 4, interceptions: 3, saves: 0, keyPasses: 0, cleanSheet: true
+});
+assert.ok(activeDefenderResult.xp > quietDefenderResult.xp, "defensive actions and clean sheets must contribute to match XP");
+assert.ok(activeDefenderResult.defensiveXP > 0, "defensive players must bank extra defending-skill XP from tackles and interceptions");
+assert.ok(activeDefender.trainingXP.defending > quietDefender.trainingXP.defending,
+  "defending skill progress must reflect actual defensive actions");
+const inactiveKeeper = makeProgressionFixture(false);
+inactiveKeeper.pos = "حارس مرمى";
+const activeKeeper = makeProgressionFixture(false);
+activeKeeper.pos = "حارس مرمى";
+const inactiveKeeperResult = career.matchDevelopment(inactiveKeeper, {
+  matchId: "inactive-keeper-match", minutes: 90, rating: 7.2, goals: 0, assists: 0, saves: 0, cleanSheet: false
+});
+const activeKeeperResult = career.matchDevelopment(activeKeeper, {
+  matchId: "active-keeper-match", minutes: 90, rating: 7.2, goals: 0, assists: 0, saves: 5, cleanSheet: true
+});
+assert.ok(activeKeeperResult.xp > inactiveKeeperResult.xp, "goalkeeper saves and clean sheets must contribute to match XP");
+
 const fieldAgeCurve = { pos: "جناح", age: 34, fitness: 75, speed: 80, physical: 70 };
 career.applySeasonAging(fieldAgeCurve);
 assert.equal(fieldAgeCurve.fitness, 74, "field players should gradually lose fitness from age 30");

@@ -84,7 +84,7 @@ const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 assert.match(sw, /last-whistle-static-v101/,
   "the service-worker cache must be bumped so deployed clients receive the fix");
-assert.match(sw, /transfer-awards-engine\\.js\\?v=4/,
+assert.match(sw, /transfer-awards-engine\.js\?v=4/,
   "the cached award-engine asset version must advance with the season-age fix");
 assert.match(sw, /match-engine\.js\?v=7/,
   "the cached match-engine asset version must advance with the simulation fix");

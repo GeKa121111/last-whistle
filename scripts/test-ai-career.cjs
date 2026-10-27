@@ -197,6 +197,18 @@ assert.equal(attackerCleanSheet.context.cleanSheetsLastFive, 0,
   "clean-sheet credit must be restricted to goalkeeper and defensive positions");
 assert.equal(attackerCleanSheet.context.roleContributionLastFive, false,
   "a striker must not receive a false role-aware contribution from a clean-sheet flag");
+const contradictedCleanSheet = ai.utilityScores({
+  pos: "قلب دفاع", age: 26, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3,
+  careerMatchHistory: [{
+    minutes: 90, rating: 5.8, goals: 0, assists: 0, teamGoals: 1, oppGoals: 1,
+    stats: { tackles: 0, interceptions: 0, saves: 0, keyPasses: 0, shotsOnTarget: 0, cleanSheet: true }
+  }]
+}, 70);
+assert.equal(contradictedCleanSheet.context.cleanSheetsLastFive, 0,
+  "a saved clean-sheet flag must be rejected when the recorded opponent score is non-zero");
+assert.equal(contradictedCleanSheet.context.roleContributionLastFive, false,
+  "a contradictory clean-sheet flag must not improve defensive form");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), true, "the AI must persist a new recommendation into its seasonal ledger");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), false, "the same recommendation must not be recorded twice in a season");
 const changedAdvice = ai.coachAdvice(academyState, 58);

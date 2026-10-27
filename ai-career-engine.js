@@ -336,8 +336,12 @@
     const cleanSheetEligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(position);
     // Saved flags from older versions are not enough by themselves: require an eligible role and 60 minutes.
     const cleanSheets = cleanSheetEligible
-      ? played.filter(row => (row.cleanSheet === true || row.stats?.cleanSheet === true)
-        && num(row.minutes, 0) >= 60).length
+      ? played.filter(row => {
+        const conceded = row.oppGoals ?? row.scoreAgainst ?? row.goalsAgainst ?? row.stats?.goalsAgainst;
+        const scoreAllowsCleanSheet = conceded == null || conceded === "" || Number(conceded) === 0;
+        return (row.cleanSheet === true || row.stats?.cleanSheet === true)
+          && num(row.minutes, 0) >= 60 && scoreAllowsCleanSheet;
+      }).length
       : 0;
     const goalkeeperContribution = /حارس/.test(position) && (saves >= 2 || cleanSheets > 0);
     const defensiveContribution = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)

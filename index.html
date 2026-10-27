@@ -3918,6 +3918,21 @@ function resolveExtraTime(ourPower,oppPower){
  const oppGoals=randomUnit()<clamp(28-gap*1.4,8,62)?1:0;
  return {ourGoals,oppGoals,text:`الوقت الإضافي (شوطان حتى 15 دقيقة): ${ourGoals}-${oppGoals}`};
 }
+function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){
+ const score=result?.score||{},gf=Number(score.for)||0,ga=Number(score.against)||0;
+ const rival=String(opponent||"المنافس"),shootout=result?.shootout||{};
+ let legText=gf>ga?`فزت ${gf}-${ga} على ${rival}`:gf<ga?`خسرت ${gf}-${ga} أمام ${rival}`:`تعادلت ${gf}-${ga} مع ${rival}`;
+ if(shootout.used&&gf===ga)legText=`تعادلت ${gf}-${ga} مع ${rival}`;
+ let aggregateText="";
+ if(isTwoLegSecondLeg){
+  const margin=(Number(result?.metadata?.aggregateOffset)||0)+gf-ga;
+  if(margin>0)aggregateText=`مجموع المواجهتين لصالحك بفارق ${margin} هدف`;
+  else if(margin<0)aggregateText=`مجموع المواجهتين لصالح المنافس بفارق ${Math.abs(margin)} هدف`;
+  else if(shootout.used)aggregateText=shootout.won===true?"مجموع المواجهتين متعادل، وحُسم التأهل بركلات الترجيح لصالحك":"مجموع المواجهتين متعادل، وحُسم التأهل بركلات الترجيح لصالح المنافس";
+  else aggregateText="مجموع المواجهتين متعادل";
+ }
+ return {legText,aggregateText};
+}
 function playCupMatch(){
  if(isYouthAcademyPlayer()||state.academyReserve){toast("مباريات الكأس للفريق الأول؛ كمل مسيرة الناشئين أو الرديف.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
@@ -3947,6 +3962,7 @@ function playCupMatch(){
  const extraTimeText=result.extraTime?.played?`الوقت الإضافي: ${result.extraTime.for}-${result.extraTime.against}`:'';
  const shootout=result.shootout?.used?` ركلات الترجيح ${result.shootout.scoreFor}-${result.shootout.scoreAgainst}.`:'';
  const participated=result.player.minutes>0;
+ const legSummary=cupLegResultSummary(result,opponent,isTwoLegTie&&tieLegAtKickoff===2);
  c.matchesPlayed=(Number(c.matchesPlayed)||0)+1;c.gf=(Number(c.gf)||0)+gf;c.gd=(Number(c.gd)||0)+gf-ga;
  if(isTwoLegTie){if(tieLegAtKickoff===1){c.tieOpponent=opponent;c.tieAggregate=gf-ga;c.tieLeg=2;}else{c.tieAggregate=0;c.tieLeg=1;c.tieOpponent='';}}
  if(isLeague||isGroups){
@@ -3966,9 +3982,9 @@ function playCupMatch(){
    }else{const groupNames=(c.groups||[])[Math.max(0,c.playerGroup||0)]||c.teams;const table=[...(c.standings||[])].filter(t=>groupNames.includes(t.name)).sort((a,b)=>b.pts-a.pts||((b.gf-b.ga)-(a.gf-a.ga))||b.gf-a.gf);const groupRank=table.findIndex(t=>t.name===clubNameForLeague())+1||4;c.rank=groupRank;if(groupRank>2){c.eliminated=true;setStory('الخروج من المجموعات',`أنهيت المجموعة في المركز ${groupRank} برصيد ${c.points} نقطة ولم تتأهل.`);}else{c.phase='knockout';c.stage=0;setStory('التأهل من المجموعات',`أنهيت المجموعة في المركز ${groupRank} برصيد ${c.points} نقطة وتأهلت للأدوار الإقصائية.`);}}
   }else setStory('نتيجة البطولة',`انتهت المباراة ${gf}-${ga}. ${extraTimeText?extraTimeText+'. ':''}رصيدك ${c.points} نقطة.`);
  }else if(isTwoLegTie&&tieLegAtKickoff===1)setStory('مباراة الذهاب انتهت',`انتهت مباراة الذهاب ${gf}-${ga}. مجموع المواجهة المؤقت ${c.tieAggregate>0?'تقدمك':c.tieAggregate<0?'تقدم المنافس':'تعادل'} ${Math.abs(c.tieAggregate)} هدف. لسه قدامك مباراة الإياب لتحديد المتأهل.`);
- else if(!won){c.eliminated=true;calendarEvent('cup-exit',`الخروج من ${c.name}`,roundName);setStory('نهاية مشوار البطولة',`خسرت ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} خرجت من ${c.name} في ${roundName}.`);}
- else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;recordTrophy(c.name,"بطولة جماعية",state.season,club().name,state.leagueCountry||"",c.name);state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});setStory('بطل البطولة!',`كسبت النهائي ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} ورفعت كأس ${c.name}. مكافأة اللقب 1200 ${currencyLabel()}.`);log('حققت لقب بطولة: '+c.name+'.');}
- else{c.stage++;const pool=c.teams.filter(n=>n!==clubNameForLeague()&&n!==opponent);c.opponent=pool[(c.stage*3+1)%Math.max(1,pool.length)]||'منافس متأهل';setStory('تأهلت للدور التالي',`فزت ${gf}-${ga} على ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}. تأهلت إلى ${(c.rounds||[])[c.stage]}.`);}
+ else if(!won){c.eliminated=true;calendarEvent('cup-exit',`الخروج من ${c.name}`,roundName);const summary=[legSummary.legText,legSummary.aggregateText,extraTimeText,shootout.trim().replace(/\.$/,"")].filter(Boolean).join('. ');setStory('نهاية مشوار البطولة',`${summary}. خرجت من ${c.name} في ${roundName}.`);}
+ else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;recordTrophy(c.name,"بطولة جماعية",state.season,club().name,state.leagueCountry||"",c.name);state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});const summary=[legSummary.legText,legSummary.aggregateText,extraTimeText,shootout.trim().replace(/\.$/,"")].filter(Boolean).join('. ');setStory('بطل البطولة!',`${summary}. ورفعت كأس ${c.name}. مكافأة اللقب 1200 ${currencyLabel()}.`);log('حققت لقب بطولة: '+c.name+'.');}
+ else{c.stage++;const pool=c.teams.filter(n=>n!==clubNameForLeague()&&n!==opponent);c.opponent=pool[(c.stage*3+1)%Math.max(1,pool.length)]||'منافس متأهل';const summary=[legSummary.legText,legSummary.aggregateText,extraTimeText,shootout.trim().replace(/\.$/,"")].filter(Boolean).join('. ');setStory('تأهلت للدور التالي',`${summary}. تأهلت إلى ${(c.rounds||[])[c.stage]}.`);}
  c.history.push(`${roundName}${isLeague||isGroups?' '+c.phasePlayed:''}${isTwoLegTie?' ('+(tieLegAtKickoff===1?'ذهاب':'إياب')+')':''}: ${gf}-${ga} أمام ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}`);
  const cupDate=nextAvailableMatchDay(state.calendarDay+3,'cup-match');if(cupDate>state.calendarDay+3)advanceCalendarDays(cupDate-(state.calendarDay+3),'ترتيب موعد البطولة');
  log(`مباراة ${c.name}: ${gf}-${ga} أمام ${opponent}، ${roundName}${shootout}${participated?` • لعبت ${result.player.minutes} دقيقة • ${result.player.rating}/10`:" • لم تشارك"}.`);

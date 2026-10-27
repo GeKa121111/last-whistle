@@ -285,7 +285,8 @@
     const trainingAgeFactor = Number(state.age) >= 30 ? 0.78 : 1;
     const fatiguePenalty = 1 - clamp(state.fatigue, 0, 100) * 0.0035;
     const focusMultiplier = trainingFocusMultiplier(state, type);
-    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier));
+    const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
+    const baseXP = Math.max(1, Math.round((setup.xp * multipliers.xp + coachBonus) * trainingAgeFactor * fatiguePenalty * focusMultiplier * storeXPMultiplier));
     const primaryGain = addTrainingXP(state, type, baseXP);
     const secondaryGains = [];
     for (const [skill, share] of Object.entries(setup.secondary)) {
@@ -346,7 +347,8 @@
     const performanceFactor = 0.72 + rating * 0.047;
     const potentialFactor = clamp(0.82 + (Number(state.playerPotential) - overall(state)) * 0.012, 0.68, 1.24);
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
-    const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor));
+    const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
+    const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor * storeXPMultiplier));
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
     const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
@@ -603,12 +605,28 @@
   }
 
   function applySeasonAging(state) {
-    if (Number(state.age) >= 30) {
-      state.fitness = clamp(Number(state.fitness) - 1);
-      if (Number(state.age) >= 33) state.speed = clamp(Number(state.speed) - 1);
-      return Number(state.age) >= 33 ? "مع تقدم العمر، زادت أهمية إدارة السرعة والاستشفاء." : "مع تقدم العمر، حافظ على اللياقة والاستشفاء.";
+    if (!state || typeof state !== "object") return "";
+    const age = Math.max(0, Number(state.age) || 0);
+    const position = String(state.pos || "");
+    if (age < 30) return "";
+    const notes = [];
+    if (position === "حارس مرمى") {
+      // Goalkeepers tend to retain their core role skills longer than outfield players.
+      if (age >= 33) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
+      if (age >= 37) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
+      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن." : "خبرتك وتمركزك يساعدانك على الحفاظ على مستواك كحارس.";
     }
-    return "";
+    state.fitness = clamp(Number(state.fitness) - 1);
+    notes.push("اللياقة");
+    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position)) {
+      state.speed = clamp(Number(state.speed) - 1);
+      notes.push("السرعة");
+    }
+    if (age >= 35) {
+      state.physical = clamp(Number(state.physical) - 1);
+      notes.push("القوة البدنية");
+    }
+    return "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء.";
   }
 
   window.LWCareer = {

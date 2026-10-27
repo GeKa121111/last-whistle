@@ -455,6 +455,26 @@ assert.ok(substituteActivity.every(event => Number(event.minute) > Number(substi
   "bench-player stats and events must stay inside the actual on-pitch interval");
 assert.equal(engine.validateResult(substituteResult).ok, true,
   "the match ledger must accept a valid late substitute appearance");
+for (const [benchRole, seed] of [["ناشئ / بديل", 24061029], ["لاعب صاعد / بديل", 24061030]]) {
+  const youthSubstitute = engine.simulateMatch({
+    ...substituteOptions, seed,
+    player: { ...substituteOptions.player, role: benchRole }
+  });
+  const entry = youthSubstitute.events.find(event => event.type === "substitution-on" && event.side === "player");
+  assert.ok(entry && Number(entry.minute) > 0,
+    benchRole + " must be treated as a real bench role");
+  assert.equal(engine.validateResult(youthSubstitute).ok, true,
+    benchRole + " must keep player events inside the actual playing interval");
+}
+const rotationStarter = engine.simulateMatch({
+  ...substituteOptions, seed: 24061031,
+  player: { ...substituteOptions.player, role: "بديل أساسي" }
+});
+assert.equal(rotationStarter.events.some(event => event.type === "substitution-on" && event.side === "player"), false,
+  "the rotation-starter role must keep its existing starting appearance model");
+assert.ok(rotationStarter.player.minutes < 90,
+  "the rotation-starter role must retain its planned shorter duration");
+
 const browserSubstituteResult = browserEngine.simulateMatch(substituteOptions);
 assert.equal(browserEngine.validateResult(browserSubstituteResult).ok, true,
   "the inline browser engine must use the same late-substitute timing and ledger rules");

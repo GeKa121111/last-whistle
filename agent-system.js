@@ -152,6 +152,8 @@
     else s[key]=next;
   }
   function ensureProfileShape(p,s){
+    p.contractType="open-ended";
+    // expiresSeason is retained only as legacy save metadata; it no longer ends representation.
     p.relationship=cap(p.relationship==null?52:p.relationship,0,100);
     p.feeRate=Math.max(.02,Math.min(.14,Number(p.feeRate)||.06));
     p.customFeeRate=p.customFeeRate==null?null:Math.max(.02,Math.min(.14,Number(p.customFeeRate)));
@@ -181,6 +183,7 @@
     if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
     if(s.agent&&(!s.agentProfile||!BY_ID[s.agentProfile.id])){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
     if(s.agentProfile&&BY_ID[s.agentProfile.id]){
+      if(s.agentProfile.contractType!=="open-ended"){s.agentProfile.contractType="open-ended";changed=true;}
       ensureProfileShape(s.agentProfile,s);
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
@@ -198,12 +201,7 @@
   }
   function rel(s){return s&&s.agentProfile?cap(s.agentProfile.relationship,0,100):50;}
   function canUseAgent(s){return !!(s&&s.careerStarted&&!s.retired);}
-  function isExpired(s,p){return !!(p&&Number(s.season)>=Number(p.expiresSeason)&&Number(s.season)>Number(p.hiredSeason));}
-  function checkExpiry(s){
-    var p=s.agentProfile;if(!s.agent||!p||!isExpired(s,p))return false;
-    var name=p.name||"الوكيل";s.agent=false;s.agentProfile=null;
-    record(s,"انتهاء عقد الوكيل","انتهى اتفاق التمثيل مع "+name+" بعد اكتمال مدته. تقدر تختار وكيلًا جديدًا من صفحة العقد والانتقالات.");return true;
-  }
+  // Representation agreements stay active until the player explicitly ends or switches them.
   function currentChapter(s){
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p||p.storyStage>=cfg.chapters.length)return null;
     var stage=Number(p.storyStage)||0,apps=Number(s.apps)||0;
@@ -236,7 +234,7 @@
     return '<article class="lwa-agent-card '+(active?"is-current":"")+'"><div class="lwa-agent-card-top"><div class="lwa-agent-monogram">'+esc(a.mark)+'</div><div class="lwa-agent-name-wrap"><span class="lwa-agent-kicker">'+esc(a.title)+'</span><h3>'+esc(a.name)+'</h3><p>'+esc(a.style)+'</p></div>'+(active?'<span class="lwa-agent-active-badge">وكيلك الحالي</span>':'<span class="lwa-agent-fee">'+Math.round(a.feeRate*100)+'% عمولة</span>')+'</div>'+
       '<p class="lwa-agent-origin">'+esc(a.origin)+'</p><div class="lwa-agent-quote">«'+esc(a.pitch)+'»</div>'+
       '<div class="lwa-agent-tradeoffs"><div><small>نقطة القوة</small><p>'+esc(a.strength)+'</p></div><div><small>المقابل</small><p>'+esc(a.weakness)+'</p></div></div>'+
-      '<div class="lwa-agent-tags"><span>'+esc(a.style)+'</span><span>مدة الاتفاق: موسمان</span><span>أتعاب عند الصفقة أو التفاوض</span></div>'+
+      '<div class="lwa-agent-tags"><span>'+esc(a.style)+'</span><span>الاتفاق: مفتوح المدة</span><span>أتعاب عند الصفقة أو التفاوض</span></div>'+
       '<button type="button" class="lwa-agent-action" data-lwag-action="'+(active?"agent-active":"agent-meet")+'" data-agent-id="'+esc(a.id)+'">'+(active?"افتح قصتنا معًا":activeId?"تفاوض على التغيير":"قابل الوكيل")+' <b aria-hidden="true">←</b></button></article>';
   }
   function renderPanel(s){
@@ -244,10 +242,10 @@
     var cfg=agentConfig(s),p=s.agentProfile,pr=p?progress(s):null,summary=document.getElementById("lwa-current-summary"),cards=document.getElementById("lwa-agent-cards");
     if(summary){
       if(cfg&&p){
-        var remaining=Math.max(0,Number(p.expiresSeason)-Number(s.season)),r=rel(s),label=r>=75?"ثقة قوية":r>=50?"علاقة مستقرة":r>=30?"علاقة متوترة":"علاقة على المحك";
+        var r=rel(s),label=r>=75?"ثقة قوية":r>=50?"علاقة مستقرة":r>=30?"علاقة متوترة":"علاقة على المحك";
         summary.innerHTML='<div class="lwa-current-left"><div class="lwa-current-label">CURRENT REPRESENTATIVE</div><h3>'+esc(cfg.name)+' <span>· '+esc(cfg.title)+'</span></h3><p>'+esc(cfg.voice)+'</p>'+
           '<div class="lwa-rel-row"><span>'+label+'</span><b>'+r+'/100</b></div><div class="lwa-rel-bar"><i style="width:'+r+'%"></i></div>'+
-          '<div class="lwa-current-meta"><span>الاتفاق حتى الموسم '+esc(p.expiresSeason)+'</span><span>'+Math.round(Number(p.customFeeRate==null?p.feeRate:p.customFeeRate)*100)+'% أتعاب</span><span>'+remaining+' موسم متبقٍ تقريبًا</span></div></div>'+
+          '<div class="lwa-current-meta"><span>الاتفاق مفتوح المدة</span><span>'+Math.round(Number(p.customFeeRate==null?p.feeRate:p.customFeeRate)*100)+'% أتعاب</span><span>تقدر تنهيه في أي وقت</span></div></div>'+
           '<div class="lwa-current-right"><div class="lwa-arc-mark">'+(pr.complete?"✓":(pr.stage+1)+"/"+pr.total)+'</div><strong>'+(pr.complete?"قصة مكتملة":pr.ready?"فصل جديد جاهز":"القصة مستمرة")+'</strong><p>'+(pr.complete?"خلصت الفصول الأساسية مع الوكيل.":pr.ready?"فيه موقف جديد مستني قرارك.":"العب "+pr.remaining+" مشاركة إضافية عشان تفتح الفصل التالي.")+'</p><button type="button" class="lwa-agent-action lwa-agent-action-light" data-lwag-action="agent-story">'+(pr.ready?"افتح الفصل الجديد":"راجع قصتنا")+' <b aria-hidden="true">←</b></button></div>';
       }else{
         summary.innerHTML='<div class="lwa-current-left"><div class="lwa-current-label">NO ACTIVE REPRESENTATIVE</div><h3>'+(s.agentLead?"وصلت لمرحلة اختيار الوكيل":"مسيرتك لسه من غير وكيل أعمال")+'</h3><p>'+(s.agentLead?"قابل الوكلاء، اسمع طريقتهم وشروطهم، واختار اللي يخدم خطتك. فتح باب التمثيل مش معناه إنك مضطر توقّع.":"مش لازم توقّع من أول يوم. تقدر تبدأ من غير وكيل، وبعدها تختار شخصًا مناسبًا لما تكون مستعدًا.")+'</p></div><div class="lwa-current-right"><div class="lwa-arc-mark">06</div><strong>ست طرق مختلفة</strong><p>الاستقرار، الشهرة، الانتقالات، التفاوض، السرعة، أو الخطة الطويلة.</p></div>';
@@ -273,7 +271,7 @@
   function candidate(id){return BY_ID[id]&&id!=="legacy"?BY_ID[id]:null;}
   function meetingBody(a,s,fee){
     var rate=fee==null?a.feeRate:fee;
-    return '<div class="lwa-meeting-card"><div class="lwa-meeting-card-top"><span class="lwa-agent-monogram">'+esc(a.mark)+'</span><div><span class="lwa-market-kicker">'+esc(a.title)+'</span><h3>'+esc(a.name)+'</h3><p>'+esc(a.style)+'</p></div></div><div class="lwa-meeting-quote">«'+esc(a.pitch)+'»</div><p class="lwa-meeting-story">'+esc(a.origin)+'</p><div class="lwa-meeting-terms"><div><small>عمولة الوكيل</small><strong>'+Math.round(rate*100)+'%</strong><span>من مكافأة الانتقال أو خدمة تفاوض داخل اللعبة</span></div><div><small>مدة التمثيل</small><strong>موسمان</strong><span>إنهاء مبكر بشرط خروج واضح</span></div></div><div class="lwa-agent-tradeoffs"><div><small>نقطة القوة</small><p>'+esc(a.strength)+'</p></div><div><small>المقابل</small><p>'+esc(a.weakness)+'</p></div></div></div>';
+    return '<div class="lwa-meeting-card"><div class="lwa-meeting-card-top"><span class="lwa-agent-monogram">'+esc(a.mark)+'</span><div><span class="lwa-market-kicker">'+esc(a.title)+'</span><h3>'+esc(a.name)+'</h3><p>'+esc(a.style)+'</p></div></div><div class="lwa-meeting-quote">«'+esc(a.pitch)+'»</div><p class="lwa-meeting-story">'+esc(a.origin)+'</p><div class="lwa-meeting-terms"><div><small>عمولة الوكيل</small><strong>'+Math.round(rate*100)+'%</strong><span>من مكافأة الانتقال أو خدمة تفاوض داخل اللعبة</span></div><div><small>مدة الاتفاق</small><strong>مفتوح المدة</strong><span>تقدر تنهيه يدويًا في أي وقت</span></div></div><div class="lwa-agent-tradeoffs"><div><small>نقطة القوة</small><p>'+esc(a.strength)+'</p></div><div><small>المقابل</small><p>'+esc(a.weakness)+'</p></div></div></div>';
   }
   function openMeeting(id){
     var s=API().getState();if(!canUseAgent(s)){API().toast(s&&s.retired?"المسيرة انتهت بالاعتزال.":"ابدأ مسيرتك الأول علشان تقابل الوكلاء.");return;}
@@ -282,9 +280,9 @@
     selectedAgentId=id;quotedFeeRate=a.feeRate;
     if(s.agent&&s.agentProfile){
       var old=agentConfig(s)||LEGACY_AGENT,exitFee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(old.exitFeeWeeks||.25)));
-      frame("قبل ما تغيّر وكيلك","CHANGE REPRESENTATIVE",meetingBody(a,s,quotedFeeRate)+'<div class="lwa-change-notice"><strong>إنهاء الاتفاق الحالي</strong><p>هتدفع '+exitFee+' جنيه داخل اللعبة كشرط خروج من '+esc(old.name)+'. بعدها يبدأ اتفاق جديد لمدة موسمين مع '+esc(a.name)+'.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-switch-sign" data-agent-id="'+esc(id)+'"'+(Number(s.money)<exitFee?" disabled":"")+'>أدفع شرط الخروج وأوقّع</button><button type="button" class="lwa-button" data-lwag-action="close">أرجع</button></div>',"تغيير الوكيل قرار داخل المسيرة. راجع العمولة والأسلوب قبل ما تلتزم.");
+      frame("قبل ما تغيّر وكيلك","CHANGE REPRESENTATIVE",meetingBody(a,s,quotedFeeRate)+'<div class="lwa-change-notice"><strong>إنهاء الاتفاق الحالي</strong><p>هتدفع '+exitFee+' جنيه داخل اللعبة كشرط خروج من '+esc(old.name)+'. بعدها يبدأ اتفاق مفتوح المدة مع '+esc(a.name)+'.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-switch-sign" data-agent-id="'+esc(id)+'"'+(Number(s.money)<exitFee?" disabled":"")+'>أدفع شرط الخروج وأوقّع</button><button type="button" class="lwa-button" data-lwag-action="close">أرجع</button></div>',"تغيير الوكيل قرار داخل المسيرة. راجع العمولة والأسلوب قبل ما تلتزم.");
     }else{
-      frame("مقابلة أولى مع "+a.name,"FIRST MEETING",meetingBody(a,s,quotedFeeRate)+'<p class="lwa-intro">اسمع عرضه، وبعدها اختار بين قبول الشروط أو التفاوض على عمولته. نجاح التفاوض مش مضمون.</p><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أوقّع الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="agent-counter" data-agent-id="'+esc(id)+'">أفاوض على العمولة</button><button type="button" class="lwa-button" data-lwag-action="close">أفكر شوية</button></div>',"مدة التمثيل موسمان. العمولة تُخصم من مكافآت اللعبة فقط، ولا يوجد دفع بفلوس حقيقية.");
+      frame("مقابلة أولى مع "+a.name,"FIRST MEETING",meetingBody(a,s,quotedFeeRate)+'<p class="lwa-intro">اسمع عرضه، وبعدها اختار بين قبول الشروط أو التفاوض على عمولته. نجاح التفاوض مش مضمون.</p><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أوقّع الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="agent-counter" data-agent-id="'+esc(id)+'">أفاوض على العمولة</button><button type="button" class="lwa-button" data-lwag-action="close">أفكر شوية</button></div>',"الاتفاق مفتوح المدة ويمكنك إنهاؤه يدويًا. العمولة تُخصم من مكافآت اللعبة فقط، ولا يوجد دفع بفلوس حقيقية.");
     }
   }
   function negotiateFee(id){
@@ -311,7 +309,7 @@
     p.contractMultiplierDelta=0;p.negotiationRaiseBonusDelta=0;p.strategyOverride="";
     s.agentProfile=p;s.agent=true;s.agentLead=false;s.storyFlags=s.storyFlags&&typeof s.storyFlags==="object"?s.storyFlags:{};
     s.storyFlags["agent-offer"]=true;
-    record(s,"توقيع اتفاق تمثيل مع "+a.name,"وقعت اتفاقًا لمدة موسمين بعمولة "+Math.round(p.customFeeRate*100)+"%. "+a.pitch);
+    record(s,"توقيع اتفاق تمثيل مع "+a.name,"وقعت اتفاقًا مفتوح المدة بعمولة "+Math.round(p.customFeeRate*100)+"%. "+a.pitch);
     if(API().setStory)API().setStory("بدأ فصل جديد: "+a.name,"وكيل أعمالك الجديد هو "+a.name+". أسلوبه: "+a.style+". اختياراتك في قصته هتأثر على خطتك ومميزات التفاوض والانتقالات.");
     save(s,"تم توقيع اتفاق الوكالة. قصة "+a.name+" هتتفتح مع تقدم المسيرة.");closeDialog();
   }
@@ -455,7 +453,7 @@
   }
   function tick(){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
-    var changed=ensureState(s),expired=checkExpiry(s);if(expired)changed=true;
+    var changed=ensureState(s);
     if(s.agent&&renewRelationship(s))changed=true;
     if(ensurePanel())renderPanel(s);
     if(changed&&api.save)api.save();

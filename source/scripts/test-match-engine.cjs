@@ -47,16 +47,18 @@ assert.equal(engine.playerConcededGoals(90, [
   { type: "injury", side: "player", minute: 60 },
   { type: "goal", side: "opponent", minute: 82 }
 ]), 0, "a goal after an injury exit must not be attributed to the injured player");
-assert.equal(engine.playerConcededGoals(65, lateConcessionEvent, 64), 1,
-  "a goal after a red card must still be counted against the dismissed goalkeeper");
+assert.equal(engine.playerConcededGoals(65, lateConcessionEvent, 64), 0,
+  "a goal after a red card must not be counted against the dismissed goalkeeper");
 assert.equal(engine.playerConcededGoals(65, [{ type: "goal", side: "opponent", minute: 50 }]), 1,
   "a goal conceded while the goalkeeper is playing must affect their rating");
 assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent)), 0,
   "the substituted goalkeeper should not be penalized for a late concession");
-assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent, 64)), -0.06,
-  "the sent-off goalkeeper should be penalized for a concession after the dismissal");
+assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent, 64)), 0,
+  "the sent-off goalkeeper must not be penalized for a concession after the dismissal");
 assert.equal(browserEngine.playerConcededGoals(65, lateConcessionEvent), 0,
   "the browser engine must match source attribution rules");
+assert.equal(browserEngine.playerConcededGoals(65, lateConcessionEvent, 64), 0,
+  "the deployed engine must stop attributing concessions after a red card");
 
 assert.equal(engine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
   "a player who remains on the pitch through extra time must be accountable for an extra-time concession");
@@ -84,7 +86,7 @@ assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [
 assert.equal(engine.playerConcededGoals(65, [
   { type: "red-card", side: "player", minute: 64 },
   { type: "goal", side: "opponent", minute: 82 }
-]), 1, "a red-card event itself must preserve accountability for later concessions");
+]), 0, "a red-card event must end responsibility for later concessions");
 assert.equal(browserEngine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
   "the deployed engine must attribute extra-time concessions exactly like the source");
 
@@ -118,8 +120,8 @@ assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, lateConcededGoa
   "a substituted defender who played 60+ minutes keeps a clean sheet after a later concession");
 assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, [{ type: "goal", side: "opponent", minute: 40 }]), false,
   "a goal conceded while the defender is on the pitch prevents a clean sheet");
-assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 75, lateConcededGoals, 75), false,
-  "a player sent off remains accountable for goals conceded after the red card");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 75, lateConcededGoals, 75), true,
+  "a player sent off after 60 minutes keeps a clean sheet if the only goal comes after dismissal");
 assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 59, []), false,
   "a defender must play at least 60 minutes to earn a clean sheet");
 assert.equal(engine.playerEarnsCleanSheet("رأس حربة", 90, []), false,

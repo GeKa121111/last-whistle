@@ -141,6 +141,30 @@ assert.equal(engine.playerConcededGoals(90, extraTimeRegulationExit.events), reg
 assert.equal(engine.validateResult(extraTimeRegulationExit).ok, true,
   "the extra-time exit event must keep the match ledger internally consistent");
 
+// An aggregate lead must not turn a drawn second leg into a positive player-rating result.
+// The competition outcome remains a tie win, while the fixture itself is still a draw.
+let aggregateRatingProbe = null;
+for (let seed = 160001; seed < 160601 && !aggregateRatingProbe; seed += 1) {
+  const common = {
+    seed, teamPower: 65, opponentPower: 65,
+    player: { name: "اختبار نتيجة المباراة والإجمالي", position: "وسط مهاجم", role: "أساسي",
+      shooting: 62, passing: 65, vision: 66, composure: 67, fitness: 80, trust: 70, energy: 85, fatigue: 12 }
+  };
+  const fixture = engine.simulateMatch({ ...common, knockout: false, aggregateOffset: 0 });
+  if (fixture.score.for !== fixture.score.against || fixture.player.minutes <= 0) continue;
+  const secondLeg = engine.simulateMatch({ ...common, knockout: true, aggregateOffset: 1 });
+  if (secondLeg.extraTime.played || secondLeg.score.for !== secondLeg.score.against) continue;
+  aggregateRatingProbe = { fixture, secondLeg };
+}
+assert.ok(aggregateRatingProbe, "a deterministic tied fixture must be found for aggregate-rating regression");
+assert.equal(aggregateRatingProbe.fixture.matchOutcome, "تعادل", "the fixture result must describe its actual score");
+assert.equal(aggregateRatingProbe.secondLeg.matchOutcome, "تعادل", "a lead on aggregate must not rewrite the second-leg match result");
+assert.equal(aggregateRatingProbe.secondLeg.outcome, "فوز", "aggregate tie outcome must still preserve cup progression semantics");
+assert.equal(aggregateRatingProbe.secondLeg.player.rating, aggregateRatingProbe.fixture.player.rating,
+  "aggregate advantage must not give the player a win bonus for a drawn match");
+assert.equal(engine.validateResult(aggregateRatingProbe.secondLeg).matchOutcomeConsistent, true,
+  "the ledger validator must check the fixture outcome separately from aggregate progression");
+
 const cleanSheetValidationProbe = engine.simulateMatch({
   seed: 942771, teamPower: 65, opponentPower: 65,
   player: { position: "قلب دفاع", role: "أساسي", shooting: 55, passing: 65, vision: 60,

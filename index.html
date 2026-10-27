@@ -2446,9 +2446,16 @@ function seasonAwards(state, league, teamRank) {
       }
     }
 
-    const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
-    const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
-    const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
+    const aggregateMargin = aggregateOffset + finalFor - finalAgainst;
+    const matchMargin = finalFor - finalAgainst;
+    // The cup tie may be won on aggregate while this individual leg is a draw or loss.
+    // Keep tie progression separate from the fixture result used for player match ratings.
+    const win = aggregateMargin > 0 || (aggregateMargin === 0 && shootout.won === true);
+    const draw = aggregateMargin === 0 && !shootout.used;
+    const matchWin = matchMargin > 0 || (matchMargin === 0 && shootout.used && shootout.won === true);
+    const matchDraw = matchMargin === 0 && !shootout.used;
+    const matchOutcome = matchWin ? "فوز" : matchDraw ? "تعادل" : "خسارة";
+    const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
     // This engine tracks player minutes only through regulation. Extra-time events still
     // affect the team score, but the player is not simulated in either extra-time period.
     // Record the 90-minute exit before calculating clean sheets and conceded-goal impact.
@@ -2476,8 +2483,9 @@ function seasonAwards(state, league, teamRank) {
       regulation, extraTime, shootout,
       score: { for: finalFor, against: finalAgainst },
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
+      matchOutcome,
       player: stats, events,
-      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ }
+      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
   }
 
@@ -2507,9 +2515,13 @@ function seasonAwards(state, league, teamRank) {
     const yellowCards = result.events.filter(event => event.type === "yellow-card" && event.side === "player").length;
     const injuries = result.events.filter(event => event.type === "injury" && event.side === "player").length;
     const redCardEvent = result.events.find(event => event.type === "red-card" && event.side === "player");
+    const matchMargin = Number(result.score.for) - Number(result.score.against);
+    const expectedMatchOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة"
+      : result.shootout?.used ? (result.shootout.won ? "فوز" : "خسارة") : "تعادل";
+    const matchOutcomeConsistent = !result.matchOutcome || result.matchOutcome === expectedMatchOutcome;
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
-    const valid = cleanSheetConsistent
+    const valid = cleanSheetConsistent && matchOutcomeConsistent
       && teamGoals === result.score.for && opponentGoals === result.score.against
       && playerGoals === result.player.goals && assists === result.player.assists
       && result.player.goals <= shots && result.player.assists <= teamGoals
@@ -2522,7 +2534,7 @@ function seasonAwards(state, league, teamRank) {
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent, matchOutcomeConsistent };
   }
 
 

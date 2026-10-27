@@ -693,10 +693,11 @@ async function main() {
       // Avoid match-ID collisions with earlier fixtures in this same browser smoke run.
       state.leagueSegmentId = "browser-season-lifecycle-" + Date.now();
       state.leagueSegmentIsPartial = false;
-      // simulateSeasonBlock checks the winter window after 5 days of match recovery.
+      // Use the same season-aware fixture spacing as the simulation.
       // Place the midpoint fixture on calendar day 184 (start of the natural winter window).
       const fixtureMidpoint = Math.ceil(state.seasonAppsTarget / 2);
-      state.calendarDay = 184 - Math.max(0, fixtureMidpoint - 1) * 5;
+      const interval = Math.max(5, Math.min(15, Math.ceil(300 / Math.max(1, state.seasonAppsTarget))));
+      state.calendarDay = 184 - Math.max(0, fixtureMidpoint - 1) * interval;
       state.day = Math.max(Number(state.day) || 1, 100);
       state.leagueRoundIndex = 0;
       state.leagueRoundHistory = [];

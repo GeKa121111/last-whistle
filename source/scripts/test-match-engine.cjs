@@ -21,6 +21,8 @@ const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "ut
 const inlineScripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const matchBundle = inlineScripts.find(script => script.includes("window.LWMatch ="));
 assert.ok(matchBundle, "deployed HTML must contain the match engine");
+assert.ok(html.includes('"substitution-on":"دخول بديل"') && html.includes('"substitution-on","substitution"'),
+  "the match report must display a late substitute's entry event");
 const browserContext = { window: {} };
 vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });

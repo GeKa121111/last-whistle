@@ -76,7 +76,9 @@ const required = [
   "function runSeasonAITtraining()",
   "function canAccessTransferMarket()",
   "function isNaturalWinterTransferWindow()",
-  'if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&seasonMatchTotal()>=8',
+  "function activateMidSeasonBreakIfDue(){",
+  "if(activateMidSeasonBreakIfDue())break;",
+  "activateMidSeasonBreakIfDue();",
   "const developmentResult=runSeasonAITtraining();",
   "report.completedSeason=currentSeason",
   "transferButton.hidden=!transferVisible",
@@ -145,7 +147,7 @@ const required = [
   "window.LWWorldAI?.completeSeason",
   "function renderWorldAIDashboard",
   "opponentTacticalIQ:opponentPlan.iq",
-  "agent-system.js?v=2",
+  "agent-system.js?v=3",
   "agent-system.css?v=1",
   'id="shopFilters"',
   'id="storeBalance"',
@@ -350,7 +352,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=10", "career-experience.css?v=1", "career-experience.js?v=5", "agent-system.css?v=1", "agent-system.js?v=2", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=6"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=10", "career-experience.css?v=1", "career-experience.js?v=5", "agent-system.css?v=1", "agent-system.js?v=3", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=6"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
@@ -723,7 +725,7 @@ const offerState = {
   clubPower: 50, transferOffers: [], transferOffersWindowId: "", transferOffersAttemptKey: "",
   transferHistory: []
 };
-let offerProfile = { appearances: 2, form: 6.0, ovr: 55, position: "وسط", currentClub: "نادي أ", country: "مصر" };
+let offerProfile = { name: "محمد", age: 24, potential: 72, goals: 0, assists: 0, appearances: 2, form: 6.0, ovr: 55, position: "وسط", currentClub: "نادي أ", currentClubPower: 50, country: "مصر" };
 let offerGenerationCalls = 0;
 const offerSandbox = {
   state: offerState,
@@ -750,16 +752,33 @@ assert.equal(offerState.transferOffersWindowId, "summer-0");
 assert.equal(offerState.transferOffers.length, 0);
 offerSandbox.ensureTransferOffers();
 assert.equal(offerGenerationCalls, 1, "the same empty profile must not repeatedly scan and generate offers");
+
+offerProfile.position = "مهاجم";
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 2, "a position change must refresh position-specific offer context");
+offerProfile.age = 20;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 3, "an age change must retry an empty offer search");
+offerProfile.potential = 84;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 4, "a potential change must retry youth-role offer matching");
+offerProfile.goals = 2;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 5, "goal contributions must refresh the eligible target range");
+offerProfile.assists = 1;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 6, "assist contributions must refresh the eligible target range");
+
 offerProfile.form = 6.4;
 offerSandbox.ensureTransferOffers();
-assert.equal(offerGenerationCalls, 2, "a better profile must retry offer generation within the same open window");
+assert.equal(offerGenerationCalls, 7, "improved form must retry offer generation within the same open window");
 assert.equal(offerState.transferOffers.length, 1, "a newly suitable offer must be added without waiting for another window");
 offerSandbox.ensureTransferOffers();
-assert.equal(offerGenerationCalls, 2, "the same window must not replenish offers after generation");
+assert.equal(offerGenerationCalls, 7, "the same window must not replenish offers after generation");
 assert.equal(offerState.transferOffers.length, 1, "repeat market renders must not duplicate offers");
 offerSandbox.transferWindow = () => ({ open: true, id: "winter-0", name: "الانتقالات الشتوية", days: 10 });
 offerSandbox.ensureTransferOffers();
-assert.equal(offerGenerationCalls, 3, "a new transfer window must generate its own offers");
+assert.equal(offerGenerationCalls, 8, "a new transfer window must generate its own offers");
 assert.ok(offerState.transferOffers.some(offer => offer.windowId === "winter-0"));
 
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

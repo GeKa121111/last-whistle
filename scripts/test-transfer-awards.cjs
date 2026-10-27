@@ -47,9 +47,16 @@ const youngAgeSeason2 = engine.simulatePlayerSeason({
 }, 2, 1);
 assert.equal(youngAgeSeason1.age, 19, "known young-player baseline ages must be preserved in season one");
 assert.equal(youngAgeSeason2.age, 20, "known young players must age between world seasons");
+const sourcedAgeFixture = { ...ageProgressionFixture, age: 29 };
+assert.equal(engine.simulatePlayerSeason(sourcedAgeFixture, 1, 1).age, 29,
+  "a sourced age must be used as the baseline in season one");
+assert.equal(engine.simulatePlayerSeason(sourcedAgeFixture, 4, 1).age, 32,
+  "a sourced player's age must advance one year per season");
 assert.equal(engine.simulatePlayerSeason({
-  ...ageProgressionFixture, age: 29
-}, 4, 1).age, 29, "a sourced player age must override the estimated age");
+  ...sourcedAgeFixture,
+  seasonStats: { season: 4, appearances: 20, goals: 4, assists: 2, averageRating: 7.1 }
+}, 4, 1).age, 32,
+  "saved season-stat rows must use the same age progression as projected rows");
 
 
 // Defensive and attacking midfield labels must both use midfielder production

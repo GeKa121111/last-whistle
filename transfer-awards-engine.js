@@ -103,13 +103,15 @@
       "نيكو أوريلي": 21
     };
     const name = String(player && player.name || "");
-    const firstSeasonAge = Object.prototype.hasOwnProperty.call(knownYoung, name)
-      ? knownYoung[name]
-      : 24 + (stableHash(name) % 10);
+    const sourcedAge = Number(player && player.age);
+    const firstSeasonAge = Number.isFinite(sourcedAge) && sourcedAge >= 1
+      ? Math.floor(sourcedAge)
+      : Object.prototype.hasOwnProperty.call(knownYoung, name)
+        ? knownYoung[name]
+        : 24 + (stableHash(name) % 10);
     const seasonNumber = Math.max(1, Math.floor(Number(season) || 1));
-    // The age seed belongs to the player, not the season. Advance that baseline
-    // by one year per career-world season so an unsourced player's age never jumps
-    // backwards or changes randomly between award ceremonies.
+    // Sourced age, known-player baseline, or fallback estimate all describe the
+    // player's age in season one. Advance the same baseline once per season.
     return Math.min(40, firstSeasonAge + seasonNumber - 1);
   }
 
@@ -126,7 +128,7 @@
       return {
         name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
-        age: Number(player.age) || estimatedAge(player, season), ovr, appearances, goals, assists,
+        age: estimatedAge(player, season), ovr, appearances, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
         score: Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)),
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
@@ -157,7 +159,7 @@
       club: player.clubName || player.club || "نادي غير محدد",
       country: player.country || "",
       position: player.position || "غير محدد",
-      age: Number(player.age) || estimatedAge(player, season),
+      age: estimatedAge(player, season),
       ovr: ovr,
       appearances: appearances,
       goals: goals,

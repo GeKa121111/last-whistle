@@ -25,7 +25,11 @@
     balanced: "متوازن", press: "ضغط عالي", compact: "تكتل دفاعي", wide: "لعب على الأطراف", counter: "هجمات مرتدة"
   });
   function recentRows(state) {
-    const rows = Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [];
+    const careerRows = Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [];
+    // Modern history is newest-first; legacy seasonLog is oldest-first.
+    // Fall back only when modern history is absent/empty to avoid mixing duplicate records.
+    const rows = careerRows.length ? careerRows :
+      Array.isArray(state && state.seasonLog) ? state.seasonLog.slice().reverse() : [];
     return rows.filter(row => {
       if (!row) return false;
       // A zero-minute bench/suspension row is not a performance rating.
@@ -124,8 +128,8 @@
     const managerIQ = clamp(input.managerIQ ?? (theirs * 0.82 + Number(input.opponentPrestige || theirs) * 0.18), 25, 98);
     const rating = formRating(state);
     const goals = number(state.seasonGoals, 0);
-    const history = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory.slice(0, 8) : [];
-    const repeatedStyle = history.filter(row => row && String(row.tactic || row.playerTactic || "") === ownTactic).length;
+    const history = recentRows(state);
+    const repeatedStyle = history.filter(row => String(row.tactic || row.playerTactic || "") === ownTactic).length;
     let tactic = "balanced";
     if (ownTactic === "attack") tactic = "counter";
     else if (theirs >= ours + 7) tactic = "press";

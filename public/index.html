@@ -4245,6 +4245,7 @@ function renderSeasonJourney(){
  const missionsDone=challenge.done;
  const windowInfo=transferWindow();
  const transferEligible=canAccessTransferMarket();
+ const transferLockDescription=state.retired?"المسيرة انتهت بالاعتزال.":Number(state.age)<18?(isYouthAcademyPlayer()?"انتقالات الفريق الأول متاحة بعد إتمام سن 18 والتخرج من الأكاديمية.":"سوق انتقالات المحترفين يبدأ من سن 18؛ كمّل مسيرتك لحد ما تبلغ السن ده."):state.academyGraduationPending?"وصلت لسن 18. اختار عقد الفريق الأول أو موسم الرديف من قرار التخرج الأول، وبعدها هتقدر تدخل سوق الانتقالات.":state.academyReserve?"أنت في موسم الرديف. انتقالات الفريق الأول هتفتح بعد نهاية الموسم والتصعيد.":"سوق الفريق الأول مقفول لحد اكتمال شروط التصعيد.";
  const winterDecisionDue=transferEligible&&!!state.winterBreakPending&&windowInfo.name==="الانتقالات الشتوية";
  const journeyDiary=Array.isArray(state.diary)?state.diary:[];
  const eventCacheKey=[Number(state.season)||1,journeyDiary.length,!!state.journeyEventSeen].join("|");
@@ -4258,7 +4259,7 @@ function renderSeasonJourney(){
  if(renderKey===lastSeasonJourneyRenderKey)return;
  const stages=[
   {name:"المباريات والأداء",icon:"⚽",short:"المباريات",desc:"لعب فريقك "+apps+" من "+totalMatches+" مباراة دوري. سجلت "+(state.seasonGoals||0)+" هدف وصنعت "+(state.seasonAssists||0)+"، وجمعت "+(state.seasonPoints||0)+" نقطة لفريقك.",done:apps>=2},
-  {name:transferEligible?"قرار الانتقالات":"الانتقالات الاحترافية",icon:transferEligible?"🔄":"🔒",short:transferEligible?"الانتقالات":"بعد التصعيد",desc:!transferEligible?"أنت في مسار الناشئين أو لم تبلغ 18 سنة بعد. سوق انتقالات المحترفين هيفتح بعد سن 18 والتصعيد المناسب.":state.journeyTransferReviewed?"راجعت موقف عقدك وسوق الانتقالات للموسم الحالي.":(windowInfo.open?windowInfo.name+" مفتوحة. راجع العروض أو قرر الاستمرار مع ناديك.":windowInfo.name+". راجع عقدك وخططك، والسوق القادم بعد "+windowInfo.days+" يوم."),done:!transferEligible||!!state.journeyTransferReviewed},
+  {name:transferEligible?"قرار الانتقالات":"الانتقالات الاحترافية",icon:transferEligible?"🔄":"🔒",short:transferEligible?"الانتقالات":"بعد التصعيد",desc:!transferEligible?transferLockDescription:state.journeyTransferReviewed?"راجعت موقف عقدك وسوق الانتقالات للموسم الحالي.":(windowInfo.open?windowInfo.name+" مفتوحة. راجع العروض أو قرر الاستمرار مع ناديك.":windowInfo.name+". راجع عقدك وخططك، والسوق القادم بعد "+windowInfo.days+" يوم."),done:!transferEligible||!!state.journeyTransferReviewed},
   {name:"المهمة والتحدي",icon:"🎯",short:challenge.label,desc:challenge.description,done:missionsDone},
   {name:"أحداث المسيرة",icon:"🗞️",short:"الأحداث",desc:eventSeen?"سجلت حدثًا واحدًا على الأقل في مذكرات الموسم الحالي.":"مرّر يومًا داخل المسيرة عشان يظهر حدث الموسم، وبعدها راجع اختياراتك وتأثيرها.",done:eventSeen},
   {name:"تقييم الموسم",icon:"🏆",short:"التقييم",desc:apps>=totalMatches?(state.seasonSummary||"اكتملت مباريات الدوري الـ"+totalMatches+". راجع التقرير النهائي ثم ابدأ الموسم الجديد."):"باقي "+Math.max(0,totalMatches-apps)+" مباراة على تقرير الموسم النهائي.",done:!!state.journeySeasonReviewed}

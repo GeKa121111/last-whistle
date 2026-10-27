@@ -29,6 +29,14 @@ assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
   "the mobile forward must contribute more to chance creation than the centre striker");
 assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
   "the centre striker must receive a distinct finishing advantage");
+assert.equal(typeof engine.positionPerformanceImpact, "function", "role-aware match impact must be exposed for regression tests");
+const goalkeeperImpact = engine.positionPerformanceImpact("حارس مرمى", { saves: 4, cleanSheet: true }, 0);
+const centreBackImpact = engine.positionPerformanceImpact("قلب دفاع", { tackles: 4, interceptions: 3 }, 2);
+const wingerDefensiveImpact = engine.positionPerformanceImpact("جناح", { tackles: 4, interceptions: 3 }, 2);
+assert.ok(goalkeeperImpact > 1.4, "multiple saves and a clean sheet must meaningfully improve a goalkeeper rating");
+assert.ok(centreBackImpact > wingerDefensiveImpact, "tackles and interceptions must matter more for defenders than for forwards");
+assert.equal(engine.positionPerformanceImpact("قلب دفاع", { tackles: 0, interceptions: 0, cleanSheet: false }, 4), 0,
+  "goals conceded by the team must not directly subtract defensive-player impact");
 let tested = 0;
 for (const position of positions) {
   for (let seed = 1; seed <= 250; seed += 1) {

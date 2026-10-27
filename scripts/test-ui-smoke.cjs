@@ -715,4 +715,51 @@ assert.notEqual(interactionNode("seasonStageAction").dataset.seasonAction, "tran
 interactionSandbox.runSeasonJourneyAction("transfer-review");
 assert.ok(interactionMessages.some(message => message.includes("سن 18")), "academy players must be told the professional market unlocks at 18");
 
+
+const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const offerState = {
+  careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
+  calendarDay: 15, season: 1, day: 15, apps: 2, clubName: "نادي أ", leagueCountry: "مصر",
+  clubPower: 50, transferOffers: [], transferOffersWindowId: "", transferOffersAttemptKey: "",
+  transferHistory: []
+};
+let offerProfile = { appearances: 2, form: 6.0, ovr: 55, position: "وسط", currentClub: "نادي أ", country: "مصر" };
+let offerGenerationCalls = 0;
+const offerSandbox = {
+  state: offerState,
+  canAccessTransferMarket: () => true,
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
+  activeCupInProgress: () => false,
+  transferPlayerProfile: () => ({ ...offerProfile }),
+  transferTargets: () => [{ club: "نادي ب", country: "مصر", power: 50, division: 1, players: [] }],
+  window: { LWTransferAwards: { generateOffers: ({ windowId }) => {
+    offerGenerationCalls++;
+    return offerProfile.form >= 6.3
+      ? [{ id: "offer-" + windowId, windowId, club: "نادي ب", country: "مصر", status: "pending" }]
+      : [];
+  } } },
+  saveGame: () => true,
+  log: () => {},
+  setStory: () => {}
+};
+vm.createContext(offerSandbox);
+vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 1, "an eligible player should get one offer-generation attempt even if no club fits yet");
+assert.equal(offerState.transferOffersWindowId, "summer-0");
+assert.equal(offerState.transferOffers.length, 0);
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 1, "the same empty profile must not repeatedly scan and generate offers");
+offerProfile.form = 6.4;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 2, "a better profile must retry offer generation within the same open window");
+assert.equal(offerState.transferOffers.length, 1, "a newly suitable offer must be added without waiting for another window");
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 2, "the same window must not replenish offers after generation");
+assert.equal(offerState.transferOffers.length, 1, "repeat market renders must not duplicate offers");
+offerSandbox.transferWindow = () => ({ open: true, id: "winter-0", name: "الانتقالات الشتوية", days: 10 });
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 3, "a new transfer window must generate its own offers");
+assert.ok(offerState.transferOffers.some(offer => offer.windowId === "winter-0"));
+
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

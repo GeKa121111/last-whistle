@@ -359,6 +359,81 @@ if (staleWinterPause.open) { console.error("Transfer test failed: a stale pendin
 const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
 if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
 
+const marketAccessStart = html.indexOf("function canAccessTransferMarket(){");
+const marketAccessEnd = html.indexOf("\nfunction ", marketAccessStart + 1);
+if (marketAccessStart < 0 || marketAccessEnd < 0) {
+  console.error("Transfer eligibility regression: market access helper is missing."); process.exit(1);
+}
+const marketAccessSource = html.slice(marketAccessStart, marketAccessEnd).trim();
+function evaluateMarketAccess(state) {
+  const sandbox = { state, isYouthAcademyPlayer: () => false };
+  vm.createContext(sandbox);
+  vm.runInContext(marketAccessSource, sandbox, { filename: "canAccessTransferMarket" });
+  return sandbox.canAccessTransferMarket();
+}
+const retiredMarketAccess = evaluateMarketAccess({ retired: true, age: 28, academyReserve: false, academyGraduationPending: false });
+if (retiredMarketAccess) {
+  console.error("Transfer eligibility regression: retired careers must not be eligible for the professional market."); process.exit(1);
+}
+const activeMarketAccess = evaluateMarketAccess({ retired: false, age: 28, academyReserve: false, academyGraduationPending: false });
+if (!activeMarketAccess) {
+  console.error("Transfer eligibility regression: an active graduated professional should retain market access."); process.exit(1);
+}
+if (!html.includes('filter(o=>offerIsAvailable(o)&&[o.club,o.country,o.league,o.leagueEnglish]')) {
+  console.error("Transfer market UI must hide stale offers that cannot be negotiated."); process.exit(1);
+}
+
+const intervalStart = html.indexOf("function seasonMatchIntervalDays(){");
+const intervalEnd = html.indexOf("\nfunction ", intervalStart + 1);
+const summerOffsetStart = html.indexOf("function daysUntilNextSummerWindow(");
+const summerOffsetEnd = html.indexOf("\nfunction ", summerOffsetStart + 1);
+if (intervalStart < 0 || intervalEnd < 0 || summerOffsetStart < 0 || summerOffsetEnd < 0) {
+  console.error("Transfer calendar regression: season interval/alignment helpers are missing."); process.exit(1);
+}
+const intervalSource = html.slice(intervalStart, intervalEnd).trim();
+const summerOffsetSource = html.slice(summerOffsetStart, summerOffsetEnd).trim();
+function seasonIntervalFor(matchCount) {
+  const sandbox = { seasonMatchTotal: () => matchCount };
+  vm.createContext(sandbox);
+  vm.runInContext(intervalSource, sandbox, { filename: "seasonMatchIntervalDays" });
+  return sandbox.seasonMatchIntervalDays();
+}
+function daysToSummer(calendarDay) {
+  const sandbox = { state: { calendarDay } };
+  vm.createContext(sandbox);
+  vm.runInContext(summerOffsetSource, sandbox, { filename: "daysUntilNextSummerWindow" });
+  return sandbox.daysUntilNextSummerWindow(calendarDay);
+}
+for (const matches of [22, 26, 30, 34, 38]) {
+  const interval = seasonIntervalFor(matches);
+  if (interval < 5 || interval > 15) {
+    console.error("Transfer calendar regression: fixture spacing is out of range.", JSON.stringify({ matches, interval })); process.exit(1);
+  }
+  let day = 1, sawSummer = false, sawWinter = false;
+  for (let round = 0; round < matches; round++) {
+    const window = evaluateTransferWindow({ calendarDay: day, season: 1, seasonApps: round, winterBreakPending: false, freeAgent: false });
+    if (window.open && window.name === "الانتقالات الصيفية") sawSummer = true;
+    if (window.open && window.name === "الانتقالات الشتوية") sawWinter = true;
+    day += interval;
+  }
+  if (!sawSummer || !sawWinter) {
+    console.error("Transfer calendar regression: a complete season must contain summer and winter windows.", JSON.stringify({ matches, interval, sawSummer, sawWinter })); process.exit(1);
+  }
+}
+for (const day of [1, 62, 366, 427]) {
+  if (daysToSummer(day) !== 0) { console.error("Transfer calendar regression: current summer opening should not be skipped.", day); process.exit(1); }
+}
+for (const day of [63, 184, 260, 365]) {
+  const offset = daysToSummer(day);
+  const target = day + offset;
+  const d = ((target - 1) % 365) + 1;
+  if (d !== 1) { console.error("Transfer calendar regression: offseason did not align the next season to summer.", JSON.stringify({ day, offset, target, dayOfYear: d })); process.exit(1); }
+}
+if (!html.includes("leagueMatchDaysRemaining(state.lastLeagueMatchCalendarDay,state.calendarDay,seasonMatchIntervalDays())")
+  || !html.includes("advanceCalendarDays(seasonMatchIntervalDays()-1")) {
+  console.error("Transfer calendar regression: manual and simulated matches must share seasonal fixture spacing."); process.exit(1);
+}
+
 const simulatorStart = html.indexOf("function simulateSeasonBlock(targetApps){");
 const simulatorEnd = html.indexOf("\nfunction ", simulatorStart + 1);
 const simulatorSource = html.slice(simulatorStart, simulatorEnd);
@@ -386,6 +461,9 @@ if (html.includes('id="seasonStageAction" onclick=') || html.includes('id="seaso
 if (!html.includes('$("seasonStageAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonStageAction").dataset.seasonAction||"season-block"))')
   || !html.includes('$("seasonTransferAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonTransferAction").dataset.seasonAction||"transfer-review"))')) {
   console.error("Journey interaction test failed: stable button listeners are not registered."); process.exit(1);
+}
+if (!html.includes("const transferLockDescription=state.retired?") || !html.includes("وصلت لسن 18. اختار عقد الفريق الأول أو موسم الرديف") || !html.includes("أنت في موسم الرديف.")) {
+  console.error("Transfer eligibility UI must explain the exact age, graduation, or reserve lock."); process.exit(1);
 }
 if (!html.includes("function openTransferMarketPage(){") || !html.includes('market.scrollIntoView({behavior:"smooth",block:"start"})')) {
   console.error("Transfer CTA test failed: review button must open and scroll to the transfer market."); process.exit(1);

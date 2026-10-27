@@ -97,7 +97,7 @@ assert.equal(state.agentProfile.expiresSeason, null, "new representation contrac
 delete state.agentProfile.contractMode;
 state.agentProfile.expiresSeason = 3;
 state.season = 20;
-assert.equal(windowListeners.pageshow instanceof Function, true, "pageshow must re-check a restored career");
+assert.equal(typeof windowListeners.pageshow, "function", "pageshow must re-check a restored career");
 windowListeners.pageshow();
 assert.equal(state.agent, true, "an agent must remain hired after multiple seasons until the player ends the agreement");
 assert.equal(state.agentProfile.id, "hossam", "legacy saves must retain their contracted representative");

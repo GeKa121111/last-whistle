@@ -110,11 +110,13 @@ function normalized(text) {
 function roleFor(position) {
   const value = String(position || "").trim().toUpperCase();
   if (["G", "GK"].includes(value)) return "حارس مرمى";
-  if (["D", "DF", "CB", "LB", "RB", "LWB", "RWB"].includes(value)) return "قلب دفاع";
-  if (["LW", "RW", "LWF", "RWF"].includes(value)) return "جناح";
+  if (["D", "DF", "CB"].includes(value)) return "قلب دفاع";
+  if (["LB", "RB", "LWB", "RWB"].includes(value)) return "ظهير";
+  if (["LW", "RW", "LWF", "RWF", "WF"].includes(value)) return "جناح";
   if (["ST", "LS", "RS", "F"].includes(value)) return "رأس حربة";
-  if (["CF", "SS", "FW", "WF"].includes(value)) return "مهاجم";
-  if (["M", "MF", "DM", "CM", "AM"].includes(value)) return "وسط مهاجم";
+  if (["CF", "SS", "FW"].includes(value)) return "مهاجم";
+  if (value === "DM") return "وسط دفاعي";
+  if (["M", "MF", "CM", "AM"].includes(value)) return "وسط مهاجم";
   return "";
 }
 

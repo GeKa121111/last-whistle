@@ -4230,7 +4230,7 @@ function renderSeasonJourney(){
  }
  const eventSeen=lastJourneyEventCacheValue;
  const root=$("seasonJourney");if(!root)return;
- const renderKey=JSON.stringify([Number(state.season)||1,apps,totalMatches,contributions,challenge.progress,challenge.target,challenge.done,String(state.pos||""),Number(state.seasonGoals)||0,Number(state.seasonAssists)||0,Number(state.seasonPoints)||0,transferEligible,!!state.journeyTransferReviewed,!!windowInfo.open,String(windowInfo.name||""),Number(windowInfo.days)||0,eventSeen,String(state.seasonSummary||""),!!state.journeySeasonReviewed,!!state.retired,!!state.careerStarted,!!state.winterBreakPending,!!state.freeAgent]);
+ const renderKey=JSON.stringify([Number(state.season)||1,apps,totalMatches,contributions,challenge.progress,challenge.target,challenge.done,challenge.description,challenge.label,String(state.pos||""),Number(state.seasonGoals)||0,Number(state.seasonAssists)||0,Number(state.seasonPoints)||0,transferEligible,!!state.journeyTransferReviewed,!!windowInfo.open,String(windowInfo.name||""),Number(windowInfo.days)||0,eventSeen,String(state.seasonSummary||""),!!state.journeySeasonReviewed,!!state.retired,!!state.careerStarted,!!state.winterBreakPending,!!state.freeAgent]);
  if(renderKey===lastSeasonJourneyRenderKey)return;
  const stages=[
   {name:"المباريات والأداء",icon:"⚽",short:"المباريات",desc:"لعب فريقك "+apps+" من "+totalMatches+" مباراة دوري. سجلت "+(state.seasonGoals||0)+" هدف وصنعت "+(state.seasonAssists||0)+"، وجمعت "+(state.seasonPoints||0)+" نقطة لفريقك.",done:apps>=2},

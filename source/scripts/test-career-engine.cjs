@@ -136,6 +136,11 @@ const purchase = career.purchaseItem(player, { id: "boots", price: 100 });
 assert.equal(purchase.ok, true);
 assert.equal(player.money, beforeMoney - 100);
 assert.equal(career.purchaseItem(player, { id: "boots", price: 100 }).status, "already-owned");
+const blockedMoney = { pos: "جناح", age: 25, money: 1000 };
+const blockedPurchase = career.purchaseItem(blockedMoney, { id: "ovrBoost", price: 100 });
+assert.equal(blockedPurchase.status, "direct-rating-purchase-disabled", "OVR cannot be bought directly");
+assert.equal(blockedMoney.money, 1000, "rejected OVR purchase must not consume money");
+assert.equal(blockedMoney.ovrBoost, undefined, "rejected OVR purchase must not mutate the saved career");
 
 const renewal = { weeklyWage: 500, contractSeasons: 1, freeAgent: false, clubName: "Test FC" };
 const renewalBase = { weeklyWage: 500, contractSeasons: 1, freeAgent: false, clubName: "Test FC", trust: 70,

@@ -1,11 +1,38 @@
 #!/usr/bin/env node
 "use strict";
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 global.window = global;
 require(path.join(__dirname, "..", "public", "data", "career-engine.js"));
 const career = global.LWCareer;
 assert.ok(career, "career engine must export LWCareer");
+
+const repositoryRoot = path.resolve(__dirname, "..", "..");
+const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
+const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
+assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
+const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
+  .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
+assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
+const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");
+const inlineStatsStart = rootHtml.indexOf("  function startingStatsForPosition(position", inlineRangesStart);
+const inlineStatsEnd = rootHtml.indexOf("\n\n  function uniqueMatchRows", inlineStatsStart);
+assert.ok(inlineRangesStart >= 0 && inlineStatsStart > inlineRangesStart && inlineStatsEnd > inlineStatsStart,
+  "inline career starting-stat source must remain extractable for regression testing");
+const inlineContext = { Math };
+vm.createContext(inlineContext);
+vm.runInContext(rootHtml.slice(inlineRangesStart, inlineStatsEnd) +
+  "\nthis.startingStatsForPosition = startingStatsForPosition;", inlineContext);
+for (const position of ["قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]) {
+  assert.equal(inlineContext.startingStatsForPosition(position, () => 0.5).goalkeeping, 0,
+    "inline app must give zero goalkeeper skill to " + position);
+}
+assert.ok(inlineContext.startingStatsForPosition("حارس مرمى", () => 0.5).goalkeeping > 0,
+  "inline app must preserve goalkeeper specialization");
+assert.ok(rootHtml.includes('if (state.pos && state.pos !== "حارس مرمى") state.goalkeeping = 0;'),
+  "inline app must normalize legacy outfield saves");
 
 const expectedPlans = {
   "حارس مرمى": { primary: "goalkeeping", secondary: ["composure", "passing", "fitness"] },
@@ -34,13 +61,13 @@ assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"),
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);
 const startRanges = {
-  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[10,15] },
-  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[10,15] },
-  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[10,15] },
-  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[10,15] },
-  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[10,15] },
-  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[10,15] },
-  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[10,15] },
+  "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[0,0] },
+  "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[0,0] },
+  "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[0,0] },
+  "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[0,0] },
+  "وسط دفاعي": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[52,62], goalkeeping:[0,0] },
+  "قلب دفاع": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[0,0] },
+  "ظهير": { defending:[55,66], fitness:[55,66], speed:[55,66], passing:[45,55], composure:[45,55], shooting:[25,40], goalkeeping:[0,0] },
   "حارس مرمى": { goalkeeping:[58,68], composure:[58,68], vision:[58,68], shooting:[15,35], defending:[15,35] }
 };
 for (const [position, ranges] of Object.entries(startRanges)) {
@@ -49,6 +76,18 @@ for (const [position, ranges] of Object.entries(startRanges)) {
   for (const [skill, range] of Object.entries(ranges)) between(stats[skill], range[0], range[1], position + "/" + skill);
   assert.ok(Number.isFinite(career.overall({ ...stats, pos: position, trainingXP: {}, randomSeed: 1, playerPotential: 85 })), "weighted OVR must exist for " + position);
 }
+const legacyOutfield = {
+  pos: "جناح", goalkeeping: 73, shooting: 66, money: 5000,
+  trainingXP: { goalkeeping: 12 }, playerPotential: 85, randomSeed: 1
+};
+career.ensureState(legacyOutfield);
+assert.equal(legacyOutfield.goalkeeping, 0, "legacy outfield saves must lose invalid goalkeeper skill");
+assert.equal(legacyOutfield.shooting, 66, "migration must preserve unrelated player skills");
+assert.equal(legacyOutfield.money, 5000, "migration must preserve career finances");
+assert.equal(legacyOutfield.trainingXP.goalkeeping, 12, "migration must not discard saved training history");
+const legacyKeeper = { pos: "حارس مرمى", goalkeeping: 64, trainingXP: {}, playerPotential: 85, randomSeed: 2 };
+career.ensureState(legacyKeeper);
+assert.equal(legacyKeeper.goalkeeping, 64, "goalkeeper saves must retain their specialist skill");
 const wingerStats = career.startingStatsForPosition("جناح", () => 0.5);
 const keeperStats = career.startingStatsForPosition("حارس مرمى", () => 0.5);
 assert.ok(keeperStats.goalkeeping > wingerStats.goalkeeping, "keeper OVR should reward goalkeeping instead of averaging all skills equally");

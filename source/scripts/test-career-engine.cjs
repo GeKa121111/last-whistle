@@ -156,6 +156,49 @@ const trainingState = { ...player, playedToday: true, trainedToday: false, injur
 assert.equal(career.train(trainingState, "shooting").ok, false, "training must be blocked on match day");
 assert.equal(career.train({ ...player, pos: "مهاجم", playedToday: false, trainedToday: false }, "unknown").ok, false);
 
+function makeProgressionFixture(xpMultiplier = false) {
+  return {
+    pos: "رأس حربة", age: 22, playerPotential: 92, shooting: 62, dribbling: 58,
+    passing: 54, speed: 58, fitness: 60, composure: 60, defending: 24,
+    goalkeeping: 12, vision: 52, physical: 61, energy: 100, fatigue: 0,
+    trainingIntensity: "normal", trainedToday: false, playedToday: false,
+    injuryDays: 0, money: 5000, randomSeed: 1234, trainingXP: {},
+    careerXP: 0, levelXP: 0, careerLevel: 1, careerMilestonesEarned: [],
+    progressionMatchIds: [], competitionStats: {}, qualifyingAppearances: 0,
+    careerAppearances: 0, careerMinutes: 0, apps: 0, seasonLog: [],
+    xpMultiplier
+  };
+}
+const ordinaryTraining = career.train(makeProgressionFixture(false), "shooting", { random: () => 0.99 });
+const boostedTraining = career.train(makeProgressionFixture(true), "shooting", { random: () => 0.99 });
+assert.equal(ordinaryTraining.ok, true);
+assert.equal(boostedTraining.ok, true);
+assert.ok(boostedTraining.xp > ordinaryTraining.xp, "the store XP multiplier must boost training XP without directly increasing OVR");
+const ordinaryMatchXP = career.matchDevelopment(makeProgressionFixture(false), {
+  matchId: "ordinary-xp-match", minutes: 90, rating: 8, goals: 1, assists: 0
+});
+const boostedMatchXP = career.matchDevelopment(makeProgressionFixture(true), {
+  matchId: "boosted-xp-match", minutes: 90, rating: 8, goals: 1, assists: 0
+});
+assert.ok(boostedMatchXP.xp > ordinaryMatchXP.xp, "the store XP multiplier must increase match progression XP");
+
+const fieldAgeCurve = { pos: "جناح", age: 34, fitness: 75, speed: 80, physical: 70 };
+career.applySeasonAging(fieldAgeCurve);
+assert.equal(fieldAgeCurve.fitness, 74, "field players should gradually lose fitness from age 30");
+assert.equal(fieldAgeCurve.speed, 79, "pace-dependent field roles should start losing speed after age 31");
+assert.equal(fieldAgeCurve.physical, 70, "physical decline should not start before the later-career phase");
+const veteranFieldCurve = { pos: "قلب دفاع", age: 35, fitness: 75, speed: 80, physical: 70 };
+career.applySeasonAging(veteranFieldCurve);
+assert.equal(veteranFieldCurve.physical, 69, "older field players should begin a modest physical decline");
+const veteranKeeperCurve = { pos: "حارس مرمى", age: 32, fitness: 75, physical: 72 };
+career.applySeasonAging(veteranKeeperCurve);
+assert.equal(veteranKeeperCurve.fitness, 75, "goalkeepers should retain fitness longer than outfield players");
+career.applySeasonAging({ ...veteranKeeperCurve, age: 37, fitness: 75, physical: 72 });
+const oldestKeeperCurve = { pos: "حارس مرمى", age: 37, fitness: 75, physical: 72 };
+career.applySeasonAging(oldestKeeperCurve);
+assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
+assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
+
 const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false };
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "group");
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "final-qualified");

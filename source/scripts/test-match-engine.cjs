@@ -150,6 +150,42 @@ assert.ok(defensiveAverages["قلب دفاع"].interceptions > defensiveAverages
 assert.equal(defensiveAverages["حارس مرمى"].tackles, 0, "goalkeepers must not inherit outfield tackle events");
 assert.equal(defensiveAverages["حارس مرمى"].interceptions, 0, "goalkeepers must not inherit outfield interception events");
 
+ 
+// A personal clean sheet is assessed only over the player's own on-pitch minutes.
+// A defensive player who leaves before a late concession keeps the clean sheet;
+// an attacker is not given a goalkeeper/defender clean-sheet stat.
+let lateConcessionCase = null;
+for (let seed = 92001; seed < 95001 && !lateConcessionCase; seed += 1) {
+  const options = {
+    seed, tactic: "balanced", teamPower: 65, opponentPower: 65,
+    player: {
+      name: "اختبار الشباك النظيفة", position: "قلب دفاع", role: "بديل أساسي",
+      shooting: 54, passing: 65, vision: 61, composure: 62, fitness: 80,
+      speed: 66, physical: 72, dribbling: 55, trust: 70, energy: 85, fatigue: 15
+    }
+  };
+  const result = engine.simulateMatch(options);
+  const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent");
+  if (result.player.minutes >= 60 && result.player.minutes < 90
+      && opponentGoals.some(event => event.minute > result.player.minutes)
+      && !opponentGoals.some(event => event.minute <= result.player.minutes)) {
+    lateConcessionCase = { options, result };
+  }
+}
+assert.ok(lateConcessionCase, "clean-sheet test must find a defensive player subbed before a late concession");
+assert.equal(lateConcessionCase.result.player.cleanSheet, true,
+  "a defender who played at least 60 minutes and conceded no goals while on pitch should keep the clean sheet");
+const lateConcessionBrowser = browserEngine.simulateMatch(lateConcessionCase.options);
+assert.deepEqual(JSON.parse(JSON.stringify(lateConcessionBrowser)), lateConcessionCase.result,
+  "the deployed engine must credit the same on-pitch clean sheet as the source engine");
+const attackerCleanSheet = engine.simulateMatch({
+  seed: 888, teamPower: 80, opponentPower: 40,
+  player: { position: "رأس حربة", role: "أساسي", shooting: 70, composure: 70,
+    passing: 60, vision: 60, fitness: 80, trust: 65, energy: 85, fatigue: 10 }
+});
+assert.equal(attackerCleanSheet.player.cleanSheet, false,
+  "clean-sheet player stats should be limited to goalkeepers and defensive roles");
+
 // A starting role should mean more minutes on the pitch than a substitute role.
 const starterMinutesProbe = engine.simulateMatch({
   seed: 91001, player: { position: "رأس حربة", role: "أساسي", shooting: 68, composure: 70,

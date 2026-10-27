@@ -3407,7 +3407,10 @@ function transferPlayerProfile(){
   ovr:overall(),potential:Number(state.playerPotential)||60,role:String(state.role||"بديل"),
   country:String(state.leagueCountry||"مصر"),currentClub:String(state.clubName||""),
   currentClubPower:Number(state.clubPower)||52,form:Number(transferAverageRating())||6.1,
-  appearances:Number(state.apps)||0,goals:Nufunction ensureTransferOffers(){
+  appearances:Number(state.apps)||0,goals:Number(state.seasonGoals)||0,assists:Number(state.seasonAssists)||0,
+  trust:Number(state.trust)||0};
+}
+function ensureTransferOffers(){
  state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers:[];
  const windowInfo=transferWindow();
  if(!canAccessTransferMarket())return;
@@ -3429,9 +3432,6 @@ function transferPlayerProfile(){
  if(offers.length){
   const note="وصلت عروض انتقال رسمية داخل اللعبة من "+offers.map(offer=>offer.club).join("، ")+". راجع الدور والراتب وابدأ المفاوضات قبل إغلاق النافذة.";
   state.transferHistory.unshift({season:state.season,day:state.day,text:note});log(note);setStory("عروض انتقال جديدة",note);
- }
- saveGame(true);
-}e.season,day:state.day,text:note});log(note);setStory("عروض انتقال جديدة",note);
  }
  saveGame(true);
 }

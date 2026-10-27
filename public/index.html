@@ -3753,7 +3753,15 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  const oldWeek=Math.floor((Math.max(1,oldDay)-1)/7),newWeek=Math.floor((Math.max(1,newDay)-1)/7);
  state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
  state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
- const wages=Math.max(0,newWeek-oldWeek);if(wages&&state.weeklyWage>0){state.money+=wages*(Number(state.weeklyWage)||0);log(`استلمت ${wages} مرتب أسبوعي أثناء ${reason}: ${wages*(Number(state.weeklyWage)||0)}.`);}
+ const wages=Math.max(0,newWeek-oldWeek),grossWeeklyWage=Math.max(0,Number(state.weeklyWage)||0);
+ if(wages&&grossWeeklyWage>0){
+  const grossPay=wages*grossWeeklyWage;
+  const rate=Math.max(0,Math.min(.14,Number(window.LWAgentRuntime?.commissionRate?.(state))||0));
+  const commission=Math.min(grossPay,Math.round(grossPay*rate)),netPay=grossPay-commission;
+  state.money=(Number(state.money)||0)+netPay;
+  if(commission){state.agentCommissionPaid=Math.max(0,Number(state.agentCommissionPaid)||0)+commission;log(`عمولة الوكيل عن ${wages} مرتب أسبوعي: ${commission} جنيه.`);}
+  log(`استلمت ${wages} مرتب أسبوعي صافي ${netPay} جنيه أثناء ${reason}.`);
+ }
  const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
  state.energy=clamp(state.energy+n*dailyRecovery);
  state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8)-n*(state.sleepCoach?2:0)-(options.rest&&state.physio?n*3:0)-(options.rest&&state.recoveryRoom?n*2:0));
@@ -5587,7 +5595,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 </script>
 <script src="./story-mode.js?v=10"></script>
 <script src="./career-experience.js?v=5"></script>
-<script src="./agent-system.js?v=3"></script>
+<script src="./agent-system.js?v=4"></script>
 <script src="./career-hub.js?v=1"></script>
 <script src="./ai-career-engine.js?v=5"></script>
 <script src="./ai-career-ui.js?v=1"></script>

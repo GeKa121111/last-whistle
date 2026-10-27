@@ -48,6 +48,22 @@ assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 },
   "the sent-off goalkeeper should be penalized for a concession after the dismissal");
 assert.equal(browserEngine.playerConcededGoals(65, lateConcessionEvent), 0,
   "the browser engine must match source attribution rules");
+
+const cleanSheetValidationProbe = engine.simulateMatch({
+  seed: 942771, teamPower: 65, opponentPower: 65,
+  player: { position: "قلب دفاع", role: "أساسي", shooting: 55, passing: 65, vision: 60,
+    composure: 65, fitness: 80, speed: 65, physical: 72, dribbling: 55,
+    trust: 70, energy: 85, fatigue: 15 }
+});
+const corruptedCleanSheetProbe = {
+  ...cleanSheetValidationProbe,
+  player: { ...cleanSheetValidationProbe.player, cleanSheet: !cleanSheetValidationProbe.player.cleanSheet }
+};
+const corruptedCleanSheetValidation = engine.validateResult(corruptedCleanSheetProbe);
+assert.equal(corruptedCleanSheetValidation.ok, false,
+  "the match-ledger validator must reject a clean-sheet flag that contradicts the event timeline");
+assert.equal(corruptedCleanSheetValidation.cleanSheetConsistent, false,
+  "the validator should identify clean-sheet metadata drift explicitly");
 assert.equal(typeof browserEngine.playerEarnsCleanSheet, "function", "deployed clean-sheet logic must stay exposed and synchronized");
 const lateConcededGoals = [{ type: "goal", side: "opponent", minute: 82 }];
 assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, lateConcededGoals), true,

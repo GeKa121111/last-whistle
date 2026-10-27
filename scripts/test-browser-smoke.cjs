@@ -179,7 +179,7 @@ async function main() {
     assert.ok(startingContext.dribbling >= 55 && startingContext.dribbling <= 68, "a winger starts with winger-level dribbling");
     assert.ok(startingContext.speed >= 55 && startingContext.speed <= 68, "a winger starts with winger-level speed");
     assert.ok(startingContext.defending >= 15 && startingContext.defending <= 28, "a winger does not start as a defender");
-    assert.ok(startingContext.goalkeeping >= 10 && startingContext.goalkeeping <= 15, "outfield goalkeeper skill stays within the low 10–15 range");
+    assert.ok(startingContext.goalkeeping >= 10 && startingContext.goalkeeping <= 15, "an outfield player must keep goalkeeper skill within the configured 10–15 cap");
     assert.ok(startingContext.physical >= 45 && startingContext.physical <= 58, "physical skill is initialized by position");
     assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
       "header, player summary, and store must use the Egyptian currency for an Egyptian league");
@@ -327,16 +327,27 @@ async function main() {
     );
     results.push("11-section navigation and store rendering");
 
-    await page.evaluate(async () => {
-      const state = window.LWStoryRuntime.getState();
-      state.money = 3000;
-      const saved = window.LWStoryRuntime.save();
-      if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
-      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
-    });
     await page.locator("#menuOpen").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
-    await page.locator('#shopItems [data-buy="xpMultiplier"]').click();
+    const multiplierButton = page.locator('#shopItems [data-buy="xpMultiplier"]');
+    await multiplierButton.waitFor({ state: "attached" });
+    const multiplierCard = page.locator("#shopItems .shopItem").filter({
+      has: page.locator('[data-buy="xpMultiplier"]')
+    });
+    const multiplierPriceText = await multiplierCard.locator(".price").textContent();
+    const multiplierPriceMatch = String(multiplierPriceText || "").match(/[\d,]+/);
+    const multiplierPrice = multiplierPriceMatch
+      ? Number(multiplierPriceMatch[0].replace(/,/g, ""))
+      : NaN;
+    assert.ok(Number.isFinite(multiplierPrice) && multiplierPrice > 0,
+      "the career XP multiplier must expose a valid store price");
+    await page.evaluate(balance => {
+      const state = window.LWStoryRuntime.getState();
+      state.money = balance;
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.render();
+    }, multiplierPrice + 50);
+    await multiplierButton.click();
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
@@ -345,7 +356,7 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "اشتري دلوقتي" }).click();
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime.getState();
-      return state.xpMultiplier === true && Number(state.money) === 600
+      return state.xpMultiplier === true && Number(state.money) === 50
         && document.querySelector("#inventory").textContent.includes("مضاعف خبرة المسيرة");
     }, null, { timeout: 15000 });
     results.push("store purchase changes balance and inventory");
@@ -378,7 +389,7 @@ async function main() {
     console.log("PURCHASE_SAVE_QUEUE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
     assert.equal(saveDiagnostic.saveSucceeded, true,
       "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
-    assert.equal(saveDiagnostic.afterSavedMoney, 600, "IndexedDB must persist the post-purchase balance");
+    assert.equal(saveDiagnostic.afterSavedMoney, 50, "IndexedDB must persist the post-purchase balance");
     assert.equal(saveDiagnostic.afterSavedXPMultiplier, true, "IndexedDB must persist store ownership");
     const persistedPurchase = {
       money: saveDiagnostic.afterSavedMoney,
@@ -392,7 +403,7 @@ async function main() {
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime && window.LWStoryRuntime.getState();
       return state && state.careerStarted && state.name === "Mohamed Ahmed"
-        && state.xpMultiplier === true && Number(state.money) === 600
+        && state.xpMultiplier === true && Number(state.money) === 50
         && Number(state.schemaVersion) === 10
         && !document.querySelector("#startScreen").classList.contains("show");
     }, null, { timeout: 20000 });
@@ -427,7 +438,7 @@ async function main() {
       };
     }, backupPayload.career);
     assert.equal(exportedBackupFacts.name, "Mohamed Ahmed");
-    assert.equal(exportedBackupFacts.money, 600);
+    assert.equal(exportedBackupFacts.money, 50);
     assert.equal(exportedBackupFacts.xpMultiplier, true);
     assert.ok(exportedBackupFacts.worldPlayers > 1000, "backup must include the full player-world database");
     assert.ok(exportedBackupFacts.worldClubs > 100, "backup must include the world club database");
@@ -482,7 +493,7 @@ async function main() {
     await page.waitForFunction(() => {
       const state = window.LWStoryRuntime?.getState();
       return state && state.name === "Mohamed Ahmed" && state.xpMultiplier === true
-        && Number(state.money) === 600
+        && Number(state.money) === 50
         && Object.keys(state.worldSimulation?.players || {}).length > 1000
         && Object.keys(state.worldSimulation?.clubs || {}).length > 100;
     }, null, { timeout: 30000 });

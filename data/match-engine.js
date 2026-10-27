@@ -315,7 +315,11 @@
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;
     const yellowCards = result.events.filter(event => event.type === "yellow-card" && event.side === "player").length;
     const injuries = result.events.filter(event => event.type === "injury" && event.side === "player").length;
-    const valid = teamGoals === result.score.for && opponentGoals === result.score.against
+    const redCardEvent = result.events.find(event => event.type === "red-card" && event.side === "player");
+    const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
+      result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
+    const valid = cleanSheetConsistent
+      && teamGoals === result.score.for && opponentGoals === result.score.against
       && playerGoals === result.player.goals && assists === result.player.assists
       && result.player.goals <= shots && result.player.assists <= teamGoals
       && (!positionProfile(result.metadata?.position || "").goalkeeper || result.player.goals === 0)
@@ -326,7 +330,7 @@
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
   }
 
   function buildStoryReport(result, context) {

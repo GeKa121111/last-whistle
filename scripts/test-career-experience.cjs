@@ -175,4 +175,53 @@ assert.equal(availablePortfolio.state.careerWorld.investments.length, 5);
 assert.equal(availablePortfolio.state.careerWorld.investments.at(-1).id, 5,
   "new investment IDs must remain unique when a legacy sequence counter is stale");
 
-console.log("PASS: career experience challenges and investment portfolio limits are enforced.");
+const lowEnergyCoach = makeHarness({
+  energy: 2, coachRelationship: 40, trust: 50, professionalism: 60, dailyActionUsed: false
+});
+lowEnergyCoach.click("mentor-coach");
+assert.equal(lowEnergyCoach.state.coachRelationship, 40,
+  "a coach session must not grant relationship points without its three-energy cost");
+assert.equal(lowEnergyCoach.state.trust, 50);
+assert.equal(lowEnergyCoach.state.professionalism, 60);
+assert.equal(lowEnergyCoach.state.energy, 2);
+assert.equal(lowEnergyCoach.state.dailyActionUsed, false,
+  "a blocked coach session must not consume the daily action");
+assert.equal(lowEnergyCoach.state.careerWorld.mentorSessions, 0);
+assert.ok(lowEnergyCoach.notices.some(message => message.includes("طاقتك مش كفاية")));
+
+const lowEnergyTeammate = makeHarness({ energy: 0, teamChemistry: 50, morale: 50, dailyActionUsed: false });
+lowEnergyTeammate.click("mentor-teammate");
+assert.equal(lowEnergyTeammate.state.teamChemistry, 50,
+  "supporting a teammate must not grant free chemistry without one energy");
+assert.equal(lowEnergyTeammate.state.morale, 50);
+assert.equal(lowEnergyTeammate.state.dailyActionUsed, false);
+
+const validCoach = makeHarness({
+  energy: 3, coachRelationship: 40, trust: 50, professionalism: 60, dailyActionUsed: false
+});
+validCoach.click("mentor-coach");
+assert.equal(validCoach.state.coachRelationship, 45);
+assert.equal(validCoach.state.trust, 52);
+assert.equal(validCoach.state.professionalism, 63);
+assert.equal(validCoach.state.energy, 0);
+assert.equal(validCoach.state.dailyActionUsed, true);
+assert.equal(validCoach.state.careerWorld.mentorSessions, 1,
+  "a valid coach session should retain its intended daily reward");
+
+const restAtZero = makeHarness({ energy: 0, morale: 50, fatigue: 20, dailyActionUsed: false });
+restAtZero.click("mentor-reset");
+assert.equal(restAtZero.state.energy, 7,
+  "mental rest must remain available when the player has no energy");
+assert.equal(restAtZero.state.morale, 55);
+assert.equal(restAtZero.state.fatigue, 16);
+assert.equal(restAtZero.state.dailyActionUsed, true);
+
+const invalidMentorAction = makeHarness({ energy: 0, morale: 50, dailyActionUsed: false });
+invalidMentorAction.click("mentor-hack");
+assert.equal(invalidMentorAction.state.energy, 0,
+  "unknown mentor action IDs must not fall through to mental rest");
+assert.equal(invalidMentorAction.state.morale, 50);
+assert.equal(invalidMentorAction.state.dailyActionUsed, false);
+assert.ok(invalidMentorAction.notices.some(message => message.includes("النشاط ده مش متاح")));
+
+console.log("PASS: challenge energy, investment limits, and daily mentor eligibility are enforced.");

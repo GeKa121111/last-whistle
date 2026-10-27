@@ -57,6 +57,17 @@
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09;
     return tackles * 0.05 + interceptions * 0.06;
   }
+  function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
+    const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
+    const played = Math.max(0, Number(minutes) || 0);
+    if (!eligible || played < 60) return false;
+    const conceded = (Array.isArray(events) ? events : []).filter(event =>
+      event && event.type === "goal" && event.side === "opponent");
+    if (conceded.some(event => Number(event.minute) <= played)) return false;
+    // A substitution preserves a player's clean sheet, but goals conceded after a red card still count against them.
+    if (redCardMinute != null && conceded.some(event => Number(event.minute) > Number(redCardMinute))) return false;
+    return true;
+  }
   function simulateMatch(options = {}) {
     const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
     const random = seededRandom(simulationSeed);
@@ -254,10 +265,7 @@
     const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
     const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
-    const cleanSheetEligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(position);
-    const concededWhileOnPitch = events.some(event => event.type === "goal"
-      && event.side === "opponent" && Number(event.minute) <= minutes);
-    stats.cleanSheet = cleanSheetEligible && minutes >= 60 && !concededWhileOnPitch;
+    stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, finalAgainst);
     
     if (minutes > 0) {
@@ -349,5 +357,5 @@
       metadata: result.metadata || {}
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerEarnsCleanSheet, buildStoryReport };
 })();

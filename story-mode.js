@@ -385,10 +385,11 @@ function matchNarrativeSummary(report){
   var p=report.player||report.playerStats||{};
   var minutes=finiteNumber(p.minutes),rating=finiteNumber(p.rating!=null?p.rating:p.averageRating);
   var goals=finiteNumber(p.goals),assists=finiteNumber(p.assists);
+  var tackles=finiteNumber(p.tackles),interceptions=finiteNumber(p.interceptions),saves=finiteNumber(p.saves),cleanSheet=p.cleanSheet===true;
   var outcome=gf>ga?"win":gf<ga?"loss":"draw";
-  var performance=rating>=8?"excellent":rating>0&&rating<6?"poor":"steady";
-  return {outcome:outcome,score:{for:gf,against:ga},minutes:minutes,rating:rating,goals:goals,assists:assists,performance:performance,
-    key:[Number(report.season)||0,Number(report.week||report.day)||0,gf,ga,minutes,rating,goals,assists].join(":")};
+  var performance=rating>=7.5?"excellent":rating>0&&rating<6.2?"poor":"steady";
+  return {outcome:outcome,score:{for:gf,against:ga},minutes:minutes,rating:rating,goals:goals,assists:assists,tackles:tackles,interceptions:interceptions,saves:saves,cleanSheet:cleanSheet,performance:performance,
+    key:[Number(report.season)||0,Number(report.week||report.day)||0,gf,ga,minutes,rating,goals,assists,tackles,interceptions,saves,cleanSheet?1:0].join(":")};
 }
 function acceptMatchReport(report){
   var api=API(),s=api&&api.getState?api.getState():null;if(!s||!report)return {ok:false,reason:"career-state-unavailable"};
@@ -404,6 +405,12 @@ function acceptMatchReport(report){
   if(summary.goals)body+=" وسجلت "+summary.goals+" هدف";
   if(summary.assists)body+=" وصنعت "+summary.assists+" هدف";
   if(summary.rating>0)body+="، وتقييمك "+summary.rating.toFixed(1);
+  if(summary.cleanSheet)body+=" وحافظت على شباك نظيفة.";
+  if(summary.tackles)body+=" ونجحت في "+summary.tackles+" افتكاك.";
+  if(summary.interceptions)body+=" وقطعت "+summary.interceptions+" تمريرة للمنافس.";
+  if(summary.saves)body+=" وتصديت لـ"+summary.saves+" تسديدة.";
+  if(summary.outcome==="loss"&&summary.rating>=7.5)body+=" رغم الخسارة، أداؤك الفردي كان قويًا.";
+  else if(summary.outcome==="win"&&summary.rating>0&&summary.rating<6.2)body+=" النتيجة إيجابية، لكن أداءك الفردي محتاج يتحسن.";
   if(!Array.isArray(s.inbox))s.inbox=[];
   s.inbox.unshift({id:"match-report-"+summary.key,title:title,body:body,category:"match",day:Number(s.day)||1,season:Number(s.season)||1,read:false});
   s.inbox=s.inbox.slice(0,80);

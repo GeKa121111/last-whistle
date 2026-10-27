@@ -8,9 +8,9 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const worldDbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
 const summaryStart = html.indexOf("function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){");
-const summaryEnd = html.indexOf("\\nfunction playCupMatch()", summaryStart);
+const summaryEnd = html.indexOf("\nfunction playCupMatch()", summaryStart);
 assert.ok(summaryStart >= 0 && summaryEnd > summaryStart, "cup result summary helper must exist");
-const summarySource = html.slice(summaryStart, summaryEnd) + "\\nthis.cupLegResultSummary = cupLegResultSummary;";
+const summarySource = html.slice(summaryStart, summaryEnd) + "\nthis.cupLegResultSummary = cupLegResultSummary;";
 assert.ok(html.includes("cupLegResultSummary(result,opponent,isTwoLegTie&&tieLegAtKickoff===2)"),
   "the cup flow must explain the actual leg result and aggregate result separately");
 const start = html.indexOf("function cupParticipants(comp,count){");

@@ -4257,6 +4257,8 @@ function renderPositionDevelopment(){
 }
 function render(){
  const page=state.currentPage||"home";
+ const careerWelcomeBanner=document.querySelector(".hero");
+ if(careerWelcomeBanner){careerWelcomeBanner.hidden=!!state.careerStarted;careerWelcomeBanner.style.display=state.careerStarted?"none":"";}
  const isGoalkeeper=state.pos==="حارس مرمى";
  if(!isGoalkeeper)state.goalkeeping=clamp(Number(state.goalkeeping)||12,10,15);
  const goalkeeperSkillRow=$("skill-goalkeeping")?.closest(".progressRow");

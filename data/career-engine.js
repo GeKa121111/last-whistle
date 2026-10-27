@@ -106,13 +106,13 @@
 
   const STARTING_RANGES = {
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
-    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[40,50], physical:[55,66] },
-    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[5,12], vision:[45,55], physical:[52,62] },
-    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[5,12], vision:[55,65], physical:[52,62] },
-    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[5,12], vision:[55,65], physical:[40,55] },
-    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[5,12], vision:[50,60], physical:[45,58] },
-    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[5,12], vision:[51,62], physical:[45,57] },
-    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[5,12], vision:[42,54], physical:[53,65] }
+    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[40,50], physical:[55,66] },
+    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[45,55], physical:[52,62] },
+    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[10,15], vision:[55,65], physical:[52,62] },
+    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[10,15], vision:[55,65], physical:[40,55] },
+    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[10,15], vision:[50,60], physical:[45,58] },
+    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[10,15], vision:[51,62], physical:[45,57] },
+    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[10,15], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
     const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
@@ -217,6 +217,7 @@
     const weights = OVR_WEIGHTS[state.pos] || OVR_WEIGHTS["جناح"];
     let weighted = 0, totalWeight = 0;
     for (const [key, weight] of Object.entries(weights)) {
+      if (state.pos !== "حارس مرمى" && key === "goalkeeping") continue;
       const value = Number(state[key]);
       weighted += (Number.isFinite(value) ? value : 0) * weight;
       totalWeight += weight;

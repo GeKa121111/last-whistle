@@ -3732,6 +3732,8 @@ function calendarHasConflict(day, excludeKind=""){
  return (state.calendarEvents||[]).some(e=>Number(e.day)===Number(day)&&e.kind!==excludeKind&&["league-match","cup-match","international-match"].includes(e.kind));
 }
 function nextAvailableMatchDay(start,kind){let d=Number(start)||state.calendarDay;while(calendarHasConflict(d,kind))d++;return d;}
+function seasonMatchIntervalDays(){const matches=Math.max(1,Number(seasonMatchTotal())||1);return Math.max(5,Math.min(15,Math.ceil(300/matches)));}
+function daysUntilNextSummerWindow(calendarDay=state.calendarDay){const day=Math.max(1,Number(calendarDay)||1),d=((day-1)%365)+1;return d<=62?0:365-d+1;}
 function transferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1,year=Math.floor((calendarDay-1)/365);if(d<=62)return {open:true,id:"summer-"+year,name:"الانتقالات الصيفية",days:62-d};if(d>=184&&d<=214)return {open:true,id:state.winterBreakPending?"winter-season-"+state.season:"winter-"+year,name:"الانتقالات الشتوية",days:214-d};return {open:false,id:"closed-"+year,name:"السوق مغلق",days:d<184?184-d:365-d+1};}
 function canAccessTransferMarket(){return Number(state.age)>=18&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending;}
 function isNaturalWinterTransferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1;return d>=184&&d<=214;}
@@ -4853,12 +4855,12 @@ function simulateSeasonBlock(targetApps){
   let fixture=round.find(pair=>Array.isArray(pair)&&pair.includes(ours));
   if(!fixture){
    // Odd-sized league: the player has a bye, but the other fixtures still count.
-   simulateOtherFixtures(roundIndex,null);recordLeagueByeRound(roundIndex);state.leagueRoundIndex=roundIndex+1;state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;advanceCalendarDays(1,"استشفاء خلال أسبوع الراحة");advanceCalendarDays(4,"استشفاء قبل الجولة التالية");simulated++;continue;
+   simulateOtherFixtures(roundIndex,null);recordLeagueByeRound(roundIndex);state.leagueRoundIndex=roundIndex+1;state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;advanceCalendarDays(seasonMatchIntervalDays(),"استشفاء خلال أسبوع الراحة قبل الجولة التالية");simulated++;continue;
   }
   const opponent=fixture.find(name=>name!==ours),opponentTeam=state.league.find(team=>team.name===opponent);if(!opponent||!opponentTeam)break;
   // Keep calendar, recovery and wages in sync with manual fixtures, including a
   // transfer made on the same day as the player's previous league match.
-  const daysUntilLeagueMatch=window.LWCareer?.leagueMatchDaysRemaining(state.lastLeagueMatchCalendarDay,state.calendarDay,5)||0;
+  const daysUntilLeagueMatch=window.LWCareer?.leagueMatchDaysRemaining(state.lastLeagueMatchCalendarDay,state.calendarDay,seasonMatchIntervalDays())||0;
   if(daysUntilLeagueMatch>0)advanceCalendarDays(daysUntilLeagueMatch,"انتظار حتى موعد مباراة الدوري");
   let conflictGuard=0;while(calendarHasConflict(state.calendarDay,"")&&conflictGuard<31){advanceCalendarDays(1,"تجنب تعارض موعد مباراة");conflictGuard++;}
   const id=buildMatchId("league",state.leagueCompetition,roundIndex+1,ours),dKey=disciplineKey("league",state.leagueCountry,state.leagueCompetition);
@@ -4872,7 +4874,7 @@ function simulateSeasonBlock(targetApps){
   const injuryText=result.player.injuryDays?` إصابة ${result.player.injuryDays} يوم.`:"";
   simulated++;
   // AI-managed development: one position-specific training day, followed by recovery before the next fixture.
-  advanceCalendarDays(1,"استشفاء بعد المباراة");advanceCalendarDays(4,"استشفاء وتجهيز للمباراة التالية");
+  advanceCalendarDays(1,"استشفاء بعد المباراة");advanceCalendarDays(seasonMatchIntervalDays()-1,"استشفاء وتجهيز للمباراة التالية");
   if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&state.seasonPhase==="firstHalf"&&state.seasonApps>=seasonMidpoint()&&state.seasonApps<seasonMatchTotal()&&!state.winterBreakPending){state.seasonPhase="winterBreak";state.winterBreakPending=true;state.journeyTransferReviewed=false;setStory("وصلنا لنص الموسم",`خلصت أول ${state.seasonApps} مباريات ووصلنا لنافذة يناير. راجع السوق أو قرر الاستمرار قبل النصف التاني.`);log("وصلت لنقطة التوقف الشتوية داخل نافذة يناير الطبيعية.");break;}
   if(injuryText)log(`${state.name} سيغيب ${result.player.injuryDays} يومًا بعد المباراة.`);
  }
@@ -4899,7 +4901,7 @@ function match(tactic=""){
  if(state.playedToday){toast("إنت لعبت مباراة النهارده بالفعل. تقدّم لليوم التالي.");return;}
  if(state.trainedToday){toast("اتدربت النهارده بالفعل. تقدّم ليوم جديد قبل المباراة.");return;}
  if(state.injuryDays>0){checkAction("match",20);return;}
- const waitDays=window.LWCareer?.leagueMatchDaysRemaining(state.lastLeagueMatchCalendarDay,state.calendarDay,5)||0;
+ const waitDays=window.LWCareer?.leagueMatchDaysRemaining(state.lastLeagueMatchCalendarDay,state.calendarDay,seasonMatchIntervalDays())||0;
  if(waitDays>0){toast(`موعد مباراة الدوري التالية بعد ${waitDays} ${waitDays===1?"يوم":"أيام"}. تقدر تتدرب أو تستريح خلال الفترة دي.`);return;}
  if(calendarHasConflict(state.calendarDay,"")){toast("عندك مباراة أو موعد بطولة مسجل النهارده؛ تقدّم ليوم تاني.");return;}
  ensureLeague();ensureFixtureSchedule();
@@ -5162,6 +5164,11 @@ async function startNewSeason(showStory=true){
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}
  if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!state.freeAgent&&Number(state.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return;}
  if(state.loan)returnFromLoan();
+ // Every career season starts in the summer window. The previous season's fixtures
+ // can finish before July, so advance through the off-season instead of letting
+ // later seasons drift between the summer and winter windows.
+ const offSeasonDays=daysUntilNextSummerWindow(state.calendarDay);
+ if(offSeasonDays>0)advanceCalendarDays(offSeasonDays,"فترة الإعداد قبل الموسم وفتح نافذة الصيف");
  const academyBeforeSeason=isYouthAcademyPlayer();const reserveBeforeSeason=!!state.academyReserve;
  state.season++;state.age++;state.currentCompetitions=[];state.transferOffers=[];state.transferOffersWindowId="";state.transferNegotiation=null;
  if(window.LWAgentRuntime?.ensureState)window.LWAgentRuntime.ensureState(state);

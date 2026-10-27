@@ -5249,7 +5249,7 @@ function bind(){
   else if(a==="rest")rest();else if(a==="night")nightOut();else if(a==="social")social();else if(a==="coach")talkCoach();else if(a==="match")match();else if(a==="next-day")nextDay();
  }));
  $("heroMatch").addEventListener("click",()=>match());$("heroTrain").addEventListener("click",()=>showPage("training"));$("heroStory").addEventListener("click",heroStory);
- $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} جنيه\nالمواسم المتبقية: ${state.contractSeasons}\nثقة الجهاز الفني: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
+ $("negotiateBtn").addEventListener("click",negotiate);$("contractDetailsBtn").addEventListener("click",()=>openModal("تفاصيل العقد",`النادي: ${club().name}\nالمرتب الأسبوعي: ${state.weeklyWage} ${currencyLabel()}\nالمواسم المتبقية: ${state.contractSeasons}\nثقة الجهاز الفني: ${state.trust}\nالتقييم العام: ${overall()}`, [{label:"تمام",className:"primary",action:()=>{}}]));
  $("nationalMatchBtn").addEventListener("click",nationalMatch);$("sponsorBtn").addEventListener("click",negotiateSponsorship);
  $("shopFilters").addEventListener("click",e=>{const b=e.target.closest("[data-shop-category]");if(!b)return;activeShopCategory=b.dataset.shopCategory||"all";renderShop();});
  $("shopItems").addEventListener("click",e=>{const b=e.target.closest("[data-buy]");if(b)buyItem(b.dataset.buy);});

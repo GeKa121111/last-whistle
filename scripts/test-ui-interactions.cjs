@@ -117,17 +117,25 @@ assert.equal(defenderChallenge.progress, 12,
   "defender challenge should combine tackles, interceptions, and clean-sheet credit");
 assert.equal(defenderChallenge.done, true, "defender challenge should not depend on scoring goals");
 const creatorChallenge = sandbox.seasonCareerChallenge({
-  pos: "وسط مهاجم", season: 3, seasonAssists: 2,
-  careerMatchHistory: [{ season: 3, minutes: 90, stats: { keyPasses: 4 } }]
+  pos: "وسط مهاجم", season: 3, seasonAssists: 0,
+  careerMatchHistory: [{ season: 3, scope: "cup", minutes: 90, goals: 0, assists: 2, stats: { keyPasses: 4 } }]
 });
 assert.equal(creatorChallenge.progress, 8,
   "attacking midfield challenge should reward key passes and assists");
 assert.equal(creatorChallenge.done, true, "creative midfield challenge should reward creation without requiring goals");
 const strikerChallenge = sandbox.seasonCareerChallenge({
-  pos: "رأس حربة", season: 3, seasonGoals: 2, seasonAssists: 0, careerMatchHistory: []
+  pos: "رأس حربة", season: 3, seasonGoals: 0, seasonAssists: 0,
+  careerMatchHistory: [{ season: 3, scope: "cup", minutes: 75, goals: 2, assists: 0, stats: {} }]
 });
 assert.equal(strikerChallenge.progress, 2, "striker challenge should continue to track goals and assists");
 assert.equal(strikerChallenge.done, false, "striker challenge should require three attacking contributions");
+
+const priorSeasonChallenge = sandbox.seasonCareerChallenge({
+  pos: "رأس حربة", season: 4, seasonGoals: 9, seasonAssists: 9,
+  careerMatchHistory: [{ season: 3, scope: "cup", minutes: 90, goals: 4, assists: 1, stats: {} }]
+});
+assert.equal(priorSeasonChallenge.progress, 0,
+  "previous-season goals and assists must not leak into the current season challenge");
 
 
 // Player setup must normalize names and keep the career from starting when the name is empty.

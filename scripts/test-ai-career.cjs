@@ -209,6 +209,25 @@ assert.equal(contradictedCleanSheet.context.cleanSheetsLastFive, 0,
   "a saved clean-sheet flag must be rejected when the recorded opponent score is non-zero");
 assert.equal(contradictedCleanSheet.context.roleContributionLastFive, false,
   "a contradictory clean-sheet flag must not improve defensive form");
+
+const legacySeasonLogRows = [
+  ...Array.from({ length: 5 }, (_, i) => ({
+    scope: "league", minutes: 90, rating: 4.8 + i * 0.1, goals: 0, assists: 0, matchId: "legacy-old-" + i
+  })),
+  ...Array.from({ length: 5 }, (_, i) => ({
+    scope: "league", minutes: 90, rating: 8.4 + i * 0.1, goals: 1, assists: 0, matchId: "legacy-new-" + i
+  }))
+];
+const legacyHistoryFallback = ai.utilityScores({
+  pos: "رأس حربة", age: 25, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  careerMatchHistory: [], seasonLog: legacySeasonLogRows, lastRating: 6.0
+}, 70);
+assert.equal(legacyHistoryFallback.context.recentMatches, 5,
+  "legacy saves with an empty careerMatchHistory must fall back to seasonLog");
+assert.ok(legacyHistoryFallback.context.averageRating > 8.4 && legacyHistoryFallback.context.averageRating < 8.8,
+  "legacy seasonLog fallback must use the latest five entries, not the oldest five");
+assert.equal(legacyHistoryFallback.context.goalsLastFive, 5,
+  "legacy seasonLog fallback must aggregate the latest five match contributions");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), true, "the AI must persist a new recommendation into its seasonal ledger");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), false, "the same recommendation must not be recorded twice in a season");
 const changedAdvice = ai.coachAdvice(academyState, 58);

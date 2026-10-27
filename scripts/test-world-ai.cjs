@@ -448,5 +448,61 @@ for (const nextSeason of [3, 4]) {
   assertWorldOwnership(roundTripWorld, "reloaded season " + nextSeason);
 }
 
+// A full squad must not recruit a fifth attacker or an extra goalkeeper, including from free agency.
+const squadDepthSave = { season: 1, age: 24, name: "Squad depth regression", pos: "مهاجم",
+  clubName: "Squad depth test", leagueCountry: "مصر", leagueDivision: 1 };
+const squadDepthWorld = ai.ensureState(squadDepthSave, db);
+const targetClub = Object.values(squadDepthWorld.clubs)
+  .filter(club => Number(club.division) === 1 && (club.roster || []).length === 16)
+  .sort((a, b) => Number(b.power || 0) - Number(a.power || 0))[0];
+assert.ok(targetClub, "the squad-depth regression needs a 16-player first-division club");
+const roleSequence = [
+  "goalkeeper", "goalkeeper",
+  "defender", "defender", "defender", "defender", "defender",
+  "midfielder", "midfielder", "midfielder", "midfielder", "midfielder",
+  "attacker", "attacker", "attacker", "attacker"
+];
+const rolePositions = { goalkeeper: "حارس مرمى", defender: "قلب دفاع", midfielder: "وسط مهاجم", attacker: "رأس حربة" };
+for (const club of Object.values(squadDepthWorld.clubs)) {
+  const isTarget = club.id === targetClub.id;
+  club.basePower = isTarget ? 97 : 40;
+  club.power = isTarget ? 97 : 40;
+  club.prestige = isTarget ? 100 : 50;
+  club.budget = isTarget ? 100000 : 0;
+  for (const [index, id] of (club.roster || []).entries()) {
+    const player = squadDepthWorld.players[id];
+    if (!player) continue;
+    player.ovr = isTarget ? 88 : 40;
+    player.potential = isTarget ? 94 : 45;
+    player.age = 25;
+    player.contractSeasons = 4;
+    player.freeAgent = false;
+    player.clubId = club.id;
+    if (isTarget) {
+      const group = roleSequence[index];
+      assert.ok(group, "the test club should have exactly the expected 16 roster slots");
+      player.group = group;
+      player.position = rolePositions[group];
+    }
+  }
+}
+assert.equal(targetClub.roster.length, 16, "the test club must start with a legal 16-player squad");
+const surplusAttacker = {
+  id: "squad-depth-free-agent", name: "Squad depth free agent", clubId: "", country: "مصر", leagueId: "",
+  division: 0, position: "رأس حربة", group: "attacker", ovr: 88, potential: 92, age: 25,
+  contractSeasons: 0, freeAgent: true, previousClubId: ""
+};
+squadDepthWorld.players[surplusAttacker.id] = surplusAttacker;
+squadDepthWorld.playerHistory[surplusAttacker.id] = [];
+const squadDepthTransition = ai.advanceToSeason(squadDepthSave, 2, db);
+assert.ok(!squadDepthTransition.moves.some(move => move.to === targetClub.name),
+  "a club at every positional target must not add surplus players in the normal or free-agent market");
+assert.equal(squadDepthWorld.players[surplusAttacker.id].freeAgent, true,
+  "a free agent must remain unattached when every eligible club already has its attacker quota");
+assert.equal(targetClub.roster.filter(id => squadDepthWorld.players[id] && squadDepthWorld.players[id].group === "attacker").length, 4,
+  "the AI must not turn a full four-forward group into a five-forward group");
+assert.equal(targetClub.roster.filter(id => squadDepthWorld.players[id] && squadDepthWorld.players[id].group === "goalkeeper").length, 2,
+  "the AI must not overfill the two-goalkeeper target");
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

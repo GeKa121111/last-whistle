@@ -484,6 +484,8 @@
   function needScore(club, group, roleStats) {
     const row = roleStats[group];
     if (!row) return 0;
+    // This market only adds players; never recruit beyond the squad's role target.
+    if (row.count >= TARGETS[group]) return 0;
     const deficit = Math.max(0, TARGETS[group] - row.count);
     const qualityGap = Math.max(0, club.power - row.average - 4);
     const topQualityGap = Math.max(0, club.power - row.best - 6);
@@ -760,6 +762,7 @@
   "use strict";
   const base = global.LWWorldAI;
   if (!base) return;
+  const ROLE_TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
   const hash = value => {
@@ -1258,32 +1261,55 @@
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
     const clubs = Object.values(world.clubs).filter(club => Number(club.division) === 1 && (club.roster || []).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
+    const roleCountsByClub = new Map();
+    for (const club of clubs) {
+      const counts = Object.create(null);
+      for (const id of club.roster || []) {
+        const player = world.players[id];
+        if (!player || player.freeAgent) continue;
+        const group = player.group || base.groupForPosition(player.position);
+        counts[group] = (counts[group] || 0) + 1;
+      }
+      roleCountsByClub.set(club.id, counts);
+    }
     const usedClubs = new Set(), signed = [];
     const maxSignings = Math.min(12, Math.max(2, Math.round(clubs.length * 0.10)));
     for (const player of freeAgents) {
       if (signed.length >= maxSignings) break;
-      const eligible = clubs.filter(club => !usedClubs.has(club.id)
-        && Number(club.roster.length) < 18 && (!player.previousClubId || player.previousClubId !== club.id)
-        && Number(player.ovr) <= Number(club.power || 55) + 10
-        && Number(player.ovr) >= Number(club.power || 55) - 23
-        && (player.age || 18) < 37);
+      const group = player.group || base.groupForPosition(player.position);
+      const roleTarget = ROLE_TARGETS[group];
+      if (!roleTarget) continue;
+      const eligible = clubs.filter(club => {
+        const counts = roleCountsByClub.get(club.id) || {};
+        return !usedClubs.has(club.id)
+          && Number(club.roster.length) < 18
+          && (!player.previousClubId || player.previousClubId !== club.id)
+          && Number(player.ovr) <= Number(club.power || 55) + 10
+          && Number(player.ovr) >= Number(club.power || 55) - 23
+          && (player.age || 18) < 37
+          && (counts[group] || 0) < roleTarget;
+      });
       if (!eligible.length) continue;
-      const buyer = eligible.find(club => {
-        const counts = {};
-        (club.roster || []).forEach(id => { const row = world.players[id]; if (row) counts[row.group] = (counts[row.group] || 0) + 1; });
-        return (counts[player.group] || 0) < 5;
-      }) || eligible[0];
+      // Prefer the club with the largest vacancy in this exact role, then club strength.
+      eligible.sort((a,b) => {
+        const aCount = (roleCountsByClub.get(a.id) || {})[group] || 0;
+        const bCount = (roleCountsByClub.get(b.id) || {})[group] || 0;
+        return aCount - bCount || Number(b.power || 50) - Number(a.power || 50) || String(a.id).localeCompare(String(b.id));
+      });
+      const buyer = eligible[0];
       const previousClub = player.previousClubId && world.clubs[player.previousClubId];
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.freeAgent = false;
       player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
       buyer.roster.push(player.id);
+      const counts = roleCountsByClub.get(buyer.id);
+      counts[group] = (counts[group] || 0) + 1;
       usedClubs.add(buyer.id);
       const move = {
         id: "world-transfer-" + season + "-free-" + hash(player.id + "|" + buyer.id).toString(36),
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
-        group: player.group, from: oldClubName, fromCountry: previousClub ? previousClub.country : "",
+        group, from: oldClubName, fromCountry: previousClub ? previousClub.country : "",
         to: buyer.name, toCountry: buyer.country, fee: 0, currency: buyer.currency,
         reason: "تعاقد مجاني • احتياج في المركز وخبرة/إمكانات مناسبة",
         playerOvr: player.ovr, kind: "تعاقد مع لاعب حر — محاكاة"
@@ -1597,7 +1623,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=2");
+    const worker = new global.Worker("./football-world-worker.js?v=3");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

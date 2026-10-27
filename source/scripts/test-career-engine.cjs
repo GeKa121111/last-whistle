@@ -289,8 +289,6 @@ console.log("PASS: career progression, match-history deduplication, loan contrac
 
 
 // The career engine embedded in the deployed HTML must stay behaviorally aligned with source.
-const fs = require("node:fs");
-const vm = require("node:vm");
 const deployedHtml = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
 const inlineScripts = deployedHtml.split("<script").slice(1).map(part => part.slice(part.indexOf(">") + 1, part.indexOf("</script>")));
 const careerBundle = inlineScripts.find(script => script.includes("window.LWCareer ="));

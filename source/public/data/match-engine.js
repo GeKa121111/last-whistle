@@ -43,6 +43,19 @@
     if (fatigue > 70) minutes -= 12;
     return Math.round(clamp(minutes, 0, 90));
   }
+  function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    const tackles = Math.max(0, Number(stats.tackles) || 0);
+    const interceptions = Math.max(0, Number(stats.interceptions) || 0);
+    const saves = Math.max(0, Number(stats.saves) || 0);
+    const conceded = Math.max(0, Number(goalsAgainst) || 0);
+    const cleanSheetBonus = stats.cleanSheet === true ? 0.55 : 0;
+    if (position === "حارس مرمى") return saves * 0.38 + cleanSheetBonus - Math.min(4, conceded) * 0.06;
+    if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
+      return tackles * 0.26 + interceptions * 0.30 + cleanSheetBonus * 0.65;
+    }
+    if (position === "وسط مهاجم") return tackles * 0.12 + interceptions * 0.12;
+    return tackles * 0.05 + interceptions * 0.05;
+  }
   function simulateMatch(options = {}) {
     const random = seededRandom(options.seed === undefined ? hash(JSON.stringify(options)) : options.seed);
     const player = options.player && typeof options.player === "object" ? options.player : {};
@@ -78,7 +91,7 @@
     const events = [];
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
-      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0,
+      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, cleanSheet: false,
       yellowCards: 0, redCards: 0, injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
       rating: 0, playerAvailable: minutes > 0
     };
@@ -224,11 +237,12 @@
     const win = aggregateOffset + finalFor - finalAgainst > 0 || (aggregateOffset + finalFor - finalAgainst === 0 && shootout.won === true);
     const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
-    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 + stats.tackles * 0.18 + stats.interceptions * 0.12 + stats.saves * 0.22 - stats.fouls * 0.1;
-    const positionContext = profile.goalkeeper ? stats.saves * 0.18 - finalAgainst * 0.24 : position === "قلب دفاع" || position === "ظهير" || position === "وسط دفاعي" ? stats.tackles * 0.12 - finalAgainst * 0.06 : 0;
+    stats.cleanSheet = minutes >= 60 && finalAgainst === 0;
+    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, finalAgainst);
+    
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
-      stats.rating = Math.round(clamp((6.05 + (impact + positionContext) * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
+      stats.rating = Math.round(clamp((6.05 + impact * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
     if (minutes > 0 && minutes < 90 && !redCard && !injured) events.push({ type: "substitution", minute: minutes, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
@@ -296,7 +310,11 @@
         shots: Number(player.shots) || 0,
         redCards: Number(player.redCards) || 0,
         yellowCards: Number(player.yellowCards) || 0,
-        injuryDays: Number(player.injuryDays) || 0
+        injuryDays: Number(player.injuryDays) || 0,
+        tackles: Number(player.tackles) || 0,
+        interceptions: Number(player.interceptions) || 0,
+        saves: Number(player.saves) || 0,
+        cleanSheet: player.cleanSheet === true
       },
       events: Array.isArray(result.events) ? result.events.map(event => ({
         minute: Number(event.minute) || 0,
@@ -307,5 +325,5 @@
       metadata: result.metadata || {}
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, buildStoryReport };
 })();

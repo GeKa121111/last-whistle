@@ -3757,6 +3757,29 @@ function transferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)
 function canAccessTransferMarket(){return !state.retired&&Number(state.age)>=18&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending;}
 function isNaturalWinterTransferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1;return d>=184&&d<=214;}
 function reconcileWinterBreakState(){if(!state.winterBreakPending)return false;if(canAccessTransferMarket()&&isNaturalWinterTransferWindow())return false;state.winterBreakPending=false;if(state.seasonPhase==="winterBreak")state.seasonPhase="secondHalf";return true;}
+function activateMidSeasonBreakIfDue(){
+ const total=Math.max(0,Number(seasonMatchTotal())||0);
+ if(!canAccessTransferMarket()||state.retired||state.seasonFinished||total<8
+   ||state.seasonPhase!=="firstHalf"||Number(state.seasonApps||0)<seasonMidpoint()
+   ||Number(state.seasonApps||0)>=total||state.winterBreakPending)return false;
+ const today=Math.max(1,Number(state.calendarDay)||1);
+ let dayOfYear=((today-1)%365)+1;
+ // If the January window has already passed, do not leave the career stuck waiting for next year's window.
+ if(dayOfYear>214){state.seasonPhase="secondHalf";return false;}
+ // Calendar advancement uses the normal route so wages, recovery and cooldowns stay consistent.
+ if(dayOfYear<184){
+  advanceCalendarDays(184-dayOfYear,"الوصول إلى نافذة الشتاء بعد منتصف الموسم");
+  dayOfYear=((Math.max(1,Number(state.calendarDay)||1)-1)%365)+1;
+ }
+ if(dayOfYear<184||dayOfYear>214)return false;
+ state.seasonPhase="winterBreak";
+ state.winterBreakPending=true;
+ state.journeyTransferReviewed=false;
+ setStory("وصلنا لنص الموسم",`خلصت أول ${state.seasonApps} مباريات من ${total} ووصلت لنافذة يناير. راجع السوق أو قرر الاستمرار قبل النصف التاني.`);
+ log("وصلت لنقطة التوقف الشتوية بعد منتصف مباريات الدوري داخل نافذة يناير.");
+ saveGame(true);
+ return true;
+}
 function cupParticipants(comp,count){
  const base=[...(comp.teams||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[1]||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[2]||[]),...Object.values(LEAGUE_ROSTERS).flatMap(x=>[...(x[1]||[]),...(x[2]||[])])];
  const unique=[...new Set(base.filter(n=>n&&n!==clubNameForLeague()))];
@@ -4894,9 +4917,10 @@ function simulateSeasonBlock(targetApps){
   state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;state.seasonApps++;state.leagueApps++;state.leagueRoundIndex=roundIndex+1;updateLeague(opponent,gf,ga,roundIndex);simulateOtherFixtures(roundIndex,fixture);recordLeagueRound(roundIndex,fixture,opponent,gf,ga,settled);
   const injuryText=result.player.injuryDays?` إصابة ${result.player.injuryDays} يوم.`:"";
   simulated++;
+  // Pause at the fixture midpoint before recovery spacing can skip the winter window.
+  if(activateMidSeasonBreakIfDue())break;
   // AI-managed development: one position-specific training day, followed by recovery before the next fixture.
   advanceCalendarDays(1,"استشفاء بعد المباراة");advanceCalendarDays(seasonMatchIntervalDays()-1,"استشفاء وتجهيز للمباراة التالية");
-  if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&state.seasonPhase==="firstHalf"&&state.seasonApps>=seasonMidpoint()&&state.seasonApps<seasonMatchTotal()&&!state.winterBreakPending){state.seasonPhase="winterBreak";state.winterBreakPending=true;state.journeyTransferReviewed=false;setStory("وصلنا لنص الموسم",`خلصت أول ${state.seasonApps} مباريات ووصلنا لنافذة يناير. راجع السوق أو قرر الاستمرار قبل النصف التاني.`);log("وصلت لنقطة التوقف الشتوية داخل نافذة يناير الطبيعية.");break;}
   if(injuryText)log(`${state.name} سيغيب ${result.player.injuryDays} يومًا بعد المباراة.`);
  }
  if(state.seasonApps>=seasonMatchTotal()){state.seasonPhase="complete";state.winterBreakPending=false;setStory("اكتمل الموسم",`خلصت ${state.seasonApps} مباراة من أصل ${seasonMatchTotal()} في الموسم ${state.season}. اتسجلت المشاركات الفعلية فقط.`);log("اكتملت محاكاة الموسم بالكامل.");saveGame(true);render();finishSeason();return;}
@@ -4937,14 +4961,15 @@ function match(tactic=""){
  if(!result){toast("تعذر تشغيل محرك المباراة.");return;}
  const settled=applyMatchResult(result,{id,scope:"league",country:state.leagueCountry,competition:state.leagueCompetition,opponent,tactic,home:fixture[0]===ours,matchday:roundIndex+1,suspendedAtKickoff:suspended});if(!settled){toast("تم منع تسجيل نتيجة مباراة مكررة.");return;}
  state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;state.seasonApps++;state.leagueApps++;state.leagueRoundIndex=roundIndex+1;updateLeague(opponent,result.score.for,result.score.against,roundIndex);simulateOtherFixtures(roundIndex,fixture);recordLeagueRound(roundIndex,fixture,opponent,result.score.for,result.score.against,settled);
- if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&seasonMatchTotal()>=8&&state.seasonPhase==="firstHalf"&&state.seasonApps>=seasonMidpoint()&&state.seasonApps<seasonMatchTotal()&&!state.winterBreakPending){state.seasonPhase="winterBreak";state.winterBreakPending=true;state.journeyTransferReviewed=false;setStory("وصلنا لنص الموسم","خلصت أول "+state.seasonApps+" مباراة ووصلنا لنافذة يناير. راجع السوق أو قرر الاستمرار قبل النصف التاني.");log("وصلت لنقطة التوقف الشتوية داخل نافذة يناير الطبيعية في اللعب اليدوي.");}
+ activateMidSeasonBreakIfDue();
  const tactics={balanced:"متوازن",attack:"ضغط هجومي",defend:"دفاع منظم",counter:"مرتدات"};
  const m=result.player,events=formatMatchEvents(result.events),participation=m.minutes>0?`دقائق لعبك ${m.minutes} • تقييمك ${m.rating.toFixed(1)}/10 • تسديداتك ${m.shots}${m.goals?` • أهدافك ${m.goals}`:""}${m.assists?` • صناعة ${m.assists}`:""}`:suspended?`لم تشارك؛ إيقاف متبقٍ: ${state.suspensions[dKey]||0} مباراة.`:"لم تشارك في المباراة.";
  const reward=settled.matchPay?` مكافأة المشاركة ${settled.matchPay} ${currencyLabel()}.`:" لا توجد مكافأة مشاركة لأنك لم تلعب.";
  const incidentText=events?`\nأحداث موثقة: ${events}`:"";
  const injuryText=m.injuryDays?`\nإصابة بعد المباراة: ${state.injuryName} (${m.injuryDays} يوم).`:"";
- const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{},story=`${club().name} ${score.for}-${score.against} ${opponent} (${result.outcome}). خطتك: ${tactics[tactic]||tactic}. تكتيك الخصم: ${opponentTactics[result.metadata?.opponentTactic]||"متوازن"}. ${participation}.${reward}${incidentText}${injuryText}`;
- setStory("صافرة النهاية: "+result.outcome,story);saveGame(true);render();
+ const midSeasonNotice=state.winterBreakPending?" وصلت لنقطة منتصف الموسم؛ راجع عروض انتقالات الشتاء قبل تكملة النصف الثاني.":"";
+ const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{},story=`${club().name} ${score.for}-${score.against} ${opponent} (${result.outcome}). خطتك: ${tactics[tactic]||tactic}. تكتيك الخصم: ${opponentTactics[result.metadata?.opponentTactic]||"متوازن"}. ${participation}.${reward}${incidentText}${injuryText}${midSeasonNotice}`;
+ setStory(state.winterBreakPending?"وصلنا لنص الموسم — راجع انتقالات الشتاء":"صافرة النهاية: "+result.outcome,story);saveGame(true);render();
  openModal("صافرة النهاية — "+result.outcome,story,[{label:"راجع الأداء",className:"primary",action:()=>{render();showPage("home");}},{label:"افتح جدول الدوري",action:()=>showPage("league")}]);
  if(state.seasonApps>=seasonMatchTotal())setTimeout(()=>finishSeason(),50);
 }
@@ -5544,7 +5569,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 </script>
 <script src="./story-mode.js?v=10"></script>
 <script src="./career-experience.js?v=5"></script>
-<script src="./agent-system.js?v=2"></script>
+<script src="./agent-system.js?v=3"></script>
 <script src="./career-hub.js?v=1"></script>
 <script src="./ai-career-engine.js?v=5"></script>
 <script src="./ai-career-ui.js?v=1"></script>

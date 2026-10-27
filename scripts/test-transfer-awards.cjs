@@ -11,7 +11,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 1);
+assert.equal(engine.version, 2);
 
 // Defensive and attacking midfield labels must both use midfielder production
 // rates. A deterministic same-player fixture makes role-only differences visible.
@@ -118,7 +118,11 @@ const realPlayers = [
   { name: "محمد صلاح", clubName: "ليفربول", country: "إنجلترا", position: "جناح", ovr: 90, prestige: 97, leagueStrength: 98, age: 34, confederation: "UEFA", originConfederation: "CAF" },
   { name: "إمام عاشور", clubName: "الأهلي", country: "مصر", position: "وسط مهاجم", ovr: 82, prestige: 94, leagueStrength: 72, age: 28, confederation: "CAF", originConfederation: "CAF" },
   { name: "إيرلينغ هالاند", clubName: "مانشستر سيتي", country: "إنجلترا", position: "مهاجم", ovr: 92, prestige: 99, leagueStrength: 98, age: 26, confederation: "UEFA", originConfederation: "UEFA" },
-  { name: "فيتور روكي", clubName: "بالميراس", country: "البرازيل", position: "مهاجم", ovr: 84, prestige: 90, leagueStrength: 84, age: 21, confederation: "CONMEBOL", originConfederation: "CONMEBOL" }
+  { name: "فيتور روكي", clubName: "بالميراس", country: "البرازيل", position: "مهاجم", ovr: 84, prestige: 90, leagueStrength: 84, age: 21, confederation: "CONMEBOL", originConfederation: "CONMEBOL" },
+  { name: "حارس الاختبار", clubName: "نادي الحارس", country: "مصر", position: "حارس مرمى", ovr: 88, prestige: 80, leagueStrength: 70, age: 28,
+    seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.7, cleanSheets: 22, saves: 94, penaltiesSaved: 2, club: "نادي الحارس" } },
+  { name: "حارس منافس", clubName: "نادي المنافس", country: "مصر", position: "حارس مرمى", ovr: 82, prestige: 75, leagueStrength: 68, age: 29,
+    seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.5, cleanSheets: 12, saves: 120, penaltiesSaved: 0, club: "نادي المنافس" } }
 ];
 const ceremony = engine.buildSeasonAwardCeremony({
   season: 4,
@@ -133,5 +137,29 @@ assert.ok(ceremony.awards.some(row => row.id === "golden-boy"));
 assert.ok(ceremony.awards.some(row => row.id === "caf-player"));
 assert.ok(ceremony.awards.some(row => row.id === "uefa-player"));
 assert.ok(ceremony.awards.some(row => row.id === "conmebol-player"));
+const goldenGlove = ceremony.awards.find(row => row.id === "golden-glove");
+assert.ok(goldenGlove, "the season ceremony must include a Golden Glove when eligible keepers exist");
+assert.equal(goldenGlove.winner.name, "حارس الاختبار",
+  "Golden Glove must rank goalkeeper clean sheets, saves, and keeper rating instead of attacker goals");
+assert.equal(goldenGlove.topThree[0].cleanSheets, 22,
+  "the Golden Glove shortlist should expose the leading keeper's clean-sheet total");
+assert.equal(goldenGlove.topThree[0].saves, 94,
+  "the Golden Glove shortlist should expose the leading keeper's save total");
+assert.equal(ceremony.playerAwards.some(row => row.id === "golden-glove"), false,
+  "an outfield player must not receive the goalkeeper-only award");
+
+const keeperCareer = engine.buildSeasonAwardCeremony({
+  season: 4,
+  player: { name: "حارس مسيرتي", club: "فريقي", country: "مصر", position: "حارس مرمى", ovr: 88,
+    age: 25, appearances: 38, goals: 0, assists: 0, averageRating: 8.2, cleanSheets: 25,
+    saves: 105, penaltiesSaved: 3, trophies: 2, professionalism: 85, confederation: "CAF",
+    originConfederation: "CAF", leagueStrength: 78 },
+  realPlayers
+});
+const userGoldenGlove = keeperCareer.awards.find(row => row.id === "golden-glove");
+assert.equal(userGoldenGlove.winner.name, "حارس مسيرتي",
+  "a goalkeeper's actual career clean sheets and saves must be considered for Golden Glove");
+assert.ok(keeperCareer.playerAwards.some(row => row.id === "golden-glove"),
+  "winning Golden Glove should be recorded in the player's end-of-season awards");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

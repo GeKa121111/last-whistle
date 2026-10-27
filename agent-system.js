@@ -363,7 +363,7 @@
   }
   function switchAgent(id){
     var s=API().getState(),old=agentConfig(s)||LEGACY_AGENT,p=s.agentProfile,a=candidate(id);
-    if(!a||!p||!s.agent)return;
+    if(!a||!p||!s.agent||!canUseAgent(s))return;
     var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(old.exitFeeWeeks||.25)));
     if(Number(s.money)<fee){API().toast("رصيدك مش كفاية لشرط الخروج من الوكيل الحالي.");return;}
     s.money-=fee;record(s,"تغيير الوكيل","أنهيت اتفاق "+old.name+" ودفعت "+fee+" جنيه داخل اللعبة لاختيار "+a.name+".");

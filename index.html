@@ -3797,7 +3797,7 @@ function activateMidSeasonBreakIfDue(){
  return true;
 }
 function cupParticipants(comp,count){
- const worldClubs=window.LWWorldDB&&typeof window.LWWorldDB.clubs==="function"?window.LWWorldDB.clubs():[];
+ const worldClubs=window.LWWorldDB&&typeof window.LWWorldDB.clubNames==="function"?window.LWWorldDB.clubNames():[];
  const worldTeams=worldClubs.map(club=>club&&club.name).filter(Boolean);
  const base=[...(comp.teams||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[1]||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[2]||[]),...Object.values(LEAGUE_ROSTERS).flatMap(x=>[...(x[1]||[]),...(x[2]||[])]),...worldTeams];
  const currentClub=clubNameForLeague();

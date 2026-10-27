@@ -30,7 +30,9 @@ vm.createContext(sandbox);
 vm.runInContext(worldDbSource, sandbox, { filename: "football-world-db.js" });
 const db = sandbox.window.LWWorldDB;
 assert.ok(db && typeof db.clubs === "function", "real world club database must be available");
-const worldClubs = db.clubs();
+const worldClubs = db.clubNames();
+assert.ok(worldClubs.every(club => club && club.name && !Object.prototype.hasOwnProperty.call(club, "players")),
+  "the cup selector must use lightweight club metadata without generating or copying player lists");
 assert.ok(worldClubs.length >= 32, "the world database must provide enough real clubs for supported cups");
 vm.runInContext(source, sandbox, { filename: "cup-participants" });
 
@@ -50,7 +52,7 @@ assert.equal(new Set(participants).size, participants.length, "cup participants 
 assert.ok(!participants.some(name => /^نادي مشارك \d+$/.test(name)), "no placeholder club may enter the cup");
 
 const sparse = {
-  window: { LWWorldDB: { clubs: () => [] } },
+  window: { LWWorldDB: { clubNames: () => [] } },
   state: { leagueCountry: "مصر" },
   LEAGUE_ROSTERS: { "مصر": { 1: [currentClub, "نادي حقيقي 2"], 2: [] } },
   clubNameForLeague: () => currentClub

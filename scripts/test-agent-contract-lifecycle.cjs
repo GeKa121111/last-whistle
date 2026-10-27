@@ -97,6 +97,12 @@ clickAction("agent-meet", { agentId: "nadine" });
 assert.ok(overlays.length > 0, "opening another agent must show the negotiation dialog");
 assert.ok(overlays[0].innerHTML.includes("إنهاء الاتفاق الحالي"),
   "switching agents must explain the current contract exit fee");
+state.retired = true;
+clickAction("agent-switch-sign", { agentId: "nadine" });
+assert.equal(state.agent, true, "a stale switch confirmation must not end representation after retirement");
+assert.equal(state.agentProfile.id, "hossam", "a blocked switch must preserve the current representative");
+assert.equal(state.money, 10000, "a blocked switch must not charge an exit fee");
+state.retired = false;
 clickAction("agent-switch-sign", { agentId: "nadine" });
 assert.equal(state.agent, true);
 assert.equal(state.agentProfile.id, "nadine",

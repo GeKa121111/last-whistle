@@ -3556,7 +3556,7 @@ function renderContract(){
  renderTransferMarket();
  setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+state.contractSeasons+" موسم");
  const stages=[["درجة ثانية / أكاديمية",0,0,250],["درجة أولى / نادي صاعد",55,35,650],["دوري ممتاز / نادي ثابت",62,48,1500],["نادي أوروبي كبير",70,60,4000]];
- $("clubLadder").innerHTML=stages.map((c,i)=>`<div class="feedItem"><b>${i===state.clubIndex?"📍":i<state.clubIndex?"✅":"🔒"} ${c[0]} ${i===state.clubIndex?"(أنت هنا)":""}</b><span class="muted">${i===state.clubIndex?"مرحلتك الحالية":`الشروط: تقييم ${c[1]}+ وثقة ${c[2]}+`} • مرتب نموذجي ${c[3]} جنيه/أسبوع</span></div>`).join("");
+ $("clubLadder").innerHTML=stages.map((c,i)=>`<div class="feedItem"><b>${i===state.clubIndex?"📍":i<state.clubIndex?"✅":"🔒"} ${c[0]} ${i===state.clubIndex?"(أنت هنا)":""}</b><span class="muted">${i===state.clubIndex?"مرحلتك الحالية":`الشروط: تقييم ${c[1]}+ وثقة ${c[2]}+`} • مرتب نموذجي ${c[3]} ${currencyLabel()}/أسبوع</span></div>`).join("");
  $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(x=>`<div class="feedItem"><b>الموسم ${x.season} • اليوم ${x.day}</b>${x.text}</div>`).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';
 }
 function renderNational(){
@@ -3600,14 +3600,14 @@ function shopCategoryName(category){
  return names[category]||"كل العناصر";
 }
 function renderSponsorship(){
- const c=state.sponsorContract;setText("sponsorStatus",c&&Number(c.matchesRemaining)>0?`${c.brand}: ${c.matchesRemaining} مشاركة متبقية • ${c.payPerMatch} جنيه لكل مشاركة. العقد محاكاة داخل اللعبة.`:"مفيش عقد رعاية نشط. سمعتك ومتابعينك بيساعدوا في تحسين العرض.");
+ const c=state.sponsorContract;setText("sponsorStatus",c&&Number(c.matchesRemaining)>0?`${c.brand}: ${c.matchesRemaining} مشاركة متبقية • ${c.payPerMatch} ${currencyLabel()} لكل مشاركة. العقد محاكاة داخل اللعبة.`:"مفيش عقد رعاية نشط. سمعتك ومتابعينك بيساعدوا في تحسين العرض.");
  const b=$("sponsorBtn");if(b){b.disabled=!!(c&&Number(c.matchesRemaining)>0)||!!state.retired;b.textContent=c&&Number(c.matchesRemaining)>0?"عقد الرعاية نشط":"تفاوض على عقد رعاية";}
 }
 function negotiateSponsorship(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}if(isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending){toast("عقود الرعاية متاحة بعد التخرج والانتقال لمرحلة الفريق الأول.");return;}if(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){toast("عندك عقد رعاية نشط بالفعل.");return;}
  const sponsorMultiplier=(window.LWAgentRuntime?.sponsorshipMultiplier(state)??(state.agent?1.15:1))*(state.creatorStudio?1.2:1)*(state.stylist?1.08:1)*(state.mediaTraining?1.05:1);const offer=Math.max(100,Math.round(((Number(state.followers)||0)*0.3+overall()*8)*sponsorMultiplier));
- openModal("عرض رعاية إعلاني",`شركة رياضية افتراضية بتعرض ${offer} جنيه عن كل مشاركة مؤهلة، لمدة 12 مشاركة. المقابل تقديري داخل اللعبة، ومش إعلان أو تعاقد حقيقي من علامة تجارية.`,[
-  {label:"أقبل عقد الرعاية",className:"primary",action:()=>{if(state.retired||(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0)){toast("لم يعد عرض الرعاية متاحًا؛ راجع حالة عقدك.");return;}state.sponsorContract={brand:"راعي رياضي افتراضي",payPerMatch:offer,matchesRemaining:12,signedSeason:state.season};log(`وقعت عقد رعاية افتراضي بقيمة ${offer} جنيه لكل مشاركة لمدة 12 مشاركة.`);saveGame(true);render();toast("تم توقيع عقد الرعاية داخل اللعبة.");}},
+ openModal("عرض رعاية إعلاني",`شركة رياضية افتراضية بتعرض ${offer} ${currencyLabel()} عن كل مشاركة مؤهلة، لمدة 12 مشاركة. المقابل تقديري داخل اللعبة، ومش إعلان أو تعاقد حقيقي من علامة تجارية.`,[
+  {label:"أقبل عقد الرعاية",className:"primary",action:()=>{if(state.retired||(state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0)){toast("لم يعد عرض الرعاية متاحًا؛ راجع حالة عقدك.");return;}state.sponsorContract={brand:"راعي رياضي افتراضي",payPerMatch:offer,matchesRemaining:12,signedSeason:state.season};log(`وقعت عقد رعاية افتراضي بقيمة ${offer} ${currencyLabel()} لكل مشاركة لمدة 12 مشاركة.`);saveGame(true);render();toast("تم توقيع عقد الرعاية داخل اللعبة.");}},
   {label:"أرفض العرض",action:()=>{}}
  ]);
 }
@@ -3776,7 +3776,7 @@ function playCupMatch(){
   }else setStory('نتيجة البطولة',`انتهت المباراة ${gf}-${ga}. ${extraTimeText?extraTimeText+'. ':''}رصيدك ${c.points} نقطة.`);
  }else if(isTwoLegTie&&tieLegAtKickoff===1)setStory('مباراة الذهاب انتهت',`انتهت مباراة الذهاب ${gf}-${ga}. مجموع المواجهة المؤقت ${c.tieAggregate>0?'تقدمك':c.tieAggregate<0?'تقدم المنافس':'تعادل'} ${Math.abs(c.tieAggregate)} هدف. لسه قدامك مباراة الإياب لتحديد المتأهل.`);
  else if(!won){c.eliminated=true;calendarEvent('cup-exit',`الخروج من ${c.name}`,roundName);setStory('نهاية مشوار البطولة',`خسرت ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} خرجت من ${c.name} في ${roundName}.`);}
- else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;recordTrophy(c.name,"بطولة جماعية",state.season,club().name,state.leagueCountry||"",c.name);state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});setStory('بطل البطولة!',`كسبت النهائي ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} ورفعت كأس ${c.name}. مكافأة اللقب 1200 جنيه.`);log('حققت لقب بطولة: '+c.name+'.');}
+ else if(c.stage>=(c.rounds||[]).length-1){c.champion=true;state.trophies++;state.money+=1200;state.followers+=250;recordTrophy(c.name,"بطولة جماعية",state.season,club().name,state.leagueCountry||"",c.name);state.cupHistory.unshift({name:c.name,season:state.season,champion:true,matches:c.matchesPlayed,club:club().name,country:state.leagueCountry||"",division:Number(state.leagueDivision)||1});setStory('بطل البطولة!',`كسبت النهائي ${gf}-${ga} أمام ${opponent}.${extraTimeText?' '+extraTimeText+'.':''}${shootout} ورفعت كأس ${c.name}. مكافأة اللقب 1200 ${currencyLabel()}.`);log('حققت لقب بطولة: '+c.name+'.');}
  else{c.stage++;const pool=c.teams.filter(n=>n!==clubNameForLeague()&&n!==opponent);c.opponent=pool[(c.stage*3+1)%Math.max(1,pool.length)]||'منافس متأهل';setStory('تأهلت للدور التالي',`فزت ${gf}-${ga} على ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}. تأهلت إلى ${(c.rounds||[])[c.stage]}.`);}
  c.history.push(`${roundName}${isLeague||isGroups?' '+c.phasePlayed:''}${isTwoLegTie?' ('+(tieLegAtKickoff===1?'ذهاب':'إياب')+')':''}: ${gf}-${ga} أمام ${opponent}${extraTimeText?' • '+extraTimeText:''}${shootout}`);
  const cupDate=nextAvailableMatchDay(state.calendarDay+3,'cup-match');if(cupDate>state.calendarDay+3)advanceCalendarDays(cupDate-(state.calendarDay+3),'ترتيب موعد البطولة');
@@ -4426,7 +4426,7 @@ function openWinterMarket(){
   :state.freeAgent
    ?"أنت لاعب حر؛ تقدر تراجع الأندية حتى والسوق المعتاد مغلق."
    :"السوق مغلق حاليًا. "+windowInfo.name+" بعد "+windowInfo.days+" يوم.";
- const message=marketSummary+"\n"+"مرتبك الحالي "+(Number(state.weeklyWage)||0)+" جنيه أسبوعيًا • العقد "+(state.freeAgent?0:Math.max(0,Number(state.contractSeasons)||0))+" موسم • المشاركات "+(Number(state.apps)||0)+".\n"+"تقدر تفتح مركز العقد والسوق حتى لو النافذة مغلقة؛ هتظهر أسباب قفل الطلبات بوضوح، وقرار الاستمرار مش هيمنعك من الانتقال لاحقًا.";
+ const message=marketSummary+"\n"+"مرتبك الحالي "+(Number(state.weeklyWage)||0)+" "+currencyLabel()+" أسبوعيًا • العقد "+(state.freeAgent?0:Math.max(0,Number(state.contractSeasons)||0))+" موسم • المشاركات "+(Number(state.apps)||0)+".\n"+"تقدر تفتح مركز العقد والسوق حتى لو النافذة مغلقة؛ هتظهر أسباب قفل الطلبات بوضوح، وقرار الاستمرار مش هيمنعك من الانتقال لاحقًا.";
  const choices=[
   {label:"مراجعة العقد والسوق",className:"primary",action:()=>{
    if(!state.retired){
@@ -4536,7 +4536,7 @@ function applyMatchResult(result,meta){
    const youthNoPay=isYouthAcademyPlayer(state)||state.academyReserve;
    const agentMatchPay=window.LWAgentRuntime?.matchPayMultiplier(state)??(state.agent?1.08:1);matchPay=Math.round((youthNoPay?0:(40+rating*22*(minutes/90)+goals*70+assists*42))*agentMatchPay);
    state.money=(Number(state.money)||0)+matchPay;const goalContractBonus=youthNoPay?0:Math.max(0,Number(state.goalBonusPerGoal)||0)*goals;const cleanSheetContractBonus=youthNoPay?0:Number(result.score.against)===0?Math.max(0,Number(state.cleanSheetBonus)||0):0;if(goalContractBonus||cleanSheetContractBonus){state.money+=goalContractBonus+cleanSheetContractBonus;log("مكافآت العقد: "+goalContractBonus+" مقابل الأهداف و"+cleanSheetContractBonus+" مقابل الكلين شيت.");}
-   if(!youthNoPay&&state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){const sponsorPay=Math.max(0,Number(state.sponsorContract.payPerMatch)||0);state.money+=sponsorPay;state.sponsorContract.matchesRemaining--;log(`مكافأة الرعاية: ${sponsorPay} جنيه. المتبقي من العقد ${state.sponsorContract.matchesRemaining} مشاركة.`);if(state.sponsorContract.matchesRemaining<=0)log("انتهى عقد الرعاية الإعلاني.");}
+   if(!youthNoPay&&state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){const sponsorPay=Math.max(0,Number(state.sponsorContract.payPerMatch)||0);state.money+=sponsorPay;state.sponsorContract.matchesRemaining--;log(`مكافأة الرعاية: ${sponsorPay} ${currencyLabel()}. المتبقي من العقد ${state.sponsorContract.matchesRemaining} مشاركة.`);if(state.sponsorContract.matchesRemaining<=0)log("انتهى عقد الرعاية الإعلاني.");}
   }
   if(m.yellowCards>0){state.bookings[key]=(Number(state.bookings[key])||0)+m.yellowCards;if(state.bookings[key]>=5){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,1);state.bookings[key]=0;log(`إيقاف مباراة واحدة في ${competition||"المسابقة"} بعد تراكم 5 إنذارات داخل المحاكاة.`);}}
   if(m.redCards>0){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,2);log(`إيقاف مباراتين في ${competition||"المسابقة"} بعد طرد داخل محاكاة اللعبة.`);}
@@ -4775,7 +4775,7 @@ function match(tactic=""){
  if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&seasonMatchTotal()>=8&&state.seasonPhase==="firstHalf"&&state.seasonApps>=seasonMidpoint()&&state.seasonApps<seasonMatchTotal()&&!state.winterBreakPending){state.seasonPhase="winterBreak";state.winterBreakPending=true;state.journeyTransferReviewed=false;setStory("وصلنا لنص الموسم","خلصت أول "+state.seasonApps+" مباراة ووصلنا لنافذة يناير. راجع السوق أو قرر الاستمرار قبل النصف التاني.");log("وصلت لنقطة التوقف الشتوية داخل نافذة يناير الطبيعية في اللعب اليدوي.");}
  const tactics={balanced:"متوازن",attack:"ضغط هجومي",defend:"دفاع منظم",counter:"مرتدات"};
  const m=result.player,events=formatMatchEvents(result.events),participation=m.minutes>0?`دقائق لعبك ${m.minutes} • تقييمك ${m.rating.toFixed(1)}/10 • تسديداتك ${m.shots}${m.goals?` • أهدافك ${m.goals}`:""}${m.assists?` • صناعة ${m.assists}`:""}`:suspended?`لم تشارك؛ إيقاف متبقٍ: ${state.suspensions[dKey]||0} مباراة.`:"لم تشارك في المباراة.";
- const reward=settled.matchPay?` مكافأة المشاركة ${settled.matchPay} جنيه.`:" لا توجد مكافأة مشاركة لأنك لم تلعب.";
+ const reward=settled.matchPay?` مكافأة المشاركة ${settled.matchPay} ${currencyLabel()}.`:" لا توجد مكافأة مشاركة لأنك لم تلعب.";
  const incidentText=events?`\nأحداث موثقة: ${events}`:"";
  const injuryText=m.injuryDays?`\nإصابة بعد المباراة: ${state.injuryName} (${m.injuryDays} يوم).`:"";
  const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{},story=`${club().name} ${score.for}-${score.against} ${opponent} (${result.outcome}). خطتك: ${tactics[tactic]||tactic}. تكتيك الخصم: ${opponentTactics[result.metadata?.opponentTactic]||"متوازن"}. ${participation}.${reward}${incidentText}${injuryText}`;
@@ -4841,8 +4841,8 @@ function proceedSeasonTransition(viewLeague=false){
  if(expiring){
   const agentTerms=state.agent?(window.LWAgentRuntime?.contractTerms(state)||state.agentProfile||true):false;const offer=window.LWCareer?.makeContractOffer(contractState,agentTerms)||{club:contractState.clubName||club().name,wage:Math.max(Number(contractState.weeklyWage)||250,Math.round((Number(contractState.weeklyWage)||250)*(agentTerms&&typeof agentTerms==="object"?Number(agentTerms.contractMultiplier)||1.08:agentTerms?1.1:1))),seasons:3,season:Number(state.season)||1};
   state.contractOffer={...offer,club:String(contractState.clubName||offer.club||club().name),season:Number(state.season)||1};const offerWage=state.contractOffer.wage;
-  openModal("عرض تجديد العقد",`عقدك مع ${state.contractOffer.club} هينتهي. النادي بيعرض ${offerWage} جنيه أسبوعيًا لمدة 3 مواسم. تقدر تقبل أو ترفض وتدخل سوق اللاعبين الأحرار.`,[
-   {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;const agentRenewalFee=window.LWAgentRuntime?.onContractRenewal(state,o)||0;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} جنيه أسبوعيًا${agentRenewalFee?`، وأتعاب الوكيل ${agentRenewalFee} جنيه`:""}.`);advanceAfterContractDecision(viewLeague);}},
+  openModal("عرض تجديد العقد",`عقدك مع ${state.contractOffer.club} هينتهي. النادي بيعرض ${offerWage} ${currencyLabel()} أسبوعيًا لمدة 3 مواسم. تقدر تقبل أو ترفض وتدخل سوق اللاعبين الأحرار.`,[
+   {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;const agentRenewalFee=window.LWAgentRuntime?.onContractRenewal(state,o)||0;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} ${currencyLabel()} أسبوعيًا${agentRenewalFee?`، وأتعاب الوكيل ${agentRenewalFee} ${currencyLabel()}`:""}.`);advanceAfterContractDecision(viewLeague);}},
    {label:"أرفض وأصبح لاعب حر",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();window.LWCareer?.resolveContractDecision(state,"decline",o);state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهى عقدك مع ${club().name} واخترت دخول سوق اللاعبين الأحرار.`});log(`انتهى عقدك مع ${club().name} وبدأت المسيرة كلاعب حر.`);advanceAfterContractDecision(viewLeague);}}
   ]);return;
  }
@@ -4883,7 +4883,7 @@ function finishSeason(){
  const worldSeasonReport=window.LWWorldAI?.completeSeason(state,state.season,window.LWWorldDB);
  if(worldSeasonReport&&!worldSeasonReport.alreadyCompleted)state.worldSeasonReport={season:Number(state.season)||1,playerPool:worldSeasonReport.rows.length,leagueCount:Object.keys(worldSeasonReport.tables||{}).length};
  let prize="";
- if(place===1&&completeLeagueSegment){state.trophies++;state.money+=academySeason?150:1000;state.followers+=academySeason?25:300;prize=academySeason?" كسبت بطولة الناشئين وجايزة رمزية داخل اللعبة!":" كسبت البطولة وجايزة 1000 جنيه و300 متابع!";recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
+ if(place===1&&completeLeagueSegment){state.trophies++;state.money+=academySeason?150:1000;state.followers+=academySeason?25:300;prize=academySeason?" كسبت بطولة الناشئين وجايزة رمزية داخل اللعبة!":` كسبت البطولة وجايزة 1000 ${currencyLabel()} و300 متابع!`;recordTrophy("بطل "+(state.leagueCompetition||"الدوري المحلي"),"بطولة جماعية",state.season,club().name,state.leagueCountry||"", "المركز الأول في "+(state.leagueCompetition||"الدوري المحلي"));}
  const newAwards=completeLeagueSegment&&!academySeason&&window.LWCareer?window.LWCareer.seasonAwards(state,state.league,place):[];
  if(newAwards.length){prize+=` جوائز فردية (محاكاة): ${newAwards.map(a=>a.title).join("، ")}.`;newAwards.forEach(a=>{recordTrophy(a.title,"جائزة فردية",a.season,a.club,a.country,a.note);log(`فزت بجائزة ${a.title} — ${a.note}.`);});}
  const ceremony=academySeason?null:buildSeasonAwardCeremony(place);
@@ -5024,11 +5024,11 @@ function maybeOfferTransfer(){
  openModal("عرض انتقال من سوق الأندية ✉️",`${target.club} من ${target.country} يتابعك بعد أدائك الأخير.
 المسابقة: ${target.league} • قائمة موسم ${target.season}.
 قوة النادي داخل اللعبة تقديرية: ${target.power}/100.
-الراتب المقترح: ${wage} جنيه أسبوعيًا داخل اللعبة.
+الراتب المقترح: ${wage} ${currencyLabel()} أسبوعيًا داخل اللعبة.
 هذا العرض جزء من محاكاة اللعبة وليس عرضًا حقيقيًا من النادي.`,[
   {label:"أقبل العرض",className:"primary",action:()=>transferTo()},
   {label:"أرفض وأكمل",action:()=>{const p=state.pendingTransfer;if(p)state.transferHistory.unshift({season:state.season,day:state.day,text:`رفضت عرض ${p.club} في ${p.country} (${p.league}). لن يتكرر العرض في نافذة الانتقالات الحالية.`});state.pendingTransfer=null;log("رفضت عرض انتقال خلال "+w.name+".");saveGame(true);render();}},
-  {label:"أتفاوض على المرتب",action:()=>{const p=state.pendingTransfer;if(!p)return;p.wage=Math.round(p.wage*(state.trust>=60&&average>=7?1.15:1.05));openModal("تفاوض مع النادي الجديد","المرتب بعد التفاوض: "+p.wage+" جنيه أسبوعيًا.",[{label:"موافق",className:"primary",action:()=>transferTo()},{label:"أرفض العرض",action:()=>{state.pendingTransfer=null;saveGame(true);render();}}]);}}
+  {label:"أتفاوض على المرتب",action:()=>{const p=state.pendingTransfer;if(!p)return;p.wage=Math.round(p.wage*(state.trust>=60&&average>=7?1.15:1.05));openModal("تفاوض مع النادي الجديد","المرتب بعد التفاوض: "+p.wage+" "+currencyLabel()+" أسبوعيًا.",[{label:"موافق",className:"primary",action:()=>transferTo()},{label:"أرفض العرض",action:()=>{state.pendingTransfer=null;saveGame(true);render();}}]);}}
  ]);
 }
 function transferTo(){
@@ -5064,7 +5064,7 @@ function resolveNegotiation(chance,level){
  if(!result?.ok){const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يوجد عقد حالي للتفاوض عليه.","contract-expiring":"انتظر عرض التجديد الرسمي في نهاية الموسم.",cooldown:"تم تسجيل محاولة تفاوض بالفعل؛ استنى 7 أيام للمحاولة التالية.","invalid-level":"اختيار تفاوض غير صالح."};toast(messages[result?.status]||"التفاوض غير متاح حاليًا.");return;}
  if(result.status==="success"){
   const agentOutcome=window.LWAgentRuntime?.afterNegotiation(state,result);
-  state.transferHistory.unshift({season:state.season,day:state.day,text:`نجحت المفاوضات: المرتب زاد من ${result.oldWage} إلى ${result.wage} جنيه أسبوعيًا.`});
+  state.transferHistory.unshift({season:state.season,day:state.day,text:`نجحت المفاوضات: المرتب زاد من ${result.oldWage} إلى ${result.wage} ${currencyLabel()} أسبوعيًا.`});
   setStory("مفاوضات ناجحة","عرفت تتكلم في الوقت المناسب، والنادي وافق على تحسين عقدك. حافظ على مستواك عشان تستحق الزيادة.");log("نجحت مفاوضات العقد. المرتب الأسبوعي "+state.weeklyWage+" جنيه.");toast("مبروك! المفاوضات نجحت.");
  }else{
   window.LWAgentRuntime?.afterNegotiation(state,result);
@@ -5117,7 +5117,7 @@ function buyItem(id){
  if(state.retired){toast("المسيرة انتهت؛ المتجر غير متاح بعد الاعتزال.");return;}
  if(state.money<item.price){toast("فلوسك مش كفاية. محتاج "+item.price+" جنيه.");return;}
  let committed=false;
- openModal("تأكيد الشراء",`هتشتري ${item.name} مقابل ${item.price} جنيه. ${item.desc}`,[
+ openModal("تأكيد الشراء",`هتشتري ${item.name} مقابل ${item.price} ${currencyLabel()}. ${item.desc}`,[
   {label:"اشتري دلوقتي",className:"primary",action:()=>{if(committed)return;committed=true;const result=window.LWCareer?.purchaseItem(state,item);if(!result?.ok){const messages={retired:"المسيرة انتهت؛ المتجر غير متاح.","already-owned":"العنصر اتشترى بالفعل.","insufficient-funds":"فلوسك مش كفاية.","invalid-item":"العنصر غير صالح."};toast(messages[result?.status]||"تعذر إتمام الشراء.");render();return;}applyStorePurchaseBonus(id);log("اشتريت "+item.name+".");setStory("استثمار في مستقبلك","اشتريت "+item.name+". التأثير: "+item.effect);saveGame(true);render();toast("مبروك الشراء يا كابتن!");}},
   {label:"هفكر شوية",action:()=>{}}
  ]);

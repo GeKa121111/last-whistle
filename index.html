@@ -4960,8 +4960,9 @@ function match(tactic=""){
  const reward=settled.matchPay?` مكافأة المشاركة ${settled.matchPay} ${currencyLabel()}.`:" لا توجد مكافأة مشاركة لأنك لم تلعب.";
  const incidentText=events?`\nأحداث موثقة: ${events}`:"";
  const injuryText=m.injuryDays?`\nإصابة بعد المباراة: ${state.injuryName} (${m.injuryDays} يوم).`:"";
- const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{},story=`${club().name} ${score.for}-${score.against} ${opponent} (${result.outcome}). خطتك: ${tactics[tactic]||tactic}. تكتيك الخصم: ${opponentTactics[result.metadata?.opponentTactic]||"متوازن"}. ${participation}.${reward}${incidentText}${injuryText}`;
- setStory("صافرة النهاية: "+result.outcome,story);saveGame(true);render();
+ const midSeasonNotice=state.winterBreakPending?" وصلت لنقطة منتصف الموسم؛ راجع عروض انتقالات الشتاء قبل تكملة النصف الثاني.":"";
+ const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{},story=`${club().name} ${score.for}-${score.against} ${opponent} (${result.outcome}). خطتك: ${tactics[tactic]||tactic}. تكتيك الخصم: ${opponentTactics[result.metadata?.opponentTactic]||"متوازن"}. ${participation}.${reward}${incidentText}${injuryText}${midSeasonNotice}`;
+ setStory(state.winterBreakPending?"وصلنا لنص الموسم — راجع انتقالات الشتاء":"صافرة النهاية: "+result.outcome,story);saveGame(true);render();
  openModal("صافرة النهاية — "+result.outcome,story,[{label:"راجع الأداء",className:"primary",action:()=>{render();showPage("home");}},{label:"افتح جدول الدوري",action:()=>showPage("league")}]);
  if(state.seasonApps>=seasonMatchTotal())setTimeout(()=>finishSeason(),50);
 }

@@ -96,6 +96,62 @@ assert.equal(state.agent, true, "signing must activate the agent");
 assert.equal(state.agentProfile.id, "hossam", "the signed representative must be persisted");
 assert.equal(state.agentProfile.contractMode, "open-ended");
 assert.equal(state.agentProfile.expiresSeason, null, "new representation contracts must not have an automatic expiry");
+// Weekly payroll must charge the active agent's configured commission, while a player
+// without representation receives the full wage. Exercise the actual calendar function
+// extracted from the shipped app shell rather than duplicating its payroll arithmetic.
+assert.equal(typeof window.LWAgentRuntime.commissionRate, "function",
+  "the agent runtime must expose its effective commission rate to payroll");
+const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"),
+  "root and public app shells must stay synchronized");
+const calendarStart = html.indexOf("function advanceCalendarDays(");
+const calendarEnd = html.indexOf("\nfunction ", calendarStart + 10);
+assert.ok(calendarStart >= 0 && calendarEnd > calendarStart,
+  "the shared calendar function must be available for payroll regression testing");
+const calendarSource = html.slice(calendarStart, calendarEnd);
+const payrollLogs = [];
+function payOneWeek() {
+  const calendarContext = {
+    state, window,
+    clamp(value, min = 0, max = 100) { return Math.max(min, Math.min(max, Number(value) || 0)); },
+    log(message) { payrollLogs.push(String(message)); },
+    resetDailyActions() {}
+  };
+  vm.createContext(calendarContext);
+  vm.runInContext(calendarSource, calendarContext, { filename: "advanceCalendarDays" });
+  calendarContext.advanceCalendarDays(7, "اختبار صرف المرتب");
+}
+function resetCalendarForPayroll() {
+  state.calendarDay = 1; state.day = 1; state.daysSinceTransfer = 0;
+  state.daysSinceNegotiation = 0; state.transferCooldown = 0;
+}
+const signedAgent = state.agent;
+const signedProfile = state.agentProfile;
+state.agent = false;
+state.agentProfile = null;
+state.agentCommissionPaid = 0;
+resetCalendarForPayroll();
+const noAgentBalance = state.money;
+payOneWeek();
+assert.equal(state.money - noAgentBalance, 1000,
+  "players without an agent must receive the full weekly wage");
+assert.equal(Number(state.agentCommissionPaid) || 0, 0,
+  "no commission should accrue without representation");
+state.agent = signedAgent;
+state.agentProfile = signedProfile;
+resetCalendarForPayroll();
+const activeCommissionRate = window.LWAgentRuntime.commissionRate(state);
+assert.ok(activeCommissionRate >= 0.02 && activeCommissionRate <= 0.14,
+  "the signed agent's effective fee must remain within the configured bounds");
+const agentPayrollBalance = state.money;
+payOneWeek();
+const expectedAgentCommission = Math.round(1000 * activeCommissionRate);
+assert.equal(state.money - agentPayrollBalance, 1000 - expectedAgentCommission,
+  "weekly salary must be credited net of the active agent's commission");
+assert.equal(state.agentCommissionPaid, expectedAgentCommission,
+  "paid agent commission must be tracked in the career save");
+assert.ok(payrollLogs.some(message => message.includes("عمولة الوكيل")),
+  "the diary must explain the agent's weekly commission");
 
 // Simulate an old saved contract and advance far beyond its former expiry season.
 delete state.agentProfile.contractMode;

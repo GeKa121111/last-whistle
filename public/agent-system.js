@@ -533,7 +533,7 @@
   }
   window.LWAgentRuntime={getAgents:currentAgentData,ensureState:ensureState,current:current,contractTerms:contractTerms,
     negotiationChanceBonus:negotiationChanceBonus,transferOfferChance:transferOfferChance,prioritizeTargets:prioritizeTargets,
-    adjustTransferWage:adjustTransferWage,chargeFee:chargeFee,afterNegotiation:afterNegotiation,onContractRenewal:onContractRenewal,
+    adjustTransferWage:adjustTransferWage,chargeFee:chargeFee,commissionRate:feeRate,afterNegotiation:afterNegotiation,onContractRenewal:onContractRenewal,
     sponsorshipMultiplier:sponsorshipMultiplier,matchPayMultiplier:matchPayMultiplier,dailyRecoveryBonus:dailyRecoveryBonus,
     currentChapter:currentChapter,chapterProgress:progress,
     postRetirementOptions:postRetirementOptions,startPostRetirementAgency:startPostRetirementAgency,

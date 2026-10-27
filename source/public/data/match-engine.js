@@ -96,6 +96,7 @@
     const random = seededRandom(simulationSeed);
     // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
+    const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -258,6 +259,19 @@
           }
         }
       }
+      if (playerActiveDuration > 0) {
+        // Credit the user's own fouls separately; a dedicated RNG stream keeps score and tackle rolls stable.
+        const foulTrials = Math.ceil(playerActiveDuration / 25);
+        const defenderWeight = clamp(profile.defender, 0, 1);
+        const foulChance = clamp(0.22 + defenderWeight * 0.18 + (tactic === "defend" ? 0.04 : 0), 0.18, 0.40);
+        for (let attempt = 0; attempt < foulTrials; attempt += 1) {
+          if (foulRandom() < foulChance) {
+            stats.fouls++;
+            const minute = periodStart + 1 + Math.floor(foulRandom() * playerActiveDuration);
+            events.push({ type: "foul", minute, side: "player", actor: String(player.name || "اللاعب") });
+          }
+        }
+      }
       if (random() < 0.16) events.push({ type: "foul", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
       if (random() < 0.06) events.push({ type: "offside", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
       return { for: goalsFor, against: goalsAgainst };
@@ -320,8 +334,9 @@
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
     const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
+    const fouls = result.events.filter(event => event.type === "foul" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
-      && ["red-card", "injury", "yellow-card", "tackle", "interception"].includes(event.type));
+      && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
     const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
       && Number(event.minute) <= Number(result.player.minutes));
     const eventsChronological = result.events.every((event, index) => index === 0
@@ -329,7 +344,7 @@
     const exitIndex = result.events.findIndex(event => event.side === "player"
       && ["red-card", "injury", "substitution"].includes(event.type));
     const isPlayerActivityEvent = event => event.creditedToPlayer === true
-      || (event.side === "player" && ["yellow-card", "tackle", "interception"].includes(event.type));
+      || (event.side === "player" && ["yellow-card", "tackle", "interception", "foul"].includes(event.type));
     const noPlayerActivityAfterExit = exitIndex < 0
       || !result.events.slice(exitIndex + 1).some(isPlayerActivityEvent);
     const redCards = result.events.filter(event => event.type === "red-card" && event.side === "player").length;
@@ -346,11 +361,12 @@
       && result.player.shots === shots
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
+      && fouls === Number(result.player.fouls || 0)
       && playerEventsInBounds && eventsChronological && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent };
   }
 
   function buildStoryReport(result, context) {
@@ -368,6 +384,7 @@
         assists: Number(player.assists) || 0,
         rating: Number(player.rating != null ? player.rating : player.averageRating) || 0,
         shots: Number(player.shots) || 0,
+        fouls: Number(player.fouls) || 0,
         redCards: Number(player.redCards) || 0,
         yellowCards: Number(player.yellowCards) || 0,
         injuryDays: Number(player.injuryDays) || 0,

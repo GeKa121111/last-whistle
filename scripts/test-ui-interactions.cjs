@@ -25,6 +25,7 @@ const functions = [
   "normalizePlayerName",
   "matchCleanSheetContractBonus",
   "performanceAdviceForRole",
+  "seasonCareerChallenge",
   "startCareerFromSetup",
   "openTransferMarketPage"
 ].map(extractFunction).join("\n");
@@ -98,6 +99,35 @@ const tiredKeeperAdvice = sandbox.performanceAdviceForRole("حارس مرمى",
   { goals: 0, assists: 0, saves: 0, cleanSheets: 0 }, 5.9, 30, 80);
 assert.ok(tiredKeeperAdvice.includes("الراحة"),
   "low energy must prioritize recovery over role-specific coaching advice");
+
+const keeperChallenge = sandbox.seasonCareerChallenge({
+  pos: "حارس مرمى", season: 3, seasonGoals: 0, seasonAssists: 0,
+  careerMatchHistory: [{ season: 3, minutes: 90, stats: { saves: 5, cleanSheet: true } }]
+});
+assert.equal(keeperChallenge.progress, 10,
+  "goalkeeper challenge should count nested saves and a clean sheet");
+assert.equal(keeperChallenge.done, true, "goalkeeper challenge should complete on its own defensive objective");
+assert.ok(keeperChallenge.description.includes("تحدي الحراسة"),
+  "goalkeeper challenge should use a goalkeeper-specific description");
+const defenderChallenge = sandbox.seasonCareerChallenge({
+  pos: "قلب دفاع", season: 3,
+  careerMatchHistory: [{ season: 3, minutes: 90, stats: { tackles: 5, interceptions: 4, cleanSheet: true } }]
+});
+assert.equal(defenderChallenge.progress, 12,
+  "defender challenge should combine tackles, interceptions, and clean-sheet credit");
+assert.equal(defenderChallenge.done, true, "defender challenge should not depend on scoring goals");
+const creatorChallenge = sandbox.seasonCareerChallenge({
+  pos: "وسط مهاجم", season: 3, seasonAssists: 2,
+  careerMatchHistory: [{ season: 3, minutes: 90, stats: { keyPasses: 4 } }]
+});
+assert.equal(creatorChallenge.progress, 8,
+  "attacking midfield challenge should reward key passes and assists");
+assert.equal(creatorChallenge.done, true, "creative midfield challenge should reward creation without requiring goals");
+const strikerChallenge = sandbox.seasonCareerChallenge({
+  pos: "رأس حربة", season: 3, seasonGoals: 2, seasonAssists: 0, careerMatchHistory: []
+});
+assert.equal(strikerChallenge.progress, 2, "striker challenge should continue to track goals and assists");
+assert.equal(strikerChallenge.done, false, "striker challenge should require three attacking contributions");
 
 
 // Player setup must normalize names and keep the career from starting when the name is empty.

@@ -26,6 +26,32 @@ const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
 assert.equal(engine.version, 2);
 
+// Estimated ages for players without a sourced age must be deterministic and
+// advance one year per simulated season instead of jumping randomly each season.
+const ageProgressionFixture = {
+  name: "لاعب عمره ثابت", clubName: "نادي اختبار", position: "مهاجم",
+  ovr: 72, prestige: 65, leagueStrength: 60
+};
+const ageSeason1 = engine.simulatePlayerSeason(ageProgressionFixture, 1, 1);
+const ageSeason2 = engine.simulatePlayerSeason(ageProgressionFixture, 2, 1);
+const ageSeason4 = engine.simulatePlayerSeason(ageProgressionFixture, 4, 1);
+assert.equal(ageSeason2.age, ageSeason1.age + 1,
+  "an unsourced player's estimated age must increase by one in the next season");
+assert.equal(ageSeason4.age, ageSeason1.age + 3,
+  "an unsourced player's estimated age must advance consistently across multiple seasons");
+const youngAgeSeason1 = engine.simulatePlayerSeason({
+  ...ageProgressionFixture, name: "لامين يامال"
+}, 1, 1);
+const youngAgeSeason2 = engine.simulatePlayerSeason({
+  ...ageProgressionFixture, name: "لامين يامال"
+}, 2, 1);
+assert.equal(youngAgeSeason1.age, 19, "known young-player baseline ages must be preserved in season one");
+assert.equal(youngAgeSeason2.age, 20, "known young players must age between world seasons");
+assert.equal(engine.simulatePlayerSeason({
+  ...ageProgressionFixture, age: 29
+}, 4, 1).age, 29, "a sourced player age must override the estimated age");
+
+
 // Defensive and attacking midfield labels must both use midfielder production
 // rates. A deterministic same-player fixture makes role-only differences visible.
 const sameMidfielder = {

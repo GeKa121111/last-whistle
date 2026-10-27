@@ -325,6 +325,15 @@ async function main() {
       true,
       "the player-store screen must not overflow horizontally on a mobile viewport"
     );
+    const directRatingPurchase = await page.evaluate(() => {
+      const state = { pos: "جناح", age: 25, money: 1000 };
+      const result = window.LWCareer.purchaseItem(state, { id: "ovrBoost", price: 100 });
+      return { status: result.status, money: state.money, ownsBoost: Boolean(state.ovrBoost) };
+    });
+    assert.deepEqual(directRatingPurchase, {
+      status: "direct-rating-purchase-disabled", money: 1000, ownsBoost: false
+    }, "the embedded career engine must reject direct OVR purchases without mutating the save");
+    results.push("embedded career engine blocks direct OVR purchase");
     results.push("11-section navigation and store rendering");
 
     await page.evaluate(async () => {

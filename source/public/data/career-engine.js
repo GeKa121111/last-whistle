@@ -348,10 +348,31 @@
     const potentialFactor = clamp(0.82 + (Number(state.playerPotential) - overall(state)) * 0.012, 0.68, 1.24);
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
-    const xp = Math.max(1, Math.round((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor * storeXPMultiplier));
+    const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
+    const tackles = Math.max(0, Number(matchStats.tackles) || 0);
+    const interceptions = Math.max(0, Number(matchStats.interceptions) || 0);
+    const saves = Math.max(0, Number(matchStats.saves) || 0);
+    const keyPasses = Math.max(0, Number(matchStats.keyPasses) || 0);
+    const cleanSheet = matchStats.cleanSheet === true;
+    const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
+    const positionActionXP = state.pos === "حارس مرمى"
+      ? Math.min(16, saves * 2 + (cleanSheet ? 5 : 0))
+      : defensivePosition
+        ? Math.min(20, tackles * 2 + interceptions * 2.5 + (cleanSheet ? 4 : 0))
+        : state.pos === "وسط مهاجم"
+          ? Math.min(10, keyPasses * 1.4)
+          : Math.min(12, Math.max(0, Number(data.goals) || 0) * 4 + Math.max(0, Number(data.assists) || 0) * 2);
+    const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
+      + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
     const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
+    let defensiveXP = 0;
+    if (defensivePosition && (tackles > 0 || interceptions > 0 || cleanSheet)) {
+      defensiveXP = Math.round((tackles * 2 + interceptions * 3 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+        * trainingFocusMultiplier(state, "defending") * Math.min(1, played / 75));
+      addTrainingXP(state, "defending", defensiveXP);
+    }
     const milestones = [];
     if (qualifying) {
       for (const threshold of APPEARANCE_MILESTONES) {
@@ -366,7 +387,7 @@
         }
       }
     }
-    return { gained, skill, xp, levels, qualifying, milestones, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
+    return { gained, skill, xp, levels, qualifying, milestones, defensiveXP, positionActionXP, careerAppearances: state.careerAppearances, qualifyingAppearances: state.qualifyingAppearances };
   }
 
   function hash(text) {

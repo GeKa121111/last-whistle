@@ -4243,6 +4243,31 @@ function renderSeasonJourney(){
  lastSeasonJourneyRenderKey=renderKey;
 }
 
+function performanceAdviceForRole(position,metrics={},rating=6.2,energy=100,fatigue=0){
+ const role=String(position||"");
+ const value=key=>Math.max(0,Number(metrics[key])||0);
+ const goals=value("goals"),assists=value("assists"),tackles=value("tackles"),interceptions=value("interceptions");
+ const saves=value("saves"),cleanSheets=value("cleanSheets"),keyPasses=value("keyPasses"),shotsOnTarget=value("shotsOnTarget");
+ const defensive=["قلب دفاع","ظهير","وسط دفاعي"].includes(role);
+ const creator=role==="وسط مهاجم";
+ const goalkeeper=role==="حارس مرمى";
+ const attacker=["جناح","مهاجم","مهاجم متحرك","رأس حربة"].includes(role);
+ if(Number(energy)<45||Number(fatigue)>65)return "الطاقة أو الإجهاد بيقولوا إن الراحة أفضل من حصة تدريب مكثفة قبل المباراة الجاية.";
+ if(Number(rating)<6.3){
+  if(goalkeeper)return "راجع تمركزك ورد فعلك وقرار الخروج للكرة؛ حراسة المرمى ليها مؤشرات مختلفة عن الأهداف والصناعات.";
+  if(defensive)return "ركز على التمركز والالتحامات وقراءة التمريرة لزيادة التدخلات والاعتراضات، بدل مطاردة المساهمات التهديفية.";
+  if(creator)return "ركز على اختيار التمريرة والتمركز بين الخطوط وصناعة الفرص، مع الحفاظ على هدوئك وجودة الاستحواذ.";
+  if(attacker)return "راجع تحركاتك بدون كرة وتوقيت التسديد والتمركز داخل المنطقة لزيادة فرص التسجيل والصناعة.";
+  return "ركز على أساسيات مركزك والتمركز والهدوء، ووازن بين التدريب والاستشفاء لتحسين التقييم.";
+ }
+ if(goalkeeper&&saves===0&&cleanSheets===0)return "راجع التمركز والتواصل مع خط الدفاع؛ تقييم الحارس بيتقاس بالتصديات والشباك النظيفة، مش بالأهداف والصناعات.";
+ if(defensive&&tackles+interceptions===0&&cleanSheets===0)return "راقب تمركزك وتوقيت الضغط والاعتراض؛ التدخلات الناجحة والكرات المقطوعة هي مؤشرات أساسية لمركزك.";
+ if(creator&&keyPasses===0&&assists===0)return "حاول تكون متاحًا بين الخطوط وتصنع فرصًا بتمريرات مفتاحية، مش بالضرورة بزيادة التسديد.";
+ if(attacker&&goals+assists===0&&shotsOnTarget===0&&keyPasses<2)return "حسّن توقيت الجري بدون كرة والتحرك في المساحات؛ المهاجم محتاج يحوّل التحركات لتسديدات خطرة أو أهداف وصناعات.";
+ if(Number(rating)>=7.5)return "مستواك ممتاز في الفترة دي؛ حافظ على الاستمرارية وراجع العروض والعقد في الوقت المناسب.";
+ return "حافظ على طاقتك، واختار تدريب يناسب مركزك بدل ما تستهلك نفسك.";
+}
+
 function renderPerformanceInsights(){
  const root=$("performanceInsights");if(!root)return;
  const records=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[];
@@ -4261,11 +4286,23 @@ function renderPerformanceInsights(){
  const delta=recentAvg-olderAvg;
  const trendLabel=recent.length<4?"بيتم تجميع الفورمة":delta>=0.25?`الفورمة بتتحسن +${delta.toFixed(1)}`:delta<=-0.25?`الفورمة محتاجة تركيز ${delta.toFixed(1)}`:"الفورمة مستقرة";
  if(badge)badge.textContent=trendLabel;
- let tip="حافظ على طاقتك، واختار تدريب يناسب مركزك بدل ما تستهلك نفسك.";
- if(avg<6.3)tip="ركز على التمرير والهدوء، وادخل المباراة بطاقة أعلى؛ متوسط تقييمك محتاج يتحسن.";
- else if(contributions===0&&state.pos!=="حارس مرمى"&&state.pos!=="قلب دفاع")tip="حاول تدخل مناطق أخطر أو تصنع فرص أكتر؛ لسه مفيش مساهمات تهديفية في آخر مبارياتك.";
- else if(Number(state.energy)<45||Number(state.fatigue)>65)tip="الطاقة أو الإجهاد بيقولوا إن الراحة أفضل من حصة تدريب مكثفة قبل المباراة الجاية.";
- else if(avg>=7.5)tip="مستواك ممتاز في الفترة دي؛ حافظ على الاستمرارية وراجع العروض والعقد في الوقت المناسب.";
+ const statValue=(row,key)=>Math.max(0,Number(row?.[key]??row?.stats?.[key])||0);
+ const sumStat=key=>recent.reduce((sum,row)=>sum+statValue(row,key),0);
+ const tackles=sumStat("tackles"),interceptions=sumStat("interceptions"),saves=sumStat("saves");
+ const keyPasses=sumStat("keyPasses"),shotsOnTarget=sumStat("shotsOnTarget");
+ const cleanSheets=recent.filter(row=>row.cleanSheet===true||row.stats?.cleanSheet===true).length;
+ const roleMetrics={goals,assists,tackles,interceptions,saves,keyPasses,shotsOnTarget,cleanSheets};
+ const tip=performanceAdviceForRole(state.pos,roleMetrics,avg,state.energy,state.fatigue);
+ const position=String(state.pos||"");
+ const statCards=position==="حارس مرمى"
+  ? [{value:saves,label:"تصديات"},{value:cleanSheets,label:"شباك نظيفة"},{value:recent.length,label:"مشاركات"}]
+  : ["قلب دفاع","ظهير","وسط دفاعي"].includes(position)
+   ? [{value:tackles,label:"تدخلات"},{value:interceptions,label:"اعتراضات"},{value:cleanSheets,label:"شباك نظيفة"}]
+   : position==="وسط مهاجم"
+    ? [{value:keyPasses,label:"تمريرات مفتاحية"},{value:assists,label:"صناعات"},{value:tackles+interceptions,label:"تدخلات واعتراضات"}]
+    : [{value:goals,label:"أهداف"},{value:assists,label:"صناعات"},{value:contributions,label:"مساهمات تهديفية"}];
+ const kpiMarkup=[{value:avg.toFixed(2),label:"متوسط التقييم • آخر "+recent.length},...statCards]
+  .map(card=>`<div class="kpi"><div class="kpiNum">${card.value}</div><div class="kpiLabel">${card.label}</div></div>`).join("");
  const rows=recent.map((row,index)=>{
    const rating=Number(row.rating)||0;const width=Math.max(0,Math.min(100,rating*10));
    const score=`${Number(row.teamGoals)||0}–${Number(row.oppGoals)||0}`;
@@ -4274,7 +4311,7 @@ function renderPerformanceInsights(){
    const clubName=safeHTML(row.club||club().name);
    return `<div class="dataCard"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${index===0?"آخر مباراة":`مباراة ${index+1}`} • ${result}</b><span class="pill ${rating>=7?"green":rating<6?"red":""}">${rating.toFixed(1)}/10</span></div><p>${clubName} ${score} ${opponent}<br>${Number(row.minutes)||0} دقيقة • ${Number(row.goals)||0} هدف • ${Number(row.assists)||0} صناعة</p><div class="progressRow"><span>التقييم</span><div class="bar indigo"><i style="width:${width}%"></i></div><b>${rating.toFixed(1)}</b></div></div>`;
  }).join("");
- root.innerHTML=`<div class="kpiGrid" style="margin:10px 0 14px"><div class="kpi"><div class="kpiNum">${avg.toFixed(2)}</div><div class="kpiLabel">متوسط التقييم • آخر ${recent.length}</div></div><div class="kpi"><div class="kpiNum">${goals}</div><div class="kpiLabel">أهداف</div></div><div class="kpi"><div class="kpiNum">${assists}</div><div class="kpiLabel">صناعات</div></div><div class="kpi"><div class="kpiNum">${contributions}</div><div class="kpiLabel">مساهمات تهديفية</div></div></div><div class="sectionNote"><b>نصيحة الكابتن:</b> ${tip}</div><div class="dataGrid" style="margin-top:12px">${rows}</div>`;
+ root.innerHTML=`<div class="kpiGrid" style="margin:10px 0 14px">${kpiMarkup}</div><div class="sectionNote"><b>نصيحة الكابتن:</b> ${tip}</div><div class="dataGrid" style="margin-top:12px">${rows}</div>`;
 }
 
 function renderPositionDevelopment(){

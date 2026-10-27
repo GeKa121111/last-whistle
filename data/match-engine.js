@@ -51,13 +51,17 @@
     const cleanSheetBonus = stats.cleanSheet === true ? 0.55 : 0;
     if (position === "حارس مرمى") return saves * 0.38 + cleanSheetBonus - Math.min(4, conceded) * 0.06;
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
-      return tackles * 0.26 + interceptions * 0.30 + cleanSheetBonus * 0.65;
+      return tackles * 0.16 + interceptions * 0.18 + cleanSheetBonus * 0.65;
     }
-    if (position === "وسط مهاجم") return tackles * 0.12 + interceptions * 0.12;
-    return tackles * 0.05 + interceptions * 0.05;
+    if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12;
+    if (position === "جناح") return tackles * 0.08 + interceptions * 0.09;
+    return tackles * 0.05 + interceptions * 0.06;
   }
   function simulateMatch(options = {}) {
-    const random = seededRandom(options.seed === undefined ? hash(JSON.stringify(options)) : options.seed);
+    const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
+    const random = seededRandom(simulationSeed);
+    // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
+    const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -199,13 +203,26 @@
       sideChances("team", ourChances);
       sideChances("opponent", oppChances);
       const playerActiveDuration = Math.max(0, Math.min(duration, minutes - periodStart));
-      if (playerActiveDuration > 0 && random() < clamp(profile.defender * (playerActiveDuration / 90) * (0.3 + fatigue / 300), 0, 0.46)) {
-        stats.tackles++;
-        events.push({ type: "tackle", minute: periodStart + 1 + Math.floor(random() * playerActiveDuration), side: "player", actor: String(player.name || "اللاعب") });
-      }
-      if (playerActiveDuration > 0 && random() < clamp(profile.defender * 0.32 * (playerActiveDuration / 90), 0, 0.20)) {
-        stats.interceptions++;
-        events.push({ type: "interception", minute: periodStart + 1 + Math.floor(random() * playerActiveDuration), side: "player", actor: String(player.name || "اللاعب") });
+      if (playerActiveDuration > 0 && !profile.goalkeeper) {
+        // Sample roughly one defensive opportunity per nine minutes played. The old
+        // one-roll-per-half logic produced well under one tackle per full match.
+        const actionTrials = Math.ceil(playerActiveDuration / 9);
+        const activityFactor = clamp(1 - fatigue * 0.003, 0.70, 1);
+        const defenderWeight = clamp(profile.defender, 0, 1);
+        const tackleChance = clamp((0.08 + defenderWeight * 0.42) * activityFactor, 0.05, 0.45);
+        const interceptionChance = clamp((0.045 + defenderWeight * 0.30) * activityFactor, 0.03, 0.30);
+        for (let attempt = 0; attempt < actionTrials; attempt += 1) {
+          if (defensiveRandom() < tackleChance) {
+            stats.tackles++;
+            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
+          }
+          if (defensiveRandom() < interceptionChance) {
+            stats.interceptions++;
+            const minute = periodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
+          }
+        }
       }
       if (random() < 0.16) events.push({ type: "foul", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
       if (random() < 0.06) events.push({ type: "offside", minute: Math.max(1, periodStart + Math.floor(random() * duration)), side: random() < 0.5 ? "team" : "opponent" });
@@ -266,6 +283,8 @@
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;
     const assists = result.events.filter(event => event.type === "assist").length;
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
+    const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
+    const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
       && ["red-card", "injury", "yellow-card", "tackle", "interception"].includes(event.type));
     const playerEventsInBounds = playerExitEvents.every(event => Number(event.minute) >= 1
@@ -285,12 +304,14 @@
       && playerGoals === result.player.goals && assists === result.player.assists
       && result.player.goals <= shots && result.player.assists <= teamGoals
       && (!positionProfile(result.metadata?.position || "").goalkeeper || result.player.goals === 0)
-      && result.player.shots === shots && playerEventsInBounds
-      && eventsChronological && noPlayerActivityAfterExit
+      && result.player.shots === shots
+      && tackles === Number(result.player.tackles || 0)
+      && interceptions === Number(result.player.interceptions || 0)
+      && playerEventsInBounds && eventsChronological && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries };
   }
 
   function buildStoryReport(result, context) {

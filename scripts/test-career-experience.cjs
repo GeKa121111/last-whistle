@@ -145,4 +145,34 @@ assert.equal(valid.state.energy, 7, "a valid timing challenge should charge its 
 assert.equal(valid.state.careerXP, 3, "a valid unsuccessful attempt should retain the intended practice XP");
 assert.equal(valid.saveCount, 1, "a valid challenge result should be saved once");
 
-console.log("PASS: career experience challenges enforce energy and injury eligibility before and after play.");
+const makeOpenInvestments = count => Array.from({ length: count }, (_, index) => ({
+  id: index + 1, kind: "safe", label: "ادخار آمن", amount: 100, payout: 118, dueDay: 30, settled: false
+}));
+const fullPortfolio = makeHarness({
+  money: 1000,
+  careerWorld: { investments: makeOpenInvestments(5), investmentSequence: 1 }
+});
+fullPortfolio.click("open-finance");
+fullPortfolio.click("invest-safe");
+assert.equal(fullPortfolio.state.money, 1000,
+  "the sixth open investment must not charge the player");
+assert.equal(fullPortfolio.state.careerWorld.investments.length, 5,
+  "the action handler must enforce the five-open-investment limit, not only the disabled UI");
+assert.equal(fullPortfolio.state.careerWorld.investmentSequence, 6,
+  "legacy investment sequence counters must advance past existing IDs without reusing one");
+assert.ok(fullPortfolio.notices.some(message => message.includes("5 عمليات استثمار مفتوحة")),
+  "the player should be told when the portfolio limit blocks a new investment");
+
+const availablePortfolio = makeHarness({
+  money: 1000,
+  careerWorld: { investments: makeOpenInvestments(4), investmentSequence: 1 }
+});
+availablePortfolio.click("open-finance");
+availablePortfolio.click("invest-safe");
+assert.equal(availablePortfolio.state.money, 900,
+  "a player with fewer than five open investments should still be able to invest");
+assert.equal(availablePortfolio.state.careerWorld.investments.length, 5);
+assert.equal(availablePortfolio.state.careerWorld.investments.at(-1).id, 5,
+  "new investment IDs must remain unique when a legacy sequence counter is stale");
+
+console.log("PASS: career experience challenges and investment portfolio limits are enforced.");

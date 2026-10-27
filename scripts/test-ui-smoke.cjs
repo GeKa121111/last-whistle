@@ -59,7 +59,7 @@ const required = [
   "function runSeasonAITtraining()",
   "function canAccessTransferMarket()",
   "function isNaturalWinterTransferWindow()",
-  'if(canAccessTransferMarket()&&isNaturalWinterTransferWindow()&&seasonMatchTotal()>=8',
+  'if(activateMidSeasonBreakIfDue())break;',
   "const developmentResult=runSeasonAITtraining();",
   "report.completedSeason=currentSeason",
   "transferButton.hidden=!transferVisible",

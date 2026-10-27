@@ -503,7 +503,7 @@
       season: season,
       club: user.club,
       country: user.country,
-      createdAt: new Date().toISOString(),
+      createdAt: String(input.currentDate || (String(2024 + season) + "-07-31T00:00:00.000Z")),
       ballonDor: {
         winner: { name: ballonWinner.name, club: ballonWinner.club, isUser: !!ballonWinner.isUser },
         topFive: bestFive.map(function (row) {

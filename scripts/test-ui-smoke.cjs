@@ -359,6 +359,30 @@ if (staleWinterPause.open) { console.error("Transfer test failed: a stale pendin
 const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
 if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
 
+const marketAccessStart = html.indexOf("function canAccessTransferMarket(){");
+const marketAccessEnd = html.indexOf("\\nfunction ", marketAccessStart + 1);
+if (marketAccessStart < 0 || marketAccessEnd < 0) {
+  console.error("Transfer eligibility regression: market access helper is missing."); process.exit(1);
+}
+const marketAccessSource = html.slice(marketAccessStart, marketAccessEnd).trim();
+function evaluateMarketAccess(state) {
+  const sandbox = { state, isYouthAcademyPlayer: () => false };
+  vm.createContext(sandbox);
+  vm.runInContext(marketAccessSource, sandbox, { filename: "canAccessTransferMarket" });
+  return sandbox.canAccessTransferMarket();
+}
+const retiredMarketAccess = evaluateMarketAccess({ retired: true, age: 28, academyReserve: false, academyGraduationPending: false });
+if (retiredMarketAccess) {
+  console.error("Transfer eligibility regression: retired careers must not be eligible for the professional market."); process.exit(1);
+}
+const activeMarketAccess = evaluateMarketAccess({ retired: false, age: 28, academyReserve: false, academyGraduationPending: false });
+if (!activeMarketAccess) {
+  console.error("Transfer eligibility regression: an active graduated professional should retain market access."); process.exit(1);
+}
+if (!html.includes('filter(o=>offerIsAvailable(o)&&[o.club,o.country,o.league,o.leagueEnglish]')) {
+  console.error("Transfer market UI must hide stale offers that cannot be negotiated."); process.exit(1);
+}
+
 const intervalStart = html.indexOf("function seasonMatchIntervalDays(){");
 const intervalEnd = html.indexOf("\nfunction ", intervalStart + 1);
 const summerOffsetStart = html.indexOf("function daysUntilNextSummerWindow(");

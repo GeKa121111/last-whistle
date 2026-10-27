@@ -3514,7 +3514,7 @@ function rejectTransferOffer(id){
 function renderTransferMarket(){
  const box=$("transferMarket");if(!box)return;ensureTransferOffers();
  const query=($("transferSearch")?.value||"").trim().toLocaleLowerCase(),windowInfo=transferWindow();
- const offers=(state.transferOffers||[]).filter(o=>o&&o.status==="pending"&&[o.club,o.country,o.league,o.leagueEnglish].join(" ").toLocaleLowerCase().includes(query));
+ const offers=(state.transferOffers||[]).filter(o=>offerIsAvailable(o)&&[o.club,o.country,o.league,o.leagueEnglish].join(" ").toLocaleLowerCase().includes(query));
  setText("marketAvailability",state.retired?"المسيرة انتهت":windowInfo.open?windowInfo.name+" مفتوحة":state.freeAgent?"لاعب حر — السوق متاح":windowInfo.name+" بعد "+windowInfo.days+" يوم");
  setText("transferMarketCount",offers.length+" عرض رسمي");
  const notice=$("transferMarketNotice");
@@ -3575,6 +3575,7 @@ function seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed){
  return played+remainingMatches;
 }
 function requestLoan(){
+ if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!canAccessTransferMarket()){toast("الإعارة متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}
  const status=window.LWCareer?.loanRequestStatus(state,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open})||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"الإعارة تتطلب عقدًا ساريًا مع نادٍ. ابحث عن عقد دائم أولًا.","already-loaned":"عندك إعارة نشطة بالفعل؛ هترجع لناديك الأصلي بعد نهاية الموسم.","cup-active":"كمّل بطولة الكأس الحالية قبل تغيير النادي حتى ما يضيعش سجل البطولة.","window-closed":"طلبات الإعارة متاحة في فترات الانتقالات الصيفية والشتوية.","appearances-required":"لازم تلعب مباراتين على الأقل قبل ما الأندية تطلب إعارتك."};
@@ -3735,7 +3736,7 @@ function nextAvailableMatchDay(start,kind){let d=Number(start)||state.calendarDa
 function seasonMatchIntervalDays(){const matches=Math.max(1,Number(seasonMatchTotal())||1);return Math.max(5,Math.min(15,Math.ceil(300/matches)));}
 function daysUntilNextSummerWindow(calendarDay=state.calendarDay){const day=Math.max(1,Number(calendarDay)||1),d=((day-1)%365)+1;return d<=62?0:365-d+1;}
 function transferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1,year=Math.floor((calendarDay-1)/365);if(d<=62)return {open:true,id:"summer-"+year,name:"الانتقالات الصيفية",days:62-d};if(d>=184&&d<=214)return {open:true,id:state.winterBreakPending?"winter-season-"+state.season:"winter-"+year,name:"الانتقالات الشتوية",days:214-d};return {open:false,id:"closed-"+year,name:"السوق مغلق",days:d<184?184-d:365-d+1};}
-function canAccessTransferMarket(){return Number(state.age)>=18&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending;}
+function canAccessTransferMarket(){return !state.retired&&Number(state.age)>=18&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending;}
 function isNaturalWinterTransferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1;return d>=184&&d<=214;}
 function reconcileWinterBreakState(){if(!state.winterBreakPending)return false;if(canAccessTransferMarket()&&isNaturalWinterTransferWindow())return false;state.winterBreakPending=false;if(state.seasonPhase==="winterBreak")state.seasonPhase="secondHalf";return true;}
 function cupParticipants(comp,count){
@@ -4558,6 +4559,7 @@ function openTransferMarketPage(){
 }
 
 function openWinterMarket(){
+ if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!canAccessTransferMarket()){toast("سوق انتقالات المحترفين متاح من سن 18 وبعد التصعيد المناسب.");return;}
  const windowInfo=transferWindow();
  const winterBreak=!!state.winterBreakPending;

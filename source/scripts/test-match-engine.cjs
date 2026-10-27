@@ -30,6 +30,22 @@ assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
 assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
   "the centre striker must receive a distinct finishing advantage");
 assert.equal(typeof engine.positionPerformanceImpact, "function", "role-aware match impact must be exposed for regression tests");
+
+assert.equal(typeof engine.playerEarnsCleanSheet, "function", "clean-sheet eligibility must be testable independently");
+assert.equal(typeof browserEngine.playerEarnsCleanSheet, "function", "deployed clean-sheet logic must stay exposed and synchronized");
+const lateConcededGoals = [{ type: "goal", side: "opponent", minute: 82 }];
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, lateConcededGoals), true,
+  "a substituted defender who played 60+ minutes keeps a clean sheet after a later concession");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, [{ type: "goal", side: "opponent", minute: 40 }]), false,
+  "a goal conceded while the defender is on the pitch prevents a clean sheet");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 75, lateConcededGoals, 75), false,
+  "a player sent off remains accountable for goals conceded after the red card");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 59, []), false,
+  "a defender must play at least 60 minutes to earn a clean sheet");
+assert.equal(engine.playerEarnsCleanSheet("رأس حربة", 90, []), false,
+  "a centre-forward should not receive a defensive clean-sheet stat");
+assert.equal(browserEngine.playerEarnsCleanSheet("قلب دفاع", 65, lateConcededGoals), true,
+  "the deployed engine must use the same clean-sheet rules as the source");
 const goalkeeperImpact = engine.positionPerformanceImpact("حارس مرمى", { saves: 4, cleanSheet: true }, 0);
 const centreBackImpact = engine.positionPerformanceImpact("قلب دفاع", { tackles: 4, interceptions: 3 }, 2);
 const wingerDefensiveImpact = engine.positionPerformanceImpact("جناح", { tackles: 4, interceptions: 3 }, 2);

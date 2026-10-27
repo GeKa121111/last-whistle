@@ -12,6 +12,7 @@ const end = html.indexOf("\nfunction cupConfig", start);
 assert.ok(start >= 0 && end > start, "cup participant builder must exist");
 const source = html.slice(start, end) + "\nthis.cupParticipants = cupParticipants;";
 assert.ok(!source.includes("نادي مشارك"), "cup generation must not invent placeholder clubs");
+assert.ok(html.includes('<script src="./football-world-db.js?v=8"></script>'), "world database script must be cache-busted when its public API changes");
 assert.ok(html.includes('if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}'),
   "a cup must be blocked rather than started with fabricated participants");
 

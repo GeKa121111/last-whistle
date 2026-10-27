@@ -38,6 +38,11 @@
     w.timingWins = Number(w.timingWins) || 0;
     w.mentorSessions = Number(w.mentorSessions) || 0;
     w.investmentSequence = Number(w.investmentSequence) || 1;
+    // Legacy saves may have an absent or stale sequence counter; keep every investment ID unique.
+    var maxInvestmentId = w.investments.reduce(function (max, item) {
+      return Math.max(max, Number(item && item.id) || 0);
+    }, 0);
+    w.investmentSequence = Math.max(w.investmentSequence, maxInvestmentId + 1);
     return w;
   }
 
@@ -413,10 +418,22 @@
   }
 
   function makeInvestment(s, risky) {
+    if (!s) return;
     var w = world(s);
     var amount = risky ? 200 : 100;
-    if (s.retired || Number(s.money) < amount) {
-      var api = API();
+    var api = API();
+    var openCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
+    if (!s.careerStarted || s.retired) {
+      if (api && api.toast) api.toast(s.retired
+        ? "المسيرة انتهت بالاعتزال؛ مش متاح تبدأ استثمارات جديدة."
+        : "ابدأ مسيرتك الأول علشان تستخدم الاستثمار.");
+      return;
+    }
+    if (openCount >= 5) {
+      if (api && api.toast) api.toast("عندك 5 عمليات استثمار مفتوحة بالفعل. استنى استحقاق واحدة قبل ما تبدأ غيرها.");
+      return;
+    }
+    if ((Number(s.money) || 0) < amount) {
       if (api && api.toast) api.toast("رصيدك مش كفاية للعملية دي.");
       return;
     }

@@ -93,6 +93,10 @@ assert.equal(engine.playerConcededGoals(65, [
   { type: "red-card", side: "player", minute: 64 },
   { type: "goal", side: "opponent", minute: 82 }
 ]), 0, "a red-card event must end responsibility for later concessions");
+assert.equal(engine.playerConcededGoals(65, [
+  { type: "goal", side: "opponent", minute: 64 },
+  { type: "red-card", side: "player", minute: 64 }
+]), 1, "a goal at the dismissal minute must still count if it occurred before the player exited");
 assert.equal(browserEngine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
   "the deployed engine must attribute extra-time concessions exactly like the source");
 

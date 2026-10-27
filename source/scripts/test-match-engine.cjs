@@ -222,6 +222,7 @@ assert.ok(mobileForwardAssists > centreStrikerAssists,
 // Defensive actions must be represented at a plausible rate and match the event ledger.
 const defensivePositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const defensiveTotals = Object.fromEntries(defensivePositions.map(position => [position, { tackles: 0, interceptions: 0 }]));
+let totalPlayerFouls = 0;
 const defensiveSampleCount = 250;
 for (const position of defensivePositions) {
   for (let seed = 30001; seed < 30001 + defensiveSampleCount; seed += 1) {
@@ -237,12 +238,18 @@ for (const position of defensivePositions) {
     assert.equal(integrity.ok, true, "defensive-action ledger failed for " + position + "/" + seed + ": " + JSON.stringify(integrity));
     const eventTackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
     const eventInterceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
+    const eventFouls = result.events.filter(event => event.type === "foul" && event.side === "player").length;
     assert.equal(result.player.tackles, eventTackles, "tackle totals must match the event timeline");
     assert.equal(result.player.interceptions, eventInterceptions, "interception totals must match the event timeline");
+    assert.equal(result.player.fouls, eventFouls, "player foul totals must match the event timeline");
+    assert.equal(engine.buildStoryReport(result, { season: 1, week: seed }).player.fouls, eventFouls,
+      "story reports must preserve the foul count");
+    totalPlayerFouls += eventFouls;
     defensiveTotals[position].tackles += result.player.tackles;
     defensiveTotals[position].interceptions += result.player.interceptions;
   }
 }
+assert.ok(totalPlayerFouls > 0, "full-match samples must record player-attributed fouls");
 const defensiveAverages = Object.fromEntries(defensivePositions.map(position => [position, {
   tackles: defensiveTotals[position].tackles / defensiveSampleCount,
   interceptions: defensiveTotals[position].interceptions / defensiveSampleCount
@@ -329,7 +336,7 @@ for (let seed = 10001; seed < 10001 + exitSweep; seed += 1) {
   if (exitIndex >= 0) {
     const laterPlayerActivity = result.events.slice(exitIndex + 1).some(event =>
       event.creditedToPlayer === true
-      || (event.side === "player" && ["yellow-card", "tackle", "interception"].includes(event.type)));
+      || (event.side === "player" && ["yellow-card", "tackle", "interception", "foul"].includes(event.type)));
     assert.equal(laterPlayerActivity, false, "player action appeared after an exit event at seed " + seed);
   }
   if (result.events.some(event => event.type === "injury" && event.side === "player")) injuryExits += 1;

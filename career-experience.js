@@ -180,18 +180,23 @@
     return '<button type="button" class="lwcx-option" data-lwcx-action="' + esc(action) + '"' + (attrs || "") + '><span><strong>' + esc(label) + '</strong>' + (detail ? '<small>' + esc(detail) + '</small>' : '') + '</span><b aria-hidden="true">←</b></button>';
   }
 
-  function openChallenges() {
+  function openChallenges(s) {
+    s = s || (API() && API().getState());
+    if (!s) return;
     currentView = "challenges";
+    var unavailable = !!s.retired || Number(s.injuryDays) > 0;
+    var energy = Number(s.energy) || 0;
     frame("اختار اللحظة اللي هتلعبها", "PLAYABLE MOMENTS",
-      '<p class="lwcx-intro">دي تحديات تدريبية داخل المسيرة؛ بتأثر على قدراتك ومعنوياتك، لكن مش بتضيف هدف أو مشاركة رسمية لسجل المباريات.</p>' +
+      '<p class="lwcx-intro">دي تحديات تدريبية بتطوّر قدراتك من غير ما تزود إحصائيات المباريات الرسمية. كل تحدي له تكلفة طاقة، والإصابة بتمنع التدريب.</p>' +
       '<div class="lwcx-options">' +
-        actionButton("open-penalty", "ركلة جزاء تدريبية", "اختار الاتجاه والقوة وحاول تتغلب على توقع الحارس.") +
-        actionButton("open-timing", "اختبار التوقيت", "وقّف المؤشر في المنطقة المثالية لرفع هدوئك تحت الضغط.") +
-        actionButton("open-memory", "اختبار التركيز", "احفظ سلسلة الاتجاهات وكررها بالترتيب.") +
+        actionButton("open-penalty", "ركلة جزاء تدريبية", "اختار الاتجاه والقوة وحاول تتغلب على توقع الحارس.", (unavailable || energy < 4) ? ' disabled' : '') +
+        actionButton("open-timing", "اختبار التوقيت", "وقّف المؤشر في المنطقة المثالية لرفع هدوئك تحت الضغط.", (unavailable || energy < 3) ? ' disabled' : '') +
+        actionButton("open-memory", "اختبار التركيز", "احفظ سلسلة الاتجاهات وكررها بالترتيب.", (unavailable || energy < 1) ? ' disabled' : '') +
       '</div>');
   }
 
-  function openPenalty() {
+  function openPenalty(s) {
+    if (!canPractice(s, 4)) return;
     currentView = "penalty";
     if (!penalty.direction) penalty.direction = "";
     var directions = [
@@ -215,7 +220,30 @@
       '</div>');
   }
 
+  function canPractice(s, energyCost) {
+    var api = API();
+    var message = "";
+    if (!s || !s.careerStarted || s.retired) {
+      message = s && s.retired
+        ? "المسيرة انتهت بالاعتزال؛ التحديات التدريبية متاحة أثناء اللعب فقط."
+        : "ابدأ مسيرتك الأول علشان تستخدم التحديات دي.";
+    } else if (Number(s.injuryDays) > 0) {
+      message = "اتعافى الأول قبل أي تحدي تدريبي.";
+    } else if ((Number(s.energy) || 0) < Math.max(0, Number(energyCost) || 0)) {
+      message = "طاقتك مش كفاية للتحدي ده. ارتاح أو تقدّم في أيام المسيرة.";
+    }
+    if (message) {
+      if (api && api.toast) api.toast(message);
+      return false;
+    }
+    return true;
+  }
+
   function finishChallenge(s, title, message, won, skill, amount, energyCost) {
+    if (!canPractice(s, energyCost)) {
+      closeModal();
+      return false;
+    }
     var w = world(s);
     w.challengeCount++;
     w.practiceAttempts++;
@@ -238,11 +266,7 @@
   }
 
   function shootPenalty(s) {
-    if (s.retired || Number(s.injuryDays) > 0 || Number(s.energy) < 4) {
-      var api = API();
-      if (api && api.toast) api.toast(Number(s.injuryDays) > 0 ? "اتعافى الأول قبل تدريب التسديد." : "طاقتك مش كفاية للتحدي ده.");
-      return;
-    }
+    if (!canPractice(s, 4)) return;
     if (!penalty.direction) return;
     var keeper = ["left", "center", "right"][Math.floor(Math.random() * 3)];
     var power = cap(penalty.power, 25, 95);
@@ -258,7 +282,8 @@
     penalty.power = 68;
   }
 
-  function openTiming() {
+  function openTiming(s) {
+    if (!canPractice(s, 3)) return;
     currentView = "timing-intro";
     timing.value = 0;
     timing.direction = 1;
@@ -269,7 +294,8 @@
       "هتحتاج تفاعل يدوي؛ مفيش مكافأة هتتحسب من غير ما توقف المؤشر بنفسك.");
   }
 
-  function startTiming() {
+  function startTiming(s) {
+    if (!canPractice(s, 3) || timing.running) return;
     if (timing.timer) window.clearInterval(timing.timer);
     timing.value = 5;
     timing.direction = 1;
@@ -293,6 +319,7 @@
   }
 
   function stopTiming(s) {
+    if (!timing.running || currentView !== "timing-game") return;
     if (timing.timer) window.clearInterval(timing.timer);
     timing.timer = null;
     timing.running = false;
@@ -313,13 +340,19 @@
     memory.stage = "show";
   }
 
-  function openMemory() {
-    var s = API().getState();
+  function openMemory(s) {
+    if (!canPractice(s, 1)) return;
     createMemorySequence(s);
     currentView = "memory-show";
     drawMemoryShow();
     memory.timer = window.setTimeout(function () {
       if (currentView === "memory-show") {
+        var latest = API() && API().getState();
+        if (!canPractice(latest, 1)) {
+          closeModal();
+          return;
+        }
+        memory.timer = null;
         memory.stage = "answer";
         currentView = "memory-answer";
         drawMemoryAnswer();
@@ -346,6 +379,10 @@
 
   function answerMemory(s, arrow) {
     if (currentView !== "memory-answer") return;
+    if (!canPractice(s, 1)) {
+      closeModal();
+      return;
+    }
     memory.answers.push(arrow);
     if (memory.answers.length < memory.sequence.length) {
       drawMemoryAnswer();
@@ -567,19 +604,19 @@
       return;
     }
     if (action === "close") { closeModal(); return; }
-    if (action === "open-challenges") { openChallenges(); return; }
+    if (action === "open-challenges") { openChallenges(s); return; }
     if (action === "open-finance") { currentView = "finance"; renderFinance(); return; }
     if (action === "open-mentor") { openMentor(); return; }
     if (action === "open-legacy") { openLegacy(); return; }
-    if (action === "open-penalty") { penalty = { direction: "", power: 68 }; openPenalty(); return; }
-    if (action === "penalty-target") { penalty.direction = element.getAttribute("data-dir") || ""; openPenalty(); return; }
+    if (action === "open-penalty") { penalty = { direction: "", power: 68 }; openPenalty(s); return; }
+    if (action === "penalty-target") { penalty.direction = element.getAttribute("data-dir") || ""; openPenalty(s); return; }
     if (action === "penalty-shoot") { penalty.power = cap((document.getElementById("lwcx-power") || {}).value || penalty.power, 25, 95); shootPenalty(s); return; }
-    if (action === "open-timing") { openTiming(); return; }
-    if (action === "timing-start") { startTiming(); return; }
+    if (action === "open-timing") { openTiming(s); return; }
+    if (action === "timing-start") { startTiming(s); return; }
     if (action === "timing-stop") { stopTiming(s); return; }
-    if (action === "open-memory") { openMemory(); return; }
+    if (action === "open-memory") { openMemory(s); return; }
     if (action === "memory-answer") { answerMemory(s, element.getAttribute("data-arrow") || ""); return; }
-    if (action === "memory-reset") { openMemory(); return; }
+    if (action === "memory-reset") { openMemory(s); return; }
     if (action === "invest-safe") { makeInvestment(s, false); return; }
     if (action === "invest-risky") { makeInvestment(s, true); return; }
     if (action === "training-skill") { openTrainingSkill(); return; }

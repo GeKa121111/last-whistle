@@ -4547,6 +4547,11 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
   player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,speed:state.speed,physical:state.physical,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });
 }
+function matchCleanSheetContractBonus(state,result,youthNoPay=false){
+ if(youthNoPay||result?.player?.cleanSheet!==true)return 0;
+ return Math.max(0,Number(state?.cleanSheetBonus)||0);
+}
+
 function applyMatchResult(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
  const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
@@ -4582,7 +4587,7 @@ function applyMatchResult(result,meta){
   if(scope!=="international"){
    const youthNoPay=isYouthAcademyPlayer(state)||state.academyReserve;
    const agentMatchPay=window.LWAgentRuntime?.matchPayMultiplier(state)??(state.agent?1.08:1);matchPay=Math.round((youthNoPay?0:(40+rating*22*(minutes/90)+goals*70+assists*42))*agentMatchPay);
-   state.money=(Number(state.money)||0)+matchPay;const goalContractBonus=youthNoPay?0:Math.max(0,Number(state.goalBonusPerGoal)||0)*goals;const cleanSheetContractBonus=youthNoPay?0:Number(result.score.against)===0?Math.max(0,Number(state.cleanSheetBonus)||0):0;if(goalContractBonus||cleanSheetContractBonus){state.money+=goalContractBonus+cleanSheetContractBonus;log("مكافآت العقد: "+goalContractBonus+" مقابل الأهداف و"+cleanSheetContractBonus+" مقابل الكلين شيت.");}
+   state.money=(Number(state.money)||0)+matchPay;const goalContractBonus=youthNoPay?0:Math.max(0,Number(state.goalBonusPerGoal)||0)*goals;const cleanSheetContractBonus=matchCleanSheetContractBonus(state,result,youthNoPay);if(goalContractBonus||cleanSheetContractBonus){state.money+=goalContractBonus+cleanSheetContractBonus;log("مكافآت العقد: "+goalContractBonus+" مقابل الأهداف و"+cleanSheetContractBonus+" مقابل الكلين شيت.");}
    if(!youthNoPay&&state.sponsorContract&&Number(state.sponsorContract.matchesRemaining)>0){const sponsorPay=Math.max(0,Number(state.sponsorContract.payPerMatch)||0);state.money+=sponsorPay;state.sponsorContract.matchesRemaining--;log(`مكافأة الرعاية: ${sponsorPay} ${currencyLabel()}. المتبقي من العقد ${state.sponsorContract.matchesRemaining} مشاركة.`);if(state.sponsorContract.matchesRemaining<=0)log("انتهى عقد الرعاية الإعلاني.");}
   }
   if(m.yellowCards>0){state.bookings[key]=(Number(state.bookings[key])||0)+m.yellowCards;if(state.bookings[key]>=5){state.suspensions[key]=Math.max(Number(state.suspensions[key])||0,1);state.bookings[key]=0;log(`إيقاف مباراة واحدة في ${competition||"المسابقة"} بعد تراكم 5 إنذارات داخل المحاكاة.`);}}

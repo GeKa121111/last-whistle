@@ -430,4 +430,45 @@ assert.ok(tacticalSignatures.size > 1, "different opponent tactics must change a
 const unavailable = engine.simulateMatch({ seed: 42, playerAvailable: false, player: { position: "مهاجم", energy: 90 } });
 assert.equal(unavailable.player.minutes, 0, "unavailable player cannot play");
 assert.equal(unavailable.player.goals, 0, "unavailable player cannot score");
+// Bench-role appearances must begin late, not be simulated as a first-half starter.
+const substituteOptions = {
+  seed: 24061028, teamPower: 62, opponentPower: 58,
+  player: { name: "اختبار البديل", role: "بديل", position: "حارس مرمى", goalkeeping: 82,
+    shooting: 25, composure: 70, trust: 55, fitness: 75, energy: 95, fatigue: 5 }
+};
+const substituteResult = engine.simulateMatch(substituteOptions);
+const substituteEntry = substituteResult.events.find(event => event.type === "substitution-on" && event.side === "player");
+assert.ok(substituteEntry && substituteEntry.minute > 0,
+  "a bench-role player must have an explicit late entry event");
+const substituteExit = substituteResult.events
+  .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+  .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+const substituteEndMinute = substituteExit ? Number(substituteExit.minute) : 90;
+assert.equal(substituteResult.player.minutes, substituteEndMinute - Number(substituteEntry.minute),
+  "bench player's minutes must be the interval after entry, not a first-half stint");
+const substituteActivity = substituteResult.events.filter(event => event.creditedToPlayer === true
+  || (event.side === "player" && ["yellow-card", "tackle", "interception", "foul", "red-card", "injury"].includes(event.type)));
+assert.ok(substituteActivity.every(event => Number(event.minute) > Number(substituteEntry.minute)
+  && Number(event.minute) <= substituteEndMinute),
+  "bench-player stats and events must stay inside the actual on-pitch interval");
+assert.equal(engine.validateResult(substituteResult).ok, true,
+  "the match ledger must accept a valid late substitute appearance");
+const browserSubstituteResult = browserEngine.simulateMatch(substituteOptions);
+assert.equal(browserEngine.validateResult(browserSubstituteResult).ok, true,
+  "the inline browser engine must use the same late-substitute timing and ledger rules");
+const lateEntryConcessions = [
+  { type: "goal", side: "opponent", minute: 20 },
+  { type: "substitution-on", side: "player", minute: 51 },
+  { type: "goal", side: "opponent", minute: 60 },
+  { type: "substitution", side: "player", minute: 90 },
+  { type: "goal", side: "opponent", minute: 105 }
+];
+assert.equal(engine.playerConcededGoals(39, lateEntryConcessions), 1,
+  "a substitute goalkeeper must only be charged for goals after entry and before exit");
+assert.equal(engine.playerEarnsCleanSheet("حارس مرمى", 65, [
+  { type: "goal", side: "opponent", minute: 10 },
+  { type: "substitution-on", side: "player", minute: 20 },
+  { type: "substitution", side: "player", minute: 85 }
+]), true, "goals before a goalkeeper enters must not remove their clean sheet");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

@@ -2237,7 +2237,9 @@ function seasonAwards(state, league, teamRank) {
     const plannedMinutes = selectedMinutes(player, !unavailable, random);
     // A true bench substitute enters late and plays through the end of regulation;
     // other squad roles retain their existing start-and-exit minute model.
-    const playerStartMinute = plannedMinutes > 0 && String(player.role || "بديل").trim() === "بديل"
+    const playerRole = String(player.role || "بديل").trim();
+    const playerStartsOnBench = playerRole.includes("بديل") && playerRole !== "بديل أساسي";
+    const playerStartMinute = plannedMinutes > 0 && playerStartsOnBench
       ? Math.max(0, 90 - plannedMinutes) : 0;
     const plannedEndMinute = Math.min(90, playerStartMinute + plannedMinutes);
     // Cards/injuries can only occur inside the player's actual on-pitch interval.

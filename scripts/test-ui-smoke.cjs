@@ -88,6 +88,8 @@ const required = [
   "renderPositionDevelopment();",
   "goalkeeperTrainingButton.hidden=!isGoalkeeper",
   "homeReadinessHint",
+  'const careerWelcomeBanner=document.querySelector(".hero")',
+  'careerWelcomeBanner.hidden=!!state.careerStarted',
   "rosterCoverage",
   "totalDatabasePlayers",
   "totalGeneratedPlayers",

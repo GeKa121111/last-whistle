@@ -332,8 +332,13 @@
     const saves = played.reduce((sum, row) => sum + Math.max(0, num(row.saves ?? row.stats?.saves, 0)), 0);
     const keyPasses = played.reduce((sum, row) => sum + Math.max(0, num(row.keyPasses ?? row.stats?.keyPasses, 0)), 0);
     const shotsOnTarget = played.reduce((sum, row) => sum + Math.max(0, num(row.shotsOnTarget ?? row.stats?.shotsOnTarget, 0)), 0);
-    const cleanSheets = played.filter(row => row.cleanSheet === true || row.stats?.cleanSheet === true).length;
     const position = String(state.pos || state.position || "غير محدد");
+    const cleanSheetEligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(position);
+    // Saved flags from older versions are not enough by themselves: require an eligible role and 60 minutes.
+    const cleanSheets = cleanSheetEligible
+      ? played.filter(row => (row.cleanSheet === true || row.stats?.cleanSheet === true)
+        && num(row.minutes, 0) >= 60).length
+      : 0;
     const goalkeeperContribution = /حارس/.test(position) && (saves >= 2 || cleanSheets > 0);
     const defensiveContribution = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)
       && (tackles >= 3 || interceptions >= 2 || cleanSheets > 0);

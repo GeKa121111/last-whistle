@@ -4190,6 +4190,7 @@ function seasonCareerChallenge(state={}){
   .filter(row=>row&&Number(row.season)===season&&Number(row.minutes)>0);
  const value=(row,key)=>Math.max(0,Number(row?.[key]??row?.stats?.[key])||0);
  const total=key=>rows.reduce((sum,row)=>sum+value(row,key),0);
+ const seasonGoals=total("goals"),seasonAssists=total("assists");
  const cleanSheets=rows.filter(row=>row.cleanSheet===true||row.stats?.cleanSheet===true).length;
  let label,progress,target,description,completedDescription;
  if(position==="حارس مرمى"){
@@ -4201,11 +4202,11 @@ function seasonCareerChallenge(state={}){
   description="التحدي: اجمع 12 نقطة دفاعية (كل تدخل أو اعتراض = نقطة، والشباك النظيفة = 3 نقاط). تقدمك "+progress+"/"+target+".";
   completedDescription="أنجزت تحدي الدفاع: "+total("tackles")+" تدخل و"+total("interceptions")+" اعتراض و"+cleanSheets+" شباك نظيفة.";
  }else if(position==="وسط مهاجم"){
-  label="تحدي صناعة اللعب";target=8;progress=Math.min(target,total("keyPasses")+(Number(state.seasonAssists)||0)*2);
+  label="تحدي صناعة اللعب";target=8;progress=Math.min(target,total("keyPasses")+seasonAssists*2);
   description="التحدي: اجمع 8 نقاط صناعة (كل تمريرة مفتاحية = نقطة، وكل صناعة هدف = نقطتين). تقدمك "+progress+"/"+target+".";
-  completedDescription="أنجزت تحدي صناعة اللعب: "+total("keyPasses")+" تمريرة مفتاحية و"+(Number(state.seasonAssists)||0)+" صناعة.";
+  completedDescription="أنجزت تحدي صناعة اللعب: "+total("keyPasses")+" تمريرة مفتاحية و"+seasonAssists+" صناعة.";
  }else{
-  const contributions=Math.max(0,Number(state.seasonGoals)||0)+Math.max(0,Number(state.seasonAssists)||0);
+  const contributions=seasonGoals+seasonAssists;
   label="تحدي الهجوم";target=3;progress=Math.min(target,contributions);
   description="التحدي: حقق 3 مساهمات تهديفية (أهداف + صناعات). تقدمك "+progress+"/"+target+".";
   completedDescription="أنجزت التحدي: "+contributions+" مساهمة تهديفية هذا الموسم.";

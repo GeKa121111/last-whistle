@@ -317,10 +317,11 @@
       goalsFor, goalsAgainst, matchId: row.matchId || row.id || null };
   }
   function clubRank(state) {
-    const name = String(state && state.clubName || "");
+    const normalizeClubName = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const name = normalizeClubName(state && state.clubName);
     const rows = Array.isArray(state && state.leagueTable) ? state.leagueTable :
       Array.isArray(state && state.standings) ? state.standings : Array.isArray(state && state.league) ? state.league : [];
-    const row = rows.find(item => item && String(item.club || item.name || item.team || "") === name);
+    const row = rows.find(item => item && normalizeClubName(item.club || item.name || item.team || "") === name);
     if (!row) return { rank: null, points: null, teams: rows.length };
     const rank = num(row.rank, num(row.position, rows.indexOf(row) + 1));
     const pointsValue = row.pts ?? row.points;

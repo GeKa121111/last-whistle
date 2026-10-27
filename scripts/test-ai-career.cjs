@@ -168,6 +168,15 @@ assert.equal(academyAdvice.context.lastResult.outcome, "win", "context must read
 assert.equal(academyAdvice.context.goalsLastFive, 1, "context must aggregate recent goals");
 assert.equal(academyAdvice.context.assistsLastFive, 1, "context must aggregate recent assists");
 assert.equal(academyAdvice.context.leaguePosition, 3, "context must read the player's team position");
+const normalizedClubRank = ai.utilityScores({
+  pos: "جناح", age: 25, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  clubName: "  CURRENT CLUB ",
+  league: [{ name: "current club", pts: 31, rank: 3 }, { name: "نادي آخر", pts: 27, rank: 5 }]
+}, 70);
+assert.equal(normalizedClubRank.context.leaguePosition, 3,
+  "league context must find the player's club despite case and surrounding whitespace differences");
+assert.equal(normalizedClubRank.context.leaguePoints, 31,
+  "normalized club matching must preserve points from the correct league row");
 assert.ok(academyAdvice.utilities.development > 0, "the advice must include transparent utility scores");
 const highFormRows = [{ scope: "league", minutes: 90, rating: 8.1, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1, matchId: "loss-high-form" }];
 const highFormLoss = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy: 85, fatigue: 15, trust: 65,

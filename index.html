@@ -4183,11 +4183,42 @@ function runSeasonJourneyAction(action){
 let lastJourneyEventCacheKey="";
 let lastJourneyEventCacheValue=false;
 let lastSeasonJourneyRenderKey="";
+function seasonCareerChallenge(state={}){
+ const position=String(state.pos||"");
+ const season=Number(state.season)||1;
+ const rows=(Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[])
+  .filter(row=>row&&Number(row.season)===season&&Number(row.minutes)>0);
+ const value=(row,key)=>Math.max(0,Number(row?.[key]??row?.stats?.[key])||0);
+ const total=key=>rows.reduce((sum,row)=>sum+value(row,key),0);
+ const cleanSheets=rows.filter(row=>row.cleanSheet===true||row.stats?.cleanSheet===true).length;
+ let label,progress,target,description,completedDescription;
+ if(position==="حارس مرمى"){
+  label="تحدي الحراسة";target=10;progress=Math.min(target,total("saves")+cleanSheets*5);
+  description="التحدي: اجمع 10 نقاط حراسة (كل تصدٍّ = نقطة، والشباك النظيفة = 5 نقاط). تقدمك "+progress+"/"+target+".";
+  completedDescription="أنجزت تحدي الحراسة: "+total("saves")+" تصدي و"+cleanSheets+" شباك نظيفة.";
+ }else if(["قلب دفاع","ظهير","وسط دفاعي"].includes(position)){
+  label="تحدي الدفاع";target=12;progress=Math.min(target,total("tackles")+total("interceptions")+cleanSheets*3);
+  description="التحدي: اجمع 12 نقطة دفاعية (كل تدخل أو اعتراض = نقطة، والشباك النظيفة = 3 نقاط). تقدمك "+progress+"/"+target+".";
+  completedDescription="أنجزت تحدي الدفاع: "+total("tackles")+" تدخل و"+total("interceptions")+" اعتراض و"+cleanSheets+" شباك نظيفة.";
+ }else if(position==="وسط مهاجم"){
+  label="تحدي صناعة اللعب";target=8;progress=Math.min(target,total("keyPasses")+(Number(state.seasonAssists)||0)*2);
+  description="التحدي: اجمع 8 نقاط صناعة (كل تمريرة مفتاحية = نقطة، وكل صناعة هدف = نقطتين). تقدمك "+progress+"/"+target+".";
+  completedDescription="أنجزت تحدي صناعة اللعب: "+total("keyPasses")+" تمريرة مفتاحية و"+(Number(state.seasonAssists)||0)+" صناعة.";
+ }else{
+  const contributions=Math.max(0,Number(state.seasonGoals)||0)+Math.max(0,Number(state.seasonAssists)||0);
+  label="تحدي الهجوم";target=3;progress=Math.min(target,contributions);
+  description="التحدي: حقق 3 مساهمات تهديفية (أهداف + صناعات). تقدمك "+progress+"/"+target+".";
+  completedDescription="أنجزت التحدي: "+contributions+" مساهمة تهديفية هذا الموسم.";
+ }
+ return {label,progress,target,done:progress>=target,description:progress>=target?completedDescription:description};
+}
+
 function renderSeasonJourney(){
  const apps=Number(state.seasonApps)||0;
  const totalMatches=seasonMatchTotal();
  const contributions=Number(state.seasonGoals||0)+Number(state.seasonAssists||0);
- const missionsDone=contributions>=3;
+ const challenge=seasonCareerChallenge(state);
+ const missionsDone=challenge.done;
  const windowInfo=transferWindow();
  const transferEligible=canAccessTransferMarket();
  const winterDecisionDue=transferEligible&&!!state.winterBreakPending&&windowInfo.name==="الانتقالات الشتوية";
@@ -4199,12 +4230,12 @@ function renderSeasonJourney(){
  }
  const eventSeen=lastJourneyEventCacheValue;
  const root=$("seasonJourney");if(!root)return;
- const renderKey=JSON.stringify([Number(state.season)||1,apps,totalMatches,contributions,Number(state.seasonGoals)||0,Number(state.seasonAssists)||0,Number(state.seasonPoints)||0,transferEligible,!!state.journeyTransferReviewed,!!windowInfo.open,String(windowInfo.name||""),Number(windowInfo.days)||0,eventSeen,String(state.seasonSummary||""),!!state.journeySeasonReviewed,!!state.retired,!!state.careerStarted,!!state.winterBreakPending,!!state.freeAgent]);
+ const renderKey=JSON.stringify([Number(state.season)||1,apps,totalMatches,contributions,challenge.progress,challenge.target,challenge.done,String(state.pos||""),Number(state.seasonGoals)||0,Number(state.seasonAssists)||0,Number(state.seasonPoints)||0,transferEligible,!!state.journeyTransferReviewed,!!windowInfo.open,String(windowInfo.name||""),Number(windowInfo.days)||0,eventSeen,String(state.seasonSummary||""),!!state.journeySeasonReviewed,!!state.retired,!!state.careerStarted,!!state.winterBreakPending,!!state.freeAgent]);
  if(renderKey===lastSeasonJourneyRenderKey)return;
  const stages=[
   {name:"المباريات والأداء",icon:"⚽",short:"المباريات",desc:"لعب فريقك "+apps+" من "+totalMatches+" مباراة دوري. سجلت "+(state.seasonGoals||0)+" هدف وصنعت "+(state.seasonAssists||0)+"، وجمعت "+(state.seasonPoints||0)+" نقطة لفريقك.",done:apps>=2},
   {name:transferEligible?"قرار الانتقالات":"الانتقالات الاحترافية",icon:transferEligible?"🔄":"🔒",short:transferEligible?"الانتقالات":"بعد التصعيد",desc:!transferEligible?"أنت في مسار الناشئين أو لم تبلغ 18 سنة بعد. سوق انتقالات المحترفين هيفتح بعد سن 18 والتصعيد المناسب.":state.journeyTransferReviewed?"راجعت موقف عقدك وسوق الانتقالات للموسم الحالي.":(windowInfo.open?windowInfo.name+" مفتوحة. راجع العروض أو قرر الاستمرار مع ناديك.":windowInfo.name+". راجع عقدك وخططك، والسوق القادم بعد "+windowInfo.days+" يوم."),done:!transferEligible||!!state.journeyTransferReviewed},
-  {name:"المهمة والتحدي",icon:"🎯",short:"المهمة",desc:missionsDone?"أنجزت التحدي: "+contributions+" مساهمة تهديفية هذا الموسم.":"التحدي: حقق 3 مساهمات تهديفية (أهداف + صناعات). تقدمك "+contributions+"/3.",done:missionsDone},
+  {name:"المهمة والتحدي",icon:"🎯",short:challenge.label,desc:challenge.description,done:missionsDone},
   {name:"أحداث المسيرة",icon:"🗞️",short:"الأحداث",desc:eventSeen?"سجلت حدثًا واحدًا على الأقل في مذكرات الموسم الحالي.":"مرّر يومًا داخل المسيرة عشان يظهر حدث الموسم، وبعدها راجع اختياراتك وتأثيرها.",done:eventSeen},
   {name:"تقييم الموسم",icon:"🏆",short:"التقييم",desc:apps>=totalMatches?(state.seasonSummary||"اكتملت مباريات الدوري الـ"+totalMatches+". راجع التقرير النهائي ثم ابدأ الموسم الجديد."):"باقي "+Math.max(0,totalMatches-apps)+" مباراة على تقرير الموسم النهائي.",done:!!state.journeySeasonReviewed}
  ];

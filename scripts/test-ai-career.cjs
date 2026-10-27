@@ -136,6 +136,43 @@ const poorFormWin = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy
   contractSeasons: 3, careerMatchHistory: [{ ...highFormRows[0], rating: 5.2, teamGoals: 2, oppGoals: 0 }] }, 70);
 assert.equal(poorFormLoss.form, poorFormWin.form + 2,
   "team result may contextualize genuinely poor recent individual form, not replace it");
+
+const savedDefenderRows = [{
+  scope: "league", minutes: 90, rating: 6.1, goals: 0, assists: 0,
+  teamGoals: 0, oppGoals: 1, matchId: "saved-defender-loss",
+  stats: { tackles: 4, interceptions: 2, saves: 0, keyPasses: 0, shotsOnTarget: 0, cleanSheet: false }
+}];
+const savedDefenderLoss = ai.utilityScores({
+  pos: "قلب دفاع", age: 26, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3, careerMatchHistory: savedDefenderRows
+}, 70);
+const savedDefenderWin = ai.utilityScores({
+  pos: "قلب دفاع", age: 26, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3,
+  careerMatchHistory: [{ ...savedDefenderRows[0], teamGoals: 2, oppGoals: 0, matchId: "saved-defender-win" }]
+}, 70);
+assert.equal(savedDefenderLoss.context.tacklesLastFive, 4,
+  "career AI must read tackles from the nested stats object saved by the match-result recorder");
+assert.equal(savedDefenderLoss.context.interceptionsLastFive, 2,
+  "career AI must read nested defensive interceptions from saved match records");
+assert.equal(savedDefenderLoss.context.roleContributionLastFive, true,
+  "meaningful saved defensive actions must count as individual contributions");
+assert.equal(savedDefenderLoss.form, savedDefenderWin.form,
+  "nested defensive contributions must prevent an unrelated team loss from adding a poor-form penalty");
+const savedKeeper = ai.utilityScores({
+  pos: "حارس مرمى", age: 29, energy: 85, fatigue: 15, trust: 65,
+  contractSeasons: 3,
+  careerMatchHistory: [{
+    scope: "league", minutes: 90, rating: 6.0, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1,
+    stats: { saves: 3, cleanSheet: true }
+  }]
+}, 70);
+assert.equal(savedKeeper.context.savesLastFive, 3,
+  "career AI must read goalkeeper saves from nested persisted match stats");
+assert.equal(savedKeeper.context.cleanSheetsLastFive, 1,
+  "career AI must read clean sheets from nested persisted match stats");
+assert.equal(savedKeeper.context.roleContributionLastFive, true,
+  "goalkeeper saves and clean sheets must count toward role-aware individual form");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), true, "the AI must persist a new recommendation into its seasonal ledger");
 assert.equal(ai.recordRecommendation(academyState, academyAdvice), false, "the same recommendation must not be recorded twice in a season");
 const changedAdvice = ai.coachAdvice(academyState, 58);

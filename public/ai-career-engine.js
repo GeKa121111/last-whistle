@@ -320,8 +320,11 @@
   }
   function contextSnapshot(state, overall) {
     state = state || {};
-    const raw = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory :
-      Array.isArray(state.seasonLog) ? state.seasonLog : [];
+    const careerHistory = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [];
+    // New match history is stored newest-first. Legacy seasonLog is appended oldest-first,
+    // so use it only when the newer history has no records and reverse it before slicing.
+    const raw = careerHistory.length ? careerHistory :
+      Array.isArray(state.seasonLog) ? state.seasonLog.slice().reverse() : [];
     const played = raw.filter(row => row && (row.minutes == null ? num(row.rating, 0) > 0 : num(row.minutes, 0) > 0)).slice(0, 5);
     const ratings = played.map(row => num(row.rating, NaN)).filter(value => Number.isFinite(value) && value >= 0 && value <= 10);
     const averageRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : base.formRating(state);
@@ -332,8 +335,17 @@
     const saves = played.reduce((sum, row) => sum + Math.max(0, num(row.saves ?? row.stats?.saves, 0)), 0);
     const keyPasses = played.reduce((sum, row) => sum + Math.max(0, num(row.keyPasses ?? row.stats?.keyPasses, 0)), 0);
     const shotsOnTarget = played.reduce((sum, row) => sum + Math.max(0, num(row.shotsOnTarget ?? row.stats?.shotsOnTarget, 0)), 0);
-    const cleanSheets = played.filter(row => row.cleanSheet === true || row.stats?.cleanSheet === true).length;
     const position = String(state.pos || state.position || "غير محدد");
+    const cleanSheetEligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(position);
+    // Saved flags from older versions are not enough by themselves: require an eligible role and 60 minutes.
+    const cleanSheets = cleanSheetEligible
+      ? played.filter(row => {
+        const conceded = row.oppGoals ?? row.scoreAgainst ?? row.goalsAgainst ?? row.stats?.goalsAgainst;
+        const scoreAllowsCleanSheet = conceded == null || conceded === "" || Number(conceded) === 0;
+        return (row.cleanSheet === true || row.stats?.cleanSheet === true)
+          && num(row.minutes, 0) >= 60 && scoreAllowsCleanSheet;
+      }).length
+      : 0;
     const goalkeeperContribution = /حارس/.test(position) && (saves >= 2 || cleanSheets > 0);
     const defensiveContribution = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)
       && (tackles >= 3 || interceptions >= 2 || cleanSheets > 0);

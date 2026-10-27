@@ -132,6 +132,24 @@ assert.ok(recommendations.every(row => row.name !== "النادي الحالي")
 assert.ok(recommendations.every(row => Number.isFinite(row.score) === false), "recommendation internals must not leak into UI result objects");
 assert.ok(recommendations.every(row => row.gap <= 18), "unrealistic elite jumps must be filtered out");
 
+const duplicateTransferCandidates = [
+  { name: "Current Club", country: "Egypt", ovr: 61, prestige: 55 },
+  { name: "Suitable FC", country: "Egypt", ovr: 99, prestige: 80 },
+  { name: "Suitable FC", country: " egypt ", ovr: 65, prestige: 70 }
+];
+const robustRecommendations = ai.recommendTransfers({
+  clubName: "  CURRENT CLUB ", leagueCountry: " egypt ", age: 22
+}, duplicateTransferCandidates, 61);
+assert.ok(!robustRecommendations.some(row => row.name.trim().toLocaleLowerCase() === "current club"),
+  "the current club must stay excluded despite case and whitespace differences");
+assert.equal(robustRecommendations.filter(row => row.name.trim().toLocaleLowerCase() === "suitable fc").length, 1,
+  "duplicate club entries must collapse to one eligible transfer recommendation");
+assert.equal(robustRecommendations.find(row => row.name.trim().toLocaleLowerCase() === "suitable fc").power, 65,
+  "an out-of-range duplicate must not hide a later eligible entry for the same club");
+assert.notEqual(robustRecommendations.find(row => row.name.trim().toLocaleLowerCase() === "suitable fc").fit,
+  "مخاطرة قلة دقائق اللعب",
+  "context-aware transfer scoring must use the selected eligible duplicate, not the first same-name entry");
+
 const life = ai.lifestyleAdvice({ energy: 88, fatigue: 12, money: 500, weeklyWage: 300, contractSeasons: 1 });
 assert.equal(life.page, "contract", "an expiring contract should surface a contract review");
 
@@ -150,6 +168,15 @@ assert.equal(academyAdvice.context.lastResult.outcome, "win", "context must read
 assert.equal(academyAdvice.context.goalsLastFive, 1, "context must aggregate recent goals");
 assert.equal(academyAdvice.context.assistsLastFive, 1, "context must aggregate recent assists");
 assert.equal(academyAdvice.context.leaguePosition, 3, "context must read the player's team position");
+const normalizedClubRank = ai.utilityScores({
+  pos: "جناح", age: 25, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  clubName: "  CURRENT CLUB ",
+  league: [{ name: "current club", pts: 31, rank: 3 }, { name: "نادي آخر", pts: 27, rank: 5 }]
+}, 70);
+assert.equal(normalizedClubRank.context.leaguePosition, 3,
+  "league context must find the player's club despite case and surrounding whitespace differences");
+assert.equal(normalizedClubRank.context.leaguePoints, 31,
+  "normalized club matching must preserve points from the correct league row");
 assert.ok(academyAdvice.utilities.development > 0, "the advice must include transparent utility scores");
 const highFormRows = [{ scope: "league", minutes: 90, rating: 8.1, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1, matchId: "loss-high-form" }];
 const highFormLoss = ai.utilityScores({ pos: "وسط دفاعي", age: 25, energy: 85, fatigue: 15, trust: 65,

@@ -402,6 +402,7 @@
 
   function openTrainingSkill() {
     currentView = "training-skill";
+    var s = API().getState();
     frame("حصة مدرب متخصص", "FOCUSED TRAINING",
       '<p class="lwcx-intro">اختار مهارة واحدة. التكلفة 180 جنيهًا داخل اللعبة و8 طاقة، والتدريب يمنح نقطتين في المهارة المختارة.</p>' +
       '<div class="lwcx-skill-grid">' +
@@ -411,16 +412,25 @@
         actionButton("skill-speed", "السرعة", "انطلاقة أسرع.") +
         actionButton("skill-fitness", "اللياقة", "قدرة بدنية أعلى.") +
         actionButton("skill-composure", "الهدوء", "ثبات تحت الضغط.") +
+        (s.pos === "حارس مرمى" ? actionButton("skill-goalkeeping", "حراسة المرمى", "تدريب تخصصي للحارس فقط.") : "") +
       '</div><div class="lwcx-modal-actions"><button type="button" class="lwcx-button" data-lwcx-action="open-finance">رجوع</button></div>');
   }
 
   function applyFocusedTraining(s, skill) {
+    if (!s) return;
+    var allowedSkills = ["shooting", "passing", "dribbling", "speed", "fitness", "composure"];
+    if (s.pos === "حارس مرمى") allowedSkills.push("goalkeeping");
+    if (allowedSkills.indexOf(skill) < 0) {
+      var rejectedApi = API();
+      if (rejectedApi && rejectedApi.toast) rejectedApi.toast("المهارة دي مش متاحة لمركزك.");
+      return;
+    }
     if (s.retired || Number(s.injuryDays) > 0 || Number(s.money) < 180 || Number(s.energy) < 8) {
       var api = API();
       if (api && api.toast) api.toast("راجع الرصيد والطاقة والإصابة قبل التمرين.");
       return;
     }
-    var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء" };
+    var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء", goalkeeping: "حراسة المرمى" };
     s.money = Math.max(0, Number(s.money) - 180);
     stat(s, skill, 2);
     stat(s, "energy", -8);

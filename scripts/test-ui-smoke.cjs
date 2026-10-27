@@ -14,7 +14,7 @@ if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and publi
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
   console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
 }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v74";')) {
+if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v75";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
@@ -114,12 +114,12 @@ const required = [
   "renderPositionDevelopment",
   "story-ui.css?v=1",
   "story-mode.js?v=9",
-  "career-experience.js?v=1",
+  "career-experience.js?v=2",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
   "career-hub.js?v=1",
   "player-store.css?v=2",
-  "ai-career-engine.js?v=4",
+  "ai-career-engine.js?v=5",
   "football-world-ai.css?v=1",
   "football-world-ai.js?v=10",
   'id="worldAIHomePanel"',
@@ -329,8 +329,8 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v74")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=9", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=2", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=4", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
+if (!workerSource.includes("last-whistle-static-v75")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=9", "career-experience.css?v=1", "career-experience.js?v=2", "agent-system.css?v=1", "agent-system.js?v=2", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
@@ -340,6 +340,52 @@ try {
   console.error("Career experience JavaScript syntax error:", error.message);
   process.exit(1);
 }
+function extractExperienceFunction(source, functionName) {
+  const start = source.indexOf("function " + functionName + "(");
+  if (start < 0) throw new Error("Missing career experience function: " + functionName);
+  const end = source.indexOf("\n  function ", start + 1);
+  if (end < 0) throw new Error("Cannot find end of career experience function: " + functionName);
+  return source.slice(start, end);
+}
+const trainingUIState = { pos: "جناح" };
+const trainingUIHarness = {
+  currentView: "",
+  API: () => ({ getState: () => trainingUIState }),
+  frame: (title, chapter, body) => { trainingUIHarness.renderedBody = body; },
+  actionButton: (id, label) => '<button data-lwcx-action="' + id + '">' + label + '</button>'
+};
+vm.createContext(trainingUIHarness);
+vm.runInContext(extractExperienceFunction(experienceSource, "openTrainingSkill") + "\nthis.openTrainingSkill = openTrainingSkill;", trainingUIHarness);
+trainingUIHarness.openTrainingSkill();
+assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-goalkeeping"'), false,
+  "goalkeeping-focused training must not be offered to an outfield player");
+trainingUIState.pos = "حارس مرمى";
+trainingUIHarness.openTrainingSkill();
+assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-goalkeeping"'), true,
+  "goalkeeping-focused training must be offered to goalkeepers");
+const focusedTrainingMessages = [];
+const focusedTrainingHarness = {
+  currentView: "",
+  API: () => ({ toast: message => focusedTrainingMessages.push(String(message)) }),
+  stat: (state, key, delta) => { state[key] = (Number(state[key]) || 0) + Number(delta || 0); },
+  record: () => {},
+  save: () => {},
+  renderFinance: () => {}
+};
+vm.createContext(focusedTrainingHarness);
+vm.runInContext(extractExperienceFunction(experienceSource, "applyFocusedTraining") + "\nthis.applyFocusedTraining = applyFocusedTraining;", focusedTrainingHarness);
+const wingerTrainingState = { pos: "جناح", retired: false, injuryDays: 0, money: 1000, energy: 90, goalkeeping: 12, careerXP: 0 };
+focusedTrainingHarness.applyFocusedTraining(wingerTrainingState, "goalkeeping");
+assert.equal(wingerTrainingState.money, 1000, "an outfield player must not pay for invalid goalkeeper training");
+assert.equal(wingerTrainingState.energy, 90, "rejected goalkeeper training must not consume energy");
+assert.equal(wingerTrainingState.goalkeeping, 12, "rejected goalkeeper training must not raise goalkeeper skill");
+assert.equal(wingerTrainingState.careerXP, 0, "rejected goalkeeper training must not grant XP");
+const keeperTrainingState = { pos: "حارس مرمى", retired: false, injuryDays: 0, money: 1000, energy: 90, goalkeeping: 60, careerXP: 0 };
+focusedTrainingHarness.applyFocusedTraining(keeperTrainingState, "goalkeeping");
+assert.equal(keeperTrainingState.money, 820, "valid goalkeeper training should charge the listed fee");
+assert.equal(keeperTrainingState.energy, 82, "valid goalkeeper training should charge the listed energy");
+assert.equal(keeperTrainingState.goalkeeping, 62, "valid goalkeeper training should increase goalkeeper skill");
+assert.equal(keeperTrainingState.careerXP, 10, "valid goalkeeper training should grant career XP");
 for (const marker of ["data-lwcx-action", "careerWorld", "open-penalty", "open-timing", "open-memory", "invest-safe", "invest-risky", "mentor-coach", "open-legacy", "settleInvestments"]) {
   if (!experienceSource.includes(marker)) {
     console.error("Career experience test failed. Missing marker:", marker);

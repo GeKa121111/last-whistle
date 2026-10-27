@@ -3421,7 +3421,20 @@ function ensureTransferOffers(){
  if(profile.appearances<2||profile.form<5.8)return;
  // If a window produced no suitable offers, retry only after the player's relevant profile changes.
  // Once an offer has been generated for this window, don't replenish it after the player rejects it.
- const attemptKey=[String(state.clubName||""),String(state.leagueCountry||""),profile.appearances,Number(profile.form||0).toFixed(2),profile.ovr,Number(state.clubPower)||0].join("|");
+ const attemptKey=JSON.stringify([
+  String(profile.name||state.name||""),
+  String(profile.currentClub||state.clubName||""),
+  String(profile.country||state.leagueCountry||""),
+  Number(profile.appearances)||0,
+  Number(profile.form||0).toFixed(2),
+  Number(profile.ovr)||0,
+  Number(profile.currentClubPower||state.clubPower)||0,
+  Number(profile.goals)||0,
+  Number(profile.assists)||0,
+  Number(profile.age)||0,
+  Number(profile.potential)||0,
+  String(profile.position||"")
+ ]);
  const hasOffersForWindow=state.transferOffers.some(offer=>offer&&offer.windowId===windowId);
  if(state.transferOffersWindowId===windowId&&(hasOffersForWindow||String(state.transferOffersAttemptKey||"")===attemptKey))return;
  state.transferOffers=state.transferOffers.map(offer=>offer&&offer.status==="pending"&&offer.windowId!==windowId?{...offer,status:"expired"}:offer);

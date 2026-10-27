@@ -57,16 +57,19 @@
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09;
     return tackles * 0.05 + interceptions * 0.06;
   }
+  function playerConcededGoals(minutes, events = [], redCardMinute = null) {
+    const played = Math.max(0, Number(minutes) || 0);
+    return (Array.isArray(events) ? events : []).filter(event => {
+      if (!event || event.type !== "goal" || event.side !== "opponent") return false;
+      const minute = Number(event.minute) || 0;
+      // A substitution ends the player's personal defensive window; a red card does not.
+      return minute <= played || (redCardMinute != null && minute > Number(redCardMinute));
+    }).length;
+  }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
     const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
     const played = Math.max(0, Number(minutes) || 0);
-    if (!eligible || played < 60) return false;
-    const conceded = (Array.isArray(events) ? events : []).filter(event =>
-      event && event.type === "goal" && event.side === "opponent");
-    if (conceded.some(event => Number(event.minute) <= played)) return false;
-    // A substitution preserves a player's clean sheet, but goals conceded after a red card still count against them.
-    if (redCardMinute != null && conceded.some(event => Number(event.minute) > Number(redCardMinute))) return false;
-    return true;
+    return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;
   }
   function simulateMatch(options = {}) {
     const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
@@ -266,7 +269,8 @@
     const draw = aggregateOffset + finalFor - finalAgainst === 0 && !shootout.used;
     const resultBonus = win ? 0.30 : draw ? 0.05 : -0.28;
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
-    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, finalAgainst);
+    const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
+    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded);
     
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
@@ -357,5 +361,5 @@
       metadata: result.metadata || {}
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();

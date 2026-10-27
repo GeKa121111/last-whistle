@@ -49,6 +49,19 @@ assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 },
 assert.equal(browserEngine.playerConcededGoals(65, lateConcessionEvent), 0,
   "the browser engine must match source attribution rules");
 
+assert.equal(engine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
+  "a player who remains on the pitch through extra time must be accountable for an extra-time concession");
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "substitution", side: "player", minute: 90 },
+  { type: "goal", side: "opponent", minute: 105 }
+]), 0, "a player substituted at the end of regulation must not be penalized for extra-time goals");
+assert.equal(engine.playerConcededGoals(65, [
+  { type: "red-card", side: "player", minute: 64 },
+  { type: "goal", side: "opponent", minute: 82 }
+]), 1, "a red-card event itself must preserve accountability for later concessions");
+assert.equal(browserEngine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
+  "the deployed engine must attribute extra-time concessions exactly like the source");
+
 const cleanSheetValidationProbe = engine.simulateMatch({
   seed: 942771, teamPower: 65, opponentPower: 65,
   player: { position: "قلب دفاع", role: "أساسي", shooting: 55, passing: 65, vision: 60,

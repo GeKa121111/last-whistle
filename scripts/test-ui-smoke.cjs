@@ -342,7 +342,7 @@ for (const marker of ["runTransferWindow", "completeSeason", "advanceToSeason", 
   if (!worldAISource.includes(marker)) { console.error("Football world AI engine is missing:", marker); process.exit(1); }
 }
 const squadRefreshSource = fs.readFileSync(path.join(root, "scripts", "refresh-world-squads.cjs"), "utf8");
-for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["LW", "RW", "LWF", "RWF"]']) {
+for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW"]', '["LW", "RW", "LWF", "RWF", "WF"]']) {
   if (!squadRefreshSource.includes(marker)) { console.error("Sourced squad position normalization collapsed striker roles:", marker); process.exit(1); }
 }
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");

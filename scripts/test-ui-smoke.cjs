@@ -782,7 +782,7 @@ assert.equal(offerGenerationCalls, 8, "a new transfer window must generate its o
 assert.ok(offerState.transferOffers.some(offer => offer.windowId === "winter-0"));
 
 // Keep the delegated favourite-league action single-bound.
-const favoriteClickBindings = [...html.matchAll(/\\$\\("leagueCatalog"\\)\\.addEventListener\\("click"/g)].length;
+const favoriteClickBindings = [...html.matchAll(/\$\("leagueCatalog"\)\.addEventListener\("click"/g)].length;
 if (favoriteClickBindings !== 1) {
   console.error("Listener regression failed: leagueCatalog must have one delegated click listener, found", favoriteClickBindings);
   process.exit(1);
@@ -790,7 +790,7 @@ if (favoriteClickBindings !== 1) {
 
 // Execute transfer eligibility gates with controlled state, including the actual calendar countdown.
 const eligibilityStart = html.indexOf("function transferEligibilityReason(target){");
-const eligibilityEnd = html.indexOf("\\nfunction transferChance(target){", eligibilityStart);
+const eligibilityEnd = html.indexOf("\nfunction transferChance(target){", eligibilityStart);
 if (eligibilityStart < 0 || eligibilityEnd < 0) {
   console.error("Transfer integration test failed: eligibility helper boundaries missing.");
   process.exit(1);
@@ -836,7 +836,7 @@ for (const [actual, expected, message] of transferChecks) {
 
 // Exercise the actual transfer-review modal and its midseason continuation choices.
 const reviewStart = html.indexOf("function openWinterMarket(){");
-const reviewEnd = html.indexOf("\\nfunction resumeManualSeason(){", reviewStart);
+const reviewEnd = html.indexOf("\nfunction resumeManualSeason(){", reviewStart);
 if (reviewStart < 0 || reviewEnd < 0) {
   console.error("Transfer review integration test failed: modal function boundaries missing.");
   process.exit(1);

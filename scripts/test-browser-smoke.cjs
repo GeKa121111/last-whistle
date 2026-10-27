@@ -179,7 +179,7 @@ async function main() {
     assert.ok(startingContext.dribbling >= 55 && startingContext.dribbling <= 68, "a winger starts with winger-level dribbling");
     assert.ok(startingContext.speed >= 55 && startingContext.speed <= 68, "a winger starts with winger-level speed");
     assert.ok(startingContext.defending >= 15 && startingContext.defending <= 28, "a winger does not start as a defender");
-    assert.ok(startingContext.goalkeeping >= 10 && startingContext.goalkeeping <= 15, "outfield goalkeeper skill stays within the low 10–15 range");
+    assert.equal(startingContext.goalkeeping, 0, "outfield players must start with no goalkeeper skill");
     assert.ok(startingContext.physical >= 45 && startingContext.physical <= 58, "physical skill is initialized by position");
     assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
       "header, player summary, and store must use the Egyptian currency for an Egyptian league");

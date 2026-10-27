@@ -32,6 +32,22 @@ assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBo
 assert.equal(typeof engine.positionPerformanceImpact, "function", "role-aware match impact must be exposed for regression tests");
 
 assert.equal(typeof engine.playerEarnsCleanSheet, "function", "clean-sheet eligibility must be testable independently");
+
+assert.equal(typeof engine.playerConcededGoals, "function", "goalkeeper rating must use individually attributed concessions");
+assert.equal(typeof browserEngine.playerConcededGoals, "function", "deployed goal attribution must remain in sync");
+const lateConcessionEvent = [{ type: "goal", side: "opponent", minute: 82 }];
+assert.equal(engine.playerConcededGoals(65, lateConcessionEvent), 0,
+  "a goal after substitution must not be counted against the replaced goalkeeper");
+assert.equal(engine.playerConcededGoals(65, lateConcessionEvent, 64), 1,
+  "a goal after a red card must still be counted against the dismissed goalkeeper");
+assert.equal(engine.playerConcededGoals(65, [{ type: "goal", side: "opponent", minute: 50 }]), 1,
+  "a goal conceded while the goalkeeper is playing must affect their rating");
+assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent)), 0,
+  "the substituted goalkeeper should not be penalized for a late concession");
+assert.equal(engine.positionPerformanceImpact("حارس مرمى", { saves: 0 }, engine.playerConcededGoals(65, lateConcessionEvent, 64)), -0.06,
+  "the sent-off goalkeeper should be penalized for a concession after the dismissal");
+assert.equal(browserEngine.playerConcededGoals(65, lateConcessionEvent), 0,
+  "the browser engine must match source attribution rules");
 assert.equal(typeof browserEngine.playerEarnsCleanSheet, "function", "deployed clean-sheet logic must stay exposed and synchronized");
 const lateConcededGoals = [{ type: "goal", side: "opponent", minute: 82 }];
 assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, lateConcededGoals), true,

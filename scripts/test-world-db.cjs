@@ -4,6 +4,26 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
+
+// Test the pure source-position normalizer used during roster refresh. Detailed
+// source positions must not be collapsed into unrelated roles.
+const refreshSource = fs.readFileSync(path.join(root, "scripts", "refresh-world-squads.cjs"), "utf8");
+const roleForStart = refreshSource.indexOf("function roleFor(");
+const roleForEnd = refreshSource.indexOf("\nfunction parseAge(", roleForStart);
+assert.ok(roleForStart >= 0 && roleForEnd > roleForStart, "roster position normalizer must exist");
+const roleSandbox = {};
+vm.createContext(roleSandbox);
+vm.runInContext(refreshSource.slice(roleForStart, roleForEnd), roleSandbox, { filename: "roster-role-normalizer" });
+const roleFor = roleSandbox.roleFor;
+assert.equal(roleFor("LB"), "ظهير", "left backs must remain fullbacks, not centre-backs");
+assert.equal(roleFor("RB"), "ظهير", "right backs must remain fullbacks, not centre-backs");
+assert.equal(roleFor("LWB"), "ظهير", "left wing-backs must remain fullbacks");
+assert.equal(roleFor("RWB"), "ظهير", "right wing-backs must remain fullbacks");
+assert.equal(roleFor("CB"), "قلب دفاع", "centre-backs must retain the centre-back role");
+assert.equal(roleFor("DM"), "وسط دفاعي", "defensive midfielders must not become attacking midfielders");
+assert.equal(roleFor("AM"), "وسط مهاجم", "attacking midfielders must retain the attacking-midfield role");
+assert.equal(roleFor("WF"), "جناح", "wing-forwards must retain the winger role");
+
 const rosterSource = fs.readFileSync(path.join(root, "public", "football-world-rosters.js"), "utf8");
 const audit = JSON.parse(fs.readFileSync(path.join(root, "public", "world-roster-audit.json"), "utf8"));
 const source = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");

@@ -45,3 +45,55 @@
  body.lw-rebuild #page-europe .world-ai-empty,
  body.lw-rebuild #page-europe .world-ai-transfer{overflow-wrap:anywhere}
 }
+
+/* Mobile full-width layout regression guard: avoid a compressed right-side dashboard. */
+@media(max-width:760px){
+  body.lw-rebuild #page-europe{
+    display:block;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  body.lw-rebuild #page-europe .world-ai-dashboard-grid{
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) !important;
+    gap:8px;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    margin-inline:0 !important;
+  }
+  body.lw-rebuild #page-europe .world-ai-dashboard-grid > .world-ai-dashboard-card{
+    grid-column:1 / -1 !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+  }
+  body.lw-rebuild #page-europe .world-ai-dashboard-card .cardHead{
+    align-items:stretch;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  body.lw-rebuild #page-europe .world-ai-dashboard-card .cardHead > div{
+    flex:1 1 100%;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  body.lw-rebuild #page-europe .world-ai-dashboard-card .cardHead h2,
+  body.lw-rebuild #page-europe .world-ai-dashboard-card .cardHead .subline{
+    max-width:100%;
+    overflow-wrap:anywhere;
+    word-break:normal;
+  }
+  body.lw-rebuild #drawer:not(.open){
+    visibility:hidden !important;
+    pointer-events:none !important;
+    transform:translate3d(110%,0,0) !important;
+  }
+  body.lw-rebuild #drawer.open{
+    visibility:visible !important;
+    pointer-events:auto !important;
+    transform:translate3d(0,0,0) !important;
+  }
+}

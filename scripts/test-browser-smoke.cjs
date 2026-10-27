@@ -317,6 +317,36 @@ async function main() {
         "mobile section must not overflow horizontally: " + section
         + " (" + layout.documentWidth + "px document vs " + layout.viewportWidth + "px viewport); offenders="
         + JSON.stringify(layout.offenders));
+      if (section === "europe") {
+        const worldLayout = await page.evaluate(() => {
+          const rect = selector => {
+            const node = document.querySelector(selector);
+            if (!node) return null;
+            const box = node.getBoundingClientRect();
+            return { width: Math.round(box.width), left: Math.round(box.left), right: Math.round(box.right) };
+          };
+          const drawer = document.querySelector("#drawer");
+          return {
+            viewportWidth: window.innerWidth,
+            page: rect("#page-europe"),
+            grid: rect("#page-europe .world-ai-dashboard-grid"),
+            card: rect("#worldAISimulationDashboard"),
+            copy: rect("#worldAISimulationDashboard .cardHead > div"),
+            drawerHidden: !!drawer && !drawer.classList.contains("open")
+              && getComputedStyle(drawer).visibility === "hidden"
+          };
+        });
+        assert.ok(worldLayout.page && worldLayout.page.width >= worldLayout.viewportWidth * 0.86,
+          "world dashboard page must use the mobile viewport width: " + JSON.stringify(worldLayout));
+        assert.ok(worldLayout.grid && worldLayout.grid.width >= worldLayout.page.width * 0.9,
+          "world dashboard grid must not collapse into a narrow side column: " + JSON.stringify(worldLayout));
+        assert.ok(worldLayout.card && worldLayout.card.width >= worldLayout.grid.width * 0.9,
+          "world dashboard card must fill its grid: " + JSON.stringify(worldLayout));
+        assert.ok(worldLayout.copy && worldLayout.copy.width >= worldLayout.card.width * 0.65,
+          "world dashboard heading text must have a readable line width: " + JSON.stringify(worldLayout));
+        assert.equal(worldLayout.drawerHidden, true,
+          "the mobile side drawer must be hidden when closed: " + JSON.stringify(worldLayout));
+      }
     }
     await page.locator("#shopItems [data-buy]").first().waitFor({ state: "attached" });
     assert.ok(await page.locator("#shopItems [data-buy]").count() > 0, "the player store must render purchasable items");

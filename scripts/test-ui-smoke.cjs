@@ -360,7 +360,7 @@ const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, season
 if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
 
 const marketAccessStart = html.indexOf("function canAccessTransferMarket(){");
-const marketAccessEnd = html.indexOf("\\nfunction ", marketAccessStart + 1);
+const marketAccessEnd = html.indexOf("\nfunction ", marketAccessStart + 1);
 if (marketAccessStart < 0 || marketAccessEnd < 0) {
   console.error("Transfer eligibility regression: market access helper is missing."); process.exit(1);
 }

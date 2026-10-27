@@ -14,7 +14,7 @@ if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and publi
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
   console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
 }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v70";')) {
+if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v71";')) {
   console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
@@ -294,7 +294,7 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v70")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
+if (!workerSource.includes("last-whistle-static-v71")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
 for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=8", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=1", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=4", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
@@ -358,6 +358,57 @@ const staleWinterPause = evaluateTransferWindow({ calendarDay: 100, season: 2, s
 if (staleWinterPause.open) { console.error("Transfer test failed: a stale pending winter pause must not force the market open outside January.", JSON.stringify(staleWinterPause)); process.exit(1); }
 const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
 if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
+
+const intervalStart = html.indexOf("function seasonMatchIntervalDays(){");
+const intervalEnd = html.indexOf("\nfunction ", intervalStart + 1);
+const summerOffsetStart = html.indexOf("function daysUntilNextSummerWindow(");
+const summerOffsetEnd = html.indexOf("\nfunction ", summerOffsetStart + 1);
+if (intervalStart < 0 || intervalEnd < 0 || summerOffsetStart < 0 || summerOffsetEnd < 0) {
+  console.error("Transfer calendar regression: season interval/alignment helpers are missing."); process.exit(1);
+}
+const intervalSource = html.slice(intervalStart, intervalEnd).trim();
+const summerOffsetSource = html.slice(summerOffsetStart, summerOffsetEnd).trim();
+function seasonIntervalFor(matchCount) {
+  const sandbox = { seasonMatchTotal: () => matchCount };
+  vm.createContext(sandbox);
+  vm.runInContext(intervalSource, sandbox, { filename: "seasonMatchIntervalDays" });
+  return sandbox.seasonMatchIntervalDays();
+}
+function daysToSummer(calendarDay) {
+  const sandbox = { state: { calendarDay } };
+  vm.createContext(sandbox);
+  vm.runInContext(summerOffsetSource, sandbox, { filename: "daysUntilNextSummerWindow" });
+  return sandbox.daysUntilNextSummerWindow(calendarDay);
+}
+for (const matches of [22, 26, 30, 34, 38]) {
+  const interval = seasonIntervalFor(matches);
+  if (interval < 5 || interval > 15) {
+    console.error("Transfer calendar regression: fixture spacing is out of range.", JSON.stringify({ matches, interval })); process.exit(1);
+  }
+  let day = 1, sawSummer = false, sawWinter = false;
+  for (let round = 0; round < matches; round++) {
+    const window = evaluateTransferWindow({ calendarDay: day, season: 1, seasonApps: round, winterBreakPending: false, freeAgent: false });
+    if (window.open && window.name === "الانتقالات الصيفية") sawSummer = true;
+    if (window.open && window.name === "الانتقالات الشتوية") sawWinter = true;
+    day += interval;
+  }
+  if (!sawSummer || !sawWinter) {
+    console.error("Transfer calendar regression: a complete season must contain summer and winter windows.", JSON.stringify({ matches, interval, sawSummer, sawWinter })); process.exit(1);
+  }
+}
+for (const day of [1, 62, 366, 427]) {
+  if (daysToSummer(day) !== 0) { console.error("Transfer calendar regression: current summer opening should not be skipped.", day); process.exit(1); }
+}
+for (const day of [63, 184, 260, 365]) {
+  const offset = daysToSummer(day);
+  const target = day + offset;
+  const d = ((target - 1) % 365) + 1;
+  if (d !== 1) { console.error("Transfer calendar regression: offseason did not align the next season to summer.", JSON.stringify({ day, offset, target, dayOfYear: d })); process.exit(1); }
+}
+if (!html.includes("leagueMatchDaysRemaining(state.lastLeagueMatchCalendarDay,state.calendarDay,seasonMatchIntervalDays())")
+  || !html.includes("advanceCalendarDays(seasonMatchIntervalDays()-1")) {
+  console.error("Transfer calendar regression: manual and simulated matches must share seasonal fixture spacing."); process.exit(1);
+}
 
 const simulatorStart = html.indexOf("function simulateSeasonBlock(targetApps){");
 const simulatorEnd = html.indexOf("\nfunction ", simulatorStart + 1);

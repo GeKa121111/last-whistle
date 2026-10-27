@@ -109,6 +109,38 @@ assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [
 assert.equal(browserEngine.playerEarnsCleanSheet("قلب دفاع", 90, [{ type: "goal", side: "opponent", minute: 105 }]), false,
   "the deployed engine must not credit a false extra-time clean sheet");
 
+// Integration regression: this engine does not simulate player participation beyond 90 minutes.
+// If extra time is played, regulation-only player stats must end at minute 90 even when the
+// team concedes later. Search deterministic seeds for an actual extra-time concession.
+let extraTimeRegulationExit = null;
+for (let seed = 150001; seed < 151501 && !extraTimeRegulationExit; seed += 1) {
+  const result = engine.simulateMatch({
+    seed, knockout: true, teamPower: 65, opponentPower: 65,
+    player: {
+      name: "اختبار خروج اللاعب قبل الوقت الإضافي", position: "قلب دفاع", role: "أساسي",
+      shooting: 65, passing: 65, vision: 65, composure: 70, fitness: 100, trust: 100,
+      energy: 100, fatigue: 0, speed: 70, physical: 72, dribbling: 60
+    }
+  });
+  const dismissedOrInjured = result.events.some(event => event.side === "player"
+    && ["red-card", "injury"].includes(event.type));
+  const concededInExtraTime = result.events.some(event => event.type === "goal"
+    && event.side === "opponent" && Number(event.minute) > 90);
+  if (result.extraTime.played && result.player.minutes === 90 && !dismissedOrInjured && concededInExtraTime) {
+    extraTimeRegulationExit = result;
+  }
+}
+assert.ok(extraTimeRegulationExit, "the deterministic knockout sample must include an extra-time concession");
+assert.ok(extraTimeRegulationExit.events.some(event => event.type === "substitution"
+  && event.side === "player" && Number(event.minute) === 90),
+  "the simulated player must have an explicit exit at regulation time when the engine does not simulate extra-time minutes");
+const regulationConcessions = extraTimeRegulationExit.events.filter(event => event.type === "goal"
+  && event.side === "opponent" && Number(event.minute) <= 90).length;
+assert.equal(engine.playerConcededGoals(90, extraTimeRegulationExit.events), regulationConcessions,
+  "extra-time goals must not lower the simulated player's rating or remove their regulation clean sheet");
+assert.equal(engine.validateResult(extraTimeRegulationExit).ok, true,
+  "the extra-time exit event must keep the match ledger internally consistent");
+
 const cleanSheetValidationProbe = engine.simulateMatch({
   seed: 942771, teamPower: 65, opponentPower: 65,
   player: { position: "قلب دفاع", role: "أساسي", shooting: 55, passing: 65, vision: 60,

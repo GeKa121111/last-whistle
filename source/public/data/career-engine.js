@@ -415,6 +415,17 @@
     };
   }
 
+  function calendarGameDateISO(state) {
+    const calendarDay = Math.max(1, Math.floor(Number(state && state.calendarDay) || 1));
+    const elapsed = calendarDay - 1;
+    const gameYear = 2024 + Math.floor(elapsed / 365);
+    const dayInSeason = elapsed % 365;
+    const reference = new Date(Date.UTC(2021, 7, 1) + dayInSeason * 86400000);
+    const pad = value => String(value).padStart(2, "0");
+    return String(gameYear).padStart(4, "0") + "-" + pad(reference.getUTCMonth() + 1) + "-"
+      + pad(reference.getUTCDate()) + "T00:00:00.000Z";
+  }
+
   function seasonAwards(state, league, teamRank) {
     ensureState(state);
     const log = Array.isArray(state.seasonLog) ? state.seasonLog : [];
@@ -467,7 +478,7 @@
       const award = {
         id: definition.id, title: definition.title, season: Number(state.season) || 1,
         club: String(state.clubName || ""), country, competition, note: definition.note,
-        date: new Date().toISOString()
+        date: calendarGameDateISO(state)
       };
       state.careerAwards.unshift(award);
       won.push(award);
@@ -670,7 +681,7 @@
   }
 
   window.LWCareer = {
-    ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
+    calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
     loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,

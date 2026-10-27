@@ -23,6 +23,7 @@ const functions = [
   "rest",
   "talkCoach",
   "normalizePlayerName",
+  "matchCleanSheetContractBonus",
   "startCareerFromSetup",
   "openTransferMarketPage"
 ].map(extractFunction).join("\n");
@@ -66,6 +67,18 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(functions, sandbox, { filename: "actual-career-actions" });
+
+assert.equal(typeof sandbox.matchCleanSheetContractBonus, "function",
+  "clean-sheet contract bonus helper must be testable");
+const bonusState = { cleanSheetBonus: 250 };
+assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanSheet: true } }, false), 250,
+  "a player-earned clean sheet must unlock the contracted clean-sheet bonus");
+assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanSheet: false }, score: { against: 0 } }, false), 0,
+  "a team clean sheet must not pay a personal bonus to an outfield player who did not earn it");
+assert.equal(sandbox.matchCleanSheetContractBonus(bonusState, { player: { cleanSheet: false }, score: { against: 0 } }, true), 0,
+  "academy/reserve players marked as unpaid must not receive the clean-sheet bonus");
+assert.equal(sandbox.matchCleanSheetContractBonus({ cleanSheetBonus: -20 }, { player: { cleanSheet: true } }, false), 0,
+  "negative contract bonus amounts must be clamped to zero");
 
 
 // Player setup must normalize names and keep the career from starting when the name is empty.

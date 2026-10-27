@@ -31,7 +31,7 @@
   }
   function selectedMinutes(player, available, random) {
     if (!available) return 0;
-    const role = String(player.role || "بديل");
+    const role = String(player.role || "بديل").trim();
     const roleBase = role === "أساسي" ? 83 : role === "بديل أساسي" ? 66 : 39;
     const trust = clamp(player.trust, 0, 100);
     const fitness = clamp(player.fitness, 0, 100);
@@ -110,7 +110,7 @@
     const plannedMinutes = selectedMinutes(player, !unavailable, random);
     // A true bench substitute enters late and plays through the end of regulation;
     // other squad roles retain their existing start-and-exit minute model.
-    const playerStartMinute = plannedMinutes > 0 && String(player.role || "بديل") === "بديل"
+    const playerStartMinute = plannedMinutes > 0 && String(player.role || "بديل").trim() === "بديل"
       ? Math.max(0, 90 - plannedMinutes) : 0;
     const plannedEndMinute = Math.min(90, playerStartMinute + plannedMinutes);
     // Cards/injuries can only occur inside the player's actual on-pitch interval.

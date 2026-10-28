@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v146"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=13"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v147"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=14"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -603,3 +603,35 @@ const lowOutputRole = career.evaluateSquadRole({
 });
 assert.equal(lowOutputRole.role, "بديل",
   "role progression must not promote a low-performing player after only a handful of appearances");
+
+const malformedRoleHistory = [
+  { scope: "league", minutes: 90, rating: 5, goals: 0, assists: 0 },
+  { scope: "league", minutes: Infinity, rating: Infinity, goals: Infinity, assists: Infinity }
+];
+const malformedRoleSnapshot = {
+  pos: "رأس حربة", role: "بديل", age: 25, apps: 40,
+  goals: Infinity, assists: NaN, trust: Infinity,
+  academyCareer: false, academyReserve: false, retired: false
+};
+const malformedRoleDecision = career.evaluateSquadRole(malformedRoleSnapshot, malformedRoleHistory, {
+  scope: "league", minutes: Infinity, rating: Infinity, goals: Infinity, assists: Infinity
+});
+assert.equal(malformedRoleDecision.role, "بديل",
+  "non-finite saved match metrics must not promote a player to a starting role");
+assert.equal(malformedRoleDecision.recentAverageRating, 5,
+  "non-finite ratings must be ignored in recent-form calculations");
+assert.equal(malformedRoleDecision.recentContributionsPer90, 0,
+  "non-finite match goals and assists must not inflate recent contribution rates");
+assert.equal(malformedRoleDecision.careerContributionsPer90, 0,
+  "non-finite career goal and assist totals must not manufacture veteran output");
+assert.ok(Number.isFinite(malformedRoleDecision.recentAverageRating)
+  && Number.isFinite(malformedRoleDecision.recentContributionsPer90)
+  && Number.isFinite(malformedRoleDecision.careerContributionsPer90),
+  "role-evaluation metrics must remain finite for corrupted legacy saves");
+const deployedMalformedRoleDecision = deployedCareer.evaluateSquadRole(
+  { ...malformedRoleSnapshot }, malformedRoleHistory, {
+    scope: "league", minutes: Infinity, rating: Infinity, goals: Infinity, assists: Infinity
+  });
+assert.equal(JSON.stringify(deployedMalformedRoleDecision), JSON.stringify(malformedRoleDecision),
+  "embedded browser role evaluation must match the sanitized career engine");
+

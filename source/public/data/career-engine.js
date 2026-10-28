@@ -50,7 +50,11 @@
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
 
-    const validRow = row => row && row.scope !== "international" && Number(row.minutes) > 0;
+    const safeMetric = (value, maximum = 1000000) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, numeric)) : 0;
+    };
+    const validRow = row => row && row.scope !== "international" && safeMetric(row.minutes, 120) > 0;
     const current = validRow(currentMatch) ? { ...currentMatch } : null;
     const allRows = [current, ...(Array.isArray(matchHistory) ? matchHistory : [])]
       .filter(validRow);
@@ -60,21 +64,24 @@
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
 
-    const sum = (rows, key) => rows.reduce((total, row) => total + Math.max(0, Number(row[key]) || 0), 0);
+    const sum = (rows, key) => {
+      const maximum = key === "minutes" ? 120 : key === "rating" ? 10 : 20;
+      return rows.reduce((total, row) => total + safeMetric(row[key], maximum), 0);
+    };
     const recentMinutes = sum(recent, "minutes");
     const recentContributions = sum(recent, "goals") + sum(recent, "assists");
     const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
-    const ratedRows = recent.filter(row => Number(row.rating) > 0);
+    const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
     const recentAverageRating = ratedRows.length
-      ? ratedRows.reduce((total, row) => total + Number(row.rating), 0) / ratedRows.length : 0;
+      ? ratedRows.reduce((total, row) => total + safeMetric(row.rating, 10), 0) / ratedRows.length : 0;
 
-    const appearances = Math.max(0, Math.floor(Number(state.apps) || 0));
+    const appearances = Math.floor(safeMetric(state.apps, 1000000));
     const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
     // Saves compact long careers, so estimate missing historical minutes from the observed mean.
     const careerMinutes = Math.max(sum(allRows, "minutes"), appearances * Math.max(1, averageCareerMinutes));
-    const careerContributions = Math.max(0, Number(state.goals) || 0) + Math.max(0, Number(state.assists) || 0);
+    const careerContributions = safeMetric(state.goals, Math.max(0, appearances * 20)) + safeMetric(state.assists, Math.max(0, appearances * 20));
     const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
-    const trust = Math.max(0, Math.min(100, Number(state.trust) || 0));
+    const trust = safeMetric(state.trust, 100);
     const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
     const veteranOutput = roleIsForward && appearances >= 35
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;

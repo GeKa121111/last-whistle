@@ -86,7 +86,7 @@ assert.match(sw, /last-whistle-static-v112/,
   "the service-worker cache must be bumped so deployed clients receive the fix");
 assert.ok(sw.includes("transfer-awards-engine.js?v=5"),
   "the cached award-engine asset version must advance with the season-age fix");
-assert.match(sw, /match-engine\.js\?v=13/,
+assert.match(sw, /match-engine\.js\?v=14/,
   "the cached match-engine asset version must advance with the simulation fix");
 
 console.log("PASS: winter transfer-window identity stays stable, and legacy offers survive the break-to-second-half transition.");

@@ -403,7 +403,9 @@
     const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
       Number(event.minute) >= playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventMinutesValid = result.events.every(event => {
-      if (!event || typeof event !== "object") return false;
+      if (!event || typeof event !== "object"
+        || (typeof event.minute !== "number" && typeof event.minute !== "string")
+        || (typeof event.minute === "string" && !event.minute.trim())) return false;
       const minute = Number(event.minute);
       if (!Number.isFinite(minute) || !Number.isInteger(minute) || minute < 0 || minute > 120) return false;
       if (minute <= 90) return true;

@@ -168,6 +168,48 @@ assert.equal(ageBoundaryWorld.players[ageBoundaryVeteranId].age, 31);
 assert.equal(ageBoundaryWorld.players[ageBoundaryVeteranId].ovr, 70,
   "a player who was 30 during the season must not receive age-31 decline one season early");
 
+// Retiring players are archived, removed from active squads and never re-enter the free-agent market.
+const retirementPlayerId = "retirement-boundary-player";
+const retirementWorld = {
+  players: {
+    [retirementPlayerId]: {
+      id: retirementPlayerId, name: "Retiring Test Player", clubId: "retirement-club",
+      leagueId: "retirement-test", division: 1, position: "مهاجم", group: "attacker",
+      age: 42, contractSeasons: 1, ovr: 70, potential: 75, freeAgent: false
+    }
+  },
+  clubs: {
+    "retirement-club": {
+      id: "retirement-club", name: "Retirement Test Club", country: "Testland",
+      leagueId: "retirement-test", division: 1, roster: [retirementPlayerId], power: 65
+    }
+  },
+  seasonStats: { "1": [{ id: retirementPlayerId, appearances: 30, averageRating: 7.1 }] },
+  playerHistory: {
+    [retirementPlayerId]: [{ season: 1, type: "transfer-in", club: "Retirement Test Club" }]
+  },
+  transfers: [], marketReports: [], notes: []
+};
+sandbox.window.__lwTestDevelopPlayers(retirementWorld, 1);
+const retiredWorldPlayer = retirementWorld.players[retirementPlayerId];
+assert.equal(retiredWorldPlayer.retired, true, "players at retirement age must leave active simulation");
+assert.equal(retiredWorldPlayer.retirementAge, 42);
+assert.equal(retiredWorldPlayer.retiredSeason, 2);
+assert.equal(retiredWorldPlayer.clubId, "");
+assert.equal(retiredWorldPlayer.freeAgent, false, "retirement must not create a free agent");
+assert.ok(!retirementWorld.clubs["retirement-club"].roster.includes(retirementPlayerId),
+  "retired players must be removed from the active club roster");
+assert.equal(retirementWorld.seasonStats["1"].length, 1,
+  "retirement must preserve the player's historical season statistics");
+assert.equal(retirementWorld.playerHistory[retirementPlayerId][0].type, "retirement");
+assert.equal(retirementWorld.playerHistory[retirementPlayerId][1].type, "transfer-in",
+  "retirement history must be added without deleting earlier player history");
+assert.ok(retirementWorld.notes.some(note => note.type === "retirement"));
+sandbox.window.__lwTestSignFreeAgents(retirementWorld, 2, []);
+assert.equal(retirementWorld.players[retirementPlayerId].retired, true);
+assert.equal(retirementWorld.players[retirementPlayerId].clubId, "",
+  "retired players must never be signed as free agents");
+
 // Promotion history records the destination season. A record for season 2 must
 // prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];

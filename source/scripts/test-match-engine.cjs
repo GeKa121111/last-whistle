@@ -174,7 +174,7 @@ assert.ok(extraTimeParticipation.events.some(event => Number(event.minute) > 90
   && (event.creditedToPlayer === true || (event.side === "player"
     && ["tackle", "interception", "foul", "save"].includes(event.type)))),
   "player contributions must be recorded inside the extra-time periods");
-assert.deepEqual(browserEngine.simulateMatch(extraTimeParticipationOptions), extraTimeParticipation,
+assert.equal(JSON.stringify(browserEngine.simulateMatch(extraTimeParticipationOptions)), JSON.stringify(extraTimeParticipation),
   "the embedded browser engine must match extra-time player participation");
 const extraTimeConcessions = extraTimeParticipation.events.filter(event => event.type === "goal"
   && event.side === "opponent").length;

@@ -9,7 +9,7 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
-const { parseAge, seasonReferenceDate, parseTeamLinks } = require(path.join(root, "scripts", "refresh-world-squads.cjs"));
+const { parseAge, seasonReferenceDate, parseTeamLinks, fetchHtml } = require(path.join(root, "scripts", "refresh-world-squads.cjs"));
 assert.equal(parseAge("01/07/2008"), 18, "league-season age should be evaluated at the 1 July season start");
 assert.equal(parseAge("02/07/2008"), 17, "a birthday after season start must not age a player early");
 assert.equal(parseAge("01/07/08"), 18, "two-digit birth years should use the same season reference date");

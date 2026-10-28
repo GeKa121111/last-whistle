@@ -204,10 +204,11 @@ assert.equal(career.normalizeLeagueRoundIndex(Infinity, [{ matchday: 5 }], 0, 34
   "a non-finite saved index must fall back to valid persisted match history");
 assert.equal(career.normalizeLeagueRoundIndex(3, [], 0, Infinity), 0,
   "a non-finite round count must not create an invalid league index");
-const inlineRoundStart = rootHtml.indexOf("function normalizeLeagueRoundIndex(");
-const inlineRoundEnd = rootHtml.indexOf("\n  function ", inlineRoundStart + 10);
-assert.ok(inlineRoundStart >= 0 && inlineRoundEnd > inlineRoundStart,
-  "the inline browser engine must expose the league-round normalizer for regression testing");
+const inlineRoundStart = rootHtml.indexOf("const toNonNegativeInteger = value => {");
+const inlineNormalizeStart = rootHtml.indexOf("function normalizeLeagueRoundIndex(", inlineRoundStart);
+const inlineRoundEnd = rootHtml.indexOf("\n  function ", inlineNormalizeStart + 10);
+assert.ok(inlineRoundStart >= 0 && inlineNormalizeStart > inlineRoundStart && inlineRoundEnd > inlineNormalizeStart,
+  "the inline browser engine must expose the integer helper and league-round normalizer for regression testing");
 const inlineRoundContext = {};
 vm.createContext(inlineRoundContext);
 vm.runInContext(rootHtml.slice(inlineRoundStart, inlineRoundEnd)

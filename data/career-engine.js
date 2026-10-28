@@ -490,18 +490,34 @@
     const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);
     const competition = String(state.leagueCompetition || "");
     const country = String(state.leagueCountry || "");
-    const playerMatches = log.filter(row => row && row.playerAvailable !== false && Number(row.minutes) > 0
+    const awardCount = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(100, Math.floor(numeric))) : 0;
+    };
+    const awardMinutes = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(120, numeric)) : 0;
+    };
+    const awardRating = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+    };
+    const rankValue = Number(teamRank);
+    const safeTeamRank = Number.isFinite(rankValue) && rankValue > 0 ? rankValue : 6;
+    const playerMatches = log.filter(row => row && row.playerAvailable !== false && awardMinutes(row.minutes) > 0
       && (!row.leagueCountry || row.leagueCountry === country)
       && (!row.leagueCompetition || !competition || row.leagueCompetition === competition));
     const appearances = playerMatches.length;
     if (appearances < 3) return [];
-    const goals = playerMatches.reduce((sum, row) => sum + (Number(row.goals) || 0), 0);
-    const assists = playerMatches.reduce((sum, row) => sum + (Number(row.assists) || 0), 0);
-    const average = playerMatches.reduce((sum, row) => sum + (Number(row.rating) || 0), 0) / appearances;
-    const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - Number(teamRank || 6)) * 0.7;
+    const goals = playerMatches.reduce((sum, row) => sum + awardCount(row.goals), 0);
+    const assists = playerMatches.reduce((sum, row) => sum + awardCount(row.assists), 0);
+    const average = playerMatches.reduce((sum, row) => sum + awardRating(row.rating), 0) / appearances;
+    const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - safeTeamRank) * 0.7;
     const opponents = (Array.isArray(league) ? league : []).filter(team => team && team.name !== state.clubName).map(team => {
       const rng = seeded(hash(String(state.season) + "|" + String(state.leagueCountry) + "|" + team.name));
-      const power = Number(team.power) || 50;
+      const powerValue = Number(team.power);
+      const power = Number.isFinite(powerValue) && powerValue !== 0
+        ? Math.max(0, Math.min(100, powerValue)) : 50;
       return {
         age: 18 + Math.floor(rng() * 18),
         goals: Math.max(0, Math.round(appearances * (0.04 + power / 850 + rng() * 0.09))),
@@ -542,9 +558,14 @@
       state.careerAwards.unshift(award);
       won.push(award);
     }
-    if (won.some(award => award.id === "golden-boot")) state.topScorerAwards = (Number(state.topScorerAwards) || 0) + 1;
+    const scorerCount = Number(state.topScorerAwards);
+    const safeScorerCount = Number.isFinite(scorerCount)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - 1, Math.floor(scorerCount))) : 0;
+    state.topScorerAwards = safeScorerCount + (won.some(award => award.id === "golden-boot") ? 1 : 0);
     const rewards = { "league-player": 650, "golden-boot": 450, playmaker: 400, "young-player": 500 };
-    state.money = (Number(state.money) || 0) + won.reduce((sum, award) => sum + (rewards[award.id] || 0), 0);
+    const balanceValue = Number(state.money);
+    const balance = Number.isFinite(balanceValue) ? Math.max(0, balanceValue) : 0;
+    state.money = balance + won.reduce((sum, award) => sum + (rewards[award.id] || 0), 0);
     return won;
   }
 

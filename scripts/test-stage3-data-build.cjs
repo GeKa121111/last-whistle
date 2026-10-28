@@ -23,10 +23,11 @@ const parsedSquadLinks = parseTeamLinks([
   '<a href="/premier/club-b.html">Club B</a>',
   '<a href="/premier/club-c.htm">Club C</a>',
   '<a href="/premier/index.html">Home</a>',
-  '<a href="/outside/club-d.html">Outside Club</a>'
-].join("\\n"), "https://footballsquads.co.uk/premier/index.htm", "/premier/");
+  '<a href="/outside/club-d.html">Outside Club</a>',
+  '<a href="https://outside.example/premier/club-e.html">External Club</a>'
+].join("\n"), "https://footballsquads.co.uk/premier/index.htm", "/premier/");
 assert.deepEqual(parsedSquadLinks.map(team => team.name).sort(), ["Club A", "Club B", "Club C"],
-  "squad parser must accept .htm and .html club pages while excluding index and out-of-league links");
+  "squad parser must accept .htm/.html pages only from the source host and configured league directory");
 
 for (const file of [
   "football-world-db.js",

@@ -26,6 +26,11 @@ const sandbox = { window: { LWFootballSquadData: scotlandFixtureSnapshot }, cons
 vm.createContext(sandbox);
 const dbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
 const aiSourceRaw = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
+assert.ok(aiSourceRaw.includes('if (p === "st" || p === "f" || p === "striker"'),
+  "centre-striker classification must not include CF, which is the mobile-forward role");
+assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p === "ss" || p === "fw"'),
+  "CF must use the mobile-forward production profile");
+
 const lineupMarker = "  function makeLineup(world, club) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";

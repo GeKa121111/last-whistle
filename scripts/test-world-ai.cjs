@@ -1026,10 +1026,10 @@ assert.equal(Array.from(ai.getDivisionTable(divisionLookupSave, "division-lookup
 const projectionCacheSave = { season: 1, name: "Season projection cache regression" };
 const projectionCacheWorld = ai.ensureState(projectionCacheSave, db);
 sandbox.window.__lwSeasonProjectionBuilds = 0;
-const firstProjection = ai.getSeasonLines(projectionCacheSave, 99, 0.5, db);
+const firstProjection = sandbox.window.__lwTestBaseGetSeasonLines(projectionCacheSave, 2, 0.5, db);
 const firstProjectionBuilds = sandbox.window.__lwSeasonProjectionBuilds;
 assert.ok(firstProjectionBuilds > 0, "an unfinished season projection must be generated once");
-const fullProjection = ai.getSeasonLines(projectionCacheSave, 99, 1, db);
+const fullProjection = sandbox.window.__lwTestBaseGetSeasonLines(projectionCacheSave, 2, 1, db);
 assert.equal(sandbox.window.__lwSeasonProjectionBuilds, firstProjectionBuilds,
   "changing display progress must reuse the cached full-season projection");
 assert.equal(firstProjection.length, fullProjection.length, "progress scaling must preserve the player row count");
@@ -1038,10 +1038,10 @@ ai.advanceToSeason(projectionCacheSave, 2, db);
 assert.ok(projectionCacheWorld.projectionRevision > revisionBeforeAdvance,
   "advancing the world season must invalidate projections built from the previous player state");
 sandbox.window.__lwSeasonProjectionBuilds = 0;
-ai.getSeasonLines(projectionCacheSave, 99, 0.5, db);
+sandbox.window.__lwTestBaseGetSeasonLines(projectionCacheSave, 2, 0.5, db);
 const postAdvanceBuilds = sandbox.window.__lwSeasonProjectionBuilds;
 assert.ok(postAdvanceBuilds > 0, "a new world season must rebuild its projected player rows");
-ai.getSeasonLines(projectionCacheSave, 99, 1, db);
+sandbox.window.__lwTestBaseGetSeasonLines(projectionCacheSave, 2, 1, db);
 assert.equal(sandbox.window.__lwSeasonProjectionBuilds, postAdvanceBuilds,
   "the rebuilt projection must also be reused until the world changes");
 

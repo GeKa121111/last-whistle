@@ -549,6 +549,15 @@
   }
   function runTransferWindow(world, season) {
     const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
+    // Apply the new-season operating allocation before deals, while retaining leftover transfer cash.
+    // The cap prevents balances from growing without bound over long simulated careers.
+    for (const club of clubs) {
+      const budgetBase = Math.max(40, Math.round(70 + (Number(club.power) || Number(club.basePower) || 55) * 9 + (Number(club.prestige) || 50) * 2.2));
+      const existingBudget = Number(club.budget);
+      const carriedBudget = Number.isFinite(existingBudget) && existingBudget >= 0
+        ? Math.min(existingBudget, budgetBase * 2) : budgetBase;
+      club.budget = Math.round(Math.min(budgetBase * 2, carriedBudget + Math.max(1, Math.round(budgetBase * 0.25))));
+    }
     const alreadyUsedClubs = new Set(), alreadyUsedPlayers = new Set(), moves = [];
     const maxMoves = Math.max(10, Math.min(40, Math.round(clubs.length * 0.42)));
     // Interleave divisions so the capped market does not spend every deal on first-tier clubs.
@@ -647,7 +656,7 @@
       const squadAverage = average(strength.map(player => player.ovr));
       club.power = clamp(Math.round(club.basePower * 0.70 + squadAverage * 0.30), 35, 97);
       club.updatedSeason = Number(season);
-      club.budget = Math.max(40, Math.round(70 + club.power * 9 + club.prestige * 2.2));
+      // Keep the cash balance after fees; recomputing it here would erase the transfer's financial effect.
     });
     world.marketReports.unshift({
       season: Number(season), moves: moves.length,
@@ -1679,7 +1688,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=9");
+    const worker = new global.Worker("./football-world-worker.js?v=10");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

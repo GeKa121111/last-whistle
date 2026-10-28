@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v142"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=9"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v143"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=10"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -196,8 +196,27 @@ assert.equal(career.normalizeLeagueRoundIndex(undefined, [{ opponent: "A" }, { o
   "legacy match history without matchday metadata must fall back to league appearances");
 assert.equal(career.normalizeLeagueRoundIndex(3, [{ opponent: "A" }], 8, 30), 8,
   "a stale saved index must not ignore league appearances when legacy history lacks matchday metadata");
-assert.ok(rootHtml.includes("Math.max(0, Math.floor(saved), legacyRound)"),
-  "the inline browser engine must use the same integer round-history recovery rule");
+assert.equal(career.normalizeLeagueRoundIndex(undefined, [{ matchday: Infinity }], 0, 34), 0,
+  "non-finite matchday metadata must not mark the league complete");
+assert.equal(career.normalizeLeagueRoundIndex(undefined, [], Infinity, 34), 0,
+  "non-finite legacy league appearances must not mark the league complete");
+assert.equal(career.normalizeLeagueRoundIndex(Infinity, [{ matchday: 5 }], 0, 34), 5,
+  "a non-finite saved index must fall back to valid persisted match history");
+assert.equal(career.normalizeLeagueRoundIndex(3, [], 0, Infinity), 0,
+  "a non-finite round count must not create an invalid league index");
+const inlineRoundStart = rootHtml.indexOf("const toNonNegativeInteger = value => {");
+const inlineNormalizeStart = rootHtml.indexOf("function normalizeLeagueRoundIndex(", inlineRoundStart);
+const inlineRoundEnd = rootHtml.indexOf("\n  function ", inlineNormalizeStart + 10);
+assert.ok(inlineRoundStart >= 0 && inlineNormalizeStart > inlineRoundStart && inlineRoundEnd > inlineNormalizeStart,
+  "the inline browser engine must expose the integer helper and league-round normalizer for regression testing");
+const inlineRoundContext = {};
+vm.createContext(inlineRoundContext);
+vm.runInContext(rootHtml.slice(inlineRoundStart, inlineRoundEnd)
+  + "\nthis.normalizeLeagueRoundIndex = normalizeLeagueRoundIndex;", inlineRoundContext);
+assert.equal(inlineRoundContext.normalizeLeagueRoundIndex(undefined, [{ matchday: Infinity }], 0, 34), 0,
+  "the inline browser engine must ignore non-finite matchday values");
+assert.equal(inlineRoundContext.normalizeLeagueRoundIndex(undefined, [], Infinity, 34), 0,
+  "the inline browser engine must ignore non-finite legacy appearance counts");
 
 const onLoan = {
   name: "Test Player", clubName: "Loan Club", leagueCountry: "Hostland",

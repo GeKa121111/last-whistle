@@ -19,7 +19,7 @@ const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
 assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v142"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=5"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=6"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -37,6 +37,29 @@ vm.runInContext(rootHtml.slice(inlineDateStart, inlineDateEnd)
   + "\nthis.calendarGameDateISO = calendarGameDateISO;", inlineDateContext);
 assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "the browser career engine must use the same game-calendar date");
+assert.ok(rootHtml.includes('const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);'),
+  "the inline browser award engine must deduplicate repeated match rows");
+const duplicateAwardState = {
+  age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+  leagueCompetition: "Test League", season: 1, calendarDay: 120, money: 0,
+  topScorerAwards: 0, careerAwards: [],
+  seasonLog: [
+    { matchId: "award-match-1", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 0 },
+    { matchId: "award-match-2", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 0 },
+    { matchId: "award-match-3", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 0 },
+    { matchId: "award-match-1", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 0 }
+  ]
+};
+career.seasonAwards(duplicateAwardState, [{ name: "Test FC", power: 50 }], 1);
+const duplicateAwardBoot = duplicateAwardState.careerAwards.find(award => award.id === "golden-boot");
+assert.ok(duplicateAwardBoot, "three unique league goals must qualify for the simulated golden boot");
+assert.equal(duplicateAwardBoot.note, "3 هدف في 3 مشاركة",
+  "a repeated match record must not inflate award goals or appearances");
+assert.equal(duplicateAwardState.topScorerAwards, 1,
+  "a duplicated match must not grant the same season's golden-boot counter twice");
+assert.equal(duplicateAwardState.money, 1100,
+  "award rewards must be calculated from unique match rows only");
+
 
 const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");
 const inlineStatsStart = rootHtml.indexOf("  function startingStatsForPosition(position", inlineRangesStart);

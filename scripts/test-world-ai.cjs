@@ -158,11 +158,15 @@ const divisionPersistenceClub = Object.values(world.clubs).find(club => club.lea
 assert.ok(divisionPersistenceClub, "the roster fixture must include a club for the division-persistence regression");
 const sourceDivisionForClub = db.clubs().find(row => row.name === divisionPersistenceClub.name).division;
 assert.equal(Number(sourceDivisionForClub), 1, "the fixture source club should begin in division one");
+const originalPlayerDivisions = new Map((divisionPersistenceClub.roster || []).map(id => [id, world.players[id] && world.players[id].division]));
 divisionPersistenceClub.division = 2;
 (divisionPersistenceClub.roster || []).forEach(id => { if (world.players[id]) world.players[id].division = 2; });
 sandbox.window.__lwTestReconcileDatabase(world, db);
 assert.equal(divisionPersistenceClub.division, 2,
   "catalogue reconciliation must preserve a club’s saved simulation division");
+// Restore the shared world fixture so subsequent season/schedule assertions stay independent.
+divisionPersistenceClub.division = Number(sourceDivisionForClub);
+originalPlayerDivisions.forEach((division, id) => { if (world.players[id]) world.players[id].division = division; });
 const clubCount = Object.keys(world.clubs).length;
 const playerCount = Object.keys(world.players).length;
 assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");

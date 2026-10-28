@@ -2,6 +2,7 @@
   "use strict";
   var API = function(){return window.LWStoryRuntime||null;};
   var panel=null, overlay=null, selectedAgentId="", quotedFeeRate=null, lastSnapshot="", panelWasRendered=false;
+  var tickScheduled=false,tickForceQueued=false;
 
   var AGENTS = [
     {
@@ -460,7 +461,7 @@
     if(action==="agent-end-current"){endCurrent();return;}
     if(action==="agent-confirm-end"){confirmEnd();return;}
   }
-  function tick(){
+  function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
     var changed=ensureState(s);
     if(s.agent&&renewRelationship(s))changed=true;
@@ -475,22 +476,43 @@
       history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
     ].join("|");
     var ready=ensurePanel();
-    if(ready&&(snapshot!==lastSnapshot||!panelWasRendered)){
-      renderPanel(s);
-      panelWasRendered=true;
+    if(ready&&(force||snapshot!==lastSnapshot||!panelWasRendered)){
+      if(!document.hidden){renderPanel(s);panelWasRendered=true;}
+      else panelWasRendered=false;
     }else if(!ready){
-      // The contract page may mount after the first tick. Render once it exists.
       panelWasRendered=false;
     }
     if(changed&&api.save)api.save();
     lastSnapshot=snapshot;
+  }
+  function scheduleTick(force){
+    tickForceQueued=tickForceQueued||!!force;
+    if(tickScheduled)return;
+    tickScheduled=true;
+    Promise.resolve().then(function(){
+      tickScheduled=false;
+      var shouldForce=tickForceQueued;tickForceQueued=false;
+      tick(shouldForce);
+    });
   }
   document.addEventListener("click",function(event){
     var b=event.target&&event.target.closest?event.target.closest("[data-lwag-action]"):null;
     if(!b||b.disabled)return;event.preventDefault();handleAction(b.getAttribute("data-lwag-action")||"",b);
   });
   document.addEventListener("keydown",function(e){if(e.key==="Escape"&&overlay&&!overlay.hidden)closeDialog();});
-  function start(){tick();window.setInterval(tick,1000);window.addEventListener("pageshow",tick);window.addEventListener("storage",tick);}
+  function start(){
+    tick(true);
+    var store=window.LWStateStore;
+    if(store&&typeof store.subscribe==="function"){
+      store.subscribe(function(){scheduleTick(false);});
+      window.setInterval(function(){tick(false);},5000);
+    }else{
+      window.setInterval(function(){tick(false);},2500);
+    }
+    window.addEventListener("pageshow",function(){tick(true);});
+    window.addEventListener("storage",function(){tick(true);});
+    document.addEventListener("visibilitychange",function(){if(!document.hidden)tick(true);});
+  }
 
   // Stage 2: post-retirement career paths. Actions are deterministic and persist in the career state.
   function postRetirementOptions(s){

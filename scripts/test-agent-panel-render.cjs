@@ -51,7 +51,8 @@ const sandbox = {
   ensurePanel: () => ready,
   renderPanel: () => { renders++; },
   lastSnapshot: "",
-  panelWasRendered: false
+  panelWasRendered: false,
+  document: { hidden: false }
 };
 vm.createContext(sandbox);
 vm.runInContext(tickSource, sandbox, { filename: "agent-system.tick" });

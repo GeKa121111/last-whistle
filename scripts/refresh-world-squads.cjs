@@ -139,6 +139,10 @@ function parseAge(dob, referenceDate = seasonReferenceDate(SEASON)) {
   const seasonDate = referenceDate instanceof Date && Number.isFinite(referenceDate.getTime())
     ? referenceDate
     : seasonReferenceDate(SEASON);
+  const daysInMonth = month >= 1 && month <= 12
+    ? new Date(Date.UTC(year, month, 0)).getUTCDate()
+    : 0;
+  if (!Number.isInteger(day) || day < 1 || day > daysInMonth) return null;
   let age = seasonDate.getUTCFullYear() - year;
   if (seasonDate.getUTCMonth() + 1 < month ||
       (seasonDate.getUTCMonth() + 1 === month && seasonDate.getUTCDate() < day)) age--;

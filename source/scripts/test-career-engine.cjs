@@ -586,6 +586,24 @@ assert.equal(JSON.stringify(browserMalformedLegacyStats), JSON.stringify(malform
 assert.equal(JSON.stringify(browserLegacyRatings), JSON.stringify(rebuiltLeagueRatings),
   "embedded browser rating reconstruction must match the shared career engine");
 
+const malformedQualificationState = {
+  pos: "جناح", age: 24, apps: 0,
+  seasonLog: [
+    { id: "qualification-infinite-1", scope: "league", minutes: "Infinity" },
+    { id: "qualification-infinite-2", scope: "league", minutes: Infinity },
+    { id: "qualification-nan-1", scope: "league", minutes: NaN },
+    { id: "qualification-infinite-3", scope: "league", minutes: "Infinity" },
+    { id: "qualification-valid", scope: "league", minutes: 90 }
+  ],
+  careerMatchHistory: []
+};
+career.ensureState(malformedQualificationState);
+assert.equal(malformedQualificationState.qualifyingAppearances, 1,
+  "ensureState must not count non-finite legacy match minutes as qualifying appearances");
+assert.deepEqual(malformedQualificationState.careerMilestonesEarned, [],
+  "invalid legacy minutes must not manufacture appearance milestones during state repair");
+
+
 for (const [label, initial, outcome] of [
   ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],
   ["champion", { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "فوز"],

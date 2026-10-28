@@ -116,6 +116,41 @@ assert.equal(cupArchiveScenario.state.cupHistory[0].leftByTransfer, true);
 assert.equal(cupArchiveScenario.state.cupHistory[0].matches, 3, "completed cup-match history must be preserved");
 assert.match(cupArchiveScenario.state.cupHistory[0].reason, /انتقال/);
 assert.equal(cupArchiveScenario.archiveCupForTransfer(), false, "archiving must be idempotent after the active cup is cleared");
+
+const completedCupScenario = {
+  state: {
+    season: 4, clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1,
+    cupState: { name: "كأس مكتمل", createdSeason: 4, matchesPlayed: 5, champion: true },
+    cupHistory: [{ name: "كأس مكتمل", season: 4, champion: true, matches: 5, club: "نادي أ" }]
+  }
+};
+vm.createContext(completedCupScenario);
+vm.runInContext(cupArchiveSource, completedCupScenario, { filename: "archiveCompletedCupForTransfer" });
+assert.equal(completedCupScenario.archiveCupForTransfer(), true,
+  "completed cup state must be cleared when the player transfers");
+assert.equal(completedCupScenario.state.cupState, null,
+  "a won cup must not follow the player to the destination club");
+assert.equal(completedCupScenario.state.cupHistory.length, 1,
+  "an existing trophy record must not be duplicated");
+
+const eliminatedCupScenario = {
+  state: {
+    season: 4, clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1,
+    cupState: { name: "كأس خروج", createdSeason: 4, matchesPlayed: 2, eliminated: true },
+    cupHistory: []
+  }
+};
+vm.createContext(eliminatedCupScenario);
+vm.runInContext(cupArchiveSource, eliminatedCupScenario, { filename: "archiveEliminatedCupForTransfer" });
+assert.equal(eliminatedCupScenario.archiveCupForTransfer(), true,
+  "an eliminated cup state must be closed before transfer");
+assert.equal(eliminatedCupScenario.state.cupState, null);
+assert.equal(eliminatedCupScenario.state.cupHistory[0].eliminated, true,
+  "an elimination missing from legacy cup history must be preserved");
+assert.equal(eliminatedCupScenario.state.cupHistory[0].matches, 2);
+assert.equal(eliminatedCupScenario.state.cupHistory[0].abandoned, false,
+  "a completed elimination must not be mislabeled as an abandoned cup");
+
 assert.match(transferToSource, /archiveCupForTransfer\(\)/, "transfer completion must archive the active cup before switching clubs");
 assert.doesNotMatch(transferToSource, /activeCupInProgress\(\)/, "transfer completion must not stay blocked by the active cup");
 

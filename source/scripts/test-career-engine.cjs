@@ -548,12 +548,6 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
-const browserRoleDecision = deployedCareer.evaluateSquadRole({ ...roleStateForDedup },
-  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
-const sourceRoleDecision = career.evaluateSquadRole({ ...roleStateForDedup },
-  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
-assert.equal(JSON.stringify(browserRoleDecision), JSON.stringify(sourceRoleDecision),
-  "embedded browser and shared career engines must deduplicate squad-role match history identically");
 
 for (const [label, initial, outcome] of [
   ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],
@@ -658,6 +652,13 @@ assert.equal(roleWithDuplicate.recentContributionsPer90, roleWithoutDuplicate.re
   "duplicate match rows must not inflate recent contributions per 90");
 assert.equal(roleWithDuplicate.careerContributionsPer90, roleWithoutDuplicate.careerContributionsPer90,
   "duplicate match rows must not distort estimated career minutes");
+
+const browserRoleDecision = deployedCareer.evaluateSquadRole({ ...roleStateForDedup },
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+const sourceRoleDecision = career.evaluateSquadRole({ ...roleStateForDedup },
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+assert.equal(JSON.stringify(browserRoleDecision), JSON.stringify(sourceRoleDecision),
+  "embedded browser and shared career engines must deduplicate squad-role match history identically");
 const protectedAcademyRole = career.evaluateSquadRole({
   ...roleSnapshot, role: "ناشئ تحت 15", academyCareer: true
 }, roleHistory, { scope: "league", minutes: 39, rating: 9.1, goals: 2, assists: 0 });

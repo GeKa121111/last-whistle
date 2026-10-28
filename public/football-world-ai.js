@@ -498,9 +498,12 @@
         generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
     }
     return fullRows.map(row => {
-      const apps = Math.round(Number(row.appearances || row.seasonStats && row.seasonStats.appearances || 0) * scale);
-      const goals = Math.round(Number(row.goals || 0) * scale);
-      const assists = Math.round(Number(row.assists || 0) * scale);
+      const rawAppearances = row.appearances !== undefined && row.appearances !== null
+        ? Number(row.appearances)
+        : Number(row.seasonStats && row.seasonStats.appearances) || 0;
+      const apps = Math.round(Math.max(0, Number.isFinite(rawAppearances) ? rawAppearances : 0) * scale);
+      const goals = apps > 0 ? Math.round(Math.max(0, Number(row.goals) || 0) * scale) : 0;
+      const assists = apps > 0 ? Math.round(Math.max(0, Number(row.assists) || 0) * scale) : 0;
       const seasonStats = row.seasonStats || {
         season: targetSeason, appearances: Number(row.appearances) || 0, goals: Number(row.goals) || 0,
         assists: Number(row.assists) || 0, averageRating: Number(row.averageRating) || 0,
@@ -860,12 +863,20 @@
       && (!leagueId || row.leagueId === leagueId)
       && (!options.division || Number(row.division) === Number(options.division)));
     return lines.map(row => {
-      const appearances = Number(row.displayStats && row.displayStats.appearances) || Number(row.appearances) || 0;
-      const goals = Number(row.displayStats && row.displayStats.goals) || 0;
-      const assists = Number(row.displayStats && row.displayStats.assists) || 0;
-      return { ...row, appearances, goals, assists, averageRating: appearances ? Number(row.averageRating) || 0 : 0,
-        score: Number((Number(row.averageRating || 0) * 9 + goals * 0.95 + assists * 0.62 + Number(row.ovr || 0) * 0.08).toFixed(3)),
-        weightedGoals: Number((goals * (0.82 + Number(row.leagueStrength || 60) / 450)).toFixed(3)) };
+      const displayStats = row.displayStats && typeof row.displayStats === "object" ? row.displayStats : row;
+      const appearances = Math.max(0, Number(displayStats.appearances) || 0);
+      const goals = appearances > 0 ? Math.max(0, Number(displayStats.goals) || 0) : 0;
+      const assists = appearances > 0 ? Math.max(0, Number(displayStats.assists) || 0) : 0;
+      const averageRating = appearances > 0
+        ? Math.max(0, Number(displayStats.averageRating !== undefined ? displayStats.averageRating : row.averageRating) || 0)
+        : 0;
+      const score = appearances > 0
+        ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + Number(row.ovr || 0) * 0.08).toFixed(3))
+        : 0;
+      const weightedGoals = appearances > 0
+        ? Number((goals * (0.82 + Number(row.leagueStrength || 60) / 450)).toFixed(3))
+        : 0;
+      return { ...row, appearances, goals, assists, averageRating, score, weightedGoals };
     });
   }
   function dashboard(save, db) {

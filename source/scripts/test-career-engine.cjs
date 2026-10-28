@@ -19,7 +19,7 @@ const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
 assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v142"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=7"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=8"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -186,6 +186,10 @@ assert.equal(career.normalizeLeagueRoundIndex(3, [{ matchday: 7 }, { matchday: 9
   "a stale saved round index must not roll back behind persisted match history");
 assert.equal(career.normalizeLeagueRoundIndex(11, [{ matchday: 9 }], 8, 30), 11,
   "a newer saved round index must still be preserved when history is compacted");
+assert.equal(career.normalizeLeagueRoundIndex(undefined, [{ opponent: "A" }, { opponent: "B" }], 8, 30), 8,
+  "legacy match history without matchday metadata must fall back to league appearances");
+assert.equal(career.normalizeLeagueRoundIndex(3, [{ opponent: "A" }], 8, 30), 8,
+  "a stale saved index must not ignore league appearances when legacy history lacks matchday metadata");
 assert.ok(rootHtml.includes("Math.max(0, saved, legacyRound)"),
   "the inline browser engine must use the same round-history recovery rule");
 

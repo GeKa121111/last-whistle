@@ -428,7 +428,7 @@
 
   function seasonAwards(state, league, teamRank) {
     ensureState(state);
-    const log = Array.isArray(state.seasonLog) ? state.seasonLog : [];
+    const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);
     const competition = String(state.leagueCompetition || "");
     const country = String(state.leagueCountry || "");
     const playerMatches = log.filter(row => row && row.playerAvailable !== false && Number(row.minutes) > 0

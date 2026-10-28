@@ -73,15 +73,14 @@
     const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
     const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
       : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
-    // Substitutes are only responsible for goals after they enter. A recorded exit
-    // wins over duration estimates; a full-match player may remain accountable in ET.
+    // Same-minute goals are ordered after substitution-on and before substitution/exit events.
     const exitMinute = firstExit ? firstExit.minute
       : Number.isFinite(dismissalMinute) ? dismissalMinute
         : entryMinute > 0 || played < 90 ? entryMinute + played : null;
     return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
       const minute = Number(event.minute);
-      if (!Number.isFinite(minute) || minute <= entryMinute) return false;
+      if (!Number.isFinite(minute) || minute < entryMinute) return false;
       return exitMinute == null || minute <= exitMinute;
     }).length;
   }

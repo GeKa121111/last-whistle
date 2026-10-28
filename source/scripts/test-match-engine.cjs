@@ -99,6 +99,26 @@ assert.equal(engine.playerConcededGoals(65, [
   { type: "goal", side: "opponent", minute: 64 },
   { type: "red-card", side: "player", minute: 64 }
 ]), 1, "a goal at the dismissal minute must still count if it occurred before the player exited");
+const goalAfterEntryAtSameMinute = [
+  { type: "substitution-on", side: "player", minute: 60 },
+  { type: "goal", side: "opponent", minute: 60 }
+];
+assert.equal(engine.playerConcededGoals(30, goalAfterEntryAtSameMinute), 1,
+  "a goal in the substitute's entry minute must count because substitution-on sorts first");
+assert.equal(engine.playerConcededGoals(30, [...goalAfterEntryAtSameMinute].reverse()), 1,
+  "same-minute attribution must follow canonical event priority, not raw insertion order");
+assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 60, goalAfterEntryAtSameMinute), false,
+  "a same-minute concession after entry must prevent a clean sheet");
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "substitution", side: "player", minute: 60 },
+  { type: "goal", side: "opponent", minute: 60 }
+]), 1, "a goal at the exit minute must count because goals sort before exit events");
+assert.equal(engine.playerConcededGoals(90, [
+  { type: "goal", side: "opponent", minute: 60 },
+  { type: "substitution", side: "player", minute: 60 }
+]), 1, "same-minute exit attribution must not depend on raw insertion order");
+assert.equal(browserEngine.playerConcededGoals(30, goalAfterEntryAtSameMinute), 1,
+  "the embedded browser engine must use the same same-minute entry rule");
 assert.equal(browserEngine.playerConcededGoals(90, [{ type: "goal", side: "opponent", minute: 105 }]), 1,
   "the deployed engine must attribute extra-time concessions exactly like the source");
 

@@ -502,14 +502,22 @@
     return last + gap - current;
   }
 
+  const toNonNegativeInteger = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+  };
+
   function normalizeLeagueRoundIndex(savedRoundIndex, roundHistory, leagueApps, roundCount) {
     const history = Array.isArray(roundHistory) ? roundHistory : [];
-    const historyRound = history.length ? Math.max(0, ...history.map(row => Math.floor(Number(row?.matchday) || 0))) : 0;
-    const legacyRound = Math.max(historyRound, Math.max(0, Math.floor(Number(leagueApps) || 0)));
+    const historyRound = history.reduce((maximum, row) =>
+      Math.max(maximum, toNonNegativeInteger(row?.matchday)), 0);
+    const legacyRound = Math.max(historyRound, toNonNegativeInteger(leagueApps));
     const hasSavedIndex = savedRoundIndex !== undefined && savedRoundIndex !== null && savedRoundIndex !== "";
     const saved = Number(savedRoundIndex);
-    const candidate = hasSavedIndex && Number.isFinite(saved) ? Math.max(0, Math.floor(saved), legacyRound) : legacyRound;
-    return Math.min(candidate, Math.max(0, Math.floor(Number(roundCount) || 0)));
+    const candidate = hasSavedIndex && Number.isFinite(saved)
+      ? Math.max(0, Math.floor(saved), legacyRound)
+      : legacyRound;
+    return Math.min(candidate, toNonNegativeInteger(roundCount));
   }
 
   function contractStateForSeasonTransition(state) {

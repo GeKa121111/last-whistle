@@ -412,6 +412,58 @@
       if (minute <= 90) return true;
       return result.extraTime?.played === true;
     });
+    const extraTimeLedgerConsistent = (() => {
+      const extraTime = result.extraTime;
+      const hasExtraTimeActivity = result.events.some(event =>
+        event.type !== "penalty-shootout" && Number(event.minute) > 90);
+      if (!extraTime || typeof extraTime !== "object") return !hasExtraTimeActivity;
+      const periodsPresent = Object.prototype.hasOwnProperty.call(extraTime, "periods");
+      const scoreFieldsPresent = extraTime.for != null || extraTime.against != null;
+      if (extraTime.played !== true) {
+        const noExtraTimeScore = Number(extraTime.for || 0) === 0 && Number(extraTime.against || 0) === 0;
+        const noExtraTimePeriods = !periodsPresent
+          || (Array.isArray(extraTime.periods) && extraTime.periods.length === 0);
+        return !hasExtraTimeActivity && noExtraTimeScore && noExtraTimePeriods;
+      }
+      const extraTimeGoalsFor = result.events.filter(event =>
+        event.type === "goal" && event.side === "team" && Number(event.minute) > 90).length;
+      const extraTimeGoalsAgainst = result.events.filter(event =>
+        event.type === "goal" && event.side === "opponent" && Number(event.minute) > 90).length;
+      let extraFor = extraTimeGoalsFor;
+      let extraAgainst = extraTimeGoalsAgainst;
+      if (scoreFieldsPresent) {
+        extraFor = Number(extraTime.for);
+        extraAgainst = Number(extraTime.against);
+        if (!Number.isInteger(extraFor) || extraFor < 0
+          || !Number.isInteger(extraAgainst) || extraAgainst < 0
+          || extraFor !== extraTimeGoalsFor || extraAgainst !== extraTimeGoalsAgainst) return false;
+      }
+      if (periodsPresent) {
+        if (!Array.isArray(extraTime.periods) || extraTime.periods.length !== 2) return false;
+        const periodsValid = extraTime.periods.every(period => period && typeof period === "object"
+          && Number.isInteger(Number(period.for)) && Number(period.for) >= 0
+          && Number.isInteger(Number(period.against)) && Number(period.against) >= 0);
+        if (!periodsValid) return false;
+        const periodFor = extraTime.periods.reduce((sum, period) => sum + Number(period.for), 0);
+        const periodAgainst = extraTime.periods.reduce((sum, period) => sum + Number(period.against), 0);
+        if (periodFor !== extraTimeGoalsFor || periodAgainst !== extraTimeGoalsAgainst) return false;
+        if (scoreFieldsPresent && (periodFor !== extraFor || periodAgainst !== extraAgainst)) return false;
+        extraFor = periodFor;
+        extraAgainst = periodAgainst;
+      }
+      if (result.regulation && typeof result.regulation === "object"
+        && result.regulation.for != null && result.regulation.against != null) {
+        const regulationFor = Number(result.regulation.for);
+        const regulationAgainst = Number(result.regulation.against);
+        const finalFor = Number(result.score.for);
+        const finalAgainst = Number(result.score.against);
+        if (![regulationFor, regulationAgainst, finalFor, finalAgainst].every(Number.isInteger)
+          || [regulationFor, regulationAgainst, finalFor, finalAgainst].some(value => value < 0)
+          || finalFor !== regulationFor + extraFor
+          || finalAgainst !== regulationAgainst + extraAgainst) return false;
+      }
+      return true;
+    })();
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));
     const sameMinuteOrderConsistent = result.events.every((event, index) => {
@@ -447,11 +499,11 @@
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)
-      && playerEventsInBounds && eventMinutesValid && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
+      && playerEventsInBounds && eventMinutesValid && extraTimeLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

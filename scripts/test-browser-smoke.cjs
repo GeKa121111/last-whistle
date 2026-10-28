@@ -1007,7 +1007,6 @@ async function main() {
     for (const route of mobileRoutes) {
       const layout = await page.evaluate(async routeName => {
         window.LWStoryRuntime.showPage(routeName);
-        if (typeof window.LWStoryRuntime.render === "function") window.LWStoryRuntime.render();
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const viewport = window.innerWidth;
         const documentWidth = document.documentElement.scrollWidth;

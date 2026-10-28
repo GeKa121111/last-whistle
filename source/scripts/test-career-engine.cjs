@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v148"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=15"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v149"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=16"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -631,6 +631,34 @@ assert.equal(roleDecision.role, "أساسي",
 assert.equal(roleDecision.changed, true, "role promotions must report a real change");
 assert.ok(roleDecision.careerContributionsPer90 >= 0.32,
   "role decision must expose a grounded contribution rate for debugging and tests");
+
+const duplicateRoleMatch = {
+  matchId: "role-current-duplicate", scope: "league", minutes: 39, rating: 9, goals: 1, assists: 1
+};
+const priorRoleHistory = Array.from({ length: 7 }, (_, index) => ({
+  matchId: "role-history-" + index, scope: "league", minutes: 39, rating: 5.4, goals: 0, assists: 0
+}));
+const roleStateForDedup = { ...roleSnapshot, role: "بديل", apps: 8, goals: 1, assists: 1, trust: 10 };
+const roleWithoutDuplicate = career.evaluateSquadRole(roleStateForDedup, priorRoleHistory, duplicateRoleMatch);
+const roleWithDuplicate = career.evaluateSquadRole(roleStateForDedup,
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+assert.equal(roleWithoutDuplicate.role, "بديل",
+  "one standout match must not promote a player when the remaining recent form is weak");
+assert.equal(roleWithDuplicate.role, roleWithoutDuplicate.role,
+  "a current match already present in saved history must not be counted twice for squad-role promotion");
+assert.equal(roleWithDuplicate.recentAverageRating, roleWithoutDuplicate.recentAverageRating,
+  "duplicate match rows must not overweight recent average rating");
+assert.equal(roleWithDuplicate.recentContributionsPer90, roleWithoutDuplicate.recentContributionsPer90,
+  "duplicate match rows must not inflate recent contributions per 90");
+assert.equal(roleWithDuplicate.careerContributionsPer90, roleWithoutDuplicate.careerContributionsPer90,
+  "duplicate match rows must not distort estimated career minutes");
+
+const browserRoleDecision = deployedCareer.evaluateSquadRole({ ...roleStateForDedup },
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+const sourceRoleDecision = career.evaluateSquadRole({ ...roleStateForDedup },
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+assert.equal(JSON.stringify(browserRoleDecision), JSON.stringify(sourceRoleDecision),
+  "embedded browser and shared career engines must deduplicate squad-role match history identically");
 const protectedAcademyRole = career.evaluateSquadRole({
   ...roleSnapshot, role: "ناشئ تحت 15", academyCareer: true
 }, roleHistory, { scope: "league", minutes: 39, rating: 9.1, goals: 2, assists: 0 });

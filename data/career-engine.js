@@ -56,7 +56,7 @@
     };
     const validRow = row => row && row.scope !== "international" && safeMetric(row.minutes, 120) > 0;
     const current = validRow(currentMatch) ? { ...currentMatch } : null;
-    const allRows = [current, ...(Array.isArray(matchHistory) ? matchHistory : [])]
+    const allRows = uniqueMatchRows([current, ...(Array.isArray(matchHistory) ? matchHistory : [])])
       .filter(validRow);
     const recent = allRows.slice(0, 8);
     if (!recent.length) {

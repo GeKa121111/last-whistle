@@ -27,7 +27,11 @@ vm.createContext(sandbox);
 const dbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
 const aiSourceRaw = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
 const lineupMarker = "  function makeLineup(world, club) {";
+const groupMarker = "  function groupForPosition(position) {";
+const profileMarker = "  function positionProductionProfile(position) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
+assert.ok(aiSourceRaw.includes(groupMarker), "AI engine must retain the role-group classifier for the regression guard");
+assert.ok(aiSourceRaw.includes(profileMarker), "AI engine must retain the position-production profile for the regression guard");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season) {";
@@ -39,6 +43,8 @@ assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconcil
 assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free-agent entry point for all-division market coverage");
 const aiSource = aiSourceRaw
+  .replace(groupMarker, "  global.__lwTestGroupForPosition = groupForPosition;\\n" + groupMarker)
+  .replace(profileMarker, "  global.__lwTestPositionProductionProfile = positionProductionProfile;\\n" + profileMarker)
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
@@ -52,6 +58,27 @@ new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContex
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+
+// Position production must respect the actual playing line, not merely words inside a label.
+const testGroupForPosition = sandbox.window.__lwTestGroupForPosition;
+const testPositionProfile = sandbox.window.__lwTestPositionProductionProfile;
+assert.equal(testGroupForPosition("وسط مهاجم"), "midfielder");
+assert.equal(testPositionProfile("وسط مهاجم").role, "midfielder",
+  "attacking midfielders must not inherit the mobile-forward scoring profile");
+assert.equal(testPositionProfile("وسط مهاجم").goalWeight, 1.2);
+assert.equal(testPositionProfile("وسط مهاجم").assistWeight, 1.8);
+assert.equal(testPositionProfile("وسط دفاعي").role, "midfielder");
+assert.equal(testPositionProfile("مهاجم").role, "mobile-forward");
+assert.equal(testPositionProfile("رأس حربة").role, "centre-striker");
+assert.equal(testPositionProfile("جناح").role, "winger");
+assert.equal(testPositionProfile("حارس مرمى").role, "goalkeeper");
+assert.equal(testPositionProfile("قلب دفاع").role, "defender");
+assert.equal(testGroupForPosition("GK"), "goalkeeper");
+assert.equal(testGroupForPosition("CB"), "defender");
+assert.equal(testGroupForPosition("CM"), "midfielder");
+assert.equal(testGroupForPosition("ST"), "attacker");
+assert.equal(testPositionProfile("AM").role, "midfielder");
+assert.equal(testPositionProfile("FW").role, "mobile-forward");
 
 // Transfer windows must include lower divisions and schedule buyers fairly by division.
 assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");

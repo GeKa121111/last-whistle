@@ -35,11 +35,17 @@ const reconcileMarker = "  function reconcileDatabase(world, db) {";
 const transferMarker = "  function runTransferWindow(world, season) {";
 const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
 const fillRosterMarker = "  function fillRoster(world, club) {";
+const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
+const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
+const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
 assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free-agent entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the roster filler for roster-integrity regression coverage");
+assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain projected season lines for retired-player regression coverage");
+assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
+assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
@@ -49,7 +55,10 @@ const aiSource = aiSourceRaw
   .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
   .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
-  .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker);
+  .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker)
+  .replace(baseSeasonLinesMarker, "  global.__lwTestBaseGetSeasonLines = getSeasonLines;\n" + baseSeasonLinesMarker)
+  .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
+  .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
@@ -60,6 +69,39 @@ assert.ok(db && ai, "world database and autonomous AI engine must initialize");
 assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestSignFreeAgents, "function", "the free-agent signing simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestFillRoster, "function", "the roster filler must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestBaseGetSeasonLines, "function", "projected season lines must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestBaseCompleteSeason, "function", "legacy season completion must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared season rows must be available to the regression guard");
+ 
+ // Retired players keep their old season record but never receive rows in a later season.
+ const retiredSeasonSave = { season: 2 };
+ const retiredSeasonWorld = ai.ensureState(retiredSeasonSave, db);
+ const retiredSeasonPlayer = Object.values(retiredSeasonWorld.players)[0];
+ const retiredSeasonPlayerId = retiredSeasonPlayer.id;
+ const retiredSeasonClub = retiredSeasonWorld.clubs[retiredSeasonPlayer.clubId];
+ retiredSeasonClub.roster = retiredSeasonClub.roster.filter(id => id !== retiredSeasonPlayerId);
+ retiredSeasonPlayer.previousClubId = retiredSeasonPlayer.clubId;
+ retiredSeasonPlayer.clubId = "";
+ retiredSeasonPlayer.leagueId = "";
+ retiredSeasonPlayer.division = 0;
+ retiredSeasonPlayer.freeAgent = false;
+ retiredSeasonPlayer.retired = true;
+ retiredSeasonWorld.seasonStats["1"] = [{
+   id: retiredSeasonPlayerId, season: 1, name: retiredSeasonPlayer.name,
+   appearances: 28, goals: 9, assists: 4, averageRating: 7.1
+ }];
+ const projectedSeasonRows = sandbox.window.__lwTestBaseGetSeasonLines(retiredSeasonSave, 2, 1, db);
+ assert.ok(!projectedSeasonRows.some(row => row.id === retiredSeasonPlayerId),
+   "retired players must be omitted from unfinished-season projections");
+ const legacyCompletedSeason = sandbox.window.__lwTestBaseCompleteSeason(retiredSeasonSave, 2, db);
+ assert.ok(!legacyCompletedSeason.rows.some(row => row.id === retiredSeasonPlayerId),
+   "legacy season completion must not generate new rows for retired players");
+ const sharedSeasonRows = sandbox.window.__lwTestBuildPlayerRows(retiredSeasonWorld, 2, new Map());
+ assert.ok(!sharedSeasonRows.some(row => row.id === retiredSeasonPlayerId),
+   "shared match-based season rows must exclude retired players");
+ assert.ok(retiredSeasonWorld.seasonStats["1"].some(row => row.id === retiredSeasonPlayerId && row.goals === 9),
+   "excluding future rows must preserve the player's previous season statistics");
+
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }

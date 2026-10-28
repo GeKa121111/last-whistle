@@ -225,7 +225,7 @@
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, leagueRatingSumValue)) : 0;
     state.leagueRatingCount = finiteCount(state.leagueRatingCount);
     if (state.qualifyingAppearances === undefined) {
-      state.qualifyingAppearances = uniqueCareerHistory(state).filter(row => Number(row.minutes) >= 20).length;
+      state.qualifyingAppearances = uniqueCareerHistory(state).filter(row => safeLegacyMinutes(row.minutes) >= 20).length;
     }
     state.qualifyingAppearances = finiteCount(state.qualifyingAppearances);
     for (const [competitionKey, stats] of Object.entries(state.competitionStats)) {

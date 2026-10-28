@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v150"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=17"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v151"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=18"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -585,6 +585,24 @@ assert.equal(JSON.stringify(browserMalformedLegacyStats), JSON.stringify(malform
   "embedded browser legacy-stat migration must match the shared career engine");
 assert.equal(JSON.stringify(browserLegacyRatings), JSON.stringify(rebuiltLeagueRatings),
   "embedded browser rating reconstruction must match the shared career engine");
+
+const malformedQualificationState = {
+  pos: "جناح", age: 24, apps: 0,
+  seasonLog: [
+    { id: "qualification-infinite-1", scope: "league", minutes: "Infinity" },
+    { id: "qualification-infinite-2", scope: "league", minutes: Infinity },
+    { id: "qualification-nan-1", scope: "league", minutes: NaN },
+    { id: "qualification-infinite-3", scope: "league", minutes: "Infinity" },
+    { id: "qualification-valid", scope: "league", minutes: 90 }
+  ],
+  careerMatchHistory: []
+};
+career.ensureState(malformedQualificationState);
+assert.equal(malformedQualificationState.qualifyingAppearances, 1,
+  "ensureState must not count non-finite legacy match minutes as qualifying appearances");
+assert.deepEqual(malformedQualificationState.careerMilestonesEarned, [],
+  "invalid legacy minutes must not manufacture appearance milestones during state repair");
+
 
 for (const [label, initial, outcome] of [
   ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],

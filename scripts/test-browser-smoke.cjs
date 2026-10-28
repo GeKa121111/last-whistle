@@ -1002,6 +1002,61 @@ async function main() {
     assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
     results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
 
+    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary"];
+    const mobileLayoutAudit = [];
+    for (const route of mobileRoutes) {
+      const layout = await page.evaluate(async routeName => {
+        window.LWStoryRuntime.showPage(routeName);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const viewport = window.innerWidth;
+        const documentWidth = document.documentElement.scrollWidth;
+        const bodyWidth = document.body.scrollWidth;
+        const worldGrid = routeName === "europe" ? document.querySelector("#page-europe .world-ai-dashboard-grid") : null;
+        const worldGridWidth = worldGrid ? Math.round(worldGrid.getBoundingClientRect().width) : null;
+        const worldCardWidths = worldGrid
+          ? Array.from(worldGrid.querySelectorAll(".world-ai-dashboard-card")).map(card => Math.round(card.getBoundingClientRect().width))
+          : [];
+        const offenders = Array.from(document.querySelectorAll("body *")).filter(element => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          if (style.display === "none" || style.visibility === "hidden" || style.position === "fixed" || style.position === "sticky") return false;
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          return rect.left < -1 || rect.right > viewport + 1;
+        }).slice(0, 8).map(element => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName.toLowerCase(),
+            id: element.id || "",
+            className: typeof element.className === "string" ? element.className.slice(0, 100) : "",
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth
+          };
+        });
+        return { route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders };
+      }, route);
+      mobileLayoutAudit.push(layout);
+      assert.ok(
+        layout.documentWidth <= layout.viewport + 1 && layout.bodyWidth <= layout.viewport + 1,
+        "mobile page '" + route + "' has horizontal overflow: " + JSON.stringify(layout)
+      );
+      if (route === "europe") {
+        assert.ok(layout.worldGridWidth !== null, "the world dashboard grid must exist on the Europe page");
+        assert.ok(
+          layout.worldGridWidth >= layout.viewport * 0.82,
+          "the mobile world dashboard must use the available width instead of collapsing into a narrow column: " + JSON.stringify(layout)
+        );
+        assert.ok(
+          layout.worldCardWidths.length > 0 && layout.worldCardWidths.every(width => width >= layout.viewport * 0.72),
+          "world dashboard cards must remain readable and full-width on mobile: " + JSON.stringify(layout)
+        );
+      }
+    }
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    results.push("mobile horizontal-overflow audit across all 11 career/world pages");
+
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");
     assert.deepEqual(badResponses, [], "all local page assets must return successful responses");

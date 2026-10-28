@@ -99,7 +99,7 @@ const vm = require("node:vm");
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-  assert.match(sw, /last-whistle-static-v129/, "PWA cache must advance with the event-driven career UI");
+  assert.match(sw, /last-whistle-static-v130/, "PWA cache must advance with the event-driven career UI");
   assert.match(sw, /career-hub\.js\?v=3/, "PWA must cache the new event-driven career UI");
   console.log("PASS: career hub responds to state events, coalesces duplicate saves, caches history summaries, and skips unchanged work.");
 })().catch(error => {

@@ -98,12 +98,25 @@
     const contractFactor = term <= 1 ? 0.72 : term >= 4 ? 1.16 : term === 3 ? 1.08 : 1;
     return Math.max(12, Math.round(rawValue * contractFactor));
   }
+  function emptyArchive() {
+    return {
+      clubs: {}, players: {}, playerHistory: {}, seasonStats: {}, leagueTables: {},
+      leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+    };
+  }
+  function ensureArchive(world) {
+    if (!world.archive || typeof world.archive !== "object" || Array.isArray(world.archive)) world.archive = {};
+    for (const key of ["clubs", "players", "playerHistory", "seasonStats", "leagueTables", "leagueTableRows", "matchesBySeason", "competitionsBySeason"]) {
+      if (!world.archive[key] || typeof world.archive[key] !== "object" || Array.isArray(world.archive[key])) world.archive[key] = {};
+    }
+    return world.archive;
+  }
   function emptyWorld() {
     return {
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
       lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
-      nextGeneratedPlayer: 1, transferSequence: 0, notes: []
+      nextGeneratedPlayer: 1, transferSequence: 0, notes: [], archive: emptyArchive()
     };
   }
   function addClub(world, row, db) {
@@ -187,58 +200,101 @@
       fillRoster(world, club);
     }
     world.currentSeason = 1;
-    world.rosterSchemaVersion = 2;
+    world.rosterSchemaVersion = 3;
     return world;
   }
   function reconcileDatabase(world, db) {
     if (!world || !world.clubs) return seedWorld(db);
-    // Remove clubs from leagues that are no longer part of the supported continental competitions.
-    // This is a data migration for already-saved worlds, not only for new careers.
+    world.players = world.players && typeof world.players === "object" ? world.players : {};
+    world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
+    const archive = ensureArchive(world);
+    // Unsupported competitions leave the active simulation, but their saved data is archived rather than destroyed.
     const supportedLeagueIds = new Set(db && typeof db.leagues === "function"
       ? db.leagues().map(profile => String(profile && profile.id || "")).filter(Boolean) : []);
     const removedClubIds = new Set();
+    const removedPlayerIds = new Set();
     if (supportedLeagueIds.size) {
       for (const [id, club] of Object.entries(world.clubs)) {
         if (club && club.leagueId && !supportedLeagueIds.has(String(club.leagueId))) {
           removedClubIds.add(String(id));
+          archive.clubs[String(id)] = club;
           delete world.clubs[id];
         }
       }
     }
     if (removedClubIds.size) {
-      const removedPlayerIds = new Set();
       for (const [id, player] of Object.entries(world.players || {})) {
         if (player && removedClubIds.has(String(player.clubId))) {
           removedPlayerIds.add(String(id));
+          archive.players[String(id)] = player;
+          if (Object.prototype.hasOwnProperty.call(world.playerHistory, id)) {
+            archive.playerHistory[String(id)] = world.playerHistory[id];
+            delete world.playerHistory[id];
+          }
           delete world.players[id];
-          if (world.playerHistory) delete world.playerHistory[id];
         }
       }
       Object.values(world.clubs).forEach(club => {
         club.roster = (club.roster || []).filter(id => !removedPlayerIds.has(String(id)) && !!world.players[id]);
       });
       Object.keys(world.seasonStats || {}).forEach(season => {
-        world.seasonStats[season] = (world.seasonStats[season] || [])
-          .filter(row => !row || !row.leagueId || supportedLeagueIds.has(String(row.leagueId)));
+        const rows = world.seasonStats[season] || [];
+        const archivedRows = rows.filter(row => row && (
+          (row.leagueId && !supportedLeagueIds.has(String(row.leagueId)))
+          || removedPlayerIds.has(String(row.id || row.playerId || ""))
+          || removedClubIds.has(String(row.clubId || ""))
+        ));
+        if (archivedRows.length) {
+          archive.seasonStats[season] = (Array.isArray(archive.seasonStats[season]) ? archive.seasonStats[season] : []).concat(archivedRows);
+        }
+        world.seasonStats[season] = rows.filter(row => !archivedRows.includes(row));
       });
       Object.keys(world.leagueTables || {}).forEach(season => {
         const tables = world.leagueTables[season] || {};
+        const archivedTables = archive.leagueTables[season] && typeof archive.leagueTables[season] === "object"
+          ? archive.leagueTables[season] : {};
         Object.keys(tables).forEach(key => {
-          if (!supportedLeagueIds.has(String(key).split(":")[0])) delete tables[key];
-          else if (Array.isArray(tables[key])) tables[key] = tables[key]
-            .filter(row => !row || !row.leagueId || supportedLeagueIds.has(String(row.leagueId)));
+          if (!supportedLeagueIds.has(String(key).split(":")[0])) {
+            archivedTables[key] = tables[key];
+            delete tables[key];
+          } else if (Array.isArray(tables[key])) {
+            const rows = tables[key];
+            const archivedRows = rows.filter(row => row && (
+              (row.leagueId && !supportedLeagueIds.has(String(row.leagueId)))
+              || removedClubIds.has(String(row.clubId || ""))
+            ));
+            if (archivedRows.length) {
+              archive.leagueTableRows[season] = archive.leagueTableRows[season] || {};
+              archive.leagueTableRows[season][key] = (archive.leagueTableRows[season][key] || []).concat(archivedRows);
+              tables[key] = rows.filter(row => !archivedRows.includes(row));
+            }
+          }
         });
+        if (Object.keys(archivedTables).length) archive.leagueTables[season] = archivedTables;
       });
       Object.keys(world.matchesBySeason || {}).forEach(season => {
-        world.matchesBySeason[season] = (world.matchesBySeason[season] || []).filter(match =>
-          !removedClubIds.has(String(match && match.homeClubId))
-          && !removedClubIds.has(String(match && match.awayClubId)));
+        const matches = world.matchesBySeason[season] || [];
+        const archivedMatches = matches.filter(match =>
+          removedClubIds.has(String(match && match.homeClubId))
+          || removedClubIds.has(String(match && match.awayClubId)));
+        if (archivedMatches.length) {
+          archive.matchesBySeason[season] = (archive.matchesBySeason[season] || []).concat(archivedMatches);
+        }
+        world.matchesBySeason[season] = matches.filter(match => !archivedMatches.includes(match));
       });
       Object.keys(world.competitionsBySeason || {}).forEach(season => {
-        world.competitionsBySeason[season] = (world.competitionsBySeason[season] || []).filter(item =>
-          item && item.confederation !== "AFC"
-          && !["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"]
-            .includes(String(item.id || item.competitionId || "")));
+        const items = world.competitionsBySeason[season] || [];
+        const archivedItems = items.filter(item => item && (
+          item.confederation === "AFC"
+          || ["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"].includes(String(item.id || item.competitionId || ""))
+        ));
+        if (archivedItems.length) {
+          archive.competitionsBySeason[season] = (archive.competitionsBySeason[season] || []).concat(archivedItems);
+        }
+        world.competitionsBySeason[season] = items.filter(item => item && !(
+          item.confederation === "AFC"
+          || ["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"].includes(String(item.id || item.competitionId || ""))
+        ));
       });
     }
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
@@ -314,7 +370,7 @@
       player.group = groupForPosition(player.position);
     });
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
-    world.rosterSchemaVersion = 2;
+    world.rosterSchemaVersion = 3;
     return world;
   }
   function ensureState(save, db) {
@@ -332,6 +388,7 @@
     world.transfers = Array.isArray(world.transfers) ? world.transfers : [];
     world.marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
     world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
+    ensureArchive(world);
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
@@ -343,7 +400,7 @@
     const hasUnsupportedClub = supportedLeagueIds.size > 0 && Object.values(world.clubs).some(club =>
       club && club.leagueId && !supportedLeagueIds.has(String(club.leagueId)));
     if (catalogueVersion !== int(world.dbVersion, 0)
-      || Number(world.rosterSchemaVersion) !== 2 || hasUnsupportedClub) {
+      || Number(world.rosterSchemaVersion) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
     // The world-simulation season is independent of the player's career season.
@@ -1710,7 +1767,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=12");
+    const worker = new global.Worker("./football-world-worker.js?v=13");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

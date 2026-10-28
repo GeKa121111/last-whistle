@@ -830,7 +830,7 @@ const transferChecks = [
   [evaluateTransferEligibility({ ...transferReadyState }, { window: { open: false, name: "السوق مغلق", days: 17 } }).includes("17 يوم"), true, "closed market should show its opening countdown"],
   [evaluateTransferEligibility({ ...transferReadyState, loan: { parentClub: "Parent FC" } }).includes("معار"), true, "an active loan should block permanent transfer"],
   [evaluateTransferEligibility({ ...transferReadyState, trust: 10 }).includes("20/100"), true, "low coach trust should explain the threshold"],
-  [evaluateTransferEligibility({ ...transferReadyState }, { cupActive: true }).includes("بطولة إقصائية"), true, "an active cup should block transfer requests"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { cupActive: true }), "", "an active cup should not block transfer requests during an open window"],
   [evaluateTransferEligibility({ ...transferReadyState }, { average: 5.5 }).includes("5.8"), true, "poor match ratings should explain the minimum rating"],
   [evaluateTransferEligibility({ ...transferReadyState }, { overall: 50 }).includes("أعلى من مستواك الحالي"), true, "an unrealistic destination should be rejected"],
   [evaluateTransferEligibility({ ...transferReadyState, daysSinceTransfer: 2 }).includes("5 أيام"), true, "recent transfers should enforce a seven-day cooldown"],

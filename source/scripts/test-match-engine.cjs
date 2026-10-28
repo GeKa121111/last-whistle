@@ -626,4 +626,40 @@ assert.equal(engine.validateResult(goalAfterExit).sameMinuteOrderConsistent, fal
 assert.equal(browserEngine.validateResult(goalAfterExit).ok, false,
   "the embedded browser validator must reject the same exit-order corruption");
 
+// Event-minute validation must inspect the first event too and reject impossible timelines.
+const minuteValidationBase = {
+  score: { for: 0, against: 0 },
+  player: { minutes: 0, goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, fouls: 0,
+    saves: 0, cleanSheet: false, redCards: 0, yellowCards: 0, injuryDays: 0 },
+  events: [], outcome: "تعادل", matchOutcome: "تعادل",
+  extraTime: { played: false, for: 0, against: 0, periods: [] },
+  shootout: { used: false, won: null, scoreFor: 0, scoreAgainst: 0 },
+  metadata: { position: "مهاجم", aggregateOffset: 0 }
+};
+const invalidFirstMinute = { ...minuteValidationBase,
+  events: [{ type: "foul", side: "opponent", minute: "not-a-minute" }] };
+assert.equal(engine.validateResult(invalidFirstMinute).ok, false,
+  "a malformed minute on the first event must not bypass chronological validation");
+assert.equal(browserEngine.validateResult(invalidFirstMinute).ok, false,
+  "the embedded validator must reject a malformed first event minute");
+const regulationEventInExtraTime = { ...minuteValidationBase,
+  events: [{ type: "foul", side: "opponent", minute: 105 }] };
+assert.equal(engine.validateResult(regulationEventInExtraTime).ok, false,
+  "events after minute 90 must be rejected when extra time was not played");
+assert.equal(browserEngine.validateResult(regulationEventInExtraTime).ok, false,
+  "the embedded validator must reject extra-time events without an extra-time period");
+const validExtraTimeEvent = { ...minuteValidationBase,
+  extraTime: { played: true, for: 0, against: 0, periods: [{ for: 0, against: 0 }, { for: 0, against: 0 }] },
+  events: [{ type: "foul", side: "opponent", minute: 105 }] };
+assert.equal(engine.validateResult(validExtraTimeEvent).ok, true,
+  "valid extra-time events must remain accepted");
+assert.equal(browserEngine.validateResult(validExtraTimeEvent).ok, true,
+  "the embedded validator must accept valid extra-time events");
+const beyondMaximumMinute = { ...validExtraTimeEvent,
+  events: [{ type: "foul", side: "opponent", minute: 121 }] };
+assert.equal(engine.validateResult(beyondMaximumMinute).ok, false,
+  "the ledger must reject events beyond the 120th minute");
+assert.equal(browserEngine.validateResult(beyondMaximumMinute).ok, false,
+  "the embedded validator must reject events beyond the 120th minute");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

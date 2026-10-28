@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v147"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=14"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v148"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=15"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -486,6 +486,35 @@ const invalidTournamentBefore = JSON.stringify(invalidTournament);
 assert.deepEqual(career.recordNationalTournamentMatch(invalidTournament, "win"), { ok: false, status: "invalid-outcome" });
 assert.equal(JSON.stringify(invalidTournament), invalidTournamentBefore, "invalid outcomes must not mutate international tournament state");
 
+const malformedTournamentPoints = {
+  nationalTournamentMatches: 2, nationalTournamentPoints: Infinity, nationalTournamentDone: false,
+  nationalTournamentQualified: false, nationalTournamentWinner: false,
+  nationalTournamentFinalOutcome: "", internationalPlayed: false
+};
+const malformedPointsResult = career.recordNationalTournamentMatch(malformedTournamentPoints, "تعادل");
+assert.equal(malformedPointsResult.status, "eliminated",
+  "non-finite saved points must not qualify a team for the final");
+assert.equal(malformedTournamentPoints.nationalTournamentMatches, 3);
+assert.equal(malformedTournamentPoints.nationalTournamentPoints, 1);
+assert.equal(malformedTournamentPoints.nationalTournamentQualified, false);
+assert.equal(malformedTournamentPoints.nationalTournamentDone, true);
+assert.equal(malformedTournamentPoints.internationalPlayed, true);
+
+const malformedTournamentCounters = {
+  nationalTournamentMatches: Infinity, nationalTournamentPoints: Infinity, nationalTournamentDone: false,
+  nationalTournamentQualified: false, nationalTournamentWinner: false,
+  nationalTournamentFinalOutcome: "", internationalPlayed: false
+};
+const recoveredTournamentResult = career.recordNationalTournamentMatch(malformedTournamentCounters, "فوز");
+assert.equal(recoveredTournamentResult.status, "group",
+  "a non-finite saved match counter must recover instead of permanently closing the tournament");
+assert.equal(malformedTournamentCounters.nationalTournamentMatches, 1);
+assert.equal(malformedTournamentCounters.nationalTournamentPoints, 3);
+assert.equal(malformedTournamentCounters.nationalTournamentQualified, false);
+assert.equal(malformedTournamentCounters.nationalTournamentDone, false);
+assert.equal(malformedTournamentCounters.internationalPlayed, false);
+
+
 const drawnFinal = { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentDone: false,
   nationalTournamentQualified: true, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
 const drawnFinalBefore = JSON.stringify(drawnFinal);
@@ -534,6 +563,18 @@ for (const [label, initial, outcome] of [
   assert.equal(JSON.stringify(deployedState), JSON.stringify(sourceState),
     "deployed/source tournament state must match for " + label);
 }
+
+const malformedTournamentSourceState = {
+  nationalTournamentMatches: 2, nationalTournamentPoints: Infinity, nationalTournamentDone: false,
+  nationalTournamentQualified: false, nationalTournamentWinner: false,
+  nationalTournamentFinalOutcome: "", internationalPlayed: false
+};
+const malformedTournamentBrowserState = { ...malformedTournamentSourceState };
+assert.equal(JSON.stringify(deployedCareer.recordNationalTournamentMatch(malformedTournamentBrowserState, "تعادل")),
+  JSON.stringify(career.recordNationalTournamentMatch(malformedTournamentSourceState, "تعادل")),
+  "embedded/source tournament handling must match for malformed points");
+assert.equal(JSON.stringify(malformedTournamentBrowserState), JSON.stringify(malformedTournamentSourceState),
+  "embedded/source tournament state must match after malformed-counter recovery");
 
 for (const position of Object.keys(expectedPlans)) {
   assert.equal(JSON.stringify(deployedCareer.positionDevelopmentPlan({ pos: position })),

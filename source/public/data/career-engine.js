@@ -739,15 +739,27 @@
 
   function recordNationalTournamentMatch(state, outcome) {
     if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
-    if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 4) return { ok: false, status: "tournament-closed" };
+    if (state.nationalTournamentDone) return { ok: false, status: "tournament-closed" };
+    const finiteTournamentCounter = (value, maximum) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.floor(numeric))) : 0;
+    };
+    const played = finiteTournamentCounter(state.nationalTournamentMatches, 4);
+    const points = finiteTournamentCounter(state.nationalTournamentPoints, Math.min(9, played * 3));
+    if (played >= 4) {
+      state.nationalTournamentMatches = 4;
+      state.nationalTournamentPoints = points;
+      return { ok: false, status: "tournament-closed" };
+    }
     if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
-    const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
+    state.nationalTournamentMatches = played;
+    state.nationalTournamentPoints = points;
     if (played >= 3 && state.nationalTournamentQualified !== true) {
       return { ok: false, status: "not-qualified" };
     }
     if (played < 3) {
-      state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
-        + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0);
+      state.nationalTournamentPoints = Math.min(9, points
+        + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0));
       state.nationalTournamentMatches = played + 1;
       if (state.nationalTournamentMatches === 3) {
         // Three group fixtures; four points is the simplified qualifying threshold.

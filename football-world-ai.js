@@ -54,7 +54,7 @@
     const p = normalize(position);
     // Centre strikers should finish moves more often; mobile forwards and wingers
     // should contribute more assists rather than sharing one generic attacker rate.
-    if (p === "st" || p === "cf" || p === "f" || p === "striker"
+    if (p === "st" || p === "f" || p === "striker"
       || p.includes("راسحربة") || p.includes("راسحربه")
       || p.includes("centreforward") || p.includes("centerforward")) {
       return { role: "centre-striker", goalWeight: 3.25, assistWeight: 0.72, attackRate: 0.44, assistRate: 0.14 };
@@ -63,7 +63,7 @@
       || p.includes("winger") || p.includes("wing")) {
       return { role: "winger", goalWeight: 2.05, assistWeight: 1.8, attackRate: 0.27, assistRate: 0.31 };
     }
-    if (p.includes("مهاجم") || p === "ss" || p === "fw"
+    if (p.includes("مهاجم") || p === "cf" || p === "ss" || p === "fw"
       || p.includes("secondstriker") || p.includes("forward") || p.includes("striker")) {
       return { role: "mobile-forward", goalWeight: 2.35, assistWeight: 1.55, attackRate: 0.31, assistRate: 0.28 };
     }

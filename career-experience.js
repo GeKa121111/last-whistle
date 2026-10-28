@@ -9,6 +9,16 @@
   var timing = { value: 0, direction: 1, timer: null, running: false };
   var memory = { sequence: [], answers: [], timer: null, stage: "idle" };
   var investmentSequence = 1;
+  var lastExperienceSnapshot = "";
+  var lastExperienceRuntime = null;
+  var lastSettledDay = null;
+  var experienceTickScheduled = false;
+  var experienceForceQueued = false;
+  var pendingInvestmentsWorld = null;
+  var pendingInvestmentsRevision = null;
+  var pendingInvestmentsLength = -1;
+  var pendingInvestmentsTail = "";
+  var pendingInvestmentsCount = 0;
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -63,8 +73,8 @@
     else s[key] = next;
   }
 
-  function record(s, title, text) {
-    var w = world(s);
+  function record(s, title, text, cachedWorld) {
+    var w = cachedWorld || world(s);
     var row = {
       title: String(title || "حدث في المسيرة"),
       text: String(text || ""),
@@ -118,9 +128,9 @@
     return true;
   }
 
-  function renderPanel(s) {
+  function renderPanel(s, cachedWorld) {
     if (!s || !ensurePanel()) return;
-    var w = world(s);
+    var w = cachedWorld || world(s);
     var pending = w.investments.filter(function (item) { return !item.settled; }).length;
     function text(id, value) {
       var element = document.getElementById(id);
@@ -495,8 +505,8 @@
     renderFinance();
   }
 
-  function settleInvestments(s) {
-    var w = world(s);
+  function settleInvestments(s, cachedWorld) {
+    var w = cachedWorld || world(s);
     var today = dayNumber(s);
     var changed = false;
     w.investments.forEach(function (item) {
@@ -504,7 +514,7 @@
       item.settled = true;
       s.money = Math.max(0, Number(s.money) || 0) + Math.max(0, Number(item.payout) || 0);
       item.result = item.successful ? "نجحت العملية" : "خسارة استثمارية";
-      record(s, "استحقاق استثمار", item.label + ": رجع لحسابك " + item.payout + " جنيه داخل اللعبة (" + item.result + ").");
+      record(s, "استحقاق استثمار", item.label + ": رجع لحسابك " + item.payout + " جنيه داخل اللعبة (" + item.result + ").", w);
       changed = true;
     });
     if (changed) {
@@ -660,14 +670,95 @@
     if (action.indexOf("mentor-") === 0) { doMentor(s, action.slice(7)); return; }
   }
 
-  function tick() {
+  function pendingInvestmentCount(w, revision, force) {
+    var investments = Array.isArray(w.investments) ? w.investments : [];
+    var latest = investments.length ? investments[investments.length - 1] : null;
+    var tail = latest ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":") : "-";
+    if (force || w !== pendingInvestmentsWorld || revision !== pendingInvestmentsRevision
+      || investments.length !== pendingInvestmentsLength || tail !== pendingInvestmentsTail) {
+      pendingInvestmentsCount = investments.reduce(function (count, item) {
+        return count + (item && !item.settled ? 1 : 0);
+      }, 0);
+      pendingInvestmentsWorld = w;
+      pendingInvestmentsRevision = revision;
+      pendingInvestmentsLength = investments.length;
+      pendingInvestmentsTail = tail;
+    }
+    return pendingInvestmentsCount;
+  }
+
+  function panelSignature(s, w, revision, forcePendingCount) {
+    var investments = Array.isArray(w.investments) ? w.investments : [];
+    var latest = investments.length ? investments[investments.length - 1] : null;
+    var latestSignature = latest
+      ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":")
+      : "-";
+    return [
+      s.careerStarted ? 1 : 0,
+      s.retired ? 1 : 0,
+      Number(s.energy) || 0,
+      Math.max(0, Number(s.money) || 0),
+      dayNumber(s),
+      Array.isArray(s.storyHistory) ? s.storyHistory.length : 0,
+      Number(w.challengeWins) || 0,
+      Number(w.practiceAttempts) || 0,
+      Number(w.mentorSessions) || 0,
+      investments.length,
+      latestSignature,
+      pendingInvestmentCount(w, revision, !!forcePendingCount)
+    ].join("|");
+  }
+
+  function tick(force) {
     var api = API();
     if (!api) return;
     var s = api.getState();
     if (!s) return;
-    world(s);
-    if (ensurePanel()) renderPanel(s);
-    settleInvestments(s);
+
+    var today = dayNumber(s);
+    var runtimeChanged = s !== lastExperienceRuntime;
+    var currentWorld = s.careerWorld && typeof s.careerWorld === "object" ? s.careerWorld : null;
+    var needsSettlementCheck = !!force || runtimeChanged || !currentWorld
+      || lastSettledDay === null || today !== lastSettledDay;
+    var w = needsSettlementCheck ? world(s) : currentWorld;
+
+    if (needsSettlementCheck) {
+      // Set the day before settling: api.save() can synchronously publish twice.
+      // The queued follow-up tick must not rescan the portfolio a second time.
+      lastSettledDay = today;
+      var settledInvestments = settleInvestments(s, w);
+      w = s.careerWorld || w;
+      if (settledInvestments) pendingInvestmentsWorld = null;
+    }
+
+    if (!ensurePanel()) {
+      lastExperienceSnapshot = "";
+      lastExperienceRuntime = s;
+      return;
+    }
+
+    var store = window.LWStateStore;
+    var revision = store && typeof store.getRevision === "function" ? Number(store.getRevision()) : null;
+    if (!Number.isFinite(revision)) revision = null;
+    var signature = panelSignature(s, w, revision, needsSettlementCheck || runtimeChanged);
+    if (force || runtimeChanged || signature !== lastExperienceSnapshot) {
+      // Background pages still process due investments, but do not mutate the DOM.
+      if (!document.hidden) renderPanel(s, w);
+      lastExperienceSnapshot = signature;
+    }
+    lastExperienceRuntime = s;
+  }
+
+  function scheduleTick(force) {
+    experienceForceQueued = experienceForceQueued || !!force;
+    if (experienceTickScheduled) return;
+    experienceTickScheduled = true;
+    Promise.resolve().then(function () {
+      experienceTickScheduled = false;
+      var queuedForce = experienceForceQueued;
+      experienceForceQueued = false;
+      tick(queuedForce);
+    });
   }
 
   document.addEventListener("click", function (event) {
@@ -687,10 +778,20 @@
   });
 
   function start() {
-    tick();
-    window.setInterval(tick, 900);
-    window.addEventListener("pageshow", tick);
-    window.addEventListener("storage", tick);
+    tick(true);
+    var store = window.LWStateStore;
+    if (store && typeof store.subscribe === "function") {
+      store.subscribe(function () { scheduleTick(false); });
+      window.setInterval(function () { tick(false); }, 5000);
+    } else {
+      // Older saves/builds without the shared store still receive periodic refreshes.
+      window.setInterval(function () { tick(false); }, 2500);
+    }
+    window.addEventListener("pageshow", function () { tick(true); });
+    window.addEventListener("storage", function () { tick(true); });
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) tick(true);
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });

@@ -164,7 +164,7 @@
   function fillRoster(world, club) {
     club.roster = (club.roster || []).filter(id => {
       const player = world.players[id];
-      return !player || !player.retired;
+      return Boolean(player && !player.retired);
     });
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
@@ -804,7 +804,8 @@
       type: "retirement",
       age: player.retirementAge
     });
-    world.playerHistory[player.id] = history.slice(0, 12);
+    // Retirement is a terminal career event: keep every prior history row, including older saves.
+    world.playerHistory[player.id] = history;
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.notes.unshift({
       season: player.retiredSeason,
@@ -1853,7 +1854,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=17");
+    const worker = new global.Worker("./football-world-worker.js?v=18");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

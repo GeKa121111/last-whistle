@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v144"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=11"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v145"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=12"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -234,6 +234,9 @@ assert.ok(Number.isFinite(inlineCorruptedXPState.careerXP)
 assert.ok(rootHtml.includes("Number.isFinite(trainingXPValue)")
   && rootHtml.includes("trainingXPThreshold - 0.01"),
   "the inline engine must sanitize malformed training XP before applying progression");
+assert.ok(rootHtml.includes("Number.isFinite(minutesValue)")
+  && rootHtml.includes("const safeMatchCount = (value, maximum = 100)"),
+  "the inline engine must reject non-finite match minutes and action totals");
 
 const onLoan = {
   name: "Test Player", clubName: "Loan Club", leagueCountry: "Hostland",
@@ -331,6 +334,52 @@ assert.ok(Object.values(malformedProgression.trainingXP).every(Number.isFinite),
 assert.ok(malformedProgression.trainingXP.shooting < 108
   && malformedProgression.trainingXP.dribbling < 108,
   "training XP must stay below the age-appropriate threshold so a malformed counter cannot create an infinite loop");
+
+const malformedCareerTotals = makeProgressionFixture(false);
+malformedCareerTotals.careerAppearances = Infinity;
+malformedCareerTotals.apps = 12;
+malformedCareerTotals.careerMinutes = Infinity;
+malformedCareerTotals.leagueRatingSum = Infinity;
+malformedCareerTotals.leagueRatingCount = Infinity;
+malformedCareerTotals.qualifyingAppearances = Infinity;
+malformedCareerTotals.competitionStats = {
+  "club|old": { appearances: Infinity, qualifyingAppearances: NaN, minutes: Infinity,
+    goals: Infinity, assists: Infinity, note: "preserve" }
+};
+const ignoredMalformedMinutes = career.matchDevelopment(malformedCareerTotals, {
+  matchId: "non-finite-minutes", minutes: Infinity, rating: 8, goals: 2, assists: 1
+});
+assert.equal(ignoredMalformedMinutes.gained, 0, "a match with non-finite minutes must be ignored");
+assert.equal(malformedCareerTotals.careerAppearances, 12, "legacy appearances must be recovered from the finite apps counter");
+assert.equal(malformedCareerTotals.careerMinutes, 0);
+assert.equal(malformedCareerTotals.leagueRatingSum, 0);
+assert.equal(malformedCareerTotals.leagueRatingCount, 0);
+assert.equal(malformedCareerTotals.qualifyingAppearances, 0);
+assert.deepEqual(
+  ["appearances", "qualifyingAppearances", "minutes", "goals", "assists"]
+    .map(key => malformedCareerTotals.competitionStats["club|old"][key]),
+  [0, 0, 0, 0, 0],
+  "non-finite competition aggregates must be normalized without dropping unrelated metadata"
+);
+assert.equal(malformedCareerTotals.competitionStats["club|old"].note, "preserve");
+
+const malformedMatchStats = makeProgressionFixture(false);
+malformedMatchStats.pos = "قلب دفاع";
+const normalizedMatchStatsResult = career.matchDevelopment(malformedMatchStats, {
+  matchId: "non-finite-match-stats", minutes: 90, rating: 8, goals: Infinity, assists: NaN,
+  competitionKey: "club|normalized", stats: { tackles: Infinity, interceptions: NaN, saves: Infinity, keyPasses: Infinity }
+});
+const normalizedCompetition = malformedMatchStats.competitionStats["club|normalized"];
+assert.ok(Number.isFinite(normalizedMatchStatsResult.xp)
+  && Number.isFinite(normalizedMatchStatsResult.defensiveXP)
+  && Number.isFinite(normalizedMatchStatsResult.positionActionXP),
+  "malformed match actions must not produce infinite progression XP");
+assert.equal(normalizedCompetition.goals, 0);
+assert.equal(normalizedCompetition.assists, 0);
+assert.equal(normalizedCompetition.minutes, 90);
+assert.equal(malformedMatchStats.careerMinutes, 90);
+assert.ok(Object.values(normalizedCompetition).filter(value => typeof value === "number").every(Number.isFinite),
+  "competition totals must remain finite after malformed match stats");
 const ordinaryTraining = career.train(makeProgressionFixture(false), "shooting", { random: () => 0.99 });
 const boostedTraining = career.train(makeProgressionFixture(true), "shooting", { random: () => 0.99 });
 assert.equal(ordinaryTraining.ok, true);

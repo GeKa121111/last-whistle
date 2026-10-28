@@ -256,7 +256,12 @@
           : db && typeof db.leagueById === "function" ? db.leagueById(row.leagueId) || {} : {};
         club.leagueName = String(row.leagueName || profile.name || profile.league || club.leagueName || "");
         club.leagueEnglish = String(row.leagueEnglish || profile.englishName || profile.english || club.leagueEnglish || "");
-        club.division = Math.max(1, int(row.division, club.division || 1));
+        const sourceDivision = Math.max(1, int(row.division, 1));
+        const savedDivision = Number(club.division);
+        // Reconcile roster metadata without undoing in-game promotion/relegation.
+        // A valid saved division belongs to this simulation, even if the source catalogue refreshes.
+        club.division = Number.isFinite(savedDivision) && savedDivision >= 1
+          ? Math.max(1, int(savedDivision, sourceDivision)) : sourceDivision;
         club.matchesPerSeason = Math.max(20, int(row.matchesPerSeason || profile.matchesPerSeason || profile.matches, club.matchesPerSeason || 34));
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.
@@ -1656,7 +1661,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=7");
+    const worker = new global.Worker("./football-world-worker.js?v=8");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -642,6 +642,9 @@
     if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
     if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
     const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
+    if (played >= 2 && state.nationalTournamentQualified !== true) {
+      return { ok: false, status: "not-qualified" };
+    }
     if (played < 2) {
       state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
         + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0);

@@ -249,7 +249,7 @@
           if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.22, 0.07, 0.34)) {
             stats.assists++;
             stats.keyPasses++;
-            events.push({ type: "assist", minute: Math.max(playerStartMinute + 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
+            events.push({ type: "assist", minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
           }
         }
       }
@@ -347,9 +347,10 @@
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
     if (redCard) events.push({ type: "substitution", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد" });
     const sameMinutePriority = event =>
-      event.type === "substitution-on" && event.side === "player" ? -1
-        : event.type === "red-card" || event.type === "injury" ? 1
-          : event.type === "substitution" && event.side === "player" ? 2 : 0;
+      event.type === "substitution-on" && event.side === "player" ? -2
+        : event.type === "assist" && event.side === "team" && event.creditedToPlayer === true ? -1
+          : event.type === "red-card" || event.type === "injury" ? 1
+            : event.type === "substitution" && event.side === "player" ? 2 : 0;
     events.sort((a, b) => a.minute - b.minute || sameMinutePriority(a) - sameMinutePriority(b));
     return {
       home: Boolean(options.home), teamName, opponentName, tactic, regulation, extraTime, shootout,

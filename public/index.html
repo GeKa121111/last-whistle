@@ -3572,7 +3572,7 @@ function ensureTransferOffers(){
  state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers:[];
  const windowInfo=transferWindow();
  if(!canAccessTransferMarket())return;
- if(!state.careerStarted||state.retired||state.loan||Number(state.transferCooldown||0)>0||activeCupInProgress())return;
+ if(!state.careerStarted||state.retired||state.loan||Number(state.transferCooldown||0)>0)return;
  if(!windowInfo.open&&!state.freeAgent)return;
  const windowId=windowInfo.open?windowInfo.id:"free-agent-"+Math.floor((Number(state.calendarDay)||1)/14);
  const profile=transferPlayerProfile();
@@ -3613,7 +3613,7 @@ function offerIsAvailable(offer){
  const windowMatches=windowInfo.open?transferOfferMatchesWindow(offer,windowInfo.id,windowInfo):!!state.freeAgent;
  return !!offer&&canAccessTransferMarket()&&offer.status==="pending"&&(windowInfo.open||state.freeAgent)
   &&windowMatches&&!state.retired&&!state.loan
-  &&!activeCupInProgress()&&Number(state.transferCooldown||0)<=0;
+  &&Number(state.transferCooldown||0)<=0;
 }
 function beginTransferNegotiation(id){
  ensureTransferOffers();

@@ -33,7 +33,7 @@ const sandbox = {
   state,
   window: { LWTransferAwards: { generateOffers() { generatedOffers++; return []; } } },
   canAccessTransferMarket: () => true,
-  activeCupInProgress: () => false,
+  activeCupInProgress: () => true,
   transferPlayerProfile: () => ({
     name: "لاعب اختبار", currentClub: "نادي اختبار", country: "مصر", appearances: 12,
     form: 7.1, ovr: 68, currentClubPower: 60, goals: 4, assists: 3, age: 24,
@@ -82,7 +82,7 @@ assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-assert.match(sw, /last-whistle-static-v139/,
+assert.match(sw, /last-whistle-static-v140/,
   "the service-worker cache must be bumped so deployed clients receive the fix");
 assert.ok(sw.includes("transfer-awards-engine.js?v=7"),
   "the cached award-engine asset version must advance with the season-age fix");

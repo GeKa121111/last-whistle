@@ -173,9 +173,16 @@
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
-    state.careerXP = Number(state.careerXP) || 0;
-    state.levelXP = Number(state.levelXP) || 0;
-    state.careerLevel = Math.max(1, Number(state.careerLevel) || 1);
+    const careerXPValue = Number(state.careerXP);
+    state.careerXP = Number.isFinite(careerXPValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0;
+    const careerLevelValue = Number(state.careerLevel);
+    state.careerLevel = Number.isFinite(careerLevelValue)
+      ? Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerLevelValue))) : 1;
+    const levelXPThreshold = 100 + Math.min(80, (state.careerLevel - 1) * 8);
+    const levelXPValue = Number(state.levelXP);
+    state.levelXP = Number.isFinite(levelXPValue)
+      ? Math.max(0, Math.min(levelXPThreshold - 0.01, levelXPValue)) : 0;
     state.trainingSessions = Number(state.trainingSessions) || 0;
     state.playerPotential = clamp(state.playerPotential || 82, 65, 97);
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
@@ -196,8 +203,11 @@
         .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
     }
     state.fatigue = clamp(state.fatigue || 0, 0, 100);
+    const trainingXPThreshold = Number(state.age) >= 30 ? 125 : Number(state.age) <= 21 ? 92 : 108;
     for (const key of Object.keys(CONFIG)) {
-      state.trainingXP[key] = Math.max(0, Number(state.trainingXP[key]) || 0);
+      const trainingXPValue = Number(state.trainingXP[key]);
+      state.trainingXP[key] = Number.isFinite(trainingXPValue)
+        ? Math.max(0, Math.min(trainingXPThreshold - 0.01, trainingXPValue)) : 0;
       if (!Number.isFinite(Number(state[key]))) state[key] = 50;
     }
     // Repair legacy outfield saves without altering any other career or roster data.
@@ -236,7 +246,11 @@
 
   function addTrainingXP(state, key, amount) {
     const threshold = Number(state.age) >= 30 ? 125 : Number(state.age) <= 21 ? 92 : 108;
-    state.trainingXP[key] = (Number(state.trainingXP[key]) || 0) + amount;
+    const amountValue = Number(amount);
+    const safeAmount = Number.isFinite(amountValue) ? Math.max(0, Math.min(1000, amountValue)) : 0;
+    const trainingXPValue = Number(state.trainingXP[key]);
+    state.trainingXP[key] = (Number.isFinite(trainingXPValue)
+      ? Math.max(0, Math.min(threshold - 0.01, trainingXPValue)) : 0) + safeAmount;
     let gained = 0;
     while (state.trainingXP[key] >= threshold && Number(state[key]) < limitFor(state, key)) {
       state.trainingXP[key] -= threshold;
@@ -248,9 +262,18 @@
   }
 
   function addCareerXP(state, amount) {
-    const xp = Math.max(0, Math.round(Number(amount) || 0));
-    state.careerXP += xp;
-    state.levelXP += xp;
+    const amountValue = Number(amount);
+    const xp = Number.isFinite(amountValue) ? Math.max(0, Math.min(10000, Math.round(amountValue))) : 0;
+    const careerXPValue = Number(state.careerXP);
+    state.careerXP = Math.min(Number.MAX_SAFE_INTEGER, (Number.isFinite(careerXPValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0) + xp);
+    const careerLevelValue = Number(state.careerLevel);
+    state.careerLevel = Number.isFinite(careerLevelValue)
+      ? Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerLevelValue))) : 1;
+    const threshold = 100 + Math.min(80, (state.careerLevel - 1) * 8);
+    const levelXPValue = Number(state.levelXP);
+    state.levelXP = (Number.isFinite(levelXPValue)
+      ? Math.max(0, Math.min(threshold - 0.01, levelXPValue)) : 0) + xp;
     const oldLevel = state.careerLevel;
     while (state.levelXP >= 100 + Math.min(80, (state.careerLevel - 1) * 8)) {
       state.levelXP -= 100 + Math.min(80, (state.careerLevel - 1) * 8);

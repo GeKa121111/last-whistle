@@ -357,9 +357,9 @@ assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function
 
 for (const [label, initial, outcome] of [
   ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],
-  ["champion", { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "فوز"],
-  ["final loss", { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "خسارة"],
-  ["drawn final", { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "تعادل"]
+  ["champion", { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "فوز"],
+  ["final loss", { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "خسارة"],
+  ["drawn final", { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "تعادل"]
 ]) {
   const sourceState = { ...initial };
   const deployedState = { ...initial };

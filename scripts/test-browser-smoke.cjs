@@ -1002,6 +1002,46 @@ async function main() {
     assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
     results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
 
+    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary"];
+    const mobileLayoutAudit = [];
+    for (const route of mobileRoutes) {
+      const layout = await page.evaluate(async routeName => {
+        window.LWStoryRuntime.showPage(routeName);
+        if (typeof window.LWStoryRuntime.render === "function") window.LWStoryRuntime.render();
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const viewport = window.innerWidth;
+        const documentWidth = document.documentElement.scrollWidth;
+        const bodyWidth = document.body.scrollWidth;
+        const offenders = Array.from(document.querySelectorAll("body *")).filter(element => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          if (style.display === "none" || style.visibility === "hidden" || style.position === "fixed" || style.position === "sticky") return false;
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          return rect.left < -1 || rect.right > viewport + 1;
+        }).slice(0, 8).map(element => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName.toLowerCase(),
+            id: element.id || "",
+            className: typeof element.className === "string" ? element.className.slice(0, 100) : "",
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth
+          };
+        });
+        return { route: routeName, viewport, documentWidth, bodyWidth, offenders };
+      }, route);
+      mobileLayoutAudit.push(layout);
+      assert.ok(
+        layout.documentWidth <= layout.viewport + 1 && layout.bodyWidth <= layout.viewport + 1,
+        "mobile page '" + route + "' has horizontal overflow: " + JSON.stringify(layout)
+      );
+    }
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    results.push("mobile horizontal-overflow audit across all 11 career/world pages");
+
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");
     assert.deepEqual(badResponses, [], "all local page assets must return successful responses");

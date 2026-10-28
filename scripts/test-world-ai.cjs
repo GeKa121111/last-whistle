@@ -210,6 +210,43 @@ assert.equal(retirementWorld.players[retirementPlayerId].retired, true);
 assert.equal(retirementWorld.players[retirementPlayerId].clubId, "",
   "retired players must never be signed as free agents");
 
+// Database reconciliation must not recreate a retired player from the static roster catalogue.
+const retiredReconcileSave = { season: 1 };
+const retiredReconcileWorld = ai.ensureState(retiredReconcileSave, db);
+const retiredReconcilePlayer = Object.values(retiredReconcileWorld.players)
+  .find(player => player && player.isRealPlayer && player.clubId && player.name && player.position);
+assert.ok(retiredReconcilePlayer, "reconciliation regression needs a real catalogue player");
+const retiredReconcilePlayerId = String(retiredReconcilePlayer.id);
+const retiredReconcileClubId = String(retiredReconcilePlayer.clubId);
+const retiredReconcileClub = retiredReconcileWorld.clubs[retiredReconcileClubId];
+const retiredReconcileName = retiredReconcilePlayer.name;
+const retiredReconcilePosition = retiredReconcilePlayer.position;
+retiredReconcileClub.roster = retiredReconcileClub.roster.filter(id => String(id) !== retiredReconcilePlayerId);
+retiredReconcilePlayer.previousClubId = retiredReconcileClubId;
+retiredReconcilePlayer.clubId = "";
+retiredReconcilePlayer.leagueId = "";
+retiredReconcilePlayer.division = 0;
+retiredReconcilePlayer.retired = true;
+retiredReconcilePlayer.retiredSeason = 2;
+retiredReconcilePlayer.retirementAge = 42;
+retiredReconcilePlayer.freeAgent = false;
+retiredReconcilePlayer.transferListed = false;
+retiredReconcileWorld.playerHistory[retiredReconcilePlayerId] = [
+  { season: 1, type: "transfer-in", club: retiredReconcileClub.name },
+  { season: 2, type: "retirement", club: retiredReconcileClub.name }
+];
+sandbox.window.__lwTestReconcileDatabase(retiredReconcileWorld, db);
+const reimportedRetiredPlayer = Object.values(retiredReconcileWorld.players).filter(player =>
+  player && !player.retired && String(player.clubId) === retiredReconcileClubId
+  && player.name === retiredReconcileName && player.position === retiredReconcilePosition);
+assert.equal(reimportedRetiredPlayer.length, 0,
+  "reconciliation must not recreate a retired player as a second active roster entry");
+assert.equal(retiredReconcileWorld.players[retiredReconcilePlayerId].retired, true);
+assert.equal(retiredReconcileWorld.players[retiredReconcilePlayerId].clubId, "");
+assert.ok(!retiredReconcileWorld.clubs[retiredReconcileClubId].roster.includes(retiredReconcilePlayerId));
+assert.equal(retiredReconcileWorld.playerHistory[retiredReconcilePlayerId][0].type, "transfer-in",
+  "reconciliation must preserve the retired player's existing career history");
+
 // Promotion history records the destination season. A record for season 2 must
 // prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];

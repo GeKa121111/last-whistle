@@ -644,7 +644,8 @@ assert.equal(browserEngine.validateResult(invalidFirstMinute).ok, false,
   "the embedded validator must reject a malformed first event minute");
 const emptyMinute = { ...minuteValidationBase, events: [{ type: "foul", side: "opponent", minute: "" }] };
 const booleanMinute = { ...minuteValidationBase, events: [{ type: "foul", side: "opponent", minute: true }] };
-for (const invalidMinute of [emptyMinute, booleanMinute]) {
+const zeroMinute = { ...minuteValidationBase, events: [{ type: "foul", side: "opponent", minute: 0 }] };
+for (const invalidMinute of [emptyMinute, booleanMinute, zeroMinute]) {
   assert.equal(engine.validateResult(invalidMinute).ok, false,
     "empty strings and booleans must not be coerced into valid event minutes");
   assert.equal(browserEngine.validateResult(invalidMinute).ok, false,

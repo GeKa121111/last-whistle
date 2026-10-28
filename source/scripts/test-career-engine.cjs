@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v145"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=12"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v146"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=13"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -39,6 +39,10 @@ assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08
   "the browser career engine must use the same game-calendar date");
 assert.ok(rootHtml.includes('const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);'),
   "the inline browser award engine must deduplicate repeated match rows");
+assert.ok(rootHtml.includes("const awardCount = value => {"),
+  "the inline browser award engine must normalize malformed goals and assists");
+assert.ok(rootHtml.includes("const awardMinutes = value => {") && rootHtml.includes("const awardRating = value => {"),
+  "the inline browser award engine must reject non-finite minutes and ratings");
 const duplicateAwardState = {
   age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
   leagueCompetition: "Test League", season: 1, calendarDay: 120, money: 0,
@@ -59,6 +63,27 @@ assert.equal(duplicateAwardState.topScorerAwards, 1,
   "a duplicated match must not grant the same season's golden-boot counter twice");
 assert.equal(duplicateAwardState.money, 1100,
   "award rewards must be calculated from unique match rows only");
+
+const malformedAwardState = {
+  age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+  leagueCompetition: "Test League", season: 1, calendarDay: 120,
+  money: Infinity, topScorerAwards: Infinity, careerAwards: [],
+  seasonLog: [
+    { matchId: "malformed-award-1", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 0, assists: 0 },
+    { matchId: "malformed-award-2", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 0, assists: 0 },
+    { matchId: "malformed-award-3", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 0, assists: 0 },
+    { matchId: "malformed-award-4", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: Infinity, goals: Infinity, assists: NaN }
+  ]
+};
+career.seasonAwards(malformedAwardState, [{ name: "Test FC", power: 50 }], 1);
+assert.equal(malformedAwardState.careerAwards.length, 0,
+  "non-finite match stats must not manufacture season awards");
+assert.equal(malformedAwardState.money, 0,
+  "an invalid saved balance must be normalized before award payouts");
+assert.equal(malformedAwardState.topScorerAwards, 0,
+  "an invalid scorer-award counter must be normalized without granting an award");
+assert.ok(Number.isFinite(malformedAwardState.money),
+  "award processing must leave a finite balance after malformed match stats");
 
 
 const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");

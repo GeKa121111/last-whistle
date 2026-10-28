@@ -227,7 +227,7 @@ assert.equal(new Set(duplicateSourcePlayers.map(player => player.id)).size, 2,
 assert.equal(new Set(duplicateSourcePlayers.map(player => player.clubId)).size, 2,
   "same-name players must remain attached to their own source clubs");
 const duplicateReconcileSave = { season: 1, worldSimulation: JSON.parse(JSON.stringify(world)) };
-duplicateReconcileSave.worldSimulation.rosterSchemaVersion = 1;
+duplicateReconcileSave.worldSimulation.rosterSchemaVersion = 2;
 const duplicateReconcileClub = Object.values(duplicateReconcileSave.worldSimulation.clubs)
   .find(club => club.name === "Scotland Test Club 02");
 const missingDuplicate = duplicateReconcileClub.roster
@@ -241,10 +241,10 @@ const restoredDuplicate = duplicateReconcileClub.roster
   .map(id => duplicateReconcileSave.worldSimulation.players[id])
   .find(player => player && player.name === duplicateSourceName && player.isRealPlayer === true);
 assert.ok(restoredDuplicate,
-  "a schema-1 saved world must restore a same-name player omitted from another club during the old global dedupe");
+  "a schema-2 saved world must restore a same-name player omitted from another club during the old global dedupe");
 assert.equal(restoredDuplicate.clubId, duplicateReconcileClub.id,
   "legacy roster repair must restore the player to the correct club");
-assert.equal(duplicateReconcileSave.worldSimulation.rosterSchemaVersion, 2,
+assert.equal(duplicateReconcileSave.worldSimulation.rosterSchemaVersion, 3,
   "the per-club player identity migration must be recorded once");
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
@@ -267,7 +267,7 @@ const playerCount = Object.keys(world.players).length;
 assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");
 assert.ok(playerCount >= clubCount * 12, "each club must have a multi-player squad");
 assert.equal(world.schemaVersion, ai.version);
-assert.equal(world.rosterSchemaVersion, 2, "fresh worlds must be marked reconciled so the next render does not rescan every squad");
+assert.equal(world.rosterSchemaVersion, 3, "fresh worlds must be marked reconciled so the next render does not rescan every squad");
 assert.ok(!Object.keys(world.seasonStats || {}).some(key => key === "1"),
   "opening the dashboard must not create persistent season stats as a side effect");
 assert.equal(ai.ensureState(save, db), world, "loading the same save must preserve its existing world simulation");
@@ -320,8 +320,8 @@ assert.equal(Object.prototype.hasOwnProperty.call(world.matchesBySeason || {}, "
 assert.strictEqual(ai.dashboard(save, db), initialDashboard,
   "unchanged dashboard refreshes should reuse the cached result");
 
-// Older saved worlds may still contain Japan/AFC data. Reconciliation must purge it
-// while retaining the supported league database and its normal career state.
+// Older saved worlds may still contain Japan/AFC data. Keep it out of active simulation,
+// but archive the club, player history, statistics and competition records without data loss.
 const legacyClubId = "legacy-japan-club";
 const legacyPlayerId = "legacy-japan-player";
 world.clubs[legacyClubId] = {
@@ -332,6 +332,8 @@ world.players[legacyPlayerId] = {
   id: legacyPlayerId, name: "Legacy Japan Test Player", clubId: legacyClubId,
   leagueId: "japan", country: "اليابان", position: "وسط مهاجم", group: "midfielder"
 };
+world.playerHistory = world.playerHistory || {};
+world.playerHistory[legacyPlayerId] = [{ season: 0, goals: 1 }];
 world.matchesBySeason = world.matchesBySeason || {};
 world.competitionsBySeason = world.competitionsBySeason || {};
 world.seasonStats["0"] = [{ id: legacyPlayerId, leagueId: "japan", goals: 1 }];
@@ -339,12 +341,19 @@ world.leagueTables["0"] = { japan: [{ leagueId: "japan", club: "Legacy Japan Clu
 world.matchesBySeason["0"] = [{ homeClubId: legacyClubId, awayClubId: "some-supported-club" }];
 world.competitionsBySeason["0"] = [{ id: "afc-cl", confederation: "AFC" }];
 ai.ensureState(save, db);
-assert.equal(world.clubs[legacyClubId], undefined, "clubs from removed continental pathways must be purged from existing saves");
-assert.equal(world.players[legacyPlayerId], undefined, "players owned by removed-league clubs must be purged from existing saves");
-assert.equal(world.leagueTables["0"].japan, undefined, "stale standings for removed leagues must be purged");
-assert.equal(world.seasonStats["0"].length, 0, "stale stats for removed-league players must be purged");
-assert.equal(world.matchesBySeason["0"].length, 0, "fixtures involving removed-league clubs must be purged");
-assert.equal(world.competitionsBySeason["0"].length, 0, "AFC competition results must be purged from existing saves");
+assert.equal(world.clubs[legacyClubId], undefined, "unsupported clubs must leave the active simulation");
+assert.equal(world.players[legacyPlayerId], undefined, "unsupported players must leave the active player pool");
+assert.equal(world.archive.clubs[legacyClubId].name, "Legacy Japan Club", "the full club record must be retained in the archive");
+assert.equal(world.archive.players[legacyPlayerId].name, "Legacy Japan Test Player", "the full player record must be retained in the archive");
+assert.deepEqual(world.archive.playerHistory[legacyPlayerId], [{ season: 0, goals: 1 }], "player career history must be archived, not deleted");
+assert.equal(world.leagueTables["0"].japan, undefined, "stale standings must be removed from active tables");
+assert.equal(world.archive.leagueTables["0"].japan.length, 1, "removed-league standings must remain archived");
+assert.equal(world.seasonStats["0"].length, 0, "unsupported-league stats must leave active season tables");
+assert.equal(world.archive.seasonStats["0"].length, 1, "unsupported-league statistics must remain archived");
+assert.equal(world.matchesBySeason["0"].length, 0, "fixtures involving removed-league clubs must leave active simulation");
+assert.equal(world.archive.matchesBySeason["0"].length, 1, "fixtures involving removed-league clubs must remain archived");
+assert.equal(world.competitionsBySeason["0"].length, 0, "AFC results must leave active competitions");
+assert.equal(world.archive.competitionsBySeason["0"].length, 1, "AFC competition results must remain archived");
 
 
 const firstSeason = ai.completeSeason(save, 1, db);

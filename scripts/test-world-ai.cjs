@@ -111,7 +111,8 @@ const seasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotion
 assert.equal(seasonOneMoves.length, 1, "season 1 should promote and relegate one club in the fixture league");
 assert.equal(promotionWorld.promotionHistory[0].season, 2,
   "promotion history should label the destination season");
-assert.deepEqual(sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1), [],
+const repeatedSeasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1);
+assert.equal(repeatedSeasonOneMoves.length, 0,
   "replaying the same source season must not duplicate its promotion/relegation");
 const seasonTwoMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 2);
 assert.equal(seasonTwoMoves.length, 1,

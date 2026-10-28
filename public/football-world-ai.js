@@ -1654,13 +1654,17 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=4");
+    const worker = new global.Worker("./football-world-worker.js?v=5");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;
       const msg = event && event.data || {};
       const request = activeWorldWorkerRequest;
-      if (!request || msg.id !== request.id) return;
+      if (!request) return;
+      if (msg.id !== request.id) {
+        failWorldWorker(worker, new Error("World worker response ID mismatch"));
+        return;
+      }
       activeWorldWorkerRequest = null;
       try {
         if (!msg.ok) {

@@ -642,6 +642,14 @@ assert.equal(engine.validateResult(invalidFirstMinute).ok, false,
   "a malformed minute on the first event must not bypass chronological validation");
 assert.equal(browserEngine.validateResult(invalidFirstMinute).ok, false,
   "the embedded validator must reject a malformed first event minute");
+const emptyMinute = { ...minuteValidationBase, events: [{ type: "foul", side: "opponent", minute: "" }] };
+const booleanMinute = { ...minuteValidationBase, events: [{ type: "foul", side: "opponent", minute: true }] };
+for (const invalidMinute of [emptyMinute, booleanMinute]) {
+  assert.equal(engine.validateResult(invalidMinute).ok, false,
+    "empty strings and booleans must not be coerced into valid event minutes");
+  assert.equal(browserEngine.validateResult(invalidMinute).ok, false,
+    "the embedded validator must reject nonnumeric minute values");
+}
 const regulationEventInExtraTime = { ...minuteValidationBase,
   events: [{ type: "foul", side: "opponent", minute: 105 }] };
 assert.equal(engine.validateResult(regulationEventInExtraTime).ok, false,

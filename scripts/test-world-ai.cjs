@@ -15,7 +15,7 @@ const scotlandFixtureSnapshot = {
       leagueId: "scotland", country: "اسكتلندا", division: 1,
       sourceUrl: "https://footballsquads.co.uk/scots/2026-2027/scotprm/test" + (clubIndex + 1) + ".htm",
       players: Array.from({ length: 16 }, (_, playerIndex) => ({
-        name: "Scotland Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
+        name: clubIndex === 1 && playerIndex === 0 ? "Scotland Test Player 1-1" : "Scotland Test Player " + (clubIndex + 1) + "-" + (playerIndex + 1),
         position: playerIndex < 3 ? "حارس مرمى" : playerIndex < 8 ? "قلب دفاع" : playerIndex < 13 ? "وسط مهاجم" : "مهاجم",
         age: 19 + playerIndex % 11, number: playerIndex + 1, nationality: "SCO", isRealPlayer: true
       }))
@@ -217,6 +217,35 @@ const save = {
   seasonApps: 0, seasonAppsTarget: 34, careerMatchHistory: []
 };
 const world = ai.ensureState(save, db);
+const duplicateSourceName = "Scotland Test Player 1-1";
+const duplicateSourcePlayers = Object.values(world.players).filter(player =>
+  player && player.name === duplicateSourceName && player.isRealPlayer === true && player.isGenerated !== true);
+assert.equal(duplicateSourcePlayers.length, 2,
+  "identical names in different clubs must both remain sourced real players");
+assert.equal(new Set(duplicateSourcePlayers.map(player => player.id)).size, 2,
+  "same-name players from different clubs must receive distinct stable IDs");
+assert.equal(new Set(duplicateSourcePlayers.map(player => player.clubId)).size, 2,
+  "same-name players must remain attached to their own source clubs");
+const duplicateReconcileSave = { season: 1, worldSimulation: JSON.parse(JSON.stringify(world)) };
+duplicateReconcileSave.worldSimulation.rosterSchemaVersion = 1;
+const duplicateReconcileClub = Object.values(duplicateReconcileSave.worldSimulation.clubs)
+  .find(club => club.name === "Scotland Test Club 02");
+const missingDuplicate = duplicateReconcileClub.roster
+  .map(id => duplicateReconcileSave.worldSimulation.players[id])
+  .find(player => player && player.name === duplicateSourceName && player.isRealPlayer === true);
+assert.ok(missingDuplicate, "the legacy migration fixture must include the duplicate real player before removal");
+duplicateReconcileClub.roster = duplicateReconcileClub.roster.filter(id => id !== missingDuplicate.id);
+delete duplicateReconcileSave.worldSimulation.players[missingDuplicate.id];
+ai.ensureState(duplicateReconcileSave, db);
+const restoredDuplicate = duplicateReconcileClub.roster
+  .map(id => duplicateReconcileSave.worldSimulation.players[id])
+  .find(player => player && player.name === duplicateSourceName && player.isRealPlayer === true);
+assert.ok(restoredDuplicate,
+  "a schema-1 saved world must restore a same-name player omitted from another club during the old global dedupe");
+assert.equal(restoredDuplicate.clubId, duplicateReconcileClub.id,
+  "legacy roster repair must restore the player to the correct club");
+assert.equal(duplicateReconcileSave.worldSimulation.rosterSchemaVersion, 2,
+  "the per-club player identity migration must be recorded once");
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
   "database reconciliation must be exposed to the isolated regression test");
@@ -238,7 +267,7 @@ const playerCount = Object.keys(world.players).length;
 assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");
 assert.ok(playerCount >= clubCount * 12, "each club must have a multi-player squad");
 assert.equal(world.schemaVersion, ai.version);
-assert.equal(world.rosterSchemaVersion, 1, "fresh worlds must be marked reconciled so the next render does not rescan every squad");
+assert.equal(world.rosterSchemaVersion, 2, "fresh worlds must be marked reconciled so the next render does not rescan every squad");
 assert.ok(!Object.keys(world.seasonStats || {}).some(key => key === "1"),
   "opening the dashboard must not create persistent season stats as a side effect");
 assert.equal(ai.ensureState(save, db), world, "loading the same save must preserve its existing world simulation");

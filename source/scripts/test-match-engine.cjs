@@ -186,6 +186,16 @@ assert.equal(aggregateRatingProbe.secondLeg.player.rating, aggregateRatingProbe.
   "aggregate advantage must not give the player a win bonus for a drawn match");
 assert.equal(engine.validateResult(aggregateRatingProbe.secondLeg).matchOutcomeConsistent, true,
   "the ledger validator must check the fixture outcome separately from aggregate progression");
+assert.equal(engine.validateResult(aggregateRatingProbe.secondLeg).outcomeConsistent, true,
+  "the aggregate tie result must validate independently from the individual leg result");
+const corruptedAggregateOutcome = { ...aggregateRatingProbe.secondLeg, outcome: "خسارة" };
+const corruptedAggregateValidation = engine.validateResult(corruptedAggregateOutcome);
+assert.equal(corruptedAggregateValidation.outcomeConsistent, false,
+  "the ledger validator must reject an aggregate outcome that contradicts the aggregate score");
+assert.equal(corruptedAggregateValidation.ok, false,
+  "a corrupted aggregate outcome must invalidate the match result");
+assert.equal(browserEngine.validateResult(corruptedAggregateOutcome).outcomeConsistent, false,
+  "the embedded browser validator must reject the same aggregate-outcome mismatch");
 
 const cleanSheetValidationProbe = engine.simulateMatch({
   seed: 942771, teamPower: 65, opponentPower: 65,

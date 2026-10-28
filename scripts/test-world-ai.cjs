@@ -34,7 +34,7 @@ const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
-  .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\\n" + advanceMarker)
+  .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;

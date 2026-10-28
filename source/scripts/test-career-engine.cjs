@@ -548,6 +548,12 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+const browserRoleDecision = deployedCareer.evaluateSquadRole({ ...roleStateForDedup },
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+const sourceRoleDecision = career.evaluateSquadRole({ ...roleStateForDedup },
+  [duplicateRoleMatch, ...priorRoleHistory], duplicateRoleMatch);
+assert.equal(JSON.stringify(browserRoleDecision), JSON.stringify(sourceRoleDecision),
+  "embedded browser and shared career engines must deduplicate squad-role match history identically");
 
 for (const [label, initial, outcome] of [
   ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],

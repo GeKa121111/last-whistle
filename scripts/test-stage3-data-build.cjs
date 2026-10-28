@@ -117,3 +117,59 @@ for (const asset of shell) {
   assert.ok(fs.existsSync(path.join(root, "dist", relative)), "precache asset must exist in dist: " + asset);
 }
 console.log("PASS: continental rating normalization, generated-player coverage, canonical root/public sync, source data packaging, and service-worker precache coverage.");
+
+const originalFetch = global.fetch;
+(async () => {
+  try {
+    const blockedRequests = [];
+    global.fetch = async (url, options = {}) => {
+      blockedRequests.push({ url: String(url), redirect: options.redirect });
+      return {
+        status: 302,
+        ok: false,
+        url: String(url),
+        headers: { get: name => String(name).toLowerCase() === "location" ? "https://outside.example/premier/club.html" : null },
+        text: async () => ""
+      };
+    };
+    await assert.rejects(
+      fetchHtml("https://footballsquads.co.uk/premier/index.htm"),
+      /blocked cross-origin roster redirect/i,
+      "a trusted roster page must not redirect parsing to an external host"
+    );
+    assert.equal(blockedRequests.length, 1, "an external redirect must be rejected before any request to the external host");
+    assert.equal(blockedRequests[0].redirect, "manual", "fetch must not automatically follow redirects");
+
+    const safeRequests = [];
+    global.fetch = async (url, options = {}) => {
+      safeRequests.push({ url: String(url), redirect: options.redirect });
+      if (safeRequests.length === 1) {
+        return {
+          status: 302,
+          ok: false,
+          url: String(url),
+          headers: { get: name => String(name).toLowerCase() === "location" ? "/premier/final.htm" : null },
+          text: async () => ""
+        };
+      }
+      return {
+        status: 200,
+        ok: true,
+        url: String(url),
+        headers: { get: () => null },
+        text: async () => "x".repeat(1500)
+      };
+    };
+    const html = await fetchHtml("https://footballsquads.co.uk/premier/index.htm");
+    assert.equal(html.length, 1500, "same-origin redirects should still load a valid roster page");
+    assert.equal(safeRequests.length, 2, "a same-origin redirect should be followed exactly once");
+    assert.ok(safeRequests.every(request => request.redirect === "manual"),
+      "all redirect hops must remain under explicit origin validation");
+    console.log("PASS: roster fetching rejects cross-origin redirects and permits safe same-origin redirects.");
+  } finally {
+    global.fetch = originalFetch;
+  }
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -108,8 +108,8 @@ async function main() {
   assert.equal(workerInstances.length, 1, "dashboard and season jobs must reuse a single Worker instance");
   const worker = workerInstances[0];
   const workerSource = fs.readFileSync(path.join(root, "public", "football-world-worker.js"), "utf8");
-  assert.ok(workerSource.includes('"./football-world-ai.js?v=27"'), "worker must load the cache-busted AI engine");
-  assert.equal(worker.url, "./football-world-worker.js?v=19");
+  assert.ok(workerSource.includes('"./football-world-ai.js?v=28"'), "worker must load the cache-busted AI engine");
+  assert.equal(worker.url, "./football-world-worker.js?v=20");
   assert.equal(worker.terminateCalls, 0, "successful requests must not terminate the shared worker");
   assert.deepEqual(worker.messages.map(row => row.command), ["dashboard", "advanceToSeason", "completeSeason"]);
   assert.deepEqual(worker.messages.map(row => row.inputCount), [0, 1, 2],

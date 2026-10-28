@@ -293,28 +293,34 @@ assert.ok(retiredReconcilePlayer, "reconciliation regression needs a real catalo
 const retiredReconcilePlayerId = String(retiredReconcilePlayer.id);
 const retiredReconcileClubId = String(retiredReconcilePlayer.clubId);
 const retiredReconcileClub = retiredReconcileWorld.clubs[retiredReconcileClubId];
+const retiredReconcileDestination = Object.values(retiredReconcileWorld.clubs)
+  .find(club => String(club.id) !== retiredReconcileClubId);
+assert.ok(retiredReconcileDestination, "reconciliation regression needs a second club to simulate a transfer");
+const retiredReconcileDestinationId = String(retiredReconcileDestination.id);
 const retiredReconcileName = retiredReconcilePlayer.name;
 const retiredReconcilePosition = retiredReconcilePlayer.position;
 retiredReconcileClub.roster = retiredReconcileClub.roster.filter(id => String(id) !== retiredReconcilePlayerId);
-retiredReconcilePlayer.previousClubId = retiredReconcileClubId;
+retiredReconcileDestination.roster = retiredReconcileDestination.roster.filter(id => String(id) !== retiredReconcilePlayerId);
+retiredReconcilePlayer.previousClubId = retiredReconcileDestinationId;
 retiredReconcilePlayer.clubId = "";
 retiredReconcilePlayer.leagueId = "";
 retiredReconcilePlayer.division = 0;
 retiredReconcilePlayer.retired = true;
-retiredReconcilePlayer.retiredSeason = 2;
+retiredReconcilePlayer.retiredSeason = 3;
 retiredReconcilePlayer.retirementAge = 42;
 retiredReconcilePlayer.freeAgent = false;
 retiredReconcilePlayer.transferListed = false;
 retiredReconcileWorld.playerHistory[retiredReconcilePlayerId] = [
-  { season: 1, type: "transfer-in", club: retiredReconcileClub.name },
-  { season: 2, type: "retirement", club: retiredReconcileClub.name }
+  { season: 1, type: "transfer-in", club: retiredReconcileClub.name, country: retiredReconcileClub.country },
+  { season: 2, type: "transfer", club: retiredReconcileDestination.name, country: retiredReconcileDestination.country },
+  { season: 3, type: "retirement", club: retiredReconcileDestination.name, country: retiredReconcileDestination.country }
 ];
 sandbox.window.__lwTestReconcileDatabase(retiredReconcileWorld, db);
 const reimportedRetiredPlayer = Object.values(retiredReconcileWorld.players).filter(player =>
   player && !player.retired && String(player.clubId) === retiredReconcileClubId
   && player.name === retiredReconcileName && player.position === retiredReconcilePosition);
 assert.equal(reimportedRetiredPlayer.length, 0,
-  "reconciliation must not recreate a retired player as a second active roster entry");
+  "reconciliation must not recreate a transferred retiree from the original club catalogue");
 assert.equal(retiredReconcileWorld.players[retiredReconcilePlayerId].retired, true);
 assert.equal(retiredReconcileWorld.players[retiredReconcilePlayerId].clubId, "");
 assert.ok(!retiredReconcileWorld.clubs[retiredReconcileClubId].roster.includes(retiredReconcilePlayerId));

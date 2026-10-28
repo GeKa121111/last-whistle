@@ -247,6 +247,25 @@ if (!html.includes("let lastAchievementsRenderSignature") ||
   process.exit(1);
 }
 
+const nationalRenderStart = html.indexOf("function renderNational(){");
+const nationalMatchStart = html.indexOf("function nationalMatch(){");
+const nationalMatchEnd = html.indexOf("function newCareer()", nationalMatchStart);
+if (nationalRenderStart < 0 || nationalMatchStart < 0 || nationalMatchEnd < nationalMatchStart) {
+  console.error("National tournament regression test could not locate the render/match functions.");
+  process.exit(1);
+}
+const nationalRenderSource = html.slice(nationalRenderStart, html.indexOf("const SHOP", nationalRenderStart));
+const nationalMatchSource = html.slice(nationalMatchStart, nationalMatchEnd);
+if (!nationalRenderSource.includes("البطولة المصغرة تبدأ بثلاث مباريات في دور المجموعات.")
+  || !nationalRenderSource.includes("tm<3?")
+  || !nationalMatchSource.includes("tournamentMatchIndex<3?")
+  || !nationalMatchSource.includes("knockout:tournamentMatchIndex>=3")
+  || !nationalMatchSource.includes("Number(state.nationalTournamentMatches)>=4")
+  || !html.includes("state.nationalTournamentMatches=3;}state.nationalTournamentFormat=2;")) {
+  console.error("National tournament must have three group fixtures, a separate final, and legacy-save migration.");
+  process.exit(1);
+}
+
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 let inlineCount = 0;
 for (const [, attrs, body] of scripts) {

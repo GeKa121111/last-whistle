@@ -168,7 +168,9 @@ const realPlayers = [
   { name: "حارس الاختبار", clubName: "نادي الحارس", country: "مصر", position: "حارس مرمى", ovr: 88, prestige: 80, leagueStrength: 70, age: 28,
     seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.7, cleanSheets: 22, saves: 94, penaltiesSaved: 2, club: "نادي الحارس" } },
   { name: "حارس منافس", clubName: "نادي المنافس", country: "مصر", position: "حارس مرمى", ovr: 82, prestige: 75, leagueStrength: 68, age: 29,
-    seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.5, cleanSheets: 12, saves: 120, penaltiesSaved: 0, club: "نادي المنافس" } }
+    seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.5, cleanSheets: 12, saves: 120, penaltiesSaved: 0, club: "نادي المنافس" } },
+  { name: "موهبة شابة", clubName: "نادي الشباب", country: "إسبانيا", position: "جناح", ovr: 81, prestige: 75, leagueStrength: 70, age: 17, confederation: "UEFA", originConfederation: "UEFA",
+    seasonStats: { season: 4, appearances: 28, goals: 9, assists: 6, averageRating: 7.8, club: "نادي الشباب" } }
 ];
 const ceremony = engine.buildSeasonAwardCeremony({
   season: 4,
@@ -176,6 +178,18 @@ const ceremony = engine.buildSeasonAwardCeremony({
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+const noYouthCeremony = engine.buildSeasonAwardCeremony({
+  season: 4,
+  currentDate: "2028-02-14T00:00:00.000Z",
+  player: {
+    name: "لاعب مخضرم", club: "فريقي", country: "مصر", position: "وسط مهاجم",
+    ovr: 78, age: 30, appearances: 25, goals: 5, assists: 8, averageRating: 7.1,
+    confederation: "CAF", originConfederation: "CAF", leagueStrength: 70
+  },
+  realPlayers: realPlayers.filter(row => Number(row.age) >= 22)
+});
+assert.equal(noYouthCeremony.awards.some(row => row.id === "golden-boy"), false,
+  "Golden Boy must be omitted when no eligible under-21 player exists instead of falling back to older players");
 assert.equal(ceremony.createdAt, "2028-02-14T00:00:00.000Z",
   "award ceremony timestamps must use the supplied in-game calendar date");
 assert.equal(ceremony.ballonDor.topFive.length, 5, "the Ballon d'Or ceremony must show exactly five nominees");

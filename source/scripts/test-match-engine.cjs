@@ -141,37 +141,48 @@ assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 90, [
 assert.equal(browserEngine.playerEarnsCleanSheet("قلب دفاع", 90, [{ type: "goal", side: "opponent", minute: 105 }]), false,
   "the deployed engine must not credit a false extra-time clean sheet");
 
-// Integration regression: this engine does not simulate player participation beyond 90 minutes.
-// If extra time is played, regulation-only player stats must end at minute 90 even when the
-// team concedes later. Search deterministic seeds for an actual extra-time concession.
-let extraTimeRegulationExit = null;
-for (let seed = 150001; seed < 151501 && !extraTimeRegulationExit; seed += 1) {
-  const result = engine.simulateMatch({
+// Integration regression: a player who reaches the regulation whistle stays involved in extra time.
+let extraTimeParticipation = null;
+let extraTimeParticipationOptions = null;
+for (let seed = 150001; seed < 151501 && !extraTimeParticipation; seed += 1) {
+  const options = {
     seed, knockout: true, teamPower: 65, opponentPower: 65,
     player: {
-      name: "اختبار خروج اللاعب قبل الوقت الإضافي", position: "قلب دفاع", role: "أساسي",
+      name: "اختبار مشاركة اللاعب في الوقت الإضافي", position: "قلب دفاع", role: "أساسي",
       shooting: 65, passing: 65, vision: 65, composure: 70, fitness: 100, trust: 100,
       energy: 100, fatigue: 0, speed: 70, physical: 72, dribbling: 60
     }
-  });
+  };
+  const result = engine.simulateMatch(options);
   const dismissedOrInjured = result.events.some(event => event.side === "player"
     && ["red-card", "injury"].includes(event.type));
-  const concededInExtraTime = result.events.some(event => event.type === "goal"
-    && event.side === "opponent" && Number(event.minute) > 90);
-  if (result.extraTime.played && result.player.minutes === 90 && !dismissedOrInjured && concededInExtraTime) {
-    extraTimeRegulationExit = result;
+  const extraTimeContribution = result.events.some(event => Number(event.minute) > 90
+    && (event.creditedToPlayer === true
+      || (event.side === "player" && ["tackle", "interception", "foul", "save"].includes(event.type))));
+  if (result.extraTime.played && result.player.minutes > 90 && !dismissedOrInjured && extraTimeContribution) {
+    extraTimeParticipation = result;
+    extraTimeParticipationOptions = options;
   }
 }
-assert.ok(extraTimeRegulationExit, "the deterministic knockout sample must include an extra-time concession");
-assert.ok(extraTimeRegulationExit.events.some(event => event.type === "substitution"
+assert.ok(extraTimeParticipation, "a deterministic knockout sample must include player activity during extra time");
+assert.equal(extraTimeParticipation.player.minutes, 120,
+  "a player who completes regulation without dismissal or injury must receive 30 extra-time minutes");
+assert.ok(!extraTimeParticipation.events.some(event => event.type === "substitution"
   && event.side === "player" && Number(event.minute) === 90),
-  "the simulated player must have an explicit exit at regulation time when the engine does not simulate extra-time minutes");
-const regulationConcessions = extraTimeRegulationExit.events.filter(event => event.type === "goal"
-  && event.side === "opponent" && Number(event.minute) <= 90).length;
-assert.equal(engine.playerConcededGoals(90, extraTimeRegulationExit.events), regulationConcessions,
-  "extra-time goals must not lower the simulated player's rating or remove their regulation clean sheet");
-assert.equal(engine.validateResult(extraTimeRegulationExit).ok, true,
-  "the extra-time exit event must keep the match ledger internally consistent");
+  "an eligible player must not be recorded as substituted at the regulation whistle");
+assert.ok(extraTimeParticipation.events.some(event => Number(event.minute) > 90
+  && (event.creditedToPlayer === true || (event.side === "player"
+    && ["tackle", "interception", "foul", "save"].includes(event.type)))),
+  "player contributions must be recorded inside the extra-time periods");
+assert.deepEqual(browserEngine.simulateMatch(extraTimeParticipationOptions), extraTimeParticipation,
+  "the embedded browser engine must match extra-time player participation");
+const extraTimeConcessions = extraTimeParticipation.events.filter(event => event.type === "goal"
+  && event.side === "opponent").length;
+assert.equal(engine.playerConcededGoals(extraTimeParticipation.player.minutes, extraTimeParticipation.events),
+  extraTimeConcessions,
+  "a player who stays on the pitch must be accountable for goals conceded during extra time");
+assert.equal(engine.validateResult(extraTimeParticipation).ok, true,
+  "extra-time player activity and extended minutes must remain internally consistent");
 
 // An aggregate lead must not turn a drawn second leg into a positive player-rating result.
 // The competition outcome remains a tie win, while the fixture itself is still a draw.
@@ -277,7 +288,7 @@ for (const position of positions) {
     assert.equal(JSON.stringify(deployed), JSON.stringify(first), "deployed match engine must match the tested source for position " + position + ", seed " + seed);
     const deployedIntegrity = browserEngine.validateResult(deployed);
     assert.equal(deployedIntegrity.ok, true, "inconsistent deployed match for position " + position + ", seed " + seed + ": " + JSON.stringify(deployedIntegrity));
-    assert.ok(first.player.minutes >= 0 && first.player.minutes <= 90, "player minutes must stay within regulation");
+    assert.ok(first.player.minutes >= 0 && first.player.minutes <= (first.extraTime.played ? 120 : 90), "player minutes must stay within the played match periods");
     assert.equal(first.score.for, first.regulation.for + first.extraTime.for, "team score must reconcile");
     assert.equal(first.score.against, first.regulation.against + first.extraTime.against, "opponent score must reconcile");
     tested += 1;

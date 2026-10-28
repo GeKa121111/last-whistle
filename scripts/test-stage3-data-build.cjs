@@ -18,6 +18,12 @@ assert.equal(parseAge("01/01/2008", seasonReferenceDate("2026 Apertura")), 18,
 assert.equal(parseAge("02/01/2008", seasonReferenceDate("2026 Apertura")), 17,
   "calendar-year season birthdays must be compared against the calendar-year reference date");
 assert.equal(parseAge("not-a-date"), null, "unparseable birth dates must remain unknown");
+assert.equal(parseAge("31/02/2008"), null, "impossible calendar dates must remain unknown");
+assert.equal(parseAge("31/04/2008"), null, "days beyond a month's length must be rejected");
+assert.equal(parseAge("00/12/2008"), null, "day zero must be rejected");
+assert.equal(parseAge("01/13/2008"), null, "months outside the calendar must be rejected");
+assert.equal(parseAge("29/02/2008"), 18, "valid leap-day birthdays must be accepted");
+assert.equal(parseAge("29/02/2007"), null, "non-leap-year February 29 must be rejected");
 const parsedSquadLinks = parseTeamLinks([
   '<a href="/premier/club-a.htm">Club A</a>',
   '<a href="/premier/club-b.html">Club B</a>',

@@ -1639,10 +1639,19 @@
   function getDivisionTable(save, leagueId, division, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
+    const divisionNumber = Math.max(1, int(division, 1));
+    const tableKey = divisionNumber === 1 ? String(leagueId) : String(leagueId) + ":" + divisionNumber;
     const completed = world.completedSeasons && world.completedSeasons.includes(year);
-    if (completed && (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year)))) return [];
+    const hasSavedMatches = world.matchesBySeason
+      && Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year));
+    if (completed && !hasSavedMatches) {
+      // The simulator keeps recent standings longer than detailed fixtures. Preserve
+      // historical division tables rather than returning an empty table after pruning.
+      const storedTables = world.leagueTables && world.leagueTables[String(year)] || {};
+      return (storedTables[tableKey] || []).slice();
+    }
     const sim = simulateLeagueSeason(save, year, db);
-    return (sim.tables[Number(division) === 2 ? String(leagueId) + ":2" : String(leagueId)] || []).slice();
+    return (sim.tables[tableKey] || []).slice();
   }
   function getSeasonLines(save, season, progress, db) {
     const world = base.ensureState(save, db);

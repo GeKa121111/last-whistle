@@ -17,7 +17,7 @@ const vm = require("node:vm");
   assert.equal(html, publicHtml, "root and public HTML must match");
   assert.equal(sw, publicSw, "root and public service workers must match");
   assert.match(html, /story-mode\.js\?v=11/, "page should load the updated story runtime");
-  assert.match(sw, /last-whistle-static-v135/, "PWA cache must advance with the story runtime");
+  assert.match(sw, /last-whistle-static-v136/, "PWA cache must advance with the story runtime");
   assert.match(sw, /story-mode\.js\?v=11/, "offline shell should cache the current story runtime");
   assert.match(source, /store&&typeof store\.subscribe==="function"/);
   assert.match(source, /store\.subscribe\(function\(\)\{scheduleTick\(\);\}\)/);

@@ -162,6 +162,10 @@
     return player;
   }
   function fillRoster(world, club) {
+    club.roster = (club.roster || []).filter(id => {
+      const player = world.players[id];
+      return !player || !player.retired;
+    });
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
     club.roster.forEach(id => {
@@ -416,7 +420,7 @@
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 55;
   }
   function rosterPlayers(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(Boolean);
+    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired);
   }
   function roleStats(world, club) {
     const output = {};
@@ -761,14 +765,65 @@
   function roleNeedsLabel(group) {
     return ({ goalkeeper: "تدعيم حراسة المرمى", defender: "تدعيم الدفاع", midfielder: "تدعيم الوسط", attacker: "تدعيم الهجوم" })[group] || "تدعيم الفريق";
   }
+  function shouldRetirePlayer(player, seasonAge, row, season) {
+    const isGoalkeeper = String(player.group || "") === "goalkeeper"
+      || groupForPosition(player.position) === "goalkeeper";
+    const effectiveAge = Math.max(16, Number(seasonAge) - (isGoalkeeper ? 1 : 0));
+    if (effectiveAge < 38) return false;
+    if (effectiveAge >= 42) return true;
+    const rating = Number(row && row.averageRating) || Number(player.lastRating) || 0;
+    let chance = effectiveAge >= 41 ? 78 : effectiveAge >= 40 ? 55 : effectiveAge >= 39 ? 30 : 12;
+    if (rating >= 7.4) chance -= 12;
+    else if (rating > 0 && rating < 6.0) chance += 12;
+    if (Number(player.ovr) <= 55) chance += 12;
+    return (hash(String(player.id) + "|retirement|" + String(season)) % 100) < clamp(chance, 0, 100);
+  }
+  function retireWorldPlayer(world, player, season, seasonAge) {
+    const currentClubId = String(player.clubId || "");
+    const club = currentClubId && world.clubs ? world.clubs[currentClubId] : null;
+    if (club && Array.isArray(club.roster)) {
+      club.roster = club.roster.filter(id => String(id) !== String(player.id));
+    }
+    player.previousClubId = currentClubId || player.previousClubId || "";
+    player.clubId = "";
+    player.leagueId = "";
+    player.division = 0;
+    player.contractSeasons = 0;
+    player.freeAgent = false;
+    player.transferListed = false;
+    player.retired = true;
+    player.retiredSeason = Math.max(1, int(season, 1)) + 1;
+    player.retirementAge = Math.max(16, Number(seasonAge) || Number(player.age) || 18);
+    player.retirementReason = "age";
+    world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
+    const history = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
+    history.unshift({
+      season: player.retiredSeason,
+      club: club ? club.name : "",
+      country: club ? club.country : "",
+      type: "retirement",
+      age: player.retirementAge
+    });
+    world.playerHistory[player.id] = history.slice(0, 12);
+    world.notes = Array.isArray(world.notes) ? world.notes : [];
+    world.notes.unshift({
+      season: player.retiredSeason,
+      type: "retirement",
+      text: player.name + " اعتزل كرة القدم بعد نهاية الموسم."
+    });
+    world.notes = world.notes.slice(0, 30);
+  }
   function developPlayers(world, season) {
     const stats = world.seasonStats[String(season)] || [];
     const byId = new Map(stats.map(row => [row.id, row]));
+    const seasonAges = new Map();
     Object.values(world.players).forEach(player => {
+      if (!player || player.retired) return;
       const row = byId.get(player.id);
       // Season statistics describe the season just played, so development thresholds
       // must use the player's age during that season, before advancing their age.
       const seasonAge = Math.min(43, Math.max(16, Number(player.age) || 18));
+      seasonAges.set(player.id, seasonAge);
       player.age = Math.min(43, seasonAge + 1);
       player.contractSeasons = Math.max(0, (Number(player.contractSeasons) || 1) - 1);
       if (row) {
@@ -785,6 +840,13 @@
     // Contracts now truly expire. A deterministic renewal decision keeps key players
     // when the club needs them, while the rest enter the free-agent pool.
     Object.values(world.players).forEach(player => {
+      if (!player || player.retired) return;
+      const seasonAge = seasonAges.get(player.id);
+      const row = byId.get(player.id);
+      if (shouldRetirePlayer(player, seasonAge, row, season)) {
+        retireWorldPlayer(world, player, season, seasonAge);
+        return;
+      }
       if (Number(player.contractSeasons) > 0 || !player.clubId) return;
       const club = world.clubs[player.clubId];
       if (!club) { player.clubId = ""; player.freeAgent = true; return; }
@@ -1425,7 +1487,7 @@
     return moves;
   }
   function signFreeAgents(world, season, existingMoves) {
-    const freeAgents = Object.values(world.players).filter(player => player.freeAgent && Number(player.contractSeasons) <= 0)
+    const freeAgents = Object.values(world.players).filter(player => player && !player.retired && player.freeAgent && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
     const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1 && (club.roster || []).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
@@ -1658,7 +1720,7 @@
     },
     freeAgents: function (save, db) {
       const world = base.ensureState(save, db);
-      return Object.values(world.players).filter(player => player.freeAgent).map(player => ({
+      return Object.values(world.players).filter(player => player && !player.retired && player.freeAgent).map(player => ({
         id: player.id, name: player.name, position: player.position, ovr: player.ovr, age: player.age,
         potential: player.potential, contractSeasons: player.contractSeasons, formerClub: player.previousClubId
       })).sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));

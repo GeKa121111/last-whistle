@@ -160,7 +160,7 @@
 
   const safeLegacyMinutes = value => {
     const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.max(0, Math.min(120, numeric)) : 0;
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(120, Math.floor(numeric))) : 0;
   };
   const safeLegacyCount = value => {
     const numeric = Number(value);

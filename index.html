@@ -1900,6 +1900,9 @@ function seasonAwards(state, league, teamRank) {
     if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
     if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
     const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
+    if (played >= 2 && state.nationalTournamentQualified !== true) {
+      return { ok: false, status: "not-qualified" };
+    }
     if (played < 2) {
       state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
         + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0);
@@ -3742,8 +3745,8 @@ function renderNational(){
  const title=document.querySelector('#page-national .card h2');if(title)title.textContent=`منتخب ${nation}`;
  setText("nationalCaps",state.nationalCaps);setText("nationalGoals",state.nationalGoals);setText("nationalRating",state.nationalRating?state.nationalRating.toFixed(1)+"/10":"—");
  $("nationalChecklist").innerHTML=[["التقييم العام 68+",overall()>=68],["الانضمام لنادٍ أكبر",state.clubIndex>0],["فورمة آخر المباريات (3 مشاركات على الأقل)",recentLeague.length>=3&&form>=6.25],["العمر أقل من 40",state.age<40],["استدعاء المنتخب",state.nationalCalled]].map(([label,ok])=>`<div class="feedItem">${ok?"✅":"⬜"} ${label}</div>`).join("");
- $("nationalMatchBtn").disabled=!state.nationalCalled||state.nationalTournamentDone||Number(state.nationalTournamentMatches)>=3||state.injuryDays>0||state.retired;
- $("nationalMatchBtn").textContent=state.nationalTournamentDone?(state.nationalTournamentQualified?(state.nationalTournamentWinner?"بطل البطولة الدولية":"انتهت البطولة الدولية"):"لم يتأهل المنتخب للنهائي"):state.injuryDays>0?"اتعافى الأول":Number(state.nationalTournamentMatches)>=2?"العب النهائي الدولي":"العب مباراة المجموعات";
+ $("nationalMatchBtn").disabled=!state.nationalCalled||state.nationalTournamentDone||Number(state.nationalTournamentMatches)>=3||Number(state.nationalTournamentMatches)>=2&&state.nationalTournamentQualified!==true||state.injuryDays>0||state.retired;
+ $("nationalMatchBtn").textContent=state.nationalTournamentDone?(state.nationalTournamentQualified?(state.nationalTournamentWinner?"بطل البطولة الدولية":"انتهت البطولة الدولية"):"لم يتأهل المنتخب للنهائي"):state.injuryDays>0?"اتعافى الأول":Number(state.nationalTournamentMatches)>=2?(state.nationalTournamentQualified?"العب النهائي الدولي":"لم يتأهل المنتخب للنهائي"):"العب مباراة المجموعات";
 }
 
 const SHOP=[

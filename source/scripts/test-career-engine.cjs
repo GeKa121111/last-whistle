@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v149"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=16"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v150"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=17"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -548,6 +548,43 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+function makeMalformedLegacyCareerStats() {
+  return {
+    apps: 4, careerAppearances: "Infinity", seasonLog: [
+      { id: "legacy-valid", scope: "league", minutes: 90, rating: 8 },
+      { id: "legacy-infinite", scope: "league", minutes: "Infinity", rating: 9 },
+      { id: "legacy-nan", scope: "league", minutes: NaN, rating: 7 },
+      { id: "legacy-short", scope: "league", minutes: 19, rating: 6 },
+      { id: "legacy-over", scope: "league", minutes: 999, rating: 12 }
+    ], careerMatchHistory: []
+  };
+}
+const malformedLegacyStats = makeMalformedLegacyCareerStats();
+const rebuiltLegacyRows = career.rebuildLegacyCareerStats(malformedLegacyStats);
+assert.equal(rebuiltLegacyRows.length, 5, "legacy migration must preserve all unique match records");
+assert.equal(malformedLegacyStats.qualifyingAppearances, 2,
+  "non-finite minutes must not count as qualifying appearances and oversized minutes must be bounded");
+assert.equal(malformedLegacyStats.careerAppearances, 4,
+  "a non-finite legacy career-appearance total must recover from the finite apps counter");
+assert.equal(malformedLegacyStats.careerMinutes, 229,
+  "legacy career minutes must be rebuilt from finite, bounded match minutes");
+assert.deepEqual(malformedLegacyStats.careerMilestonesEarned, [],
+  "malformed minutes must not manufacture appearance milestones");
+const rebuiltLeagueRatings = career.deriveLeagueRatingStats(malformedLegacyStats);
+assert.deepEqual(rebuiltLeagueRatings, { sum: 24, count: 3 },
+  "league rating reconstruction must ignore invalid minutes and clamp ratings to the valid 0-10 range");
+assert.ok(Number.isFinite(malformedLegacyStats.careerAppearances)
+  && Number.isFinite(malformedLegacyStats.careerMinutes)
+  && Number.isFinite(malformedLegacyStats.leagueRatingSum),
+  "legacy-stat reconstruction must leave finite totals");
+
+const browserMalformedLegacyStats = makeMalformedLegacyCareerStats();
+deployedCareer.rebuildLegacyCareerStats(browserMalformedLegacyStats);
+const browserLegacyRatings = deployedCareer.deriveLeagueRatingStats(browserMalformedLegacyStats);
+assert.equal(JSON.stringify(browserMalformedLegacyStats), JSON.stringify(malformedLegacyStats),
+  "embedded browser legacy-stat migration must match the shared career engine");
+assert.equal(JSON.stringify(browserLegacyRatings), JSON.stringify(rebuiltLeagueRatings),
+  "embedded browser rating reconstruction must match the shared career engine");
 
 for (const [label, initial, outcome] of [
   ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],

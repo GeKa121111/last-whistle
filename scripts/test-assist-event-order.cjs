@@ -40,7 +40,8 @@ let checkedAssists = 0;
 let foundEntryMinuteAssist = false;
 let foundSameMinuteAssist = false;
 let checkedBrowserParity = false;
-for (let seed = 610000; seed < 635000 && !(foundEntryMinuteAssist && foundSameMinuteAssist); seed += 1) {
+let wrongSideAssistProbe = null;
+for (let seed = 610000; seed < 635000 && !(foundEntryMinuteAssist && foundSameMinuteAssist && wrongSideAssistProbe); seed += 1) {
   const options = { ...baseOptions, seed };
   const result = engine.simulateMatch(options);
   assert.equal(engine.validateResult(result).ok, true,
@@ -53,6 +54,11 @@ for (let seed = 610000; seed < 635000 && !(foundEntryMinuteAssist && foundSameMi
     const goalMinute = Number(assist.goalMinute);
     assert.ok(assist.goalEventId, "a credited assist must link to an exact goal at seed " + seed);
     const assistIndex = result.events.indexOf(assist);
+    const laterOpponentGoal = result.events.find((event, index) => index > assistIndex
+      && event.type === "goal" && event.side === "opponent");
+    if (!wrongSideAssistProbe && laterOpponentGoal) {
+      wrongSideAssistProbe = { result, assistGoalEventId: assist.goalEventId, opponentGoalEventId: laterOpponentGoal.goalEventId };
+    }
     const goalIndex = result.events.findIndex(event => event.type === "goal" && event.goalEventId === assist.goalEventId);
     assert.ok(goalIndex >= 0, "the credited assist must reference an existing goal at seed " + seed);
     const goal = result.events[goalIndex];
@@ -80,10 +86,26 @@ assert.ok(foundEntryMinuteAssist, "the sweep must cover an assist at the substit
 assert.ok(foundSameMinuteAssist, "the sweep must cover an assist and goal sharing a minute");
 assert.ok(checkedBrowserParity, "the inline browser engine must be checked for assist-order parity");
 
+assert.ok(wrongSideAssistProbe, "the deterministic sweep must find a credited assist followed by an opponent goal");
+const corruptedAssistResult = JSON.parse(JSON.stringify(wrongSideAssistProbe.result));
+const corruptedAssist = corruptedAssistResult.events.find(event => event.type === "assist"
+  && event.goalEventId === wrongSideAssistProbe.assistGoalEventId);
+const opponentGoal = corruptedAssistResult.events.find(event => event.type === "goal"
+  && event.goalEventId === wrongSideAssistProbe.opponentGoalEventId);
+assert.ok(corruptedAssist && opponentGoal, "the corruption fixture must retain both linked events");
+corruptedAssist.goalEventId = opponentGoal.goalEventId;
+corruptedAssist.goalMinute = opponentGoal.minute;
+const corruptedAssistValidation = engine.validateResult(corruptedAssistResult);
+assert.equal(corruptedAssistValidation.assistGoalLinksValid, false,
+  "an assist must not be credited to an opponent goal even when that goal is later in the event timeline");
+assert.equal(corruptedAssistValidation.ok, false, "the ledger validator must reject an assist linked to an opponent goal");
+assert.equal(browserEngine.validateResult(corruptedAssistResult).assistGoalLinksValid, false,
+  "the embedded browser validator must reject the same corrupted assist link");
+
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-assert.match(sw, /last-whistle-static-v108/, "PWA cache must advance with the match-engine fix");
-assert.match(sw, /match-engine\.js\?v=11/, "PWA must request the revised match engine");
+assert.match(sw, /last-whistle-static-v109/, "PWA cache must advance with the match-engine fix");
+assert.match(sw, /match-engine\.js\?v=12/, "PWA must request the revised match engine");
 
 console.log("PASS: assists precede their goals, substitute entry-minute activity is ordered correctly, and source/browser assets stay synchronized.");

@@ -371,10 +371,17 @@
     const assistGoalLinksValid = result.events.filter(event => event.type === "assist").every(assist => {
       const goalId = String(assist.goalEventId || "");
       if (!goalId) return true; // Keep validation compatible with legacy event records.
-      const goalIndex = result.events.findIndex(event => event.type === "goal" && event.goalEventId === goalId);
-      if (goalIndex < 0) return false;
-      const goal = result.events[goalIndex];
-      return result.events.indexOf(assist) < goalIndex && Number(assist.minute) <= Number(goal.minute);
+      const matches = result.events.map((event, index) => ({ event, index }))
+        .filter(item => item.event.type === "goal" && item.event.goalEventId === goalId);
+      if (matches.length !== 1) return false;
+      const { event: goal, index: goalIndex } = matches[0];
+      const assistIndex = result.events.indexOf(assist);
+      return assist.side === "team" && assist.creditedToPlayer === true
+        && goal.side === "team" && goal.scorer === "teammate" && goal.creditedToPlayer !== true
+        && assistIndex < goalIndex
+        && Number.isFinite(Number(assist.minute)) && Number.isFinite(Number(goal.minute))
+        && Number(assist.minute) <= Number(goal.minute)
+        && Number(assist.goalMinute) === Number(goal.minute);
     });
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;

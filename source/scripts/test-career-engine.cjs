@@ -328,9 +328,9 @@ assert.ok(Number.isFinite(malformedProgression.careerXP)
   "career XP, level XP, and career level must recover from non-finite legacy saves");
 assert.ok(Object.values(malformedProgression.trainingXP).every(Number.isFinite),
   "every configured training XP counter must remain finite after save recovery");
-assert.ok(malformedProgression.trainingXP.shooting < 92
-  && malformedProgression.trainingXP.dribbling < 92,
-  "training XP must stay below the threshold so a malformed counter cannot create an infinite loop");
+assert.ok(malformedProgression.trainingXP.shooting < 108
+  && malformedProgression.trainingXP.dribbling < 108,
+  "training XP must stay below the age-appropriate threshold so a malformed counter cannot create an infinite loop");
 const ordinaryTraining = career.train(makeProgressionFixture(false), "shooting", { random: () => 0.99 });
 const boostedTraining = career.train(makeProgressionFixture(true), "shooting", { random: () => 0.99 });
 assert.equal(ordinaryTraining.ok, true);

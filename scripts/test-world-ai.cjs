@@ -66,7 +66,7 @@ function makeMarketTestClub(world, id, division, deficitGroup) {
     for (let index = 0; index < count; index++) {
       const listed = !deficitGroup && group === "defender" && index === 0;
       const playerId = id + "-" + group + "-" + index;
-      world.players[playerId] = { id: playerId, name: playerId, clubId: id, country: club.country, leagueId: club.leagueId, division, position: positions[group], group, ovr: listed ? 60 : 64, potential: listed ? 63 : 68, age: listed ? 30 : 25, prestige: club.prestige, contractSeasons: listed ? 1 : 3, freeAgent: false, isGenerated: false, isRealPlayer: true, transferListed: false };
+      world.players[playerId] = { id: playerId, name: playerId, clubId: id, country: club.country, leagueId: club.leagueId, division, position: positions[group], group, ovr: listed ? 79 : 64, potential: listed ? 97 : 68, age: listed ? 30 : 25, prestige: club.prestige, contractSeasons: 3, freeAgent: false, isGenerated: false, isRealPlayer: true, transferListed: false };
       club.roster.push(playerId);
     }
   }
@@ -77,6 +77,9 @@ makeMarketTestClub(transferWorld, "D1 Seller A", 1, null);
 makeMarketTestClub(transferWorld, "D1 Seller B", 1, null);
 makeMarketTestClub(transferWorld, "D2 Buyer A", 2, "defender");
 makeMarketTestClub(transferWorld, "D2 Buyer B", 2, "defender");
+// Keep seller caps below the high-value test transfer so the accounting assertion exercises the old bug.
+transferWorld.clubs["D1 Seller A"].power = transferWorld.clubs["D1 Seller A"].basePower = 50;
+transferWorld.clubs["D1 Seller B"].power = transferWorld.clubs["D1 Seller B"].basePower = 50;
 const marketBudgetBefore = Object.fromEntries(Object.values(transferWorld.clubs).map(club => [club.id, {
   budget: Number(club.budget), power: Number(club.power), prestige: Number(club.prestige)
 }]));
@@ -95,8 +98,10 @@ const budgetSeller = Object.values(transferWorld.clubs).find(club => club.name =
 assert.ok(budgetBuyer && budgetSeller, "the transfer must identify its actual buyer and seller");
 assert.equal(budgetBuyer.budget, Math.max(0, expectedSeasonBudget(budgetBuyer.id) - budgetedTransfer.fee),
   "the buyer must retain the transfer-fee deduction in its persisted cash balance");
-assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + Math.min(budgetedTransfer.fee, Math.round(marketBudgetBefore[budgetSeller.id].power * 8)),
-  "the seller must retain the capped transfer income after the market refreshes squad strength");
+assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].power * 8),
+  "the fixture must exercise a transfer fee above the old seller-income cap");
+assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budgetedTransfer.fee,
+  "the seller must receive the full recorded transfer fee after the market refreshes squad strength");
 // Free agents must also be able to fill an eligible lower-tier vacancy when top-tier clubs have no need.
 const freeAgentWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
 makeMarketTestClub(freeAgentWorld, "D1 Full Club", 1, null);

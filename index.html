@@ -2327,7 +2327,7 @@ function seasonAwards(state, league, teamRank) {
           if (random() > 0.69) continue;
           events.push({ type: "shot", minute, side, onTarget: false });
           const isOurs = side === "team";
-          const playerCanAct = isOurs && minutes > 0 && minute > playerStartMinute && minute <= playerEndMinute;
+          const playerCanAct = isOurs && minutes > 0 && minute >= playerStartMinute && minute <= playerEndMinute;
           const shooting = clamp(player.shooting, 1, 99);
           const composure = clamp(player.composure, 1, 99);
           // The match timeline already prevents involvement after the player's substitution.
@@ -2362,7 +2362,7 @@ function seasonAwards(state, league, teamRank) {
             if (shotEvent.onTarget) stats.shotsOnTarget++;
           }
           if (!isGoal) {
-            if (!isOurs && keeperActive && minute > playerStartMinute && minute <= playerEndMinute && shotEvent.onTarget) {
+            if (!isOurs && keeperActive && minute >= playerStartMinute && minute <= playerEndMinute && shotEvent.onTarget) {
               stats.saves++;
               events.push({ type: "save", minute, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
             }
@@ -2509,7 +2509,7 @@ function seasonAwards(state, league, teamRank) {
     const isPlayerActivityEvent = event => event.creditedToPlayer === true
       || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
     const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
-      Number(event.minute) > playerEntryMinute && Number(event.minute) <= playerEndMinute);
+      Number(event.minute) >= playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));
     const exitIndex = result.events.findIndex(event => event.side === "player"

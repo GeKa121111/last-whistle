@@ -1896,7 +1896,9 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function recordNationalTournamentMatch(state, outcome) {
-    if (!state || state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
+    if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
+    if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
+    if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
     const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
     if (played < 2) {
       state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
@@ -1905,12 +1907,19 @@ function seasonAwards(state, league, teamRank) {
       if (state.nationalTournamentMatches === 2) {
         state.nationalTournamentQualified = state.nationalTournamentPoints >= 3;
         state.nationalTournamentDone = !state.nationalTournamentQualified;
+        state.nationalTournamentWinner = false;
+        state.nationalTournamentFinalOutcome = "";
       }
       state.internationalPlayed = Boolean(state.nationalTournamentDone);
       return { ok: true, status: state.nationalTournamentMatches < 2 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
     }
-    state.nationalTournamentMatches = 3; state.nationalTournamentDone = true; state.internationalPlayed = true;
-    return { ok: true, status: "final-complete", points: state.nationalTournamentPoints };
+    if (outcome === "تعادل") return { ok: false, status: "final-winner-required" };
+    state.nationalTournamentMatches = 3;
+    state.nationalTournamentDone = true;
+    state.internationalPlayed = true;
+    state.nationalTournamentWinner = outcome === "فوز";
+    state.nationalTournamentFinalOutcome = outcome;
+    return { ok: true, status: state.nationalTournamentWinner ? "champion" : "final-lost", points: state.nationalTournamentPoints };
   }
 
   function applySeasonAging(state) {
@@ -2831,7 +2840,7 @@ const INITIAL = {
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
  boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,postCareer:null,
- nationalCalled:false,nationalCaps:0,nationalGoals:0,nationalRating:0,nationalCallups:[],nationalSeasonStats:{},totalCareerAppearances:0,nationalTournamentMatches:0,nationalTournamentPoints:0,nationalTournamentQualified:false,nationalTournamentDone:false,
+ nationalCalled:false,nationalCaps:0,nationalGoals:0,nationalRating:0,nationalCallups:[],nationalSeasonStats:{},totalCareerAppearances:0,nationalTournamentMatches:0,nationalTournamentPoints:0,nationalTournamentQualified:false,nationalTournamentDone:false,nationalTournamentWinner:false,nationalTournamentFinalOutcome:"",
  trophies:0,topScorerAwards:0,achievements:[],diary:[],storyTitle:"الفصل الأول: فرصة العمر",
  storyText:"النهارده أول يوم ليك في مركز شباب النور. الكابتن شريف بصّلك وقال: «الموهبة مهمة، بس الالتزام هو اللي بيخلي اللاعب يكمل». قدامك موسم طويل، وكل يوم ممكن يغيّر مستقبلك.",
  seasonLog:[],careerMatchHistory:[],seasonHistory:[],leagueArchives:[],recordedMatchIds:[],leagueArchiveSequence:0,transferHistory:[],league:null,fixtureSchedule:[],calendarEvents:[],cupState:null,cupHistory:[],internationalHistory:[],promotionHistory:[],currentPage:"home",seasonSummary:null,internationalPlayed:false,journeyTransferReviewed:false,journeyEventSeen:false,journeySeasonReviewed:false,seasonFinished:false,seasonPhase:"firstHalf",winterBreakPending:false,
@@ -3728,13 +3737,13 @@ function renderNational(){
  const eligible=!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&state.age>=18&&state.clubIndex>0&&overall()>=68&&state.age<40&&recentLeague.length>=3&&form>=6.25;
  setText("nationalStatus",state.nationalCalled?"تم الاستدعاء":eligible?"مرشح للاستدعاء":"تحت المراقبة");
  setText("nationalTitle",state.nationalCalled?`منتخب ${nation}`:eligible?"اسمك على الرادار":"الحلم لسه بعيد؟");
- const tm=Math.max(0,Number(state.nationalTournamentMatches)||0);const tournamentState=!state.nationalCalled?"لسه مفيش استدعاء دولي.":state.nationalTournamentDone?(state.nationalTournamentQualified?"خلصت البطولة بعد النهائي.":"انتهى مشوار المنتخب في دور المجموعات."):tm===0?"البطولة المصغرة تبدأ بمباراتين في دور المجموعات.":tm===1?"لعبت مباراة من دور المجموعات؛ متبقي مباراة لتحديد التأهل.":state.nationalTournamentQualified?"اتأهلت للنهائي بعد دور المجموعات!":"راجع نتيجة دور المجموعات.";
+ const tm=Math.max(0,Number(state.nationalTournamentMatches)||0);const tournamentState=!state.nationalCalled?"لسه مفيش استدعاء دولي.":state.nationalTournamentDone?(state.nationalTournamentQualified?(state.nationalTournamentWinner?"توج المنتخب بالبطولة بعد الفوز في النهائي.":state.nationalTournamentFinalOutcome?"انتهت البطولة بخسارة النهائي.":"خلصت البطولة بعد النهائي."):"انتهى مشوار المنتخب في دور المجموعات."):tm===0?"البطولة المصغرة تبدأ بمباراتين في دور المجموعات.":tm===1?"لعبت مباراة من دور المجموعات؛ متبقي مباراة لتحديد التأهل.":state.nationalTournamentQualified?"اتأهلت للنهائي بعد دور المجموعات!":"راجع نتيجة دور المجموعات.";
  setText("nationalText",state.nationalCalled?`تم استدعاؤك لتمثيل ${nation}. ${tournamentState} النقاط الحالية: ${Number(state.nationalTournamentPoints)||0}. المباريات والبطولة محاكاة داخل اللعبة، وليست روزنامة رسمية.`:`اختيار ${nation} بيراعي تقييمك وفورمتك ودقائقك وقوة ناديك وسنك. ${tournamentState}`);
  const title=document.querySelector('#page-national .card h2');if(title)title.textContent=`منتخب ${nation}`;
  setText("nationalCaps",state.nationalCaps);setText("nationalGoals",state.nationalGoals);setText("nationalRating",state.nationalRating?state.nationalRating.toFixed(1)+"/10":"—");
  $("nationalChecklist").innerHTML=[["التقييم العام 68+",overall()>=68],["الانضمام لنادٍ أكبر",state.clubIndex>0],["فورمة آخر المباريات (3 مشاركات على الأقل)",recentLeague.length>=3&&form>=6.25],["العمر أقل من 40",state.age<40],["استدعاء المنتخب",state.nationalCalled]].map(([label,ok])=>`<div class="feedItem">${ok?"✅":"⬜"} ${label}</div>`).join("");
  $("nationalMatchBtn").disabled=!state.nationalCalled||state.nationalTournamentDone||Number(state.nationalTournamentMatches)>=3||state.injuryDays>0||state.retired;
- $("nationalMatchBtn").textContent=state.nationalTournamentDone?(state.nationalTournamentQualified?"انتهت البطولة الدولية":"لم يتأهل المنتخب للنهائي"):state.injuryDays>0?"اتعافى الأول":Number(state.nationalTournamentMatches)>=2?"العب النهائي الدولي":"العب مباراة المجموعات";
+ $("nationalMatchBtn").textContent=state.nationalTournamentDone?(state.nationalTournamentQualified?(state.nationalTournamentWinner?"بطل البطولة الدولية":"انتهت البطولة الدولية"):"لم يتأهل المنتخب للنهائي"):state.injuryDays>0?"اتعافى الأول":Number(state.nationalTournamentMatches)>=2?"العب النهائي الدولي":"العب مباراة المجموعات";
 }
 
 const SHOP=[
@@ -5363,7 +5372,7 @@ async function startNewSeason(showStory=true){
   if(moveCount)log("نافذة سوق عالمية: نفذت أندية اللعبة "+moveCount+" انتقالًا حسب احتياجات المراكز والقوة والإمكانات والميزانيات.");
  }
  state.seasonApps=0;state.seasonAppsTarget=0;state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=false;state.leagueRoundHistory=[];state.seasonGoals=0;state.seasonAssists=0;state.seasonPoints=0;state.seasonW=0;state.seasonD=0;state.seasonL=0;
- state.seasonLog=[];state.journeyTransferReviewed=false;state.journeyEventSeen=false;state.journeySeasonReviewed=false;state.seasonFinished=false;state.seasonPhase="firstHalf";state.winterBreakPending=false;state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=false;state.dailyActionType="";state.internationalPlayed=false;state.nationalCalled=false;state.nationalTournamentMatches=0;state.nationalTournamentPoints=0;state.nationalTournamentQualified=false;state.nationalTournamentDone=false;
+ state.seasonLog=[];state.journeyTransferReviewed=false;state.journeyEventSeen=false;state.journeySeasonReviewed=false;state.seasonFinished=false;state.seasonPhase="firstHalf";state.winterBreakPending=false;state.playedToday=false;state.trainedToday=false;state.nightToday=false;state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=false;state.dailyActionType="";state.internationalPlayed=false;state.nationalCalled=false;state.nationalTournamentMatches=0;state.nationalTournamentPoints=0;state.nationalTournamentQualified=false;state.nationalTournamentDone=false;state.nationalTournamentWinner=false;state.nationalTournamentFinalOutcome="";
  if(academyTransition.active){state.academyCareer=true;state.academyGraduated=false;state.academyGraduationPending=false;state.academyReserve=false;state.contractType="academy";state.contractSeasons=Math.max(1,Number(state.contractSeasons)||6);state.weeklyWage=0;state.freeAgent=false;}
  else if(academyTransition.graduated){state.academyCareer=false;state.academyGraduated=true;state.academyGraduationPending=true;state.academyReserve=false;state.contractType="academy-graduation-pending";state.contractSeasons=0;state.weeklyWage=0;state.freeAgent=true;}
  else if(!promotedFromReserve&&!state.academyReserve){state.contractSeasons=Math.max(0,state.contractSeasons-1);if(state.contractSeasons<=0){state.contractSeasons=0;state.weeklyWage=0;state.freeAgent=true;state.contractNegotiationWait=0;state.daysSinceNegotiation=7;}else{state.freeAgent=false;}}
@@ -5530,7 +5539,7 @@ function nationalMatch(){
  const tournamentRecord=window.LWCareer?.recordNationalTournamentMatch(state,result.outcome);if(!tournamentRecord?.ok){toast("تعذر تحديث مرحلة البطولة الدولية.");return;}state.internationalPlayed=!!state.nationalTournamentDone;const rating=result.player.minutes>0?result.player.rating:0,goals=result.player.goals||0;
  setStory("صافرة دولية",`لعبت بقميص منتخب ${nation} أمام ${opponent}. نتيجة المنتخب ${result.score.for}-${result.score.against}، تقييمك ${rating.toFixed(1)}/10.`+(goals?" وسجلت هدف دولي!":""));
  const participation=result.player.minutes>0?`شاركت ${result.player.minutes} دقيقة • تقييمك ${rating.toFixed(1)}/10${goals?` • ${goals} هدف`:""}${result.player.assists?` • ${result.player.assists} صناعة`:""}`:"لم تشارك في المباراة.";
- saveGame(true);render();const stageMessage=tournamentRecord.status==="group"?"لسه فيه مباراة مجموعات كمان.":tournamentRecord.status==="final-qualified"?"مبروك، تأهلتوا للنهائي!":tournamentRecord.status==="eliminated"?"المنتخب خرج من دور المجموعات.":"انتهى النهائي؛ خلصت البطولة المصغرة.";openModal("صافرة دولية",`${nation} ${result.score.for}-${result.score.against} ${opponent}. ${participation}\n${stageMessage}`,[{label:"راجع سجل المنتخب",className:"primary",action:()=>showPage("national")}]);
+ saveGame(true);render();const stageMessage=tournamentRecord.status==="group"?"لسه فيه مباراة مجموعات كمان.":tournamentRecord.status==="final-qualified"?"مبروك، تأهلتوا للنهائي!":tournamentRecord.status==="eliminated"?"المنتخب خرج من دور المجموعات.":tournamentRecord.status==="champion"?"مبروك، كسبتوا النهائي وتوجتوا بالبطولة!":tournamentRecord.status==="final-lost"?"خسارة النهائي؛ المنتخب أنهى البطولة وصيفًا.":"انتهى النهائي؛ خلصت البطولة المصغرة."openModal("صافرة دولية",`${nation} ${result.score.for}-${result.score.against} ${opponent}. ${participation}\n${stageMessage}`,[{label:"راجع سجل المنتخب",className:"primary",action:()=>showPage("national")}]);
 }
 function newCareer(){
  openModal("بداية جديدة؟","هتبدأ مسيرة جديدة من الأول. لو عندك حفظ قديم، ده هيستبدله.",[

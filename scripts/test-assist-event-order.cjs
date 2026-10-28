@@ -105,7 +105,7 @@ assert.equal(browserEngine.validateResult(corruptedAssistResult).assistGoalLinks
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-assert.match(sw, /last-whistle-static-v134/, "PWA cache must advance with the match-engine fix");
+assert.match(sw, /last-whistle-static-v135/, "PWA cache must advance with the match-engine fix");
 assert.match(sw, /match-engine\.js\?v=18/, "PWA must request the revised match engine");
 
 console.log("PASS: assists precede their goals, substitute entry-minute activity is ordered correctly, and source/browser assets stay synchronized.");

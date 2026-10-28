@@ -766,15 +766,18 @@
     const byId = new Map(stats.map(row => [row.id, row]));
     Object.values(world.players).forEach(player => {
       const row = byId.get(player.id);
-      player.age = Math.min(43, Math.max(16, Number(player.age) || 18) + 1);
+      // Season statistics describe the season just played, so development thresholds
+      // must use the player's age during that season, before advancing their age.
+      const seasonAge = Math.min(43, Math.max(16, Number(player.age) || 18));
+      player.age = Math.min(43, seasonAge + 1);
       player.contractSeasons = Math.max(0, (Number(player.contractSeasons) || 1) - 1);
       if (row) {
         player.lastRating = Number(row.averageRating) || 0;
         let delta = 0;
-        if (player.age <= 23 && row.appearances >= 10 && row.averageRating >= 6.45) delta = row.averageRating >= 7.25 ? 2 : 1;
-        else if (player.age <= 28 && row.appearances >= 16 && row.averageRating >= 7.15) delta = 1;
-        else if (player.age >= 31) delta = row.averageRating < 6.4 ? -2 : -1;
-        else if (player.age >= 29 && row.averageRating < 6.0) delta = -1;
+        if (seasonAge <= 23 && row.appearances >= 10 && row.averageRating >= 6.45) delta = row.averageRating >= 7.25 ? 2 : 1;
+        else if (seasonAge <= 28 && row.appearances >= 16 && row.averageRating >= 7.15) delta = 1;
+        else if (seasonAge >= 31) delta = row.averageRating < 6.4 ? -2 : -1;
+        else if (seasonAge >= 29 && row.averageRating < 6.0) delta = -1;
         player.ovr = clamp(Number(player.ovr) + delta, 35, 97);
         if (player.potential < player.ovr) player.potential = player.ovr;
       }
@@ -1788,7 +1791,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=15");
+    const worker = new global.Worker("./football-world-worker.js?v=16");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -141,6 +141,33 @@ assert.equal(renewalWorld.players[renewalTestPlayerId].freeAgent, false,
   "the role-need renewal must keep the player attached to the club");
 assert.ok(renewalWorld.clubs["renewal-club"].roster.includes(renewalTestPlayerId),
   "a renewed player must remain in the club roster");
+// End-of-season development must use the age during the season whose stats are being evaluated.
+const ageBoundaryYouthId = "season-age-youth-boundary";
+const ageBoundaryVeteranId = "season-age-veteran-boundary";
+const ageBoundaryPlayers = [
+  { id: ageBoundaryYouthId, name: "Season-age youth", clubId: "age-boundary-club",
+    group: "attacker", position: "مهاجم", age: 23, contractSeasons: 3, ovr: 70, potential: 90, freeAgent: false },
+  { id: ageBoundaryVeteranId, name: "Season-age veteran", clubId: "age-boundary-club",
+    group: "midfielder", position: "وسط مهاجم", age: 30, contractSeasons: 3, ovr: 70, potential: 85, freeAgent: false }
+];
+const ageBoundaryWorld = {
+  players: Object.fromEntries(ageBoundaryPlayers.map(player => [player.id, player])),
+  clubs: { "age-boundary-club": { id: "age-boundary-club", name: "Age boundary test club",
+    power: 70, roster: ageBoundaryPlayers.map(player => player.id) } },
+  seasonStats: { "1": [
+    { id: ageBoundaryYouthId, appearances: 10, averageRating: 7.4 },
+    { id: ageBoundaryVeteranId, appearances: 20, averageRating: 6.2 }
+  ] },
+  notes: []
+};
+sandbox.window.__lwTestDevelopPlayers(ageBoundaryWorld, 1);
+assert.equal(ageBoundaryWorld.players[ageBoundaryYouthId].age, 24);
+assert.equal(ageBoundaryWorld.players[ageBoundaryYouthId].ovr, 72,
+  "a player who was 23 during a strong season must receive youth development before aging to 24");
+assert.equal(ageBoundaryWorld.players[ageBoundaryVeteranId].age, 31);
+assert.equal(ageBoundaryWorld.players[ageBoundaryVeteranId].ovr, 70,
+  "a player who was 30 during the season must not receive age-31 decline one season early");
+
 // Promotion history records the destination season. A record for season 2 must
 // prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];

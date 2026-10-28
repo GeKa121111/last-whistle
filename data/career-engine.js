@@ -639,27 +639,28 @@
 
   function recordNationalTournamentMatch(state, outcome) {
     if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
-    if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
+    if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 4) return { ok: false, status: "tournament-closed" };
     if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
     const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
-    if (played >= 2 && state.nationalTournamentQualified !== true) {
+    if (played >= 3 && state.nationalTournamentQualified !== true) {
       return { ok: false, status: "not-qualified" };
     }
-    if (played < 2) {
+    if (played < 3) {
       state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
         + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0);
       state.nationalTournamentMatches = played + 1;
-      if (state.nationalTournamentMatches === 2) {
-        state.nationalTournamentQualified = state.nationalTournamentPoints >= 3;
+      if (state.nationalTournamentMatches === 3) {
+        // Three group fixtures; four points is the simplified qualifying threshold.
+        state.nationalTournamentQualified = state.nationalTournamentPoints >= 4;
         state.nationalTournamentDone = !state.nationalTournamentQualified;
         state.nationalTournamentWinner = false;
         state.nationalTournamentFinalOutcome = "";
       }
       state.internationalPlayed = Boolean(state.nationalTournamentDone);
-      return { ok: true, status: state.nationalTournamentMatches < 2 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
+      return { ok: true, status: state.nationalTournamentMatches < 3 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
     }
     if (outcome === "تعادل") return { ok: false, status: "final-winner-required" };
-    state.nationalTournamentMatches = 3;
+    state.nationalTournamentMatches = 4;
     state.nationalTournamentDone = true;
     state.internationalPlayed = true;
     state.nationalTournamentWinner = outcome === "فوز";

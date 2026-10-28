@@ -9,6 +9,7 @@
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
   const SIMULATED_SQUAD_LIMIT = 16;
+  const seasonProjectionCache = new WeakMap();
   const POSITIONS = Object.freeze({
     goalkeeper: ["حارس مرمى"],
     defender: ["قلب دفاع", "ظهير"],
@@ -116,7 +117,7 @@
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
       lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
-      nextGeneratedPlayer: 1, transferSequence: 0, notes: [], archive: emptyArchive()
+      nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive()
     };
   }
   function addClub(world, row, db) {
@@ -407,6 +408,7 @@
     });
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
     world.rosterSchemaVersion = 3;
+    world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return world;
   }
   function ensureState(save, db) {
@@ -428,6 +430,7 @@
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
+    world.projectionRevision = Math.max(0, int(world.projectionRevision, 0));
     // reconcileDatabase scans the global club/player catalogue and repairs squads.
     // Running it for every dashboard render caused severe avoidable CPU work.
     const catalogueVersion = int(db && db.version, int(world.dbVersion, 0));
@@ -530,19 +533,33 @@
       String(club.leagueId || "") === String(leagueId || "") && Math.max(1, int(club.division, 1)) === 1)
       .map(club => Number(club.power) || 55)));
   }
+  function getProjectedSeasonRows(world, targetSeason) {
+    const signature = [
+      int(world.projectionRevision, 0), int(world.dbVersion, 0), int(world.rosterSchemaVersion, 0),
+      int(world.currentSeason, 1), int(world.lastAdvancedTo, 0), int(world.lastCompletedSeason, 0),
+      int(world.transferSequence, 0), Object.keys(world.players || {}).length, Object.keys(world.clubs || {}).length
+    ].join("|");
+    let cached = seasonProjectionCache.get(world);
+    if (!cached || cached.signature !== signature) {
+      cached = { signature, rows: new Map() };
+      seasonProjectionCache.set(world, cached);
+    }
+    if (!cached.rows.has(targetSeason)) {
+      const strengthByLeague = buildLeagueStrengthLookup(world);
+      const rows = Object.values(world.players || {}).filter(player => player && !player.retired).map(player =>
+        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
+      cached.rows.set(targetSeason, rows);
+      // Only unfinished projections need caching; keep the memory footprint bounded.
+      if (cached.rows.size > 2) cached.rows.delete(cached.rows.keys().next().value);
+    }
+    return cached.rows.get(targetSeason);
+  }
   function getSeasonLines(save, season, progress = 1, db) {
     const world = ensureState(save, db);
     const targetSeason = Math.max(1, int(season, int(save.season, 1)));
     const scale = clamp(progress, 0, 1);
     const completed = world.seasonStats[String(targetSeason)];
-    let fullRows = completed;
-    if (!Array.isArray(fullRows)) {
-      // League strength is shared by every player in a league. Precompute it once per
-      // projection instead of scanning all clubs twice for each of the 14k+ players.
-      const strengthByLeague = buildLeagueStrengthLookup(world);
-      fullRows = Object.values(world.players).filter(player => player && !player.retired).map(player =>
-        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
-    }
+    const fullRows = Array.isArray(completed) ? completed : getProjectedSeasonRows(world, targetSeason);
     return fullRows.map(row => {
       const rawAppearances = row.appearances !== undefined && row.appearances !== null
         ? Number(row.appearances)
@@ -929,6 +946,7 @@
       ? "أندية اللعبة نفذت " + moves.length + " انتقالًا بناءً على احتياجات التشكيل والإمكانات والميزانية."
       : "انتهت نافذة الانتقالات بمحاولات محدودة؛ الأندية انتظرت لاعبين يناسبوا احتياجاتها." });
     world.notes = world.notes.slice(0, 30);
+    world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return { season: next, moves, alreadyAdvanced: false };
   }
   function getClubPower(save, name, country, db) {
@@ -1895,7 +1913,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=21");
+    const worker = new global.Worker("./football-world-worker.js?v=22");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -504,8 +504,8 @@
 
   function normalizeLeagueRoundIndex(savedRoundIndex, roundHistory, leagueApps, roundCount) {
     const history = Array.isArray(roundHistory) ? roundHistory : [];
-    const legacyRound = history.length ? Math.max(0, ...history.map(row => Number(row?.matchday) || 0))
-      : Math.max(0, Number(leagueApps) || 0);
+    const historyRound = history.length ? Math.max(0, ...history.map(row => Number(row?.matchday) || 0)) : 0;
+    const legacyRound = Math.max(historyRound, Math.max(0, Number(leagueApps) || 0));
     const hasSavedIndex = savedRoundIndex !== undefined && savedRoundIndex !== null && savedRoundIndex !== "";
     const saved = Number(savedRoundIndex);
     const candidate = hasSavedIndex && Number.isInteger(saved) ? Math.max(0, saved, legacyRound) : legacyRound;

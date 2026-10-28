@@ -14,6 +14,11 @@
   var lastSettledDay = null;
   var experienceTickScheduled = false;
   var experienceForceQueued = false;
+  var pendingInvestmentsWorld = null;
+  var pendingInvestmentsRevision = null;
+  var pendingInvestmentsLength = -1;
+  var pendingInvestmentsTail = "";
+  var pendingInvestmentsCount = 0;
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -665,7 +670,24 @@
     if (action.indexOf("mentor-") === 0) { doMentor(s, action.slice(7)); return; }
   }
 
-  function panelSignature(s, w) {
+  function pendingInvestmentCount(w, revision, force) {
+    var investments = Array.isArray(w.investments) ? w.investments : [];
+    var latest = investments.length ? investments[investments.length - 1] : null;
+    var tail = latest ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":") : "-";
+    if (force || w !== pendingInvestmentsWorld || revision !== pendingInvestmentsRevision
+      || investments.length !== pendingInvestmentsLength || tail !== pendingInvestmentsTail) {
+      pendingInvestmentsCount = investments.reduce(function (count, item) {
+        return count + (item && !item.settled ? 1 : 0);
+      }, 0);
+      pendingInvestmentsWorld = w;
+      pendingInvestmentsRevision = revision;
+      pendingInvestmentsLength = investments.length;
+      pendingInvestmentsTail = tail;
+    }
+    return pendingInvestmentsCount;
+  }
+
+  function panelSignature(s, w, revision, forcePendingCount) {
     var investments = Array.isArray(w.investments) ? w.investments : [];
     var latest = investments.length ? investments[investments.length - 1] : null;
     var latestSignature = latest
@@ -682,7 +704,8 @@
       Number(w.practiceAttempts) || 0,
       Number(w.mentorSessions) || 0,
       investments.length,
-      latestSignature
+      latestSignature,
+      pendingInvestmentCount(w, revision, !!forcePendingCount)
     ].join("|");
   }
 
@@ -703,8 +726,9 @@
       // Set the day before settling: api.save() can synchronously publish twice.
       // The queued follow-up tick must not rescan the portfolio a second time.
       lastSettledDay = today;
-      settleInvestments(s, w);
+      var settledInvestments = settleInvestments(s, w);
       w = s.careerWorld || w;
+      if (settledInvestments) pendingInvestmentsWorld = null;
     }
 
     if (!ensurePanel()) {
@@ -713,7 +737,10 @@
       return;
     }
 
-    var signature = panelSignature(s, w);
+    var store = window.LWStateStore;
+    var revision = store && typeof store.getRevision === "function" ? Number(store.getRevision()) : null;
+    if (!Number.isFinite(revision)) revision = null;
+    var signature = panelSignature(s, w, revision, needsSettlementCheck || runtimeChanged);
     if (force || runtimeChanged || signature !== lastExperienceSnapshot) {
       // Background pages still process due investments, but do not mutate the DOM.
       if (!document.hidden) renderPanel(s, w);

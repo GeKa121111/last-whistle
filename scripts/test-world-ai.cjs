@@ -30,11 +30,14 @@ const lineupMarker = "  function makeLineup(world, club) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
+const promotionMarker = "  function applyPromotionRelegation(world, season) {";
+assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
-  .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker);
+  .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
+  .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
@@ -69,6 +72,57 @@ assert.equal(renewalWorld.players[renewalTestPlayerId].freeAgent, false,
   "the role-need renewal must keep the player attached to the club");
 assert.ok(renewalWorld.clubs["renewal-club"].roster.includes(renewalTestPlayerId),
   "a renewed player must remain in the club roster");
+// Promotion history records the destination season. A record for season 2 must
+// prevent repeating season 1, but must not suppress the independent season 2 table move.
+const promotionClubs = [];
+for (let index = 1; index <= 6; index++) promotionClubs.push({
+  id: "promotion-first-" + index, name: "Promotion First " + index,
+  leagueId: "promotion-test", division: 1, roster: []
+});
+for (let index = 1; index <= 3; index++) promotionClubs.push({
+  id: "promotion-second-" + index, name: "Promotion Second " + index,
+  leagueId: "promotion-test", division: 2, roster: []
+});
+const promotionWorld = {
+  players: {},
+  clubs: Object.fromEntries(promotionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "1": {
+      "promotion-test": Array.from({ length: 6 }, (_, index) => ({ clubId: "promotion-first-" + (index + 1) })),
+      "promotion-test:2": Array.from({ length: 3 }, (_, index) => ({ clubId: "promotion-second-" + (index + 1) }))
+    },
+    "2": {
+      "promotion-test": [
+        { clubId: "promotion-second-1" }, { clubId: "promotion-first-1" },
+        { clubId: "promotion-first-2" }, { clubId: "promotion-first-3" },
+        { clubId: "promotion-first-4" }, { clubId: "promotion-first-5" }
+      ],
+      "promotion-test:2": [
+        { clubId: "promotion-first-6" }, { clubId: "promotion-second-2" }, { clubId: "promotion-second-3" }
+      ]
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+assert.equal(typeof sandbox.window.__lwTestApplyPromotionRelegation, "function",
+  "the promotion/relegation function must be exposed to the isolated regression test");
+const seasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1);
+assert.equal(seasonOneMoves.length, 1, "season 1 should promote and relegate one club in the fixture league");
+assert.equal(promotionWorld.promotionHistory[0].season, 2,
+  "promotion history should label the destination season");
+assert.deepEqual(sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1), [],
+  "replaying the same source season must not duplicate its promotion/relegation");
+const seasonTwoMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 2);
+assert.equal(seasonTwoMoves.length, 1,
+  "a season 2 promotion/relegation must not be blocked by the prior season's destination-season history row");
+assert.equal(promotionWorld.promotionHistory[0].season, 3,
+  "the newest history row should record the next destination season");
+assert.equal(promotionWorld.clubs["promotion-first-6"].division, 1,
+  "the season 2 second-tier winner must be promoted");
+assert.equal(promotionWorld.clubs["promotion-first-5"].division, 2,
+  "the season 2 first-tier bottom club must be relegated");
+
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");
 const centreStrikerProfile = ai.positionProductionProfile("رأس حربة");

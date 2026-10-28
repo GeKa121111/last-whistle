@@ -1262,7 +1262,8 @@
   }
   function applyPromotionRelegation(world, season) {
     world.promotionHistory = Array.isArray(world.promotionHistory) ? world.promotionHistory : [];
-    if (world.promotionHistory.some(row => Number(row.season) === Number(season))) return [];
+    const destinationSeason = Number(season) + 1;
+    if (world.promotionHistory.some(row => Number(row.season) === destinationSeason)) return [];
     const tables = world.leagueTables[String(season)] || {};
     const leagueIds = new Set(Object.values(world.clubs).map(club => String(club.leagueId || "")).filter(Boolean));
     const moves = [];
@@ -1655,7 +1656,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=6");
+    const worker = new global.Worker("./football-world-worker.js?v=7");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

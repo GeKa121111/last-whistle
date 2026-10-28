@@ -77,9 +77,26 @@ makeMarketTestClub(transferWorld, "D1 Seller A", 1, null);
 makeMarketTestClub(transferWorld, "D1 Seller B", 1, null);
 makeMarketTestClub(transferWorld, "D2 Buyer A", 2, "defender");
 makeMarketTestClub(transferWorld, "D2 Buyer B", 2, "defender");
+const marketBudgetBefore = Object.fromEntries(Object.values(transferWorld.clubs).map(club => [club.id, {
+  budget: Number(club.budget), power: Number(club.power), prestige: Number(club.prestige)
+}]));
+const expectedSeasonBudget = clubId => {
+  const snapshot = marketBudgetBefore[clubId];
+  const budgetBase = Math.max(40, Math.round(70 + (snapshot.power || 55) * 9 + (snapshot.prestige || 50) * 2.2));
+  const carriedBudget = Math.min(snapshot.budget, budgetBase * 2);
+  return Math.round(Math.min(budgetBase * 2, carriedBudget + Math.max(1, Math.round(budgetBase * 0.25))));
+};
 const simulatedTransfers = sandbox.window.__lwTestRunTransferWindow(transferWorld, 3);
 assert.ok(simulatedTransfers.length > 0, "lower-division clubs with a role deficit must have access to the world transfer market");
 assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "the transfer buyer order must not starve second-tier clubs behind first-tier buyers");
+const budgetedTransfer = simulatedTransfers[0];
+const budgetBuyer = Object.values(transferWorld.clubs).find(club => club.name === budgetedTransfer.to);
+const budgetSeller = Object.values(transferWorld.clubs).find(club => club.name === budgetedTransfer.from);
+assert.ok(budgetBuyer && budgetSeller, "the transfer must identify its actual buyer and seller");
+assert.equal(budgetBuyer.budget, Math.max(0, expectedSeasonBudget(budgetBuyer.id) - budgetedTransfer.fee),
+  "the buyer must retain the transfer-fee deduction in its persisted cash balance");
+assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + Math.min(budgetedTransfer.fee, Math.round(marketBudgetBefore[budgetSeller.id].power * 8)),
+  "the seller must retain the capped transfer income after the market refreshes squad strength");
 // Free agents must also be able to fill an eligible lower-tier vacancy when top-tier clubs have no need.
 const freeAgentWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
 makeMarketTestClub(freeAgentWorld, "D1 Full Club", 1, null);

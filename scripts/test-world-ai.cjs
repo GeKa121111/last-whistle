@@ -34,10 +34,12 @@ const promotionMarker = "  function applyPromotionRelegation(world, season) {";
 const reconcileMarker = "  function reconcileDatabase(world, db) {";
 const transferMarker = "  function runTransferWindow(world, season) {";
 const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
+const fillRosterMarker = "  function fillRoster(world, club) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
 assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free-agent entry point for all-division market coverage");
+assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the roster filler for roster-integrity regression coverage");
 const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
@@ -46,7 +48,8 @@ const aiSource = aiSourceRaw
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
   .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
-  .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker);
+  .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
+  .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
@@ -56,6 +59,7 @@ assert.ok(db && ai, "world database and autonomous AI engine must initialize");
 // Transfer windows must include lower divisions and schedule buyers fairly by division.
 assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestSignFreeAgents, "function", "the free-agent signing simulator must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestFillRoster, "function", "the roster filler must be available to the regression guard");
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }
@@ -186,7 +190,7 @@ const retirementWorld = {
   },
   seasonStats: { "1": [{ id: retirementPlayerId, appearances: 30, averageRating: 7.1 }] },
   playerHistory: {
-    [retirementPlayerId]: [{ season: 1, type: "transfer-in", club: "Retirement Test Club" }]
+    [retirementPlayerId]: Array.from({ length: 15 }, (_, index) => ({ season: 15 - index, type: index === 0 ? "transfer-in" : "prior-event-" + index, club: "Retirement Test Club" }))
   },
   transfers: [], marketReports: [], notes: []
 };
@@ -197,6 +201,30 @@ assert.equal(retiredWorldPlayer.retirementAge, 42);
 assert.equal(retiredWorldPlayer.retiredSeason, 2);
 assert.equal(retiredWorldPlayer.clubId, "");
 assert.equal(retiredWorldPlayer.freeAgent, false, "retirement must not create a free agent");
+ 
+ // A stale roster ID must not count as a real squad member or block safe squad replenishment.
+ const rosterIntegrityPlayers = {};
+ const rosterIntegrityActiveIds = Array.from({ length: 15 }, (_, index) => {
+   const id = "roster-integrity-active-" + index;
+   const groups = ["goalkeeper", "defender", "midfielder", "attacker"];
+   rosterIntegrityPlayers[id] = { id, name: "Active " + index, group: groups[index % groups.length], age: 25, ovr: 60, retired: false };
+   return id;
+ });
+ const rosterIntegrityRetiredId = "roster-integrity-retired";
+ rosterIntegrityPlayers[rosterIntegrityRetiredId] = { id: rosterIntegrityRetiredId, name: "Retired Record", group: "attacker", age: 42, retired: true };
+ const rosterIntegrityWorld = { players: rosterIntegrityPlayers, nextGeneratedPlayer: 1, dbVersion: 1 };
+ const rosterIntegrityClub = {
+   id: "roster-integrity-club", name: "Roster Integrity Club", country: "Testland",
+   leagueId: "roster-integrity", division: 1, power: 60, basePower: 60, prestige: 50,
+   roster: [...rosterIntegrityActiveIds, "missing-roster-player", rosterIntegrityRetiredId]
+ };
+ sandbox.window.__lwTestFillRoster(rosterIntegrityWorld, rosterIntegrityClub);
+ assert.equal(rosterIntegrityClub.roster.length, 16, "a club should be replenished to 16 real active players");
+ assert.ok(rosterIntegrityClub.roster.every(id => rosterIntegrityWorld.players[id] && !rosterIntegrityWorld.players[id].retired),
+   "active rosters must not retain missing or retired player IDs");
+ assert.equal(rosterIntegrityWorld.players[rosterIntegrityRetiredId].name, "Retired Record",
+   "roster cleanup must preserve the retired player's historical record");
+
 assert.ok(!retirementWorld.clubs["retirement-club"].roster.includes(retirementPlayerId),
   "retired players must be removed from the active club roster");
 assert.equal(retirementWorld.seasonStats["1"].length, 1,
@@ -204,6 +232,10 @@ assert.equal(retirementWorld.seasonStats["1"].length, 1,
 assert.equal(retirementWorld.playerHistory[retirementPlayerId][0].type, "retirement");
 assert.equal(retirementWorld.playerHistory[retirementPlayerId][1].type, "transfer-in",
   "retirement history must be added without deleting earlier player history");
+assert.equal(retirementWorld.playerHistory[retirementPlayerId].length, 16,
+  "retirement must not truncate older history entries");
+assert.equal(retirementWorld.playerHistory[retirementPlayerId][15].type, "prior-event-14",
+  "the oldest existing history row must remain available after retirement");
 assert.ok(retirementWorld.notes.some(note => note.type === "retirement"));
 sandbox.window.__lwTestSignFreeAgents(retirementWorld, 2, []);
 assert.equal(retirementWorld.players[retirementPlayerId].retired, true);

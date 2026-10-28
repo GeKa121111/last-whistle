@@ -31,13 +31,16 @@ assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup 
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season) {";
+const reconcileMarker = "  function reconcileDatabase(world, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
+assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
 const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
-  .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker);
+  .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
+  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
@@ -148,6 +151,18 @@ const save = {
   seasonApps: 0, seasonAppsTarget: 34, careerMatchHistory: []
 };
 const world = ai.ensureState(save, db);
+// A catalogue refresh must not reset simulated promotion/relegation in an existing save.
+assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
+  "database reconciliation must be exposed to the isolated regression test");
+const divisionPersistenceClub = Object.values(world.clubs).find(club => club.leagueId === "scotland");
+assert.ok(divisionPersistenceClub, "the roster fixture must include a club for the division-persistence regression");
+const sourceDivisionForClub = db.clubs().find(row => row.name === divisionPersistenceClub.name).division;
+assert.equal(Number(sourceDivisionForClub), 1, "the fixture source club should begin in division one");
+divisionPersistenceClub.division = 2;
+(divisionPersistenceClub.roster || []).forEach(id => { if (world.players[id]) world.players[id].division = 2; });
+sandbox.window.__lwTestReconcileDatabase(world, db);
+assert.equal(divisionPersistenceClub.division, 2,
+  "catalogue reconciliation must preserve a club’s saved simulation division");
 const clubCount = Object.keys(world.clubs).length;
 const playerCount = Object.keys(world.players).length;
 assert.ok(clubCount >= 50, "the AI world must cover at least 50 clubs");

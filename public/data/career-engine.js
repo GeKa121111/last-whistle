@@ -189,15 +189,38 @@
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);
     state.progressionMatchIds = Array.isArray(state.progressionMatchIds) ? state.progressionMatchIds : [];
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
-    state.competitionStats = state.competitionStats && typeof state.competitionStats === "object" ? state.competitionStats : {};
-    state.careerAppearances = Math.max(0, Number(state.careerAppearances) || Number(state.apps) || 0);
-    state.careerMinutes = Math.max(0, Number(state.careerMinutes) || 0);
-    state.leagueRatingSum = Math.max(0, Number(state.leagueRatingSum) || 0);
-    state.leagueRatingCount = Math.max(0, Number(state.leagueRatingCount) || 0);
+    state.competitionStats = state.competitionStats && typeof state.competitionStats === "object"
+      && !Array.isArray(state.competitionStats) ? state.competitionStats : {};
+    const finiteCount = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
+    };
+    const careerAppearancesValue = Number(state.careerAppearances);
+    const legacyAppsValue = Number(state.apps);
+    const appearanceSource = Number.isFinite(careerAppearancesValue)
+      ? (careerAppearancesValue || (Number.isFinite(legacyAppsValue) ? legacyAppsValue : 0))
+      : (Number.isFinite(legacyAppsValue) ? legacyAppsValue : 0);
+    state.careerAppearances = finiteCount(appearanceSource);
+    state.careerMinutes = finiteCount(state.careerMinutes);
+    const leagueRatingSumValue = Number(state.leagueRatingSum);
+    state.leagueRatingSum = Number.isFinite(leagueRatingSumValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, leagueRatingSumValue)) : 0;
+    state.leagueRatingCount = finiteCount(state.leagueRatingCount);
     if (state.qualifyingAppearances === undefined) {
       state.qualifyingAppearances = uniqueCareerHistory(state).filter(row => Number(row.minutes) >= 20).length;
     }
-    state.qualifyingAppearances = Math.max(0, Number(state.qualifyingAppearances) || 0);
+    state.qualifyingAppearances = finiteCount(state.qualifyingAppearances);
+    for (const [competitionKey, stats] of Object.entries(state.competitionStats)) {
+      if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
+        state.competitionStats[competitionKey] = {
+          appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
+        };
+        continue;
+      }
+      for (const field of ["appearances", "qualifyingAppearances", "minutes", "goals", "assists"]) {
+        stats[field] = finiteCount(stats[field]);
+      }
+    }
     if (!hadMilestoneLedger) {
       state.careerMilestonesEarned = APPEARANCE_MILESTONES
         .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
@@ -348,25 +371,42 @@
   function matchDevelopment(state, match, legacyMinutes) {
     ensureState(state);
     const data = match && typeof match === "object" ? match : { rating: match, minutes: legacyMinutes };
-    const played = Math.max(0, Number(data.minutes) || 0);
+    const minutesValue = Number(data.minutes);
+    const played = Number.isFinite(minutesValue) ? Math.max(0, Math.min(120, Math.floor(minutesValue))) : 0;
     if (!played) return { gained: 0, skill: "", qualifying: false, milestones: [] };
+    const safeMatchCount = (value, maximum = 100) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.floor(numeric))) : 0;
+    };
+    const goals = safeMatchCount(data.goals, 20);
+    const assists = safeMatchCount(data.assists, 20);
     const matchId = String(data.matchId || ("legacy:" + (state.season || 1) + ":" + (state.apps || 0)
       + ":" + (state.seasonLog?.length || 0) + ":" + played));
     if (state.progressionMatchIds.includes(matchId)) return { gained: 0, skill: "", duplicate: true, qualifying: played >= 20, milestones: [] };
     state.progressionMatchIds.push(matchId);
     if (state.progressionMatchIds.length > 5000) state.progressionMatchIds.splice(0, state.progressionMatchIds.length - 5000);
-    state.careerAppearances++;
-    state.careerMinutes += played;
+    state.careerAppearances = Math.min(Number.MAX_SAFE_INTEGER, state.careerAppearances + 1);
+    state.careerMinutes = Math.min(Number.MAX_SAFE_INTEGER, state.careerMinutes + played);
     const qualifying = played >= 20;
     const competitionKey = String(data.competitionKey || "club|unknown");
     const competition = state.competitionStats[competitionKey] || (state.competitionStats[competitionKey] = {
       appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
     });
-    competition.appearances++;
-    competition.minutes += played;
-    competition.goals += Math.max(0, Number(data.goals) || 0);
-    competition.assists += Math.max(0, Number(data.assists) || 0);
-    if (qualifying) { state.qualifyingAppearances++; competition.qualifyingAppearances++; }
+    if (!competition || typeof competition !== "object" || Array.isArray(competition)) {
+      state.competitionStats[competitionKey] = {
+        appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
+      };
+    }
+    const competitionStats = state.competitionStats[competitionKey];
+    competitionStats.appearances = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.appearances) + 1);
+    competitionStats.minutes = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.minutes) + played);
+    competitionStats.goals = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.goals) + goals);
+    competitionStats.assists = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.assists) + assists);
+    if (qualifying) {
+      state.qualifyingAppearances = Math.min(Number.MAX_SAFE_INTEGER, state.qualifyingAppearances + 1);
+      competitionStats.qualifyingAppearances = Math.min(Number.MAX_SAFE_INTEGER,
+        finiteCount(competitionStats.qualifyingAppearances) + 1);
+    }
     const skill = CAREER_ATTRIBUTE[state.pos] || "passing";
     const ageFactor = Number(state.age) >= 30 ? 0.7 : Number(state.age) <= 21 ? 1.15 : 1;
     const rating = clamp(data.rating || 6, 3, 10);
@@ -375,10 +415,10 @@
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
     const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
-    const tackles = Math.max(0, Number(matchStats.tackles) || 0);
-    const interceptions = Math.max(0, Number(matchStats.interceptions) || 0);
-    const saves = Math.max(0, Number(matchStats.saves) || 0);
-    const keyPasses = Math.max(0, Number(matchStats.keyPasses) || 0);
+    const tackles = safeMatchCount(matchStats.tackles);
+    const interceptions = safeMatchCount(matchStats.interceptions);
+    const saves = safeMatchCount(matchStats.saves);
+    const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
     const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
     const positionActionXP = state.pos === "حارس مرمى"
@@ -387,7 +427,7 @@
         ? Math.min(20, tackles * 2 + interceptions * 2.5 + (cleanSheet ? 4 : 0))
         : state.pos === "وسط مهاجم"
           ? Math.min(10, keyPasses * 1.4)
-          : Math.min(12, Math.max(0, Number(data.goals) || 0) * 4 + Math.max(0, Number(data.assists) || 0) * 2);
+          : Math.min(12, goals * 4 + assists * 2);
     const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
       + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
     const levels = addCareerXP(state, xp);

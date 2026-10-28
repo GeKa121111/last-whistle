@@ -43,11 +43,19 @@
   }
   function groupForPosition(position) {
     const p = normalize(position);
-    if (p.includes("حارس")) return "goalkeeper";
-    // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before the role wording.
-    if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")) return "midfielder";
-    if (p.includes("دفاع") || p.includes("ظهير") || p.includes("مدافع")) return "defender";
-    if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربة") || p.includes("راسحربه")) return "attacker";
+    if (p.includes("حارس") || p.includes("goalkeeper") || ["gk", "keeper", "goalie"].includes(p)) return "goalkeeper";
+    // Classify the football line before the role wording: "وسط مهاجم" is an attacking midfielder.
+    if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")
+      || p.includes("midfield")
+      || ["dm", "cdm", "cm", "rcm", "lcm", "am", "cam", "lam", "ram", "lm", "rm", "mf", "mid"].includes(p)) return "midfielder";
+    if (p.includes("دفاع") || p.includes("ظهير") || p.includes("مدافع")
+      || p.includes("defender") || p.includes("defence") || p.includes("defense")
+      || ["cb", "rcb", "lcb", "lb", "rb", "rwb", "lwb", "wb", "df", "def",
+        "centreback", "centerback", "leftcentreback", "rightcentreback", "leftcenterback", "rightcenterback",
+        "fullback", "leftback", "rightback", "wingback", "leftwingback", "rightwingback", "sweeper", "libero"].includes(p)) return "defender";
+    if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربة") || p.includes("راسحربه")
+      || p.includes("forward") || p.includes("striker") || p.includes("winger")
+      || ["st", "cf", "ss", "fw", "fwd", "lw", "rw", "lf", "rf", "lwf", "rwf", "wf", "attacker", "attackers"].includes(p)) return "attacker";
     return "midfielder";
   }
   function positionProductionProfile(position) {
@@ -63,10 +71,8 @@
       || p.includes("winger") || p.includes("wing")) {
       return { role: "winger", goalWeight: 2.05, assistWeight: 1.8, attackRate: 0.27, assistRate: 0.31 };
     }
-    if (p.includes("مهاجم") || p === "ss" || p === "fw"
-      || p.includes("secondstriker") || p.includes("forward") || p.includes("striker")) {
-      return { role: "mobile-forward", goalWeight: 2.35, assistWeight: 1.55, attackRate: 0.31, assistRate: 0.28 };
-    }
+    // Use the canonical line classifier before any generic "forward/attacker" fallback.
+    // This prevents Arabic "وسط مهاجم" from being treated as a striker.
     const group = groupForPosition(position);
     if (group === "goalkeeper") return { role: group, goalWeight: 0.03, assistWeight: 0.04, attackRate: 0.0015, assistRate: 0.002 };
     if (group === "defender") return { role: group, goalWeight: 0.42, assistWeight: 0.7, attackRate: 0.038, assistRate: 0.055 };

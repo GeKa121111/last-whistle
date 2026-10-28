@@ -196,8 +196,8 @@ assert.equal(career.normalizeLeagueRoundIndex(undefined, [{ opponent: "A" }, { o
   "legacy match history without matchday metadata must fall back to league appearances");
 assert.equal(career.normalizeLeagueRoundIndex(3, [{ opponent: "A" }], 8, 30), 8,
   "a stale saved index must not ignore league appearances when legacy history lacks matchday metadata");
-assert.ok(rootHtml.includes("Math.max(0, saved, legacyRound)"),
-  "the inline browser engine must use the same round-history recovery rule");
+assert.ok(rootHtml.includes("Math.max(0, Math.floor(saved), legacyRound)"),
+  "the inline browser engine must use the same integer round-history recovery rule");
 
 const onLoan = {
   name: "Test Player", clubName: "Loan Club", leagueCountry: "Hostland",

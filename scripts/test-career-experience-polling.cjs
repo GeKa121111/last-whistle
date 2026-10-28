@@ -30,7 +30,7 @@ const vm = require("node:vm");
   const nodes = Object.create(null);
   const actions = ["open-challenges", "open-mentor", "open-finance"].map(action => ({
     disabled: false,
-    getAttribute(name) { return name === "data-lwag-action" ? action : null; }
+    getAttribute(name) { return name === "data-lwcx-action" ? action : null; }
   }));
   const panel = {
     querySelectorAll(selector) {

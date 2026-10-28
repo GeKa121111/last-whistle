@@ -27,7 +27,7 @@ assert.equal(sandbox.resolveOutcome({ outcome: "خسارة", matchOutcome: "تع
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-assert.match(sw, /last-whistle-static-v131/, "PWA cache must advance with the career-record fix");
+assert.match(sw, /last-whistle-static-v132/, "PWA cache must advance with the career-record fix");
 assert.match(sw, /match-engine\.js\?v=18/, "the cache must retain the current match-engine asset version");
 
 console.log("PASS: cup aggregate outcomes no longer overwrite the individual fixture result in career records.");

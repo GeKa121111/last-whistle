@@ -24,10 +24,25 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 3);
+assert.equal(engine.version, 4);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
+const zeroAppearanceSeason = engine.simulatePlayerSeason({
+  name: "لاعب بلا ظهور", clubName: "نادي اختبار", position: "مهاجم",
+  ovr: 99, prestige: 100, leagueStrength: 98,
+  seasonStats: { season: 4, appearances: 0, goals: 50, assists: 25, averageRating: 9.8 }
+}, 4, 1);
+assert.equal(zeroAppearanceSeason.appearances, 0);
+assert.equal(zeroAppearanceSeason.goals, 0,
+  "saved goals must be discarded when a season records zero appearances");
+assert.equal(zeroAppearanceSeason.assists, 0,
+  "saved assists must be discarded when a season records zero appearances");
+assert.equal(zeroAppearanceSeason.averageRating, 0);
+assert.equal(zeroAppearanceSeason.score, 0,
+  "a zero-appearance season must not earn leaderboard performance points from OVR or league strength");
+assert.equal(zeroAppearanceSeason.weightedGoals, 0);
+
 const ageProgressionFixture = {
   name: "لاعب عمره ثابت", clubName: "نادي اختبار", position: "مهاجم",
   ovr: 72, prestige: 65, leagueStrength: 60
@@ -157,6 +172,30 @@ const leaderboard = engine.buildLeagueLeaderboard({
 assert.ok(leaderboard.some(row => row.isUser && row.name === "أنا"));
 assert.ok(leaderboard.some(row => row.name === "مهاجم حقيقي"));
 assert.ok(leaderboard.every(row => Number.isFinite(row.goals) && Number.isFinite(row.assists)));
+const zeroAppearanceLeaderboard = engine.buildLeagueLeaderboard({
+  season: 4,
+  progress: 1,
+  players: [{
+    name: "لاعب بلا ظهور", clubName: "نادي اختبار", position: "مهاجم",
+    ovr: 99, prestige: 100, leagueStrength: 98,
+    seasonStats: { season: 4, appearances: 0, goals: 50, assists: 25, averageRating: 9.8 }
+  }],
+  userLine: {
+    name: "مسيرة بلا ظهور", club: "فريقي", ovr: 99, appearances: 0,
+    goals: 20, assists: 10, averageRating: 9.5, leagueStrength: 98
+  }
+});
+const zeroAppearanceWorldRow = zeroAppearanceLeaderboard.find(row => row.name === "لاعب بلا ظهور");
+const zeroAppearanceUserRow = zeroAppearanceLeaderboard.find(row => row.name === "مسيرة بلا ظهور");
+assert.equal(zeroAppearanceWorldRow.goals, 0);
+assert.equal(zeroAppearanceWorldRow.assists, 0);
+assert.equal(zeroAppearanceWorldRow.score, 0);
+assert.equal(zeroAppearanceWorldRow.weightedGoals, 0);
+assert.equal(zeroAppearanceUserRow.goals, 0);
+assert.equal(zeroAppearanceUserRow.assists, 0);
+assert.equal(zeroAppearanceUserRow.score, 0);
+assert.equal(zeroAppearanceUserRow.weightedGoals, 0,
+  "leaderboard rows with no appearances must not retain stale season contributions");
 
 const realPlayers = [
   { name: "كيليان مبابي", clubName: "ريال مدريد", country: "إسبانيا", position: "مهاجم", ovr: 93, prestige: 100, leagueStrength: 96, age: 27, confederation: "UEFA", originConfederation: "UEFA" },

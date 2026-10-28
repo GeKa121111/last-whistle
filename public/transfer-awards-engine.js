@@ -121,8 +121,8 @@
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
       const appearances = Math.round(Math.max(0, Number(saved.appearances) || 0) * scale);
-      const goals = Math.round(Math.max(0, Number(saved.goals) || 0) * scale);
-      const assists = Math.round(Math.max(0, Number(saved.assists) || 0) * scale);
+      const goals = appearances > 0 ? Math.round(Math.max(0, Number(saved.goals) || 0) * scale) : 0;
+      const assists = appearances > 0 ? Math.round(Math.max(0, Number(saved.assists) || 0) * scale) : 0;
       const averageRating = appearances > 0 ? clamp(saved.averageRating || 0, 0, 10) : 0;
       const leagueStrength = Number(player.leagueStrength) || 60;
       return {
@@ -130,7 +130,7 @@
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
         age: estimatedAge(player, season), ovr, appearances, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
-        score: Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)),
+        score: appearances > 0 ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)) : 0,
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
         confederation: player.confederation || "", originConfederation: player.originConfederation || player.confederation || "",
         leagueStrength, realPlayer: player.realPlayer !== false, isUser: !!player.isUser
@@ -379,9 +379,19 @@
         realPlayer: false,
         isUser: true
       }, input.userLine);
-      user.score = Number(user.averageRating || 0) * 9 + Number(user.goals || 0) * 0.95
-        + Number(user.assists || 0) * 0.62 + Number(user.leagueStrength || 60) * 0.035;
-      user.weightedGoals = Number(user.goals || 0) * (0.82 + Number(user.leagueStrength || 60) / 450);
+      const userAppearances = Math.max(0, Number(user.appearances || user.apps) || 0);
+      user.appearances = userAppearances;
+      if (userAppearances === 0) {
+        user.goals = 0;
+        user.assists = 0;
+        user.averageRating = 0;
+        user.score = 0;
+        user.weightedGoals = 0;
+      } else {
+        user.score = Number(user.averageRating || 0) * 9 + Number(user.goals || 0) * 0.95
+          + Number(user.assists || 0) * 0.62 + Number(user.leagueStrength || 60) * 0.035;
+        user.weightedGoals = Number(user.goals || 0) * (0.82 + Number(user.leagueStrength || 60) / 450);
+      }
       rows.push(user);
     }
     const unique = new Map();
@@ -607,7 +617,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 3,
+    version: 4,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,
     evaluateNegotiation: evaluateNegotiation,

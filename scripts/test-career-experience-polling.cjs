@@ -48,8 +48,11 @@ const vm = require("node:vm");
   }
 
   const investments = [{
-    id: 1, kind: "safe", label: "ادخار آمن", amount: 100, payout: 118,
+    id: 1, kind: "safe", label: "ادخار آمن قديم", amount: 100, payout: 118,
     dueDay: 30, settled: false, successful: true
+  }, {
+    id: 2, kind: "safe", label: "ادخار آمن جديد", amount: 100, payout: 120,
+    dueDay: 60, settled: false, successful: true
   }];
   Object.defineProperty(investments, "reduce", {
     enumerable: false,
@@ -64,7 +67,7 @@ const vm = require("node:vm");
     careerWorld: {
       version: 1, challengeCount: 1, challengeWins: 1, practiceAttempts: 2,
       memoryWins: 0, timingWins: 1, mentorSessions: 0, lastMentorDay: "",
-      investments, history: [], investmentSequence: 2
+      investments, history: [], investmentSequence: 3
     }
   };
   const api = {
@@ -123,19 +126,33 @@ const vm = require("node:vm");
   documentListeners.visibilitychange[0]();
   assert.equal(panelRefreshes, 3, "returning to the foreground should refresh the panel immediately");
   assert.match(nodes["lwcx-status"].textContent, /الطاقة 22%/, "foreground refresh should show the latest energy");
-  assert.equal(nodes["lwcx-investments"].textContent, "1", "pending investments should remain visible before their due date");
+  assert.equal(nodes["lwcx-investments"].textContent, "2", "both investments should be counted before their due dates");
 
-  const beforeSettlementScans = reduceCalls;
+  const beforeFirstSettlementScans = reduceCalls;
   state.calendarDay = 30;
   subscriber({ source: "save" });
   await Promise.resolve();
-  assert.equal(investments[0].settled, true, "investment settlement should still run when the in-game day advances");
-  assert.equal(state.money, 1368, "settling a due investment must credit its payout exactly once");
-  assert.equal(saveCalls, 1, "investment settlement should persist exactly once");
-  assert.equal(reduceCalls, beforeSettlementScans + 1, "day changes should normalize the world once, not multiple times");
+  assert.equal(investments[0].settled, true, "the older investment should settle when its due day arrives");
+  assert.equal(investments[1].settled, false, "the newest investment should remain open until its own due day");
+  assert.equal(state.money, 1368, "settling the first due investment must credit its payout exactly once");
+  assert.equal(saveCalls, 1, "the first due investment should persist exactly once");
+  assert.equal(reduceCalls, beforeFirstSettlementScans + 2,
+    "a day change should normalize the world once and recompute the cached open count once");
+  assert.equal(nodes["lwcx-investments"].textContent, "1",
+    "the open-investment count must update when an older investment settles even if the newest item is unchanged");
+
+  const beforeSecondSettlementScans = reduceCalls;
+  state.calendarDay = 60;
+  subscriber({ source: "save" });
+  await Promise.resolve();
+  assert.equal(investments[1].settled, true, "the newest investment should settle at its own due day");
+  assert.equal(state.money, 1488, "each due investment payout should be applied exactly once");
+  assert.equal(saveCalls, 2, "each settlement day should persist one payout batch");
+  assert.equal(reduceCalls, beforeSecondSettlementScans + 2,
+    "the next day change should normalize and recount only once each");
   assert.equal(nodes["lwcx-investments"].textContent, "0", "the panel should remove settled investments immediately");
 
-  console.log("PASS: life-system panel refreshes on state events, skips unchanged polls, and settles investments once per day.");
+  console.log("PASS: life-system panel refreshes on state events, skips unchanged polls, and tracks older/newer investment settlements.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

@@ -18,7 +18,7 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v141"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v142"), "PWA cache must advance for international tournament changes");
 assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=5"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));

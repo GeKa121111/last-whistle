@@ -669,5 +669,22 @@ assert.equal(engine.validateResult(beyondMaximumMinute).ok, false,
   "the ledger must reject events beyond the 120th minute");
 assert.equal(browserEngine.validateResult(beyondMaximumMinute).ok, false,
   "the embedded validator must reject events beyond the 120th minute");
+const shootoutAtRegulationMinute = { ...minuteValidationBase,
+  events: [{ type: "penalty-shootout", side: "team", minute: 90, won: true }],
+  shootout: { used: false, won: null, scoreFor: 0, scoreAgainst: 0 }
+};
+assert.equal(engine.validateResult(shootoutAtRegulationMinute).ok, false,
+  "a penalty-shootout event must not be accepted at a regulation-time minute");
+assert.equal(browserEngine.validateResult(shootoutAtRegulationMinute).ok, false,
+  "the embedded validator must reject shootout events at regulation-time minutes");
+const validShootoutEvent = { ...minuteValidationBase,
+  events: [{ type: "penalty-shootout", side: "team", minute: 120, won: true, scoreFor: 5, scoreAgainst: 4 }],
+  outcome: "فوز", matchOutcome: "فوز",
+  shootout: { used: true, won: true, scoreFor: 5, scoreAgainst: 4 }
+};
+assert.equal(engine.validateResult(validShootoutEvent).ok, true,
+  "a shootout event at minute 120 must remain valid when the shootout was used");
+assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
+  "the embedded validator must accept a valid shootout event");
 
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

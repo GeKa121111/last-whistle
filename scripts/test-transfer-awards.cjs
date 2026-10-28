@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 2);
+assert.equal(engine.version, 3);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -168,7 +168,9 @@ const realPlayers = [
   { name: "حارس الاختبار", clubName: "نادي الحارس", country: "مصر", position: "حارس مرمى", ovr: 88, prestige: 80, leagueStrength: 70, age: 28,
     seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.7, cleanSheets: 22, saves: 94, penaltiesSaved: 2, club: "نادي الحارس" } },
   { name: "حارس منافس", clubName: "نادي المنافس", country: "مصر", position: "حارس مرمى", ovr: 82, prestige: 75, leagueStrength: 68, age: 29,
-    seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.5, cleanSheets: 12, saves: 120, penaltiesSaved: 0, club: "نادي المنافس" } }
+    seasonStats: { season: 4, appearances: 30, goals: 0, assists: 0, averageRating: 7.5, cleanSheets: 12, saves: 120, penaltiesSaved: 0, club: "نادي المنافس" } },
+  { name: "موهبة شابة", clubName: "نادي الشباب", country: "إسبانيا", position: "جناح", ovr: 81, prestige: 75, leagueStrength: 70, age: 17, confederation: "UEFA", originConfederation: "UEFA",
+    seasonStats: { season: 4, appearances: 28, goals: 9, assists: 6, averageRating: 7.8, club: "نادي الشباب" } }
 ];
 const ceremony = engine.buildSeasonAwardCeremony({
   season: 4,
@@ -176,6 +178,18 @@ const ceremony = engine.buildSeasonAwardCeremony({
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+const noYouthCeremony = engine.buildSeasonAwardCeremony({
+  season: 4,
+  currentDate: "2028-02-14T00:00:00.000Z",
+  player: {
+    name: "لاعب مخضرم", club: "فريقي", country: "مصر", position: "وسط مهاجم",
+    ovr: 78, age: 30, appearances: 25, goals: 5, assists: 8, averageRating: 7.1,
+    confederation: "CAF", originConfederation: "CAF", leagueStrength: 70
+  },
+  realPlayers: realPlayers.filter(row => Number(row.age) >= 22)
+});
+assert.equal(noYouthCeremony.awards.some(row => row.id === "golden-boy"), false,
+  "Golden Boy must be omitted when no eligible under-21 player exists instead of falling back to older players");
 assert.equal(ceremony.createdAt, "2028-02-14T00:00:00.000Z",
   "award ceremony timestamps must use the supplied in-game calendar date");
 assert.equal(ceremony.ballonDor.topFive.length, 5, "the Ballon d'Or ceremony must show exactly five nominees");
@@ -218,5 +232,36 @@ const outfieldOnlyCeremony = engine.buildSeasonAwardCeremony({
 });
 assert.equal(outfieldOnlyCeremony.awards.some(row => row.id === "golden-glove"), false,
   "the Golden Glove must be omitted instead of falling back to an ineligible outfield player");
+
+const noAppearanceStar = {
+  ...realPlayers[0],
+  name: "نجم بلا مشاركات",
+  ovr: 99,
+  prestige: 100,
+  leagueStrength: 98,
+  seasonStats: {
+    season: 4, appearances: 0, goals: 0, assists: 0, averageRating: 0,
+    cleanSheets: 0, saves: 0, penaltiesSaved: 0, club: "نادي بلا مشاركات"
+  }
+};
+const noAppearanceCeremony = engine.buildSeasonAwardCeremony({
+  season: 4,
+  currentDate: "2028-02-14T00:00:00.000Z",
+  player: {
+    name: "لاعب بلا مشاركات", club: "فريقي", country: "مصر", position: "مهاجم",
+    ovr: 99, age: 24, appearances: 0, goals: 0, assists: 0, averageRating: 0,
+    trophies: 20, professionalism: 100, confederation: "UEFA",
+    originConfederation: "UEFA", leagueStrength: 98
+  },
+  realPlayers: [...realPlayers, noAppearanceStar]
+});
+assert.equal(noAppearanceCeremony.playerAwards.length, 0,
+  "a career player with no appearances must not receive season awards based on OVR or trophy bonuses");
+assert.ok(!noAppearanceCeremony.ballonDor.topFive.some(row =>
+  row.name === "لاعب بلا مشاركات" || row.name === "نجم بلا مشاركات"),
+  "players with zero appearances must not enter the Ballon d'Or shortlist");
+assert.ok(noAppearanceCeremony.awards.every(row =>
+  row.winner.name !== "لاعب بلا مشاركات" && row.winner.name !== "نجم بلا مشاركات"),
+  "zero-appearance players must be ineligible for every season award");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

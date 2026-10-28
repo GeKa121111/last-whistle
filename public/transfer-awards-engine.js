@@ -455,23 +455,24 @@
           || String(a.name).localeCompare(String(b.name), "ar");
       });
     };
-    const bestFive = rank(candidates, "ballonScore").slice(0, 5);
-    const ballonWinner = bestFive[0] || user;
+    const eligibleCandidates = candidates.filter(row => Number(row.appearances) >= 10);
+    const bestFive = rank(eligibleCandidates, "ballonScore").slice(0, 5);
+    const ballonWinner = bestFive[0] || { name: "لا يوجد لاعب مؤهل", club: "", isUser: false };
     const allAwards = [
-      { id: "ballon-dor", title: "الكرة الذهبية (Ballon d'Or)", metric: "ballonScore", pool: candidates },
-      { id: "fifa-the-best", title: "جائزة ذا بيست (FIFA The Best)", metric: "theBestScore", pool: candidates },
-      { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: candidates },
+      { id: "ballon-dor", title: "الكرة الذهبية (Ballon d'Or)", metric: "ballonScore", pool: eligibleCandidates },
+      { id: "fifa-the-best", title: "جائزة ذا بيست (FIFA The Best)", metric: "theBestScore", pool: eligibleCandidates },
+      { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: eligibleCandidates },
       { id: "golden-glove", title: "القفاز الذهبي (Golden Glove)", metric: "goldenGloveScore",
-        pool: candidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
-      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: candidates.filter(row => Number(row.age) <= 21) },
-      { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: candidates.filter(row => row.originConfederation === "CAF") },
-      { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: candidates.filter(row => row.confederation === "UEFA") },
-      { id: "conmebol-player", title: "أفضل لاعب في أمريكا الجنوبية", metric: "ballonScore", pool: candidates.filter(row => row.confederation === "CONMEBOL") }
+        pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
+      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => Number(row.age) <= 21) },
+      { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.originConfederation === "CAF") },
+      { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "UEFA") },
+      { id: "conmebol-player", title: "أفضل لاعب في أمريكا الجنوبية", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "CONMEBOL") }
     ];
-    const awards = allAwards.filter(definition => definition.id !== "golden-glove" || definition.pool.length)
+    const awards = allAwards.filter(definition => definition.pool.length)
       .map(function (definition) {
-      const ranked = rank(definition.pool.length ? definition.pool : candidates, definition.metric);
-      const winner = ranked[0] || user;
+      const ranked = rank(definition.pool, definition.metric);
+      const winner = ranked[0];
       return {
         id: definition.id,
         title: definition.title,
@@ -606,7 +607,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 2,
+    version: 3,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,
     evaluateNegotiation: evaluateNegotiation,

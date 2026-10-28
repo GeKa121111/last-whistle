@@ -13,6 +13,11 @@ const repositoryRoot = path.resolve(__dirname, "..", "..");
 const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
+const serviceWorkerCopies = ["sw.js", "public/sw.js"]
+  .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
+assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v107"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=3"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -294,11 +299,35 @@ career.applySeasonAging(oldestKeeperCurve);
 assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
 assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
 
-const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false };
+const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false,
+  nationalTournamentQualified: false, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "group");
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "final-qualified");
-assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "final-complete");
+assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "champion");
+assert.equal(tournament.nationalTournamentWinner, true, "a final win must persist the tournament winner flag");
+assert.equal(tournament.nationalTournamentFinalOutcome, "فوز", "the final outcome must be saved in career state");
+assert.equal(tournament.internationalPlayed, true, "the international tournament must close after the final");
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "tournament-closed");
+
+const invalidTournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false,
+  nationalTournamentQualified: false, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
+const invalidTournamentBefore = JSON.stringify(invalidTournament);
+assert.deepEqual(career.recordNationalTournamentMatch(invalidTournament, "win"), { ok: false, status: "invalid-outcome" });
+assert.equal(JSON.stringify(invalidTournament), invalidTournamentBefore, "invalid outcomes must not mutate international tournament state");
+
+const drawnFinal = { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentDone: false,
+  nationalTournamentQualified: true, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
+const drawnFinalBefore = JSON.stringify(drawnFinal);
+assert.deepEqual(career.recordNationalTournamentMatch(drawnFinal, "تعادل"), { ok: false, status: "final-winner-required" });
+assert.equal(JSON.stringify(drawnFinal), drawnFinalBefore, "a drawn knockout final must not close the tournament without a winner");
+
+const losingTournament = { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentDone: false,
+  nationalTournamentQualified: true, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
+assert.equal(career.recordNationalTournamentMatch(losingTournament, "خسارة").status, "final-lost");
+assert.equal(losingTournament.nationalTournamentWinner, false, "a final loss must not award the championship");
+assert.equal(losingTournament.nationalTournamentFinalOutcome, "خسارة", "a final loss must be persisted for future screens");
+assert.equal(losingTournament.nationalTournamentDone, true);
+assert.equal(losingTournament.internationalPlayed, true);
 
 console.log("PASS: career progression, match-history deduplication, loan contracts, purchase gates, renewal, retirement, training guard, and international tournament lifecycle.");
 
@@ -313,6 +342,21 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+for (const [label, initial, outcome] of [
+  ["invalid", { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false }, "win"],
+  ["champion", { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "فوز"],
+  ["final loss", { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "خسارة"],
+  ["drawn final", { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentQualified: true, nationalTournamentDone: false }, "تعادل"]
+]) {
+  const sourceState = { ...initial };
+  const deployedState = { ...initial };
+  assert.equal(JSON.stringify(deployedCareer.recordNationalTournamentMatch(deployedState, outcome)),
+    JSON.stringify(career.recordNationalTournamentMatch(sourceState, outcome)),
+    "deployed/source tournament result must match for " + label);
+  assert.equal(JSON.stringify(deployedState), JSON.stringify(sourceState),
+    "deployed/source tournament state must match for " + label);
+}
 
 for (const position of Object.keys(expectedPlans)) {
   assert.equal(JSON.stringify(deployedCareer.positionDevelopmentPlan({ pos: position })),

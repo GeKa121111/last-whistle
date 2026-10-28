@@ -638,7 +638,9 @@
   }
 
   function recordNationalTournamentMatch(state, outcome) {
-    if (!state || state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
+    if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
+    if (state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
+    if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
     const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
     if (played < 2) {
       state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
@@ -647,12 +649,19 @@
       if (state.nationalTournamentMatches === 2) {
         state.nationalTournamentQualified = state.nationalTournamentPoints >= 3;
         state.nationalTournamentDone = !state.nationalTournamentQualified;
+        state.nationalTournamentWinner = false;
+        state.nationalTournamentFinalOutcome = "";
       }
       state.internationalPlayed = Boolean(state.nationalTournamentDone);
       return { ok: true, status: state.nationalTournamentMatches < 2 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
     }
-    state.nationalTournamentMatches = 3; state.nationalTournamentDone = true; state.internationalPlayed = true;
-    return { ok: true, status: "final-complete", points: state.nationalTournamentPoints };
+    if (outcome === "تعادل") return { ok: false, status: "final-winner-required" };
+    state.nationalTournamentMatches = 3;
+    state.nationalTournamentDone = true;
+    state.internationalPlayed = true;
+    state.nationalTournamentWinner = outcome === "فوز";
+    state.nationalTournamentFinalOutcome = outcome;
+    return { ok: true, status: state.nationalTournamentWinner ? "champion" : "final-lost", points: state.nationalTournamentPoints };
   }
 
   function applySeasonAging(state) {

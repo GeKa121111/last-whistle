@@ -158,11 +158,26 @@
     return uniqueMatchRows([...leagueRows, ...careerRows]);
   }
 
+  const safeLegacyMinutes = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(120, numeric)) : 0;
+  };
+  const safeLegacyCount = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
+  };
+  const safeLegacyRating = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+  };
+
   function rebuildLegacyCareerStats(state) {
     const rows = uniqueCareerHistory(state);
-    state.qualifyingAppearances = rows.filter(row => Number(row.minutes) >= 20).length;
-    state.careerAppearances = Math.max(Number(state.apps) || 0, Number(state.careerAppearances) || 0);
-    state.careerMinutes = rows.reduce((sum, row) => sum + (Number(row.minutes) || 0), 0);
+    const normalizedRows = rows.map(row => ({ row, minutes: safeLegacyMinutes(row.minutes) }));
+    state.qualifyingAppearances = normalizedRows.filter(entry => entry.minutes >= 20).length;
+    state.careerAppearances = Math.max(safeLegacyCount(state.apps), safeLegacyCount(state.careerAppearances));
+    state.careerMinutes = normalizedRows.reduce((sum, entry) => sum + entry.minutes, 0);
     state.careerMilestonesEarned = APPEARANCE_MILESTONES
       .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
     return rows;
@@ -170,8 +185,8 @@
 
   function deriveLeagueRatingStats(state) {
     const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
-      && Number(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
-    state.leagueRatingSum = rows.reduce((sum, row) => sum + Number(row.rating), 0);
+      && safeLegacyMinutes(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
+    state.leagueRatingSum = rows.reduce((sum, row) => sum + safeLegacyRating(row.rating), 0);
     state.leagueRatingCount = rows.length;
     return { sum: state.leagueRatingSum, count: state.leagueRatingCount };
   }

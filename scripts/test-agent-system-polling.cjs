@@ -54,7 +54,7 @@ function makeHarness(withStore = true) {
   const sandbox = {
     API: () => api, ensureState: () => false, renewRelationship: () => false,
     ensurePanel: () => true, renderPanel: () => { renders++; },
-    lastSnapshot: "", panelWasRendered: false, window, document, Promise
+    lastSnapshot: "", panelWasRendered: false, tickScheduled: false, tickForceQueued: false, window, document, Promise
   };
   vm.createContext(sandbox);
   vm.runInContext(tickSource, sandbox, { filename: "agent-system.tick" });

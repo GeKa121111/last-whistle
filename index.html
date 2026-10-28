@@ -4831,6 +4831,9 @@ function matchCleanSheetContractBonus(state,result,youthNoPay=false){
  return Math.max(0,Number(state?.cleanSheetBonus)||0);
 }
 
+function matchOutcomeForCareerRecord(result,meta={}){
+ return String(meta.outcome||result?.matchOutcome||result?.outcome||"تعادل");
+}
 function applyMatchResult(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
  const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
@@ -4840,7 +4843,7 @@ function applyMatchResult(result,meta){
  const suspendedAtKickoff=!!meta.suspendedAtKickoff;
  if(suspendedAtKickoff){state.suspensions[key]=Math.max(0,(Number(state.suspensions[key])||0)-1);}
  const m=result.player,minutes=Math.max(0,Number(m.minutes)||0),goals=Math.max(0,Number(m.goals)||0),assists=Math.max(0,Number(m.assists)||0),rating=minutes>0?Number(m.rating)||0:0;
- const outcome=String(meta.outcome||result.outcome||"تعادل"),participated=minutes>0;
+ const outcome=matchOutcomeForCareerRecord(result,meta),participated=minutes>0;
  let matchPay=0;
  if(participated){
   if(scope==="international"){

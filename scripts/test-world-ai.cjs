@@ -390,6 +390,34 @@ for (const row of world.seasonStats["1"]) {
     "weighted-goal leaderboard scores must preserve the existing formula: " + row.id);
 }
 
+// Unfinished-season projections must use the strength of the player's own division,
+ // not the top tier of the same league.
+const divisionTwoClubForProjection = Object.values(world.clubs).find(club => {
+  if (!club || !club.leagueId || Number(club.division) !== 2) return false;
+  const topTier = leaguePowerTotals.get(String(club.leagueId) + "|1");
+  const secondTier = leaguePowerTotals.get(String(club.leagueId) + "|2");
+  return topTier && secondTier
+    && Math.round(topTier.total / topTier.count) !== Math.round(secondTier.total / secondTier.count);
+});
+assert.ok(divisionTwoClubForProjection,
+  "the world fixture must contain a league whose top- and second-division strengths differ");
+const divisionTwoPlayerForProjection = Object.values(world.players).find(player =>
+  player && player.clubId === divisionTwoClubForProjection.id && Number(player.division) === 2);
+assert.ok(divisionTwoPlayerForProjection, "the second division must contain a player for projection checks");
+const savedSeasonRowsForProjection = world.seasonStats["1"];
+delete world.seasonStats["1"];
+try {
+  const projectedRows = ai.getSeasonLines(save, 1, 1, db);
+  const projectedPlayer = projectedRows.find(row => row.id === divisionTwoPlayerForProjection.id);
+  const secondTierSummary = leaguePowerTotals.get(String(divisionTwoClubForProjection.leagueId) + "|2");
+  const expectedSecondTierStrength = Math.round(secondTierSummary.total / secondTierSummary.count);
+  assert.ok(projectedPlayer, "second-division players must remain in unfinished-season projections");
+  assert.equal(projectedPlayer.leagueStrength, expectedSecondTierStrength,
+    "unfinished-season leaderboard weighting must use the player's own division strength");
+} finally {
+  world.seasonStats["1"] = savedSeasonRowsForProjection;
+}
+
 // All table totals must reconcile to one shared set of actual simulated fixtures.
 const fixtures = world.matchesBySeason && world.matchesBySeason["1"];
 assert.ok(Array.isArray(fixtures) && fixtures.length > 20, "a season must persist its shared fixtures");

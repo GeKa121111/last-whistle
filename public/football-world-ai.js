@@ -303,13 +303,33 @@
     }
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const retiredIdentitiesByClub = new Map();
+    const allClubs = Object.values(world.clubs || {});
     for (const player of Object.values(world.players || {})) {
       if (!player || !player.retired) continue;
-      const clubId = String(player.previousClubId || player.retiredFromClubId || player.clubId || "");
       const identityKey = rosterIdentityKey(player);
-      if (!clubId || !identityKey) continue;
-      if (!retiredIdentitiesByClub.has(clubId)) retiredIdentitiesByClub.set(clubId, new Set());
-      retiredIdentitiesByClub.get(clubId).add(identityKey);
+      if (!identityKey) continue;
+      const clubIds = new Set([
+        String(player.previousClubId || ""),
+        String(player.retiredFromClubId || ""),
+        String(player.clubId || "")
+      ].filter(Boolean));
+      const history = world.playerHistory && Array.isArray(world.playerHistory[player.id])
+        ? world.playerHistory[player.id] : [];
+      for (const entry of history) {
+        const clubName = String(entry && entry.club || "").trim();
+        if (!clubName) continue;
+        const country = String(entry.country || "").trim();
+        const matches = allClubs.filter(club =>
+          normalize(club.name) === normalize(clubName)
+          && (!country || normalize(club.country) === normalize(country)));
+        if (matches.length) matches.forEach(club => clubIds.add(String(club.id)));
+        else if (country) clubIds.add(clubKey(clubName, country));
+      }
+      for (const clubId of clubIds) {
+        if (!clubId) continue;
+        if (!retiredIdentitiesByClub.has(clubId)) retiredIdentitiesByClub.set(clubId, new Set());
+        retiredIdentitiesByClub.get(clubId).add(identityKey);
+      }
     }
     const knownPlayersByClub = new Map();
     for (const player of Object.values(world.players || {})) {
@@ -1866,7 +1886,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=19");
+    const worker = new global.Worker("./football-world-worker.js?v=20");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

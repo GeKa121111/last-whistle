@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 const publicSource = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
 assert.equal(source, publicSource, "root and public agent runtime must stay synchronized");
 
-const start = source.indexOf("  function tick(){");
+const start = source.indexOf("  function tick(force){");
 const end = source.indexOf('\n  document.addEventListener("click"', start);
 assert.ok(start >= 0 && end > start, "agent tick must be extractable for a focused behavior test");
 const tickSource = source.slice(start, end);

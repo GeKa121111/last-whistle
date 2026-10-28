@@ -99,6 +99,16 @@ assert.equal(engine.playerConcededGoals(65, [
   { type: "goal", side: "opponent", minute: 64 },
   { type: "red-card", side: "player", minute: 64 }
 ]), 1, "a goal at the dismissal minute must still count if it occurred before the player exited");
+const earlierDismissalBeforeRecordedSubstitution = [
+  { type: "goal", side: "opponent", minute: 54 },
+  { type: "goal", side: "opponent", minute: 58 },
+  { type: "substitution", side: "player", minute: 60 }
+];
+assert.equal(engine.playerConcededGoals(90, earlierDismissalBeforeRecordedSubstitution, 55), 1,
+  "an explicit earlier dismissal must stop concession attribution even when a later substitution event exists");
+assert.equal(browserEngine.playerConcededGoals(90, earlierDismissalBeforeRecordedSubstitution, 55), 1,
+  "the embedded engine must prefer the earliest exit minute when an explicit dismissal and later exit event are both supplied");
+
 const goalAfterEntryAtSameMinute = [
   { type: "substitution-on", side: "player", minute: 60 },
   { type: "goal", side: "opponent", minute: 60 }

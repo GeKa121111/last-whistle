@@ -69,14 +69,15 @@
       .map(event => ({ type: event.type, minute: Number(event.minute) }))
       .filter(event => Number.isFinite(event.minute))
       .sort((a, b) => a.minute - b.minute);
-    const firstExit = exits[0] || null;
     const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
-    const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
-      : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
+    const exitCandidates = exits.map(event => event.minute);
+    if (Number.isFinite(explicitDismissal)) exitCandidates.push(explicitDismissal);
+    // An explicit dismissal minute and event-ledger exits may both be supplied.
+    // The earliest one ends responsibility; a later substitution must never override an earlier red card.
+    const exitMinute = exitCandidates.length
+      ? Math.min(...exitCandidates)
+      : (entryMinute > 0 || played < 90 ? entryMinute + played : null);
     // Same-minute goals are ordered after substitution-on and before substitution/exit events.
-    const exitMinute = firstExit ? firstExit.minute
-      : Number.isFinite(dismissalMinute) ? dismissalMinute
-        : entryMinute > 0 || played < 90 ? entryMinute + played : null;
     return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
       const minute = Number(event.minute);

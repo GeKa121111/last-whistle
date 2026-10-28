@@ -508,7 +508,7 @@
       // League strength is shared by every player in a league. Precompute it once per
       // projection instead of scanning all clubs twice for each of the 14k+ players.
       const strengthByLeague = buildLeagueStrengthLookup(world);
-      fullRows = Object.values(world.players).map(player =>
+      fullRows = Object.values(world.players).filter(player => player && !player.retired).map(player =>
         generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
     }
     return fullRows.map(row => {
@@ -566,7 +566,7 @@
       alreadyCompleted: true, transfers: (world.marketReports.find(row => row.season === year) || {}).moves || 0
     };
     const strengthByLeague = buildLeagueStrengthLookup(world);
-    const rows = Object.values(world.players).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
+    const rows = Object.values(world.players).filter(player => player && !player.retired).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
     const tables = simulateLeagueTables(world, year, 1);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
@@ -1173,7 +1173,7 @@
       const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + Number(division));
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(world.players).map(player => {
+    return Object.values(world.players).filter(player => player && !player.retired).map(player => {
       const acc = accumulators.get(player.id) || playerAccumulator();
       const historicalClub = world.clubs[acc.clubId || player.clubId] || null;
       const apps = Number(acc.appearances) || 0, goals = Number(acc.goals) || 0, assists = Number(acc.assists) || 0;
@@ -1854,7 +1854,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=18");
+    const worker = new global.Worker("./football-world-worker.js?v=19");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

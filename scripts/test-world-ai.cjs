@@ -26,6 +26,8 @@ const sandbox = { window: { LWFootballSquadData: scotlandFixtureSnapshot }, cons
 vm.createContext(sandbox);
 const dbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
 const aiSourceRaw = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
+const rootAiSource = fs.readFileSync(path.join(root, "football-world-ai.js"), "utf8");
+assert.equal(aiSourceRaw, rootAiSource, "root and public world AI engines must remain synchronized");
 assert.ok(aiSourceRaw.includes('if (p === "st" || p === "f" || p === "striker"'),
   "centre-striker classification must not include CF, which is the mobile-forward role");
 assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p === "ss" || p === "fw"'),
@@ -994,6 +996,27 @@ assert.equal(targetClub.roster.filter(id => squadDepthWorld.players[id] && squad
   "the AI must not turn a full four-forward group into a five-forward group");
 assert.equal(targetClub.roster.filter(id => squadDepthWorld.players[id] && squadDepthWorld.players[id].group === "goalkeeper").length, 2,
   "the AI must not overfill the two-goalkeeper target");
+
+// Division-table lookups must preserve archived standings after fixture pruning and
+// select the requested division key for active seasons (not silently return the top flight).
+const divisionLookupSave = { season: 1, age: 24, name: "Division table lookup regression",
+  pos: "مهاجم", clubName: "Division table lookup test", leagueCountry: "مصر", leagueDivision: 1 };
+const divisionLookupWorld = ai.ensureState(divisionLookupSave, db);
+divisionLookupWorld.completedSeasons = [1];
+divisionLookupWorld.matchesBySeason = {};
+divisionLookupWorld.leagueTables = { "1": {
+  "division-lookup-test": [{ clubId: "first-division", rank: 1 }],
+  "division-lookup-test:2": [{ clubId: "second-division", rank: 1 }],
+  "division-lookup-test:3": [{ clubId: "third-division", rank: 1 }]
+} };
+assert.equal(Array.from(ai.getDivisionTable(divisionLookupSave, "division-lookup-test", 2, 1, db), row => row.clubId).join(","),
+  "second-division", "a completed second-division table must survive fixture pruning");
+assert.equal(Array.from(ai.getDivisionTable(divisionLookupSave, "division-lookup-test", 3, 1, db), row => row.clubId).join(","),
+  "third-division", "a completed third-division table must survive fixture pruning");
+divisionLookupWorld.completedSeasons = [];
+divisionLookupWorld.matchesBySeason = { "1": [] };
+assert.equal(Array.from(ai.getDivisionTable(divisionLookupSave, "division-lookup-test", 3, 1, db), row => row.clubId).join(","),
+  "third-division", "active division-three lookup must not fall back to the first-division table");
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

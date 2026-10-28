@@ -1,6 +1,8 @@
 (function(){
   "use strict";
   var timer=null,lastSnapshot="",lastRuntime=null;
+  var lastHistoryRef=null,lastHistoryLength=-1,lastHistoryTail="",lastHistoryRevision=null,lastHistorySignature="";
+  var refreshScheduled=false,queuedForce=false;
   var api=function(){return window.LWStoryRuntime||null;};
   var $=function(id){return document.getElementById(id);};
   var clamp=function(v,min,max){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));};
@@ -44,22 +46,33 @@
     if(relation<35)return {title:"حسّن التواصل مع المدرب",text:"العلاقة خارج الملعب محتاجة شغل. اختار جلسة الالتزام بدل الشكوى، وخلي الأداء في الملعب يدعم كلامك."};
     return {title:"جاهز تختار خطوتك",text:"طاقتك وإجهادك في نطاق معقول. اختار تدريبًا يناسب مركزك أو استعد للمباراة حسب جدولك."};
   }
-  function stateSignature(s){
+  function historyTailSignature(history){
+    var row=history.length?history[history.length-1]:null;
+    return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
+  }
+  function stateSignature(s,revision,force){
     var history=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
-    var historySignature=history.map(function(row){
-      return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
-    }).join(",");
+    var tail=historyTailSignature(history);
+    if(force||revision===null||history!==lastHistoryRef||history.length!==lastHistoryLength||tail!==lastHistoryTail||revision!==lastHistoryRevision){
+      lastHistorySignature=history.map(function(row){
+        return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
+      }).join(",");
+      lastHistoryRef=history;lastHistoryLength=history.length;lastHistoryTail=tail;lastHistoryRevision=revision;
+    }
     return JSON.stringify([
       s.careerStarted,s.retired,s.winterBreakPending,s.injuryDays,s.injuryName,
       s.energy,s.morale,s.fatigue,s.trust,s.coachRelationship,s.playedToday,s.trainedToday,
       s.dailyActionUsed,s.dailyActionDay,s.dailyActionType,s.day,s.season,
-      s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,historySignature
+      s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,lastHistorySignature
     ]);
   }
   function render(force){
     var runtime=api(),s=runtime&&runtime.getState?runtime.getState():null;
-    if(!s){lastSnapshot="";lastRuntime=null;return;}
-    var signature=stateSignature(s);
+    if(!s){lastSnapshot="";lastRuntime=null;lastHistoryRef=null;lastHistoryLength=-1;lastHistoryTail="";lastHistoryRevision=null;lastHistorySignature="";return;}
+    var store=window.LWStateStore;
+    var revision=store&&typeof store.getRevision==="function"?Number(store.getRevision()):null;
+    if(!Number.isFinite(revision))revision=null;
+    var signature=stateSignature(s,revision,!!force);
     if(!force&&runtime===lastRuntime&&signature===lastSnapshot)return;
     lastRuntime=runtime;lastSnapshot=signature;
     var energy=clamp(s.energy,0,100),morale=clamp(s.morale,0,100),fatigue=clamp(s.fatigue,0,100);
@@ -122,11 +135,25 @@
     var relationHeader=$("wellnessCoachRelationshipValue");
     if(relationHeader)relationHeader.title="تواصل خارج الملعب؛ لا يضمن وحده المشاركة الأساسية.";
   }
+  function scheduleRender(force){
+    if(document.hidden)return;
+    queuedForce=queuedForce||!!force;
+    if(refreshScheduled)return;
+    refreshScheduled=true;
+    Promise.resolve().then(function(){
+      refreshScheduled=false;
+      var shouldForce=queuedForce;queuedForce=false;
+      if(document.hidden)return;
+      render(shouldForce);
+    });
+  }
   function tick(){if(document.hidden)return;render(false);}
-  function refresh(){render(true);}
+  function refresh(){if(document.hidden)return;render(true);}
   function start(){
     render(true);
-    timer=window.setInterval(tick,1500);
+    var store=window.LWStateStore;
+    if(store&&typeof store.subscribe==="function")store.subscribe(function(){scheduleRender(false);});
+    timer=window.setInterval(tick,store&&typeof store.subscribe==="function"?5000:1500);
     window.addEventListener("pageshow",refresh);
     window.addEventListener("storage",refresh);
     document.addEventListener("visibilitychange",function(){if(!document.hidden)refresh();});

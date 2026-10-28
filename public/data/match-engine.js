@@ -413,10 +413,14 @@
     const matchMargin = Number(result.score.for) - Number(result.score.against);
     const expectedMatchOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة"
       : result.shootout?.used ? (result.shootout.won ? "فوز" : "خسارة") : "تعادل";
+    const aggregateMargin = (Number(result.metadata?.aggregateOffset) || 0) + matchMargin;
+    const expectedOutcome = aggregateMargin > 0 ? "فوز" : aggregateMargin < 0 ? "خسارة"
+      : result.shootout?.used ? (result.shootout.won ? "فوز" : "خسارة") : "تعادل";
+    const outcomeConsistent = !result.outcome || result.outcome === expectedOutcome;
     const matchOutcomeConsistent = !result.matchOutcome || result.matchOutcome === expectedMatchOutcome;
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
-    const valid = assistGoalLinksValid && cleanSheetConsistent && matchOutcomeConsistent
+    const valid = assistGoalLinksValid && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
       && teamGoals === result.score.for && opponentGoals === result.score.against
       && playerGoals === result.player.goals && assists === result.player.assists
       && result.player.goals <= shots && result.player.assists <= teamGoals
@@ -429,7 +433,7 @@
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

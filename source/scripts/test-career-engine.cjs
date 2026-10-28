@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v143"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=10"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v144"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=11"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -217,6 +217,23 @@ assert.equal(inlineRoundContext.normalizeLeagueRoundIndex(undefined, [{ matchday
   "the inline browser engine must ignore non-finite matchday values");
 assert.equal(inlineRoundContext.normalizeLeagueRoundIndex(undefined, [], Infinity, 34), 0,
   "the inline browser engine must ignore non-finite legacy appearance counts");
+const inlineCareerXPStart = rootHtml.indexOf("function addCareerXP(state, amount)");
+const inlineCareerXPEnd = rootHtml.indexOf("\n  function train(", inlineCareerXPStart + 10);
+assert.ok(inlineCareerXPStart >= 0 && inlineCareerXPEnd > inlineCareerXPStart,
+  "the inline career XP function must remain extractable for regression testing");
+const inlineCareerXPContext = {};
+vm.createContext(inlineCareerXPContext);
+vm.runInContext(rootHtml.slice(inlineCareerXPStart, inlineCareerXPEnd)
+  + "\nthis.addCareerXP = addCareerXP;", inlineCareerXPContext);
+const inlineCorruptedXPState = { careerXP: Infinity, levelXP: Infinity, careerLevel: Infinity };
+inlineCareerXPContext.addCareerXP(inlineCorruptedXPState, Infinity);
+assert.ok(Number.isFinite(inlineCorruptedXPState.careerXP)
+  && Number.isFinite(inlineCorruptedXPState.levelXP)
+  && Number.isFinite(inlineCorruptedXPState.careerLevel),
+  "the inline career XP function must recover safely from non-finite progression values");
+assert.ok(rootHtml.includes("Number.isFinite(trainingXPValue)")
+  && rootHtml.includes("trainingXPThreshold - 0.01"),
+  "the inline engine must sanitize malformed training XP before applying progression");
 
 const onLoan = {
   name: "Test Player", clubName: "Loan Club", leagueCountry: "Hostland",
@@ -298,6 +315,22 @@ function makeProgressionFixture(xpMultiplier = false) {
     xpMultiplier
   };
 }
+const malformedProgression = makeProgressionFixture(false);
+malformedProgression.careerXP = Infinity;
+malformedProgression.levelXP = Infinity;
+malformedProgression.careerLevel = Infinity;
+malformedProgression.trainingXP = { shooting: Infinity, dribbling: 1e308, passing: NaN };
+const recoveredMalformedTraining = career.train(malformedProgression, "shooting", { random: () => 0.99 });
+assert.equal(recoveredMalformedTraining.ok, true, "malformed progression counters must not freeze training");
+assert.ok(Number.isFinite(malformedProgression.careerXP)
+  && Number.isFinite(malformedProgression.levelXP)
+  && Number.isFinite(malformedProgression.careerLevel),
+  "career XP, level XP, and career level must recover from non-finite legacy saves");
+assert.ok(Object.values(malformedProgression.trainingXP).every(Number.isFinite),
+  "every configured training XP counter must remain finite after save recovery");
+assert.ok(malformedProgression.trainingXP.shooting < 92
+  && malformedProgression.trainingXP.dribbling < 92,
+  "training XP must stay below the threshold so a malformed counter cannot create an infinite loop");
 const ordinaryTraining = career.train(makeProgressionFixture(false), "shooting", { random: () => 0.99 });
 const boostedTraining = career.train(makeProgressionFixture(true), "shooting", { random: () => 0.99 });
 assert.equal(ordinaryTraining.ok, true);

@@ -302,9 +302,19 @@
       });
     }
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
+    const retiredIdentitiesByClub = new Map();
+    for (const player of Object.values(world.players || {})) {
+      if (!player || !player.retired) continue;
+      const clubId = String(player.previousClubId || player.retiredFromClubId || player.clubId || "");
+      const identityKey = rosterIdentityKey(player);
+      if (!clubId || !identityKey) continue;
+      if (!retiredIdentitiesByClub.has(clubId)) retiredIdentitiesByClub.set(clubId, new Set());
+      retiredIdentitiesByClub.get(clubId).add(identityKey);
+    }
     const knownPlayersByClub = new Map();
     for (const player of Object.values(world.players || {})) {
-      const clubId = String(player && player.clubId || "");
+      if (!player || player.retired) continue;
+      const clubId = String(player.clubId || "");
       const identityKey = rosterIdentityKey(player);
       if (!clubId || !identityKey) continue;
       if (!knownPlayersByClub.has(clubId)) knownPlayersByClub.set(clubId, new Set());
@@ -319,10 +329,11 @@
       if (!world.clubs[id]) {
         const club = addClub(world, row, db);
         const knownForClub = new Set();
+        const retiredForClub = retiredIdentitiesByClub.get(id) || new Set();
         let index = 0;
         records.forEach(player => {
           const identityKey = rosterIdentityKey(player);
-          if (!identityKey || knownForClub.has(identityKey)) return;
+          if (!identityKey || knownForClub.has(identityKey) || retiredForClub.has(identityKey)) return;
           makePlayer(world, player, club, index++, false);
           knownForClub.add(identityKey);
         });
@@ -345,10 +356,11 @@
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.
         const knownForClub = knownPlayersByClub.get(id) || new Set();
+        const retiredForClub = retiredIdentitiesByClub.get(id) || new Set();
         let index = 0;
         for (const playerRow of records) {
           const identityKey = rosterIdentityKey(playerRow);
-          if (!identityKey || knownForClub.has(identityKey)) continue;
+          if (!identityKey || knownForClub.has(identityKey) || retiredForClub.has(identityKey)) continue;
           while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
             const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
               .sort((a, b) => Number(a.ovr || 0) - Number(b.ovr || 0));
@@ -1854,7 +1866,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=18");
+    const worker = new global.Worker("./football-world-worker.js?v=19");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

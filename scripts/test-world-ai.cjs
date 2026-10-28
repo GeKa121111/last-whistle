@@ -465,6 +465,50 @@ const halfSeasonRows = ai.getSeasonLines(save, 1, 0.5, db);
 assert.ok(halfSeasonRows.length > 0);
 assert.ok(halfSeasonRows.every(row => Number.isFinite(row.goals) && Number.isFinite(row.assists)
   && Number.isFinite(row.appearances) && row.season === 1), "season lines must have coherent numeric stats");
+// Zero progress can round appearances down to zero while stale/high goal totals still round up.
+const zeroAppearanceFixtureIndex = world.seasonStats["1"].findIndex(row => row && row.id);
+assert.ok(zeroAppearanceFixtureIndex >= 0, "a saved player-stat row must be available for the zero-appearance regression");
+const zeroAppearanceFixtureId = world.seasonStats["1"][zeroAppearanceFixtureIndex].id;
+const originalZeroAppearanceFixture = world.seasonStats["1"][zeroAppearanceFixtureIndex];
+world.seasonStats["1"][zeroAppearanceFixtureIndex] = {
+  ...originalZeroAppearanceFixture,
+  appearances: 1, goals: 50, assists: 25, averageRating: 9.8,
+  seasonStats: { ...(originalZeroAppearanceFixture.seasonStats || {}),
+    season: 1, appearances: 1, goals: 50, assists: 25, averageRating: 9.8 }
+};
+const zeroProgressRows = ai.getSeasonLines(save, 1, 0.01, db);
+const zeroProgressRow = zeroProgressRows.find(row => row.id === zeroAppearanceFixtureId);
+assert.ok(zeroProgressRow, "the zero-progress fixture must remain in season lines");
+assert.equal(zeroProgressRow.appearances, 0);
+assert.equal(zeroProgressRow.goals, 0, "goals must not survive when scaled appearances round to zero");
+assert.equal(zeroProgressRow.assists, 0, "assists must not survive when scaled appearances round to zero");
+assert.equal(zeroProgressRow.displayStats.goals, 0);
+const zeroProgressLeader = ai.leaderboard(save, { season: 1, progress: 0.01 }, db)
+  .find(row => row.id === zeroAppearanceFixtureId);
+assert.ok(zeroProgressLeader, "the zero-progress player must remain visible for regression checks");
+assert.equal(zeroProgressLeader.appearances, 0, "leaderboard must honor explicit zero display appearances");
+assert.equal(zeroProgressLeader.goals, 0);
+assert.equal(zeroProgressLeader.assists, 0);
+assert.equal(zeroProgressLeader.averageRating, 0);
+assert.equal(zeroProgressLeader.score, 0, "a non-appearing player must not receive OVR-only leaderboard points");
+assert.equal(zeroProgressLeader.weightedGoals, 0);
+
+world.seasonStats["1"][zeroAppearanceFixtureIndex] = {
+  ...originalZeroAppearanceFixture,
+  appearances: 0, goals: 50, assists: 25, averageRating: 9.8,
+  seasonStats: { ...(originalZeroAppearanceFixture.seasonStats || {}),
+    season: 1, appearances: 0, goals: 50, assists: 25, averageRating: 9.8 }
+};
+const staleZeroAppearanceLeader = ai.leaderboard(save, { season: 1, progress: 1 }, db)
+  .find(row => row.id === zeroAppearanceFixtureId);
+assert.ok(staleZeroAppearanceLeader);
+assert.equal(staleZeroAppearanceLeader.appearances, 0);
+assert.equal(staleZeroAppearanceLeader.goals, 0, "legacy saves with zero appearances must discard stale goals");
+assert.equal(staleZeroAppearanceLeader.assists, 0, "legacy saves with zero appearances must discard stale assists");
+assert.equal(staleZeroAppearanceLeader.score, 0);
+assert.equal(staleZeroAppearanceLeader.weightedGoals, 0);
+world.seasonStats["1"][zeroAppearanceFixtureIndex] = originalZeroAppearanceFixture;
+
 const egyptLeaders = ai.leaderboard(save, { season: 1, progress: 1, country: "مصر", leagueId: "egypt", division: 1 }, db);
 assert.ok(egyptLeaders.length > 0, "persistent stats must feed league leaderboards");
 assert.ok(egyptLeaders.some(row => row.goals > 0 || row.assists > 0), "the simulation should generate real statistical variation");

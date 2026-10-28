@@ -445,7 +445,7 @@
     const fullGoals = Math.max(0, Math.round(expectedApps * rate * performanceMultiplier + rng() * (group === "attacker" ? 5.5 : 2.1) - 1));
     const fullAssists = Math.max(0, Math.round(expectedApps * assistRate * performanceMultiplier + rng() * 3.2 - 0.5));
     const fullRating = expectedApps > 0 ? clamp(6.15 + (ovr - 60) * 0.026 + (power - 65) * 0.004 + rng() * 0.65 - 0.30, 5.1, 8.95) : 0;
-    const leaguePower = leagueStrength(world, player.leagueId, strengthByLeague);
+    const leaguePower = leagueStrength(world, player.leagueId, player.division, strengthByLeague);
     const goals = Math.round(fullGoals * clamp(progress, 0, 1));
     const assists = Math.round(fullAssists * clamp(progress, 0, 1));
     const values = {
@@ -467,8 +467,9 @@
   function buildLeagueStrengthLookup(world) {
     const totals = new Map();
     Object.values(world.clubs || {}).forEach(club => {
-      if (!club || !club.leagueId || Number(club.division) !== 1) return;
-      const key = String(club.leagueId);
+      if (!club || !club.leagueId) return;
+      const division = Math.max(1, int(club.division, 1));
+      const key = String(club.leagueId) + "|" + division;
       const row = totals.get(key) || { total: 0, count: 0 };
       row.total += Number(club.power) || 55;
       row.count++;
@@ -478,11 +479,20 @@
       key, row.count ? Math.round(row.total / row.count) : 55
     ]));
   }
-  function leagueStrength(world, leagueId, strengthByLeague) {
-    const key = String(leagueId || "");
+  function leagueStrength(world, leagueId, division, strengthByLeague) {
+    const tier = Math.max(1, int(division, 1));
+    const key = String(leagueId || "") + "|" + tier;
     if (strengthByLeague && strengthByLeague.has(key)) return strengthByLeague.get(key);
-    const clubs = Object.values(world.clubs).filter(club => club.leagueId === leagueId && Number(club.division) === 1);
-    return Math.round(average(clubs.map(club => Number(club.power) || 55)));
+    const clubs = Object.values(world.clubs || {}).filter(club =>
+      String(club.leagueId || "") === String(leagueId || "")
+      && Math.max(1, int(club.division, 1)) === tier);
+    if (clubs.length) return Math.round(average(clubs.map(club => Number(club.power) || 55)));
+    if (tier !== 1 && strengthByLeague && strengthByLeague.has(String(leagueId || "") + "|1")) {
+      return strengthByLeague.get(String(leagueId || "") + "|1");
+    }
+    return Math.round(average(Object.values(world.clubs || {}).filter(club =>
+      String(club.leagueId || "") === String(leagueId || "") && Math.max(1, int(club.division, 1)) === 1)
+      .map(club => Number(club.power) || 55)));
   }
   function getSeasonLines(save, season, progress = 1, db) {
     const world = ensureState(save, db);

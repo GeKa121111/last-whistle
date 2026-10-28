@@ -51,15 +51,17 @@ for (let seed = 610000; seed < 635000 && !(foundEntryMinuteAssist && foundSameMi
   for (const assist of result.events.filter(event => event.type === "assist" && event.creditedToPlayer === true)) {
     checkedAssists += 1;
     const goalMinute = Number(assist.goalMinute);
-    assert.ok(Number(assist.minute) <= goalMinute,
-      "an assist cannot be timestamped after the goal it created at seed " + seed);
+    assert.ok(assist.goalEventId, "a credited assist must link to an exact goal at seed " + seed);
     const assistIndex = result.events.indexOf(assist);
-    const goalIndex = result.events.findIndex((event, index) => index > assistIndex
-      && event.type === "goal" && event.side === "team"
-      && Number(event.minute) === goalMinute && event.scorer === "teammate");
-    assert.ok(goalIndex >= 0,
-      "the credited pass must appear before its corresponding teammate goal at seed " + seed);
-    if (Number(assist.minute) === goalMinute) foundSameMinuteAssist = true;
+    const goalIndex = result.events.findIndex(event => event.type === "goal" && event.goalEventId === assist.goalEventId);
+    assert.ok(goalIndex >= 0, "the credited assist must reference an existing goal at seed " + seed);
+    const goal = result.events[goalIndex];
+    assert.equal(Number(goal.minute), goalMinute, "the linked goal minute must match the assist record at seed " + seed);
+    assert.ok(Number(assist.minute) <= Number(goal.minute),
+      "an assist cannot be timestamped after its exact goal at seed " + seed);
+    assert.ok(assistIndex < goalIndex,
+      "the credited pass must appear before its exact teammate goal at seed " + seed);
+    if (Number(assist.minute) === Number(goal.minute)) foundSameMinuteAssist = true;
     if (Number(assist.minute) === Number(entry.minute)) {
       assert.ok(entryIndex < assistIndex,
         "a substitute must enter before receiving credit for a same-minute assist at seed " + seed);
@@ -81,7 +83,7 @@ assert.ok(checkedBrowserParity, "the inline browser engine must be checked for a
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-assert.match(sw, /last-whistle-static-v105/, "PWA cache must advance with the match-engine fix");
-assert.match(sw, /match-engine\.js\?v=10/, "PWA must request the revised match engine");
+assert.match(sw, /last-whistle-static-v106/, "PWA cache must advance with the match-engine fix");
+assert.match(sw, /match-engine\.js\?v=11/, "PWA must request the revised match engine");
 
 console.log("PASS: assists precede their goals, substitute entry-minute activity is ordered correctly, and source/browser assets stay synchronized.");

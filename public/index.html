@@ -2285,8 +2285,8 @@ function seasonAwards(state, league, teamRank) {
     }
     const redMinute = redCard ? redMinuteRolled : 121;
     const injuryMinute = injured ? injuryMinuteRolled : 121;
-    const minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
-    const playerEndMinute = playerStartMinute + minutes;
+    let minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
+    let playerEndMinute = playerStartMinute + minutes;
     const events = [];
     if (playerStartMinute > 0 && minutes > 0) {
       events.push({ type: "substitution-on", minute: playerStartMinute, side: "player",
@@ -2450,6 +2450,12 @@ function seasonAwards(state, league, teamRank) {
     const needsDecider = options.knockout === true && aggregateOffset + finalFor - finalAgainst === 0;
     if (needsDecider) {
       extraTime.played = true;
+      // A player who completes regulation without a dismissal or injury remains active through extra time.
+      if (playerEndMinute >= 90 && !redCard && !injured) {
+        playerEndMinute = 120;
+        minutes = playerEndMinute - playerStartMinute;
+        stats.minutes = minutes;
+      }
       const firstExtra = createPeriod(90, 15, true);
       const secondExtra = createPeriod(105, 15, true);
       extraTime.periods = [firstExtra, secondExtra];
@@ -2476,12 +2482,7 @@ function seasonAwards(state, league, teamRank) {
     const matchDraw = matchMargin === 0 && !shootout.used;
     const matchOutcome = matchWin ? "فوز" : matchDraw ? "تعادل" : "خسارة";
     const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
-    // This engine tracks player minutes only through regulation. Extra-time events still
-    // affect the team score, but the player is not simulated in either extra-time period.
-    // Record the 90-minute exit before calculating clean sheets and conceded-goal impact.
-    if (extraTime.played && minutes > 0 && playerEndMinute >= 90 && !redCard && !injured) {
-      events.push({ type: "substitution", minute: 90, side: "player", actor: String(player.name || "اللاعب"), reason: "عدم المشاركة في الوقت الإضافي" });
-    }
+    // Extra-time player minutes and contributions are included before clean-sheet and concession accounting.
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
     const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded);

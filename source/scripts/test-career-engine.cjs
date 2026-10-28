@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v151"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=18"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v152"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=19"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -146,6 +146,17 @@ for (const [position, ranges] of Object.entries(startRanges)) {
   for (const [skill, range] of Object.entries(ranges)) between(stats[skill], range[0], range[1], position + "/" + skill);
   assert.ok(Number.isFinite(career.overall({ ...stats, pos: position, trainingXP: {}, randomSeed: 1, playerPotential: 85 })), "weighted OVR must exist for " + position);
 }
+for (const [savedSessions, expectedSessions] of [
+  [Infinity, 0], ["Infinity", 0], [NaN, 0], [-4, 0], [3.9, 3], [7, 7]
+]) {
+  const repaired = { pos: "جناح", trainingSessions: savedSessions, trainingXP: {} };
+  career.ensureState(repaired);
+  assert.equal(repaired.trainingSessions, expectedSessions,
+    "legacy training-session counters must be finite, non-negative whole numbers");
+}
+assert.ok(rootHtml.includes("state.trainingSessions = finiteCount(state.trainingSessions);"),
+  "the inline browser career engine must normalize legacy training-session counters");
+
 const legacyOutfield = {
   pos: "جناح", goalkeeping: 73, shooting: 66, money: 5000,
   trainingXP: { goalkeeping: 12 }, playerPotential: 85, randomSeed: 1

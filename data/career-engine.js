@@ -205,7 +205,7 @@
     const levelXPValue = Number(state.levelXP);
     state.levelXP = Number.isFinite(levelXPValue)
       ? Math.max(0, Math.min(levelXPThreshold - 0.01, levelXPValue)) : 0;
-    state.trainingSessions = Number(state.trainingSessions) || 0;
+    state.trainingSessions = finiteCount(state.trainingSessions);
     state.playerPotential = clamp(state.playerPotential || 82, 65, 97);
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);

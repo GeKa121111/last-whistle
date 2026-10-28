@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 2);
+assert.equal(engine.version, 3);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -218,5 +218,36 @@ const outfieldOnlyCeremony = engine.buildSeasonAwardCeremony({
 });
 assert.equal(outfieldOnlyCeremony.awards.some(row => row.id === "golden-glove"), false,
   "the Golden Glove must be omitted instead of falling back to an ineligible outfield player");
+
+const noAppearanceStar = {
+  ...realPlayers[0],
+  name: "نجم بلا مشاركات",
+  ovr: 99,
+  prestige: 100,
+  leagueStrength: 98,
+  seasonStats: {
+    season: 4, appearances: 0, goals: 0, assists: 0, averageRating: 0,
+    cleanSheets: 0, saves: 0, penaltiesSaved: 0, club: "نادي بلا مشاركات"
+  }
+};
+const noAppearanceCeremony = engine.buildSeasonAwardCeremony({
+  season: 4,
+  currentDate: "2028-02-14T00:00:00.000Z",
+  player: {
+    name: "لاعب بلا مشاركات", club: "فريقي", country: "مصر", position: "مهاجم",
+    ovr: 99, age: 24, appearances: 0, goals: 0, assists: 0, averageRating: 0,
+    trophies: 20, professionalism: 100, confederation: "UEFA",
+    originConfederation: "UEFA", leagueStrength: 98
+  },
+  realPlayers: [...realPlayers, noAppearanceStar]
+});
+assert.equal(noAppearanceCeremony.playerAwards.length, 0,
+  "a career player with no appearances must not receive season awards based on OVR or trophy bonuses");
+assert.ok(!noAppearanceCeremony.ballonDor.topFive.some(row =>
+  row.name === "لاعب بلا مشاركات" || row.name === "نجم بلا مشاركات"),
+  "players with zero appearances must not enter the Ballon d'Or shortlist");
+assert.ok(noAppearanceCeremony.awards.every(row =>
+  row.winner.name !== "لاعب بلا مشاركات" && row.winner.name !== "نجم بلا مشاركات"),
+  "zero-appearance players must be ineligible for every season award");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

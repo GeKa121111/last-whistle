@@ -5,6 +5,7 @@ var stateRef = null;
 var previousSnapshot = "";
 var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
+var storyTickScheduled = false;
 var eventDefs = [
   {
     id:"family-pressure",chapter:"01 / THE BEGINNING",title:"مكالمة آخر الليل",tag:"أول قرار في المسيرة",
@@ -496,14 +497,25 @@ function tick(){
   if(snapshot!==previousSnapshot){previousSnapshot=snapshot;}
   if(lastPending!==s.storyPendingId)lastPending=s.storyPendingId||"";
 }
+function scheduleTick(){
+  if(storyTickScheduled)return;
+  storyTickScheduled=true;
+  Promise.resolve().then(function(){storyTickScheduled=false;tick();});
+}
 function start(){
   ensureShell();tick();
   document.addEventListener("click",function(e){
     var target=e.target.closest("[data-action],#heroMatch,#heroTrain,#heroStory,#createCareerBtn,#continueSavedBtn");
-    if(target){window.setTimeout(tick,250);window.setTimeout(tick,850);}
+    if(target){window.setTimeout(scheduleTick,250);window.setTimeout(scheduleTick,850);}
   },true);
-  // Keep background tabs quiet on mobile; refresh immediately when the game returns.
-  window.setInterval(tick,1500);
+  // State changes are the primary refresh path; retain a low-frequency safety poll.
+  var store=window.LWStateStore;
+  if(store&&typeof store.subscribe==="function"){
+    store.subscribe(function(){scheduleTick();});
+    window.setInterval(tick,5000);
+  }else{
+    window.setInterval(tick,2500);
+  }
   document.addEventListener("visibilitychange",function(){if(!document.hidden)tick();});
   window.addEventListener("pageshow",tick);
   window.addEventListener("storage",tick);

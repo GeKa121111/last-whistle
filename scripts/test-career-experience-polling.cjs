@@ -16,7 +16,7 @@ const vm = require("node:vm");
   assert.equal(html, publicHtml, "root and public HTML must match");
   assert.equal(sw, publicSw, "root and public service workers must match");
   assert.match(html, /career-experience\.js\?v=6/, "page should load the updated life-system script");
-  assert.match(sw, /last-whistle-static-v143/, "service worker cache must advance with the polling optimization");
+  assert.match(sw, /last-whistle-static-v144/, "service worker cache must advance with the polling optimization");
   assert.match(sw, /career-experience\.js\?v=6/, "service worker shell should cache the updated life-system script");
 
   let intervalCallback = null;

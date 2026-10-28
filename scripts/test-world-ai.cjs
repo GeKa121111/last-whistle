@@ -32,20 +32,64 @@ const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season) {";
 const reconcileMarker = "  function reconcileDatabase(world, db) {";
+const transferMarker = "  function runTransferWindow(world, season) {";
+const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
+assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
+assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free-agent entry point for all-division market coverage");
 const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
-  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker);
+  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
+  .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
+  .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+
+// Transfer windows must include lower divisions and schedule buyers fairly by division.
+assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestSignFreeAgents, "function", "the free-agent signing simulator must be available to the regression guard");
+function makeMarketTestClub(world, id, division, deficitGroup) {
+  const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
+  if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }
+  const positions = { goalkeeper: "حارس مرمى", defender: "قلب دفاع", midfielder: "وسط مهاجم", attacker: "مهاجم" };
+  const club = { id, name: id, country: "Testland", leagueId: "test-market", division, power: division === 1 ? 67 : 65, basePower: division === 1 ? 67 : 65, prestige: 60, budget: 1200, currency: "€", roster: [], updatedSeason: 1 };
+  world.clubs[id] = club;
+  for (const [group, count] of Object.entries(counts)) {
+    for (let index = 0; index < count; index++) {
+      const listed = !deficitGroup && group === "defender" && index === 0;
+      const playerId = id + "-" + group + "-" + index;
+      world.players[playerId] = { id: playerId, name: playerId, clubId: id, country: club.country, leagueId: club.leagueId, division, position: positions[group], group, ovr: listed ? 60 : 64, potential: listed ? 63 : 68, age: listed ? 30 : 25, prestige: club.prestige, contractSeasons: listed ? 1 : 3, freeAgent: false, isGenerated: false, isRealPlayer: true, transferListed: false };
+      club.roster.push(playerId);
+    }
+  }
+  return club;
+}
+const transferWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
+makeMarketTestClub(transferWorld, "D1 Seller A", 1, null);
+makeMarketTestClub(transferWorld, "D1 Seller B", 1, null);
+makeMarketTestClub(transferWorld, "D2 Buyer A", 2, "defender");
+makeMarketTestClub(transferWorld, "D2 Buyer B", 2, "defender");
+const simulatedTransfers = sandbox.window.__lwTestRunTransferWindow(transferWorld, 3);
+assert.ok(simulatedTransfers.length > 0, "lower-division clubs with a role deficit must have access to the world transfer market");
+assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "the transfer buyer order must not starve second-tier clubs behind first-tier buyers");
+// Free agents must also be able to fill an eligible lower-tier vacancy when top-tier clubs have no need.
+const freeAgentWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
+makeMarketTestClub(freeAgentWorld, "D1 Full Club", 1, null);
+makeMarketTestClub(freeAgentWorld, "D2 Keeper Vacancy", 2, "goalkeeper");
+freeAgentWorld.players["free-agent-test-keeper"] = { id: "free-agent-test-keeper", name: "Free-agent keeper test", clubId: "", country: "Testland", leagueId: "test-market", division: 0, position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65, age: 26, contractSeasons: 0, freeAgent: true, previousClubId: "former-club", isGenerated: false };
+const signedLowerTier = sandbox.window.__lwTestSignFreeAgents(freeAgentWorld, 3, []);
+assert.equal(signedLowerTier.length, 1, "a free agent should sign when a lower-tier club has a compatible vacancy");
+assert.equal(freeAgentWorld.players["free-agent-test-keeper"].clubId, "D2 Keeper Vacancy", "free-agent recruitment must include the lower-tier club when higher-tier clubs have no matching vacancy");
+assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 2, "the free agent must inherit the destination club division");
+
 
 // An expiring defender should receive the squad-need renewal bonus when only four
 // other defenders remain. The deterministic roll sits between the old and corrected

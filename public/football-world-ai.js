@@ -548,14 +548,32 @@
     return candidates[0] || null;
   }
   function runTransferWindow(world, season) {
-    const clubs = Object.values(world.clubs).filter(club => club.division === 1);
+    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
     const alreadyUsedClubs = new Set(), alreadyUsedPlayers = new Set(), moves = [];
     const maxMoves = Math.max(10, Math.min(40, Math.round(clubs.length * 0.42)));
-    const buyers = clubs.slice().sort((a, b) => {
+    // Interleave divisions so the capped market does not spend every deal on first-tier clubs.
+    const buyersByDivision = new Map();
+    for (const club of clubs) {
+      const division = Math.max(1, int(club.division, 1));
+      if (!buyersByDivision.has(division)) buyersByDivision.set(division, []);
+      buyersByDivision.get(division).push(club);
+    }
+    const buyerStrength = (a, b) => {
       const aStrength = a.power + a.prestige * 0.04 + hash(a.id + "|" + season + "|buyer") % 29 / 100;
       const bStrength = b.power + b.prestige * 0.04 + hash(b.id + "|" + season + "|buyer") % 29 / 100;
-      return bStrength - aStrength;
-    });
+      return bStrength - aStrength || String(a.id).localeCompare(String(b.id));
+    };
+    const divisions = Array.from(buyersByDivision.keys()).sort((a, b) => a - b);
+    divisions.forEach(division => buyersByDivision.get(division).sort(buyerStrength));
+    const buyers = [];
+    for (let depth = 0; buyers.length < clubs.length; depth++) {
+      let added = false;
+      for (const division of divisions) {
+        const candidate = buyersByDivision.get(division)[depth];
+        if (candidate) { buyers.push(candidate); added = true; }
+      }
+      if (!added) break;
+    }
     for (const buyer of buyers) {
       if (moves.length >= maxMoves) break;
       if (alreadyUsedClubs.has(buyer.id)) continue;
@@ -1297,7 +1315,7 @@
   function signFreeAgents(world, season, existingMoves) {
     const freeAgents = Object.values(world.players).filter(player => player.freeAgent && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
-    const clubs = Object.values(world.clubs).filter(club => Number(club.division) === 1 && (club.roster || []).length < 18)
+    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1 && (club.roster || []).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
     const roleCountsByClub = new Map();
     for (const club of clubs) {
@@ -1661,7 +1679,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=8");
+    const worker = new global.Worker("./football-world-worker.js?v=9");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

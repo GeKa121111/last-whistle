@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=2&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v140"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=4"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v141"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=5"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -304,8 +304,12 @@ assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should
 const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false,
   nationalTournamentQualified: false, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "group");
-assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "final-qualified");
+assert.equal(career.recordNationalTournamentMatch(tournament, "تعادل").status, "group");
+assert.equal(career.recordNationalTournamentMatch(tournament, "خسارة").status, "final-qualified");
+assert.equal(tournament.nationalTournamentMatches, 3, "the group stage must contain three fixtures");
+assert.equal(tournament.nationalTournamentPoints, 4, "group points must accumulate across all three fixtures");
 assert.equal(career.recordNationalTournamentMatch(tournament, "فوز").status, "champion");
+assert.equal(tournament.nationalTournamentMatches, 4, "a qualified team must play a final after the group stage");
 assert.equal(tournament.nationalTournamentWinner, true, "a final win must persist the tournament winner flag");
 assert.equal(tournament.nationalTournamentFinalOutcome, "فوز", "the final outcome must be saved in career state");
 assert.equal(tournament.internationalPlayed, true, "the international tournament must close after the final");
@@ -317,19 +321,19 @@ const invalidTournamentBefore = JSON.stringify(invalidTournament);
 assert.deepEqual(career.recordNationalTournamentMatch(invalidTournament, "win"), { ok: false, status: "invalid-outcome" });
 assert.equal(JSON.stringify(invalidTournament), invalidTournamentBefore, "invalid outcomes must not mutate international tournament state");
 
-const drawnFinal = { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentDone: false,
+const drawnFinal = { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentDone: false,
   nationalTournamentQualified: true, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
 const drawnFinalBefore = JSON.stringify(drawnFinal);
 assert.deepEqual(career.recordNationalTournamentMatch(drawnFinal, "تعادل"), { ok: false, status: "final-winner-required" });
 assert.equal(JSON.stringify(drawnFinal), drawnFinalBefore, "a drawn knockout final must not close the tournament without a winner");
 
-const unqualifiedFinal = { nationalTournamentMatches: 2, nationalTournamentPoints: 2, nationalTournamentDone: false,
+const unqualifiedFinal = { nationalTournamentMatches: 3, nationalTournamentPoints: 2, nationalTournamentDone: false,
   nationalTournamentQualified: false, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
 const unqualifiedFinalBefore = JSON.stringify(unqualifiedFinal);
 assert.deepEqual(career.recordNationalTournamentMatch(unqualifiedFinal, "فوز"), { ok: false, status: "not-qualified" });
 assert.equal(JSON.stringify(unqualifiedFinal), unqualifiedFinalBefore, "an unqualified team must not enter or mutate a final");
 
-const losingTournament = { nationalTournamentMatches: 2, nationalTournamentPoints: 4, nationalTournamentDone: false,
+const losingTournament = { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentDone: false,
   nationalTournamentQualified: true, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
 assert.equal(career.recordNationalTournamentMatch(losingTournament, "خسارة").status, "final-lost");
 assert.equal(losingTournament.nationalTournamentWinner, false, "a final loss must not award the championship");

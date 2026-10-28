@@ -85,7 +85,7 @@
       return exitMinute == null || minute <= exitMinute;
     }).length;
   }
-function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
+  function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
     const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
     const played = Math.max(0, Number(minutes) || 0);
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;

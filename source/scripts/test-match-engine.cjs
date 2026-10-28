@@ -725,4 +725,12 @@ assert.equal(engine.validateResult(mismatchedFinalScore).ok, false,
 assert.equal(browserEngine.validateResult(mismatchedFinalScore).ok, false,
   "the embedded validator must reject a final score that omits or double-counts extra time");
 
+const malformedExtraTimePeriodScore = { ...validExtraTimeGoal,
+  extraTime: { ...validExtraTimeGoal.extraTime,
+    periods: [{ for: null, against: 0 }, { for: 1, against: 0 }] }
+};
+assert.equal(engine.validateResult(malformedExtraTimePeriodScore).ok, false,
+  "null period scores must not be coerced to zero");
+assert.equal(browserEngine.validateResult(malformedExtraTimePeriodScore).ok, false,
+  "the embedded validator must reject null period scores");
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

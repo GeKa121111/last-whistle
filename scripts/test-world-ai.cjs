@@ -28,14 +28,47 @@ const dbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js
 const aiSourceRaw = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
 const lineupMarker = "  function makeLineup(world, club) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
-const aiSource = aiSourceRaw.replace(lineupMarker, lineupMarker + `
+const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
+assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
+const aiSource = aiSourceRaw
+  .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
-    global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`);
+    global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
+  .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker);
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+
+// An expiring defender should receive the squad-need renewal bonus when only four
+// other defenders remain. The deterministic roll sits between the old and corrected
+// thresholds, so this catches the off-by-one rather than a lucky renewal.
+const renewalTestPlayerId = "contract-role-need-test-2";
+const renewalPlayers = [{
+  id: renewalTestPlayerId, name: "Renewal role-need test", clubId: "renewal-club",
+  group: "defender", position: "قلب دفاع", age: 30, contractSeasons: 1,
+  ovr: 40, potential: 60, freeAgent: false
+}, ...Array.from({ length: 4 }, (_, index) => ({
+  id: "renewal-teammate-" + (index + 1), name: "Renewal teammate " + (index + 1),
+  clubId: "renewal-club", group: "defender", position: "قلب دفاع", age: 25,
+  contractSeasons: 3, ovr: 60, potential: 65, freeAgent: false
+}))];
+const renewalWorld = {
+  players: Object.fromEntries(renewalPlayers.map(player => [player.id, player])),
+  clubs: { "renewal-club": { id: "renewal-club", name: "Role renewal test club", power: 80, roster: renewalPlayers.map(player => player.id) } },
+  seasonStats: { "1": [{ id: renewalTestPlayerId, averageRating: 6.0, appearances: 0 }] },
+  notes: []
+};
+assert.equal(typeof sandbox.window.__lwTestDevelopPlayers, "function",
+  "the contract development function must be exposed to the isolated regression test");
+sandbox.window.__lwTestDevelopPlayers(renewalWorld, 1);
+assert.ok(renewalWorld.players[renewalTestPlayerId].contractSeasons > 0,
+  "an expiring defender must receive the role-need renewal bonus when only four defenders remain");
+assert.equal(renewalWorld.players[renewalTestPlayerId].freeAgent, false,
+  "the role-need renewal must keep the player attached to the club");
+assert.ok(renewalWorld.clubs["renewal-club"].roster.includes(renewalTestPlayerId),
+  "a renewed player must remain in the club roster");
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");
 const centreStrikerProfile = ai.positionProductionProfile("رأس حربة");

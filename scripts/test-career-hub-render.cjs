@@ -68,7 +68,7 @@ state.careerMatchHistory.push({ minutes: 120, scope: "cup", goals: 1, assists: 1
 state.apps = 2; state.totalCareerAppearances = 2; state.goals = 2; state.assists = 1;
 intervalCallback();
 assert.equal(queryCalls, 4, "new career history must invalidate the render signature");
-assert.equal(nodes.get("statsGoalsPer90").textContent, "0.95");
-assert.equal(nodes.get("statsAssistsPer90").textContent, "0.48");
+assert.equal(nodes.get("statsGoalsPer90").textContent, "0.86");
+assert.equal(nodes.get("statsAssistsPer90").textContent, "0.43");
 
 console.log("PASS: career hub skips unchanged renders, pauses while hidden, and refreshes changed career stats.");

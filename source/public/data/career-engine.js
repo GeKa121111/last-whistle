@@ -191,10 +191,6 @@
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
     state.competitionStats = state.competitionStats && typeof state.competitionStats === "object"
       && !Array.isArray(state.competitionStats) ? state.competitionStats : {};
-    const finiteCount = value => {
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
-    };
     const careerAppearancesValue = Number(state.careerAppearances);
     const legacyAppsValue = Number(state.apps);
     const appearanceSource = Number.isFinite(careerAppearancesValue)
@@ -568,6 +564,11 @@
   const toNonNegativeInteger = value => {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+  };
+
+  const finiteCount = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
   };
 
   function normalizeLeagueRoundIndex(savedRoundIndex, roundHistory, leagueApps, roundCount) {

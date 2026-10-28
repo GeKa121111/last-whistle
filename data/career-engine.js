@@ -508,7 +508,7 @@
       : Math.max(0, Number(leagueApps) || 0);
     const hasSavedIndex = savedRoundIndex !== undefined && savedRoundIndex !== null && savedRoundIndex !== "";
     const saved = Number(savedRoundIndex);
-    const candidate = hasSavedIndex && Number.isInteger(saved) ? Math.max(0, saved) : legacyRound;
+    const candidate = hasSavedIndex && Number.isInteger(saved) ? Math.max(0, saved, legacyRound) : legacyRound;
     return Math.min(candidate, Math.max(0, Math.floor(Number(roundCount) || 0)));
   }
 

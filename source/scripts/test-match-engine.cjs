@@ -470,7 +470,7 @@ assert.equal(substituteResult.player.minutes, substituteEndMinute - Number(subst
   "bench player's minutes must be the interval after entry, not a first-half stint");
 const substituteActivity = substituteResult.events.filter(event => event.creditedToPlayer === true
   || (event.side === "player" && ["yellow-card", "tackle", "interception", "foul", "red-card", "injury"].includes(event.type)));
-assert.ok(substituteActivity.every(event => Number(event.minute) > Number(substituteEntry.minute)
+assert.ok(substituteActivity.every(event => Number(event.minute) >= Number(substituteEntry.minute)
   && Number(event.minute) <= substituteEndMinute),
   "bench-player stats and events must stay inside the actual on-pitch interval");
 assert.equal(engine.validateResult(substituteResult).ok, true,
@@ -498,7 +498,61 @@ assert.ok(rotationStarter.player.minutes < 90,
 const browserSubstituteResult = browserEngine.simulateMatch(substituteOptions);
 assert.equal(browserEngine.validateResult(browserSubstituteResult).ok, true,
   "the inline browser engine must use the same late-substitute timing and ledger rules");
-const lateEntryConcessions = [
+
+ // Same-minute activity must be allowed after the canonical substitution-on event.
+ // Exercise many deterministic seeds so both outfield involvement and goalkeeper saves
+ // cover an entry-minute shot; also verify the embedded HTML engine matches the source.
+ let entryMinuteForwardShots = 0;
+ let entryMinuteGoalkeeperSaves = 0;
+ let checkedBrowserForwardEntryMinute = false;
+ let checkedBrowserKeeperEntryMinute = false;
+ for (let seed = 260000; seed < 261800; seed += 1) {
+   const forwardOptions = {
+     ...substituteOptions, seed,
+     player: { ...substituteOptions.player, position: "رأس حربة", role: "بديل",
+       shooting: 80, composure: 80, passing: 68, vision: 70, energy: 95, fatigue: 5 }
+   };
+   const forwardResult = engine.simulateMatch(forwardOptions);
+   const forwardEntry = forwardResult.events.find(event => event.type === "substitution-on" && event.side === "player");
+   assert.ok(forwardEntry, "forward entry-minute regression requires a substitute entry");
+   const entryMinuteShots = forwardResult.events.filter(event => event.type === "shot" && event.side === "team"
+     && Number(event.minute) === Number(forwardEntry.minute) && event.creditedToPlayer === true);
+   entryMinuteForwardShots += entryMinuteShots.length;
+   assert.equal(engine.validateResult(forwardResult).ok, true,
+     "a player shot in the entry minute must pass match-ledger validation");
+   if (entryMinuteShots.length && !checkedBrowserForwardEntryMinute) {
+     assert.equal(JSON.stringify(browserEngine.simulateMatch(forwardOptions)), JSON.stringify(forwardResult),
+       "embedded engine must credit entry-minute shots exactly like the source");
+     checkedBrowserForwardEntryMinute = true;
+   }
+
+   const keeperOptions = {
+     ...substituteOptions, seed: seed + 400000,
+     player: { ...substituteOptions.player, position: "حارس مرمى", role: "بديل",
+       shooting: 25, composure: 75, goalkeeping: 90, energy: 95, fatigue: 5 }
+   };
+   const keeperResult = engine.simulateMatch(keeperOptions);
+   const keeperEntry = keeperResult.events.find(event => event.type === "substitution-on" && event.side === "player");
+   assert.ok(keeperEntry, "goalkeeper entry-minute regression requires a substitute entry");
+   const entryMinuteSaves = keeperResult.events.filter(event => event.type === "save" && event.side === "team"
+     && Number(event.minute) === Number(keeperEntry.minute) && event.creditedToPlayer === true);
+   entryMinuteGoalkeeperSaves += entryMinuteSaves.length;
+   assert.equal(engine.validateResult(keeperResult).ok, true,
+     "a goalkeeper save in the entry minute must pass match-ledger validation");
+   if (entryMinuteSaves.length && !checkedBrowserKeeperEntryMinute) {
+     assert.equal(JSON.stringify(browserEngine.simulateMatch(keeperOptions)), JSON.stringify(keeperResult),
+       "embedded engine must credit entry-minute saves exactly like the source");
+     checkedBrowserKeeperEntryMinute = true;
+   }
+ }
+ assert.ok(entryMinuteForwardShots > 0,
+   "a substitute must be able to take a credited shot in the minute they enter");
+ assert.ok(entryMinuteGoalkeeperSaves > 0,
+   "a substitute goalkeeper must be able to record a save in the minute they enter");
+ assert.ok(checkedBrowserForwardEntryMinute && checkedBrowserKeeperEntryMinute,
+   "the deployed engine must cover same-minute forward and goalkeeper activity");
+ 
+ const lateEntryConcessions = [
   { type: "goal", side: "opponent", minute: 20 },
   { type: "substitution-on", side: "player", minute: 51 },
   { type: "goal", side: "opponent", minute: 60 },

@@ -407,7 +407,7 @@
         || (typeof event.minute !== "number" && typeof event.minute !== "string")
         || (typeof event.minute === "string" && !event.minute.trim())) return false;
       const minute = Number(event.minute);
-      if (!Number.isFinite(minute) || !Number.isInteger(minute) || minute < 0 || minute > 120) return false;
+      if (!Number.isFinite(minute) || !Number.isInteger(minute) || minute < 1 || minute > 120) return false;
       if (event.type === "penalty-shootout") return minute === 120 && result.shootout?.used === true;
       if (minute <= 90) return true;
       return result.extraTime?.played === true;

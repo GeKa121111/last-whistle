@@ -629,7 +629,8 @@
       const origin = seller.name;
       seller.roster = seller.roster.filter(id => id !== player.id);
       buyer.roster.push(player.id);
-      seller.budget = Math.min(seller.budget + fee, seller.budget + Math.round(seller.power * 8));
+      // The recorded fee is a direct buyer-to-seller transaction; never discard part of it.
+      seller.budget = Math.max(0, Number(seller.budget) || 0) + fee;
       buyer.budget = Math.max(0, buyer.budget - fee);
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.contractSeasons = 2 + (hash(player.id + "|" + season + "|contract") % 4);

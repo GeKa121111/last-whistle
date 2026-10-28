@@ -145,25 +145,63 @@ function parseAge(dob, referenceDate = seasonReferenceDate(SEASON)) {
   return age >= 15 && age <= 48 ? age : null;
 }
 
+function resolveSameOriginRedirect(currentUrl, location, expectedOrigin) {
+  const target = new URL(location, currentUrl);
+  if (!/^https?:$/.test(target.protocol) || target.origin !== expectedOrigin) {
+    const error = new Error("Blocked cross-origin roster redirect from " + currentUrl + " to " + target.href);
+    error.code = "UNSAFE_REDIRECT";
+    throw error;
+  }
+  return target;
+}
+
 async function fetchHtml(url) {
   let lastError;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": "LastWhistleRosterRefresh/1.0 (game database refresh)",
-          "Accept": "text/html,application/xhtml+xml"
-        },
-        signal: AbortSignal.timeout(25000)
-      });
-      if (!response.ok) throw new Error("HTTP " + response.status + " for " + url);
+      const originalUrl = new URL(url);
+      const expectedOrigin = originalUrl.origin;
+      let currentUrl = originalUrl;
+      let response;
+      let redirects = 0;
+      while (true) {
+        response = await fetch(currentUrl.href, {
+          headers: {
+            "User-Agent": "LastWhistleRosterRefresh/1.0 (game database refresh)",
+            "Accept": "text/html,application/xhtml+xml"
+          },
+          redirect: "manual",
+          signal: AbortSignal.timeout(25000)
+        });
+        if (![301, 302, 303, 307, 308].includes(response.status)) break;
+        const location = response.headers && response.headers.get("location");
+        if (!location) {
+          const error = new Error("Roster source returned a redirect without a Location header: " + currentUrl.href);
+          error.code = "INVALID_REDIRECT";
+          throw error;
+        }
+        if (redirects >= 5) {
+          const error = new Error("Too many roster source redirects for " + url);
+          error.code = "REDIRECT_LIMIT";
+          throw error;
+        }
+        currentUrl = resolveSameOriginRedirect(currentUrl.href, location, expectedOrigin);
+        redirects += 1;
+      }
+      if (response.url && new URL(response.url).origin !== expectedOrigin) {
+        const error = new Error("Blocked cross-origin roster response from " + response.url);
+        error.code = "UNSAFE_REDIRECT";
+        throw error;
+      }
+      if (!response.ok) throw new Error("HTTP " + response.status + " for " + currentUrl.href);
       const html = await response.text();
-      if (html.length < 1500) throw new Error("Unexpectedly short HTML (" + html.length + " bytes) from " + url);
+      if (html.length < 1500) throw new Error("Unexpectedly short HTML (" + html.length + " bytes) from " + currentUrl.href);
       if (/403 forbidden|access denied|cloudflare ray id/i.test(html.slice(0, 2000))) {
-        throw new Error("Access denied while fetching " + url);
+        throw new Error("Access denied while fetching " + currentUrl.href);
       }
       return html;
     } catch (error) {
+      if (error && ["UNSAFE_REDIRECT", "INVALID_REDIRECT", "REDIRECT_LIMIT"].includes(error.code)) throw error;
       lastError = error;
       await new Promise(resolve => setTimeout(resolve, attempt * 1200));
     }
@@ -335,4 +373,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseAge, seasonReferenceDate, roleFor, parseTeamLinks };
+module.exports = { parseAge, seasonReferenceDate, roleFor, parseTeamLinks, fetchHtml };

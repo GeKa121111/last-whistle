@@ -724,6 +724,7 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
 const offerWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesWindow");
+const offerAvailabilitySource = extractTopLevelFunction(html, "offerIsAvailable");
 const offerState = {
   careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
   calendarDay: 15, season: 1, day: 15, apps: 2, clubName: "نادي أ", leagueCountry: "مصر",
@@ -736,7 +737,7 @@ const offerSandbox = {
   state: offerState,
   canAccessTransferMarket: () => true,
   transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
-  activeCupInProgress: () => false,
+  activeCupInProgress: () => true,
   transferPlayerProfile: () => ({ ...offerProfile }),
   transferTargets: () => [{ club: "نادي ب", country: "مصر", power: 50, division: 1, players: [] }],
   window: { LWTransferAwards: { generateOffers: ({ windowId }) => {
@@ -752,6 +753,7 @@ const offerSandbox = {
 vm.createContext(offerSandbox);
 vm.runInContext(offerWindowMatchSource, offerSandbox, { filename: "transferOfferMatchesWindow" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
+vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
 offerSandbox.ensureTransferOffers();
 assert.equal(offerGenerationCalls, 1, "an eligible player should get one offer-generation attempt even if no club fits yet");
 assert.equal(offerState.transferOffersWindowId, "summer-0");
@@ -779,6 +781,8 @@ offerProfile.form = 6.4;
 offerSandbox.ensureTransferOffers();
 assert.equal(offerGenerationCalls, 7, "improved form must retry offer generation within the same open window");
 assert.equal(offerState.transferOffers.length, 1, "a newly suitable offer must be added without waiting for another window");
+assert.equal(offerSandbox.offerIsAvailable(offerState.transferOffers[0]), true,
+  "an active cup tournament must not block a valid offer during an open transfer window");
 offerSandbox.ensureTransferOffers();
 assert.equal(offerGenerationCalls, 7, "the same window must not replenish offers after generation");
 assert.equal(offerState.transferOffers.length, 1, "repeat market renders must not duplicate offers");
@@ -826,7 +830,7 @@ const transferChecks = [
   [evaluateTransferEligibility({ ...transferReadyState }, { window: { open: false, name: "السوق مغلق", days: 17 } }).includes("17 يوم"), true, "closed market should show its opening countdown"],
   [evaluateTransferEligibility({ ...transferReadyState, loan: { parentClub: "Parent FC" } }).includes("معار"), true, "an active loan should block permanent transfer"],
   [evaluateTransferEligibility({ ...transferReadyState, trust: 10 }).includes("20/100"), true, "low coach trust should explain the threshold"],
-  [evaluateTransferEligibility({ ...transferReadyState }, { cupActive: true }).includes("بطولة إقصائية"), true, "an active cup should block transfer requests"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { cupActive: true }), "", "an active cup should not block transfer requests during an open window"],
   [evaluateTransferEligibility({ ...transferReadyState }, { average: 5.5 }).includes("5.8"), true, "poor match ratings should explain the minimum rating"],
   [evaluateTransferEligibility({ ...transferReadyState }, { overall: 50 }).includes("أعلى من مستواك الحالي"), true, "an unrealistic destination should be rejected"],
   [evaluateTransferEligibility({ ...transferReadyState, daysSinceTransfer: 2 }).includes("5 أيام"), true, "recent transfers should enforce a seven-day cooldown"],

@@ -688,4 +688,49 @@ assert.equal(engine.validateResult(validShootoutEvent).ok, true,
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
 
+// Extra-time metadata must reconcile with the actual event ledger and final score.
+const validExtraTimeGoal = {
+  ...minuteValidationBase,
+  score: { for: 1, against: 0 },
+  regulation: { for: 0, against: 0 },
+  events: [{ type: "goal", goalEventId: "et-goal-1", minute: 105, side: "team",
+    scorer: "teammate", creditedToPlayer: false }],
+  outcome: "فوز", matchOutcome: "فوز",
+  extraTime: { played: true, for: 1, against: 0,
+    periods: [{ for: 1, against: 0 }, { for: 0, against: 0 }] }
+};
+assert.equal(engine.validateResult(validExtraTimeGoal).ok, true,
+  "consistent extra-time goal events, period totals, and final score must validate");
+assert.equal(browserEngine.validateResult(validExtraTimeGoal).ok, true,
+  "the embedded engine must accept a consistent extra-time ledger");
+const missingExtraTimePeriods = { ...validExtraTimeGoal,
+  extraTime: { ...validExtraTimeGoal.extraTime, periods: [] } };
+assert.equal(engine.validateResult(missingExtraTimePeriods).extraTimeLedgerConsistent, false,
+  "an explicitly empty period list cannot describe a played extra time");
+assert.equal(engine.validateResult(missingExtraTimePeriods).ok, false,
+  "the source validator must reject missing extra-time periods");
+assert.equal(browserEngine.validateResult(missingExtraTimePeriods).ok, false,
+  "the embedded validator must reject missing extra-time periods");
+const mismatchedExtraTimeGoals = { ...validExtraTimeGoal,
+  extraTime: { played: true, for: 0, against: 0,
+    periods: [{ for: 0, against: 0 }, { for: 0, against: 0 }] }
+};
+assert.equal(engine.validateResult(mismatchedExtraTimeGoals).ok, false,
+  "extra-time score metadata must match goals recorded in the event ledger");
+assert.equal(browserEngine.validateResult(mismatchedExtraTimeGoals).ok, false,
+  "the embedded validator must reject extra-time score/event mismatches");
+const mismatchedFinalScore = { ...validExtraTimeGoal, regulation: { for: 1, against: 0 } };
+assert.equal(engine.validateResult(mismatchedFinalScore).ok, false,
+  "the final score must equal regulation plus extra-time scores");
+assert.equal(browserEngine.validateResult(mismatchedFinalScore).ok, false,
+  "the embedded validator must reject a final score that omits or double-counts extra time");
+
+const malformedExtraTimePeriodScore = { ...validExtraTimeGoal,
+  extraTime: { ...validExtraTimeGoal.extraTime,
+    periods: [{ for: null, against: 0 }, { for: 1, against: 0 }] }
+};
+assert.equal(engine.validateResult(malformedExtraTimePeriodScore).ok, false,
+  "null period scores must not be coerced to zero");
+assert.equal(browserEngine.validateResult(malformedExtraTimePeriodScore).ok, false,
+  "the embedded validator must reject null period scores");
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

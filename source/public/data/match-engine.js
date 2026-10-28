@@ -245,11 +245,12 @@
           else goalsAgainst++;
           shotEvent.onTarget = true;
           const scorer = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
-          events.push({ type: "goal", minute, side, scorer, creditedToPlayer: byPlayer });
+          const goalEventId = "goal-" + (events.filter(event => event.type === "goal").length + 1);
+          events.push({ type: "goal", goalEventId, minute, side, scorer, creditedToPlayer: byPlayer });
           if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.22, 0.07, 0.34)) {
             stats.assists++;
             stats.keyPasses++;
-            events.push({ type: "assist", minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
+            events.push({ type: "assist", goalEventId, minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
           }
         }
       }
@@ -367,6 +368,14 @@
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;
     const assists = result.events.filter(event => event.type === "assist").length;
+    const assistGoalLinksValid = result.events.filter(event => event.type === "assist").every(assist => {
+      const goalId = String(assist.goalEventId || "");
+      if (!goalId) return true; // Keep validation compatible with legacy event records.
+      const goalIndex = result.events.findIndex(event => event.type === "goal" && event.goalEventId === goalId);
+      if (goalIndex < 0) return false;
+      const goal = result.events[goalIndex];
+      return result.events.indexOf(assist) < goalIndex && Number(assist.minute) <= Number(goal.minute);
+    });
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
     const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
@@ -400,7 +409,7 @@
     const matchOutcomeConsistent = !result.matchOutcome || result.matchOutcome === expectedMatchOutcome;
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
-    const valid = cleanSheetConsistent && matchOutcomeConsistent
+    const valid = assistGoalLinksValid && cleanSheetConsistent && matchOutcomeConsistent
       && teamGoals === result.score.for && opponentGoals === result.score.against
       && playerGoals === result.player.goals && assists === result.player.assists
       && result.player.goals <= shots && result.player.assists <= teamGoals
@@ -413,7 +422,7 @@
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, redCards, yellowCards, injuries, cleanSheetConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

@@ -45,6 +45,7 @@ const fillRosterMarker = "  function fillRoster(world, club) {";
 const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
+const projectionMarker = "  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
 assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
@@ -53,6 +54,7 @@ assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the ros
 assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain projected season lines for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
+assert.ok(aiSourceRaw.includes(projectionMarker), "AI engine must retain player-season generation for projection-cache regression coverage");
 const aiSource = aiSourceRaw
   .replace(lineupMarker, lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
@@ -65,7 +67,8 @@ const aiSource = aiSourceRaw
   .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker)
   .replace(baseSeasonLinesMarker, "  global.__lwTestBaseGetSeasonLines = getSeasonLines;\n" + baseSeasonLinesMarker)
   .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
-  .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker);
+  .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
+  .replace(projectionMarker, projectionMarker + "\n    global.__lwSeasonProjectionBuilds = (global.__lwSeasonProjectionBuilds || 0) + 1;");
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
 new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContext(sandbox);
 const db = sandbox.window.LWWorldDB;
@@ -1017,6 +1020,29 @@ divisionLookupWorld.completedSeasons = [];
 divisionLookupWorld.matchesBySeason = { "1": [] };
 assert.equal(Array.from(ai.getDivisionTable(divisionLookupSave, "division-lookup-test", 3, 1, db), row => row.clubId).join(","),
   "third-division", "active division-three lookup must not fall back to the first-division table");
+
+// Repeated dashboard projections should reuse the expensive full-season player rows.
+const projectionCacheSave = { season: 1, name: "Season projection cache regression" };
+const projectionCacheWorld = ai.ensureState(projectionCacheSave, db);
+sandbox.window.__lwSeasonProjectionBuilds = 0;
+const firstProjection = ai.getSeasonLines(projectionCacheSave, 2, 0.5, db);
+const firstProjectionBuilds = sandbox.window.__lwSeasonProjectionBuilds;
+assert.ok(firstProjectionBuilds > 0, "an unfinished season projection must be generated once");
+const fullProjection = ai.getSeasonLines(projectionCacheSave, 2, 1, db);
+assert.equal(sandbox.window.__lwSeasonProjectionBuilds, firstProjectionBuilds,
+  "changing display progress must reuse the cached full-season projection");
+assert.equal(firstProjection.length, fullProjection.length, "progress scaling must preserve the player row count");
+const revisionBeforeAdvance = projectionCacheWorld.projectionRevision;
+ai.advanceToSeason(projectionCacheSave, 2, db);
+assert.ok(projectionCacheWorld.projectionRevision > revisionBeforeAdvance,
+  "advancing the world season must invalidate projections built from the previous player state");
+sandbox.window.__lwSeasonProjectionBuilds = 0;
+ai.getSeasonLines(projectionCacheSave, 2, 0.5, db);
+const postAdvanceBuilds = sandbox.window.__lwSeasonProjectionBuilds;
+assert.ok(postAdvanceBuilds > 0, "a new world season must rebuild its projected player rows");
+ai.getSeasonLines(projectionCacheSave, 2, 1, db);
+assert.equal(sandbox.window.__lwSeasonProjectionBuilds, postAdvanceBuilds,
+  "the rebuilt projection must also be reused until the world changes");
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

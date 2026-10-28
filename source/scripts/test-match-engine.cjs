@@ -577,4 +577,43 @@ assert.equal(engine.playerEarnsCleanSheet("حارس مرمى", 65, [
   { type: "substitution", side: "player", minute: 85 }
 ]), true, "goals before a goalkeeper enters must not remove their clean sheet");
 
+
+const sameMinuteEntryLedger = {
+  score: { for: 0, against: 1 },
+  player: { minutes: 30, goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0,
+    fouls: 0, saves: 0, cleanSheet: false, redCards: 0, yellowCards: 0, injuryDays: 0 },
+  events: [
+    { type: "substitution-on", side: "player", minute: 60 },
+    { type: "goal", side: "opponent", minute: 60 }
+  ],
+  outcome: "خسارة", matchOutcome: "خسارة",
+  metadata: { position: "قلب دفاع", aggregateOffset: 0 }
+};
+assert.equal(engine.validateResult(sameMinuteEntryLedger).ok, true,
+  "a same-minute opponent goal must validate when the substitute entry is ordered first");
+const goalBeforeEntry = { ...sameMinuteEntryLedger, events: [...sameMinuteEntryLedger.events].reverse() };
+const goalBeforeEntryValidation = engine.validateResult(goalBeforeEntry);
+assert.equal(goalBeforeEntryValidation.sameMinuteOrderConsistent, false,
+  "the ledger validator must detect a same-minute goal placed before the player's entry");
+assert.equal(goalBeforeEntryValidation.ok, false,
+  "a goal ordered before a same-minute substitute entry must invalidate the ledger");
+assert.equal(browserEngine.validateResult(goalBeforeEntry).sameMinuteOrderConsistent, false,
+  "the embedded browser validator must reject the same entry-order corruption");
+
+const sameMinuteExitLedger = {
+  ...sameMinuteEntryLedger,
+  player: { ...sameMinuteEntryLedger.player, minutes: 60 },
+  events: [
+    { type: "goal", side: "opponent", minute: 60 },
+    { type: "substitution", side: "player", minute: 60 }
+  ]
+};
+assert.equal(engine.validateResult(sameMinuteExitLedger).ok, true,
+  "a same-minute concession must precede the player's exit event");
+const goalAfterExit = { ...sameMinuteExitLedger, events: [...sameMinuteExitLedger.events].reverse() };
+assert.equal(engine.validateResult(goalAfterExit).sameMinuteOrderConsistent, false,
+  "the ledger validator must detect a same-minute goal placed after the player's exit");
+assert.equal(browserEngine.validateResult(goalAfterExit).ok, false,
+  "the embedded browser validator must reject the same exit-order corruption");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

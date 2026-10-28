@@ -2556,10 +2556,15 @@ function seasonAwards(state, league, teamRank) {
       const hasExtraTimeActivity = result.events.some(event =>
         event.type !== "penalty-shootout" && Number(event.minute) > 90);
       if (!extraTime || typeof extraTime !== "object") return !hasExtraTimeActivity;
+      const isNonNegativeInteger = value =>
+        (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+        && Number.isInteger(Number(value)) && Number(value) >= 0;
       const periodsPresent = Object.prototype.hasOwnProperty.call(extraTime, "periods");
       const scoreFieldsPresent = extraTime.for != null || extraTime.against != null;
       if (extraTime.played !== true) {
-        const noExtraTimeScore = Number(extraTime.for || 0) === 0 && Number(extraTime.against || 0) === 0;
+        const noExtraTimeScore = (extraTime.for == null && extraTime.against == null)
+          || (isNonNegativeInteger(extraTime.for) && isNonNegativeInteger(extraTime.against)
+            && Number(extraTime.for) === 0 && Number(extraTime.against) === 0);
         const noExtraTimePeriods = !periodsPresent
           || (Array.isArray(extraTime.periods) && extraTime.periods.length === 0);
         return !hasExtraTimeActivity && noExtraTimeScore && noExtraTimePeriods;
@@ -2571,17 +2576,15 @@ function seasonAwards(state, league, teamRank) {
       let extraFor = extraTimeGoalsFor;
       let extraAgainst = extraTimeGoalsAgainst;
       if (scoreFieldsPresent) {
+        if (!isNonNegativeInteger(extraTime.for) || !isNonNegativeInteger(extraTime.against)) return false;
         extraFor = Number(extraTime.for);
         extraAgainst = Number(extraTime.against);
-        if (!Number.isInteger(extraFor) || extraFor < 0
-          || !Number.isInteger(extraAgainst) || extraAgainst < 0
-          || extraFor !== extraTimeGoalsFor || extraAgainst !== extraTimeGoalsAgainst) return false;
+        if (extraFor !== extraTimeGoalsFor || extraAgainst !== extraTimeGoalsAgainst) return false;
       }
       if (periodsPresent) {
         if (!Array.isArray(extraTime.periods) || extraTime.periods.length !== 2) return false;
         const periodsValid = extraTime.periods.every(period => period && typeof period === "object"
-          && Number.isInteger(Number(period.for)) && Number(period.for) >= 0
-          && Number.isInteger(Number(period.against)) && Number(period.against) >= 0);
+          && isNonNegativeInteger(period.for) && isNonNegativeInteger(period.against));
         if (!periodsValid) return false;
         const periodFor = extraTime.periods.reduce((sum, period) => sum + Number(period.for), 0);
         const periodAgainst = extraTime.periods.reduce((sum, period) => sum + Number(period.against), 0);
@@ -2591,14 +2594,14 @@ function seasonAwards(state, league, teamRank) {
         extraAgainst = periodAgainst;
       }
       if (result.regulation && typeof result.regulation === "object"
-        && result.regulation.for != null && result.regulation.against != null) {
+        && (result.regulation.for != null || result.regulation.against != null)) {
+        if (!isNonNegativeInteger(result.regulation.for) || !isNonNegativeInteger(result.regulation.against)
+          || !isNonNegativeInteger(result.score.for) || !isNonNegativeInteger(result.score.against)) return false;
         const regulationFor = Number(result.regulation.for);
         const regulationAgainst = Number(result.regulation.against);
         const finalFor = Number(result.score.for);
         const finalAgainst = Number(result.score.against);
-        if (![regulationFor, regulationAgainst, finalFor, finalAgainst].every(Number.isInteger)
-          || [regulationFor, regulationAgainst, finalFor, finalAgainst].some(value => value < 0)
-          || finalFor !== regulationFor + extraFor
+        if (finalFor !== regulationFor + extraFor
           || finalAgainst !== regulationAgainst + extraAgainst) return false;
       }
       return true;

@@ -61,33 +61,27 @@
     const played = Math.max(0, Number(minutes) || 0);
     const timeline = Array.isArray(events) ? events : [];
     const entryEvent = timeline.find(event => event && event.type === "substitution-on" && event.side === "player");
-    const entryIndex = entryEvent ? timeline.indexOf(entryEvent) : -1;
     const rawEntryMinute = entryEvent ? Number(entryEvent.minute) : 0;
     const entryMinute = Number.isFinite(rawEntryMinute) ? Math.max(0, rawEntryMinute) : 0;
     const exits = timeline
-      .map((event, index) => ({ event, index }))
-      .filter(({ event }) => event && event.side === "player"
+      .filter(event => event && event.side === "player"
         && ["substitution", "injury", "red-card"].includes(event.type))
-      .map(({ event, index }) => ({ type: event.type, minute: Number(event.minute), index }))
+      .map(event => ({ type: event.type, minute: Number(event.minute) }))
       .filter(event => Number.isFinite(event.minute))
-      .sort((a, b) => a.minute - b.minute || a.index - b.index);
+      .sort((a, b) => a.minute - b.minute);
     const firstExit = exits[0] || null;
     const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
     const dismissalMinute = Number.isFinite(explicitDismissal) ? explicitDismissal
       : firstExit && firstExit.type === "red-card" ? firstExit.minute : null;
-    // Same-minute events follow the match timeline: substitution-on precedes a goal,
-    // while a goal precedes a substitution or dismissal.
+    // Same-minute goals are ordered after substitution-on and before substitution/exit events.
     const exitMinute = firstExit ? firstExit.minute
       : Number.isFinite(dismissalMinute) ? dismissalMinute
         : entryMinute > 0 || played < 90 ? entryMinute + played : null;
-    return timeline.filter((event, index) => {
+    return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
       const minute = Number(event.minute);
       if (!Number.isFinite(minute) || minute < entryMinute) return false;
-      if (entryEvent && minute === entryMinute && index < entryIndex) return false;
-      if (exitMinute == null || minute < exitMinute) return true;
-      if (minute > exitMinute) return false;
-      return !firstExit || index <= firstExit.index;
+      return exitMinute == null || minute <= exitMinute;
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {

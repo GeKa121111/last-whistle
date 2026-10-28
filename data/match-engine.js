@@ -402,6 +402,14 @@
       || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
     const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
       Number(event.minute) >= playerEntryMinute && Number(event.minute) <= playerEndMinute);
+    const eventMinutesValid = result.events.every(event => {
+      if (!event || typeof event !== "object") return false;
+      const minute = Number(event.minute);
+      if (!Number.isFinite(minute) || !Number.isInteger(minute) || minute < 0 || minute > 120) return false;
+      if (minute <= 90) return true;
+      if (event.type === "penalty-shootout") return minute === 120 && result.shootout?.used === true;
+      return result.extraTime?.played === true;
+    });
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));
     const sameMinuteOrderConsistent = result.events.every((event, index) => {
@@ -437,11 +445,11 @@
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)
-      && playerEventsInBounds && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
+      && playerEventsInBounds && eventMinutesValid && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

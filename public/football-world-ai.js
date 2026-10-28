@@ -663,7 +663,8 @@
       if (!club) { player.clubId = ""; player.freeAgent = true; return; }
       const roster = rosterPlayers(world, club);
       const sameRole = roster.filter(row => row.group === player.group && row.id !== player.id);
-      const roleNeed = sameRole.length < Math.max(1, TARGETS[player.group] - 1);
+      const roleTarget = Math.max(1, Number(TARGETS[player.group]) || 1);
+      const roleNeed = sameRole.length < roleTarget;
       const age = Number(player.age) || 18;
       const quality = Number(player.ovr) || 50;
       const renewalChance = clamp(0.12 + (quality >= club.power - 2 ? 0.28 : 0)
@@ -1654,7 +1655,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=5");
+    const worker = new global.Worker("./football-world-worker.js?v=6");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

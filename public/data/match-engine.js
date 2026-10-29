@@ -451,7 +451,7 @@
     const assists = result.events.filter(event => event.type === "assist").length;
     const assistGoalLinksValid = result.events.filter(event => event.type === "assist").every(assist => {
       const goalId = String(assist.goalEventId || "");
-      if (!goalId) return true; // Keep validation compatible with legacy event records.
+      if (!goalId) return !modernShotMetadataPresent; // Legacy records without modern shot metadata remain compatible.
       const matches = result.events.map((event, index) => ({ event, index }))
         .filter(item => item.event.type === "goal" && item.event.goalEventId === goalId);
       if (matches.length !== 1) return false;

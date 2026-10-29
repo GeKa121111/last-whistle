@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v174"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=38"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v175"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=39"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1349,3 +1349,25 @@ assert.equal(career.resolveContractDecision(legacyRetiredContractState, "accept"
   "legacy string-true retirement flags must also block contract renewal");
 assert.equal(legacyRetiredContractState.weeklyWage, 900,
   "legacy retired saves must keep their existing wage when renewal is rejected");
+
+
+// A loan requires a finite, positive active contract. NaN/Infinity used to pass
+// the <= 0 check because comparisons against NaN and positive Infinity are false.
+assert.ok(rootHtml.includes("!Number.isFinite(contractSeasons) || contractSeasons <= 0"),
+  "inline loan eligibility must reject invalid contract durations");
+for (const invalidLoanTerm of [undefined, NaN, Infinity, "Infinity"]) {
+  const sharedLoanState = { retired: false, freeAgent: false, apps: 12 };
+  if (invalidLoanTerm !== undefined) sharedLoanState.contractSeasons = invalidLoanTerm;
+  const browserLoanState = { ...sharedLoanState };
+  const sharedStatus = career.loanRequestStatus(sharedLoanState, { windowOpen: true });
+  const browserStatus = deployedCareer.loanRequestStatus(browserLoanState, { windowOpen: true });
+  assert.equal(sharedStatus, "free-agent",
+    "an absent or non-finite contract duration must not authorize a loan request");
+  assert.equal(browserStatus, sharedStatus,
+    "browser and shared loan eligibility must reject the same invalid contract duration");
+}
+const validLoanContract = { retired: false, freeAgent: false, contractSeasons: 2, apps: 12 };
+assert.equal(career.loanRequestStatus(validLoanContract, { windowOpen: true }), "ready",
+  "a player with a valid active contract must retain normal loan eligibility");
+assert.equal(deployedCareer.loanRequestStatus({ ...validLoanContract }, { windowOpen: true }), "ready",
+  "the deployed browser engine must preserve valid loan eligibility");

@@ -3545,7 +3545,7 @@ function loadGame(){
   }else if(Number(state.seasonAppsTarget)!==currentLeagueMatches){
    state.seasonAppsTarget=currentLeagueMatches;
   }
-  if(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&Number(state.cupState.createdSeason||state.season)<Number(state.season))closeUnfinishedCupAtSeasonEnd();
+  if(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)<Number(state.season))closeUnfinishedCupAtSeasonEnd();
   const latestLeagueDay=Math.max(0,...(state.careerMatchHistory||[]).filter(row=>row&&row.scope==="league").map(row=>Number(row.calendarDay)||Number(row.day)||0));
   state.lastLeagueMatchCalendarDay=Math.max(0,Number(saved.lastLeagueMatchCalendarDay)||0,latestLeagueDay);
   state.clubIndex=clamp(state.clubIndex,0,CLUBS.length-1);
@@ -4024,9 +4024,9 @@ function renderSquadCompetition(){
  const projection=score>=baseline+13?"منافس قوي على التشكيل الأساسي":score>=baseline+2?"منافسة مباشرة على الأساسي":score>=baseline-9?"بديل محتمل؛ محتاج تثبت مستواك":"مهدد بالخروج من التشكيلة؛ محتاج تدريب وأداء أفضل";
  root.innerHTML=`<div class="feedItem"><b>دورك الحالي: ${safeHTML(state.role||"بديل")}</b><span>تقييم عام ${overall()}/100 • ثقة المدرب ${state.trust}% • متوسط آخر ${recent.length} مباريات ${recent.length?form.toFixed(1):"لا توجد بيانات"}</span></div><div class="feedItem"><b>${projection}</b><span>المؤشر تقديري داخل المحاكاة، ويتأثر بالأداء والثقة والإجهاد وقوة النادي.</span></div>${state.loan?`<div class="feedItem"><b>إعارة نشطة</b><span>الإعارة الأصلية إلى ${safeHTML(state.loan.parentClub)} — العودة بعد نهاية الموسم الحالي.</span></div>`:""}`;
 }
-function activeCupInProgress(){return !!(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&Number(state.cupState.createdSeason||state.season)===Number(state.season));}
+function activeCupInProgress(){return !!(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)===Number(state.season));}
 function closeUnfinishedCupAtSeasonEnd(){
- const c=state.cupState;if(!c||c.champion||c.eliminated)return false;
+ const c=state.cupState;if(!c||c.champion||c.eliminated||c.abandoned)return false;
  const cupSeason=Number(c.createdSeason)||Number(state.season);
  c.eliminated=true;c.abandoned=true;c.closedReason="season-end";c.history=Array.isArray(c.history)?c.history:[];c.history.push("أُغلقت البطولة مع نهاية الموسم قبل استكمالها.");
  state.cupHistory=Array.isArray(state.cupHistory)?state.cupHistory:[];
@@ -4041,8 +4041,8 @@ function archiveCupForTransfer(){
  const alreadyRecorded=state.cupHistory.some(row=>row&&row.name===c.name&&Number(row.season)===cupSeason);
  // Completed cups must not follow a player to a new club either. Keep a missing
  // elimination record, but do not duplicate a trophy already written to cupHistory.
- if(c.champion||c.eliminated){
-  if(!alreadyRecorded)state.cupHistory.unshift({name:c.name,season:cupSeason,champion:!!c.champion,eliminated:!!c.eliminated,abandoned:!!c.abandoned,matches:Number(c.matchesPlayed)||0,club:clubName,country:String(state.leagueCountry||""),division:Number(state.leagueDivision)||1,reason:c.champion?"اكتمال البطولة قبل الانتقال":"الخروج من البطولة قبل الانتقال"});
+ if(c.champion||c.eliminated||c.abandoned){
+  if(!alreadyRecorded)state.cupHistory.unshift({name:c.name,season:cupSeason,champion:!!c.champion,eliminated:!!c.eliminated,abandoned:!!c.abandoned,matches:Number(c.matchesPlayed)||0,club:clubName,country:String(state.leagueCountry||""),division:Number(state.leagueDivision)||1,reason:c.champion?"اكتمال البطولة قبل الانتقال":c.abandoned?"إغلاق البطولة قبل الانتقال":"الخروج من البطولة قبل الانتقال"});
   state.cupHistory=state.cupHistory.slice(0,100);
   state.cupState=null;return true;
  }
@@ -4305,7 +4305,7 @@ function enterCup(name){
  const comp=CUP_COMPETITIONS.find(c=>c.name===name);if(!comp)return;
  const lockReason=competitionLockReason(comp);if(lockReason){toast(lockReason);return;}
  if(activeCupInProgress()){toast('عندك بطولة شغالة بالفعل؛ خلّصها الأول.');render();return;}
- if(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&Number(state.cupState.createdSeason||state.season)<Number(state.season))closeUnfinishedCupAtSeasonEnd();
+ if(state.cupState&&!state.cupState.champion&&!state.cupState.eliminated&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)<Number(state.season))closeUnfinishedCupAtSeasonEnd();
  const cfg=cupConfig(comp),teams=cupParticipants(comp,cfg.teams);
  if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}
  const groupSize=(comp.system==='caf'||comp.system==='conmebol'||comp.system==='world32')?4:0;
@@ -4318,9 +4318,9 @@ function enterCup(name){
 function renderActiveCup(){
  const box=$('cupActive');if(!box)return;const c=state.cupState;
  if(!c){box.innerHTML='<div class="empty">اختار بطولة من القائمة عشان تدخل منافساتها.</div>';return;}
- let status=c.champion?'🏆 بطل البطولة':c.eliminated?'خرجت من البطولة':c.phase==='league'?`مرحلة الدوري • ${c.phasePlayed}/${c.phaseGames} مباريات`:c.phase==='groups'?`مرحلة المجموعات • ${c.phasePlayed}/${c.phaseGames} مباريات`:((c.rounds||[])[c.stage]||'انتهت البطولة');
+ let status=c.champion?'🏆 بطل البطولة':c.abandoned?'أُغلقت البطولة دون اكتمالها':c.eliminated?'خرجت من البطولة':c.phase==='league'?`مرحلة الدوري • ${c.phasePlayed}/${c.phaseGames} مباريات`:c.phase==='groups'?`مرحلة المجموعات • ${c.phasePlayed}/${c.phaseGames} مباريات`:((c.rounds||[])[c.stage]||'انتهت البطولة');
  const roundNow=(c.rounds||[])[c.stage]||'المباراة التالية';const legText=(c.phase==='league'||c.phase==='groups')?'':((c.twoLegs||[])[c.stage]?' • '+(c.tieLeg===2?'الإياب':'الذهاب'):'');const next=c.phase==='league'||c.phase==='groups'?'المباراة التالية':roundNow+legText;const matchDate=calendarDateLabel();
- box.innerHTML=`<div class="feedItem"><b>🏆 بطولتك الحالية: ${c.name}</b><span>${status}</span><span>الموعد داخل المسيرة: ${matchDate}</span><span>النقاط ${c.points||0} • الأهداف ${c.gf||0} • فارق الأهداف ${c.gd||0}</span><span class="muted">${(c.history||[]).slice(-6).join(' • ')||'لسه صافرة البداية'}</span>${!c.champion&&!c.eliminated?`<button class="btn primary" data-play-cup>العب ${next}</button>`:''}<div class="muted small">آخر أحداث التقويم: ${(state.calendarEvents||[]).slice(0,4).map(e=>`${e.date}: ${e.title}`).join(' • ')||'لا توجد أحداث مسجلة'}</div></div>`;
+ box.innerHTML=`<div class="feedItem"><b>🏆 بطولتك الحالية: ${c.name}</b><span>${status}</span><span>الموعد داخل المسيرة: ${matchDate}</span><span>النقاط ${c.points||0} • الأهداف ${c.gf||0} • فارق الأهداف ${c.gd||0}</span><span class="muted">${(c.history||[]).slice(-6).join(' • ')||'لسه صافرة البداية'}</span>${!c.champion&&!c.eliminated&&!c.abandoned?`<button class="btn primary" data-play-cup>العب ${next}</button>`:''}<div class="muted small">آخر أحداث التقويم: ${(state.calendarEvents||[]).slice(0,4).map(e=>`${e.date}: ${e.title}`).join(' • ')||'لا توجد أحداث مسجلة'}</div></div>`;
 }
 function shootoutWinner(ourPower,oppPower){
  const chance=clamp(50+(ourPower-oppPower)*.55+(state.composure-50)*.12,35,65);
@@ -4350,7 +4350,7 @@ function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){
 function playCupMatch(){
  if(isYouthAcademyPlayer()||state.academyReserve){toast("مباريات الكأس للفريق الأول؛ كمل مسيرة الناشئين أو الرديف.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
- const c=state.cupState;if(!c||c.champion||c.eliminated)return;
+ const c=state.cupState;if(!c||c.champion||c.eliminated||c.abandoned)return;
  if(Number(c.createdSeason||state.season)!==Number(state.season)){closeUnfinishedCupAtSeasonEnd();saveGame(true);render();toast("اتقفلت البطولة القديمة مع نهاية موسمها؛ اختار بطولة جديدة للموسم الحالي.");return;}
  if(state.playedToday){toast('لعبت مباراة النهارده. تقدّم ليوم جديد قبل مباراة الكأس.');return;}
  if(state.trainedToday){toast('اتدربت النهارده. تقدّم ليوم جديد قبل مباراة الكأس.');return;}
@@ -4516,7 +4516,7 @@ function renderCurrentCompetitions(){
  for(const comp of eligible){
   if(!comp||comp.kind==="world"&&comp.id!=="fifa-club-world-cup")continue;
   const history=(Array.isArray(state.cupHistory)?state.cupHistory:[]).find(row=>row&&row.name===comp.name&&Number(row.season)===Number(state.season)&&(!row.club||row.club===state.clubName));
-  const isActive=state.cupState&&state.cupState.name===comp.name&&!state.cupState.eliminated&&!state.cupState.champion&&Number(state.cupState.createdSeason||state.season)===Number(state.season);
+  const isActive=state.cupState&&state.cupState.name===comp.name&&!state.cupState.eliminated&&!state.cupState.champion&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)===Number(state.season);
   let status=history?(history.champion?"بطل البطولة":history.eliminated?"انتهى المشوار":"انتهت البطولة"):"مجدولة";
   if(isActive)status=state.cupState.phase==="league"?"مرحلة الدوري • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):state.cupState.phase==="groups"?"دور المجموعات • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):"نشطة • "+String((state.cupState.rounds||[])[state.cupState.stage]||"الدور الحالي");
   else if(!history&&typeof competitionLockReason==="function"){

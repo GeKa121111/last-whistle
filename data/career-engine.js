@@ -627,7 +627,7 @@
     };
     const rankValue = Number(teamRank);
     const safeTeamRank = Number.isFinite(rankValue) && rankValue > 0 ? rankValue : 6;
-    const playerMatches = log.filter(row => row && row.playerAvailable !== false && awardMinutes(row.minutes) > 0
+    const playerMatches = log.filter(row => row && normalizeLegacyBoolean(row.playerAvailable, true) && awardMinutes(row.minutes) > 0
       && (!row.leagueCountry || row.leagueCountry === country)
       && (!row.leagueCompetition || !competition || row.leagueCompetition === competition));
     const appearances = playerMatches.length;

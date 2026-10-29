@@ -1264,9 +1264,35 @@ for (const [targetEngine, seed, label] of [[engine, 650000, "source"], [browserE
 for (const [targetEngine, seed, label] of [[engine, 660000, "source"], [browserEngine, 660000, "browser"]]) {
   const fixture = findModernGoalFixture(targetEngine, seed, label);
   const nonScoringShotIndex = fixture.events.findIndex((event, index) =>
-    event.type === "shot" && fixture.events[index + 1]?.type !== "goal");
+    event.type === "shot" && fixture.events[index + 1]?.type !== "goal"
+      && Object.prototype.hasOwnProperty.call(event, "onTarget"));
   assert.ok(nonScoringShotIndex >= 0,
-    label + " shot-attribution fixture must contain a non-scoring shot");
+    label + " shot-attribution fixture must contain a non-scoring modern shot");
+
+  const partialShotTargetMetadata = JSON.parse(JSON.stringify(fixture));
+  delete partialShotTargetMetadata.events[nonScoringShotIndex].onTarget;
+  const partialTargetValidation = targetEngine.validateResult(partialShotTargetMetadata);
+  assert.equal(partialTargetValidation.ok, false,
+    label + " validator must reject a mixed modern/legacy shot-target ledger");
+  assert.equal(partialTargetValidation.reason, "invalid-shot-target-metadata",
+    label + " validator must identify incomplete shot-target metadata");
+  assert.equal(partialTargetValidation.shotTargetMetadataConsistent, false,
+    label + " validator must expose incomplete shot-target metadata");
+
+  const scoringGoalIndex = fixture.events.findIndex(event => event.type === "goal");
+  const scoringShotIndex = scoringGoalIndex - 1;
+  assert.ok(scoringShotIndex >= 0 && fixture.events[scoringShotIndex].type === "shot",
+    label + " modern goal fixture must have a preceding scoring shot");
+  const missingScoringShotTarget = JSON.parse(JSON.stringify(fixture));
+  delete missingScoringShotTarget.events[scoringShotIndex].onTarget;
+  assert.ok(missingScoringShotTarget.events.some((event, index) => index !== scoringShotIndex
+    && event.type === "shot" && Object.prototype.hasOwnProperty.call(event, "onTarget")),
+  label + " scoring-shot regression must retain other modern target metadata");
+  const missingScoringTargetValidation = targetEngine.validateResult(missingScoringShotTarget);
+  assert.equal(missingScoringTargetValidation.ok, false,
+    label + " validator must reject a scoring shot missing its target flag in a modern ledger");
+  assert.equal(missingScoringTargetValidation.reason, "invalid-shot-target-metadata",
+    label + " validator must reject missing scoring-shot target metadata");
 
   const invalidShooter = JSON.parse(JSON.stringify(fixture));
   const shooterProbe = invalidShooter.events[nonScoringShotIndex];

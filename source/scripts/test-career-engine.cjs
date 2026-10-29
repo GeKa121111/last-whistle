@@ -443,6 +443,8 @@ assert.ok(rootHtml.includes("state.playedToday = normalizeLegacyBoolean(state.pl
   "the deployed browser career engine must normalize saved match-day flags");
 assert.ok(rootHtml.includes("state.trainedToday = normalizeLegacyBoolean(state.trainedToday);"),
   "the deployed browser career engine must normalize saved training-day flags");
+assert.ok(!rootHtml.includes("state.retired=!!state.retired;"),
+  "save migration must not re-coerce a normalized legacy retirement flag with JavaScript truthiness");
 
 const corruptedNegotiation = { ...renewalBase, weeklyWage: Infinity, contractSeasons: 3,
   freeAgent: false, daysSinceNegotiation: 7, randomSeed: 1 };

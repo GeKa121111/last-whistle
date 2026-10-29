@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v164"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=30"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v165"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=31"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -27,6 +27,15 @@ assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:0
   "career award dates must start on the in-game season date, not the machine clock");
 assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z",
   "the in-game date must advance deterministically across season boundaries");
+const tournamentFlagNames = ["nationalCalled", "nationalTournamentDone", "nationalTournamentQualified", "nationalTournamentWinner", "internationalPlayed"];
+for (const flag of tournamentFlagNames) {
+  assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
+    `the deployed browser career engine must normalize saved ${flag} flags`);
+}
+const tournamentMigrationNormalize = rootHtml.indexOf("state.nationalCalled=normalizeLegacyBoolean(state.nationalCalled);");
+const tournamentFormatMigration = rootHtml.indexOf("if(Number(state.nationalTournamentFormat||0)<2)", tournamentMigrationNormalize);
+assert.ok(tournamentMigrationNormalize >= 0 && tournamentFormatMigration > tournamentMigrationNormalize,
+  "international tournament flags must normalize before the legacy format migration");
 const inlineDateStart = rootHtml.indexOf("function calendarGameDateISO(state)");
 const inlineDateEnd = rootHtml.indexOf("\nfunction ", inlineDateStart + 10);
 assert.ok(inlineDateStart >= 0 && inlineDateEnd > inlineDateStart,
@@ -683,6 +692,35 @@ const oldestKeeperCurve = { pos: "حارس مرمى", age: 37, fitness: 75, phys
 career.applySeasonAging(oldestKeeperCurve);
 assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
 assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
+
+const legacyTournamentFlags = makeProgressionFixture(false);
+Object.assign(legacyTournamentFlags, {
+  nationalCalled: "false", nationalTournamentDone: "false", nationalTournamentQualified: "false",
+  nationalTournamentWinner: "false", internationalPlayed: "false",
+  nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentFinalOutcome: ""
+});
+career.ensureState(legacyTournamentFlags);
+for (const flag of tournamentFlagNames) {
+  assert.equal(legacyTournamentFlags[flag], false, `legacy string false must not set ${flag}`);
+}
+
+const legacyFalseDoneTournament = makeProgressionFixture(false);
+Object.assign(legacyFalseDoneTournament, {
+  nationalTournamentDone: "false", nationalTournamentQualified: "false",
+  nationalTournamentWinner: "false", internationalPlayed: "false",
+  nationalTournamentMatches: 0, nationalTournamentPoints: 0
+});
+assert.equal(career.recordNationalTournamentMatch(legacyFalseDoneTournament, "فوز").status, "group",
+  "a legacy string false must not close an in-progress international tournament");
+
+const legacyQualifiedFinal = makeProgressionFixture(false);
+Object.assign(legacyQualifiedFinal, {
+  nationalTournamentDone: "false", nationalTournamentQualified: "true",
+  nationalTournamentWinner: "false", internationalPlayed: "false",
+  nationalTournamentMatches: 3, nationalTournamentPoints: 4
+});
+assert.equal(career.recordNationalTournamentMatch(legacyQualifiedFinal, "فوز").status, "champion",
+  "a legacy string true qualification must allow a qualified team to play the final");
 
 const tournament = { nationalTournamentMatches: 0, nationalTournamentPoints: 0, nationalTournamentDone: false,
   nationalTournamentQualified: false, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };

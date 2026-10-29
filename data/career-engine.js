@@ -214,6 +214,11 @@
     state.journeySeasonReviewed = normalizeLegacyBoolean(state.journeySeasonReviewed);
     state.seasonFinished = normalizeLegacyBoolean(state.seasonFinished);
     state.winterBreakPending = normalizeLegacyBoolean(state.winterBreakPending);
+    state.nationalCalled = normalizeLegacyBoolean(state.nationalCalled);
+    state.nationalTournamentDone = normalizeLegacyBoolean(state.nationalTournamentDone);
+    state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
+    state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
+    state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
@@ -829,6 +834,10 @@
 
   function recordNationalTournamentMatch(state, outcome) {
     if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
+    state.nationalTournamentDone = normalizeLegacyBoolean(state.nationalTournamentDone);
+    state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
+    state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
+    state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
     if (state.nationalTournamentDone) return { ok: false, status: "tournament-closed" };
     const finiteTournamentCounter = (value, maximum) => {
       const numeric = Number(value);

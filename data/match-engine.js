@@ -423,10 +423,13 @@
       event.type === "shot" && event.side === "team" && event.creditedToPlayer);
     const shotTargetMetadataPresent = playerShotEvents.some(event =>
       Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    const shotTargetMetadataConsistent = result.events.filter(event => event.type === "shot").every(event =>
+      !Object.prototype.hasOwnProperty.call(event, "onTarget") || typeof event.onTarget === "boolean");
     const shotsOnTargetLedgerConsistent = result.player.shotsOnTarget == null || !shotTargetMetadataPresent
       || (playerShotEvents.every(event => typeof event.onTarget === "boolean")
         && Number(result.player.shotsOnTarget) === playerShotEvents.filter(event => event.onTarget === true).length);
     if (!playerStatsValid || !shotsOnTargetValid) return { ok: false, reason: "invalid-player-stats" };
+    if (!shotTargetMetadataConsistent) return { ok: false, reason: "invalid-shot-target-metadata", shotTargetMetadataConsistent };
     if (!shotsOnTargetLedgerConsistent) return { ok: false, reason: "inconsistent-shot-on-target-ledger" };
     const modernShotMetadataPresent = result.events.some(event =>
       event.type === "shot" && Object.prototype.hasOwnProperty.call(event, "onTarget"));
@@ -646,7 +649,7 @@
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
     const valid = keyPassesLedgerConsistent && savesLedgerConsistent
-      && assistGoalLinksValid && goalAttributionConsistent && goalShotLedgerConsistent && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
+      && shotTargetMetadataConsistent && assistGoalLinksValid && goalAttributionConsistent && goalShotLedgerConsistent && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
       && teamGoals === Number(result.score.for) && opponentGoals === Number(result.score.against)
       && result.player.goals != null && playerGoals === Number(result.player.goals)
       && result.player.assists != null && assists === Number(result.player.assists)
@@ -660,7 +663,7 @@
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

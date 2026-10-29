@@ -1225,6 +1225,42 @@ for (const [targetEngine, seed, label] of [[engine, 640000, "source"], [browserE
     label + " validator must continue accepting legacy goal/shot ledgers");
 }
 
+function findShotTargetMetadataFixture(targetEngine, seed, label) {
+  const match = targetEngine.simulateMatch({
+    seed,
+    player: { name: "Shot Target Type Regression", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  assert.ok(match.events.some(event => event.type === "shot" && Object.prototype.hasOwnProperty.call(event, "onTarget")),
+    label + " fixture must contain shot-target metadata");
+  return match;
+}
+for (const [targetEngine, seed, label] of [[engine, 650000, "source"], [browserEngine, 650000, "browser"]]) {
+  for (const invalidValue of ["yes", 1]) {
+    const invalidShotTarget = JSON.parse(JSON.stringify(findShotTargetMetadataFixture(targetEngine, seed, label)));
+    const shot = invalidShotTarget.events.find(event => event.type === "shot"
+      && Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    shot.onTarget = invalidValue;
+    const validation = targetEngine.validateResult(invalidShotTarget);
+    assert.equal(validation.ok, false,
+      label + " validator must reject non-boolean shot-target metadata");
+    assert.equal(validation.reason, "invalid-shot-target-metadata",
+      label + " validator must return a stable shot-target metadata reason");
+    assert.equal(validation.shotTargetMetadataConsistent, false,
+      label + " validator must expose malformed shot-target metadata");
+  }
+
+  const legacyShotTargetMetadata = findShotTargetMetadataFixture(targetEngine, seed + 1, label);
+  for (const event of legacyShotTargetMetadata.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  const legacyValidation = targetEngine.validateResult(legacyShotTargetMetadata);
+  assert.equal(legacyValidation.shotTargetMetadataConsistent, true,
+    label + " validator must allow legacy shot events with omitted onTarget metadata");
+  assert.equal(legacyValidation.ok, true,
+    label + " validator must preserve legacy ledgers without shot-target metadata");
+}
+
 const numericStringStatsMatch = engine.simulateMatch({
   seed: 8134,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

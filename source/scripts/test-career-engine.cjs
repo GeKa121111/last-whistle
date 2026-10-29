@@ -41,6 +41,13 @@ assert.ok(legacyInventoryMigrationNormalize >= 0,
 assert.ok(legacySegmentMigrationNormalize >= 0,
   "legacy league-segment flag must normalize inside the save-migration scope");
 
+assert.ok(rootHtml.includes("savedLeagueApps>0||legacySeasonApps===0||normalizeSavedBooleanFlag(clean.leagueSegmentIsPartial)"),
+  "backup import must normalize legacy partial-season flags before trusting league counters");
+assert.ok(rootHtml.includes("savedLeagueApps>0||legacySeasonApps===0||normalizeSavedBooleanFlag(saved.leagueSegmentIsPartial)"),
+  "save migration must normalize legacy partial-season flags before trusting league counters");
+assert.ok(!rootHtml.includes("restored.leagueSegmentIsPartial=!!clean.leagueSegmentIsPartial"),
+  "backup import must not treat string false as a true partial-season flag");
+
 for (const flag of legacyCareerPerkFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
     `the deployed browser career engine must normalize saved ${flag} flags`);

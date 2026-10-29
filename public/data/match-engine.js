@@ -378,6 +378,26 @@
     if (result.events.some(event => typeof event.type !== "string" || !allowedEventTypes.has(event.type))) {
       return { ok: false, reason: "invalid-event-type" };
     }
+    const allowedEventSides = {
+      assist: ["team"],
+      chance: ["team", "opponent"],
+      foul: ["player", "team", "opponent"],
+      goal: ["team", "opponent"],
+      injury: ["player"],
+      interception: ["player"],
+      offside: ["team", "opponent"],
+      "penalty-shootout": ["team"],
+      "red-card": ["player"],
+      save: ["team"],
+      shot: ["team", "opponent"],
+      substitution: ["player"],
+      "substitution-on": ["player"],
+      tackle: ["player"],
+      "yellow-card": ["player"]
+    };
+    if (result.events.some(event => !allowedEventSides[event.type]?.includes(event.side))) {
+      return { ok: false, reason: "invalid-event-side" };
+    }
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;

@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v159"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=25"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v160"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=26"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -704,6 +704,29 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
   assert.equal(loanState.weeklyWage, 900, "restoring the parent contract must not mutate active loan wages");
   assert.equal(loanState.contractSeasons, 3, "restoring the parent contract must not mutate active loan duration");
   assert.deepEqual(loanState.loan, originalLoan, "restoring the parent contract must not mutate loan metadata");
+}
+const parentFreeAgentCases = [
+  [true, true], [false, false],
+  ["true", true], ["TRUE", true], ["1", true], ["yes", true], ["on", true],
+  ["false", false], ["FALSE", false], ["0", false], ["no", false], ["off", false],
+  ["", false], ["malformed", false]
+];
+for (const [savedFlag, expectedFreeAgent] of parentFreeAgentCases) {
+  const loanState = {
+    ...onLoan,
+    loan: { ...onLoan.loan, parentFreeAgent: savedFlag }
+  };
+  const sharedSnapshot = career.contractStateForSeasonTransition(loanState);
+  const browserSnapshot = deployedCareer.contractStateForSeasonTransition({
+    ...loanState,
+    loan: { ...loanState.loan }
+  });
+  assert.equal(sharedSnapshot.freeAgent, expectedFreeAgent,
+    "legacy parent free-agent flags must parse explicit string booleans instead of treating every non-empty string as true");
+  assert.equal(browserSnapshot.freeAgent, expectedFreeAgent,
+    "embedded browser engine must parse parent free-agent flags like the shared engine");
+  assert.equal(JSON.stringify(browserSnapshot), JSON.stringify(sharedSnapshot),
+    "embedded and shared parent free-agent normalization must stay identical");
 }
 assert.ok(deployedHtml.includes("state.weeklyWage = Number.isFinite(weeklyWageValue)"),
   "embedded browser career engine must normalize saved weekly wages");

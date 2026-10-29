@@ -207,6 +207,45 @@ sandbox.advanceCalendarDays(1, "test wage boundary");
 assert.equal(sandbox.state.calendarDay, 8);
 assert.equal(sandbox.state.money, 350, "exactly one weekly wage is paid when crossing day 7 to day 8");
 
+// Invalid day counts must not poison the in-game calendar or its counters.
+for (const invalidDays of [Infinity, -Infinity, NaN, -3]) {
+  sandbox.state = makeState({ day: 7, calendarDay: 7, money: 100, weeklyWage: 250 });
+  sandbox.advanceCalendarDays(invalidDays, "invalid day count");
+  assert.equal(sandbox.state.calendarDay, 7, "invalid day counts must not change the calendar");
+  assert.equal(sandbox.state.day, 7, "invalid day counts must not change the career day");
+  assert.equal(sandbox.state.money, 100, "invalid day counts must not pay wages");
+}
+
+// Legacy or runtime-corrupted balances and wages must be normalized before payroll.
+for (const invalidWage of [Infinity, "Infinity", NaN, -250]) {
+  sandbox.state = makeState({ day: 7, calendarDay: 7, money: 100, weeklyWage: invalidWage });
+  sandbox.advanceCalendarDays(1, "invalid wage");
+  assert.equal(sandbox.state.weeklyWage, 0, "invalid wages must be normalized to zero");
+  assert.equal(sandbox.state.money, 100, "invalid wages must not create money");
+  assert.ok(Number.isFinite(sandbox.state.money), "invalid wages must leave a finite balance");
+}
+for (const invalidBalance of [Infinity, "Infinity", NaN, -250]) {
+  sandbox.state = makeState({ day: 7, calendarDay: 7, money: invalidBalance, weeklyWage: 250 });
+  sandbox.advanceCalendarDays(1, "invalid balance");
+  assert.equal(sandbox.state.money, 250, "a corrupted balance must normalize before a valid wage is credited");
+  assert.ok(Number.isFinite(sandbox.state.money), "payroll must leave a finite balance");
+}
+
+// Large but finite values must be capped rather than overflowing money or agent ledgers.
+logs.length = 0;
+sandbox.window.LWAgentRuntime = { commissionRate: () => 0.14, dailyRecoveryBonus: () => 0 };
+sandbox.state = makeState({
+  day: 7, calendarDay: 7, money: Number.MAX_SAFE_INTEGER - 10,
+  weeklyWage: Number.MAX_SAFE_INTEGER, agentCommissionPaid: Number.MAX_SAFE_INTEGER - 1
+});
+sandbox.advanceCalendarDays(14, "large finite wage");
+assert.equal(sandbox.state.money, Number.MAX_SAFE_INTEGER, "wallet balance must cap at the safe integer limit");
+assert.equal(sandbox.state.agentCommissionPaid, Number.MAX_SAFE_INTEGER, "agent commission ledger must cap at the safe integer limit");
+assert.ok(Number.isFinite(sandbox.state.money) && Number.isFinite(sandbox.state.agentCommissionPaid),
+  "large payroll calculations must remain finite");
+assert.ok(logs.every(message => !/NaN|Infinity/.test(message)), "payroll logs must not contain invalid numeric values");
+sandbox.window.LWAgentRuntime = null;
+
 // Coach actions need to affect both numbers and use only one side-action slot per career day.
 notices.length = 0; modalCalls.length = 0; saveCount = 0; renderCount = 0;
 sandbox.state = makeState({ day: 3, calendarDay: 3, energy: 70, fatigue: 10, injuryDays: 0, morale: 60,

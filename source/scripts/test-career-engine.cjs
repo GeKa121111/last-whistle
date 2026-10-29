@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v156"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=22"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v157"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=23"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -377,6 +377,42 @@ assert.equal(career.makeContractOffer(renewalBase, { contractMultiplier: 4 }).wa
 assert.equal(career.resolveContractDecision(renewal, "accept", { wage: 650, seasons: 3 }).status, "renewed");
 assert.equal(renewal.weeklyWage, 650);
 assert.equal(renewal.contractSeasons, 4);
+
+const malformedWageCases = [
+  [Infinity, 0], ["Infinity", 0], [NaN, 0], [-250, 0], [3.9, 3], [700, 700],
+  [Number.MAX_SAFE_INTEGER + 1000, Number.MAX_SAFE_INTEGER]
+];
+for (const [savedWage, expectedWage] of malformedWageCases) {
+  const wageState = { pos: "مهاجم", age: 24, weeklyWage: savedWage,
+    agentCommissionPaid: Infinity, trainingXP: {}, randomSeed: 1, freeAgent: false };
+  career.ensureState(wageState);
+  assert.equal(wageState.weeklyWage, expectedWage,
+    "legacy weekly wages must be finite, non-negative whole amounts capped at the safe integer limit");
+  assert.equal(wageState.agentCommissionPaid, 0,
+    "legacy agent commission totals must be normalized to finite non-negative values");
+}
+const missingActiveWage = { pos: "مهاجم", age: 24, freeAgent: false, trainingXP: {}, randomSeed: 1 };
+career.ensureState(missingActiveWage);
+assert.equal(missingActiveWage.weeklyWage, 250, "legacy active careers missing a wage must keep the standard fallback");
+const missingFreeAgentWage = { pos: "مهاجم", age: 24, freeAgent: true, trainingXP: {}, randomSeed: 1 };
+career.ensureState(missingFreeAgentWage);
+assert.equal(missingFreeAgentWage.weeklyWage, 0, "legacy free agents missing a wage must not receive a phantom salary");
+
+const corruptedNegotiation = { ...renewalBase, weeklyWage: Infinity, contractSeasons: 3,
+  freeAgent: false, daysSinceNegotiation: 7, randomSeed: 1 };
+career.resolveWageNegotiation(corruptedNegotiation, 100, 2);
+assert.equal(corruptedNegotiation.weeklyWage, 0,
+  "wage negotiation must normalize a non-finite existing wage before applying a raise");
+assert.ok(Number.isFinite(corruptedNegotiation.weeklyWage),
+  "wage negotiation must never produce an infinite salary");
+const invalidWageOffer = career.makeContractOffer({ ...renewalBase, weeklyWage: Infinity, trust: Infinity }, false);
+assert.ok(Number.isFinite(invalidWageOffer.wage) && invalidWageOffer.wage <= Number.MAX_SAFE_INTEGER,
+  "contract offers must remain finite when saved wage or trust values are invalid");
+const oversizedRenewal = { weeklyWage: 500, contractSeasons: 1, freeAgent: false };
+assert.equal(career.resolveContractDecision(oversizedRenewal, "accept",
+  { wage: Number.MAX_VALUE, seasons: 3 }).status, "renewed");
+assert.equal(oversizedRenewal.weeklyWage, Number.MAX_SAFE_INTEGER,
+  "accepting a very large finite contract offer must cap the saved wage");
 assert.equal(career.shouldRetire({ age: 40 }), true);
 assert.equal(career.shouldRetire({ age: 39 }), false);
 
@@ -602,6 +638,17 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+assert.ok(deployedHtml.includes("state.weeklyWage = Number.isFinite(weeklyWageValue)"),
+  "embedded browser career engine must normalize saved weekly wages");
+for (const [savedWage, expectedWage] of malformedWageCases) {
+  const sharedWageState = { pos: "مهاجم", age: 24, weeklyWage: savedWage, trainingXP: {}, randomSeed: 1 };
+  const browserWageState = { ...sharedWageState };
+  career.ensureState(sharedWageState);
+  deployedCareer.ensureState(browserWageState);
+  assert.equal(sharedWageState.weeklyWage, expectedWage);
+  assert.equal(browserWageState.weeklyWage, expectedWage,
+    "embedded browser wage normalization must match the shared engine");
+}
 assert.ok(deployedHtml.includes("state.money = Number.isFinite(moneyValue)"),
   "embedded browser career engine must normalize saved money balances");
 for (const [savedMoney, expectedMoney] of malformedMoneyCases) {

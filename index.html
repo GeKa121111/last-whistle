@@ -4066,18 +4066,21 @@ function resetDailyActions(){state.playedToday=false;state.trainedToday=false;st
 function canUseDailyAction(){const currentDay=Math.max(1,Number(state.day)||1);if(!Number.isFinite(Number(state.dailyActionDay))||Number(state.dailyActionDay)!==currentDay){state.dailyActionDay=currentDay;state.dailyActionUsed=false;state.dailyActionType="";state.nightToday=false;}else if(state.nightToday&&!state.dailyActionUsed){state.dailyActionUsed=true;state.dailyActionType=String(state.dailyActionType||"نشاط جانبي");}return !state.dailyActionUsed;}
 function useDailyAction(type){if(!canUseDailyAction()){toast("استخدمت نشاطك الجانبي لهذا اليوم. تقدّم ليوم جديد قبل نشاط آخر.");return false;}state.dailyActionDay=Math.max(1,Number(state.day)||1);state.dailyActionUsed=true;state.dailyActionType=String(type||"نشاط");state.nightToday=true;return true;}
 function advanceCalendarDays(days,reason="نشاط",options={}){
- const n=Math.max(0,Math.floor(Number(days)||0));if(!n)return;
- const oldDay=Number(state.calendarDay)||1,newDay=oldDay+n;
+ const requestedDays=Number(days),n=Number.isFinite(requestedDays)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(requestedDays))):0;if(!n)return;
+ const rawOldDay=Number(state.calendarDay),oldDay=Number.isFinite(rawOldDay)?Math.max(1,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(rawOldDay))):1,newDay=Math.min(Number.MAX_SAFE_INTEGER,oldDay+n);
  const oldWeek=Math.floor((Math.max(1,oldDay)-1)/7),newWeek=Math.floor((Math.max(1,newDay)-1)/7);
- state.calendarDay=newDay;state.day=(Number(state.day)||1)+n;state.daysSinceTransfer=(Number(state.daysSinceTransfer)||0)+n;state.daysSinceNegotiation=(Number(state.daysSinceNegotiation)||0)+n;
- state.transferCooldown=Math.max(0,(state.transferCooldown||0)-n);
- const wages=Math.max(0,newWeek-oldWeek),grossWeeklyWage=Math.max(0,Number(state.weeklyWage)||0);
+ const finiteCounter=(value,min=0)=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(min,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(numeric))):min;};
+ state.calendarDay=newDay;state.day=Math.min(Number.MAX_SAFE_INTEGER,finiteCounter(state.day,1)+n);state.daysSinceTransfer=Math.min(Number.MAX_SAFE_INTEGER,finiteCounter(state.daysSinceTransfer)+n);state.daysSinceNegotiation=Math.min(Number.MAX_SAFE_INTEGER,finiteCounter(state.daysSinceNegotiation)+n);
+ state.transferCooldown=Math.max(0,finiteCounter(state.transferCooldown)-n);
+ const wages=Math.max(0,newWeek-oldWeek),wageValue=Number(state.weeklyWage),grossWeeklyWage=Number.isFinite(wageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(wageValue))):0;
+ const moneyValue=Number(state.money),balance=Number.isFinite(moneyValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,moneyValue)):0;
+ state.weeklyWage=grossWeeklyWage;state.money=balance;
  if(wages&&grossWeeklyWage>0){
-  const grossPay=wages*grossWeeklyWage;
-  const rate=Math.max(0,Math.min(.14,Number(window.LWAgentRuntime?.commissionRate?.(state))||0));
+  const calculatedGrossPay=wages*grossWeeklyWage,grossPay=Number.isFinite(calculatedGrossPay)?Math.min(Number.MAX_SAFE_INTEGER,calculatedGrossPay):Number.MAX_SAFE_INTEGER;
+  const rawRate=Number(window.LWAgentRuntime?.commissionRate?.(state)),rate=Number.isFinite(rawRate)?Math.max(0,Math.min(.14,rawRate)):0;
   const commission=Math.min(grossPay,Math.round(grossPay*rate)),netPay=grossPay-commission;
-  state.money=(Number(state.money)||0)+netPay;
-  if(commission){state.agentCommissionPaid=Math.max(0,Number(state.agentCommissionPaid)||0)+commission;log(`عمولة الوكيل عن ${wages} مرتب أسبوعي: ${commission} جنيه.`);}
+  state.money=Math.min(Number.MAX_SAFE_INTEGER,balance+netPay);
+  if(commission){const priorValue=Number(state.agentCommissionPaid),prior=Number.isFinite(priorValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,priorValue)):0;state.agentCommissionPaid=Math.min(Number.MAX_SAFE_INTEGER,prior+commission);log(`عمولة الوكيل عن ${wages} مرتب أسبوعي: ${commission} جنيه.`);}
   log(`استلمت ${wages} مرتب أسبوعي صافي ${netPay} جنيه أثناء ${reason}.`);
  }
  const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);

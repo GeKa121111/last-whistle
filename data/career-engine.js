@@ -45,7 +45,7 @@
   // The caller passes post-match career totals and the match that has just been completed.
   function evaluateSquadRole(state, matchHistory = [], currentMatch = null) {
     const originalRole = String(state && state.role || "بديل");
-    if (!state || state.academyCareer || state.academyReserve || state.retired) {
+    if (!state || state.academyCareer || state.academyReserve || normalizeLegacyBoolean(state.retired)) {
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
@@ -158,6 +158,17 @@
     return uniqueMatchRows([...leagueRows, ...careerRows]);
   }
 
+  const normalizeLegacyBoolean = (value, fallback = false) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : fallback;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["true", "1", "yes", "on"].includes(normalized)) return true;
+      if (["false", "0", "no", "off", ""].includes(normalized)) return false;
+    }
+    return fallback;
+  };
+
   const safeLegacyMinutes = value => {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? Math.max(0, Math.min(120, Math.floor(numeric))) : 0;
@@ -192,6 +203,8 @@
   }
 
   function ensureState(state) {
+    state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
+    state.retired = normalizeLegacyBoolean(state.retired);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
@@ -662,10 +675,7 @@
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
     const parentContractSeasonsValue = Number(loan.parentContractSeasons);
-    const parentFreeAgentValue = loan.parentFreeAgent;
-    const parentFreeAgent = typeof parentFreeAgentValue === "string"
-      ? ["true", "1", "yes", "on"].includes(parentFreeAgentValue.trim().toLowerCase())
-      : Boolean(parentFreeAgentValue);
+    const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     return {
       ...state,
       clubName: String(loan.parentClub || state.clubName || ""),
@@ -680,8 +690,8 @@
 
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
-    if (state.retired) return "retired";
-    if (state.freeAgent) return "free-agent";
+    if (normalizeLegacyBoolean(state.retired)) return "retired";
+    if (normalizeLegacyBoolean(state.freeAgent)) return "free-agent";
     const contractSeasons = Number(state.contractSeasons);
     if (!Number.isFinite(contractSeasons)) return "contract-expiring";
     if (contractSeasons <= 0) return "free-agent";
@@ -694,8 +704,8 @@
 
   function loanRequestStatus(state, options = {}) {
     if (!state) return "invalid-state";
-    if (state.retired) return "retired";
-    if (state.freeAgent || Number(state.contractSeasons) <= 0) return "free-agent";
+    if (normalizeLegacyBoolean(state.retired)) return "retired";
+    if (normalizeLegacyBoolean(state.freeAgent) || Number(state.contractSeasons) <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
@@ -716,7 +726,7 @@
   function purchaseItem(state, item) {
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
-    if (state.retired) return { ok: false, status: "retired" };
+    if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
       return { ok: false, status: "direct-rating-purchase-disabled" };
     }
@@ -771,7 +781,9 @@
     return { ok: true, status: "success", oldWage, wage: state.weeklyWage, trust: state.trust };
   }
 
-  function shouldRetire(state, maximumAge = 40) { return Boolean(state && (state.retired || Number(state.age) >= maximumAge)); }
+  function shouldRetire(state, maximumAge = 40) {
+    return Boolean(state && (normalizeLegacyBoolean(state.retired) || Number(state.age) >= maximumAge));
+  }
 
   function makeContractOffer(state, withAgent = false) {
     const savedWage = Number(state?.weeklyWage);

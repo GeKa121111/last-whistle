@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v160"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=26"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v161"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=27"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -397,6 +397,48 @@ assert.equal(missingActiveWage.weeklyWage, 250, "legacy active careers missing a
 const missingFreeAgentWage = { pos: "مهاجم", age: 24, freeAgent: true, trainingXP: {}, randomSeed: 1 };
 career.ensureState(missingFreeAgentWage);
 assert.equal(missingFreeAgentWage.weeklyWage, 0, "legacy free agents missing a wage must not receive a phantom salary");
+
+const legacyCareerFlagCases = [
+  { freeAgent: false, retired: false, expectedFreeAgent: false, expectedRetired: false, wage: 250, seasons: 2, status: "ready" },
+  { freeAgent: "false", retired: "false", expectedFreeAgent: false, expectedRetired: false, wage: 250, seasons: 2, status: "ready" },
+  { freeAgent: "0", retired: "off", expectedFreeAgent: false, expectedRetired: false, wage: 250, seasons: 2, status: "ready" },
+  { freeAgent: "true", retired: "false", expectedFreeAgent: true, expectedRetired: false, wage: 0, seasons: 0, status: "free-agent" },
+  { freeAgent: "false", retired: "true", expectedFreeAgent: false, expectedRetired: true, wage: 0, seasons: 0, status: "retired" },
+  { freeAgent: "malformed", retired: "malformed", expectedFreeAgent: false, expectedRetired: false, wage: 250, seasons: 2, status: "ready" }
+];
+for (const testCase of legacyCareerFlagCases) {
+  const legacyFlags = {
+    pos: "مهاجم", age: 24, freeAgent: testCase.freeAgent, retired: testCase.retired,
+    daysSinceNegotiation: 99, trainingXP: {}, randomSeed: 1
+  };
+  career.ensureState(legacyFlags);
+  assert.equal(legacyFlags.freeAgent, testCase.expectedFreeAgent,
+    "legacy freeAgent strings must be parsed as booleans before contract defaults are applied");
+  assert.equal(legacyFlags.retired, testCase.expectedRetired,
+    "legacy retired strings must be parsed as booleans before contract defaults are applied");
+  assert.equal(legacyFlags.weeklyWage, testCase.wage,
+    "legacy string flags must not assign a phantom salary to active players or a salary to free agents/retired players");
+  assert.equal(legacyFlags.contractSeasons, testCase.seasons,
+    "legacy string flags must not create or erase a contract incorrectly");
+  assert.equal(career.wageNegotiationStatus(legacyFlags), testCase.status,
+    "wage negotiation must respect normalized legacy career flags");
+  assert.equal(career.shouldRetire({ age: 24, retired: testCase.retired }), testCase.expectedRetired,
+    "the retirement predicate must parse legacy string flags safely");
+  assert.equal(career.loanRequestStatus({ ...legacyFlags, apps: 2 }, { windowOpen: true }),
+    testCase.status === "ready" ? "ready" : testCase.status,
+    "loan eligibility must respect normalized legacy career flags");
+  assert.equal(career.evaluateSquadRole({ role: "بديل", retired: testCase.retired }, []).reason,
+    testCase.expectedRetired ? "protected-career" : "no-appearances",
+    "legacy retired flags must not incorrectly freeze squad-role evaluation");
+  const purchaseState = { retired: testCase.retired, money: 100, shooting: 50, dribbling: 50 };
+  assert.equal(career.purchaseItem(purchaseState, { id: "boots", price: 20 }).status,
+    testCase.expectedRetired ? "retired" : "purchased",
+    "legacy retired flags must not incorrectly block store purchases");
+}
+assert.ok(rootHtml.includes("state.freeAgent = normalizeLegacyBoolean(state.freeAgent);"),
+  "the inline browser career engine must normalize saved free-agent flags");
+assert.ok(rootHtml.includes("state.retired = normalizeLegacyBoolean(state.retired);"),
+  "the deployed browser career engine must normalize saved retirement flags");
 
 const corruptedNegotiation = { ...renewalBase, weeklyWage: Infinity, contractSeasons: 3,
   freeAgent: false, daysSinceNegotiation: 7, randomSeed: 1 };

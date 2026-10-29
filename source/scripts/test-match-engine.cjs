@@ -736,6 +736,31 @@ assert.equal(engine.validateResult(mismatchedFinalScore).ok, false,
 assert.equal(browserEngine.validateResult(mismatchedFinalScore).ok, false,
   "the embedded validator must reject a final score that omits or double-counts extra time");
 
+// Regulation-only results must reconcile regulation metadata with the final score,
+// whether extraTime metadata is explicitly absent or records that extra time was not played.
+const validRegulationOnly = { ...minuteValidationBase, regulation: { for: 0, against: 0 } };
+assert.equal(engine.validateResult(validRegulationOnly).ok, true,
+  "a consistent regulation-only result must remain valid");
+assert.equal(browserEngine.validateResult(validRegulationOnly).ok, true,
+  "the embedded validator must accept a consistent regulation-only result");
+
+const mismatchedRegulationWithoutExtraTime = {
+  ...minuteValidationBase, regulation: { for: 1, against: 0 }
+};
+for (const targetEngine of [engine, browserEngine]) {
+  const validation = targetEngine.validateResult(mismatchedRegulationWithoutExtraTime);
+  assert.equal(validation.extraTimeLedgerConsistent, false,
+    "regulation and final score mismatch must invalidate the ledger without extra time");
+  assert.equal(validation.ok, false,
+    "the validator must reject mismatched regulation metadata when extraTime is present but not played");
+}
+const mismatchedRegulationWithMissingExtraTime = { ...mismatchedRegulationWithoutExtraTime };
+delete mismatchedRegulationWithMissingExtraTime.extraTime;
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(mismatchedRegulationWithMissingExtraTime).ok, false,
+    "the validator must reject mismatched regulation metadata when extraTime metadata is absent");
+}
+
 const malformedExtraTimePeriodScore = { ...validExtraTimeGoal,
   extraTime: { ...validExtraTimeGoal.extraTime,
     periods: [{ for: null, against: 0 }, { for: 1, against: 0 }] }

@@ -367,6 +367,9 @@
   }
   function validateResult(result) {
     if (!result || !result.score || !result.player || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
+    if (result.events.some(event => !event || typeof event !== "object" || Array.isArray(event))) {
+      return { ok: false, reason: "invalid-event-entry" };
+    }
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;

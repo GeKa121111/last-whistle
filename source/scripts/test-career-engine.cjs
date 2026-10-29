@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v172"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=36"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v173"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=37"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1272,3 +1272,46 @@ const deployedMalformedRoleDecision = deployedCareer.evaluateSquadRole(
 assert.equal(JSON.stringify(deployedMalformedRoleDecision), JSON.stringify(malformedRoleDecision),
   "embedded browser role evaluation must match the sanitized career engine");
 
+
+
+// Legacy saved match rows can store playerAvailable as a string. A string "false"
+// must not let an unavailable player's stats manufacture individual season awards.
+assert.ok(rootHtml.includes("normalizeLegacyBoolean(row.playerAvailable, true)"),
+  "inline browser awards must normalize legacy player-availability flags");
+function makeAvailabilityAwardState(playerAvailable) {
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", season: 1, calendarDay: 120, money: 500,
+    topScorerAwards: 0, careerAwards: [],
+    seasonLog: [
+      { matchId: "availability-1", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 0, playerAvailable: true },
+      { matchId: "availability-2", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 0, playerAvailable: true },
+      { matchId: "availability-legacy", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 10, goals: 20, assists: 10, playerAvailable }
+    ]
+  };
+}
+const unavailableAwardState = makeAvailabilityAwardState("false");
+const browserUnavailableAwardState = makeAvailabilityAwardState("false");
+const unavailableAwards = career.seasonAwards(unavailableAwardState, [{ name: "Test FC", power: 50 }], 1);
+const browserUnavailableAwards = deployedCareer.seasonAwards(browserUnavailableAwardState, [{ name: "Test FC", power: 50 }], 1);
+assert.equal(JSON.stringify(unavailableAwards), "[]",
+  "a legacy string-false unavailable match must not count toward award eligibility");
+assert.equal(JSON.stringify(browserUnavailableAwards), "[]",
+  "the deployed browser engine must exclude legacy string-false unavailable matches");
+assert.equal(unavailableAwardState.money, 500,
+  "an unavailable legacy match must not trigger award payouts");
+assert.equal(browserUnavailableAwardState.money, 500,
+  "browser award processing must not pay out for unavailable legacy matches");
+assert.equal(unavailableAwardState.topScorerAwards, 0,
+  "unavailable legacy goals must not increment the golden-boot counter");
+assert.equal(browserUnavailableAwardState.topScorerAwards, 0,
+  "the browser must not increment golden-boot count for unavailable legacy goals");
+
+const stringTrueAwardState = makeAvailabilityAwardState("true");
+const booleanTrueAwardState = makeAvailabilityAwardState(true);
+career.seasonAwards(stringTrueAwardState, [{ name: "Test FC", power: 50 }], 1);
+career.seasonAwards(booleanTrueAwardState, [{ name: "Test FC", power: 50 }], 1);
+assert.equal(JSON.stringify(stringTrueAwardState.careerAwards), JSON.stringify(booleanTrueAwardState.careerAwards),
+  "legacy string-true availability must remain equivalent to boolean true");
+assert.equal(stringTrueAwardState.money, booleanTrueAwardState.money,
+  "legacy string-true availability must preserve valid award rewards");

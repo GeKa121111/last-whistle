@@ -18,7 +18,7 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v171"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v172"), "PWA cache must advance for international tournament changes");
 assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=36"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
@@ -42,6 +42,26 @@ assert.ok(rootHtml.includes("state.cupState.champion=normalizeSavedBooleanFlag(s
   "the save migration must normalize cup terminal flags before rendering or closing a saved cup");
 assert.ok(rootHtml.includes("state.cupHistory=normalizeSavedCupHistoryFlags(state.cupHistory);"),
   "save migration must normalize legacy cup-history status flags before title checks and competition rendering");
+assert.ok(rootHtml.includes("if(!c||c.champion||c.eliminated||c.abandoned)return;"),
+  "cup matches must not be playable after a legacy cup has been abandoned");
+assert.ok(rootHtml.includes("!c.champion&&!c.eliminated&&!c.abandoned?"),
+  "the active cup UI must not offer a match button for an abandoned cup");
+assert.ok(rootHtml.includes("c.abandoned?'أُغلقت البطولة دون اكتمالها'"),
+  "the active cup panel must clearly label an abandoned cup as closed");
+assert.ok(rootHtml.includes("if(c.champion||c.eliminated||c.abandoned){"),
+  "transfer archival must treat abandoned cup states as terminal");
+const activeCupHelper = rootHtml.match(/function activeCupInProgress\(\)\s*\{[\s\S]*?\}/);
+assert.ok(activeCupHelper, "active cup guard must exist");
+const cupActivitySandbox = { state: { season: 7, cupState: {
+  champion: false, eliminated: false, abandoned: true, createdSeason: 7
+} } };
+vm.runInNewContext(activeCupHelper[0] + "\nglobalThis.isCupActive = activeCupInProgress;", cupActivitySandbox);
+assert.equal(cupActivitySandbox.isCupActive(), false,
+  "an abandoned but not eliminated legacy cup must not block entry to another cup");
+cupActivitySandbox.state.cupState.abandoned = false;
+assert.equal(cupActivitySandbox.isCupActive(), true,
+  "a non-abandoned cup in the current season should remain active");
+
 const legacyInventoryFlagNames = ["careerStarted","leagueSegmentIsPartial","boots","diet","speedBoots","strengthProgram","videoAnalyst","homeGym","sleepCoach","physio","recoveryRoom","privateChef","homeUpgrade","sportsPsych","mediaTraining","creatorStudio","stylist","charityFoundation"];
 for (const flag of legacyInventoryFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),

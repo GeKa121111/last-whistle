@@ -513,34 +513,52 @@
   function buildStoryReport(result, context) {
     result = result || {};
     context = context || {};
+    const finiteNumber = (value, fallback = 0) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : fallback;
+    };
+    const sanitizeReportValue = (value, ancestors = new WeakSet()) => {
+      if (typeof value === "number") return Number.isFinite(value) ? value : null;
+      if (!value || typeof value !== "object") return value;
+      if (ancestors.has(value)) return null;
+      ancestors.add(value);
+      const sanitized = Array.isArray(value)
+        ? value.map(item => sanitizeReportValue(item, ancestors))
+        : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeReportValue(item, ancestors)]));
+      ancestors.delete(value);
+      return sanitized;
+    };
     const score = result.score || {};
     const player = result.player || {};
-    return {
-      season: Number(context.season) || 1,
-      week: Number(context.week != null ? context.week : context.day) || 1,
-      score: { for: Number(score.for) || 0, against: Number(score.against) || 0 },
-      player: {
-        minutes: Number(player.minutes) || 0,
-        goals: Number(player.goals) || 0,
-        assists: Number(player.assists) || 0,
-        rating: Number(player.rating != null ? player.rating : player.averageRating) || 0,
-        shots: Number(player.shots) || 0,
-        fouls: Number(player.fouls) || 0,
-        redCards: Number(player.redCards) || 0,
-        yellowCards: Number(player.yellowCards) || 0,
-        injuryDays: Number(player.injuryDays) || 0,
-        tackles: Number(player.tackles) || 0,
-        interceptions: Number(player.interceptions) || 0,
-        saves: Number(player.saves) || 0,
-        cleanSheet: player.cleanSheet === true
-      },
-      events: Array.isArray(result.events) ? result.events.map(event => ({
-        minute: Number(event.minute) || 0,
+    const reportEvents = Array.isArray(result.events) ? result.events
+      .filter(event => event && typeof event === "object")
+      .map(event => ({
+        minute: finiteNumber(event.minute),
         type: String(event.type || ""),
         side: String(event.side || ""),
         description: String(event.description || event.text || "")
-      })) : [],
-      metadata: result.metadata || {}
+      })) : [];
+    return {
+      season: finiteNumber(context.season, 1) || 1,
+      week: finiteNumber(context.week != null ? context.week : context.day, 1) || 1,
+      score: { for: finiteNumber(score.for), against: finiteNumber(score.against) },
+      player: {
+        minutes: finiteNumber(player.minutes),
+        goals: finiteNumber(player.goals),
+        assists: finiteNumber(player.assists),
+        rating: finiteNumber(player.rating != null ? player.rating : player.averageRating),
+        shots: finiteNumber(player.shots),
+        fouls: finiteNumber(player.fouls),
+        redCards: finiteNumber(player.redCards),
+        yellowCards: finiteNumber(player.yellowCards),
+        injuryDays: finiteNumber(player.injuryDays),
+        tackles: finiteNumber(player.tackles),
+        interceptions: finiteNumber(player.interceptions),
+        saves: finiteNumber(player.saves),
+        cleanSheet: player.cleanSheet === true
+      },
+      events: reportEvents,
+      metadata: sanitizeReportValue(result.metadata || {})
     };
   }
   window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };

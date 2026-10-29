@@ -744,4 +744,58 @@ assert.equal(engine.validateResult(malformedExtraTimePeriodScore).ok, false,
   "null period scores must not be coerced to zero");
 assert.equal(browserEngine.validateResult(malformedExtraTimePeriodScore).ok, false,
   "the embedded validator must reject null period scores");
+
+const malformedStoryInput = {
+  score: { for: Infinity, against: "-Infinity" },
+  player: {
+    minutes: Infinity, goals: -Infinity, assists: "Infinity", rating: NaN,
+    averageRating: 8.2, shots: Infinity, fouls: "Infinity", redCards: Infinity,
+    yellowCards: -Infinity, injuryDays: Infinity, tackles: Infinity,
+    interceptions: "Infinity", saves: NaN, cleanSheet: true
+  },
+  events: [
+    null,
+    { minute: Infinity, type: "goal", side: "team" },
+    { minute: "7", type: "shot", side: "player", text: "تسديدة" }
+  ],
+  metadata: { aggregateOffset: Infinity, nested: { bad: -Infinity }, samples: [1, NaN, Infinity] }
+};
+const malformedStoryReport = engine.buildStoryReport(malformedStoryInput, { season: Infinity, week: "Infinity" });
+assert.equal(malformedStoryReport.season, 1, "non-finite story seasons must fall back to a safe default");
+assert.equal(malformedStoryReport.week, 1, "non-finite story weeks must fall back to a safe default");
+assert.deepEqual(malformedStoryReport.score, { for: 0, against: 0 },
+  "non-finite score values must not leak into story reports");
+assert.deepEqual(malformedStoryReport.player, {
+  minutes: 0, goals: 0, assists: 0, rating: 0, shots: 0, fouls: 0,
+  redCards: 0, yellowCards: 0, injuryDays: 0, tackles: 0, interceptions: 0,
+  saves: 0, cleanSheet: true
+}, "all player numeric fields in story reports must be finite");
+assert.deepEqual(malformedStoryReport.events, [
+  { minute: 0, type: "goal", side: "team", description: "" },
+  { minute: 7, type: "shot", side: "player", description: "تسديدة" }
+], "malformed event entries must be skipped and non-finite event minutes normalized");
+assert.deepEqual(malformedStoryReport.metadata, {
+  aggregateOffset: null, nested: { bad: null }, samples: [1, null, null]
+}, "nested non-finite metadata values must be converted to JSON-safe nulls");
+assert.equal(JSON.stringify(malformedStoryReport).includes("Infinity"), false,
+  "serialized story reports must not contain non-finite numeric values");
+assert.equal(JSON.stringify(browserEngine.buildStoryReport(malformedStoryInput, { season: Infinity, week: "Infinity" })),
+  JSON.stringify(malformedStoryReport), "the embedded browser report must match the sanitized source report");
+const validStoryReport = engine.buildStoryReport({
+  score: { for: "2", against: 1 },
+  player: { minutes: "90", goals: 1, averageRating: "7.4" },
+  events: [{ minute: "88", type: "goal", side: "team", text: "هدف" }],
+  metadata: { seed: 42, aggregateOffset: 1 }
+}, { season: "3", day: "12" });
+assert.equal(validStoryReport.score.for, 2, "valid numeric strings must remain compatible with saved reports");
+assert.equal(validStoryReport.player.rating, 7.4, "legacy averageRating must remain supported");
+assert.equal(validStoryReport.week, 12, "day remains the fallback for legacy story week values");
+assert.equal(JSON.stringify(browserEngine.buildStoryReport({
+  score: { for: "2", against: 1 },
+  player: { minutes: "90", goals: 1, averageRating: "7.4" },
+  events: [{ minute: "88", type: "goal", side: "team", text: "هدف" }],
+  metadata: { seed: 42, aggregateOffset: 1 }
+}, { season: "3", day: "12" })), JSON.stringify(validStoryReport),
+  "the embedded browser report must preserve valid legacy report values");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

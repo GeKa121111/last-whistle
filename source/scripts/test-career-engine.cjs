@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v157"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=23"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v158"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=24"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -413,6 +413,35 @@ assert.equal(career.resolveContractDecision(oversizedRenewal, "accept",
   { wage: Number.MAX_VALUE, seasons: 3 }).status, "renewed");
 assert.equal(oversizedRenewal.weeklyWage, Number.MAX_SAFE_INTEGER,
   "accepting a very large finite contract offer must cap the saved wage");
+
+const corruptedContract = { pos: "مهاجم", age: 24, freeAgent: false, retired: false,
+  contractSeasons: Infinity, daysSinceNegotiation: Infinity, weeklyWage: 500, trainingXP: {}, randomSeed: 1 };
+career.ensureState(corruptedContract);
+assert.equal(corruptedContract.contractSeasons, 2,
+  "non-finite saved contract duration must fall back to a finite active contract");
+assert.equal(corruptedContract.daysSinceNegotiation, 0,
+  "non-finite negotiation history must not bypass the cooldown");
+assert.equal(career.wageNegotiationStatus(corruptedContract), "cooldown");
+assert.equal(career.wageNegotiationStatus({
+  contractSeasons: Infinity, freeAgent: false, daysSinceNegotiation: 99
+}), "contract-expiring", "an unvalidated infinite contract must not allow negotiation");
+assert.equal(career.wageNegotiationStatus({
+  contractSeasons: 3, freeAgent: false, daysSinceNegotiation: Infinity
+}), "cooldown", "an infinite cooldown counter must not make negotiation immediately ready");
+const missingContract = { pos: "مهاجم", age: 24, freeAgent: false, trainingXP: {}, randomSeed: 1 };
+career.ensureState(missingContract);
+assert.equal(missingContract.contractSeasons, 2, "legacy active saves missing a contract duration must get the standard fallback");
+assert.equal(missingContract.daysSinceNegotiation, 99, "legacy saves missing negotiation history must preserve the ready-by-default behavior");
+const missingFreeAgentContract = { pos: "مهاجم", age: 24, freeAgent: true, trainingXP: {}, randomSeed: 1 };
+career.ensureState(missingFreeAgentContract);
+assert.equal(missingFreeAgentContract.contractSeasons, 0, "legacy free agents must not receive a phantom contract");
+
+const infiniteTerm = { weeklyWage: 500, contractSeasons: 1, freeAgent: false };
+career.resolveContractDecision(infiniteTerm, "accept", { wage: 650, seasons: Infinity });
+assert.equal(infiniteTerm.contractSeasons, 4, "an infinite offered term must fall back to the standard three-season offer");
+const oversizedTerm = { weeklyWage: 500, contractSeasons: 1, freeAgent: false };
+career.resolveContractDecision(oversizedTerm, "accept", { wage: 650, seasons: Number.MAX_VALUE });
+assert.equal(oversizedTerm.contractSeasons, 6, "accepted contract terms must be capped at five offered seasons plus the current season");
 assert.equal(career.shouldRetire({ age: 40 }), true);
 assert.equal(career.shouldRetire({ age: 39 }), false);
 
@@ -640,6 +669,17 @@ const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
 assert.ok(deployedHtml.includes("state.weeklyWage = Number.isFinite(weeklyWageValue)"),
   "embedded browser career engine must normalize saved weekly wages");
+assert.ok(deployedHtml.includes("const contractSeasonsMissing ="),
+  "embedded browser career engine must normalize saved contract durations");
+const sharedContractState = { pos: "مهاجم", age: 24, freeAgent: false,
+  contractSeasons: Infinity, daysSinceNegotiation: Infinity, trainingXP: {}, randomSeed: 1 };
+const browserContractState = { ...sharedContractState };
+career.ensureState(sharedContractState);
+deployedCareer.ensureState(browserContractState);
+assert.equal(browserContractState.contractSeasons, sharedContractState.contractSeasons,
+  "embedded browser contract duration normalization must match the shared engine");
+assert.equal(browserContractState.daysSinceNegotiation, sharedContractState.daysSinceNegotiation,
+  "embedded browser negotiation cooldown normalization must match the shared engine");
 for (const [savedWage, expectedWage] of malformedWageCases) {
   const sharedWageState = { pos: "مهاجم", age: 24, weeklyWage: savedWage, trainingXP: {}, randomSeed: 1 };
   const browserWageState = { ...sharedWageState };

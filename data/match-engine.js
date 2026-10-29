@@ -452,7 +452,7 @@
       const shot = result.events[goalIndex - 1];
       return shot && shot.type === "shot" && shot.side === goal.side
         && Number(shot.minute) === Number(goal.minute)
-        && shot.onTarget === true
+        && (!Object.prototype.hasOwnProperty.call(shot, "onTarget") || shot.onTarget === true)
         && shot.shooter === goal.scorer
         && shot.creditedToPlayer === goal.creditedToPlayer;
     });

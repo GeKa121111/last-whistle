@@ -179,7 +179,10 @@
     input = input || {};
     const player = input.player || {};
     const targets = Array.isArray(input.targets) ? input.targets : [];
-    if (!input.windowId || Number(player.appearances) < 2 || Number(player.form || 0) < 5.8) return [];
+    const appearances = Number(player.appearances);
+    const form = Number(player.form);
+    if (!input.windowId || !Number.isFinite(appearances) || appearances < 2
+      || !Number.isFinite(form) || form < 5.8) return [];
     const playerOvr = clamp(player.ovr || 50, 35, 99);
     const currentPower = clamp(input.currentClubPower || player.currentClubPower || 50, 35, 99);
     const contributions = Math.max(0, Number(player.goals) || 0) + Math.max(0, Number(player.assists) || 0);

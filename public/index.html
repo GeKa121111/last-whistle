@@ -2768,6 +2768,10 @@ function seasonAwards(state, league, teamRank) {
     if (result.events.some(event => !event || typeof event !== "object" || Array.isArray(event))) {
       return { ok: false, reason: "invalid-event-entry" };
     }
+    const allowedEventTypes = new Set(["assist", "chance", "foul", "goal", "injury", "interception", "offside", "penalty-shootout", "red-card", "save", "shot", "substitution", "substitution-on", "tackle", "yellow-card"]);
+    if (result.events.some(event => typeof event.type !== "string" || !allowedEventTypes.has(event.type))) {
+      return { ok: false, reason: "invalid-event-type" };
+    }
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;

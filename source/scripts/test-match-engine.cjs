@@ -823,4 +823,28 @@ assert.equal(malformedBrowserEventValidation.ok, false,
 assert.equal(malformedBrowserEventValidation.reason, "invalid-event-entry",
   "the embedded browser validator must return the same malformed-entry reason");
 
+const unsupportedEventTypeMatch = engine.simulateMatch({
+  seed: 8129,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+unsupportedEventTypeMatch.events.push({ type: "unrecognized-event", minute: 45, side: "team" });
+const unsupportedEventTypeValidation = engine.validateResult(unsupportedEventTypeMatch);
+assert.equal(unsupportedEventTypeValidation.ok, false,
+  "the source validator must reject event types that the match engine does not emit");
+assert.equal(unsupportedEventTypeValidation.reason, "invalid-event-type",
+  "unsupported event types must return a stable validation reason");
+
+const unsupportedBrowserEventMatch = browserEngine.simulateMatch({
+  seed: 8129,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+unsupportedBrowserEventMatch.events.push({ type: "unrecognized-event", minute: 45, side: "team" });
+const unsupportedBrowserEventValidation = browserEngine.validateResult(unsupportedBrowserEventMatch);
+assert.equal(unsupportedBrowserEventValidation.ok, false,
+  "the embedded browser validator must reject unsupported event types");
+assert.equal(unsupportedBrowserEventValidation.reason, "invalid-event-type",
+  "the embedded browser validator must return the same unsupported-type reason");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

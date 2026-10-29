@@ -1036,6 +1036,58 @@ for (const [targetEngine, seed, label] of [[engine, 8136, "source"], [browserEng
     label + " validator must preserve legacy shot events without onTarget metadata");
 }
 
+function ensureShotTargetMetadataForLedger(match) {
+  if (match.events.some(event => event.type === "shot"
+    && Object.prototype.hasOwnProperty.call(event, "onTarget"))) return;
+  const occupiedMinutes = new Set(match.events.map(event => Number(event.minute)));
+  let minute = 1;
+  while (minute <= 90 && occupiedMinutes.has(minute)) minute += 1;
+  assert.ok(minute <= 90, "ledger regression fixture must have a free regulation minute");
+  match.events.push({ type: "shot", minute, side: "opponent", shooter: "opponent",
+    creditedToPlayer: false, onTarget: false });
+  match.events.sort((a, b) => Number(a.minute) - Number(b.minute));
+}
+for (const [targetEngine, seed, label] of [[engine, 8140, "source"], [browserEngine, 8141, "browser"]]) {
+  const inconsistentKeyPasses = targetEngine.simulateMatch({
+    seed,
+    player: { name: "Key Pass Ledger Regression", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  ensureShotTargetMetadataForLedger(inconsistentKeyPasses);
+  inconsistentKeyPasses.player.keyPasses += 1;
+  const keyPassValidation = targetEngine.validateResult(inconsistentKeyPasses);
+  assert.equal(keyPassValidation.ok, false,
+    label + " validator must reject key-pass totals that disagree with credited assists");
+  assert.equal(keyPassValidation.reason, "inconsistent-key-pass-ledger",
+    label + " validator must return a stable key-pass ledger reason");
+
+  const inconsistentSaves = targetEngine.simulateMatch({
+    seed: seed + 10,
+    player: { name: "Save Ledger Regression", position: "حارس مرمى", role: "أساسي",
+      shooting: 30, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  ensureShotTargetMetadataForLedger(inconsistentSaves);
+  inconsistentSaves.player.saves += 1;
+  const saveValidation = targetEngine.validateResult(inconsistentSaves);
+  assert.equal(saveValidation.ok, false,
+    label + " validator must reject save totals that disagree with save events");
+  assert.equal(saveValidation.reason, "inconsistent-save-ledger",
+    label + " validator must return a stable save ledger reason");
+
+  const legacyStatsMatch = targetEngine.simulateMatch({
+    seed: seed + 20,
+    player: { name: "Legacy Ledger Regression", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  for (const event of legacyStatsMatch.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  legacyStatsMatch.player.keyPasses += 1;
+  legacyStatsMatch.player.saves += 1;
+  assert.equal(targetEngine.validateResult(legacyStatsMatch).ok, true,
+    label + " validator must preserve legacy match records without shot-target metadata");
+}
+
 const numericStringStatsMatch = engine.simulateMatch({
   seed: 8134,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v158"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=24"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v159"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=25"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -667,6 +667,44 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+const parentLoanContractCases = [
+  [Infinity, 1, 0, 1],
+  ["Infinity", "Infinity", 0, 0],
+  [NaN, NaN, 0, 0],
+  [-400, -2, 0, 0],
+  [400.9, 2.9, 400, 2],
+  [Number.MAX_SAFE_INTEGER + 1000, 99, Number.MAX_SAFE_INTEGER, 10]
+];
+for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] of parentLoanContractCases) {
+  const loanState = {
+    ...onLoan,
+    loan: {
+      ...onLoan.loan,
+      parentWage: savedParentWage,
+      parentContractSeasons: savedParentSeasons
+    }
+  };
+  const originalLoan = { ...loanState.loan };
+  const sharedSnapshot = career.contractStateForSeasonTransition(loanState);
+  const browserSnapshot = deployedCareer.contractStateForSeasonTransition({
+    ...loanState,
+    loan: { ...loanState.loan }
+  });
+  assert.equal(sharedSnapshot.weeklyWage, expectedWage,
+    "parent-club wages restored after a loan must be finite, non-negative, integral, and safe");
+  assert.equal(sharedSnapshot.contractSeasons, expectedSeasons,
+    "parent-club contract duration restored after a loan must be finite and bounded");
+  assert.equal(browserSnapshot.weeklyWage, expectedWage,
+    "embedded browser engine must sanitize parent-club wages like the shared engine");
+  assert.equal(browserSnapshot.contractSeasons, expectedSeasons,
+    "embedded browser engine must sanitize parent-club contract duration like the shared engine");
+  assert.equal(JSON.stringify(browserSnapshot), JSON.stringify(sharedSnapshot),
+    "embedded and shared loan-contract restoration must stay behaviorally identical");
+  assert.equal(loanState.weeklyWage, 900, "restoring the parent contract must not mutate active loan wages");
+  assert.equal(loanState.contractSeasons, 3, "restoring the parent contract must not mutate active loan duration");
+  assert.deepEqual(loanState.loan, originalLoan, "restoring the parent contract must not mutate loan metadata");
+}
 assert.ok(deployedHtml.includes("state.weeklyWage = Number.isFinite(weeklyWageValue)"),
   "embedded browser career engine must normalize saved weekly wages");
 assert.ok(deployedHtml.includes("const contractSeasonsMissing ="),

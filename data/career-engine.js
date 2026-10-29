@@ -206,6 +206,16 @@
         ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(weeklyWageValue))) : 0;
     }
     state.agentCommissionPaid = finiteCount(state.agentCommissionPaid);
+    const contractSeasonsMissing = state.contractSeasons === undefined || state.contractSeasons === null || state.contractSeasons === "";
+    if (contractSeasonsMissing) state.contractSeasons = state.freeAgent || state.retired ? 0 : 2;
+    else {
+      const contractSeasonsValue = Number(state.contractSeasons);
+      state.contractSeasons = Number.isFinite(contractSeasonsValue)
+        ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
+        : (state.freeAgent || state.retired ? 0 : 2);
+    }
+    const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
+    state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
     const careerXPValue = Number(state.careerXP);
     state.careerXP = Number.isFinite(careerXPValue)
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0;
@@ -663,9 +673,13 @@
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
     if (state.retired) return "retired";
-    if (state.freeAgent || Number(state.contractSeasons) <= 0) return "free-agent";
-    if (Number(state.contractSeasons) <= 1) return "contract-expiring";
-    if (Math.max(0, Number(state.daysSinceNegotiation) || 0) < 7) return "cooldown";
+    if (state.freeAgent) return "free-agent";
+    const contractSeasons = Number(state.contractSeasons);
+    if (!Number.isFinite(contractSeasons)) return "contract-expiring";
+    if (contractSeasons <= 0) return "free-agent";
+    if (contractSeasons <= 1) return "contract-expiring";
+    const daysSinceNegotiation = Number(state.daysSinceNegotiation);
+    if (!Number.isFinite(daysSinceNegotiation) || Math.max(0, daysSinceNegotiation) < 7) return "cooldown";
     return "ready";
   }
   function canNegotiateInSeason(state) { return wageNegotiationStatus(state) === "ready"; }
@@ -772,7 +786,10 @@
     if (decision === "accept") {
       if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
       state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
-      state.contractSeasons = Math.max(1, Math.floor(Number(offer.seasons) || 3) + 1);
+      const offerSeasonsValue = Number(offer.seasons);
+      const offerSeasons = Number.isFinite(offerSeasonsValue) && offerSeasonsValue > 0
+        ? Math.max(1, Math.min(5, Math.floor(offerSeasonsValue))) : 3;
+      state.contractSeasons = offerSeasons + 1;
       state.freeAgent = false;
       state.contractOffer = null;
       return { ok: true, status: "renewed", wage: state.weeklyWage, seasonsBeforeNewSeason: state.contractSeasons };

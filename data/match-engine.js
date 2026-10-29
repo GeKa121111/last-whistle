@@ -560,10 +560,11 @@
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
     const valid = assistGoalLinksValid && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
       && teamGoals === result.score.for && opponentGoals === result.score.against
-      && playerGoals === result.player.goals && assists === result.player.assists
-      && result.player.goals <= shots && result.player.assists <= teamGoals
-      && (!positionProfile(result.metadata?.position || "").goalkeeper || result.player.goals === 0)
-      && result.player.shots === shots
+      && result.player.goals != null && playerGoals === Number(result.player.goals)
+      && result.player.assists != null && assists === Number(result.player.assists)
+      && Number(result.player.goals) <= shots && Number(result.player.assists) <= teamGoals
+      && (!positionProfile(result.metadata?.position || "").goalkeeper || Number(result.player.goals) === 0)
+      && result.player.shots != null && Number(result.player.shots) === shots
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)

@@ -647,6 +647,17 @@ const minuteValidationBase = {
   shootout: { used: false, won: null, scoreFor: 0, scoreAgainst: 0 },
   metadata: { position: "مهاجم", aggregateOffset: 0 }
 };
+
+// Older saved match ledgers may store valid player counters as numeric strings.
+const numericStringPlayerStats = {
+  ...minuteValidationBase,
+  player: { ...minuteValidationBase.player, goals: "0", assists: "0", shots: "0" }
+};
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(numericStringPlayerStats).ok, true,
+    "valid numeric-string goal, assist, and shot counters must remain compatible with legacy saves");
+}
+
 const invalidFirstMinute = { ...minuteValidationBase,
   events: [{ type: "foul", side: "opponent", minute: "not-a-minute" }] };
 assert.equal(engine.validateResult(invalidFirstMinute).ok, false,

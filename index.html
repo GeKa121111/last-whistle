@@ -1442,6 +1442,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
     state.nightToday = normalizeLegacyBoolean(state.nightToday);
     state.dailyActionUsed = normalizeLegacyBoolean(state.dailyActionUsed);
+    state.journeyTransferReviewed = normalizeLegacyBoolean(state.journeyTransferReviewed);
+    state.journeyEventSeen = normalizeLegacyBoolean(state.journeyEventSeen);
+    state.journeySeasonReviewed = normalizeLegacyBoolean(state.journeySeasonReviewed);
+    state.seasonFinished = normalizeLegacyBoolean(state.seasonFinished);
+    state.winterBreakPending = normalizeLegacyBoolean(state.winterBreakPending);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];

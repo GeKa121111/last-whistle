@@ -1136,6 +1136,58 @@ for (const [targetEngine, seed, label] of [[engine, 620000, "source"], [browserE
     label + " validator must flag duplicate assist-to-goal links as inconsistent");
 }
 
+function findModernGoalFixture(targetEngine, firstSeed, label) {
+  for (let seed = firstSeed; seed < firstSeed + 1000; seed += 1) {
+    const match = targetEngine.simulateMatch({
+      seed, teamPower: 60, opponentPower: 92, tactic: "balanced", opponentTactic: "attack",
+      player: { name: "Goal Attribution Regression", position: "مدافع", role: "أساسي",
+        shooting: 40, passing: 65, vision: 65, composure: 65, fitness: 100,
+        trust: 100, energy: 100, fatigue: 0 }
+    });
+    const goals = match.events.filter(event => event.type === "goal");
+    const hasModernShotMetadata = match.events.some(event => event.type === "shot"
+      && Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    if (goals.length >= 2 && goals.some(event => event.side === "opponent") && hasModernShotMetadata) return match;
+  }
+  assert.fail(label + " fixture must contain modern goal attribution and an opponent goal");
+}
+for (const [targetEngine, seed, label] of [[engine, 630000, "source"], [browserEngine, 630000, "browser"]]) {
+  const fixture = findModernGoalFixture(targetEngine, seed, label);
+
+  const wrongGoalScorer = JSON.parse(JSON.stringify(fixture));
+  const opponentGoal = wrongGoalScorer.events.find(event => event.type === "goal" && event.side === "opponent");
+  opponentGoal.scorer = "teammate";
+  const wrongScorerValidation = targetEngine.validateResult(wrongGoalScorer);
+  assert.equal(wrongScorerValidation.ok, false,
+    label + " validator must reject a goal whose scorer conflicts with its side");
+  assert.equal(wrongScorerValidation.goalAttributionConsistent, false,
+    label + " validator must expose inconsistent goal scorer attribution");
+
+  const duplicateGoalIds = JSON.parse(JSON.stringify(fixture));
+  const duplicateGoalEvents = duplicateGoalIds.events.filter(event => event.type === "goal");
+  duplicateGoalEvents[1].goalEventId = duplicateGoalEvents[0].goalEventId;
+  const duplicateGoalValidation = targetEngine.validateResult(duplicateGoalIds);
+  assert.equal(duplicateGoalValidation.ok, false,
+    label + " validator must reject duplicate goal event IDs in a modern ledger");
+  assert.equal(duplicateGoalValidation.goalAttributionConsistent, false,
+    label + " validator must expose duplicate goal event IDs");
+
+  const legacyGoalLedger = JSON.parse(JSON.stringify(fixture));
+  for (const event of legacyGoalLedger.events) {
+    if (event.type === "shot") delete event.onTarget;
+    if (event.type === "goal") {
+      delete event.goalEventId;
+      delete event.scorer;
+    }
+    if (event.type === "assist") delete event.goalEventId;
+  }
+  const legacyGoalValidation = targetEngine.validateResult(legacyGoalLedger);
+  assert.equal(legacyGoalValidation.goalAttributionConsistent, true,
+    label + " validator must preserve legacy goal ledgers without modern shot metadata");
+  assert.equal(legacyGoalValidation.ok, true,
+    label + " validator must continue accepting legacy goal attribution records");
+}
+
 const numericStringStatsMatch = engine.simulateMatch({
   seed: 8134,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

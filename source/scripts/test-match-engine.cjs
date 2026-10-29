@@ -658,6 +658,24 @@ for (const targetEngine of [engine, browserEngine]) {
     "valid numeric-string goal, assist, and shot counters must remain compatible with legacy saves");
 }
 
+// Match scores from older saves may also be serialized as numeric strings.
+const numericStringScore = { ...minuteValidationBase, score: { for: "0", against: "0" } };
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(numericStringScore).ok, true,
+    "valid numeric-string final scores must remain compatible with legacy saves");
+}
+const invalidScoreValues = [
+  { for: null, against: 0 }, { for: "", against: 0 }, { for: "Infinity", against: 0 },
+  { for: -1, against: 0 }, { for: 0.5, against: 0 }, { for: true, against: 0 }
+];
+for (const score of invalidScoreValues) {
+  for (const targetEngine of [engine, browserEngine]) {
+    const validation = targetEngine.validateResult({ ...minuteValidationBase, score });
+    assert.equal(validation.ok, false, "malformed match scores must be rejected");
+    assert.equal(validation.reason, "invalid-score", "malformed match scores should report a clear reason");
+  }
+}
+
 const invalidFirstMinute = { ...minuteValidationBase,
   events: [{ type: "foul", side: "opponent", minute: "not-a-minute" }] };
 assert.equal(engine.validateResult(invalidFirstMinute).ok, false,

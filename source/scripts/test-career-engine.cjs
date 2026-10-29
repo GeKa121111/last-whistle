@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v161"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=27"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v162"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=28"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -439,6 +439,10 @@ assert.ok(rootHtml.includes("state.freeAgent = normalizeLegacyBoolean(state.free
   "the inline browser career engine must normalize saved free-agent flags");
 assert.ok(rootHtml.includes("state.retired = normalizeLegacyBoolean(state.retired);"),
   "the deployed browser career engine must normalize saved retirement flags");
+assert.ok(rootHtml.includes("state.playedToday = normalizeLegacyBoolean(state.playedToday);"),
+  "the deployed browser career engine must normalize saved match-day flags");
+assert.ok(rootHtml.includes("state.trainedToday = normalizeLegacyBoolean(state.trainedToday);"),
+  "the deployed browser career engine must normalize saved training-day flags");
 
 const corruptedNegotiation = { ...renewalBase, weeklyWage: Infinity, contractSeasons: 3,
   freeAgent: false, daysSinceNegotiation: 7, randomSeed: 1 };
@@ -504,6 +508,20 @@ function makeProgressionFixture(xpMultiplier = false) {
     xpMultiplier
   };
 }
+const legacyDailyTraining = makeProgressionFixture(false);
+legacyDailyTraining.playedToday = "false";
+legacyDailyTraining.trainedToday = "false";
+const legacyTrainingResult = career.train(legacyDailyTraining, "shooting", { random: () => 0.99 });
+assert.equal(legacyTrainingResult.ok, true,
+  "legacy string false flags must not block a valid training session");
+assert.equal(legacyDailyTraining.playedToday, false,
+  "legacy match-day flag must be normalized to a boolean before training");
+assert.equal(legacyDailyTraining.trainedToday, true,
+  "a successful training session must still set the normalized daily training flag");
+const legacyMatchDay = makeProgressionFixture(false);
+legacyMatchDay.playedToday = "true";
+assert.equal(career.train(legacyMatchDay, "shooting", { random: () => 0.99 }).ok, false,
+  "legacy string true must continue to block training on match day");
 const malformedProgression = makeProgressionFixture(false);
 malformedProgression.careerXP = Infinity;
 malformedProgression.levelXP = Infinity;

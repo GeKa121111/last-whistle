@@ -710,6 +710,33 @@ assert.equal(engine.validateResult(validShootoutEvent).ok, true,
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
 
+const shootoutWinnerContradiction = {
+  ...validShootoutEvent,
+  shootout: { ...validShootoutEvent.shootout, won: false },
+  outcome: "خسارة", matchOutcome: "خسارة"
+};
+const mismatchedShootoutEvent = {
+  ...validShootoutEvent,
+  events: [{ ...validShootoutEvent.events[0], won: false, scoreFor: 4, scoreAgainst: 5 }]
+};
+const missingShootoutEvent = { ...validShootoutEvent, events: [] };
+const unusedShootoutWithScores = {
+  ...minuteValidationBase,
+  shootout: { used: false, won: null, scoreFor: 5, scoreAgainst: 4 }
+};
+for (const targetEngine of [engine, browserEngine]) {
+  for (const invalidShootout of [
+    shootoutWinnerContradiction, mismatchedShootoutEvent,
+    missingShootoutEvent, unusedShootoutWithScores
+  ]) {
+    const validation = targetEngine.validateResult(invalidShootout);
+    assert.equal(validation.shootoutLedgerConsistent, false,
+      "shootout winner, score, used flag, and event record must agree");
+    assert.equal(validation.ok, false,
+      "contradictory shootout ledgers must be rejected by source and browser validators");
+  }
+}
+
 // Extra-time metadata must reconcile with the actual event ledger and final score.
 const validExtraTimeGoal = {
   ...minuteValidationBase,

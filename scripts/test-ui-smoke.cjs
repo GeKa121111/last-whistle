@@ -373,7 +373,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["data/match-engine.js?v=23", "story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=5", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=30", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=22", "world-roster-audit.json", "redesign.css?v=6"]) {
+for (const assetUrl of ["data/match-engine.js?v=25", "story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=5", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=30", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=22", "world-roster-audit.json", "redesign.css?v=6"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");

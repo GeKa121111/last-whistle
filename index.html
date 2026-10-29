@@ -1442,6 +1442,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
     state.nightToday = normalizeLegacyBoolean(state.nightToday);
     state.dailyActionUsed = normalizeLegacyBoolean(state.dailyActionUsed);
+    state.journeyTransferReviewed = normalizeLegacyBoolean(state.journeyTransferReviewed);
+    state.journeyEventSeen = normalizeLegacyBoolean(state.journeyEventSeen);
+    state.journeySeasonReviewed = normalizeLegacyBoolean(state.journeySeasonReviewed);
+    state.seasonFinished = normalizeLegacyBoolean(state.seasonFinished);
+    state.winterBreakPending = normalizeLegacyBoolean(state.winterBreakPending);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
@@ -3443,7 +3448,7 @@ function loadGame(){
   const savedCompetition=window.LWCatalog?.clubsForCountry(state.leagueCountry||"مصر")?.competition||((state.leagueCountry||"مصر")==="مصر"?"الدوري المصري — محاكاة محلية":"دوري محلي — محاكاة");
   state.leagueCompetition=state.leagueCompetition||savedCompetition;
   state.seasonLog=state.seasonLog.map(row=>row&&typeof row==="object"?{...row,leagueCountry:row.leagueCountry||state.leagueCountry||"مصر",leagueCompetition:row.leagueCompetition||state.leagueCompetition}:row);
-  state.journeyTransferReviewed=!!state.journeyTransferReviewed;state.journeyEventSeen=!!state.journeyEventSeen;state.journeySeasonReviewed=!!state.journeySeasonReviewed;state.seasonFinished=!!state.seasonFinished;state.seasonPhase=state.seasonPhase||"firstHalf";state.winterBreakPending=!!state.winterBreakPending;
+  state.seasonPhase=state.seasonPhase||"firstHalf";
   if(!Array.isArray(state.league)||state.league.length!==createLeague().length)state.league=createLeague();
   ensureLeague();ensureFixtureSchedule();
   // Restore the round cursor BEFORE repairing partial-season targets. Otherwise

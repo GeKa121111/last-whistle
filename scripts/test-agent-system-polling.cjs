@@ -15,7 +15,7 @@ assert.equal(source, publicSource, "agent root/public runtimes must match");
 assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
 assert.match(html, /agent-system\.js\?v=5/);
-assert.match(sw, /last-whistle-static-v158/);
+assert.match(sw, /last-whistle-static-v159/);
 assert.match(sw, /agent-system\.js\?v=5/);
 assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 

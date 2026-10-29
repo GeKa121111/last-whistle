@@ -207,6 +207,8 @@
     state.retired = normalizeLegacyBoolean(state.retired);
     state.playedToday = normalizeLegacyBoolean(state.playedToday);
     state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
+    state.nightToday = normalizeLegacyBoolean(state.nightToday);
+    state.dailyActionUsed = normalizeLegacyBoolean(state.dailyActionUsed);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];

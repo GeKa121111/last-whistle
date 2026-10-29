@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v162"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=28"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v163"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=29"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -443,6 +443,10 @@ assert.ok(rootHtml.includes("state.playedToday = normalizeLegacyBoolean(state.pl
   "the deployed browser career engine must normalize saved match-day flags");
 assert.ok(rootHtml.includes("state.trainedToday = normalizeLegacyBoolean(state.trainedToday);"),
   "the deployed browser career engine must normalize saved training-day flags");
+assert.ok(rootHtml.includes("state.nightToday = normalizeLegacyBoolean(state.nightToday);"),
+  "the deployed browser career engine must normalize saved night-action flags");
+assert.ok(rootHtml.includes("state.dailyActionUsed = normalizeLegacyBoolean(state.dailyActionUsed);"),
+  "the deployed browser career engine must normalize saved daily-action usage flags");
 assert.ok(!rootHtml.includes("state.retired=!!state.retired;"),
   "save migration must not re-coerce a normalized legacy retirement flag with JavaScript truthiness");
 
@@ -520,6 +524,21 @@ assert.equal(legacyDailyTraining.playedToday, false,
   "legacy match-day flag must be normalized to a boolean before training");
 assert.equal(legacyDailyTraining.trainedToday, true,
   "a successful training session must still set the normalized daily training flag");
+const legacySideActionFlags = makeProgressionFixture(false);
+legacySideActionFlags.dailyActionUsed = "false";
+legacySideActionFlags.nightToday = "false";
+career.ensureState(legacySideActionFlags);
+assert.equal(legacySideActionFlags.dailyActionUsed, false,
+  "legacy string false must not consume the daily side-action slot");
+assert.equal(legacySideActionFlags.nightToday, false,
+  "legacy string false must not masquerade as a night action");
+legacySideActionFlags.dailyActionUsed = "true";
+legacySideActionFlags.nightToday = "true";
+career.ensureState(legacySideActionFlags);
+assert.equal(legacySideActionFlags.dailyActionUsed, true,
+  "legacy string true must preserve an already-used side-action slot");
+assert.equal(legacySideActionFlags.nightToday, true,
+  "legacy string true must preserve the saved night-action state");
 const legacyMatchDay = makeProgressionFixture(false);
 legacyMatchDay.playedToday = "true";
 assert.equal(career.train(legacyMatchDay, "shooting", { random: () => 0.99 }).ok, false,

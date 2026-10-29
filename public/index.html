@@ -1431,6 +1431,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const moneyValue = Number(state.money);
     state.money = Number.isFinite(moneyValue)
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, moneyValue)) : 0;
+    const savedWageMissing = state.weeklyWage === undefined || state.weeklyWage === null || state.weeklyWage === "";
+    if (savedWageMissing) state.weeklyWage = state.freeAgent || state.retired ? 0 : 250;
+    else {
+      const weeklyWageValue = Number(state.weeklyWage);
+      state.weeklyWage = Number.isFinite(weeklyWageValue)
+        ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(weeklyWageValue))) : 0;
+    }
+    state.agentCommissionPaid = finiteCount(state.agentCommissionPaid);
     const careerXPValue = Number(state.careerXP);
     state.careerXP = Number.isFinite(careerXPValue)
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0;
@@ -1983,7 +1991,10 @@ function seasonAwards(state, league, teamRank) {
     const status = wageNegotiationStatus(state);
     if (status !== "ready") return { ok: false, status };
     if (![0, 1, 2].includes(Number(level))) return { ok: false, status: "invalid-level" };
-    const oldWage = Math.max(0, Number(state.weeklyWage) || 0);
+    const wageValue = Number(state.weeklyWage);
+    const oldWage = Number.isFinite(wageValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(wageValue))) : 0;
+    state.weeklyWage = oldWage;
     state.daysSinceNegotiation = 0;
     const success = nextRandomUnit(state) * 100 < Math.max(5, Math.min(95, Number(chance) || 0));
     if (!success) {
@@ -1991,7 +2002,7 @@ function seasonAwards(state, league, teamRank) {
       return { ok: true, status: "failed", oldWage, wage: oldWage, trust: state.trust };
     }
     const factor = Number(level) === 2 ? 1.35 : Number(level) === 1 ? 1.15 : 1.05;
-    state.weeklyWage = Math.round(oldWage * factor);
+    state.weeklyWage = Math.min(Number.MAX_SAFE_INTEGER, Math.round(oldWage * factor));
     state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) + 3)));
     return { ok: true, status: "success", oldWage, wage: state.weeklyWage, trust: state.trust };
   }
@@ -1999,12 +2010,18 @@ function seasonAwards(state, league, teamRank) {
   function shouldRetire(state, maximumAge = 40) { return Boolean(state && (state.retired || Number(state.age) >= maximumAge)); }
 
   function makeContractOffer(state, withAgent = false) {
-    const currentWage = Math.max(0, Number(state?.weeklyWage) || 250);
+    const savedWage = Number(state?.weeklyWage);
+    const currentWage = Number.isFinite(savedWage) && savedWage > 0
+      ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(savedWage)) : 250;
     const contractMultiplier = withAgent && typeof withAgent === "object"
       ? Math.max(0.96, Math.min(1.18, Number(withAgent.contractMultiplier) || 1.08))
       : withAgent ? 1.1 : 1;
-    const wage = Math.max(currentWage, Math.round(currentWage * (0.9 + overall(state) / 500
-      + (Number(state?.trust) || 0) / 1000) * contractMultiplier));
+    const ratingValue = Number(overall(state));
+    const rating = Number.isFinite(ratingValue) ? Math.max(0, Math.min(100, ratingValue)) : 50;
+    const trustValue = Number(state?.trust);
+    const trust = Number.isFinite(trustValue) ? Math.max(0, Math.min(100, trustValue)) : 0;
+    const calculatedWage = Math.round(currentWage * (0.9 + rating / 500 + trust / 1000) * contractMultiplier);
+    const wage = Math.max(currentWage, Math.min(Number.MAX_SAFE_INTEGER, calculatedWage));
     return { club: String(state?.clubName || ""), wage, seasons: 3, season: Number(state?.season) || 1 };
   }
 
@@ -2012,7 +2029,7 @@ function seasonAwards(state, league, teamRank) {
     if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
     if (decision === "accept") {
       if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
-      state.weeklyWage = Math.max(0, Math.round(Number(offer.wage)));
+      state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
       state.contractSeasons = Math.max(1, Math.floor(Number(offer.seasons) || 3) + 1);
       state.freeAgent = false;
       state.contractOffer = null;

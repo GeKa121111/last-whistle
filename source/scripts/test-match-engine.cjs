@@ -871,6 +871,62 @@ assert.equal(invalidBrowserEventSideValidation.ok, false,
 assert.equal(invalidBrowserEventSideValidation.reason, "invalid-event-side",
   "the embedded browser validator must return the same invalid-side reason");
 
+const invalidPlayerStatCases = [
+  ["rating", Infinity],
+  ["minutes", Infinity],
+  ["saves", Infinity],
+  ["injuryDays", Infinity],
+  ["tackles", -1],
+  ["rating", "not-a-number"],
+  ["minutes", 121],
+  ["goals", 1.5]
+];
+for (const [field, value] of invalidPlayerStatCases) {
+  const sourcePlayerStatMatch = engine.simulateMatch({
+    seed: 8133,
+    player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  sourcePlayerStatMatch.player[field] = value;
+  const sourcePlayerStatValidation = engine.validateResult(sourcePlayerStatMatch);
+  assert.equal(sourcePlayerStatValidation.ok, false,
+    "the source validator must reject malformed player stat " + field);
+  assert.equal(sourcePlayerStatValidation.reason, "invalid-player-stats",
+    "malformed player stats must return a stable validation reason");
+
+  const browserPlayerStatMatch = browserEngine.simulateMatch({
+    seed: 8133,
+    player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  browserPlayerStatMatch.player[field] = value;
+  const browserPlayerStatValidation = browserEngine.validateResult(browserPlayerStatMatch);
+  assert.equal(browserPlayerStatValidation.ok, false,
+    "the embedded browser validator must reject malformed player stat " + field);
+  assert.equal(browserPlayerStatValidation.reason, "invalid-player-stats",
+    "the embedded browser validator must return the same invalid-stat reason");
+}
+
+const numericStringStatsMatch = engine.simulateMatch({
+  seed: 8134,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+numericStringStatsMatch.player.minutes = String(numericStringStatsMatch.player.minutes);
+numericStringStatsMatch.player.tackles = String(numericStringStatsMatch.player.tackles);
+assert.equal(engine.validateResult(numericStringStatsMatch).ok, true,
+  "legacy numeric strings in player stats must remain accepted");
+
+const numericStringBrowserStatsMatch = browserEngine.simulateMatch({
+  seed: 8134,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+numericStringBrowserStatsMatch.player.minutes = String(numericStringBrowserStatsMatch.player.minutes);
+numericStringBrowserStatsMatch.player.tackles = String(numericStringBrowserStatsMatch.player.tackles);
+assert.equal(browserEngine.validateResult(numericStringBrowserStatsMatch).ok, true,
+  "the embedded browser validator must preserve legacy numeric-string compatibility");
+
 const sparseEventMatch = engine.simulateMatch({
   seed: 8130,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

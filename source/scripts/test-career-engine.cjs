@@ -18,7 +18,7 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v168"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v169"), "PWA cache must advance for international tournament changes");
 assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=34"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
@@ -375,6 +375,23 @@ assert.equal(contractSnapshot.weeklyWage, 400);
 assert.equal(contractSnapshot.contractSeasons, 1);
 assert.equal(onLoan.clubName, "Loan Club", "contract snapshot must not mutate the active loan state");
 assert.equal(career.wageNegotiationStatus(contractSnapshot), "contract-expiring");
+
+const legacyFalseLoan = {
+  ...onLoan,
+  loan: { ...onLoan.loan, parentFreeAgent: "false" }
+};
+assert.equal(career.contractStateForSeasonTransition(legacyFalseLoan).freeAgent, false,
+  "a legacy string false parentFreeAgent must not mark a returned player as a free agent");
+const legacyTrueLoan = {
+  ...onLoan,
+  loan: { ...onLoan.loan, parentFreeAgent: "true" }
+};
+assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).freeAgent, true,
+  "a legacy string true parentFreeAgent must preserve a parent's free-agent state");
+assert.ok(rootHtml.includes("state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);"),
+  "browser loan return must normalize legacy parentFreeAgent values");
+assert.ok(!rootHtml.includes("state.freeAgent=!!l.parentFreeAgent;"),
+  "browser loan return must not coerce string false to true");
 
 const player = {
   pos: "مهاجم", age: 24, season: 2, apps: 0, money: 1000, weeklyWage: 500,

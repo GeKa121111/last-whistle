@@ -1425,6 +1425,8 @@ assert.equal(legacyRetiredContractState.weeklyWage, 900,
 // the <= 0 check because comparisons against NaN and positive Infinity are false.
 assert.ok(rootHtml.includes("!Number.isFinite(contractSeasons) || contractSeasons <= 0"),
   "inline loan eligibility must reject invalid contract durations");
+assert.ok(rootHtml.includes("!Number.isFinite(appearances) || appearances < 2"),
+  "inline loan eligibility must reject non-finite appearance totals");
 for (const invalidLoanTerm of [undefined, NaN, Infinity, "Infinity"]) {
   const sharedLoanState = { retired: false, freeAgent: false, apps: 12 };
   if (invalidLoanTerm !== undefined) sharedLoanState.contractSeasons = invalidLoanTerm;
@@ -1441,3 +1443,21 @@ assert.equal(career.loanRequestStatus(validLoanContract, { windowOpen: true }), 
   "a player with a valid active contract must retain normal loan eligibility");
 assert.equal(deployedCareer.loanRequestStatus({ ...validLoanContract }, { windowOpen: true }), "ready",
   "the deployed browser engine must preserve valid loan eligibility");
+
+const invalidLoanAppearances = [undefined, NaN, Infinity, -Infinity, "Infinity", "-Infinity", "not-a-number", null, ""];
+for (const invalidApps of invalidLoanAppearances) {
+  const sharedLoanState = { retired: false, freeAgent: false, contractSeasons: 2 };
+  if (invalidApps !== undefined) sharedLoanState.apps = invalidApps;
+  const browserLoanState = { ...sharedLoanState };
+  const sharedStatus = career.loanRequestStatus(sharedLoanState, { windowOpen: true });
+  const browserStatus = deployedCareer.loanRequestStatus(browserLoanState, { windowOpen: true });
+  assert.equal(sharedStatus, "appearances-required",
+    "missing, malformed, or non-finite appearances must not authorize a loan request");
+  assert.equal(browserStatus, sharedStatus,
+    "browser and shared loan eligibility must reject the same invalid appearance totals");
+}
+const legacyNumericLoanApps = { retired: false, freeAgent: false, contractSeasons: 2, apps: "2" };
+assert.equal(career.loanRequestStatus(legacyNumericLoanApps, { windowOpen: true }), "ready",
+  "valid numeric-string appearance totals from older saves must remain supported");
+assert.equal(deployedCareer.loanRequestStatus({ ...legacyNumericLoanApps }, { windowOpen: true }), "ready",
+  "the browser engine must preserve valid legacy numeric-string loan eligibility");

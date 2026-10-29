@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v170"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=35"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v171"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=36"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -40,6 +40,8 @@ for (const flag of cupTerminalFlagNames) {
 }
 assert.ok(rootHtml.includes("state.cupState.champion=normalizeSavedBooleanFlag(state.cupState.champion);"),
   "the save migration must normalize cup terminal flags before rendering or closing a saved cup");
+assert.ok(rootHtml.includes("state.cupHistory=normalizeSavedCupHistoryFlags(state.cupHistory);"),
+  "save migration must normalize legacy cup-history status flags before title checks and competition rendering");
 const legacyInventoryFlagNames = ["careerStarted","leagueSegmentIsPartial","boots","diet","speedBoots","strengthProgram","videoAnalyst","homeGym","sleepCoach","physio","recoveryRoom","privateChef","homeUpgrade","sportsPsych","mediaTraining","creatorStudio","stylist","charityFoundation"];
 for (const flag of legacyInventoryFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
@@ -778,6 +780,31 @@ for (const flag of cupTerminalFlagNames) {
   assert.equal(legacyCupStatus.cupState[flag], true, `legacy string true must preserve cup ${flag}`);
 }
 
+const legacyCupHistoryState = makeProgressionFixture(false);
+legacyCupHistoryState.cupHistory = [
+  { name: "Legacy false flags", champion: "false", eliminated: "false", abandoned: "false", leftByTransfer: "false" },
+  { name: "Legacy true flags", champion: "true", eliminated: "true", abandoned: "true", leftByTransfer: "true" },
+  { name: "Legacy missing flags" }
+];
+career.ensureState(legacyCupHistoryState);
+assert.equal(legacyCupHistoryState.cupHistory[0].champion, false,
+  "legacy string false cup-history champions must not be treated as titles");
+assert.equal(legacyCupHistoryState.cupHistory[0].eliminated, false,
+  "legacy string false cup-history elimination must remain false");
+assert.equal(legacyCupHistoryState.cupHistory[0].abandoned, false,
+  "legacy string false cup-history abandonment must remain false");
+assert.equal(legacyCupHistoryState.cupHistory[0].leftByTransfer, false,
+  "legacy string false transfer flags must remain false");
+assert.equal(legacyCupHistoryState.cupHistory[1].champion, true,
+  "legacy string true cup-history champions must preserve recorded titles");
+assert.equal(legacyCupHistoryState.cupHistory[1].eliminated, true,
+  "legacy string true cup-history elimination must be preserved");
+assert.equal(legacyCupHistoryState.cupHistory[1].abandoned, true,
+  "legacy string true cup-history abandonment must be preserved");
+assert.equal(legacyCupHistoryState.cupHistory[1].leftByTransfer, true,
+  "legacy string true transfer flags must be preserved");
+assert.equal(Object.prototype.hasOwnProperty.call(legacyCupHistoryState.cupHistory[2], "champion"), false,
+  "normalization must preserve missing historical fields instead of fabricating status");
 const legacyStringFalseAgent = makeProgressionFixture(false);
 legacyStringFalseAgent.agent = "false";
 career.ensureState(legacyStringFalseAgent);

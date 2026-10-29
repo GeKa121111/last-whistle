@@ -224,6 +224,20 @@
       state.cupState.eliminated = normalizeLegacyBoolean(state.cupState.eliminated);
       state.cupState.abandoned = normalizeLegacyBoolean(state.cupState.abandoned);
     }
+    if (Array.isArray(state.cupHistory)) {
+      state.cupHistory = state.cupHistory.map(row => {
+        if (!row || typeof row !== "object" || Array.isArray(row)) return row;
+        const normalizedRow = { ...row };
+        for (const flag of ["champion", "eliminated", "abandoned", "leftByTransfer"]) {
+          if (Object.prototype.hasOwnProperty.call(normalizedRow, flag)) {
+            normalizedRow[flag] = normalizeLegacyBoolean(normalizedRow[flag]);
+          }
+        }
+        return normalizedRow;
+      });
+    } else {
+      state.cupHistory = [];
+    }
     state.academyCareer = normalizeLegacyBoolean(state.academyCareer);
     state.academyReserve = normalizeLegacyBoolean(state.academyReserve);
     state.academyGraduationPending = normalizeLegacyBoolean(state.academyGraduationPending);

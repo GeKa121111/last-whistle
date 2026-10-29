@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v173"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=37"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v174"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=38"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1315,3 +1315,37 @@ assert.equal(JSON.stringify(stringTrueAwardState.careerAwards), JSON.stringify(b
   "legacy string-true availability must remain equivalent to boolean true");
 assert.equal(stringTrueAwardState.money, booleanTrueAwardState.money,
   "legacy string-true availability must preserve valid award rewards");
+
+
+// Contract dialogs can become stale if retirement happens after they were opened.
+// Neither accepting nor declining may mutate a retired career.
+assert.ok(rootHtml.includes('const decision=window.LWCareer?.resolveContractDecision(state,"decline",o);if(!decision?.ok)return;state.transferHistory.unshift'),
+  "the browser decline handler must stop when contract resolution is rejected");
+for (const decisionName of ["accept", "decline"]) {
+  const retiredContractState = {
+    retired: true, freeAgent: false, weeklyWage: 900, contractSeasons: 2,
+    contractOffer: { wage: 1200, seasons: 3, season: 4 }, transferHistory: [{ text: "prior" }]
+  };
+  const browserRetiredContractState = JSON.parse(JSON.stringify(retiredContractState));
+  const before = JSON.stringify(retiredContractState);
+  const sharedDecision = career.resolveContractDecision(retiredContractState, decisionName,
+    { wage: 1200, seasons: 3 });
+  const browserDecision = deployedCareer.resolveContractDecision(browserRetiredContractState, decisionName,
+    { wage: 1200, seasons: 3 });
+  assert.equal(sharedDecision.ok, false, "retired careers must reject " + decisionName + " decisions");
+  assert.equal(sharedDecision.status, "retired", "retired contract actions must report a terminal career");
+  assert.equal(JSON.stringify(retiredContractState), before,
+    "a rejected " + decisionName + " action must not mutate the retired career");
+  assert.equal(JSON.stringify(browserDecision), JSON.stringify(sharedDecision),
+    "browser and shared contract guards must return the same result");
+  assert.equal(JSON.stringify(browserRetiredContractState), before,
+    "the browser engine must preserve retired contract state after " + decisionName);
+}
+const legacyRetiredContractState = {
+  retired: "true", freeAgent: false, weeklyWage: 900, contractSeasons: 2
+};
+assert.equal(career.resolveContractDecision(legacyRetiredContractState, "accept",
+  { wage: 1200, seasons: 3 }).status, "retired",
+  "legacy string-true retirement flags must also block contract renewal");
+assert.equal(legacyRetiredContractState.weeklyWage, 900,
+  "legacy retired saves must keep their existing wage when renewal is rejected");

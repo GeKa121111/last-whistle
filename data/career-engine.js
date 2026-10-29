@@ -861,6 +861,7 @@
 
   function resolveContractDecision(state, decision, offer) {
     if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
+    if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (decision === "accept") {
       if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
       state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));

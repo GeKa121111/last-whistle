@@ -1207,12 +1207,12 @@ for (const [targetEngine, seed, label] of [[engine, 640000, "source"], [browserE
     label + " validator must expose a missing goal-shot link");
 
   const mismatchedScoringShot = JSON.parse(JSON.stringify(fixture));
-  mismatchedScoringShot.events[opponentGoalIndex - 1].shooter = "teammate";
+  mismatchedScoringShot.events[opponentGoalIndex - 1].onTarget = false;
   const mismatchedShotValidation = targetEngine.validateResult(mismatchedScoringShot);
   assert.equal(mismatchedShotValidation.ok, false,
-    label + " validator must reject a scoring shot attributed to the wrong side");
+    label + " validator must reject a scoring shot marked off target");
   assert.equal(mismatchedShotValidation.goalShotLedgerConsistent, false,
-    label + " validator must expose mismatched goal-shot attribution");
+    label + " validator must expose a scoring shot marked off target");
 
   const legacyGoalShotLedger = JSON.parse(JSON.stringify(fixture));
   for (const event of legacyGoalShotLedger.events) {

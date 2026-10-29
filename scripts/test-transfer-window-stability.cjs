@@ -157,7 +157,7 @@ assert.doesNotMatch(transferToSource, /activeCupInProgress\(\)/, "transfer compl
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-assert.match(sw, /last-whistle-static-v154/,
+assert.match(sw, /last-whistle-static-v155/,
   "the service-worker cache must be bumped so deployed clients receive the fix");
 assert.ok(sw.includes("transfer-awards-engine.js?v=7"),
   "the cached award-engine asset version must advance with the season-age fix");

@@ -47,6 +47,10 @@ assert.ok(rootHtml.includes("savedLeagueApps>0||legacySeasonApps===0||normalizeS
   "save migration must normalize legacy partial-season flags before trusting league counters");
 assert.ok(!rootHtml.includes("restored.leagueSegmentIsPartial=!!clean.leagueSegmentIsPartial"),
   "backup import must not treat string false as a true partial-season flag");
+const backupCareerStartedFallback = rootHtml.indexOf("if(clean.careerStarted===undefined)restored.careerStarted=true;");
+const backupCareerEnsureState = rootHtml.indexOf("if(window.LWCareer)window.LWCareer.ensureState(restored);", backupCareerStartedFallback);
+assert.ok(backupCareerStartedFallback >= 0 && backupCareerEnsureState > backupCareerStartedFallback,
+  "legacy career backups without careerStarted must remain playable after restore");
 
 for (const flag of legacyCareerPerkFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),

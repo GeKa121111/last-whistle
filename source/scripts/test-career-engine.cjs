@@ -18,7 +18,7 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v175"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v176"), "PWA cache must advance for international tournament changes");
 assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=39"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
@@ -967,6 +967,40 @@ vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bu
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
 
+const browserLoanReturnFunction = deployedHtml.match(/function returnFromLoan\(\)\s*\{[\s\S]*?\n\}/);
+assert.ok(browserLoanReturnFunction, "the deployed browser loan-return function must exist for runtime regression coverage");
+const parseSavedBooleanForLoanReturn = (value, fallback = false) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : fallback;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off", ""].includes(normalized)) return false;
+  }
+  return fallback;
+};
+function runBrowserLoanReturn(parentWage, parentContractSeasons) {
+  const state = {
+    clubName: "Loan Club", leagueCountry: "Spain", season: 4, day: 12,
+    transferCooldown: 0, transferHistory: [],
+    loan: {
+      parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 1,
+      parentCompetition: "Parent League", parentSource: "test fixture",
+      parentPower: 52, parentTier: 1, parentIndex: 1,
+      parentWage, parentContractSeasons, parentFreeAgent: false
+    }
+  };
+  const sandbox = {
+    state,
+    archiveLeagueSegment: () => {},
+    clubPowerFor: () => 52,
+    clubTierForPower: () => 1,
+    normalizeSavedBooleanFlag: parseSavedBooleanForLoanReturn,
+    log: () => {}
+  };
+  vm.runInNewContext(`${browserLoanReturnFunction[0]}\nglobalThis.runReturnFromLoan = returnFromLoan;`, sandbox);
+  return { state, result: sandbox.runReturnFromLoan() };
+}
 const parentLoanContractCases = [
   [Infinity, 1, 0, 1],
   ["Infinity", "Infinity", 0, 0],
@@ -1003,6 +1037,14 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
   assert.equal(loanState.weeklyWage, 900, "restoring the parent contract must not mutate active loan wages");
   assert.equal(loanState.contractSeasons, 3, "restoring the parent contract must not mutate active loan duration");
   assert.deepEqual(loanState.loan, originalLoan, "restoring the parent contract must not mutate loan metadata");
+  const browserReturn = runBrowserLoanReturn(savedParentWage, savedParentSeasons);
+  assert.equal(browserReturn.result, true, "a valid legacy loan record must return to its parent club");
+  assert.equal(browserReturn.state.weeklyWage, expectedWage,
+    "browser loan return must restore only a finite, bounded, integral parent wage");
+  assert.equal(browserReturn.state.contractSeasons, expectedSeasons,
+    "browser loan return must restore only a finite, bounded parent contract duration");
+  assert.equal(browserReturn.state.loan, null, "a successful loan return must clear the active loan");
+  assert.equal(browserReturn.state.clubName, "Parent Club", "a successful loan return must restore the parent club");
 }
 const parentFreeAgentCases = [
   [true, true], [false, false],

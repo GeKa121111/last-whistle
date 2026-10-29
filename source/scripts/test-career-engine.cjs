@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v153"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=20"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v154"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=21"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -166,6 +166,24 @@ for (const [savedDays, expectedDays] of [
 }
 assert.ok(rootHtml.includes("state.injuryDays = Math.min(60, finiteCount(state.injuryDays));"),
   "the inline browser career engine must normalize legacy injury durations");
+for (const [savedCount, expectedSuspension, expectedBookings] of [
+  [Infinity, 0, 0], ["Infinity", 0, 0], [NaN, 0, 0], [-3, 0, 0],
+  [1.9, 1, 1], [2, 2, 2], [9, 2, 4]
+]) {
+  const repaired = {
+    pos: "جناح", suspensions: { league: savedCount },
+    bookings: { league: savedCount }, trainingXP: {}
+  };
+  career.ensureState(repaired);
+  assert.equal(repaired.suspensions.league, expectedSuspension,
+    "legacy suspension counters must be finite, non-negative whole numbers capped at two");
+  assert.equal(repaired.bookings.league, expectedBookings,
+    "legacy booking counters must be finite, non-negative whole numbers capped at four");
+}
+assert.ok(rootHtml.includes("state.suspensions[suspensionKey] = Math.min(2, finiteCount(state.suspensions[suspensionKey]));"),
+  "the inline browser career engine must normalize suspension counters");
+assert.ok(rootHtml.includes("state.bookings[bookingKey] = Math.min(4, finiteCount(state.bookings[bookingKey]));"),
+  "the inline browser career engine must normalize booking counters");
 
 const legacyOutfield = {
   pos: "جناح", goalkeeping: 73, shooting: 66, money: 5000,

@@ -1462,6 +1462,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       state.qualifyingAppearances = uniqueCareerHistory(state).filter(row => safeLegacyMinutes(row.minutes) >= 20).length;
     }
     state.qualifyingAppearances = finiteCount(state.qualifyingAppearances);
+    state.suspensions = state.suspensions && typeof state.suspensions === "object" && !Array.isArray(state.suspensions) ? state.suspensions : {};
+    for (const suspensionKey of Object.keys(state.suspensions)) {
+      state.suspensions[suspensionKey] = Math.min(2, finiteCount(state.suspensions[suspensionKey]));
+    }
+    state.bookings = state.bookings && typeof state.bookings === "object" && !Array.isArray(state.bookings) ? state.bookings : {};
+    for (const bookingKey of Object.keys(state.bookings)) {
+      state.bookings[bookingKey] = Math.min(4, finiteCount(state.bookings[bookingKey]));
+    }
     for (const [competitionKey, stats] of Object.entries(state.competitionStats)) {
       if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
         state.competitionStats[competitionKey] = {

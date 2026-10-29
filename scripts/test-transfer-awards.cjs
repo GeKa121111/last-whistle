@@ -126,6 +126,29 @@ assert.ok(!youthOffers.some(offer => offer.club === "ريال مدريد" || off
 assert.ok(youthOffers.every(offer => offer.role && offer.stars && offer.signingBonus >= 0 && offer.goalBonus >= 0 && offer.cleanSheetBonus >= 0));
 assert.ok(youthOffers.every(offer => ["نجم الفريق", "أساسي", "تناوب", "لاعب بديل", "لاعب ناشئ"].includes(offer.role)));
 
+const invalidOfferCases = [
+  { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },
+  { label: "infinite-string appearances", player: { ...youthPlayer, appearances: "Infinity" } },
+  { label: "NaN appearances", player: { ...youthPlayer, appearances: NaN } },
+  { label: "malformed appearances", player: { ...youthPlayer, appearances: "not-a-number" } },
+  { label: "missing appearances", player: { ...youthPlayer, appearances: undefined } },
+  { label: "insufficient appearances", player: { ...youthPlayer, appearances: 1 } },
+  { label: "positive-infinite form", player: { ...youthPlayer, form: Infinity } },
+  { label: "infinite-string form", player: { ...youthPlayer, form: "Infinity" } },
+  { label: "NaN form", player: { ...youthPlayer, form: NaN } },
+  { label: "malformed form", player: { ...youthPlayer, form: "not-a-number" } },
+  { label: "form below minimum", player: { ...youthPlayer, form: 5.7 } }
+];
+for (const testCase of invalidOfferCases) {
+  assert.equal(engine.generateOffers({
+    player: testCase.player, targets, windowId: "invalid-" + testCase.label, currentClubPower: 52
+  }).length, 0, `invalid transfer eligibility should reject ${testCase.label}`);
+}
+assert.ok(engine.generateOffers({
+  player: { ...youthPlayer, appearances: "5", form: "6.5" },
+  targets, windowId: "numeric-string-test", currentClubPower: 52
+}).length > 0, "finite numeric strings should remain accepted for legacy saves");
+
 const offer = youthOffers[0];
 const normalTerms = {
   weeklyWage: offer.wage,

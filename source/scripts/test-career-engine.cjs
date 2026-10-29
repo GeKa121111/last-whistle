@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v152"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=19"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v153"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=20"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -156,6 +156,16 @@ for (const [savedSessions, expectedSessions] of [
 }
 assert.ok(rootHtml.includes("state.trainingSessions = finiteCount(state.trainingSessions);"),
   "the inline browser career engine must normalize legacy training-session counters");
+for (const [savedDays, expectedDays] of [
+  [Infinity, 0], ["Infinity", 0], [NaN, 0], [-3, 0], [3.9, 3], [21, 21], [999, 60]
+]) {
+  const repaired = { pos: "جناح", injuryDays: savedDays, trainingXP: {} };
+  career.ensureState(repaired);
+  assert.equal(repaired.injuryDays, expectedDays,
+    "legacy injury duration must be finite, non-negative, integral, and bounded");
+}
+assert.ok(rootHtml.includes("state.injuryDays = Math.min(60, finiteCount(state.injuryDays));"),
+  "the inline browser career engine must normalize legacy injury durations");
 
 const legacyOutfield = {
   pos: "جناح", goalkeeping: 73, shooting: 66, money: 5000,

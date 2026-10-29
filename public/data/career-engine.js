@@ -662,6 +662,10 @@
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
     const parentContractSeasonsValue = Number(loan.parentContractSeasons);
+    const parentFreeAgentValue = loan.parentFreeAgent;
+    const parentFreeAgent = typeof parentFreeAgentValue === "string"
+      ? ["true", "1", "yes", "on"].includes(parentFreeAgentValue.trim().toLowerCase())
+      : Boolean(parentFreeAgentValue);
     return {
       ...state,
       clubName: String(loan.parentClub || state.clubName || ""),
@@ -670,7 +674,7 @@
         ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0,
       contractSeasons: Number.isFinite(parentContractSeasonsValue)
         ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0,
-      freeAgent: Boolean(loan.parentFreeAgent)
+      freeAgent: parentFreeAgent
     };
   }
 

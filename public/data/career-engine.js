@@ -769,7 +769,8 @@
     if (state.loan) return "already-loaned";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
-    if (Math.max(0, Number(state.apps) || 0) < 2) return "appearances-required";
+    const appearances = Number(state.apps);
+    if (!Number.isFinite(appearances) || appearances < 2) return "appearances-required";
     return "ready";
   }
 

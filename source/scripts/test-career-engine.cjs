@@ -32,7 +32,7 @@ for (const flag of tournamentFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
     `the deployed browser career engine must normalize saved ${flag} flags`);
 }
-const tournamentMigrationNormalize = rootHtml.indexOf("state.nationalCalled=normalizeLegacyBoolean(state.nationalCalled);");
+const tournamentMigrationNormalize = rootHtml.indexOf("state.nationalCalled=normalizeSavedBooleanFlag(state.nationalCalled);");
 const tournamentFormatMigration = rootHtml.indexOf("if(Number(state.nationalTournamentFormat||0)<2)", tournamentMigrationNormalize);
 assert.ok(tournamentMigrationNormalize >= 0 && tournamentFormatMigration > tournamentMigrationNormalize,
   "international tournament flags must normalize before the legacy format migration");

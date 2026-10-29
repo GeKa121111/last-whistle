@@ -428,6 +428,18 @@
         && Number(result.player.shotsOnTarget) === playerShotEvents.filter(event => event.onTarget === true).length);
     if (!playerStatsValid || !shotsOnTargetValid) return { ok: false, reason: "invalid-player-stats" };
     if (!shotsOnTargetLedgerConsistent) return { ok: false, reason: "inconsistent-shot-on-target-ledger" };
+    const modernShotMetadataPresent = result.events.some(event =>
+      event.type === "shot" && Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    const assistEvents = result.events.filter(event => event.type === "assist" && event.side === "team");
+    const keyPassesLedgerConsistent = result.player.keyPasses == null || !modernShotMetadataPresent
+      || (assistEvents.every(event => event.creditedToPlayer === true)
+        && Number(result.player.keyPasses) === assistEvents.length);
+    const saveEvents = result.events.filter(event => event.type === "save" && event.side === "team");
+    const savesLedgerConsistent = result.player.saves == null || !modernShotMetadataPresent
+      || (saveEvents.every(event => event.creditedToPlayer === true)
+        && Number(result.player.saves) === saveEvents.length);
+    if (!keyPassesLedgerConsistent) return { ok: false, reason: "inconsistent-key-pass-ledger" };
+    if (!savesLedgerConsistent) return { ok: false, reason: "inconsistent-save-ledger" };
     const playerAvailabilityValid = result.player.playerAvailable == null
       || (typeof result.player.playerAvailable === "boolean"
         && (result.player.minutes == null
@@ -602,7 +614,8 @@
     const matchOutcomeConsistent = !result.matchOutcome || result.matchOutcome === expectedMatchOutcome;
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
-    const valid = assistGoalLinksValid && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
+    const valid = keyPassesLedgerConsistent && savesLedgerConsistent
+      && assistGoalLinksValid && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
       && teamGoals === Number(result.score.for) && opponentGoals === Number(result.score.against)
       && result.player.goals != null && playerGoals === Number(result.player.goals)
       && result.player.assists != null && assists === Number(result.player.assists)

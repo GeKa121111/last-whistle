@@ -2930,6 +2930,36 @@ function seasonAwards(state, league, teamRank) {
       }
       return true;
     })();
+    const shootoutLedgerConsistent = (() => {
+      const shootout = result.shootout;
+      const shootoutEvents = result.events.filter(event => event.type === "penalty-shootout");
+      if (shootout == null) return shootoutEvents.length === 0;
+      if (typeof shootout !== "object" || Array.isArray(shootout)) return false;
+      const isNonNegativeInteger = value =>
+        (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+        && Number.isInteger(Number(value)) && Number(value) >= 0;
+      if (shootout.used !== true) {
+        const unusedFlagValid = shootout.used == null || shootout.used === false;
+        const unusedWinnerValid = shootout.won == null || shootout.won === false;
+        const scoresAbsent = shootout.scoreFor == null && shootout.scoreAgainst == null;
+        const scoresAreZero = isNonNegativeInteger(shootout.scoreFor)
+          && isNonNegativeInteger(shootout.scoreAgainst)
+          && Number(shootout.scoreFor) === 0 && Number(shootout.scoreAgainst) === 0;
+        return unusedFlagValid && unusedWinnerValid && shootoutEvents.length === 0
+          && (scoresAbsent || scoresAreZero);
+      }
+      if (typeof shootout.won !== "boolean"
+        || !isNonNegativeInteger(shootout.scoreFor)
+        || !isNonNegativeInteger(shootout.scoreAgainst)) return false;
+      const scoreFor = Number(shootout.scoreFor);
+      const scoreAgainst = Number(shootout.scoreAgainst);
+      if (scoreFor === scoreAgainst || shootout.won !== (scoreFor > scoreAgainst)
+        || shootoutEvents.length !== 1) return false;
+      const event = shootoutEvents[0];
+      return typeof event.won === "boolean" && event.won === shootout.won
+        && isNonNegativeInteger(event.scoreFor) && isNonNegativeInteger(event.scoreAgainst)
+        && Number(event.scoreFor) === scoreFor && Number(event.scoreAgainst) === scoreAgainst;
+    })();
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));
     const sameMinuteOrderConsistent = result.events.every((event, index) => {
@@ -2966,11 +2996,11 @@ function seasonAwards(state, league, teamRank) {
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)
-      && playerEventsInBounds && eventMinutesValid && extraTimeLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
+      && playerEventsInBounds && eventMinutesValid && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, assistGoalLinksValid, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

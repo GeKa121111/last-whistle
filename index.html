@@ -2812,6 +2812,11 @@ function seasonAwards(state, league, teamRank) {
     const shotsOnTargetValid = result.player.shotsOnTarget == null || result.player.shots == null
       || Number(result.player.shotsOnTarget) <= Number(result.player.shots);
     if (!playerStatsValid || !shotsOnTargetValid) return { ok: false, reason: "invalid-player-stats" };
+    const playerAvailabilityValid = result.player.playerAvailable == null
+      || (typeof result.player.playerAvailable === "boolean"
+        && (result.player.minutes == null
+          || result.player.playerAvailable === (Number(result.player.minutes) > 0)));
+    if (!playerAvailabilityValid) return { ok: false, reason: "invalid-player-availability" };
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;

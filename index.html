@@ -2092,6 +2092,10 @@ function seasonAwards(state, league, teamRank) {
 
   function recordNationalTournamentMatch(state, outcome) {
     if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
+    state.nationalTournamentDone = normalizeLegacyBoolean(state.nationalTournamentDone);
+    state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
+    state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
+    state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
     if (state.nationalTournamentDone) return { ok: false, status: "tournament-closed" };
     const finiteTournamentCounter = (value, maximum) => {
       const numeric = Number(value);

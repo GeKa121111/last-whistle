@@ -2021,7 +2021,8 @@ function seasonAwards(state, league, teamRank) {
   function loanRequestStatus(state, options = {}) {
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
-    if (normalizeLegacyBoolean(state.freeAgent) || Number(state.contractSeasons) <= 0) return "free-agent";
+    const contractSeasons = Number(state.contractSeasons);
+    if (normalizeLegacyBoolean(state.freeAgent) || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";

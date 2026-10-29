@@ -2119,6 +2119,7 @@ function seasonAwards(state, league, teamRank) {
 
   function resolveContractDecision(state, decision, offer) {
     if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
+    if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (decision === "accept") {
       if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
       state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
@@ -5634,7 +5635,7 @@ function proceedSeasonTransition(viewLeague=false){
   state.contractOffer={...offer,club:String(contractState.clubName||offer.club||club().name),season:Number(state.season)||1};const offerWage=state.contractOffer.wage;
   openModal("عرض تجديد العقد",`عقدك مع ${state.contractOffer.club} هينتهي. النادي بيعرض ${offerWage} ${currencyLabel()} أسبوعيًا لمدة 3 مواسم. تقدر تقبل أو ترفض وتدخل سوق اللاعبين الأحرار.`,[
    {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;const agentRenewalFee=window.LWAgentRuntime?.onContractRenewal(state,o)||0;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} ${currencyLabel()} أسبوعيًا${agentRenewalFee?`، وأتعاب الوكيل ${agentRenewalFee} ${currencyLabel()}`:""}.`);advanceAfterContractDecision(viewLeague);}},
-   {label:"أرفض وأصبح لاعب حر",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();window.LWCareer?.resolveContractDecision(state,"decline",o);state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهى عقدك مع ${club().name} واخترت دخول سوق اللاعبين الأحرار.`});log(`انتهى عقدك مع ${club().name} وبدأت المسيرة كلاعب حر.`);advanceAfterContractDecision(viewLeague);}}
+   {label:"أرفض وأصبح لاعب حر",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"decline",o);if(!decision?.ok)return;state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهى عقدك مع ${club().name} واخترت دخول سوق اللاعبين الأحرار.`});log(`انتهى عقدك مع ${club().name} وبدأت المسيرة كلاعب حر.`);advanceAfterContractDecision(viewLeague);}}
   ]);return;
  }
  advanceAfterContractDecision(viewLeague);

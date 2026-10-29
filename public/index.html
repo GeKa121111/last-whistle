@@ -2867,10 +2867,21 @@ function seasonAwards(state, league, teamRank) {
       const extraTime = result.extraTime;
       const hasExtraTimeActivity = result.events.some(event =>
         event.type !== "penalty-shootout" && Number(event.minute) > 90);
-      if (!extraTime || typeof extraTime !== "object") return !hasExtraTimeActivity;
       const isNonNegativeInteger = value =>
         (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
         && Number.isInteger(Number(value)) && Number(value) >= 0;
+      const regulationMatchesFinalScore = () => {
+        const regulation = result.regulation;
+        if (!regulation || typeof regulation !== "object"
+          || (regulation.for == null && regulation.against == null)) return true;
+        return isNonNegativeInteger(regulation.for) && isNonNegativeInteger(regulation.against)
+          && isNonNegativeInteger(result.score.for) && isNonNegativeInteger(result.score.against)
+          && Number(result.score.for) === Number(regulation.for)
+          && Number(result.score.against) === Number(regulation.against);
+      };
+      if (!extraTime || typeof extraTime !== "object") {
+        return !hasExtraTimeActivity && regulationMatchesFinalScore();
+      }
       const periodsPresent = Object.prototype.hasOwnProperty.call(extraTime, "periods");
       const scoreFieldsPresent = extraTime.for != null || extraTime.against != null;
       if (extraTime.played !== true) {
@@ -2879,7 +2890,8 @@ function seasonAwards(state, league, teamRank) {
             && Number(extraTime.for) === 0 && Number(extraTime.against) === 0);
         const noExtraTimePeriods = !periodsPresent
           || (Array.isArray(extraTime.periods) && extraTime.periods.length === 0);
-        return !hasExtraTimeActivity && noExtraTimeScore && noExtraTimePeriods;
+        return !hasExtraTimeActivity && noExtraTimeScore && noExtraTimePeriods
+          && regulationMatchesFinalScore();
       }
       const extraTimeGoalsFor = result.events.filter(event =>
         event.type === "goal" && event.side === "team" && Number(event.minute) > 90).length;

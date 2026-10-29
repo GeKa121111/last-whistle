@@ -1030,7 +1030,7 @@ for (const [targetEngine, seed, label] of [[engine, 8136, "source"], [browserEng
 
   const legacyShotTarget = makeShotOnTargetLedgerMatch(targetEngine, seed);
   for (const event of legacyShotTarget.events) {
-    if (event.type === "shot" && event.side === "team" && event.creditedToPlayer) delete event.onTarget;
+    if (event.type === "shot") delete event.onTarget;
   }
   assert.equal(targetEngine.validateResult(legacyShotTarget).ok, true,
     label + " validator must preserve legacy shot events without onTarget metadata");

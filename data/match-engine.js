@@ -398,6 +398,20 @@
     if (result.events.some(event => !allowedEventSides[event.type]?.includes(event.side))) {
       return { ok: false, reason: "invalid-event-side" };
     }
+    const numericPlayerStatFields = ["minutes", "goals", "assists", "shots", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "interceptions", "saves", "rating"];
+    const integerPlayerStatFields = new Set(["minutes", "goals", "assists", "shots", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "interceptions", "saves"]);
+    const playerStatsValid = numericPlayerStatFields.every(field => {
+      const value = result.player[field];
+      if (value == null) return true; // Preserve older records that omit newer optional stats.
+      if (typeof value !== "number" && typeof value !== "string") return false;
+      if (typeof value === "string" && !value.trim()) return false;
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) return false;
+      if (field === "minutes") return Number.isInteger(numeric) && numeric <= 120;
+      if (field === "rating") return numeric <= 10;
+      return !integerPlayerStatFields.has(field) || Number.isInteger(numeric);
+    });
+    if (!playerStatsValid) return { ok: false, reason: "invalid-player-stats" };
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;

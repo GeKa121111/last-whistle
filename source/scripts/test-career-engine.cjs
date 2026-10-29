@@ -29,7 +29,7 @@ assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00
   "the in-game date must advance deterministically across season boundaries");
 const tournamentFlagNames = ["nationalCalled", "nationalTournamentDone", "nationalTournamentQualified", "nationalTournamentWinner", "internationalPlayed"];
 const legacyCareerPerkFlagNames = ["academyCareer","academyReserve","academyGraduationPending","academyGraduated","privateCoach","xpMultiplier"];
-const legacyInventoryFlagNames = ["careerStarted","leagueSegmentIsPartial","boots","diet","speedBoots","strengthProgram","videoAnalyst","homeGym","sleepCoach","physio","recoveryRoom","privateChef","homeUpgrade","sportsPsych","mediaTraining","creatorStudio","stylist","charityFoundation"];
+const legacyInventoryFlagNames = ["careerStarted","leagueSegmentIsPartial","boots","diet","agent","speedBoots","strengthProgram","videoAnalyst","homeGym","sleepCoach","physio","recoveryRoom","privateChef","homeUpgrade","sportsPsych","mediaTraining","creatorStudio","stylist","charityFoundation"];
 for (const flag of legacyInventoryFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
     `the deployed browser career engine must normalize saved ${flag} flags`);

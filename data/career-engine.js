@@ -219,6 +219,12 @@
     state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
     state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
     state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
+    state.academyCareer = normalizeLegacyBoolean(state.academyCareer);
+    state.academyReserve = normalizeLegacyBoolean(state.academyReserve);
+    state.academyGraduationPending = normalizeLegacyBoolean(state.academyGraduationPending);
+    state.academyGraduated = normalizeLegacyBoolean(state.academyGraduated);
+    state.privateCoach = normalizeLegacyBoolean(state.privateCoach);
+    state.xpMultiplier = normalizeLegacyBoolean(state.xpMultiplier);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];

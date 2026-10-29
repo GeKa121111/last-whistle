@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v165"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=31"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v166"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=32"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -28,6 +28,16 @@ assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:0
 assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z",
   "the in-game date must advance deterministically across season boundaries");
 const tournamentFlagNames = ["nationalCalled", "nationalTournamentDone", "nationalTournamentQualified", "nationalTournamentWinner", "internationalPlayed"];
+const legacyCareerPerkFlagNames = ["academyCareer","academyReserve","academyGraduationPending","academyGraduated","privateCoach","xpMultiplier"];
+for (const flag of legacyCareerPerkFlagNames) {
+  assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
+    `the deployed browser career engine must normalize saved ${flag} flags`);
+}
+const legacyCareerMigrationNormalize = rootHtml.indexOf("state.academyCareer=normalizeSavedBooleanFlag(state.academyCareer);");
+const legacyCareerMigrationFollowing = rootHtml.indexOf("state.academyReserve=normalizeSavedBooleanFlag(state.academyReserve);", legacyCareerMigrationNormalize);
+assert.ok(legacyCareerMigrationNormalize >= 0 && legacyCareerMigrationFollowing > legacyCareerMigrationNormalize,
+  "academy and perk flags must normalize inside the save-migration scope");
+
 for (const flag of tournamentFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
     `the deployed browser career engine must normalize saved ${flag} flags`);
@@ -692,6 +702,18 @@ const oldestKeeperCurve = { pos: "حارس مرمى", age: 37, fitness: 75, phys
 career.applySeasonAging(oldestKeeperCurve);
 assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
 assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
+
+const legacyCareerPerkFlags = makeProgressionFixture(false);
+Object.assign(legacyCareerPerkFlags, Object.fromEntries(legacyCareerPerkFlagNames.map(flag => [flag, "false"])));
+career.ensureState(legacyCareerPerkFlags);
+for (const flag of legacyCareerPerkFlagNames) {
+  assert.equal(legacyCareerPerkFlags[flag], false, `legacy string false must not activate ${flag}`);
+}
+Object.assign(legacyCareerPerkFlags, Object.fromEntries(legacyCareerPerkFlagNames.map(flag => [flag, "true"])));
+career.ensureState(legacyCareerPerkFlags);
+for (const flag of legacyCareerPerkFlagNames) {
+  assert.equal(legacyCareerPerkFlags[flag], true, `legacy string true must preserve ${flag}`);
+}
 
 const legacyTournamentFlags = makeProgressionFixture(false);
 Object.assign(legacyTournamentFlags, {

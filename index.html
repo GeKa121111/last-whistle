@@ -1438,6 +1438,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   function ensureState(state) {
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
     state.retired = normalizeLegacyBoolean(state.retired);
+    state.playedToday = normalizeLegacyBoolean(state.playedToday);
+    state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];

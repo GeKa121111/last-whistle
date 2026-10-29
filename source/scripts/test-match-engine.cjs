@@ -847,6 +847,30 @@ assert.equal(unsupportedBrowserEventValidation.ok, false,
 assert.equal(unsupportedBrowserEventValidation.reason, "invalid-event-type",
   "the embedded browser validator must return the same unsupported-type reason");
 
+const invalidEventSideMatch = engine.simulateMatch({
+  seed: 8131,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+invalidEventSideMatch.events.push({ type: "goal", minute: 45, side: "player" });
+const invalidEventSideValidation = engine.validateResult(invalidEventSideMatch);
+assert.equal(invalidEventSideValidation.ok, false,
+  "the source validator must reject a goal assigned to the player side");
+assert.equal(invalidEventSideValidation.reason, "invalid-event-side",
+  "unsupported event-side combinations must return a stable validation reason");
+
+const invalidBrowserEventSideMatch = browserEngine.simulateMatch({
+  seed: 8132,
+  player: { name: "Regression Player", position: "حارس مرمى", role: "أساسي",
+    shooting: 15, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+invalidBrowserEventSideMatch.events.push({ type: "save", minute: 45, side: "opponent" });
+const invalidBrowserEventSideValidation = browserEngine.validateResult(invalidBrowserEventSideMatch);
+assert.equal(invalidBrowserEventSideValidation.ok, false,
+  "the embedded browser validator must reject a save credited to the opponent side");
+assert.equal(invalidBrowserEventSideValidation.reason, "invalid-event-side",
+  "the embedded browser validator must return the same invalid-side reason");
+
 const sparseEventMatch = engine.simulateMatch({
   seed: 8130,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

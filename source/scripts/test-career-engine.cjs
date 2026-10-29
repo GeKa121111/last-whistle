@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v167"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=33"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v168"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=34"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -29,6 +29,10 @@ assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00
   "the in-game date must advance deterministically across season boundaries");
 const tournamentFlagNames = ["nationalCalled", "nationalTournamentDone", "nationalTournamentQualified", "nationalTournamentWinner", "internationalPlayed"];
 const legacyCareerPerkFlagNames = ["academyCareer","academyReserve","academyGraduationPending","academyGraduated","privateCoach","xpMultiplier"];
+assert.ok(rootHtml.includes('if (!state.agent || typeof state.agent !== "object") state.agent = normalizeLegacyBoolean(state.agent);'),
+  "the deployed browser engine must normalize primitive legacy agent flags without replacing object profiles");
+assert.ok(rootHtml.includes('if(!state.agent||typeof state.agent!=="object")state.agent=normalizeSavedBooleanFlag(state.agent);'),
+  "save migration must normalize primitive legacy agent flags without replacing object profiles");
 const legacyInventoryFlagNames = ["careerStarted","leagueSegmentIsPartial","boots","diet","speedBoots","strengthProgram","videoAnalyst","homeGym","sleepCoach","physio","recoveryRoom","privateChef","homeUpgrade","sportsPsych","mediaTraining","creatorStudio","stylist","charityFoundation"];
 for (const flag of legacyInventoryFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
@@ -737,6 +741,15 @@ career.ensureState(legacyInventoryFlags);
 for (const flag of legacyInventoryFlagNames) {
   assert.equal(legacyInventoryFlags[flag], true, `legacy string true must preserve ${flag}`);
 }
+
+const legacyStringFalseAgent = makeProgressionFixture(false);
+legacyStringFalseAgent.agent = "false";
+career.ensureState(legacyStringFalseAgent);
+assert.equal(legacyStringFalseAgent.agent, false, "legacy string false agent state must not grant agent benefits");
+const legacyStringTrueAgent = makeProgressionFixture(false);
+legacyStringTrueAgent.agent = "true";
+career.ensureState(legacyStringTrueAgent);
+assert.equal(legacyStringTrueAgent.agent, true, "legacy string true agent state must preserve a valid contract flag");
 
 const polymorphicAgentState = makeProgressionFixture(false);
 const agentProfile = { id: "legacy-agent-profile" };

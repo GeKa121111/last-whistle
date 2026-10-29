@@ -195,6 +195,9 @@
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
+    const moneyValue = Number(state.money);
+    state.money = Number.isFinite(moneyValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, moneyValue)) : 0;
     const careerXPValue = Number(state.careerXP);
     state.careerXP = Number.isFinite(careerXPValue)
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0;

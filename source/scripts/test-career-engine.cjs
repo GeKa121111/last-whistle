@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v154"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=21"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v155"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=22"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -184,6 +184,21 @@ assert.ok(rootHtml.includes("state.suspensions[suspensionKey] = Math.min(2, fini
   "the inline browser career engine must normalize suspension counters");
 assert.ok(rootHtml.includes("state.bookings[bookingKey] = Math.min(4, finiteCount(state.bookings[bookingKey]));"),
   "the inline browser career engine must normalize booking counters");
+
+const malformedMoneyCases = [
+  [Infinity, 0], ["Infinity", 0], [NaN, 0], [-250, 0],
+  [0, 0], [1250, 1250], [1.5, 1.5],
+  [Number.MAX_SAFE_INTEGER + 1000, Number.MAX_SAFE_INTEGER]
+];
+for (const [savedMoney, expectedMoney] of malformedMoneyCases) {
+  const repairedMoney = { pos: "جناح", age: 24, money: savedMoney, trainingXP: {}, randomSeed: 1 };
+  career.ensureState(repairedMoney);
+  assert.equal(repairedMoney.money, expectedMoney,
+    "legacy career balance must be finite, non-negative, and capped at the safe integer limit");
+  assert.ok(Number.isFinite(repairedMoney.money) && repairedMoney.money >= 0
+    && repairedMoney.money <= Number.MAX_SAFE_INTEGER,
+    "career balance normalization must leave a safe finite amount");
+}
 
 const legacyOutfield = {
   pos: "جناح", goalkeeping: 73, shooting: 66, money: 5000,
@@ -587,6 +602,18 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+assert.ok(deployedHtml.includes("state.money = Number.isFinite(moneyValue)"),
+  "embedded browser career engine must normalize saved money balances");
+for (const [savedMoney, expectedMoney] of malformedMoneyCases) {
+  const sourceMoneyState = { pos: "جناح", age: 24, money: savedMoney, trainingXP: {}, randomSeed: 1 };
+  const browserMoneyState = { ...sourceMoneyState };
+  career.ensureState(sourceMoneyState);
+  deployedCareer.ensureState(browserMoneyState);
+  assert.equal(sourceMoneyState.money, expectedMoney);
+  assert.equal(browserMoneyState.money, expectedMoney,
+    "embedded browser balance normalization must match the shared engine");
+}
+
 function makeMalformedLegacyCareerStats() {
   return {
     apps: 4, careerAppearances: "Infinity", seasonLog: [

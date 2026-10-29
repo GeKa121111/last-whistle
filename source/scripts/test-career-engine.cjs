@@ -48,6 +48,8 @@ assert.ok(rootHtml.includes("!c.champion&&!c.eliminated&&!c.abandoned?"),
   "the active cup UI must not offer a match button for an abandoned cup");
 assert.ok(rootHtml.includes("c.abandoned?'أُغلقت البطولة دون اكتمالها'"),
   "the active cup panel must clearly label an abandoned cup as closed");
+assert.ok(rootHtml.includes('else if(!history&&state.cupState&&state.cupState.name===comp.name&&state.cupState.abandoned)status="أُغلقت البطولة دون اكتمالها";'),
+  "the competition overview must not label an abandoned legacy cup as merely scheduled");
 assert.ok(rootHtml.includes("if(c.champion||c.eliminated||c.abandoned){"),
   "transfer archival must treat abandoned cup states as terminal");
 const activeCupHelper = rootHtml.match(/function activeCupInProgress\(\)\s*\{[\s\S]*?\}/);

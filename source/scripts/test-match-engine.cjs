@@ -1088,6 +1088,41 @@ for (const [targetEngine, seed, label] of [[engine, 8140, "source"], [browserEng
     label + " validator must preserve legacy match records without shot-target metadata");
 }
 
+function findModernAssistFixture(targetEngine, firstSeed, label) {
+  for (let seed = firstSeed; seed < firstSeed + 1000; seed += 1) {
+    const match = targetEngine.simulateMatch({
+      seed, teamPower: 72, opponentPower: 64, tactic: "attack", opponentTactic: "balanced",
+      player: { name: "Missing Assist Link Regression", position: "وسط مهاجم", role: "أساسي",
+        shooting: 45, passing: 99, vision: 99, composure: 80, fitness: 100,
+        trust: 100, energy: 100, fatigue: 0 }
+    });
+    const assistIndex = match.events.findIndex(event => event.type === "assist"
+      && event.side === "team" && event.creditedToPlayer === true);
+    const hasModernShotMetadata = match.events.some(event => event.type === "shot"
+      && Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    if (assistIndex >= 0 && hasModernShotMetadata) return { match, assistIndex };
+  }
+  assert.fail(label + " fixture must contain a credited assist and modern shot metadata");
+}
+for (const [targetEngine, seed, label] of [[engine, 620000, "source"], [browserEngine, 620000, "browser"]]) {
+  const fixture = findModernAssistFixture(targetEngine, seed, label);
+  const modernMissingLink = JSON.parse(JSON.stringify(fixture.match));
+  delete modernMissingLink.events[fixture.assistIndex].goalEventId;
+  const modernValidation = targetEngine.validateResult(modernMissingLink);
+  assert.equal(modernValidation.ok, false,
+    label + " validator must reject a modern assist without a goalEventId");
+  assert.equal(modernValidation.assistGoalLinksValid, false,
+    label + " validator must report the missing modern assist link as inconsistent");
+
+  const legacyMissingLink = JSON.parse(JSON.stringify(fixture.match));
+  delete legacyMissingLink.events[fixture.assistIndex].goalEventId;
+  for (const event of legacyMissingLink.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  assert.equal(targetEngine.validateResult(legacyMissingLink).ok, true,
+    label + " validator must preserve legacy assist records without modern shot metadata");
+}
+
 const numericStringStatsMatch = engine.simulateMatch({
   seed: 8134,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

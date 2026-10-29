@@ -2817,7 +2817,15 @@ function seasonAwards(state, league, teamRank) {
     });
     const shotsOnTargetValid = result.player.shotsOnTarget == null || result.player.shots == null
       || Number(result.player.shotsOnTarget) <= Number(result.player.shots);
+    const playerShotEvents = result.events.filter(event =>
+      event.type === "shot" && event.side === "team" && event.creditedToPlayer);
+    const shotTargetMetadataPresent = playerShotEvents.some(event =>
+      Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    const shotsOnTargetLedgerConsistent = result.player.shotsOnTarget == null || !shotTargetMetadataPresent
+      || (playerShotEvents.every(event => typeof event.onTarget === "boolean")
+        && Number(result.player.shotsOnTarget) === playerShotEvents.filter(event => event.onTarget === true).length);
     if (!playerStatsValid || !shotsOnTargetValid) return { ok: false, reason: "invalid-player-stats" };
+    if (!shotsOnTargetLedgerConsistent) return { ok: false, reason: "inconsistent-shot-on-target-ledger" };
     const playerAvailabilityValid = result.player.playerAvailable == null
       || (typeof result.player.playerAvailable === "boolean"
         && (result.player.minutes == null

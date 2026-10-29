@@ -992,6 +992,50 @@ for (const [field, value] of invalidPlayerStatCases) {
     "the embedded browser validator must return the same invalid-stat reason");
 }
 
+function makeShotOnTargetLedgerMatch(targetEngine, seed) {
+  const match = targetEngine.simulateMatch({
+    seed,
+    player: { name: "Shot Ledger Regression", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  assert.ok(match.player.minutes > 0, "shot-ledger fixture must include a player appearance");
+  const entry = match.events.find(event => event.type === "substitution-on" && event.side === "player");
+  const exits = match.events.filter(event => event.side === "player"
+    && ["red-card", "injury", "substitution"].includes(event.type))
+    .sort((a, b) => Number(a.minute) - Number(b.minute));
+  const startMinute = entry ? Number(entry.minute) : 0;
+  const endMinute = exits.length ? Number(exits[0].minute) : startMinute + Number(match.player.minutes);
+  const occupiedMinutes = new Set(match.events.map(event => Number(event.minute)));
+  let minute = 0;
+  for (let candidate = Math.max(1, startMinute + 1); candidate <= Math.min(120, endMinute); candidate += 1) {
+    if (!occupiedMinutes.has(candidate)) { minute = candidate; break; }
+  }
+  assert.ok(minute > 0, "shot-ledger fixture must have an unused minute while the player is active");
+  match.events.push({ type: "shot", minute, side: "team", shooter: "player",
+    creditedToPlayer: true, onTarget: true });
+  match.events.sort((a, b) => Number(a.minute) - Number(b.minute));
+  match.player.shots += 1;
+  match.player.chances += 1;
+  match.player.shotsOnTarget += 1;
+  return match;
+}
+for (const [targetEngine, seed, label] of [[engine, 8136, "source"], [browserEngine, 8137, "browser"]]) {
+  const inconsistentShotTarget = makeShotOnTargetLedgerMatch(targetEngine, seed);
+  inconsistentShotTarget.player.shotsOnTarget -= 1;
+  const invalidShotTargetValidation = targetEngine.validateResult(inconsistentShotTarget);
+  assert.equal(invalidShotTargetValidation.ok, false,
+    label + " validator must reject shots-on-target counts that disagree with shot events");
+  assert.equal(invalidShotTargetValidation.reason, "inconsistent-shot-on-target-ledger",
+    label + " validator must return a stable shot-ledger reason");
+
+  const legacyShotTarget = makeShotOnTargetLedgerMatch(targetEngine, seed);
+  for (const event of legacyShotTarget.events) {
+    if (event.type === "shot" && event.side === "team" && event.creditedToPlayer) delete event.onTarget;
+  }
+  assert.equal(targetEngine.validateResult(legacyShotTarget).ok, true,
+    label + " validator must preserve legacy shot events without onTarget metadata");
+}
+
 const numericStringStatsMatch = engine.simulateMatch({
   seed: 8134,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

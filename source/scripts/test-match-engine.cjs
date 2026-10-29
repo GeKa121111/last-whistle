@@ -1207,12 +1207,12 @@ for (const [targetEngine, seed, label] of [[engine, 640000, "source"], [browserE
     label + " validator must expose a missing goal-shot link");
 
   const mismatchedScoringShot = JSON.parse(JSON.stringify(fixture));
-  mismatchedScoringShot.events[opponentGoalIndex - 1].shooter = "teammate";
+  mismatchedScoringShot.events[opponentGoalIndex - 1].onTarget = false;
   const mismatchedShotValidation = targetEngine.validateResult(mismatchedScoringShot);
   assert.equal(mismatchedShotValidation.ok, false,
-    label + " validator must reject a scoring shot attributed to the wrong side");
+    label + " validator must reject a scoring shot marked off target");
   assert.equal(mismatchedShotValidation.goalShotLedgerConsistent, false,
-    label + " validator must expose mismatched goal-shot attribution");
+    label + " validator must expose a scoring shot marked off target");
 
   const legacyGoalShotLedger = JSON.parse(JSON.stringify(fixture));
   for (const event of legacyGoalShotLedger.events) {
@@ -1259,6 +1259,43 @@ for (const [targetEngine, seed, label] of [[engine, 650000, "source"], [browserE
     label + " validator must allow legacy shot events with omitted onTarget metadata");
   assert.equal(legacyValidation.ok, true,
     label + " validator must preserve legacy ledgers without shot-target metadata");
+}
+
+for (const [targetEngine, seed, label] of [[engine, 660000, "source"], [browserEngine, 660000, "browser"]]) {
+  const fixture = findModernGoalFixture(targetEngine, seed, label);
+  const nonScoringShotIndex = fixture.events.findIndex((event, index) =>
+    event.type === "shot" && fixture.events[index + 1]?.type !== "goal");
+  assert.ok(nonScoringShotIndex >= 0,
+    label + " shot-attribution fixture must contain a non-scoring shot");
+
+  const invalidShooter = JSON.parse(JSON.stringify(fixture));
+  const shooterProbe = invalidShooter.events[nonScoringShotIndex];
+  shooterProbe.shooter = shooterProbe.side === "team" ? "opponent" : "teammate";
+  const shooterValidation = targetEngine.validateResult(invalidShooter);
+  assert.equal(shooterValidation.ok, false,
+    label + " validator must reject a shot attributed to a shooter from the wrong side");
+  assert.equal(shooterValidation.reason, "invalid-shot-attribution",
+    label + " validator must return a stable shot-attribution reason");
+  assert.equal(shooterValidation.shotAttributionConsistent, false,
+    label + " validator must expose invalid shot attribution");
+
+  const invalidCredit = JSON.parse(JSON.stringify(fixture));
+  invalidCredit.events[nonScoringShotIndex].creditedToPlayer = "false";
+  const creditValidation = targetEngine.validateResult(invalidCredit);
+  assert.equal(creditValidation.ok, false,
+    label + " validator must reject non-boolean shot player-credit flags");
+  assert.equal(creditValidation.reason, "invalid-shot-attribution",
+    label + " validator must reject malformed player-credit flags before stat reconciliation");
+
+  const legacyShotAttribution = JSON.parse(JSON.stringify(fixture));
+  for (const event of legacyShotAttribution.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  const legacyShotAttributionValidation = targetEngine.validateResult(legacyShotAttribution);
+  assert.equal(legacyShotAttributionValidation.shotAttributionConsistent, true,
+    label + " validator must preserve legacy shot attribution records without target metadata");
+  assert.equal(legacyShotAttributionValidation.ok, true,
+    label + " validator must accept legacy shot ledgers without target metadata");
 }
 
 const numericStringStatsMatch = engine.simulateMatch({

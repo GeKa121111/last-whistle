@@ -18,8 +18,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v169"), "PWA cache must advance for international tournament changes");
-assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=34"), "the cached career engine asset version must advance");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v170"), "PWA cache must advance for international tournament changes");
+assert.ok(serviceWorkerCopies[0].includes("data/career-engine.js?v=35"), "the cached career engine asset version must advance");
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -33,6 +33,13 @@ assert.ok(rootHtml.includes('if (!state.agent || typeof state.agent !== "object"
   "the deployed browser engine must normalize primitive legacy agent flags without replacing object profiles");
 assert.ok(rootHtml.includes('if(!state.agent||typeof state.agent!=="object")state.agent=normalizeSavedBooleanFlag(state.agent);'),
   "save migration must normalize primitive legacy agent flags without replacing object profiles");
+const cupTerminalFlagNames = ["champion", "eliminated", "abandoned"];
+for (const flag of cupTerminalFlagNames) {
+  assert.ok(rootHtml.includes(`state.cupState.${flag} = normalizeLegacyBoolean(state.cupState.${flag});`),
+    `the shared/browser engine must normalize saved cup ${flag} status`);
+}
+assert.ok(rootHtml.includes("state.cupState.champion=normalizeSavedBooleanFlag(state.cupState.champion);"),
+  "the save migration must normalize cup terminal flags before rendering or closing a saved cup");
 const legacyInventoryFlagNames = ["careerStarted","leagueSegmentIsPartial","boots","diet","speedBoots","strengthProgram","videoAnalyst","homeGym","sleepCoach","physio","recoveryRoom","privateChef","homeUpgrade","sportsPsych","mediaTraining","creatorStudio","stylist","charityFoundation"];
 for (const flag of legacyInventoryFlagNames) {
   assert.ok(rootHtml.includes(`state.${flag} = normalizeLegacyBoolean(state.${flag});`),
@@ -757,6 +764,18 @@ Object.assign(legacyInventoryFlags, Object.fromEntries(legacyInventoryFlagNames.
 career.ensureState(legacyInventoryFlags);
 for (const flag of legacyInventoryFlagNames) {
   assert.equal(legacyInventoryFlags[flag], true, `legacy string true must preserve ${flag}`);
+}
+
+const legacyCupStatus = makeProgressionFixture(false);
+legacyCupStatus.cupState = { champion: "false", eliminated: "false", abandoned: "false", history: [], teams: [] };
+career.ensureState(legacyCupStatus);
+for (const flag of cupTerminalFlagNames) {
+  assert.equal(legacyCupStatus.cupState[flag], false, `legacy string false must not mark cup ${flag}`);
+}
+Object.assign(legacyCupStatus.cupState, { champion: "true", eliminated: "true", abandoned: "true" });
+career.ensureState(legacyCupStatus);
+for (const flag of cupTerminalFlagNames) {
+  assert.equal(legacyCupStatus.cupState[flag], true, `legacy string true must preserve cup ${flag}`);
 }
 
 const legacyStringFalseAgent = makeProgressionFixture(false);

@@ -219,6 +219,11 @@
     state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
     state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
     state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
+    if (state.cupState && typeof state.cupState === "object" && !Array.isArray(state.cupState)) {
+      state.cupState.champion = normalizeLegacyBoolean(state.cupState.champion);
+      state.cupState.eliminated = normalizeLegacyBoolean(state.cupState.eliminated);
+      state.cupState.abandoned = normalizeLegacyBoolean(state.cupState.abandoned);
+    }
     state.academyCareer = normalizeLegacyBoolean(state.academyCareer);
     state.academyReserve = normalizeLegacyBoolean(state.academyReserve);
     state.academyGraduationPending = normalizeLegacyBoolean(state.academyGraduationPending);

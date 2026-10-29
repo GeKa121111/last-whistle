@@ -2844,7 +2844,13 @@ function seasonAwards(state, league, teamRank) {
     if (!shotAttributionConsistent) return { ok: false, reason: "invalid-shot-attribution", shotAttributionConsistent };
     if (!shotsOnTargetLedgerConsistent) return { ok: false, reason: "inconsistent-shot-on-target-ledger" };
     const goalEvents = result.events.filter(event => event.type === "goal");
-    const goalAttributionConsistent = !modernShotMetadataPresent || (() => {
+    // Goal/assist IDs and scorer labels form a modern attribution ledger independently of shot flags.
+    const modernGoalMetadataPresent = goalEvents.some(goal =>
+      Object.prototype.hasOwnProperty.call(goal, "goalEventId")
+        || Object.prototype.hasOwnProperty.call(goal, "scorer"));
+    const modernAssistMetadataPresent = result.events.some(event => event.type === "assist"
+      && Object.prototype.hasOwnProperty.call(event, "goalEventId"));
+    const goalAttributionConsistent = !modernGoalMetadataPresent || (() => {
       const goalIds = new Set();
       return goalEvents.every(goal => {
         if (typeof goal.goalEventId !== "string" || !goal.goalEventId.trim() || goalIds.has(goal.goalEventId)) {
@@ -2891,7 +2897,7 @@ function seasonAwards(state, league, teamRank) {
     const linkedAssistGoalIds = new Set();
     const assistGoalLinksValid = result.events.filter(event => event.type === "assist").every(assist => {
       const goalId = String(assist.goalEventId || "");
-      if (!goalId) return !modernShotMetadataPresent; // Legacy records without modern shot metadata remain compatible.
+      if (!goalId) return !modernShotMetadataPresent && !modernGoalMetadataPresent && !modernAssistMetadataPresent; // Preserve only fully legacy attribution ledgers.
       if (linkedAssistGoalIds.has(goalId)) return false; // A goal can have at most one credited assist.
       const matches = result.events.map((event, index) => ({ event, index }))
         .filter(item => item.event.type === "goal" && item.event.goalEventId === goalId);

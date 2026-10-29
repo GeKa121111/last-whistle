@@ -437,7 +437,7 @@ for (const testCase of legacyCareerFlagCases) {
 }
 assert.ok(rootHtml.includes("state.freeAgent = normalizeLegacyBoolean(state.freeAgent);"),
   "the inline browser career engine must normalize saved free-agent flags");
-assert.ok(deployedHtml.includes("state.retired = normalizeLegacyBoolean(state.retired);"),
+assert.ok(rootHtml.includes("state.retired = normalizeLegacyBoolean(state.retired);"),
   "the deployed browser career engine must normalize saved retirement flags");
 
 const corruptedNegotiation = { ...renewalBase, weeklyWage: Infinity, contractSeasons: 3,

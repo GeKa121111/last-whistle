@@ -798,4 +798,29 @@ assert.equal(JSON.stringify(browserEngine.buildStoryReport({
 }, { season: "3", day: "12" })), JSON.stringify(validStoryReport),
   "the embedded browser report must preserve valid legacy report values");
 
+
+const malformedEventEntryMatch = engine.simulateMatch({
+  seed: 8128,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+malformedEventEntryMatch.events.push(null);
+const malformedEventEntryValidation = engine.validateResult(malformedEventEntryMatch);
+assert.equal(malformedEventEntryValidation.ok, false,
+  "the validator must reject malformed event entries without throwing");
+assert.equal(malformedEventEntryValidation.reason, "invalid-event-entry",
+  "malformed event entries must return a specific validation reason");
+
+const malformedBrowserEventMatch = browserEngine.simulateMatch({
+  seed: 8128,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+malformedBrowserEventMatch.events.push(null);
+const malformedBrowserEventValidation = browserEngine.validateResult(malformedBrowserEventMatch);
+assert.equal(malformedBrowserEventValidation.ok, false,
+  "the embedded browser validator must reject malformed event entries without throwing");
+assert.equal(malformedBrowserEventValidation.reason, "invalid-event-entry",
+  "the embedded browser validator must return the same malformed-entry reason");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

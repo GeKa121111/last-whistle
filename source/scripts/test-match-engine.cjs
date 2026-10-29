@@ -937,6 +937,57 @@ numericStringBrowserStatsMatch.player.keyPasses = String(numericStringBrowserSta
 assert.equal(browserEngine.validateResult(numericStringBrowserStatsMatch).ok, true,
   "the embedded browser validator must preserve legacy numeric-string compatibility");
 
+function assertAvailabilityMismatch(targetEngine, label, mutate) {
+  const match = targetEngine.simulateMatch({
+    seed: 8135,
+    player: { name: "Availability Regression", position: "مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  assert.ok(match.player.minutes > 0, label + ": fixture must start with a played appearance");
+  mutate(match);
+  const validation = targetEngine.validateResult(match);
+  assert.equal(validation.ok, false, label + ": inconsistent availability must be rejected");
+  assert.equal(validation.reason, "invalid-player-availability",
+    label + ": availability mismatches must return a stable reason");
+}
+assertAvailabilityMismatch(engine, "unavailable player with positive minutes", match => {
+  match.player.playerAvailable = false;
+});
+assertAvailabilityMismatch(browserEngine, "browser unavailable player with positive minutes", match => {
+  match.player.playerAvailable = false;
+});
+assertAvailabilityMismatch(engine, "available player with zero minutes", match => {
+  match.player.minutes = 0;
+  match.player.playerAvailable = true;
+});
+assertAvailabilityMismatch(browserEngine, "browser available player with zero minutes", match => {
+  match.player.minutes = 0;
+  match.player.playerAvailable = true;
+});
+assertAvailabilityMismatch(engine, "non-boolean availability flag", match => {
+  match.player.playerAvailable = "false";
+});
+assertAvailabilityMismatch(browserEngine, "browser non-boolean availability flag", match => {
+  match.player.playerAvailable = "false";
+});
+
+const legacyAvailabilityMatch = engine.simulateMatch({
+  seed: 8136,
+  player: { name: "Legacy Availability", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+delete legacyAvailabilityMatch.player.playerAvailable;
+assert.equal(engine.validateResult(legacyAvailabilityMatch).ok, true,
+  "legacy match records without playerAvailable must remain valid");
+const legacyBrowserAvailabilityMatch = browserEngine.simulateMatch({
+  seed: 8136,
+  player: { name: "Legacy Availability", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+delete legacyBrowserAvailabilityMatch.player.playerAvailable;
+assert.equal(browserEngine.validateResult(legacyBrowserAvailabilityMatch).ok, true,
+  "the embedded validator must preserve legacy records without playerAvailable");
+
 const sparseEventMatch = engine.simulateMatch({
   seed: 8130,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

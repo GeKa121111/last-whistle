@@ -367,8 +367,12 @@
   }
   function validateResult(result) {
     if (!result || !result.score || !result.player || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
-    if (result.events.some(event => !event || typeof event !== "object" || Array.isArray(event))) {
-      return { ok: false, reason: "invalid-event-entry" };
+    for (let index = 0; index < result.events.length; index++) {
+      if (!(index in result.events)) return { ok: false, reason: "invalid-event-entry" };
+      const event = result.events[index];
+      if (!event || typeof event !== "object" || Array.isArray(event)) {
+        return { ok: false, reason: "invalid-event-entry" };
+      }
     }
     const allowedEventTypes = new Set(["assist", "chance", "foul", "goal", "injury", "interception", "offside", "penalty-shootout", "red-card", "save", "shot", "substitution", "substitution-on", "tackle", "yellow-card"]);
     if (result.events.some(event => typeof event.type !== "string" || !allowedEventTypes.has(event.type))) {

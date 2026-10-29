@@ -847,4 +847,29 @@ assert.equal(unsupportedBrowserEventValidation.ok, false,
 assert.equal(unsupportedBrowserEventValidation.reason, "invalid-event-type",
   "the embedded browser validator must return the same unsupported-type reason");
 
+const sparseEventMatch = engine.simulateMatch({
+  seed: 8130,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+assert.ok(sparseEventMatch.events.length > 0, "the sparse-event fixture must contain events");
+delete sparseEventMatch.events[0];
+assert.equal(0 in sparseEventMatch.events, false, "the fixture must contain a real sparse-array hole");
+const sparseEventValidation = engine.validateResult(sparseEventMatch);
+assert.equal(sparseEventValidation.ok, false, "the source validator must reject sparse event arrays");
+assert.equal(sparseEventValidation.reason, "invalid-event-entry",
+  "sparse event arrays must return the malformed-entry reason");
+
+const sparseBrowserEventMatch = browserEngine.simulateMatch({
+  seed: 8130,
+  player: { name: "Regression Player", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+delete sparseBrowserEventMatch.events[0];
+const sparseBrowserEventValidation = browserEngine.validateResult(sparseBrowserEventMatch);
+assert.equal(sparseBrowserEventValidation.ok, false,
+  "the embedded browser validator must reject sparse event arrays");
+assert.equal(sparseBrowserEventValidation.reason, "invalid-event-entry",
+  "the embedded browser validator must return the same malformed-entry reason");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

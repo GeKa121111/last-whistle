@@ -2765,6 +2765,12 @@ function seasonAwards(state, league, teamRank) {
   }
   function validateResult(result) {
     if (!result || !result.score || !result.player || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
+    const scoreValueValid = value =>
+      (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+      && Number.isFinite(Number(value)) && Number.isInteger(Number(value)) && Number(value) >= 0;
+    if (!scoreValueValid(result.score.for) || !scoreValueValid(result.score.against)) {
+      return { ok: false, reason: "invalid-score" };
+    }
     for (let index = 0; index < result.events.length; index++) {
       if (!(index in result.events)) return { ok: false, reason: "invalid-event-entry" };
       const event = result.events[index];
@@ -2987,7 +2993,7 @@ function seasonAwards(state, league, teamRank) {
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
     const valid = assistGoalLinksValid && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
-      && teamGoals === result.score.for && opponentGoals === result.score.against
+      && teamGoals === Number(result.score.for) && opponentGoals === Number(result.score.against)
       && result.player.goals != null && playerGoals === Number(result.player.goals)
       && result.player.assists != null && assists === Number(result.player.assists)
       && Number(result.player.goals) <= shots && Number(result.player.assists) <= teamGoals

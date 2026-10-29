@@ -1188,6 +1188,43 @@ for (const [targetEngine, seed, label] of [[engine, 630000, "source"], [browserE
     label + " validator must continue accepting legacy goal attribution records");
 }
 
+for (const [targetEngine, seed, label] of [[engine, 640000, "source"], [browserEngine, 640000, "browser"]]) {
+  const fixture = findModernGoalFixture(targetEngine, seed, label);
+  const opponentGoalIndex = fixture.events.findIndex(event => event.type === "goal" && event.side === "opponent");
+  assert.ok(opponentGoalIndex > 0, label + " goal-shot fixture must contain a preceding opponent shot");
+  const linkedShot = fixture.events[opponentGoalIndex - 1];
+  assert.equal(linkedShot.type, "shot",
+    label + " generated goal must immediately follow its scoring shot");
+  assert.equal(linkedShot.onTarget, true,
+    label + " scoring shot must be recorded on target");
+
+  const missingScoringShot = JSON.parse(JSON.stringify(fixture));
+  missingScoringShot.events.splice(opponentGoalIndex - 1, 1);
+  const missingShotValidation = targetEngine.validateResult(missingScoringShot);
+  assert.equal(missingShotValidation.ok, false,
+    label + " validator must reject a modern goal without its preceding shot event");
+  assert.equal(missingShotValidation.goalShotLedgerConsistent, false,
+    label + " validator must expose a missing goal-shot link");
+
+  const mismatchedScoringShot = JSON.parse(JSON.stringify(fixture));
+  mismatchedScoringShot.events[opponentGoalIndex - 1].shooter = "teammate";
+  const mismatchedShotValidation = targetEngine.validateResult(mismatchedScoringShot);
+  assert.equal(mismatchedShotValidation.ok, false,
+    label + " validator must reject a scoring shot attributed to the wrong side");
+  assert.equal(mismatchedShotValidation.goalShotLedgerConsistent, false,
+    label + " validator must expose mismatched goal-shot attribution");
+
+  const legacyGoalShotLedger = JSON.parse(JSON.stringify(fixture));
+  for (const event of legacyGoalShotLedger.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  const legacyGoalShotValidation = targetEngine.validateResult(legacyGoalShotLedger);
+  assert.equal(legacyGoalShotValidation.goalShotLedgerConsistent, true,
+    label + " validator must preserve legacy goal records without shot-target metadata");
+  assert.equal(legacyGoalShotValidation.ok, true,
+    label + " validator must continue accepting legacy goal/shot ledgers");
+}
+
 const numericStringStatsMatch = engine.simulateMatch({
   seed: 8134,
   player: { name: "Regression Player", position: "مهاجم", role: "أساسي",

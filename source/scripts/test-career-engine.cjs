@@ -13,16 +13,20 @@ const repositoryRoot = path.resolve(__dirname, "..", "..");
 const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
+assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
+  "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 176);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 39);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 177);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 40);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
+assert.ok(engineCopies[0].includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
+  "the shared career engine must clamp saved player attributes to the 0-100 range");
 assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "career award dates must start on the in-game season date, not the machine clock");
 assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z",
@@ -1103,6 +1107,30 @@ for (const [savedMoney, expectedMoney] of malformedMoneyCases) {
     "embedded browser balance normalization must match the shared engine");
 }
 
+
+const malformedAttributeCases = [
+  { pos: "جناح", key: "shooting", saved: -25, expected: 0 },
+  { pos: "جناح", key: "dribbling", saved: 140, expected: 100 },
+  { pos: "جناح", key: "passing", saved: "88", expected: 88 },
+  { pos: "جناح", key: "speed", saved: 64.6, expected: 65 },
+  { pos: "جناح", key: "fitness", saved: Infinity, expected: 50 },
+  { pos: "جناح", key: "vision", saved: "Infinity", expected: 50 },
+  { pos: "جناح", key: "composure", saved: NaN, expected: 50 },
+  { pos: "جناح", key: "physical", saved: "", expected: 50 },
+  { pos: "حارس مرمى", key: "goalkeeping", saved: 140, expected: 100 }
+];
+for (const { pos, key, saved, expected } of malformedAttributeCases) {
+  const sourceState = { pos, [key]: saved, trainingXP: {}, randomSeed: 1 };
+  const browserState = { ...sourceState };
+  career.ensureState(sourceState);
+  deployedCareer.ensureState(browserState);
+  assert.equal(sourceState[key], expected,
+    `shared engine must normalize ${key} from ${String(saved)} to ${expected}`);
+  assert.equal(browserState[key], expected,
+    `embedded browser engine must normalize ${key} from ${String(saved)} to ${expected}`);
+  assert.equal(browserState[key], sourceState[key],
+    `shared and embedded player-attribute normalization must match for ${key}`);
+}
 function makeMalformedLegacyCareerStats() {
   return {
     apps: 4, careerAppearances: "Infinity", seasonLog: [

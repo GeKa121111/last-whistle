@@ -1583,7 +1583,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       const trainingXPValue = Number(state.trainingXP[key]);
       state.trainingXP[key] = Number.isFinite(trainingXPValue)
         ? Math.max(0, Math.min(trainingXPThreshold - 0.01, trainingXPValue)) : 0;
-      if (!Number.isFinite(Number(state[key]))) state[key] = 50;
+      const attributeValue = state[key] === null || state[key] === undefined || state[key] === "" ? NaN : Number(state[key]);
+      state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;
     }
     // Repair legacy outfield saves without altering any other career or roster data.
     if (state.pos && state.pos !== "حارس مرمى") state.goalkeeping = 0;

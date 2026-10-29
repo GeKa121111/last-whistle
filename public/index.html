@@ -4519,6 +4519,7 @@ function renderCurrentCompetitions(){
   const isActive=state.cupState&&state.cupState.name===comp.name&&!state.cupState.eliminated&&!state.cupState.champion&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)===Number(state.season);
   let status=history?(history.champion?"بطل البطولة":history.eliminated?"انتهى المشوار":"انتهت البطولة"):"مجدولة";
   if(isActive)status=state.cupState.phase==="league"?"مرحلة الدوري • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):state.cupState.phase==="groups"?"دور المجموعات • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):"نشطة • "+String((state.cupState.rounds||[])[state.cupState.stage]||"الدور الحالي");
+  else if(!history&&state.cupState&&state.cupState.name===comp.name&&state.cupState.abandoned)status="أُغلقت البطولة دون اكتمالها";
   else if(!history&&typeof competitionLockReason==="function"){
    const reason=competitionLockReason(comp);
    if(reason)status=reason.includes("التأهل")||reason.includes("مركز النادي")?"بانتظار التأهل":reason.includes("السوبر")?"مشروطة بنتائج الموسم السابق":reason.includes("كأس العالم")?"مقفولة حتى التأهل القاري":reason;

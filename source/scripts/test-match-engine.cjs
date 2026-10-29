@@ -1118,9 +1118,25 @@ for (const [targetEngine, seed, label] of [[engine, 620000, "source"], [browserE
   delete legacyMissingLink.events[fixture.assistIndex].goalEventId;
   for (const event of legacyMissingLink.events) {
     if (event.type === "shot") delete event.onTarget;
+    if (event.type === "goal") {
+      delete event.goalEventId;
+      delete event.scorer;
+    }
+    if (event.type === "assist") delete event.goalEventId;
   }
   assert.equal(targetEngine.validateResult(legacyMissingLink).ok, true,
-    label + " validator must preserve legacy assist records without modern shot metadata");
+    label + " validator must preserve fully legacy assist/goal records without modern metadata");
+
+  const modernGoalMetadataWithoutShotFlags = JSON.parse(JSON.stringify(fixture.match));
+  for (const event of modernGoalMetadataWithoutShotFlags.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  delete modernGoalMetadataWithoutShotFlags.events[fixture.assistIndex].goalEventId;
+  const modernGoalLinkWithoutShotFlagsValidation = targetEngine.validateResult(modernGoalMetadataWithoutShotFlags);
+  assert.equal(modernGoalLinkWithoutShotFlagsValidation.ok, false,
+    label + " validator must not treat missing modern assist links as legacy when goal IDs remain");
+  assert.equal(modernGoalLinkWithoutShotFlagsValidation.assistGoalLinksValid, false,
+    label + " validator must enforce assist links when modern goal metadata remains");
 
   const duplicateAssistLink = JSON.parse(JSON.stringify(fixture.match));
   const originalAssist = duplicateAssistLink.events[fixture.assistIndex];
@@ -1185,7 +1201,20 @@ for (const [targetEngine, seed, label] of [[engine, 630000, "source"], [browserE
   assert.equal(legacyGoalValidation.goalAttributionConsistent, true,
     label + " validator must preserve legacy goal ledgers without modern shot metadata");
   assert.equal(legacyGoalValidation.ok, true,
-    label + " validator must continue accepting legacy goal attribution records");
+    label + " validator must continue accepting fully legacy goal attribution records");
+
+  const modernGoalWithoutShotFlags = JSON.parse(JSON.stringify(fixture));
+  for (const event of modernGoalWithoutShotFlags.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  const malformedGoal = modernGoalWithoutShotFlags.events.find(event =>
+    event.type === "goal" && event.side === "opponent");
+  malformedGoal.scorer = "teammate";
+  const malformedGoalWithoutShotFlagsValidation = targetEngine.validateResult(modernGoalWithoutShotFlags);
+  assert.equal(malformedGoalWithoutShotFlagsValidation.ok, false,
+    label + " validator must validate modern goal attribution even when shot flags are absent");
+  assert.equal(malformedGoalWithoutShotFlagsValidation.goalAttributionConsistent, false,
+    label + " validator must expose malformed modern goal attribution without shot flags");
 }
 
 for (const [targetEngine, seed, label] of [[engine, 640000, "source"], [browserEngine, 640000, "browser"]]) {

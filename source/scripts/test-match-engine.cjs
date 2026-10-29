@@ -1121,6 +1121,19 @@ for (const [targetEngine, seed, label] of [[engine, 620000, "source"], [browserE
   }
   assert.equal(targetEngine.validateResult(legacyMissingLink).ok, true,
     label + " validator must preserve legacy assist records without modern shot metadata");
+
+  const duplicateAssistLink = JSON.parse(JSON.stringify(fixture.match));
+  const originalAssist = duplicateAssistLink.events[fixture.assistIndex];
+  assert.ok(originalAssist.goalEventId,
+    label + " duplicate-assist fixture must start with an exact goal link");
+  duplicateAssistLink.events.splice(fixture.assistIndex + 1, 0, { ...originalAssist });
+  duplicateAssistLink.player.assists += 1;
+  duplicateAssistLink.player.keyPasses += 1;
+  const duplicateAssistValidation = targetEngine.validateResult(duplicateAssistLink);
+  assert.equal(duplicateAssistValidation.ok, false,
+    label + " validator must reject two assists linked to the same goal");
+  assert.equal(duplicateAssistValidation.assistGoalLinksValid, false,
+    label + " validator must flag duplicate assist-to-goal links as inconsistent");
 }
 
 const numericStringStatsMatch = engine.simulateMatch({

@@ -449,20 +449,25 @@
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;
     const assists = result.events.filter(event => event.type === "assist").length;
+    const linkedAssistGoalIds = new Set();
     const assistGoalLinksValid = result.events.filter(event => event.type === "assist").every(assist => {
       const goalId = String(assist.goalEventId || "");
       if (!goalId) return !modernShotMetadataPresent; // Legacy records without modern shot metadata remain compatible.
+      if (linkedAssistGoalIds.has(goalId)) return false; // A goal can have at most one credited assist.
       const matches = result.events.map((event, index) => ({ event, index }))
         .filter(item => item.event.type === "goal" && item.event.goalEventId === goalId);
       if (matches.length !== 1) return false;
       const { event: goal, index: goalIndex } = matches[0];
       const assistIndex = result.events.indexOf(assist);
-      return assist.side === "team" && assist.creditedToPlayer === true
+      const linkValid = assist.side === "team" && assist.creditedToPlayer === true
         && goal.side === "team" && goal.scorer === "teammate" && goal.creditedToPlayer !== true
         && assistIndex < goalIndex
         && Number.isFinite(Number(assist.minute)) && Number.isFinite(Number(goal.minute))
         && Number(assist.minute) <= Number(goal.minute)
         && Number(assist.goalMinute) === Number(goal.minute);
+      if (!linkValid) return false;
+      linkedAssistGoalIds.add(goalId);
+      return true;
     });
     const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;

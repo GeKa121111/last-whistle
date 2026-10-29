@@ -228,7 +228,6 @@
     state.careerStarted = normalizeLegacyBoolean(state.careerStarted);
     state.leagueSegmentIsPartial = normalizeLegacyBoolean(state.leagueSegmentIsPartial);
     state.boots = normalizeLegacyBoolean(state.boots);
-    state.agent = normalizeLegacyBoolean(state.agent);
     state.diet = normalizeLegacyBoolean(state.diet);
     state.speedBoots = normalizeLegacyBoolean(state.speedBoots);
     state.strengthProgram = normalizeLegacyBoolean(state.strengthProgram);

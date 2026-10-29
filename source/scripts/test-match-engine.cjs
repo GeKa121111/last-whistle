@@ -879,7 +879,11 @@ const invalidPlayerStatCases = [
   ["tackles", -1],
   ["rating", "not-a-number"],
   ["minutes", 121],
-  ["goals", 1.5]
+  ["goals", 1.5],
+  ["shotsOnTarget", Infinity],
+  ["chances", -1],
+  ["keyPasses", 1.5],
+  ["shotsOnTarget", 999]
 ];
 for (const [field, value] of invalidPlayerStatCases) {
   const sourcePlayerStatMatch = engine.simulateMatch({
@@ -914,6 +918,9 @@ const numericStringStatsMatch = engine.simulateMatch({
 });
 numericStringStatsMatch.player.minutes = String(numericStringStatsMatch.player.minutes);
 numericStringStatsMatch.player.tackles = String(numericStringStatsMatch.player.tackles);
+numericStringStatsMatch.player.shotsOnTarget = String(numericStringStatsMatch.player.shotsOnTarget);
+numericStringStatsMatch.player.chances = String(numericStringStatsMatch.player.chances);
+numericStringStatsMatch.player.keyPasses = String(numericStringStatsMatch.player.keyPasses);
 assert.equal(engine.validateResult(numericStringStatsMatch).ok, true,
   "legacy numeric strings in player stats must remain accepted");
 
@@ -924,6 +931,9 @@ const numericStringBrowserStatsMatch = browserEngine.simulateMatch({
 });
 numericStringBrowserStatsMatch.player.minutes = String(numericStringBrowserStatsMatch.player.minutes);
 numericStringBrowserStatsMatch.player.tackles = String(numericStringBrowserStatsMatch.player.tackles);
+numericStringBrowserStatsMatch.player.shotsOnTarget = String(numericStringBrowserStatsMatch.player.shotsOnTarget);
+numericStringBrowserStatsMatch.player.chances = String(numericStringBrowserStatsMatch.player.chances);
+numericStringBrowserStatsMatch.player.keyPasses = String(numericStringBrowserStatsMatch.player.keyPasses);
 assert.equal(browserEngine.validateResult(numericStringBrowserStatsMatch).ok, true,
   "the embedded browser validator must preserve legacy numeric-string compatibility");
 

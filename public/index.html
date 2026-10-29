@@ -2817,14 +2817,16 @@ function seasonAwards(state, league, teamRank) {
     });
     const shotsOnTargetValid = result.player.shotsOnTarget == null || result.player.shots == null
       || Number(result.player.shotsOnTarget) <= Number(result.player.shots);
-    const playerShotEvents = result.events.filter(event =>
-      event.type === "shot" && event.side === "team" && event.creditedToPlayer);
+    const shotEvents = result.events.filter(event => event.type === "shot");
+    const playerShotEvents = shotEvents.filter(event => event.side === "team" && event.creditedToPlayer);
+    const modernShotMetadataPresent = shotEvents.some(event =>
+      Object.prototype.hasOwnProperty.call(event, "onTarget"));
     const shotTargetMetadataPresent = playerShotEvents.some(event =>
       Object.prototype.hasOwnProperty.call(event, "onTarget"));
-    const shotTargetMetadataConsistent = result.events.filter(event => event.type === "shot").every(event =>
-      !Object.prototype.hasOwnProperty.call(event, "onTarget") || typeof event.onTarget === "boolean");
-    const modernShotMetadataPresent = result.events.some(event =>
-      event.type === "shot" && Object.prototype.hasOwnProperty.call(event, "onTarget"));
+    // Once one shot opts into the modern ledger, every shot must carry a boolean target flag.
+    // A ledger with no target flags remains a valid legacy record.
+    const shotTargetMetadataConsistent = !modernShotMetadataPresent
+      || shotEvents.every(event => typeof event.onTarget === "boolean");
     const shotAttributionConsistent = !modernShotMetadataPresent || result.events
       .filter(event => event.type === "shot").every(shot => {
         if (typeof shot.creditedToPlayer !== "boolean") return false;
@@ -2863,7 +2865,7 @@ function seasonAwards(state, league, teamRank) {
       const shot = result.events[goalIndex - 1];
       return shot && shot.type === "shot" && shot.side === goal.side
         && Number(shot.minute) === Number(goal.minute)
-        && (!Object.prototype.hasOwnProperty.call(shot, "onTarget") || shot.onTarget === true)
+        && shot.onTarget === true
         && shot.shooter === goal.scorer
         && shot.creditedToPlayer === goal.creditedToPlayer;
     });

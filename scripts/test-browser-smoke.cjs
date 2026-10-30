@@ -134,6 +134,36 @@ async function main() {
       "Chromium must reject null, primitive and array match options");
     results.push("match simulation options container validation");
 
+    const matchSeedReplayProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      const options = {
+        teamPower: 64, opponentPower: 59, home: true,
+        player: { name: "Seed Replay", position: "وسط دفاعي", role: "أساسي",
+          shooting: 58, passing: 68, vision: 66, composure: 64, fitness: 82,
+          trust: 72, energy: 88, fatigue: 12, physical: 70, speed: 62, dribbling: 55 }
+      };
+      const first = engine.simulateMatch(options);
+      const replay = engine.simulateMatch({ ...options, seed: first.metadata.seed });
+      const zero = engine.simulateMatch({ ...options, seed: 0 });
+      const zeroReplay = engine.simulateMatch({ ...options, seed: zero.metadata.seed });
+      return {
+        implicitSeed: first.metadata.seed,
+        implicitReplayMatches: JSON.stringify(first) === JSON.stringify(replay),
+        zeroSeed: zero.metadata.seed,
+        zeroReplayMatches: JSON.stringify(zero) === JSON.stringify(zeroReplay)
+      };
+    });
+    assert.ok(Number.isSafeInteger(matchSeedReplayProbe.implicitSeed),
+      "Chromium must expose the effective implicit match seed");
+    assert.equal(matchSeedReplayProbe.implicitReplayMatches, true,
+      "Chromium matches must be reproducible from their recorded implicit seed");
+    assert.equal(matchSeedReplayProbe.zeroSeed, 0,
+      "Chromium must preserve an explicit zero seed");
+    assert.equal(matchSeedReplayProbe.zeroReplayMatches, true,
+      "Chromium must replay matches generated with an explicit zero seed");
+    results.push("match simulation seed replay metadata");
+
+
 
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),

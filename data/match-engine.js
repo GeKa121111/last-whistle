@@ -108,12 +108,24 @@
     if (!Number.isSafeInteger(parsed)) throw new TypeError("invalid-aggregate-offset");
     return parsed;
   }
+  function validateSimulationSeed(value) {
+    if (typeof value !== "number" && typeof value !== "string") {
+      throw new TypeError("invalid-match-seed");
+    }
+    if (typeof value === "string" && value.trim() === "") {
+      throw new TypeError("invalid-match-seed");
+    }
+    if (!Number.isFinite(Number(value))) {
+      throw new TypeError("invalid-match-seed");
+    }
+    return value;
+  }
   function simulateMatch(options = {}) {
     if (!options || typeof options !== "object" || Array.isArray(options)) {
       throw new TypeError("invalid-match-options");
     }
     const aggregateOffset = parseAggregateOffset(options.aggregateOffset);
-    const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
+    const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : validateSimulationSeed(options.seed);
     const random = seededRandom(simulationSeed);
     // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
@@ -377,7 +389,7 @@
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
       matchOutcome,
       player: stats, events,
-      metadata: { seed: Number(options.seed) >>> 0, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
+      metadata: { seed: simulationSeed, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
   }
   function validateResult(result) {

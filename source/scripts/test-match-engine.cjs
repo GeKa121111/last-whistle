@@ -53,6 +53,37 @@ assert.equal(engine.positionProfile("CM").shooter, 0.10, "central midfield must 
 assert.equal(engine.positionProfile("CM").creator, 0.28, "central midfield must use its own chance-creation profile");
 assert.equal(engine.positionProfile("ST").shooter, 0.21, "English striker aliases must use the calibrated centre-forward profile");
 assert.equal(browserEngine.positionProfile("CM").creator, 0.28, "the embedded match engine must use the central-midfield profile");
+// Every recognized position alias must drive identical match statistics to its canonical role.
+// This catches raw-string checks that previously bypassed striker skill weighting and CM rating impact.
+const aliasParityBase = {
+  seed: 880021, teamPower: 66, opponentPower: 64,
+  player: {
+    name: "اختبار اتساق اختصارات المراكز", role: "أساسي",
+    shooting: 78, passing: 94, vision: 91, composure: 82, fitness: 90,
+    speed: 84, physical: 80, dribbling: 86, trust: 85, energy: 96, fatigue: 2
+  }
+};
+for (const [alias, canonical] of [
+  ["ST", "رأس حربة"], ["CF", "مهاجم"], ["CAM", "وسط مهاجم"], ["CDM", "وسط دفاعي"],
+  ["CM", "وسط"], ["LW", "جناح"], ["CB", "قلب دفاع"], ["LB", "ظهير"], ["GK", "حارس مرمى"]
+]) {
+  const aliasOptions = { ...aliasParityBase, player: { ...aliasParityBase.player, position: alias } };
+  const canonicalOptions = { ...aliasParityBase, player: { ...aliasParityBase.player, position: canonical } };
+  const aliasResult = engine.simulateMatch(aliasOptions);
+  const canonicalResult = engine.simulateMatch(canonicalOptions);
+  assert.equal(JSON.stringify(aliasResult.player), JSON.stringify(canonicalResult.player),
+    alias + " must use the same player skill weighting and rating as " + canonical);
+  assert.equal(JSON.stringify(aliasResult.score), JSON.stringify(canonicalResult.score),
+    alias + " must preserve the canonical position's match outcome");
+  assert.equal(JSON.stringify(aliasResult.events), JSON.stringify(canonicalResult.events),
+    alias + " must preserve the canonical position's event ledger");
+  const deployedAliasResult = browserEngine.simulateMatch(aliasOptions);
+  assert.equal(JSON.stringify(deployedAliasResult.player), JSON.stringify(aliasResult.player),
+    "the embedded engine must apply the same position alias stats for " + alias);
+  assert.equal(JSON.stringify(deployedAliasResult.events), JSON.stringify(aliasResult.events),
+    "the embedded engine must preserve the same event ledger for " + alias);
+}
+
 const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const mobileForwardProfile = engine.positionProfile("مهاجم");
 const centreStrikerProfile = engine.positionProfile("رأس حربة");

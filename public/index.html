@@ -2759,6 +2759,7 @@ function positionProfile(position) {
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
     const position = String(player.position || player.pos || "");
+    const matchPosition = normalizePosition(position);
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);
     if (redCard) {
@@ -2806,10 +2807,10 @@ function positionProfile(position) {
           const composure = clamp(player.composure, 1, 99);
           // The match timeline already prevents involvement after the player's substitution.
           // Do not multiply the same minutes ratio a second time: doing so undercounts bench appearances.
-          const roleSkill = position === "رأس حربة"
+          const roleSkill = matchPosition === "رأس حربة"
             ? shooting * 0.42 + composure * 0.26 + clamp(player.physical, 0, 100) * 0.16
               + clamp(player.speed, 0, 100) * 0.10 + clamp(player.fitness, 0, 100) * 0.06
-            : position === "مهاجم"
+            : matchPosition === "مهاجم"
               ? clamp(player.dribbling, 0, 100) * 0.30 + clamp(player.speed, 0, 100) * 0.26
                 + clamp(player.vision, 0, 100) * 0.18 + shooting * 0.16 + clamp(player.passing, 0, 100) * 0.10
               : shooting * 0.36 + composure * 0.20 + clamp(player.dribbling, 0, 100) * 0.20
@@ -3015,7 +3016,7 @@ function positionProfile(position) {
     const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
-    const passingImpact = ["وسط مهاجم", "وسط دفاعي"].includes(position)
+    const passingImpact = ["وسط مهاجم", "وسط دفاعي", "وسط"].includes(matchPosition)
       ? Math.min(0.65, Math.max(0, stats.passingAccuracy - 70) * 0.018 + Math.min(5, stats.keyPasses) * 0.08) : 0;
     const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16
       - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded) + passingImpact;

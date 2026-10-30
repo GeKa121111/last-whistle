@@ -61,3 +61,10 @@ body.lw-rebuild .bottomNav{grid-template-columns:repeat(6,minmax(0,1fr))!importa
  body.lw-rebuild .lwsocial-actions button{flex:1}
  body.lw-rebuild .lwsocial-actions button:first-child{margin-left:0}
 }
+
+/* Social narrative categories and contextual response feedback */
+body.lw-rebuild .lwsocial-kind-rumor{border-color:#75633c;background:#2c2617;color:#f3d78f}
+body.lw-rebuild .lwsocial-kind-role{border-color:#3d684e;background:#18291f;color:#c6e8b1}
+body.lw-rebuild .lwsocial-kind-bench{border-color:#3d5a70;background:#172533;color:#b8d9ef}
+body.lw-rebuild .lwsocial-kind-conflict{border-color:#744247;background:#301b20;color:#f0b8be}
+body.lw-rebuild .lwsocial-response{align-self:center;color:#b8d99b;font-size:9px;font-weight:850;padding:6px 9px;border-radius:9px;background:#243523}

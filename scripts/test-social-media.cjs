@@ -38,7 +38,7 @@ const state = {
 };
 
 const store = social.ensureState(state);
-assert.equal(store.version, 2);
+assert.equal(store.version, 3);
 assert.deepEqual(Array.from(store.posts), []);
 assert.equal(social.syncState(state), 0, "initial sync must not publish old career history");
 
@@ -59,7 +59,7 @@ const migrated = {
   }
 };
 social.ensureState(migrated);
-assert.equal(migrated.socialMedia.version, 2);
+assert.equal(migrated.socialMedia.version, 3);
 assert.equal(social.syncState(migrated), 0, "migration must not replay historical matches");
 assert.equal(social.syncState(migrated), 0, "old matches must remain seen on later refreshes");
 assert.equal(migrated.socialMedia.seen.matches.length, 160);

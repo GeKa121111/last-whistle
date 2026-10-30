@@ -38,6 +38,44 @@ const repositoryRoot = path.resolve(__dirname, "..", "..");
 const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
+
+const loanToMatch = rootHtml.match(/function loanTo\(target\)\{[\s\S]*?\n\}\nfunction returnFromLoan/);
+assert.ok(loanToMatch, "the deployed loan action must remain available for behavioral testing");
+const loanToSource = loanToMatch[0].slice(0, loanToMatch[0].lastIndexOf("\nfunction returnFromLoan"));
+function runLoanDivisionCase(division) {
+  const target = { club: "نادي اختبار الإعارة", country: "مصر", league: division === 2 ? "الدرجة الثانية" : "الدوري الممتاز",
+    division, power: 55, season: "2026/27" };
+  const loanState = { clubName: "النادي الأصلي", leagueCountry: "مصر", leagueDivision: 1,
+    leagueCompetition: "الدوري الممتاز", leagueSource: "بيانات الاختبار", clubPower: 62,
+    clubTier: 1, clubIndex: 1, weeklyWage: 500, contractSeasons: 2, freeAgent: false,
+    role: "بديل", season: 1, day: 1, calendarDay: 120, seasonApps: 10,
+    seasonPhase: "firstHalf", winterBreakPending: false, trust: 50, transferHistory: [] };
+  const sandbox = {
+    state: loanState,
+    window: { LWCareer: { loanTargetStatus: () => "ready", loanSquadRole: () => "بديل" } },
+    transferTargets: () => [target],
+    activeCupInProgress: () => false,
+    transferWindow: () => ({ open: true }),
+    seasonMatchTotal: () => 30,
+    archiveLeagueSegment: () => {},
+    clamp: value => Math.max(0, Math.min(100, Number(value) || 0)),
+    clubPowerFor: () => 55,
+    clubTierForPower: () => 1,
+    transferWage: () => 700,
+    createLeague: () => [],
+    buildFixtureSchedule: () => [],
+    seedDestinationLeagueProgress: () => 20,
+    log: () => {}, setStory: () => {}, saveGame: () => {},
+    render: () => {}, showPage: () => {}, toast: () => {}
+  };
+  vm.runInNewContext(loanToSource + "\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo division regression" });
+  sandbox.loanTo(target);
+  return loanState.leagueDivision;
+}
+assert.equal(runLoanDivisionCase(2), 2,
+  "a loan to a second-division club must keep the host club's actual division");
+assert.equal(runLoanDivisionCase(undefined), 1,
+  "legacy loan destinations without a division must retain the first-division fallback");
 assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),

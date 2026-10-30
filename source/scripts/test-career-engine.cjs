@@ -1565,8 +1565,8 @@ assert.equal(JSON.stringify(deployedPurchaseState), JSON.stringify(sourcePurchas
 
 // Career role selection must react to sustained output without bypassing academy graduation.
 const roleHistory = Array.from({ length: 8 }, (_, index) => ({
-  scope: "league", minutes: 39, rating: 6.35, goals: index % 3 === 0 ? 1 : 0,
-  assists: index % 5 === 0 ? 1 : 0
+  id: "role-history-" + index, scope: "league", minutes: 39, rating: 6.35,
+  goals: index % 3 === 0 ? 1 : 0, assists: index % 5 === 0 ? 1 : 0
 }));
 const roleSnapshot = {
   pos: "رأس حربة", role: "بديل", age: 25, apps: 304, goals: 39, assists: 15, trust: 25,

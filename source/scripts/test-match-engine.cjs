@@ -798,14 +798,18 @@ const shootoutCreditedToOpponent = {
 };
 for (const targetEngine of [engine, browserEngine]) {
   for (const invalidShootout of [
-    shootoutWithoutExtraTime, shootoutWithAggregateLead,
-    shootoutWithAggregateDeficit, shootoutCreditedToOpponent
+    shootoutWithoutExtraTime, shootoutWithAggregateLead, shootoutWithAggregateDeficit
   ]) {
     assert.equal(targetEngine.validateResult(invalidShootout).shootoutLedgerConsistent, false,
-      "shootouts require extra time, a level aggregate, and a team-side result event");
+      "shootouts require extra time and a level aggregate");
     assert.equal(targetEngine.validateResult(invalidShootout).ok, false,
-      "ineligible or wrongly attributed shootouts must be rejected");
+      "ineligible shootouts must be rejected");
   }
+  const wrongSideValidation = targetEngine.validateResult(shootoutCreditedToOpponent);
+  assert.equal(wrongSideValidation.ok, false,
+    "a shootout result attributed to the opponent must be rejected");
+  assert.equal(wrongSideValidation.reason, "invalid-event-side",
+    "the shared event-side validator must report an invalid shootout side");
 }
 const legacyShootoutWithoutDeciderMetadata = { ...validShootoutEvent };
 delete legacyShootoutWithoutDeciderMetadata.extraTime;

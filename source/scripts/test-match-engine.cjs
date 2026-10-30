@@ -184,6 +184,55 @@ assert.equal(engine.playerConcededGoals(extraTimeParticipation.player.minutes, e
 assert.equal(engine.validateResult(extraTimeParticipation).ok, true,
   "extra-time player activity and extended minutes must remain internally consistent");
 
+let extraTimePeriodLedgerProbe = null;
+for (let seed = 151501; seed < 156501 && !extraTimePeriodLedgerProbe; seed += 1) {
+  const result = engine.simulateMatch({
+    seed, knockout: true, teamPower: 65, opponentPower: 65,
+    player: { name: "اختبار توزيع أهداف الوقت الإضافي", position: "قلب دفاع", role: "أساسي",
+      shooting: 65, passing: 65, vision: 65, composure: 70, fitness: 100, trust: 100,
+      energy: 100, fatigue: 0, speed: 70, physical: 72, dribbling: 60 }
+  });
+  const periods = result.extraTime && result.extraTime.periods;
+  if (result.extraTime.played && Array.isArray(periods) && periods.length === 2
+    && (Number(periods[0].for) !== Number(periods[1].for)
+      || Number(periods[0].against) !== Number(periods[1].against))) {
+    extraTimePeriodLedgerProbe = result;
+  }
+}
+assert.ok(extraTimePeriodLedgerProbe,
+  "a deterministic knockout sample must contain an extra-time goal in only one period");
+assert.equal(engine.validateResult(extraTimePeriodLedgerProbe).extraTimePeriodLedgerConsistent, true,
+  "the source validator must accept correctly attributed first/second-period goal totals");
+assert.equal(browserEngine.validateResult(extraTimePeriodLedgerProbe).extraTimePeriodLedgerConsistent, true,
+  "the embedded validator must accept correctly attributed extra-time period totals");
+
+const mismatchedExtraTimePeriods = JSON.parse(JSON.stringify(extraTimePeriodLedgerProbe));
+const mismatchedField = ["for", "against"].find(field =>
+  Number(mismatchedExtraTimePeriods.extraTime.periods[0][field])
+    !== Number(mismatchedExtraTimePeriods.extraTime.periods[1][field]));
+assert.ok(mismatchedField, "the period-ledger fixture must expose a side-specific period difference");
+const firstPeriodValue = mismatchedExtraTimePeriods.extraTime.periods[0][mismatchedField];
+mismatchedExtraTimePeriods.extraTime.periods[0][mismatchedField]
+  = mismatchedExtraTimePeriods.extraTime.periods[1][mismatchedField];
+mismatchedExtraTimePeriods.extraTime.periods[1][mismatchedField] = firstPeriodValue;
+const sourcePeriodMismatch = engine.validateResult(mismatchedExtraTimePeriods);
+assert.equal(sourcePeriodMismatch.ok, false,
+  "the source validator must reject goals assigned to the wrong extra-time period");
+assert.equal(sourcePeriodMismatch.extraTimePeriodLedgerConsistent, false,
+  "the source validator must expose an extra-time period attribution mismatch");
+const browserPeriodMismatch = browserEngine.validateResult(mismatchedExtraTimePeriods);
+assert.equal(browserPeriodMismatch.ok, false,
+  "the embedded validator must reject the same wrong-period goal ledger");
+assert.equal(browserPeriodMismatch.extraTimePeriodLedgerConsistent, false,
+  "the embedded validator must expose the same period attribution mismatch");
+
+const legacyExtraTimeWithoutPeriods = JSON.parse(JSON.stringify(extraTimePeriodLedgerProbe));
+delete legacyExtraTimeWithoutPeriods.extraTime.periods;
+assert.equal(engine.validateResult(legacyExtraTimeWithoutPeriods).ok, true,
+  "legacy extra-time records without per-period metadata must remain valid");
+assert.equal(browserEngine.validateResult(legacyExtraTimeWithoutPeriods).ok, true,
+  "the embedded validator must preserve legacy extra-time records without per-period metadata");
+
 // An aggregate lead must not turn a drawn second leg into a positive player-rating result.
 // The competition outcome remains a tie win, while the fixture itself is still a draw.
 let aggregateRatingProbe = null;

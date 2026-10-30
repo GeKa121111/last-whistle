@@ -107,7 +107,7 @@
     const careerContributions = safeMetric(state.goals, Math.max(0, appearances * 20)) + safeMetric(state.assists, Math.max(0, appearances * 20));
     const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
     const trust = safeMetric(state.trust, 100);
-    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
+    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(normalizeCareerPosition(state.pos));
     const veteranOutput = roleIsForward && appearances >= 35
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
     const recentReady = recentAverageRating >= 6.25

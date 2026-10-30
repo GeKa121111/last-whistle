@@ -467,16 +467,23 @@
         return goal.side === "opponent" && goal.scorer === "opponent" && goal.creditedToPlayer === false;
       });
     })();
-    const goalShotLedgerConsistent = !modernShotMetadataPresent || goalEvents.every(goal => {
-      const goalIndex = result.events.indexOf(goal);
-      if (goalIndex < 1) return false;
-      const shot = result.events[goalIndex - 1];
-      return shot && shot.type === "shot" && shot.side === goal.side
-        && Number(shot.minute) === Number(goal.minute)
-        && shot.onTarget === true
-        && shot.shooter === goal.scorer
-        && shot.creditedToPlayer === goal.creditedToPlayer;
-    });
+    const goalShotLedgerConsistent = !(modernShotMetadataPresent || modernGoalMetadataPresent)
+      || goalEvents.every(goal => {
+        const goalIndex = result.events.indexOf(goal);
+        if (goalIndex < 1) return false;
+        const shot = result.events[goalIndex - 1];
+        if (!shot || shot.type !== "shot" || shot.side !== goal.side
+          || Number(shot.minute) !== Number(goal.minute)) return false;
+        if (modernShotMetadataPresent) {
+          return shot.onTarget === true && shot.shooter === goal.scorer
+            && shot.creditedToPlayer === goal.creditedToPlayer;
+        }
+        const hasShooter = Object.prototype.hasOwnProperty.call(shot, "shooter");
+        const hasPlayerCredit = Object.prototype.hasOwnProperty.call(shot, "creditedToPlayer");
+        return (!hasShooter || shot.shooter === goal.scorer)
+          && (!hasPlayerCredit || (typeof shot.creditedToPlayer === "boolean"
+            && shot.creditedToPlayer === goal.creditedToPlayer));
+      });
     const assistEvents = result.events.filter(event => event.type === "assist" && event.side === "team");
     const keyPassesLedgerConsistent = result.player.keyPasses == null || !modernShotMetadataPresent
       || (assistEvents.every(event => event.creditedToPlayer === true)

@@ -118,6 +118,23 @@ async function main() {
       "Chromium must retain compatibility with legacy matches that omit metadata");
     results.push("match metadata shape validation and legacy compatibility");
 
+    const matchOptionsProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      const invalidOptions = [null, true, false, 0, "invalid", []];
+      return invalidOptions.map(options => {
+        try {
+          engine.simulateMatch(options);
+          return false;
+        } catch (error) {
+          return error && error.message === "invalid-match-options";
+        }
+      });
+    });
+    assert.deepEqual(matchOptionsProbe, [true, true, true, true, true, true],
+      "Chromium must reject null, primitive and array match options");
+    results.push("match simulation options container validation");
+
+
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       true,

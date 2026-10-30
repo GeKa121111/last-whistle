@@ -109,6 +109,9 @@
     return parsed;
   }
   function simulateMatch(options = {}) {
+    if (!options || typeof options !== "object" || Array.isArray(options)) {
+      throw new TypeError("invalid-match-options");
+    }
     const aggregateOffset = parseAggregateOffset(options.aggregateOffset);
     const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
     const random = seededRandom(simulationSeed);

@@ -760,8 +760,12 @@ const validExtraTimeGoal = {
   ...minuteValidationBase,
   score: { for: 1, against: 0 },
   regulation: { for: 0, against: 0 },
-  events: [{ type: "goal", goalEventId: "et-goal-1", minute: 105, side: "team",
-    scorer: "teammate", creditedToPlayer: false }],
+  events: [
+    { type: "shot", minute: 105, side: "team", onTarget: true,
+      shooter: "teammate", creditedToPlayer: false },
+    { type: "goal", goalEventId: "et-goal-1", minute: 105, side: "team",
+      scorer: "teammate", creditedToPlayer: false }
+  ],
   outcome: "فوز", matchOutcome: "فوز",
   extraTime: { played: true, for: 1, against: 0,
     periods: [{ for: 1, against: 0 }, { for: 0, against: 0 }] }

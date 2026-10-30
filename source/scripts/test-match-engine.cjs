@@ -923,6 +923,8 @@ assert.ok(injuredKeeperShootoutProbe.events.some(event => event.type === "injury
   "the goalkeeper must be injured at the regulation whistle");
 assert.equal(injuredKeeperShootoutProbe.events.some(event => event.type === "penalty-save" && event.creditedToPlayer === true), false,
   "an injured goalkeeper must not receive a penalty save after leaving the pitch");
+assert.equal(injuredKeeperShootoutProbe.shootout.attempts.some(attempt => attempt.savedByPlayer), false,
+  "an injured goalkeeper must not be credited with any saved shootout attempt");
 assert.equal(engine.validateResult(injuredKeeperShootoutProbe).ok, true,
   "the injured goalkeeper's corrected shootout ledger must validate");
 assert.equal(JSON.stringify(browserEngine.simulateMatch(injuredKeeperShootoutOptions)),

@@ -25,6 +25,7 @@ const transferEligibilitySource = section("function transferEligibilityReason(ta
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
 const transferToSource = section("function transferTo(){", "\nfunction ");
 const loanToSource = section("function loanTo(target){", "\nfunction returnFromLoan(");
+const returnFromLoanSource = section("function returnFromLoan(){", "\nfunction renderContract(");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
@@ -164,7 +165,7 @@ const loanState = {
   careerStarted: true, clubName: "النادي الأصلي", leagueCountry: "مصر", leagueDivision: 1,
   leagueCompetition: "الدوري الممتاز", leagueSource: "LWWorldDB", clubPower: 72,
   clubTier: 3, clubIndex: 3, weeklyWage: 1200, contractSeasons: 3, freeAgent: false,
-  season: 4, day: 190, seasonApps: 8, seasonPhase: "firstHalf", winterBreakPending: false,
+  season: 4, day: 190, seasonApps: 8, seasonPhase: "firstHalf", role: "نجم الفريق", winterBreakPending: false,
   leagueSegmentIsPartial: false, transferHistory: [], trust: 60, daysSinceTransfer: 0,
   transferCooldown: 0
 };
@@ -203,6 +204,41 @@ assert.equal(loanState.leagueSource, "LWWorldDB • 2026/27",
   "loan history must retain the destination roster source instead of labeling every loan OpenFootball");
 assert.equal(loanState.loan.hostClub, secondDivisionLoanTarget.club,
   "the loan record must retain the selected host club");
+assert.equal(loanState.loan.parentRole, "نجم الفريق",
+  "starting a loan must preserve the player role held at the parent club");
+
+const returnLoanState = {
+  loan: {
+    parentClub: "النادي الأصلي", parentCountry: "مصر", parentDivision: 1,
+    parentCompetition: "الدوري المصري", parentSource: "LWWorldDB",
+    parentPower: 72, parentTier: 3, parentIndex: 3,
+    parentWage: 1200, parentContractSeasons: 2, parentFreeAgent: false,
+    parentRole: "نجم الفريق"
+  },
+  clubName: "نادي الإعارة", leagueCountry: "السعودية", leagueDivision: 1,
+  leagueCompetition: "الدوري السعودي", leagueSource: "OpenFootball",
+  clubPower: 54, clubTier: 1, clubIndex: 1, weeklyWage: 800,
+  contractSeasons: 2, freeAgent: false, role: "بديل أساسي",
+  daysSinceTransfer: 5, transferCooldown: 0, pendingTransfer: { club: "عرض قديم" },
+  transferHistory: [], season: 4, day: 190
+};
+const returnLoanScenario = {
+  state: returnLoanState,
+  archiveLeagueSegment: () => {},
+  clubPowerFor: () => 72,
+  clubTierForPower: () => 3,
+  normalizeSavedBooleanFlag: value => value === true || value === "true",
+  log: () => {}
+};
+vm.createContext(returnLoanScenario);
+vm.runInContext(returnFromLoanSource, returnLoanScenario, { filename: "returnFromLoan-parent-role" });
+assert.equal(returnLoanScenario.returnFromLoan(), true, "a valid loan must return to its parent club");
+assert.equal(returnLoanState.clubName, "النادي الأصلي", "loan return must restore the parent club");
+assert.equal(returnLoanState.leagueDivision, 1, "loan return must restore the parent division");
+assert.equal(returnLoanState.role, "نجم الفريق",
+  "loan return must restore the role held at the parent club instead of leaving the temporary host role");
+assert.equal(returnLoanState.loan, null, "the loan record must be cleared after return");
+
 
 
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");

@@ -686,10 +686,19 @@
         || !isNonNegativeInteger(shootout.scoreAgainst)) return false;
       const scoreFor = Number(shootout.scoreFor);
       const scoreAgainst = Number(shootout.scoreAgainst);
+      const aggregateOffset = result.metadata?.aggregateOffset == null
+        ? 0 : Number(result.metadata.aggregateOffset);
+      const aggregateIsLevel = Number.isInteger(aggregateOffset)
+        && isNonNegativeInteger(result.score?.for) && isNonNegativeInteger(result.score?.against)
+        && aggregateOffset + Number(result.score.for) - Number(result.score.against) === 0;
+      // Current match records explicitly track extra-time and regulation metadata.
+      // Keep pre-ledger legacy saves (which omit both fields) readable.
+      const modernDeciderMetadataPresent = result.extraTime != null || result.regulation != null;
+      const extraTimeWasPlayed = !modernDeciderMetadataPresent || result.extraTime?.played === true;
       if (scoreFor === scoreAgainst || shootout.won !== (scoreFor > scoreAgainst)
-        || shootoutEvents.length !== 1) return false;
+        || !aggregateIsLevel || !extraTimeWasPlayed || shootoutEvents.length !== 1) return false;
       const event = shootoutEvents[0];
-      return typeof event.won === "boolean" && event.won === shootout.won
+      return event.side === "team" && typeof event.won === "boolean" && event.won === shootout.won
         && isNonNegativeInteger(event.scoreFor) && isNonNegativeInteger(event.scoreAgainst)
         && Number(event.scoreFor) === scoreFor && Number(event.scoreAgainst) === scoreAgainst;
     })();

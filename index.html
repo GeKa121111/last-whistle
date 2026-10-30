@@ -2420,13 +2420,13 @@ function seasonAwards(state, league, teamRank) {
   function positionProfile(position) {
     return ({
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
-      "قلب دفاع": { shooter: 0.06, creator: 0.08, defender: 0.35 },
-      "ظهير": { shooter: 0.11, creator: 0.18, defender: 0.25 },
-      "وسط دفاعي": { shooter: 0.13, creator: 0.21, defender: 0.30 },
-      "وسط مهاجم": { shooter: 0.27, creator: 0.36, defender: 0.14 },
-      "جناح": { shooter: 0.31, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-      "مهاجم": { shooter: 0.36, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.60, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
+      "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
+      "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
+      "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
+      "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
+      "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
+      "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function squadRoleType(value) {
@@ -2679,8 +2679,8 @@ function seasonAwards(state, league, teamRank) {
           const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055
             + (Number(profile.finishingBonus) || 0)
             + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
-          const teamShotChance = clamp(0.18 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
-          const opponentShotChance = clamp(0.19 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
+          const teamShotChance = clamp(0.21 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
+          const opponentShotChance = clamp(0.21 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
           const isGoal = random() < (byPlayer ? playerShotChance : isOurs ? teamShotChance : opponentShotChance);
           const shotEvent = events[events.length - 1];
           shotEvent.shooter = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
@@ -2704,7 +2704,7 @@ function seasonAwards(state, league, teamRank) {
           const scorer = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
           const goalEventId = "goal-" + (events.filter(event => event.type === "goal").length + 1);
           events.push({ type: "goal", goalEventId, minute, side, scorer, creditedToPlayer: byPlayer });
-          if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.07 + clamp(player.passing, 0, 100) * 0.0015 + clamp(player.vision, 0, 100) * 0.0012 + profile.creator * 0.22, 0.07, 0.34)) {
+          if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.005 + clamp(player.passing, 0, 100) * 0.00065 + clamp(player.vision, 0, 100) * 0.00055 + profile.creator * 0.12, 0.04, 0.24)) {
             stats.assists++;
             stats.keyPasses++;
             events.push({ type: "assist", goalEventId, minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });

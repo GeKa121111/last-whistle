@@ -11,6 +11,22 @@ if (rootHtml !== html) { console.error("Root index.html and public/index.html ar
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
+const redesign = fs.readFileSync(path.join(root, "redesign.css"), "utf8");
+const publicRedesign = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
+if (redesign !== publicRedesign) { console.error("Root redesign.css and public/redesign.css are out of sync."); process.exit(1); }
+if (!html.includes('href="./redesign.css?v=7"') || !serviceWorker.includes("./redesign.css?v=7")) {
+  console.error("The active responsive stylesheet must be version 7 in the HTML and offline app shell.");
+  process.exit(1);
+}
+if (!redesign.includes("@media(max-width:1200px) and (min-width:1001px)")
+  || !redesign.includes("@media(max-width:1000px){")
+  || !redesign.includes("#page-wellness>.grid")
+  || !redesign.includes("#page-league>.grid")
+  || !redesign.includes("#page-europe .dataGrid")
+  || !redesign.includes("grid-template-columns:minmax(0,1fr)")) {
+  console.error("Recovery, local league, and world catalog pages must retain the mobile-safe single-column layout.");
+  process.exit(1);
+}
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
   console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
 }

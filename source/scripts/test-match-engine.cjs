@@ -2181,3 +2181,49 @@ const meanAssistsPer90 = scoringCalibration.reduce((sum, row) => sum + row.assis
 assert.ok(meanAssistsPer90 >= 0.07 && meanAssistsPer90 <= 0.22,
   "assists per 90 must not be inflated across every position");
 
+// Shootout saves must come from actual opponent kicks, not from winning the shootout.
+const goalkeeperShootoutBaseOptions = {
+  teamPower: 65, opponentPower: 65, tactic: "balanced",
+  player: { name: "اختبار تصديات ركلات الترجيح", position: "حارس مرمى", role: "أساسي",
+    shooting: 25, passing: 60, vision: 55, composure: 70, fitness: 100, trust: 100,
+    energy: 100, fatigue: 0, speed: 45, physical: 65, dribbling: 30, goalkeeping: 85 }
+};
+let goalkeeperWinWithoutSave = null;
+let goalkeeperLossWithSave = null;
+for (let seed = 920000; seed < 922000 && (!goalkeeperWinWithoutSave || !goalkeeperLossWithSave); seed += 1) {
+  const regulationOnly = engine.simulateMatch({ ...goalkeeperShootoutBaseOptions, seed, knockout: false });
+  const aggregateOffset = Number(regulationOnly.score.against) - Number(regulationOnly.score.for);
+  const options = { ...goalkeeperShootoutBaseOptions, seed, knockout: true, aggregateOffset };
+  const result = engine.simulateMatch(options);
+  if (!result.shootout.used || result.player.minutes < 120
+    || result.events.some(event => event.side === "player" && ["red-card", "injury"].includes(event.type))) continue;
+  const savedAttempts = result.shootout.attempts.filter(attempt => attempt.savedByPlayer);
+  const saveEvents = result.events.filter(event => event.type === "penalty-save" && event.creditedToPlayer);
+  assert.equal(result.player.penaltiesSaved, savedAttempts.length,
+    "the goalkeeper's saved-penalty stat must match actual saved shootout attempts");
+  assert.equal(saveEvents.length, savedAttempts.length,
+    "each actual goalkeeper shootout save must have exactly one event");
+  assert.equal(engine.validateResult(result).ok, true,
+    "a generated shootout with detailed attempts must validate");
+  assert.equal(browserEngine.validateResult(result).ok, true,
+    "the embedded browser validator must accept the detailed shootout ledger");
+  assert.equal(JSON.stringify(browserEngine.simulateMatch(options)), JSON.stringify(result),
+    "the embedded engine must reproduce shootout attempts and keeper saves exactly");
+  if (result.shootout.won && savedAttempts.length === 0) goalkeeperWinWithoutSave = { result, options };
+  if (!result.shootout.won && savedAttempts.length > 0) goalkeeperLossWithSave = { result, options };
+}
+assert.ok(goalkeeperWinWithoutSave,
+  "a goalkeeper can win a shootout without being credited with a save");
+assert.ok(goalkeeperLossWithSave,
+  "a goalkeeper can be credited with a real save even when the team loses the shootout");
+const falseTeamSave = JSON.parse(JSON.stringify(goalkeeperLossWithSave.result));
+const savedAttemptIndex = falseTeamSave.shootout.attempts.findIndex(attempt => attempt.savedByPlayer);
+falseTeamSave.shootout.attempts[savedAttemptIndex].side = "team";
+assert.equal(engine.validateResult(falseTeamSave).ok, false,
+  "the validator must reject a goalkeeper save attached to the team's own kick");
+const missingShootoutSaveEvent = JSON.parse(JSON.stringify(goalkeeperLossWithSave.result));
+const missingSaveIndex = missingShootoutSaveEvent.events.findIndex(event => event.type === "penalty-save");
+missingShootoutSaveEvent.events.splice(missingSaveIndex, 1);
+missingShootoutSaveEvent.player.penaltiesSaved--;
+assert.equal(engine.validateResult(missingShootoutSaveEvent).ok, false,
+  "the validator must reject a detailed shootout ledger with a missing save event");

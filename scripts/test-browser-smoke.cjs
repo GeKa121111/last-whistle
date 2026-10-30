@@ -164,6 +164,72 @@ async function main() {
     results.push("match simulation seed replay metadata");
 
 
+    const saveLedgerProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      const makeOptions = (seed, position) => ({
+        seed, teamPower: 62, opponentPower: 60,
+        player: { name: "Save Ledger Regression", position, role: "أساسي",
+          shooting: 24, passing: 55, vision: 50, composure: 65, fitness: 85,
+          trust: 70, energy: 90, fatigue: 5, physical: 60, speed: 45, dribbling: 35 }
+      });
+      const freeMinute = match => {
+        const entry = match.events.find(event => event.type === "substitution-on" && event.side === "player");
+        const start = entry ? Number(entry.minute) : 0;
+        const exit = match.events
+          .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+          .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+        const end = exit ? Number(exit.minute) : start + Number(match.player.minutes || 0);
+        const used = new Set(match.events.map(event => Number(event.minute)));
+        for (let minute = start + 1; minute < end; minute += 1) if (!used.has(minute)) return minute;
+        return null;
+      };
+      const insert = (match, minute, events) => {
+        const index = match.events.findIndex(event => Number(event.minute) > minute);
+        match.events.splice(index < 0 ? match.events.length : index, 0, ...events);
+      };
+      const keeper = engine.simulateMatch(makeOptions(91821, "حارس مرمى"));
+      const keeperMinute = freeMinute(keeper);
+      keeper.player.saves = Number(keeper.player.saves || 0) + 1;
+      insert(keeper, keeperMinute, [{ type: "save", minute: keeperMinute, side: "team",
+        actor: "Save Ledger Regression", creditedToPlayer: true }]);
+      const orphan = engine.validateResult(keeper);
+
+      const outfield = engine.simulateMatch(makeOptions(91822, "مهاجم"));
+      const outfieldMinute = freeMinute(outfield);
+      outfield.player.saves = Number(outfield.player.saves || 0) + 1;
+      insert(outfield, outfieldMinute, [
+        { type: "shot", minute: outfieldMinute, side: "opponent", onTarget: true,
+          shooter: "opponent", creditedToPlayer: false },
+        { type: "save", minute: outfieldMinute, side: "team",
+          actor: "Save Ledger Regression", creditedToPlayer: true }
+      ]);
+      const wrongPosition = engine.validateResult(outfield);
+
+      const legacy = engine.simulateMatch(makeOptions(91823, "حارس مرمى"));
+      for (const event of legacy.events) if (event.type === "shot") delete event.onTarget;
+      return {
+        orphanReason: orphan.reason,
+        orphanConsistent: orphan.saveShotLedgerConsistent,
+        outfieldReason: wrongPosition.reason,
+        outfieldConsistent: wrongPosition.saveRoleConsistent,
+        legacyAccepted: engine.validateResult(legacy).ok
+      };
+    });
+    assert.equal(saveLedgerProbe.orphanReason, "invalid-save-shot-link",
+      "Chromium must reject a credited save without a matching opponent shot");
+    assert.equal(saveLedgerProbe.orphanConsistent, false,
+      "Chromium must expose orphaned save-shot attribution");
+    assert.equal(saveLedgerProbe.outfieldReason, "invalid-save-player-position",
+      "Chromium must reject saves attributed to an outfield player");
+    assert.equal(saveLedgerProbe.outfieldConsistent, false,
+      "Chromium must expose goalkeeper-only save attribution");
+    assert.equal(saveLedgerProbe.legacyAccepted, true,
+      "Chromium must preserve legacy save ledgers without shot-target metadata");
+    results.push("goalkeeper save-shot attribution and legacy-ledger validation");
+
+
+
+
 
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),

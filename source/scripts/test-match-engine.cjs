@@ -1898,4 +1898,72 @@ for (const invalidSeed of [null, true, false, [], {}, NaN, Infinity, -Infinity, 
     /invalid-match-seed/, "the embedded engine must reject invalid seeds: " + String(invalidSeed));
 }
 
+
+function freeActiveMinute(match, label) {
+  const entry = match.events.find(event => event.type === "substitution-on" && event.side === "player");
+  const entryMinute = entry ? Number(entry.minute) : 0;
+  const exit = match.events
+    .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+    .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+  const endMinute = exit ? Number(exit.minute) : entryMinute + Number(match.player.minutes || 0);
+  const occupied = new Set(match.events.map(event => Number(event.minute)));
+  for (let minute = entryMinute + 1; minute < endMinute; minute += 1) {
+    if (!occupied.has(minute)) return minute;
+  }
+  throw new Error(label + " fixture must expose an unused minute while the player is active");
+}
+function insertAtMinute(match, minute, events) {
+  const index = match.events.findIndex(event => Number(event.minute) > minute);
+  match.events.splice(index < 0 ? match.events.length : index, 0, ...events);
+}
+function saveLedgerOptions(seed, position) {
+  return {
+    seed, teamPower: 62, opponentPower: 60,
+    player: { name: "Save Ledger Regression", position, role: "أساسي",
+      shooting: 24, passing: 55, vision: 50, composure: 65, fitness: 85,
+      trust: 70, energy: 90, fatigue: 5, physical: 60, speed: 45, dribbling: 35 }
+  };
+}
+for (const [targetEngine, label] of [[engine, "source"], [browserEngine, "browser"]]) {
+  const orphanSave = targetEngine.simulateMatch(saveLedgerOptions(91821, "حارس مرمى"));
+  assert.ok(orphanSave.player.minutes > 10, label + " goalkeeper fixture must have an active interval");
+  assert.equal(targetEngine.validateResult(orphanSave).ok, true,
+    label + " generated goalkeeper save ledger must remain valid");
+  const orphanMinute = freeActiveMinute(orphanSave, label + " orphan-save");
+  orphanSave.player.saves = Number(orphanSave.player.saves || 0) + 1;
+  insertAtMinute(orphanSave, orphanMinute, [{
+    type: "save", minute: orphanMinute, side: "team",
+    actor: "Save Ledger Regression", creditedToPlayer: true
+  }]);
+  const orphanValidation = targetEngine.validateResult(orphanSave);
+  assert.equal(orphanValidation.ok, false,
+    label + " validator must reject a credited save without a matching opponent shot");
+  assert.equal(orphanValidation.reason, "invalid-save-shot-link");
+  assert.equal(orphanValidation.saveShotLedgerConsistent, false);
+
+  const outfieldSave = targetEngine.simulateMatch(saveLedgerOptions(91822, "مهاجم"));
+  assert.equal(targetEngine.validateResult(outfieldSave).ok, true,
+    label + " generated outfield match must remain valid before save tampering");
+  const outfieldMinute = freeActiveMinute(outfieldSave, label + " outfield-save");
+  outfieldSave.player.saves = Number(outfieldSave.player.saves || 0) + 1;
+  insertAtMinute(outfieldSave, outfieldMinute, [
+    { type: "shot", minute: outfieldMinute, side: "opponent",
+      onTarget: true, shooter: "opponent", creditedToPlayer: false },
+    { type: "save", minute: outfieldMinute, side: "team",
+      actor: "Save Ledger Regression", creditedToPlayer: true }
+  ]);
+  const outfieldValidation = targetEngine.validateResult(outfieldSave);
+  assert.equal(outfieldValidation.ok, false,
+    label + " validator must reject a goalkeeper save credited to an outfield player");
+  assert.equal(outfieldValidation.reason, "invalid-save-player-position");
+  assert.equal(outfieldValidation.saveRoleConsistent, false);
+
+  const legacySave = targetEngine.simulateMatch(saveLedgerOptions(91823, "حارس مرمى"));
+  for (const event of legacySave.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  assert.equal(targetEngine.validateResult(legacySave).ok, true,
+    label + " validator must preserve legacy save ledgers without modern shot-target metadata");
+}
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

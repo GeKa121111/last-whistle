@@ -2922,11 +2922,29 @@ function seasonAwards(state, league, teamRank) {
       || (assistEvents.every(event => event.creditedToPlayer === true)
         && Number(result.player.keyPasses) === assistEvents.length);
     const saveEvents = result.events.filter(event => event.type === "save" && event.side === "team");
-    const savesLedgerConsistent = result.player.saves == null || !modernShotMetadataPresent
-      || (saveEvents.every(event => event.creditedToPlayer === true)
-        && Number(result.player.saves) === saveEvents.length);
+    const savesLedgerConsistent = !modernShotMetadataPresent
+      || (result.player.saves == null
+        ? saveEvents.length === 0
+        : (saveEvents.every(event => event.creditedToPlayer === true)
+          && Number(result.player.saves) === saveEvents.length));
+    const saveShotLedgerConsistent = !modernShotMetadataPresent || result.events.every((event, index) => {
+      if (event.type !== "save") return true;
+      const shot = result.events[index - 1];
+      return !!shot && shot.type === "shot" && shot.side === "opponent"
+        && Number(shot.minute) === Number(event.minute)
+        && shot.onTarget === true && shot.shooter === "opponent"
+        && shot.creditedToPlayer === false
+        && event.side === "team" && event.creditedToPlayer === true;
+    });
+    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
+      .includes(String(result.metadata?.position || ""));
+    const saveRoleConsistent = !modernShotMetadataPresent || !knownMatchPosition
+      || positionProfile(result.metadata.position).goalkeeper
+      || (saveEvents.length === 0 && (result.player.saves == null || Number(result.player.saves) === 0));
     if (!keyPassesLedgerConsistent) return { ok: false, reason: "inconsistent-key-pass-ledger" };
     if (!savesLedgerConsistent) return { ok: false, reason: "inconsistent-save-ledger" };
+    if (!saveShotLedgerConsistent) return { ok: false, reason: "invalid-save-shot-link", saveShotLedgerConsistent };
+    if (!saveRoleConsistent) return { ok: false, reason: "invalid-save-player-position", saveRoleConsistent };
     const playerAvailabilityValid = result.player.playerAvailable == null
       || (typeof result.player.playerAvailable === "boolean"
         && (result.player.minutes == null

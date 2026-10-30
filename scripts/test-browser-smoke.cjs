@@ -91,6 +91,33 @@ async function main() {
         && document.querySelector("#startScreen").classList.contains("show");
     }, null, { timeout: 30000 });
     results.push("startup");
+
+    const metadataShapeProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      if (!engine || typeof engine.validateResult !== "function") return null;
+      const match = engine.simulateMatch({
+        seed: 8144,
+        player: { name: "Metadata Shape", position: "مهاجم", role: "أساسي",
+          shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+      });
+      const malformed = JSON.parse(JSON.stringify(match));
+      malformed.metadata = [];
+      const legacy = JSON.parse(JSON.stringify(match));
+      delete legacy.metadata;
+      return {
+        valid: engine.validateResult(match).ok,
+        malformedReason: engine.validateResult(malformed).reason,
+        legacyValid: engine.validateResult(legacy).ok
+      };
+    });
+    assert.ok(metadataShapeProbe, "the browser must expose the deployed match engine");
+    assert.equal(metadataShapeProbe.valid, true, "a valid generated match must pass in Chromium");
+    assert.equal(metadataShapeProbe.malformedReason, "invalid-metadata-shape",
+      "Chromium must reject a malformed metadata array");
+    assert.equal(metadataShapeProbe.legacyValid, true,
+      "Chromium must retain compatibility with legacy matches that omit metadata");
+    results.push("match metadata shape validation and legacy compatibility");
+
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       true,

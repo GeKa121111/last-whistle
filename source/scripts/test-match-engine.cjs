@@ -821,6 +821,19 @@ assert.equal(engine.validateResult(legacyShootoutPenaltySave).ok, true,
   "legacy shootout ledgers without an explicit player exit must remain readable");
 assert.equal(browserEngine.validateResult(legacyShootoutPenaltySave).ok, true,
   "the embedded validator must preserve legacy shootout saves without explicit exit metadata");
+const lateSubstitutedKeeperWithLateSave = {
+  ...validLateKeeperShootout,
+  player: { ...validLateKeeperShootout.player, minutes: 60 },
+  events: [
+    { type: "substitution-on", side: "player", minute: 30 },
+    { type: "penalty-shootout", side: "team", minute: 120, won: true, scoreFor: 5, scoreAgainst: 4 },
+    { type: "penalty-save", side: "team", minute: 120, creditedToPlayer: true }
+  ]
+};
+assert.equal(engine.validateResult(lateSubstitutedKeeperWithLateSave).ok, false,
+  "a late substitute who left before extra time cannot receive a later shootout save");
+assert.equal(browserEngine.validateResult(lateSubstitutedKeeperWithLateSave).ok, false,
+  "the embedded validator must reject shootout saves after a late substitute leaves");
 const injuredKeeperWithPostExitSave = {
   ...validLateKeeperShootout,
   player: { ...validLateKeeperShootout.player, injuryDays: 2 },

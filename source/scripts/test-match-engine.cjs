@@ -2027,7 +2027,7 @@ for (const [label, targetEngine] of [["source", engine], ["browser", browserEngi
 const scoringCalibrationPositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const scoringCalibration = [];
 for (const position of scoringCalibrationPositions) {
-  let goals = 0, minutes = 0, teamGoals = 0, shots = 0, appearances = 0;
+  let goals = 0, assists = 0, minutes = 0, teamGoals = 0, opponentGoals = 0, shots = 0, appearances = 0;
   for (let seed = 610000; seed < 610300; seed += 1) {
     const result = engine.simulateMatch({
       seed, teamPower: 65, opponentPower: 65, tactic: "balanced", home: false,
@@ -2037,20 +2037,41 @@ for (const position of scoringCalibrationPositions) {
         trust: 70, energy: 95, fatigue: 5 }
     });
     goals += Number(result.player.goals) || 0;
+    assists += Number(result.player.assists) || 0;
     minutes += Number(result.player.minutes) || 0;
     shots += Number(result.player.shots) || 0;
     teamGoals += Number(result.score.for) || 0;
+    opponentGoals += Number(result.score.against) || 0;
     if (result.player.minutes > 0) appearances += 1;
     assert.equal(engine.validateResult(result).ok, true, "calibration result must have a valid scoring ledger");
   }
   scoringCalibration.push({
     position, goalsPer90: Number((goals * 90 / Math.max(1, minutes)).toFixed(3)),
-    goalsPerMatch: Number((goals / 300).toFixed(3)),
+    assistsPer90: Number((assists * 90 / Math.max(1, minutes)).toFixed(3)),
     shotsPer90: Number((shots * 90 / Math.max(1, minutes)).toFixed(2)),
     teamGoalsPerMatch: Number((teamGoals / 300).toFixed(2)),
+    opponentGoalsPerMatch: Number((opponentGoals / 300).toFixed(2)),
     appearanceRate: Number((appearances / 300).toFixed(2))
   });
 }
 console.log("POSITION_SCORING_CALIBRATION " + JSON.stringify(scoringCalibration));
+const scoringRanges = {
+  "حارس مرمى": [0, 0.005], "قلب دفاع": [0.02, 0.08], "ظهير": [0.04, 0.11],
+  "وسط دفاعي": [0.06, 0.15], "وسط مهاجم": [0.09, 0.19],
+  "جناح": [0.17, 0.30], "مهاجم": [0.19, 0.32], "رأس حربة": [0.24, 0.39]
+};
+for (const row of scoringCalibration) {
+  const [minimum, maximum] = scoringRanges[row.position];
+  assert.ok(row.goalsPer90 >= minimum && row.goalsPer90 <= maximum,
+    row.position + " goals/90 must stay in a position-appropriate range");
+  assert.ok(row.appearanceRate >= 0.99, row.position + " calibration sample must record eligible minutes");
+  assert.ok(row.teamGoalsPerMatch >= 0.95 && row.teamGoalsPerMatch <= 1.65,
+    row.position + " must not distort the team's normal scoring rate");
+  assert.ok(row.opponentGoalsPerMatch >= 0.9 && row.opponentGoalsPerMatch <= 1.6,
+    row.position + " must not distort the opponent's normal scoring rate");
+}
+const meanAssistsPer90 = scoringCalibration.reduce((sum, row) => sum + row.assistsPer90, 0) / scoringCalibration.length;
+assert.ok(meanAssistsPer90 >= 0.07 && meanAssistsPer90 <= 0.22,
+  "assists per 90 must not be inflated across every position");
 
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

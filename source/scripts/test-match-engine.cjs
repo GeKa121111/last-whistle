@@ -774,6 +774,29 @@ assert.equal(engine.validateResult(validExtraTimeGoal).ok, true,
   "consistent extra-time goal events, period totals, and final score must validate");
 assert.equal(browserEngine.validateResult(validExtraTimeGoal).ok, true,
   "the embedded engine must accept a consistent extra-time ledger");
+const malformedExtraTimePlayedFlag = {
+  ...minuteValidationBase,
+  extraTime: { ...minuteValidationBase.extraTime, played: "false" }
+};
+const malformedExtraTimeArray = { ...minuteValidationBase, extraTime: [] };
+const malformedExtraTimeContainer = { ...minuteValidationBase, extraTime: "false" };
+const legacyExtraTimeObjectWithoutPlayedFlag = { ...minuteValidationBase, extraTime: {} };
+const nullExtraTimeLegacy = { ...minuteValidationBase, extraTime: null };
+for (const targetEngine of [engine, browserEngine]) {
+  for (const malformedExtraTime of [
+    malformedExtraTimePlayedFlag, malformedExtraTimeArray, malformedExtraTimeContainer
+  ]) {
+    const validation = targetEngine.validateResult(malformedExtraTime);
+    assert.equal(validation.extraTimeLedgerConsistent, false,
+      "extra-time metadata must reject non-boolean played flags and non-object containers");
+    assert.equal(validation.ok, false,
+      "malformed extra-time flags, arrays, and primitive containers must be rejected");
+  }
+  assert.equal(targetEngine.validateResult(legacyExtraTimeObjectWithoutPlayedFlag).ok, true,
+    "legacy extra-time objects without a played flag must remain compatible");
+  assert.equal(targetEngine.validateResult(nullExtraTimeLegacy).ok, true,
+    "legacy null extra-time metadata must retain its previous absent-metadata behavior");
+}
 const missingExtraTimePeriods = { ...validExtraTimeGoal,
   extraTime: { ...validExtraTimeGoal.extraTime, periods: [] } };
 assert.equal(engine.validateResult(missingExtraTimePeriods).extraTimeLedgerConsistent, false,

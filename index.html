@@ -2975,9 +2975,12 @@ function seasonAwards(state, league, teamRank) {
           && Number(result.score.for) === Number(regulation.for)
           && Number(result.score.against) === Number(regulation.against);
       };
-      if (!extraTime || typeof extraTime !== "object") {
+      if (extraTime == null) {
         return !hasExtraTimeActivity && regulationMatchesFinalScore();
       }
+      if (typeof extraTime !== "object" || Array.isArray(extraTime)) return false;
+      const playedFlagPresent = Object.prototype.hasOwnProperty.call(extraTime, "played");
+      if (playedFlagPresent && typeof extraTime.played !== "boolean") return false;
       const periodsPresent = Object.prototype.hasOwnProperty.call(extraTime, "periods");
       const scoreFieldsPresent = extraTime.for != null || extraTime.against != null;
       if (extraTime.played !== true) {

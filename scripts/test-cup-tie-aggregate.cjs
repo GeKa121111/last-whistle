@@ -102,6 +102,6 @@ assert.equal(playBody.includes("Number(c.tieLeg)===2"),false,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-assert.ok(sw.includes("last-whistle-static-v212"), "the app shell cache must advance after the embedded UI fix");
+assert.ok(sw.includes("last-whistle-static-v213"), "the app shell cache must advance after the embedded UI fix");
 
 console.log("PASS: malformed second-leg cup aggregates are rejected before match actions, while legacy integer values remain compatible.");

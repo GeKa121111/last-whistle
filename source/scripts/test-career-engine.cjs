@@ -26,8 +26,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 178);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 40);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 228);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 43);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -195,6 +195,7 @@ const expectedPlans = {
   "حارس مرمى": { primary: "goalkeeping", secondary: ["composure", "passing", "fitness"] },
   "قلب دفاع": { primary: "defending", secondary: ["composure", "fitness", "passing"] },
   "ظهير": { primary: "speed", secondary: ["passing", "defending"] },
+  "وسط": { primary: ["passing", "vision"], secondary: ["fitness", "composure", "defending", "dribbling"] },
   "وسط دفاعي": { primary: "defending", secondary: ["vision", "fitness", "composure"] },
   "وسط مهاجم": { primary: "vision", secondary: ["composure", "dribbling", "shooting"] },
   "جناح": { primary: "dribbling", secondary: ["shooting", "vision", "fitness"] },
@@ -214,11 +215,27 @@ for (const [position, expected] of Object.entries(expectedPlans)) {
 }
 assert.equal(career.trainingFocusMultiplier({ pos: "حارس مرمى" }, "goalkeeping"), 1.2);
 assert.equal(career.trainingFocusMultiplier({ pos: "جناح" }, "goalkeeping"), 1);
+const careerPositionAliases = {
+  GK: "حارس مرمى", CB: "قلب دفاع", RB: "ظهير", CDM: "وسط دفاعي",
+  CM: "وسط", CAM: "وسط مهاجم", LW: "جناح", CF: "مهاجم", ST: "رأس حربة",
+  "central midfielder": "وسط", "defensive midfielder": "وسط دفاعي"
+};
+for (const [alias, canonical] of Object.entries(careerPositionAliases)) {
+  assert.equal(career.normalizeCareerPosition(alias), canonical, "position alias should normalize: " + alias);
+  assert.deepEqual(career.positionDevelopmentPlan({ pos: alias }), career.positionDevelopmentPlan({ pos: canonical }),
+    "position alias should use the canonical development plan: " + alias);
+  assert.deepEqual(career.startingStatsForPosition(alias, () => 0.5), career.startingStatsForPosition(canonical, () => 0.5),
+    "position alias should use the canonical starting profile: " + alias);
+  const savedState = { pos: alias, trainingXP: {}, randomSeed: 1 };
+  career.ensureState(savedState);
+  assert.equal(savedState.pos, canonical, "legacy saved position should normalize safely: " + alias);
+}
 
 // New-position baseline matrix: specialisms must no longer start at a universal 50.
 const between = (value, min, max, label) => assert.ok(value >= min && value <= max, label + ": " + value + " is outside " + min + "-" + max);
 const startRanges = {
   "مهاجم": { shooting:[53,65], dribbling:[56,68], speed:[57,69], passing:[50,61], vision:[51,62], fitness:[51,62], defending:[15,28], goalkeeping:[0,0] },
+  "وسط": { shooting:[42,55], dribbling:[48,60], speed:[48,60], passing:[56,68], vision:[56,68], fitness:[54,66], composure:[52,64], defending:[42,56], physical:[45,58], goalkeeping:[0,0] },
   "رأس حربة": { shooting:[60,72], dribbling:[44,57], speed:[48,61], passing:[42,54], vision:[42,54], fitness:[49,61], composure:[54,65], physical:[53,65], defending:[15,28], goalkeeping:[0,0] },
   "جناح": { shooting:[55,68], dribbling:[55,68], speed:[55,68], passing:[50,60], vision:[50,60], fitness:[50,60], defending:[15,28], goalkeeping:[0,0] },
   "وسط مهاجم": { passing:[55,65], vision:[55,65], composure:[55,65], fitness:[55,65], defending:[35,45], goalkeeping:[0,0] },
@@ -314,6 +331,24 @@ assert.equal(career.trainingFocusMultiplier({ pos: "مهاجم" }, "dribbling"),
 assert.equal(career.trainingFocusMultiplier({ pos: "رأس حربة" }, "shooting"), 1.2);
 const positionProbe = { shooting:60, dribbling:60, passing:60, speed:60, fitness:60, composure:60,
   vision:60, defending:60, goalkeeping:60, physical:60, age:22, playerPotential:85, trainingXP:{}, randomSeed:7 };
+const centralMidfieldBaseline = career.overall({ ...positionProbe, pos: "وسط" });
+const centralMidfieldPassing = career.overall({ ...positionProbe, pos: "CM", passing: 80 });
+const centralMidfieldDribbling = career.overall({ ...positionProbe, pos: "CM", dribbling: 80 });
+assert.ok(centralMidfieldPassing > centralMidfieldBaseline,
+  "central-midfield passing must contribute to weighted OVR");
+assert.ok(centralMidfieldPassing > centralMidfieldDribbling,
+  "central-midfield passing must count more than winger-style dribbling");
+const centralMatchState = { ...positionProbe, pos: "CM", age: 22, apps: 0, goals: 0, assists: 0, season: 2 };
+const centralMatchResult = career.matchDevelopment(centralMatchState, {
+  matchId: "central-midfield-position-test", minutes: 90, rating: 7.4, goals: 0, assists: 1,
+  stats: { keyPasses: 3, ballRecoveries: 4, tackles: 2 }
+});
+assert.equal(centralMatchResult.skill, "passing",
+  "central-midfield match development should train the passing attribute");
+assert.ok(centralMatchResult.positionActionXP > 0,
+  "central midfielders should earn match-development XP from playmaking and recoveries");
+assert.equal(centralMatchState.pos, "وسط",
+  "English central-midfield aliases must normalize before match development");
 const mobileBaselineOVR = career.overall({ ...positionProbe, pos: "مهاجم" });
 const mobileHighShotOVR = career.overall({ ...positionProbe, pos: "مهاجم", shooting:80 });
 const strikerBaselineOVR = career.overall({ ...positionProbe, pos: "رأس حربة" });
@@ -1275,6 +1310,13 @@ for (const position of Object.keys(expectedPlans)) {
       career.trainingFocusMultiplier({ pos: position }, skill),
       "deployed/source training multiplier drift for " + position + "/" + skill);
   }
+}
+for (const [alias, canonical] of Object.entries(careerPositionAliases)) {
+  assert.equal(deployedCareer.normalizeCareerPosition(alias), canonical,
+    "deployed/source position normalization drift for " + alias);
+  assert.deepEqual(JSON.parse(JSON.stringify(deployedCareer.positionDevelopmentPlan({ pos: alias }))),
+    JSON.parse(JSON.stringify(career.positionDevelopmentPlan({ pos: alias }))),
+    "deployed/source alias development plan drift for " + alias);
 }
 
 const parityState = () => ({

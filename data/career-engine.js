@@ -779,6 +779,7 @@
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     return {
       ...state,
+      loan: null,
       clubName: String(loan.parentClub || state.clubName || ""),
       leagueCountry: String(loan.parentCountry || state.leagueCountry || ""),
       weeklyWage: Number.isFinite(parentWageValue)
@@ -792,6 +793,7 @@
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
+    if (state.loan) return "loaned";
     if (normalizeLegacyBoolean(state.freeAgent)) return "free-agent";
     const contractSeasons = Number(state.contractSeasons);
     if (!Number.isFinite(contractSeasons)) return "contract-expiring";

@@ -471,6 +471,12 @@ assert.equal(contractSnapshot.clubName, "Parent Club");
 assert.equal(contractSnapshot.leagueCountry, "Egypt");
 assert.equal(contractSnapshot.weeklyWage, 400);
 assert.equal(contractSnapshot.contractSeasons, 1);
+assert.equal(contractSnapshot.loan, null, "the parent-contract snapshot must not carry the active loan state");
+assert.equal(career.wageNegotiationStatus(onLoan), "loaned", "active loan must block parent-contract wage negotiations");
+assert.equal(career.canNegotiateInSeason(onLoan), false, "an on-loan player cannot negotiate the parent contract from the host club");
+const loanWageBeforeNegotiation = onLoan.weeklyWage;
+assert.deepEqual(career.resolveWageNegotiation(onLoan, 95, 1), { ok: false, status: "loaned" });
+assert.equal(onLoan.weeklyWage, loanWageBeforeNegotiation, "a blocked loan negotiation must not change the temporary wage");
 assert.equal(onLoan.clubName, "Loan Club", "contract snapshot must not mutate the active loan state");
 assert.equal(career.wageNegotiationStatus(contractSnapshot), "contract-expiring");
 
@@ -490,6 +496,10 @@ assert.ok(rootHtml.includes("state.freeAgent=normalizeSavedBooleanFlag(l.parentF
   "browser loan return must normalize legacy parentFreeAgent values");
 assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
   "browser loan return must restore the parent club role while preserving legacy saves without it");
+assert.ok(rootHtml.includes('negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";'),
+  "the contract screen must disable wage negotiation while the player is on loan");
+assert.ok(rootHtml.includes('state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي")'),
+  "the contract screen must identify the parent club as the contract owner during a loan");
 assert.ok(!rootHtml.includes("state.freeAgent=!!l.parentFreeAgent;"),
   "browser loan return must not coerce string false to true");
 

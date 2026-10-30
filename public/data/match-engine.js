@@ -468,10 +468,6 @@
     const officialOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة" : "تعادل";
     const advancementWinner = shootout.used ? (shootout.won ? teamName : opponentName)
       : aggregateMargin > 0 ? teamName : aggregateMargin < 0 ? opponentName : "";
-    if (shootout.used && shootout.won === true && profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured) {
-      stats.penaltiesSaved = 1;
-      events.push({ type: "penalty-save", minute: 120, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
-    }
     const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);

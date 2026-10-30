@@ -799,6 +799,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
 <script src="./football-world-ai.js?v=32"></script>
+  <link rel="stylesheet" href="./social-media.css?v=2">
 </head>
 <body>
 
@@ -839,6 +840,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقد والانتقالات والوكلاء</button>
     <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> المنتخب</button>
     <button class="navBtn" data-page="life"><span class="ico">🎙️</span> الحياة والسمعة</button>
+    <button class="navBtn" data-page="social"><span class="ico">📱</span> دوشة الملاعب</button>
     <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
     <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
   </nav>
@@ -1203,6 +1205,46 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         <article class="card span12"><div class="cardHead"><h2>🏟️ أرشيف الدوريات والأندية</h2><span class="pill" id="leagueArchiveCount">0 مرحلة</span></div><p class="muted small">كل مرحلة محفوظة قبل الانتقال أو نهاية الموسم، بما فيها الجدول والجولات ونتائج مبارياتك.</p><div id="leagueArchiveList" class="eventFeed"></div></article>
       </div>
     </section>
+
+    <section class="page" id="page-social">
+      <div class="grid">
+        <article class="card span12">
+          <div class="lwsocial-hero">
+            <div class="lwsocial-brand">
+              <div class="lwsocial-logo">📱</div>
+              <div>
+                <span class="lwsocial-kicker">LAST WHISTLE SOCIAL</span>
+                <h2>دوشة الملاعب</h2>
+                <p id="lw-social-status">الملعب بيتكلم حتى بعد صافرة النهاية.</p>
+              </div>
+            </div>
+            <div class="lwsocial-metrics">
+              <div class="lwsocial-metric"><strong id="lw-social-followers">0</strong><small>متابع</small></div>
+              <div class="lwsocial-metric"><strong id="lw-social-reputation">0/100</strong><small>سمعة إعلامية</small></div>
+              <div class="lwsocial-metric"><strong id="lw-social-count">0</strong><small>بوستاتك</small></div>
+            </div>
+          </div>
+          <div class="lwsocial-composer">
+            <div class="lwsocial-composer-head"><span class="lwsocial-avatar">👤</span><div><strong>اكتب للناس</strong><small>كل كلمة ممكن تعمل تفاعل مختلف.</small></div></div>
+            <textarea id="lw-social-composer" maxlength="240" placeholder="قول لجمهورك إيه اللي في دماغك..."></textarea>
+            <div class="lwsocial-quick">
+              <button type="button" data-sm-quick="الفوز ده للجمهور اللي واقف معانا في كل الظروف.">أهدي الفوز للجمهور</button>
+              <button type="button" data-sm-quick="لسه عندي كتير أقدمه، والشغل هو اللي هيتكلم.">لسه عندي كتير</button>
+              <button type="button" data-sm-quick="شكراً لكل واحد دعمني.. وجودكم فارق معايا.">شكراً على الدعم</button>
+            </div>
+            <div class="lwsocial-composer-foot"><span id="lw-social-counter">0/240</span><button type="button" id="lw-social-submit" class="lwsocial-submit" disabled>نشر البوست ↗</button></div>
+          </div>
+          <div class="lwsocial-filters" id="lw-social-filters">
+            <button type="button" class="active" data-sm-filter="all">الكل</button>
+            <button type="button" data-sm-filter="fans">الجمهور والزملاء</button>
+            <button type="button" data-sm-filter="media">الإعلام</button>
+            <button type="button" data-sm-filter="transfers">الانتقالات</button>
+            <button type="button" data-sm-filter="mine">بوستاتي</button>
+          </div>
+          <div class="lwsocial-feed" id="lw-social-feed" aria-live="polite"></div>
+        </article>
+      </div>
+    </section>
   </main>
 </div>
 <nav class="bottomNav" aria-label="التنقل السريع">
@@ -1211,6 +1253,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   <button data-page="stats" aria-label="الإحصائيات"><span>📊</span>الإحصائيات</button>
   <button data-page="wellness" aria-label="الجاهزية والراحة"><span>🩺</span>الجاهزية</button>
   <button data-page="league" aria-label="الدوري"><span>🏆</span>الدوري</button>
+  <button data-page="social" aria-label="السوشيال ميديا"><span>📱</span>السوشيال</button>
 </nav>
 
 <div class="drawerShade" id="drawerShade"></div>
@@ -4093,12 +4136,12 @@ function openModal(title,text,choices,options={}){
 }
 function closeModal(){$("modalShade").classList.remove("open");}
 function showPage(page, scrollTop=true){
- const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","diary"].includes(page)?page:"home";
+ const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","social","diary"].includes(page)?page:"home";
  state.currentPage=valid;
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+valid));
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
- const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
+ const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",social:"دوشة الملاعب",diary:"المذكرات"};
  $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -6552,5 +6595,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./career-hub.js?v=3"></script>
 <script src="./ai-career-engine.js?v=5"></script>
 <script src="./ai-career-ui.js?v=1"></script>
+<script src="./social-media.js?v=2"></script>
 </body>
 </html>

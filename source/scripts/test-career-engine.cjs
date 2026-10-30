@@ -758,11 +758,6 @@ assert.equal(poorStarterDecision.role, "بديل أساسي",
   "a starter with sustained poor ratings and low trust must lose the automatic starter role");
 assert.equal(poorStarterDecision.reason, "form-demotion",
   "role demotions must be identifiable separately from promotions");
-const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
-  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
-}, poorFormHistory);
-assert.equal(JSON.stringify(browserPoorStarterDecision), JSON.stringify(poorStarterDecision),
-  "the embedded browser career engine must apply the same evidence-based starter demotion");
 const poorRotationDecision = career.evaluateSquadRole({
   role: "تناوب", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
 }, poorFormHistory);
@@ -1201,6 +1196,16 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, poorFormHistory);
+assert.equal(JSON.stringify(browserPoorStarterDecision), JSON.stringify(poorStarterDecision),
+  "the embedded browser career engine must apply the same evidence-based starter demotion");
+const browserPoorStarDecision = deployedCareer.evaluateSquadRole({
+  role: "نجم الفريق", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
+}, poorFormHistory);
+assert.equal(JSON.stringify(browserPoorStarDecision), JSON.stringify(poorStarDecision),
+  "the embedded browser career engine must apply the same evidence-based star demotion");
 assert.equal(deployedCareer.normalizeCareerPosition("CM"), "وسط", "the embedded career engine must normalize CM aliases");
 assert.equal(deployedCareer.positionDevelopmentPlan("CM").position, "وسط", "the embedded career engine must expose the CM development plan");
 assert.equal(deployedCareer.loanSquadRole({ pos: "CM", age: 22, shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70, composure: 70, defending: 70, goalkeeping: 90, vision: 70, physical: 70 }, { power: 60 }), "أساسي", "the embedded career engine must calculate a realistic loan role");

@@ -346,6 +346,15 @@ assert.equal(career.trainingFocusMultiplier({ pos: "رأس حربة" }, "shootin
 const positionProbe = { shooting:60, dribbling:60, passing:60, speed:60, fitness:60, composure:60,
   vision:60, defending:60, goalkeeping:60, physical:60, age:22, playerPotential:85, trainingXP:{}, randomSeed:7 };
 const centralMidfieldBaseline = career.overall({ ...positionProbe, pos: "وسط" });
+const loanRoleProbe = { ...positionProbe, pos: "CM" };
+assert.equal(career.loanSquadRole(loanRoleProbe, { power: 55 }), "أساسي",
+  "a player clearly stronger than the loan club should be projected as a starter");
+assert.equal(career.loanSquadRole(loanRoleProbe, { power: 60 }), "بديل أساسي",
+  "a player near the loan club's level should be projected as a rotation player");
+assert.equal(career.loanSquadRole(loanRoleProbe, { power: 63 }), "بديل",
+  "a player below the loan club's level should be projected as a substitute");
+assert.ok(rootHtml.includes('const hostRole=window.LWCareer?.loanSquadRole(state,target)||"بديل أساسي";'),
+  "loan transfers must apply the host club's projected squad role");
 const centralMidfieldPassing = career.overall({ ...positionProbe, pos: "CM", passing: 80 });
 const centralMidfieldDribbling = career.overall({ ...positionProbe, pos: "CM", dribbling: 80 });
 assert.ok(centralMidfieldPassing > centralMidfieldBaseline,
@@ -1331,6 +1340,9 @@ for (const [alias, canonical] of Object.entries(careerPositionAliases)) {
   assert.deepEqual(JSON.parse(JSON.stringify(deployedCareer.positionDevelopmentPlan({ pos: alias }))),
     JSON.parse(JSON.stringify(career.positionDevelopmentPlan({ pos: alias }))),
     "deployed/source alias development plan drift for " + alias);
+  assert.equal(deployedCareer.loanSquadRole({ ...positionProbe, pos: alias }, { power: 60 }),
+    career.loanSquadRole({ ...positionProbe, pos: alias }, { power: 60 }),
+    "deployed/source loan role drift for " + alias);
 }
 
 const parityState = () => ({

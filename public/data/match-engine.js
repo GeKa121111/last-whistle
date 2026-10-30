@@ -86,6 +86,7 @@
     return Math.round(clamp(minutes, 0, 90));
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    position = normalizePosition(position);
     const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
@@ -99,6 +100,7 @@
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
       return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
+    if (position === "وسط") return tackles * 0.12 + interceptions * 0.14 + recoveries * 0.12 + keyPasses * 0.11;
     if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
     return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
@@ -132,6 +134,7 @@
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
+    position = normalizePosition(position);
     const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
     const played = Math.max(0, Number(minutes) || 0);
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;

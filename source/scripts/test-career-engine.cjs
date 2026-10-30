@@ -601,6 +601,27 @@ assert.equal(oversizedTerm.contractSeasons, 6, "accepted contract terms must be 
 assert.equal(career.shouldRetire({ age: 40 }), true);
 assert.equal(career.shouldRetire({ age: 39 }), false);
 
+const rotationHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "rotation-form-" + index, scope: "league", minutes: 70, rating: 6.8,
+  goals: 0, assists: 0
+}));
+const rotationPromotion = career.evaluateSquadRole({
+  role: "تناوب", apps: 16, goals: 0, assists: 0, trust: 55, pos: "وسط دفاعي"
+}, rotationHistory);
+assert.equal(rotationPromotion.role, "أساسي",
+  "a rotation-contract player who sustains strong recent performances should earn a starter role");
+assert.equal(rotationPromotion.changed, true);
+const reservePromotion = career.evaluateSquadRole({
+  role: "لاعب بديل", apps: 10, goals: 0, assists: 0, trust: 55, pos: "وسط دفاعي"
+}, rotationHistory);
+assert.equal(reservePromotion.role, "بديل أساسي",
+  "a substitute contract label should use the same evidence-based promotion path as legacy substitute saves");
+const prospectPromotion = career.evaluateSquadRole({
+  role: "لاعب ناشئ", apps: 3, goals: 0, assists: 0, trust: 25, pos: "جناح"
+}, rotationHistory.slice(0, 2));
+assert.equal(prospectPromotion.role, "بديل",
+  "a prospect label should become a normal substitute role after recording real appearances");
+
 const trainingState = { ...player, playedToday: true, trainedToday: false, injuryDays: 0 };
 assert.equal(career.train(trainingState, "shooting").ok, false, "training must be blocked on match day");
 assert.equal(career.train({ ...player, pos: "مهاجم", playedToday: false, trainedToday: false }, "unknown").ok, false);

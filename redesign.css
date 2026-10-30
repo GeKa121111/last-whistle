@@ -212,14 +212,14 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
  body.lw-rebuild .app.hasSidebar{margin-right:274px;margin-left:18px;padding:16px 20px 48px}
  body.lw-rebuild .bottomNav{display:none!important}
 }
-@media(max-width:1000px) and (min-width:761px){
+@media(max-width:1200px) and (min-width:1001px){
  body.lw-rebuild .app.hasSidebar{margin-right:254px;margin-left:10px;padding:12px 12px 42px}
  body.lw-rebuild .drawer{right:8px;width:232px}
  body.lw-rebuild #lw-command-center{padding:18px}
  body.lw-rebuild .lw-overview-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
  body.lw-rebuild .lw-overview-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media(max-width:760px){
+@media(max-width:1000px){
  body.lw-rebuild .app.hasSidebar{display:block;max-width:720px;margin:0 auto;padding:8px 9px calc(102px + env(safe-area-inset-bottom))}
  body.lw-rebuild .header{top:4px;gap:7px;margin-bottom:10px;padding:7px 8px;min-height:56px;border-radius:12px}
  body.lw-rebuild .brandMark{flex-basis:32px;width:32px;height:32px;border-radius:9px;font-size:11px}
@@ -297,3 +297,54 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
  body.lw-rebuild .seasonStage{flex-basis:122px}
 }
 @media(prefers-reduced-motion:reduce){body.lw-rebuild *,body.lw-rebuild *:before,body.lw-rebuild *:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+
+/* Mobile-first recovery and league screens: keep every card inside the content
+   column even when Android Chrome reports a wider layout viewport. */
+@media(max-width:1000px){
+ body.lw-rebuild .app.hasSidebar{display:block!important;width:auto!important;max-width:760px!important;margin:0 auto!important;padding:8px 10px calc(112px + env(safe-area-inset-bottom))!important}
+ body.lw-rebuild .app.hasSidebar>.page{width:100%;min-width:0;max-width:100%;overflow-x:clip}
+ body.lw-rebuild #page-wellness>.grid,
+ body.lw-rebuild #page-league>.grid,
+ body.lw-rebuild #page-europe>.grid{display:grid;grid-template-columns:minmax(0,1fr);width:100%;min-width:0}
+ body.lw-rebuild #page-wellness .card,
+ body.lw-rebuild #page-league .card,
+ body.lw-rebuild #page-europe .card{grid-column:1/-1;min-width:0;width:100%;max-width:100%;box-sizing:border-box}
+ body.lw-rebuild #page-wellness .hub-recovery-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+ body.lw-rebuild #page-league .tableWrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
+ body.lw-rebuild #page-league table{min-width:610px}
+ body.lw-rebuild #page-europe .world-ai-grid-two{grid-template-columns:minmax(0,1fr)}
+ body.lw-rebuild #page-europe .globalFilters{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+ body.lw-rebuild #page-europe .dataGrid,
+ body.lw-rebuild #page-europe .officialList,
+ body.lw-rebuild #page-europe .leagueCatalog{display:grid;grid-template-columns:minmax(0,1fr);min-width:0}
+ body.lw-rebuild #page-europe h2,
+ body.lw-rebuild #page-europe h3,
+ body.lw-rebuild #page-europe p,
+ body.lw-rebuild #page-europe label{overflow-wrap:anywhere;word-break:normal}
+ body.lw-rebuild #page-europe .cardHead{align-items:flex-start;flex-wrap:wrap}
+}
+
+/* Global directory: isolate the reference catalogue and prevent page bleed. */
+.app > .page{display:none!important;width:100%;max-width:100%;min-width:0}
+.app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}
+.app > .page#page-europe > .grid{display:grid;width:100%;min-width:0;grid-template-columns:minmax(0,1fr)}
+#page-europe .global-directory-grid,#page-europe .global-directory-card{width:100%;min-width:0;max-width:100%}
+#page-europe .global-directory-heading{align-items:flex-start;flex-wrap:wrap}
+#page-europe .global-directory-heading>div{min-width:0;flex:1 1 220px}
+#page-europe .global-directory-heading h2{font-size:clamp(16px,4vw,20px);line-height:1.5;overflow-wrap:anywhere}
+#page-europe .global-directory-heading .subline{margin-top:4px;line-height:1.7}
+#page-europe .dataSummary{overflow-wrap:anywhere;word-break:normal}
+#page-europe .field,#page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{width:100%;min-width:0}
+#page-europe .dataCard{width:100%;min-width:0;overflow-wrap:anywhere}
+#page-europe .dataCard h4,#page-europe .dataCard p{word-break:normal;overflow-wrap:anywhere}
+#page-europe .clubRoster{max-width:100%}
+#page-europe .clubRoster .pill{max-width:100%;overflow-wrap:anywhere;white-space:normal}
+#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel{display:none!important}
+@media(max-width:520px){
+ #page-europe .global-directory-card{padding:12px}
+ #page-europe .global-directory-heading{gap:8px}
+ #page-europe .global-directory-heading .pill{white-space:normal}
+ #page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{grid-template-columns:minmax(0,1fr)!important}
+ #page-europe .dataCard{padding:12px}
+}

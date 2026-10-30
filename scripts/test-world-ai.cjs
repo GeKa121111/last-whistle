@@ -392,6 +392,11 @@ assert.equal(promotionWorld.clubs["promotion-first-5"].division, 2,
 
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");
+assert.equal(ai.groupForPosition("GK"), "goalkeeper", "English GK codes must be recognized for club keeper depth");
+assert.equal(ai.groupForPosition("CB"), "defender", "English centre-back codes must not fall through to midfield");
+assert.equal(ai.groupForPosition("CDM"), "midfielder", "English defensive-midfield codes must remain midfielders");
+assert.equal(ai.groupForPosition("ST"), "attacker", "English striker codes must remain in the attacking line");
+assert.equal(ai.groupForPosition("RW"), "attacker", "English winger codes must remain in the attacking line");
 const centreStrikerProfile = ai.positionProductionProfile("رأس حربة");
 const mobileForwardProfile = ai.positionProductionProfile("مهاجم");
 const wingerProfile = ai.positionProductionProfile("جناح");

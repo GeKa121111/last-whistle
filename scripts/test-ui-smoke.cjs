@@ -9,6 +9,17 @@ const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+const redesign = fs.readFileSync(path.join(root, "redesign.css"), "utf8");
+const publicRedesign = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
+if (redesign !== publicRedesign) { console.error("Root redesign.css and public/redesign.css are out of sync."); process.exit(1); }
+if (!redesign.includes("@media(max-width:1000px){")
+  || !redesign.includes("#page-wellness>.grid")
+  || !redesign.includes("#page-league>.grid")
+  || !redesign.includes("#page-europe .dataGrid")
+  || !redesign.includes("grid-template-columns:minmax(0,1fr)")) {
+  console.error("Readiness, local league, and world catalog pages must use the mobile-safe single-column layout up to 1000px.");
+  process.exit(1);
+}
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {

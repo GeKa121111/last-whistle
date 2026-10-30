@@ -192,7 +192,7 @@ assert.ok(Number.isFinite(malformedAwardState.money),
   "award processing must leave a finite balance after malformed match stats");
 
 
-const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");
+const inlineRangesStart = rootHtml.indexOf("  const POSITION_ALIASES = {");
 const inlineStatsStart = rootHtml.indexOf("  function startingStatsForPosition(position", inlineRangesStart);
 const inlineStatsEnd = rootHtml.indexOf("\n\n  function uniqueMatchRows", inlineStatsStart);
 assert.ok(inlineRangesStart >= 0 && inlineStatsStart > inlineRangesStart && inlineStatsEnd > inlineStatsStart,
@@ -201,7 +201,7 @@ const inlineContext = { Math };
 vm.createContext(inlineContext);
 vm.runInContext(rootHtml.slice(inlineRangesStart, inlineStatsEnd) +
   "\nthis.startingStatsForPosition = startingStatsForPosition;", inlineContext);
-for (const position of ["قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]) {
+for (const position of ["قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة", "CM"]) {
   assert.equal(inlineContext.startingStatsForPosition(position, () => 0.5).goalkeeping, 0,
     "inline app must give zero goalkeeper skill to " + position);
 }

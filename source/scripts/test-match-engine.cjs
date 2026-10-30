@@ -566,6 +566,50 @@ for (const [benchRole, seed] of [["ناشئ / بديل", 24061029], ["لاعب �
   assert.equal(engine.validateResult(youthSubstitute).ok, true,
     benchRole + " must keep player events inside the actual playing interval");
 }
+// Contract labels must translate into believable playing-time patterns.
+const starRoleRuns = [];
+for (let seed = 241000; seed < 241040; seed += 1) {
+  const star = engine.simulateMatch({
+    ...substituteOptions, seed,
+    player: { ...substituteOptions.player, role: "نجم الفريق", position: "رأس حربة",
+      trust: 95, fitness: 95, energy: 95, fatigue: 0 }
+  });
+  assert.equal(star.events.some(event => event.type === "substitution-on" && event.side === "player"), false,
+    "a star-player contract must start the player, not treat him as an impact substitute");
+  assert.equal(engine.validateResult(star).ok, true, "star-player appearances must remain valid");
+  starRoleRuns.push(star.player.minutes);
+}
+assert.ok(starRoleRuns.reduce((sum, value) => sum + value, 0) / starRoleRuns.length >= 82,
+  "a star player should receive near-full-match minutes on average");
+
+const prospectRole = engine.simulateMatch({
+  ...substituteOptions, seed: 24061032,
+  player: { ...substituteOptions.player, role: "لاعب ناشئ", position: "رأس حربة",
+    trust: 70, fitness: 90, energy: 95, fatigue: 0 }
+});
+assert.ok(prospectRole.events.some(event => event.type === "substitution-on" && event.side === "player"),
+  "a prospect role must be treated as a late substitute even without the word بديل");
+assert.ok(engine.validateResult(prospectRole).ok, "prospect cameo must keep a valid event ledger");
+
+let rotationBenchAppearances = 0;
+let rotationStarts = 0;
+for (let seed = 310000; seed < 310160; seed += 1) {
+  const rotated = engine.simulateMatch({
+    ...substituteOptions, seed,
+    player: { ...substituteOptions.player, role: "تناوب", position: "رأس حربة",
+      trust: 80, fitness: 90, energy: 95, fatigue: 0 }
+  });
+  const entry = rotated.events.find(event => event.type === "substitution-on" && event.side === "player");
+  if (entry) rotationBenchAppearances += 1;
+  else rotationStarts += 1;
+  assert.equal(engine.validateResult(rotated).ok, true,
+    "both rotation starts and substitute appearances must pass match validation");
+}
+assert.ok(rotationBenchAppearances >= 85 && rotationBenchAppearances <= 135,
+  "a rotation role should produce a healthy mix, with more substitute appearances than starts");
+assert.ok(rotationStarts >= 25,
+  "a rotation player must still receive occasional starts");
+
 const rotationStarter = engine.simulateMatch({
   ...substituteOptions, seed: 24061031,
   player: { ...substituteOptions.player, role: "بديل أساسي" }

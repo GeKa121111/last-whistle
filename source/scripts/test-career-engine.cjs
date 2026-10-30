@@ -9,6 +9,31 @@ require(path.join(__dirname, "..", "public", "data", "career-engine.js"));
 const career = global.LWCareer;
 assert.ok(career, "career engine must export LWCareer");
 
+assert.equal(career.normalizeCareerPosition("CM"), "وسط", "CM must normalize to the central-midfield role");
+assert.equal(career.normalizeCareerPosition("central midfielder"), "وسط", "long-form English midfield positions must normalize");
+assert.equal(career.normalizeCareerPosition("CDM"), "وسط دفاعي", "CDM must retain its defensive-midfield role");
+assert.equal(career.normalizeCareerPosition("CAM"), "وسط مهاجم", "CAM must retain its attacking-midfield role");
+const centralMidfieldPlan = career.positionDevelopmentPlan("CM");
+assert.equal(centralMidfieldPlan.position, "وسط");
+assert.ok(centralMidfieldPlan.primary.includes("passing") && centralMidfieldPlan.primary.includes("vision"),
+  "central midfield development must prioritize passing and vision");
+const centralMidfieldStats = career.startingStatsForPosition("CM", () => 0.5);
+assert.equal(centralMidfieldStats.goalkeeping, 0, "central midfielders must never receive goalkeeper skill");
+assert.ok(centralMidfieldStats.passing >= 56 && centralMidfieldStats.passing <= 68,
+  "central midfielders must receive the dedicated passing range");
+const legacyCentralMidfielder = { pos: "CM", goalkeeping: 90, age: 20 };
+career.ensureState(legacyCentralMidfielder);
+assert.equal(legacyCentralMidfielder.pos, "وسط", "legacy CM saves must be normalized without dropping the player");
+assert.equal(legacyCentralMidfielder.goalkeeping, 0, "legacy outfield CM saves must not retain goalkeeper skill");
+const loanRolePlayer = { pos: "CM", age: 22, shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70,
+  composure: 70, defending: 70, goalkeeping: 99, vision: 70, physical: 70 };
+assert.equal(career.loanSquadRole({ ...loanRolePlayer }, { power: 60 }), "أساسي",
+  "a player clearly stronger than the host club should be projected as a starter");
+assert.equal(career.loanSquadRole({ ...loanRolePlayer }, { power: 70 }), "بديل أساسي",
+  "a player near host-club level should be projected as a rotation starter");
+assert.equal(career.loanSquadRole({ ...loanRolePlayer }, { power: 80 }), "بديل",
+  "a player clearly below host-club level should be projected as a substitute");
+
 const repositoryRoot = path.resolve(__dirname, "..", "..");
 const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");

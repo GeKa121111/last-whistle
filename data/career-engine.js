@@ -535,18 +535,21 @@
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
     const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
-    const tackles = safeMatchCount(matchStats.tackles);
+    const tackles = safeMatchCount(matchStats.tacklesWon != null ? matchStats.tacklesWon : matchStats.tackles);
     const interceptions = safeMatchCount(matchStats.interceptions);
     const saves = safeMatchCount(matchStats.saves);
+    const penaltiesSaved = safeMatchCount(matchStats.penaltiesSaved);
+    const clearances = safeMatchCount(matchStats.clearances);
+    const recoveries = safeMatchCount(matchStats.ballRecoveries);
     const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
     const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
     const positionActionXP = state.pos === "حارس مرمى"
-      ? Math.min(16, saves * 2 + (cleanSheet ? 5 : 0))
+      ? Math.min(18, saves * 2 + penaltiesSaved * 5 + (cleanSheet ? 5 : 0))
       : defensivePosition
-        ? Math.min(20, tackles * 2 + interceptions * 2.5 + (cleanSheet ? 4 : 0))
+        ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
         : state.pos === "وسط مهاجم"
-          ? Math.min(10, keyPasses * 1.4)
+          ? Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
           : Math.min(12, goals * 4 + assists * 2);
     const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
       + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
@@ -554,13 +557,13 @@
     const focusMultiplier = trainingFocusMultiplier(state, skill);
     const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
     let defensiveXP = 0, goalkeeperXP = 0;
-    if (defensivePosition && (tackles > 0 || interceptions > 0 || cleanSheet)) {
-      defensiveXP = Math.round((tackles * 2 + interceptions * 3 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+    if (defensivePosition && (tackles > 0 || interceptions > 0 || clearances > 0 || recoveries > 0 || cleanSheet)) {
+      defensiveXP = Math.round((tackles * 2 + interceptions * 3 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
         * trainingFocusMultiplier(state, "defending") * Math.min(1, played / 75));
       addTrainingXP(state, "defending", defensiveXP);
     }
-    if (state.pos === "حارس مرمى" && (saves > 0 || cleanSheet)) {
-      goalkeeperXP = Math.round((saves * 2.2 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+    if (state.pos === "حارس مرمى" && (saves > 0 || penaltiesSaved > 0 || cleanSheet)) {
+      goalkeeperXP = Math.round((saves * 2.2 + penaltiesSaved * 5 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
         * trainingFocusMultiplier(state, "goalkeeping") * Math.min(1, played / 75));
       addTrainingXP(state, "goalkeeping", goalkeeperXP);
     }
@@ -929,29 +932,27 @@
 
   function applySeasonAging(state) {
     if (!state || typeof state !== "object") return "";
-    const age = Math.max(0, Number(state.age) || 0);
-    const position = String(state.pos || "");
-    if (age < 30) return "";
-    const notes = [];
+    const age = Math.max(0, Number(state.age) || 0), position = String(state.pos || "");
+    const highProfessionalism = Number(state.professionalism) > 80;
+    const decayThisSeason = !highProfessionalism || age % 2 === 0;
     if (position === "حارس مرمى") {
-      // Goalkeepers tend to retain their core role skills longer than outfield players.
-      if (age >= 33) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
-      if (age >= 37) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
-      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن." : "خبرتك وتمركزك يساعدانك على الحفاظ على مستواك كحارس.";
+      if (age < 35) return "";
+      const notes = [];
+      if (decayThisSeason) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
+      if (age >= 37 && decayThisSeason) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
+      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن."
+        : "احترافيتك وخبرتك ساعدتاك على إبطاء تراجع السمات البدنية.";
     }
-    state.fitness = clamp(Number(state.fitness) - 1);
-    notes.push("اللياقة");
-    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position)) {
-      state.speed = clamp(Number(state.speed) - 1);
-      notes.push("السرعة");
+    if (age < 32) return "";
+    const notes = [];
+    if (decayThisSeason) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
+    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position) && decayThisSeason) {
+      state.speed = clamp(Number(state.speed) - 1); notes.push("السرعة");
     }
-    if (age >= 35) {
-      state.physical = clamp(Number(state.physical) - 1);
-      notes.push("القوة البدنية");
-    }
-    return "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء.";
+    if (age >= 35 && decayThisSeason) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
+    return notes.length ? "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء."
+      : "الاحترافية ساعدتك على تقليل تراجع السمات في هذا الموسم.";
   }
-
   window.LWCareer = {
     calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,

@@ -765,6 +765,22 @@ assert.ok(activeKeeperResult.goalkeeperXP > 0, "goalkeeper match actions must ex
 assert.ok(activeKeeper.trainingXP.goalkeeping > inactiveKeeper.trainingXP.goalkeeping,
   "saves and clean sheets must advance the goalkeeper skill itself");
 
+
+const advancedDefender = makeProgressionFixture(false);
+advancedDefender.pos = "قلب دفاع";
+const advancedDefenderProgress = career.matchDevelopment(advancedDefender, {
+  matchId: "extended-defensive-actions", minutes: 90, rating: 8, goals: 0, assists: 0,
+  stats: { tacklesWon: 4, interceptions: 3, clearances: 4, ballRecoveries: 3, cleanSheet: true }
+});
+assert.ok(advancedDefenderProgress.positionActionXP > 0 && advancedDefenderProgress.defensiveXP > 0);
+const penaltyKeeper = makeProgressionFixture(false);
+penaltyKeeper.pos = "حارس مرمى";
+const penaltyKeeperProgress = career.matchDevelopment(penaltyKeeper, {
+  matchId: "penalty-save-xp", minutes: 120, rating: 8, goals: 0, assists: 0,
+  stats: { penaltiesSaved: 1, saves: 2, cleanSheet: false }
+});
+assert.ok(penaltyKeeperProgress.positionActionXP >= 9);
+
 const fieldAgeCurve = { pos: "جناح", age: 34, fitness: 75, speed: 80, physical: 70 };
 career.applySeasonAging(fieldAgeCurve);
 assert.equal(fieldAgeCurve.fitness, 74, "field players should gradually lose fitness from age 30");
@@ -781,6 +797,15 @@ const oldestKeeperCurve = { pos: "حارس مرمى", age: 37, fitness: 75, phys
 career.applySeasonAging(oldestKeeperCurve);
 assert.equal(oldestKeeperCurve.fitness, 74, "goalkeeper fitness decline should begin in the later-career phase");
 assert.equal(oldestKeeperCurve.physical, 71, "goalkeeper physical decline should begin later than outfield players");
+
+const highProfessionalismCurve = { pos: "جناح", age: 33, fitness: 75, speed: 80, physical: 70, professionalism: 90 };
+career.applySeasonAging(highProfessionalismCurve);
+assert.equal(highProfessionalismCurve.fitness, 75);
+assert.equal(highProfessionalismCurve.speed, 80);
+const evenProfessionalismCurve = { pos: "جناح", age: 34, fitness: 75, speed: 80, physical: 70, professionalism: 90 };
+career.applySeasonAging(evenProfessionalismCurve);
+assert.equal(evenProfessionalismCurve.fitness, 74);
+
 
 const legacyInventoryFlags = makeProgressionFixture(false);
 Object.assign(legacyInventoryFlags, Object.fromEntries(legacyInventoryFlagNames.map(flag => [flag, "false"])));

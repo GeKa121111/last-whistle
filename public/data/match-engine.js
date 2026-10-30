@@ -44,18 +44,22 @@
     return Math.round(clamp(minutes, 0, 90));
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
-    const tackles = Math.max(0, Number(stats.tackles) || 0);
+    const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
+    const penaltiesSaved = Math.max(0, Number(stats.penaltiesSaved) || 0);
+    const clearances = Math.max(0, Number(stats.clearances) || 0);
+    const recoveries = Math.max(0, Number(stats.ballRecoveries) || 0);
+    const keyPasses = Math.max(0, Number(stats.keyPasses) || 0);
     const conceded = Math.max(0, Number(goalsAgainst) || 0);
-    const cleanSheetBonus = stats.cleanSheet === true ? 0.55 : 0;
-    if (position === "حارس مرمى") return saves * 0.38 + cleanSheetBonus - Math.min(4, conceded) * 0.06;
+    const cleanSheetBonus = stats.cleanSheet === true ? 1.1 : 0;
+    if (position === "حارس مرمى") return saves * 0.42 + penaltiesSaved * 0.75 + cleanSheetBonus - Math.min(4, conceded) * 0.045;
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
-      return tackles * 0.16 + interceptions * 0.18 + cleanSheetBonus * 0.65;
+      return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
-    if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12;
-    if (position === "جناح") return tackles * 0.08 + interceptions * 0.09;
-    return tackles * 0.05 + interceptions * 0.06;
+    if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
+    if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
+    return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
   }
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
     const played = Math.max(0, Number(minutes) || 0);
@@ -183,8 +187,10 @@
     }
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
-      keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, cleanSheet: false,
-      yellowCards: 0, redCards: 0, injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
+      keyPasses: 0, tackles: 0, tacklesWon: 0, interceptions: 0, saves: 0, penaltiesSaved: 0,
+      clearances: 0, ballRecoveries: 0, passAttempts: 0, passesCompleted: 0, passingAccuracy: 0,
+      fouls: 0, cleanSheet: false, yellowCards: 0, redCards: 0,
+      injuryDays: injured ? (random() < 0.50 ? 2 : random() < 0.60 ? 5 : random() < 0.75 ? 10 : 21) : 0,
       rating: 0, playerAvailable: minutes > 0
     };
     const regulation = { for: 0, against: 0 };
@@ -295,8 +301,7 @@
       const playerPeriodEnd = Math.min(periodStart + duration, playerEndMinute);
       const playerActiveDuration = Math.max(0, playerPeriodEnd - playerPeriodStart);
       if (playerActiveDuration > 0 && !profile.goalkeeper) {
-        // Sample roughly one defensive opportunity per nine minutes played. The old
-        // one-roll-per-half logic produced well under one tackle per full match.
+        // Use a dedicated RNG stream so defensive and passing stats do not perturb scores.
         const actionTrials = Math.ceil(playerActiveDuration / 9);
         const activityFactor = clamp(1 - fatigue * 0.003, 0.70, 1);
         const defenderWeight = clamp(profile.defender, 0, 1);
@@ -304,7 +309,7 @@
         const interceptionChance = clamp((0.045 + defenderWeight * 0.30) * activityFactor, 0.03, 0.30);
         for (let attempt = 0; attempt < actionTrials; attempt += 1) {
           if (defensiveRandom() < tackleChance) {
-            stats.tackles++;
+            stats.tackles++; stats.tacklesWon++;
             const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
           }
@@ -312,8 +317,27 @@
             stats.interceptions++;
             const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
             events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
+            if (defensiveRandom() < 0.48) {
+              stats.ballRecoveries++;
+              const recoveryMinute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+              events.push({ type: "recovery", minute: recoveryMinute, side: "player", actor: String(player.name || "اللاعب") });
+            }
+          }
+          const clearanceChance = clamp((0.025 + defenderWeight * 0.30) * activityFactor, 0.02, 0.34);
+          if (defensiveRandom() < clearanceChance) {
+            stats.clearances++;
+            const clearanceMinute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
+            events.push({ type: "clearance", minute: clearanceMinute, side: "player", actor: String(player.name || "اللاعب") });
           }
         }
+        const passTrials = Math.max(1, Math.floor(playerActiveDuration / 3));
+        const passingSkill = clamp(player.passing, 0, 100);
+        for (let attempt = 0; attempt < passTrials; attempt += 1) {
+          stats.passAttempts++;
+          if (defensiveRandom() < clamp(0.56 + passingSkill * 0.0042, 0.56, 0.98)) stats.passesCompleted++;
+        }
+        stats.passingAccuracy = stats.passAttempts > 0
+          ? Math.round(stats.passesCompleted / stats.passAttempts * 1000) / 10 : 0;
       }
       if (playerActiveDuration > 0) {
         // Credit the user's own fouls separately; a dedicated RNG stream keeps score and tackle rolls stable.
@@ -362,18 +386,25 @@
     }
     const aggregateMargin = aggregateOffset + finalFor - finalAgainst;
     const matchMargin = finalFor - finalAgainst;
-    // The cup tie may be won on aggregate while this individual leg is a draw or loss.
-    // Keep tie progression separate from the fixture result used for player match ratings.
     const win = aggregateMargin > 0 || (aggregateMargin === 0 && shootout.won === true);
     const draw = aggregateMargin === 0 && !shootout.used;
     const matchWin = matchMargin > 0 || (matchMargin === 0 && shootout.used && shootout.won === true);
     const matchDraw = matchMargin === 0 && !shootout.used;
     const matchOutcome = matchWin ? "فوز" : matchDraw ? "تعادل" : "خسارة";
+    const officialOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة" : "تعادل";
+    const advancementWinner = shootout.used ? (shootout.won ? teamName : opponentName)
+      : aggregateMargin > 0 ? teamName : aggregateMargin < 0 ? opponentName : "";
+    if (shootout.used && shootout.won === true && profile.goalkeeper && minutes >= 90) {
+      stats.penaltiesSaved = 1;
+      events.push({ type: "penalty-save", minute: 120, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
+    }
     const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
-    // Extra-time player minutes and contributions are included before clean-sheet and concession accounting.
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
-    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16 - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded);
+    const passingImpact = ["وسط مهاجم", "وسط دفاعي"].includes(position)
+      ? Math.min(0.65, Math.max(0, stats.passingAccuracy - 70) * 0.018 + Math.min(5, stats.keyPasses) * 0.08) : 0;
+    const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16
+      - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded) + passingImpact;
     
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
@@ -387,7 +418,7 @@
       home: Boolean(options.home), teamName, opponentName, tactic, regulation, extraTime, shootout,
       score: { for: finalFor, against: finalAgainst },
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
-      matchOutcome,
+      officialOutcome, advancementWinner, matchOutcome,
       player: stats, events,
       metadata: { seed: simulationSeed, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
@@ -583,8 +614,12 @@
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
     const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
     const fouls = result.events.filter(event => event.type === "foul" && event.side === "player").length;
+    const saves = result.events.filter(event => event.type === "save" && event.creditedToPlayer).length;
+    const penaltiesSaved = result.events.filter(event => event.type === "penalty-save" && event.creditedToPlayer).length;
+    const clearances = result.events.filter(event => event.type === "clearance" && event.side === "player").length;
+    const ballRecoveries = result.events.filter(event => event.type === "recovery" && event.side === "player").length;
     const playerExitEvents = result.events.filter(event => event.side === "player"
-      && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
+      && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul", "clearance", "recovery"].includes(event.type));
     const playerEntryEvent = result.events.find(event => event.type === "substitution-on" && event.side === "player");
     const playerEntryMinute = playerEntryEvent ? Math.max(0, Number(playerEntryEvent.minute) || 0) : 0;
     const playerExitEvent = result.events
@@ -592,8 +627,8 @@
       .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
     const playerEndMinute = playerExitEvent ? Number(playerExitEvent.minute)
       : playerEntryMinute + Number(result.player.minutes || 0);
-    const isPlayerActivityEvent = event => event.creditedToPlayer === true
-      || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul"].includes(event.type));
+    const isPlayerActivityEvent = event => event.type !== "penalty-save" && (event.creditedToPlayer === true
+      || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul", "clearance", "recovery"].includes(event.type)));
     const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
       Number(event.minute) >= playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventMinutesValid = result.events.every(event => {
@@ -797,13 +832,21 @@
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)
+      && tackles === Number(result.player.tacklesWon || 0)
+      && saves === Number(result.player.saves || 0)
+      && penaltiesSaved === Number(result.player.penaltiesSaved || 0)
+      && clearances === Number(result.player.clearances || 0)
+      && ballRecoveries === Number(result.player.ballRecoveries || 0)
+      && Number(result.player.passesCompleted || 0) <= Number(result.player.passAttempts || 0)
+      && Number(result.player.passingAccuracy || 0) === (Number(result.player.passAttempts) > 0
+        ? Math.round(Number(result.player.passesCompleted) / Number(result.player.passAttempts) * 1000) / 10 : 0)
       && playerEventsInBounds && eventMinutesValid && aggregateOffsetConsistent && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
     const reason = !metadataShapeConsistent ? "invalid-metadata-shape"
       : !aggregateOffsetConsistent ? "invalid-aggregate-offset" : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {
@@ -849,8 +892,15 @@
         yellowCards: finiteNumber(player.yellowCards),
         injuryDays: finiteNumber(player.injuryDays),
         tackles: finiteNumber(player.tackles),
+        tacklesWon: finiteNumber(player.tacklesWon),
         interceptions: finiteNumber(player.interceptions),
         saves: finiteNumber(player.saves),
+        penaltiesSaved: finiteNumber(player.penaltiesSaved),
+        clearances: finiteNumber(player.clearances),
+        ballRecoveries: finiteNumber(player.ballRecoveries),
+        passAttempts: finiteNumber(player.passAttempts),
+        passesCompleted: finiteNumber(player.passesCompleted),
+        passingAccuracy: finiteNumber(player.passingAccuracy),
         cleanSheet: player.cleanSheet === true
       },
       events: reportEvents,

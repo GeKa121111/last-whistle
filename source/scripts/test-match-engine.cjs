@@ -1966,4 +1966,16 @@ for (const [targetEngine, label] of [[engine, "source"], [browserEngine, "browse
     label + " validator must preserve legacy save ledgers without modern shot-target metadata");
 }
 
+
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  const extended = targetEngine.simulateMatch({ seed: 20261030, player: { name: "لاعب اختبار الإحصائيات", position: "قلب دفاع", passing: 78, fatigue: 0, energy: 100, fitness: 85, trust: 70 }, teamPower: 72, opponentPower: 68, home: true, tactic: "balanced", knockout: false });
+  assert.equal(extended.player.tacklesWon, extended.player.tackles, label + " tacklesWon must reconcile");
+  assert.equal(extended.player.clearances, extended.events.filter(event => event.type === "clearance" && event.side === "player").length, label + " clearances must reconcile");
+  assert.equal(extended.player.ballRecoveries, extended.events.filter(event => event.type === "recovery" && event.side === "player").length, label + " recoveries must reconcile");
+  assert.ok(extended.player.passesCompleted <= extended.player.passAttempts, label + " completed passes cannot exceed attempts");
+  assert.equal(extended.player.passingAccuracy, extended.player.passAttempts ? Math.round(extended.player.passesCompleted / extended.player.passAttempts * 1000) / 10 : 0, label + " passing accuracy derives from attempts");
+  assert.equal(extended.officialOutcome, extended.score.for > extended.score.against ? "فوز" : extended.score.for < extended.score.against ? "خسارة" : "تعادل");
+  assert.equal(targetEngine.validateResult(extended).ok, true, label + " extended match-stat ledger validates");
+}
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

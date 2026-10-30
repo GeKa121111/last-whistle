@@ -677,6 +677,8 @@
     })();
     // Validate aggregate offsets for every result, not only shootout ledgers.
     // Integer-valued numeric strings remain supported for older career saves.
+    const metadataShapeConsistent = result.metadata == null
+      || (typeof result.metadata === "object" && !Array.isArray(result.metadata));
     const aggregateOffsetValue = result.metadata?.aggregateOffset;
     const aggregateOffsetPresent = aggregateOffsetValue != null;
     const aggregateOffset = aggregateOffsetPresent ? Number(aggregateOffsetValue) : 0;
@@ -751,7 +753,7 @@
     const matchOutcomeConsistent = !result.matchOutcome || result.matchOutcome === expectedMatchOutcome;
     const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
       result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
-    const valid = keyPassesLedgerConsistent && savesLedgerConsistent
+    const valid = metadataShapeConsistent && keyPassesLedgerConsistent && savesLedgerConsistent
       && shotTargetMetadataConsistent && shotAttributionConsistent && assistGoalLinksValid && goalAttributionConsistent && goalShotLedgerConsistent && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
       && teamGoals === Number(result.score.for) && opponentGoals === Number(result.score.against)
       && result.player.goals != null && playerGoals === Number(result.player.goals)
@@ -766,8 +768,9 @@
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    const reason = !aggregateOffsetConsistent ? "invalid-aggregate-offset" : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, aggregateOffsetConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    const reason = !metadataShapeConsistent ? "invalid-metadata-shape"
+      : !aggregateOffsetConsistent ? "invalid-aggregate-offset" : valid ? "" : "inconsistent-match-ledger";
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

@@ -1801,4 +1801,46 @@ for (const value of invalidAggregateOffsets) {
     "embedded engine must reject invalid aggregate offset: " + String(value));
 }
 
+
+const metadataShapeFixture = engine.simulateMatch({
+  seed: 8144,
+  player: { name: "Metadata Shape", position: "مهاجم", role: "أساسي",
+    shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+});
+assert.equal(engine.validateResult(metadataShapeFixture).ok, true,
+  "a generated match with object metadata must remain valid");
+assert.equal(browserEngine.validateResult(metadataShapeFixture).ok, true,
+  "the embedded browser engine must accept valid object metadata");
+for (const malformedMetadata of ["corrupt", 42, true, [], ["unexpected"]]) {
+  const sourceMetadataFixture = JSON.parse(JSON.stringify(metadataShapeFixture));
+  const browserMetadataFixture = JSON.parse(JSON.stringify(metadataShapeFixture));
+  sourceMetadataFixture.metadata = malformedMetadata;
+  browserMetadataFixture.metadata = malformedMetadata;
+  const sourceMetadataValidation = engine.validateResult(sourceMetadataFixture);
+  const browserMetadataValidation = browserEngine.validateResult(browserMetadataFixture);
+  assert.equal(sourceMetadataValidation.ok, false,
+    "the source validator must reject malformed metadata containers: " + String(malformedMetadata));
+  assert.equal(sourceMetadataValidation.reason, "invalid-metadata-shape");
+  assert.equal(sourceMetadataValidation.metadataShapeConsistent, false);
+  assert.equal(browserMetadataValidation.ok, false,
+    "the embedded validator must reject malformed metadata containers: " + String(malformedMetadata));
+  assert.equal(browserMetadataValidation.reason, "invalid-metadata-shape");
+  assert.equal(browserMetadataValidation.metadataShapeConsistent, false);
+}
+for (const legacyMetadata of ["missing", null]) {
+  const sourceLegacyFixture = JSON.parse(JSON.stringify(metadataShapeFixture));
+  const browserLegacyFixture = JSON.parse(JSON.stringify(metadataShapeFixture));
+  if (legacyMetadata === "missing") {
+    delete sourceLegacyFixture.metadata;
+    delete browserLegacyFixture.metadata;
+  } else {
+    sourceLegacyFixture.metadata = null;
+    browserLegacyFixture.metadata = null;
+  }
+  assert.equal(engine.validateResult(sourceLegacyFixture).ok, true,
+    "legacy saves with missing/null metadata must remain valid");
+  assert.equal(browserEngine.validateResult(browserLegacyFixture).ok, true,
+    "the embedded engine must preserve missing/null legacy metadata");
+}
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

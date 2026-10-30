@@ -2058,7 +2058,7 @@ console.log("POSITION_SCORING_CALIBRATION " + JSON.stringify(scoringCalibration)
 const scoringRanges = {
   "حارس مرمى": [0, 0.005], "قلب دفاع": [0.02, 0.08], "ظهير": [0.04, 0.11],
   "وسط دفاعي": [0.06, 0.15], "وسط مهاجم": [0.09, 0.19],
-  "جناح": [0.17, 0.30], "مهاجم": [0.19, 0.32], "رأس حربة": [0.24, 0.39]
+  "جناح": [0.18, 0.32], "مهاجم": [0.19, 0.34], "رأس حربة": [0.24, 0.40]
 };
 for (const row of scoringCalibration) {
   const [minimum, maximum] = scoringRanges[row.position];

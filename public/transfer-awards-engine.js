@@ -167,13 +167,15 @@
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
     const minutesPerAppearance = projectedMinutesPerAppearance(player);
-    const projectedMinutes = Math.round(expectedApps * minutesPerAppearance * scale);
+    const fullSeasonMinutes = Math.round(expectedApps * minutesPerAppearance);
+    const projectedMinutes = Math.round(fullSeasonMinutes * scale);
     const production = seasonProductionRates(type);
     const overallMultiplier = clamp(0.85 + (ovr - 60) * 0.004, 0.75, 1.08);
-    // Project contributions from minutes played, not raw appearances or OVR alone.
-    // This keeps a substitute with 25-minute cameos below a regular starter.
-    const goalsExpected = projectedMinutes / 90 * production.goalsPer90 * overallMultiplier;
-    const assistsExpected = projectedMinutes / 90 * production.assistsPer90 * overallMultiplier;
+    // Build a full-season production baseline, then apply progress once to the
+    // final totals below. Scaling both the minute baseline and totals would square
+    // progress and severely undercount mid-season goals and assists.
+    const goalsExpected = fullSeasonMinutes / 90 * production.goalsPer90 * overallMultiplier;
+    const assistsExpected = fullSeasonMinutes / 90 * production.assistsPer90 * overallMultiplier;
     const goalsFull = Math.max(0, Math.round(goalsExpected * (0.84 + random() * 0.32)));
     const assistsFull = Math.max(0, Math.round(assistsExpected * (0.84 + random() * 0.32)));
     const goals = appearances > 0 ? Math.round(goalsFull * scale) : 0;

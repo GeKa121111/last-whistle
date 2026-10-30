@@ -139,6 +139,16 @@ assert.equal(noProjectionProgress.minutes, 0);
 assert.equal(noProjectionProgress.goals, 0);
 assert.equal(noProjectionProgress.assists, 0);
 
+const sameStrikerHalfSeason = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "أساسي"
+}, 5, 0.5);
+assert.equal(sameStrikerHalfSeason.minutes, Math.round(sameStrikerStarter.minutes * 0.5),
+  "partial-season projected minutes must scale linearly with season progress");
+assert.equal(sameStrikerHalfSeason.goals, Math.round(sameStrikerStarter.goals * 0.5),
+  "partial-season goals must apply progress once, not square the progress factor");
+assert.equal(sameStrikerHalfSeason.assists, Math.round(sameStrikerStarter.assists * 0.5),
+  "partial-season assists must apply progress once, not square the progress factor");
+
 const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
   ...sameForward, position: "رأس حربة", role: "لاعب بديل",
   seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }

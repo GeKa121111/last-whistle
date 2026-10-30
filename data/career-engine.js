@@ -823,6 +823,16 @@
     return "ready";
   }
 
+  function loanSquadRole(state, target) {
+    if (!state || typeof state !== "object") return "بديل أساسي";
+    const playerOverall = overall(state);
+    const rawTargetPower = Number(target && target.power);
+    const targetPower = Number.isFinite(rawTargetPower) && rawTargetPower > 0
+      ? clamp(rawTargetPower, 25, 95) : 50;
+    const powerGap = playerOverall - targetPower;
+    return powerGap >= 5 ? "أساسي" : powerGap >= -2 ? "بديل أساسي" : "بديل";
+  }
+
   function purchaseItem(state, item) {
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
@@ -993,7 +1003,7 @@
     calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
-    loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
+    loanRequestStatus, loanTargetStatus, loanSquadRole, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
     resolveContractDecision, recordNationalTournamentMatch, normalizeCareerPosition, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();

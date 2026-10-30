@@ -6384,7 +6384,8 @@ async function startNewSeason(showStory=true){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!state.seasonFinished){toast("لا يمكن بدء موسم جديد قبل إكمال الموسم الحالي واعتماد تقرير نهايته.");return;}
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}
- if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!state.freeAgent&&Number(state.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return;}
+ const contractState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
+ if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!contractState.freeAgent&&Number(contractState.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return;}
  if(state.loan)returnFromLoan();
  // Every career season starts in the summer window. The previous season's fixtures
  // can finish before July, so advance through the off-season instead of letting

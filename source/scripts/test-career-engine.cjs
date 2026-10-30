@@ -475,6 +475,46 @@ assert.equal(contractSnapshot.leagueCountry, "Egypt");
 assert.equal(contractSnapshot.weeklyWage, 400);
 assert.equal(contractSnapshot.contractSeasons, 1);
 assert.equal(contractSnapshot.loan, null, "the parent-contract snapshot must not carry the active loan state");
+
+const directLoanTransitionState = {
+  retired: false, seasonFinished: true, season: 4, contractDecisionSeason: 3,
+  freeAgent: false, contractSeasons: 3, age: 24,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: 1, parentFreeAgent: false }
+};
+let directLoanTransitionCalls = 0;
+let directLoanReturnCalls = 0;
+const directLoanTransitionContext = {
+  state: directLoanTransitionState,
+  window: { LWCareer: {
+    shouldRetire: () => false,
+    contractStateForSeasonTransition: current => ({
+      ...current, loan: null, clubName: current.loan.parentClub,
+      contractSeasons: current.loan.parentContractSeasons,
+      freeAgent: current.loan.parentFreeAgent
+    })
+  } },
+  isYouthAcademyPlayer: () => false,
+  proceedSeasonTransition: () => { directLoanTransitionCalls++; },
+  returnFromLoan: () => { directLoanReturnCalls++; },
+  toast: () => {}
+};
+const startNewSeasonStart = rootHtml.indexOf("async function startNewSeason(showStory=true){");
+const startNewSeasonEnd = rootHtml.indexOf("\nfunction nextDay()", startNewSeasonStart);
+assert.ok(startNewSeasonStart >= 0 && startNewSeasonEnd > startNewSeasonStart,
+  "the deployed season-start function must be available for loan-contract regression coverage");
+vm.createContext(directLoanTransitionContext);
+vm.runInContext(rootHtml.slice(startNewSeasonStart, startNewSeasonEnd)
+  + "\nthis.startNewSeasonForTest = startNewSeason;", directLoanTransitionContext);
+directLoanTransitionContext.startNewSeasonForTest(false).then(() => {
+  assert.equal(directLoanTransitionCalls, 1,
+    "starting a new season directly during a loan must still prompt for an expiring parent-club contract");
+  assert.equal(directLoanReturnCalls, 0,
+    "a loan must not be returned before the parent-club renewal decision is presented");
+}).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
 assert.equal(career.wageNegotiationStatus(onLoan), "loaned", "active loan must block parent-contract wage negotiations");
 assert.equal(career.canNegotiateInSeason(onLoan), false, "an on-loan player cannot negotiate the parent contract from the host club");
 const loanWageBeforeNegotiation = onLoan.weeklyWage;

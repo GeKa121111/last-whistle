@@ -39,9 +39,9 @@ const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8"
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
 
-const roleDecisionLogBlock = rootHtml.match(/if\\(roleDecision\\?\\.changed\\)\\{([\\s\\S]*?)\\n   \\}/);
+const roleDecisionLogBlock = rootHtml.match(/if\(roleDecision\?\.changed\)\{([\s\S]*?)\n   \}/);
 assert.ok(roleDecisionLogBlock, "the deployed match flow must explain squad-role changes");
-const demotionLogBranch = roleDecisionLogBlock[1].match(/if\\(roleDecision\\?\\.reason === "form-demotion"\\)\\{([\\s\\S]*?)\\n    \\}else\\{/);
+const demotionLogBranch = roleDecisionLogBlock[1].match(/if\(roleDecision\?\.reason === "form-demotion"\)\{([\s\S]*?)\n    \}else\{/);
 assert.ok(demotionLogBranch && demotionLogBranch[1].includes("خفض دورك"),
   "a sustained-form demotion must be described as a role reduction");
 assert.ok(!demotionLogBranch[1].includes("زوّد دورك"),

@@ -798,7 +798,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
-<script src="./football-world-ai.js?v=30"></script>
+<script src="./football-world-ai.js?v=31"></script>
 </head>
 <body>
 
@@ -5612,9 +5612,11 @@ function disciplineKey(scope,country,competition){return `${scope}|${country||""
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}
- const dynamicOwnPower=window.LWWorldAI?.getClubPower(state,club().name,state.leagueCountry,window.LWWorldDB)||Number(state.clubPower)||52;
+ const ownClubProfile=window.LWWorldAI?.getClubMatchProfile(state,club().name,state.leagueCountry,window.LWWorldDB)||null;
+ const opponentClubProfile=window.LWWorldAI?.getClubMatchProfile(state,opponent,state.leagueCountry,window.LWWorldDB)||null;
+ const dynamicOwnPower=Number(ownClubProfile?.power)||Number(state.clubPower)||52;
  const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(dynamicOwnPower)||55)-55)*.16,30,94);
- const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
+ const opponentPower=clamp(Number(opponentClubProfile?.power)||Number(opponentTeam?.power)||55,30,94);
  const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
  const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  const key=disciplineKey(scope,state.leagueCountry,competition);
@@ -5623,7 +5625,7 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
  return window.LWMatch.simulateMatch({
   seed:window.LWMatch.hash(`${matchId}|${state.energy}|${state.fatigue}|${state.trust}|${state.morale}`),
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
-  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
+  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp(Number(opponentClubProfile?.goalkeeping)||((opponentPower+55)/2),35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:clamp(Number(ownClubProfile?.goalkeeping)||((dynamicOwnPower+55)/2),35,88),
   playerAvailable:available,
   player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,speed:state.speed,physical:state.physical,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });

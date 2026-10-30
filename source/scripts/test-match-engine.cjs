@@ -2161,3 +2161,23 @@ for (const position of scoringCalibrationPositions) {
   });
 }
 console.log("POSITION_SCORING_CALIBRATION " + JSON.stringify(scoringCalibration));
+
+const scoringRanges = {
+  "حارس مرمى": [0, 0.005], "قلب دفاع": [0.02, 0.08], "ظهير": [0.04, 0.11],
+  "وسط دفاعي": [0.06, 0.15], "وسط مهاجم": [0.09, 0.19],
+  "جناح": [0.18, 0.32], "مهاجم": [0.19, 0.34], "رأس حربة": [0.24, 0.40]
+};
+for (const row of scoringCalibration) {
+  const [minimum, maximum] = scoringRanges[row.position];
+  assert.ok(row.goalsPer90 >= minimum && row.goalsPer90 <= maximum,
+    row.position + " goals/90 must stay in a position-appropriate range");
+  assert.ok(row.appearanceRate >= 0.99, row.position + " calibration sample must record eligible minutes");
+  assert.ok(row.teamGoalsPerMatch >= 0.95 && row.teamGoalsPerMatch <= 1.65,
+    row.position + " must not distort the team's normal scoring rate");
+  assert.ok(row.opponentGoalsPerMatch >= 0.9 && row.opponentGoalsPerMatch <= 1.6,
+    row.position + " must not distort the opponent's normal scoring rate");
+}
+const meanAssistsPer90 = scoringCalibration.reduce((sum, row) => sum + row.assistsPer90, 0) / scoringCalibration.length;
+assert.ok(meanAssistsPer90 >= 0.07 && meanAssistsPer90 <= 0.22,
+  "assists per 90 must not be inflated across every position");
+

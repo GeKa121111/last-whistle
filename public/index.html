@@ -2959,6 +2959,7 @@ function seasonAwards(state, league, teamRank) {
       if (minute <= 90) return true;
       return result.extraTime?.played === true;
     });
+    let extraTimePeriodLedgerConsistent = true;
     const extraTimeLedgerConsistent = (() => {
       const extraTime = result.extraTime;
       const hasExtraTimeActivity = result.events.some(event =>
@@ -2995,6 +2996,7 @@ function seasonAwards(state, league, teamRank) {
             && Number(extraTime.for) === 0 && Number(extraTime.against) === 0);
         const noExtraTimePeriods = !periodsPresent
           || (Array.isArray(extraTime.periods) && extraTime.periods.length === 0);
+        if (!noExtraTimePeriods) extraTimePeriodLedgerConsistent = false;
         return !hasExtraTimeActivity && noExtraTimeScore && noExtraTimePeriods
           && regulationMatchesFinalScore();
       }
@@ -3011,10 +3013,36 @@ function seasonAwards(state, league, teamRank) {
         if (extraFor !== extraTimeGoalsFor || extraAgainst !== extraTimeGoalsAgainst) return false;
       }
       if (periodsPresent) {
-        if (!Array.isArray(extraTime.periods) || extraTime.periods.length !== 2) return false;
+        if (!Array.isArray(extraTime.periods) || extraTime.periods.length !== 2) {
+          extraTimePeriodLedgerConsistent = false;
+          return false;
+        }
         const periodsValid = extraTime.periods.every(period => period && typeof period === "object"
-          && isNonNegativeInteger(period.for) && isNonNegativeInteger(period.against));
-        if (!periodsValid) return false;
+          && !Array.isArray(period) && isNonNegativeInteger(period.for) && isNonNegativeInteger(period.against));
+        if (!periodsValid) {
+          extraTimePeriodLedgerConsistent = false;
+          return false;
+        }
+        // Extra-time period one is 91–105; period two is 106–120.
+        // Totals alone are insufficient: each period must match its own goal events.
+        const periodGoalCounts = [
+          {
+            for: result.events.filter(event => event.type === "goal" && event.side === "team"
+              && Number(event.minute) > 90 && Number(event.minute) <= 105).length,
+            against: result.events.filter(event => event.type === "goal" && event.side === "opponent"
+              && Number(event.minute) > 90 && Number(event.minute) <= 105).length
+          },
+          {
+            for: result.events.filter(event => event.type === "goal" && event.side === "team"
+              && Number(event.minute) > 105 && Number(event.minute) <= 120).length,
+            against: result.events.filter(event => event.type === "goal" && event.side === "opponent"
+              && Number(event.minute) > 105 && Number(event.minute) <= 120).length
+          }
+        ];
+        extraTimePeriodLedgerConsistent = extraTime.periods.every((period, index) =>
+          Number(period.for) === periodGoalCounts[index].for
+          && Number(period.against) === periodGoalCounts[index].against);
+        if (!extraTimePeriodLedgerConsistent) return false;
         const periodFor = extraTime.periods.reduce((sum, period) => sum + Number(period.for), 0);
         const periodAgainst = extraTime.periods.reduce((sum, period) => sum + Number(period.against), 0);
         if (periodFor !== extraTimeGoalsFor || periodAgainst !== extraTimeGoalsAgainst) return false;
@@ -3104,7 +3132,7 @@ function seasonAwards(state, league, teamRank) {
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

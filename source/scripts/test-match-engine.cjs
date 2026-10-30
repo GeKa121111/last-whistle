@@ -1769,4 +1769,36 @@ assert.equal(sparseBrowserEventValidation.ok, false,
 assert.equal(sparseBrowserEventValidation.reason, "invalid-event-entry",
   "the embedded browser validator must return the same malformed-entry reason");
 
+
+const validAggregateOffsetCases = [
+  [undefined, 0], [null, 0], [0, 0], [2, 2], [-3, -3],
+  ["0", 0], ["2", 2], ["-3", -3], [" 2 ", 2]
+];
+for (const [value, expected] of validAggregateOffsetCases) {
+  const options = { seed: 8142, knockout: true };
+  if (value !== undefined) options.aggregateOffset = value;
+  const sourceResult = engine.simulateMatch(options);
+  const browserResult = browserEngine.simulateMatch(options);
+  assert.equal(sourceResult.metadata.aggregateOffset, expected,
+    "source engine must normalize valid aggregate offsets: " + String(value));
+  assert.equal(browserResult.metadata.aggregateOffset, expected,
+    "embedded engine must normalize valid aggregate offsets: " + String(value));
+  assert.equal(engine.validateResult(sourceResult).ok, true,
+    "source engine result must remain valid for aggregate offset: " + String(value));
+  assert.equal(browserEngine.validateResult(browserResult).ok, true,
+    "embedded engine result must remain valid for aggregate offset: " + String(value));
+}
+const invalidAggregateOffsets = [
+  true, false, "", " ", "Infinity", "1.5", 1.5, Infinity, -Infinity, NaN,
+  9007199254740992, [], {}, Object(1), Symbol("invalid")
+];
+for (const value of invalidAggregateOffsets) {
+  assert.throws(() => engine.simulateMatch({ seed: 8143, knockout: true, aggregateOffset: value }),
+    /invalid-aggregate-offset/,
+    "source engine must reject invalid aggregate offset: " + String(value));
+  assert.throws(() => browserEngine.simulateMatch({ seed: 8143, knockout: true, aggregateOffset: value }),
+    /invalid-aggregate-offset/,
+    "embedded engine must reject invalid aggregate offset: " + String(value));
+}
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

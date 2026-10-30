@@ -96,7 +96,20 @@
         : event && (event.type === "red-card" || event.type === "injury") ? 1
           : event && event.type === "substitution" && event.side === "player" ? 2 : 0;
   }
+  function parseAggregateOffset(value) {
+    if (value == null) return 0;
+    if (typeof value !== "number" && typeof value !== "string") {
+      throw new TypeError("invalid-aggregate-offset");
+    }
+    if (typeof value === "string" && value.trim() === "") {
+      throw new TypeError("invalid-aggregate-offset");
+    }
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed)) throw new TypeError("invalid-aggregate-offset");
+    return parsed;
+  }
   function simulateMatch(options = {}) {
+    const aggregateOffset = parseAggregateOffset(options.aggregateOffset);
     const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : options.seed;
     const random = seededRandom(simulationSeed);
     // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
@@ -307,7 +320,6 @@
     const first = createPeriod(0, 90, false);
     regulation.for = first.for; regulation.against = first.against;
     let finalFor = regulation.for, finalAgainst = regulation.against;
-    const aggregateOffset = Number(options.aggregateOffset) || 0;
     const needsDecider = options.knockout === true && aggregateOffset + finalFor - finalAgainst === 0;
     if (needsDecider) {
       extraTime.played = true;

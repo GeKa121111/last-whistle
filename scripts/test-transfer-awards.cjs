@@ -108,6 +108,21 @@ assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
 assert.ok(centreStrikerLine.assists < mobileForwardLine.assists,
   "a mobile forward should produce more assists than an otherwise identical centre striker");
 
+// English position codes from imported squad data must resolve to the same
+// production profile as their Arabic equivalents.
+const codeKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "GK" }, 3, 1);
+const arabicKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "حارس مرمى" }, 3, 1);
+assert.equal(codeKeeper.goals, arabicKeeper.goals,
+  "GK must use goalkeeper production instead of falling through to midfield");
+assert.equal(codeKeeper.assists, arabicKeeper.assists,
+  "GK and حارس مرمى must share the same production profile");
+const codeCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "CB" }, 3, 1);
+const arabicCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "قلب دفاع" }, 3, 1);
+assert.equal(codeCentreBack.goals, arabicCentreBack.goals,
+  "CB must use the same defensive production profile as قلب دفاع");
+assert.equal(codeCentreBack.assists, arabicCentreBack.assists,
+  "CB and قلب دفاع must share the same production profile");
+
 const sameStrikerStarter = engine.simulatePlayerSeason({
   ...sameForward, position: "رأس حربة", role: "أساسي"
 }, 5, 1);

@@ -32,14 +32,20 @@
 
   function roleType(position) {
     const value = normalized(position);
-    if (value.includes("حارس")) return "keeper";
-    // Keep central/attacking midfielders in the midfield line before checking role words.
-    if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")) return "midfielder";
-    if (value.includes("دفاع") || value.includes("ظهير") || value.includes("مدافع")) return "defender";
+    if (value.includes("حارس") || ["gk", "goalkeeper", "goalie", "keeper"].includes(value)
+      || value.includes("goalkeeper")) return "keeper";
+    // Classify the tactical line before role wording so defensive midfielders stay in midfield.
+    if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")
+      || ["dm", "cdm", "cm", "rcm", "lcm", "am", "cam", "lam", "ram", "lm", "rm", "mf"].includes(value)
+      || value.includes("midfielder") || value.includes("midfield")) return "midfielder";
+    if (value.includes("دفاع") || value.includes("ظهير") || value.includes("مدافع")
+      || ["cb", "rcb", "lcb", "lb", "rb", "rwb", "lwb", "sw", "df"].includes(value)
+      || value.includes("defender") || value.includes("centreback") || value.includes("centerback")
+      || value.includes("fullback") || value.includes("wingback")) return "defender";
     if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")
       || value === "st" || value === "striker" || value === "centreforward" || value === "centerforward") return "striker";
     if (value.includes("جناح") || ["lw", "rw", "lwf", "rwf", "wf"].includes(value)
-      || value.includes("winger") || value.includes("wing")) return "winger";
+      || value.includes("winger") || value === "wing") return "winger";
     if (value.includes("مهاجم") || value === "cf" || value === "ss" || value === "fw"
       || value.includes("secondstriker") || value.includes("forward")) return "attacker";
     return "midfielder";

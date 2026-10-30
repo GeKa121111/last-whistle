@@ -420,7 +420,7 @@
     const shotsOnTargetValid = result.player.shotsOnTarget == null || result.player.shots == null
       || Number(result.player.shotsOnTarget) <= Number(result.player.shots);
     const shotEvents = result.events.filter(event => event.type === "shot");
-    const playerShotEvents = shotEvents.filter(event => event.side === "team" && event.creditedToPlayer);
+    const playerShotEvents = shotEvents.filter(event => event.side === "team" && event.creditedToPlayer === true);
     const modernShotMetadataPresent = shotEvents.some(event =>
       Object.prototype.hasOwnProperty.call(event, "onTarget"));
     const shotTargetMetadataPresent = playerShotEvents.some(event =>
@@ -429,15 +429,24 @@
     // A ledger with no target flags remains a valid legacy record.
     const shotTargetMetadataConsistent = !modernShotMetadataPresent
       || shotEvents.every(event => typeof event.onTarget === "boolean");
-    const shotAttributionConsistent = !modernShotMetadataPresent || result.events
-      .filter(event => event.type === "shot").every(shot => {
-        if (typeof shot.creditedToPlayer !== "boolean") return false;
-        if (shot.side === "team") {
-          return (shot.shooter === "player" && shot.creditedToPlayer === true)
-            || (shot.shooter === "teammate" && shot.creditedToPlayer === false);
-        }
-        return shot.side === "opponent" && shot.shooter === "opponent" && shot.creditedToPlayer === false;
-      });
+    // Validate optional attribution fields whenever they are present, even in legacy
+    // ledgers that do not carry onTarget metadata. Fully legacy shots may omit both.
+    const shotAttributionConsistent = shotEvents.every(shot => {
+      const hasShooter = Object.prototype.hasOwnProperty.call(shot, "shooter");
+      const hasPlayerCredit = Object.prototype.hasOwnProperty.call(shot, "creditedToPlayer");
+      if (!hasShooter && !hasPlayerCredit) return true;
+      if (hasPlayerCredit && typeof shot.creditedToPlayer !== "boolean") return false;
+      if (!hasShooter) {
+        return shot.side === "team"
+          || (shot.side === "opponent" && shot.creditedToPlayer === false);
+      }
+      if (shot.side === "team") {
+        return (shot.shooter === "player" && (!hasPlayerCredit || shot.creditedToPlayer === true))
+          || (shot.shooter === "teammate" && (!hasPlayerCredit || shot.creditedToPlayer === false));
+      }
+      return shot.side === "opponent" && shot.shooter === "opponent"
+        && (!hasPlayerCredit || shot.creditedToPlayer === false);
+    });
     const shotsOnTargetLedgerConsistent = result.player.shotsOnTarget == null || !shotTargetMetadataPresent
       || (playerShotEvents.every(event => typeof event.onTarget === "boolean")
         && Number(result.player.shotsOnTarget) === playerShotEvents.filter(event => event.onTarget === true).length);
@@ -525,7 +534,7 @@
       linkedAssistGoalIds.add(goalId);
       return true;
     });
-    const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer).length;
+    const shots = result.events.filter(event => event.type === "shot" && event.side === "team" && event.creditedToPlayer === true).length;
     const tackles = result.events.filter(event => event.type === "tackle" && event.side === "player").length;
     const interceptions = result.events.filter(event => event.type === "interception" && event.side === "player").length;
     const fouls = result.events.filter(event => event.type === "foul" && event.side === "player").length;

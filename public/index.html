@@ -1383,7 +1383,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const careerContributions = safeMetric(state.goals, Math.max(0, appearances * 20)) + safeMetric(state.assists, Math.max(0, appearances * 20));
     const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
     const trust = safeMetric(state.trust, 100);
-    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
+    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(normalizeCareerPosition(state.pos));
     const veteranOutput = roleIsForward && appearances >= 35
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
     const recentReady = recentAverageRating >= 6.25
@@ -2574,6 +2574,7 @@ function positionProfile(position) {
     return Math.round(clamp(minutes, 0, 90));
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    position = normalizePosition(position);
     const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
@@ -2587,6 +2588,7 @@ function positionProfile(position) {
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
       return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
+    if (position === "وسط") return tackles * 0.12 + interceptions * 0.14 + recoveries * 0.12 + keyPasses * 0.11;
     if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
     return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
@@ -2620,6 +2622,7 @@ function positionProfile(position) {
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
+    position = normalizePosition(position);
     const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
     const played = Math.max(0, Number(minutes) || 0);
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;

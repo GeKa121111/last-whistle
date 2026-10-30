@@ -62,6 +62,9 @@ social.ensureState(migrated);
 assert.equal(migrated.socialMedia.version, 3);
 assert.equal(social.syncState(migrated), 0, "migration must not replay historical matches");
 assert.equal(social.syncState(migrated), 0, "old matches must remain seen on later refreshes");
+assert.equal(migrated.socialMedia.lockerRoomCrisisActive, false,
+  "legacy saves without a team-chemistry field must not be treated as an active crisis");
+
 assert.equal(migrated.socialMedia.seen.matches.length, 160);
 
 // Backlogs are published in bounded chronological batches and are never marked

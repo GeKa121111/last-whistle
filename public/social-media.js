@@ -512,8 +512,10 @@
       created++;
     }
 
-    var chemistry = clamp(state.teamChemistry, 0, 100);
-    if (chemistry >= 40) social.lockerRoomCrisisActive = false;
+    var hasTeamChemistry = state.teamChemistry !== null && state.teamChemistry !== undefined
+      && Number.isFinite(Number(state.teamChemistry));
+    var chemistry = hasTeamChemistry ? clamp(state.teamChemistry, 0, 100) : 50;
+    if (!hasTeamChemistry || chemistry >= 40) social.lockerRoomCrisisActive = false;
     else if (chemistry <= 28 && !social.lockerRoomCrisisActive && created < 8) {
       createLockerRoomPost(state);
       social.lockerRoomCrisisActive = true;

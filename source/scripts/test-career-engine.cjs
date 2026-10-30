@@ -353,7 +353,7 @@ assert.equal(career.loanSquadRole(loanRoleProbe, { power: 60 }), "بديل أس�
   "a player near the loan club's level should be projected as a rotation player");
 assert.equal(career.loanSquadRole(loanRoleProbe, { power: 63 }), "بديل",
   "a player below the loan club's level should be projected as a substitute");
-assert.ok(rootHtml.includes('const hostRole=window.LWCareer?.loanSquadRole(state,target)||"بديل أساسي";'),
+assert.ok(rootHtml.includes('const hostRole=window.LWCareer?.loanSquadRole?.(state,target)||"بديل أساسي";'),
   "loan transfers must apply the host club's projected squad role");
 const centralMidfieldPassing = career.overall({ ...positionProbe, pos: "CM", passing: 80 });
 const centralMidfieldDribbling = career.overall({ ...positionProbe, pos: "CM", dribbling: 80 });

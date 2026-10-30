@@ -87,16 +87,22 @@
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
     const recentReady = recentAverageRating >= 6.25
       && (trust >= 22 || recentContributionsPer90 >= 0.25);
+    const starterReady = (recentAverageRating >= 6.35
+      && (trust >= 30 || recentContributionsPer90 >= 0.30))
+      || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
     let role = originalRole;
-
-    // Non-academy youth players start with this display label; it should not lock them out of promotion forever.
-    if (role.startsWith("ناشئ") && appearances >= 3) role = "بديل";
-    if (role === "بديل" && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
-    if (role === "بديل أساسي" && appearances >= 16
-      && ((recentAverageRating >= 6.35 && (trust >= 30 || recentContributionsPer90 >= 0.30))
-        || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9))) {
-      role = "أساسي";
-    }
+    const roleKey = role.trim().toLocaleLowerCase();
+    const roleIsYouth = roleKey.includes("ناشئ") || roleKey.includes("صاعد")
+      || roleKey.includes("prospect") || roleKey.includes("youngster");
+    const roleIsRotation = roleKey.includes("تناوب") || roleKey.includes("rotation")
+      || roleKey.includes("squad player");
+    const roleIsBench = roleKey === "بديل" || roleKey.includes("لاعب بديل")
+      || roleKey.includes("احتياطي") || roleKey.includes("impact sub") || roleKey.includes("fringe player");
+    if (roleIsYouth && appearances >= 3) role = "بديل";
+    if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+    // Rotation players move to a regular starting role only after sustained performance.
+    if (roleIsRotation && appearances >= 16 && starterReady) role = "أساسي";
+    if (role === "بديل أساسي" && appearances >= 16 && starterReady) role = "أساسي";
 
     return {
       role, changed: role !== originalRole,

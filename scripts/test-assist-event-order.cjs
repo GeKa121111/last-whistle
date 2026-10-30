@@ -107,6 +107,6 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
 require("./assert-static-cache-version.cjs")(sw, 181);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 58);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);
 
 console.log("PASS: assists precede their goals, substitute entry-minute activity is ordered correctly, and source/browser assets stay synchronized.");

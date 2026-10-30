@@ -758,6 +758,11 @@ assert.equal(poorStarterDecision.role, "بديل أساسي",
   "a starter with sustained poor ratings and low trust must lose the automatic starter role");
 assert.equal(poorStarterDecision.reason, "form-demotion",
   "role demotions must be identifiable separately from promotions");
+const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, poorFormHistory);
+assert.equal(JSON.stringify(browserPoorStarterDecision), JSON.stringify(poorStarterDecision),
+  "the embedded browser career engine must apply the same evidence-based starter demotion");
 const poorRotationDecision = career.evaluateSquadRole({
   role: "تناوب", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
 }, poorFormHistory);

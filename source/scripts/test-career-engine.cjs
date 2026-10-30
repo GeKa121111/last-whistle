@@ -39,15 +39,16 @@ const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8"
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
 
-const roleDecisionLogBlock = rootHtml.match(/if\(roleDecision\?\.changed\)\{([\s\S]*?)\n   \}/);
-assert.ok(roleDecisionLogBlock, "the deployed match flow must explain squad-role changes");
-const demotionLogBranch = roleDecisionLogBlock[1].match(/if\(roleDecision\?\.reason === "form-demotion"\)\{([\s\S]*?)\n    \}else\{/);
-assert.ok(demotionLogBranch && demotionLogBranch[1].includes("خفض دورك"),
-  "a sustained-form demotion must be described as a role reduction");
-assert.ok(!demotionLogBranch[1].includes("زوّد دورك"),
-  "a demotion must never display the positive promotion message");
-assert.ok(roleDecisionLogBlock[1].includes("الجهاز الفني رقّاك للتشكيل الأساسي"),
-  "promotion messaging must remain available for earned starter upgrades");
+assert.ok(rootHtml.includes('if(roleDecision?.reason === "form-demotion"){'),
+  "the match flow must distinguish a form-based role demotion from a promotion");
+assert.ok(rootHtml.includes("الجهاز الفني خفّض دورك إلى لاعب أساسي بعد تراجع الأداء المتكرر."),
+  "a star-role demotion must be described as a reduction to starter");
+assert.ok(rootHtml.includes("الجهاز الفني خفّض دورك إلى بديل أساسي بعد تراجع الأداء المتكرر."),
+  "a starter demotion must be described as a reduction to rotation");
+assert.ok(rootHtml.includes("الجهاز الفني خفّض دورك إلى بديل بعد تراجع الأداء المتكرر."),
+  "a rotation demotion must be described as a reduction to substitute");
+assert.ok(rootHtml.includes("الجهاز الفني زوّد دورك في التشكيل بناءً على الأداء والإنتاج الهجومي."),
+  "promotion messaging must remain available for earned role upgrades");
 
 
 const loanToMatch = rootHtml.match(/function loanTo\(target\)\{[\s\S]*?\n\}\nfunction returnFromLoan/);

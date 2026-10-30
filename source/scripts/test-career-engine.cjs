@@ -648,6 +648,21 @@ const prospectPromotion = career.evaluateSquadRole({
 }, rotationHistory.slice(0, 2));
 assert.equal(prospectPromotion.role, "بديل",
   "a prospect label should become a normal substitute role after recording real appearances");
+assert.equal(career.normalizeCareerPosition("ST"), "رأس حربة",
+  "legacy English striker positions must normalize to the centre-forward career role");
+const forwardAliasHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "forward-alias-" + index, scope: "league", minutes: 60, rating: 6.0, goals: 1, assists: 0
+}));
+const englishForwardPromotion = career.evaluateSquadRole({
+  role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "ST"
+}, forwardAliasHistory);
+assert.equal(englishForwardPromotion.role, "بديل أساسي",
+  "a legacy ST save must receive the same evidence-based forward promotion as an Arabic position");
+const englishMidfieldControl = career.evaluateSquadRole({
+  role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "CM"
+}, forwardAliasHistory);
+assert.equal(englishMidfieldControl.role, "بديل",
+  "central midfield aliases must not accidentally use the forward-only promotion shortcut");
 
 const trainingState = { ...player, playedToday: true, trainedToday: false, injuryDays: 0 };
 assert.equal(career.train(trainingState, "shooting").ok, false, "training must be blocked on match day");

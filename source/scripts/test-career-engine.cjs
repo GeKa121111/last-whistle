@@ -477,6 +477,13 @@ assert.equal(career.canNegotiateInSeason(onLoan), false, "an on-loan player cann
 const loanWageBeforeNegotiation = onLoan.weeklyWage;
 assert.deepEqual(career.resolveWageNegotiation(onLoan, 95, 1), { ok: false, status: "loaned" });
 assert.equal(onLoan.weeklyWage, loanWageBeforeNegotiation, "a blocked loan negotiation must not change the temporary wage");
+for (const decision of ["accept", "decline"]) {
+  const beforeDecision = { weeklyWage: onLoan.weeklyWage, contractSeasons: onLoan.contractSeasons, freeAgent: onLoan.freeAgent };
+  assert.deepEqual(career.resolveContractDecision(onLoan, decision, { wage: 1500, seasons: 3 }),
+    { ok: false, status: "loaned" }, "contract decisions must be rejected while the parent contract is on loan");
+  assert.deepEqual({ weeklyWage: onLoan.weeklyWage, contractSeasons: onLoan.contractSeasons, freeAgent: onLoan.freeAgent },
+    beforeDecision, "a blocked loan contract decision must not mutate the temporary or parent contract");
+}
 assert.equal(onLoan.clubName, "Loan Club", "contract snapshot must not mutate the active loan state");
 assert.equal(career.wageNegotiationStatus(contractSnapshot), "contract-expiring");
 

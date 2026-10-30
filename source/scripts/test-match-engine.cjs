@@ -31,6 +31,14 @@ assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "d
 assert.equal(engine.normalizePosition("CM"), "وسط", "CM must normalize to central midfield");
 assert.equal(engine.normalizePosition("CDM"), "وسط دفاعي", "CDM must normalize to defensive midfield");
 assert.equal(browserEngine.normalizePosition("CM"), "وسط", "the embedded match engine must normalize CM aliases");
+for (const [alias, expected] of [
+  ["left back", "ظهير"], ["right back", "ظهير"], ["left wing back", "ظهير"],
+  ["right wing back", "ظهير"], ["wingback", "ظهير"], ["central midfield", "وسط"],
+  ["left midfielder", "جناح"], ["right midfielder", "جناح"]
+]) {
+  assert.equal(engine.normalizePosition(alias), expected, "source match engine must normalize " + alias);
+  assert.equal(browserEngine.normalizePosition(alias), expected, "embedded match engine must normalize " + alias);
+}
 assert.equal(engine.positionProfile("CM").shooter, 0.10, "central midfield must use its own low-shot profile");
 assert.equal(engine.positionProfile("CM").creator, 0.28, "central midfield must use its own chance-creation profile");
 assert.equal(engine.positionProfile("ST").shooter, 0.21, "English striker aliases must use the calibrated centre-forward profile");

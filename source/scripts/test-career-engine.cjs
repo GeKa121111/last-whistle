@@ -39,6 +39,17 @@ const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8"
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
 
+const roleDecisionLogBlock = rootHtml.match(/if\\(roleDecision\\?\\.changed\\)\\{([\\s\\S]*?)\\n   \\}/);
+assert.ok(roleDecisionLogBlock, "the deployed match flow must explain squad-role changes");
+const demotionLogBranch = roleDecisionLogBlock[1].match(/if\\(roleDecision\\?\\.reason === "form-demotion"\\)\\{([\\s\\S]*?)\\n    \\}else\\{/);
+assert.ok(demotionLogBranch && demotionLogBranch[1].includes("خفض دورك"),
+  "a sustained-form demotion must be described as a role reduction");
+assert.ok(!demotionLogBranch[1].includes("زوّد دورك"),
+  "a demotion must never display the positive promotion message");
+assert.ok(roleDecisionLogBlock[1].includes("الجهاز الفني رقّاك للتشكيل الأساسي"),
+  "promotion messaging must remain available for earned starter upgrades");
+
+
 const loanToMatch = rootHtml.match(/function loanTo\(target\)\{[\s\S]*?\n\}\nfunction returnFromLoan/);
 assert.ok(loanToMatch, "the deployed loan action must remain available for behavioral testing");
 const loanToSource = loanToMatch[0].slice(0, loanToMatch[0].lastIndexOf("\nfunction returnFromLoan"));

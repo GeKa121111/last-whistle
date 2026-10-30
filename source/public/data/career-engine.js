@@ -32,7 +32,7 @@
   function normalizeCareerPosition(position) {
     const raw = String(position || "").trim();
     if (!raw) return "";
-    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\\s+/g, " ");
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
     return POSITION_ALIASES[key] || raw;
   }
 

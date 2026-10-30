@@ -35,9 +35,83 @@ const state = {
 };
 
 const store = social.ensureState(state);
-assert.equal(store.version, 1);
+assert.equal(store.version, 2);
 assert.deepEqual(Array.from(store.posts), []);
 assert.equal(social.syncState(state), 0, "initial sync must not publish old career history");
+
+// Version 1 saves kept only 120 seen match keys. Migration must seed the complete
+// existing history so the first refresh does not publish hundreds of old matches.
+const oldRows = Array.from({ length: 160 }, (_, index) => ({
+  id: "old-" + index, season: 1, day: index + 1, opponent: "Old opponent " + index,
+  minutes: 10, rating: 6, goals: 0, assists: 0
+}));
+const migrated = {
+  careerStarted: true,
+  careerMatchHistory: oldRows,
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: 1, nextId: 1, initialized: true, posts: [],
+    seen: { matches: oldRows.slice(0, 120).map(social.matchKey), press: [], relationships: [], transfers: [], awards: [] },
+    lastReplyDay: ""
+  }
+};
+social.ensureState(migrated);
+assert.equal(migrated.socialMedia.version, 2);
+assert.equal(social.syncState(migrated), 0, "migration must not replay historical matches");
+assert.equal(social.syncState(migrated), 0, "old matches must remain seen on later refreshes");
+assert.equal(migrated.socialMedia.seen.matches.length, 160);
+
+// Backlogs are published in bounded chronological batches and are never marked
+// as seen before a post is actually created.
+const backlog = {
+  name: "Batch Player", careerStarted: true, season: 3, day: 1,
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: []
+};
+const backlogStore = social.ensureState(backlog);
+social.syncState(backlog);
+for (let index = 0; index < 12; index++) {
+  backlog.careerMatchHistory.unshift({
+    id: "batch-" + index, season: 3, day: index + 2, opponent: "Batch Opponent " + index,
+    teamGoals: 1, oppGoals: 0, minutes: 90, rating: 6.5, goals: 0, assists: 0
+  });
+}
+assert.equal(social.syncState(backlog), 5);
+assert.equal(social.syncState(backlog), 5);
+assert.equal(social.syncState(backlog), 2);
+assert.equal(social.syncState(backlog), 0);
+assert.equal(backlogStore.posts.filter(post => post.kind === "match").length, 12);
+assert.equal(backlogStore.seen.matches.length, 12);
+
+// Multiple events of each type must drain over successive refreshes instead of
+// being marked seen after only the first event was posted.
+const eventBatch = {
+  name: "Event Player", careerStarted: true, season: 4, day: 1,
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: []
+};
+const eventBatchStore = social.ensureState(eventBatch);
+social.syncState(eventBatch);
+for (const [target, prefix, type] of [
+  [eventBatch.pressHistory, "press", "تصريح"],
+  [eventBatch.relationshipHistory, "relationship", "جلسة زملاء"],
+  [eventBatch.transferHistory, "transfer", "عرض انتقال"],
+  [eventBatch.careerAwards, "award", "جائزة"]
+]) {
+  for (let index = 0; index < 2; index++) {
+    target.unshift({
+      id: prefix + "-" + index, season: 4, day: index + 2,
+      type, text: prefix + " event " + index
+    });
+  }
+}
+assert.equal(social.syncState(eventBatch), 4);
+assert.equal(social.syncState(eventBatch), 4);
+assert.equal(social.syncState(eventBatch), 0);
+assert.equal(eventBatchStore.posts.length, 8);
+for (const kind of ["press", "relationship", "transfer", "award"]) {
+  assert.equal(eventBatchStore.posts.filter(post => post.kind === kind).length, 2);
+}
 
 const weakMatch = {
   id: "m-1", season: 2, day: 8, competition: "الدوري", club: "نادي اللاعب",

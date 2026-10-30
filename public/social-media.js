@@ -3,6 +3,7 @@
 
   var MAX_POSTS = 80;
   var MAX_COMMENTS = 5;
+  var MAX_SEEN_ITEMS = 1000;
   var api = function () { return window.LWStoryRuntime || null; };
   var activeFilter = "all";
   var draft = "";
@@ -41,7 +42,7 @@
     if (!state || typeof state !== "object") throw new TypeError("social-state-required");
     if (!state.socialMedia || typeof state.socialMedia !== "object" || Array.isArray(state.socialMedia)) {
       state.socialMedia = {
-        version: 1,
+        version: 2,
         nextId: 1,
         initialized: false,
         posts: [],
@@ -50,14 +51,18 @@
       };
     }
     var social = state.socialMedia;
-    social.version = 1;
+    var previousVersion = Math.max(1, Number(social.version) || 1);
     social.nextId = Math.max(1, Number(social.nextId) || 1);
     if (!Array.isArray(social.posts)) social.posts = [];
     if (!social.seen || typeof social.seen !== "object" || Array.isArray(social.seen)) social.seen = {};
     ["matches", "press", "relationships", "transfers", "awards"].forEach(function (key) {
       if (!Array.isArray(social.seen[key])) social.seen[key] = [];
-      social.seen[key] = social.seen[key].filter(function (item) { return typeof item === "string"; }).slice(-120);
+      social.seen[key] = social.seen[key].filter(function (item) { return typeof item === "string"; }).slice(0, MAX_SEEN_ITEMS);
     });
+    // Version 1 stored only the latest 120 seen keys. Seed the complete bounded
+    // career histories once so older matches are not replayed during migration.
+    if (previousVersion < 2 && social.initialized) seedSeen(social, state);
+    social.version = 2;
     social.posts = social.posts.filter(function (post) {
       return post && typeof post === "object" && typeof post.body === "string";
     }).slice(0, MAX_POSTS);
@@ -328,15 +333,15 @@
     var relationships = Array.isArray(state.relationshipHistory) ? state.relationshipHistory : [];
     var transfers = Array.isArray(state.transferHistory) ? state.transferHistory : [];
     var awards = (Array.isArray(state.careerAwards) ? state.careerAwards : []).concat(Array.isArray(state.trophyCabinet) ? state.trophyCabinet : []);
-    social.seen.matches = matches.map(matchKey).filter(Boolean).slice(0, 120);
-    social.seen.press = press.map(eventKey).filter(Boolean).slice(0, 120);
-    social.seen.relationships = relationships.map(eventKey).filter(Boolean).slice(0, 120);
-    social.seen.transfers = transfers.map(eventKey).filter(Boolean).slice(0, 120);
-    social.seen.awards = awards.map(eventKey).filter(Boolean).slice(0, 120);
+    social.seen.matches = matches.map(matchKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
+    social.seen.press = press.map(eventKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
+    social.seen.relationships = relationships.map(eventKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
+    social.seen.transfers = transfers.map(eventKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
+    social.seen.awards = awards.map(eventKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
     social.initialized = true;
   }
 
-  function collectNew(state, key, items, keyFn) {
+  function collectNew(state, key, items, keyFn, limit) {
     var social = ensureState(state);
     var seen = social.seen[key];
     var pending = [];
@@ -344,10 +349,15 @@
       var token = keyFn(item);
       if (!token || seen.indexOf(token) >= 0) return;
       pending.push({ item: item, token: token });
-      seen.unshift(token);
     });
-    social.seen[key] = seen.slice(0, 120);
-    return pending.reverse();
+    // Histories are newest-first. Publish a bounded oldest-first batch so a
+    // simulation that adds many events cannot silently discard the backlog.
+    var ordered = pending.reverse();
+    var count = limit === undefined ? ordered.length : Math.max(0, Math.floor(Number(limit) || 0));
+    var selected = ordered.slice(0, count);
+    selected.forEach(function (entry) { seen.unshift(entry.token); });
+    social.seen[key] = seen.slice(0, MAX_SEEN_ITEMS);
+    return selected;
   }
 
   function syncState(state) {
@@ -358,8 +368,8 @@
       return 0;
     }
     var created = 0;
-    var matches = collectNew(state, "matches", state.careerMatchHistory, matchKey);
-    matches.slice(-5).forEach(function (entry) {
+    var matches = collectNew(state, "matches", state.careerMatchHistory, matchKey, 5);
+    matches.forEach(function (entry) {
       createMatchPost(state, entry.item);
       created++;
     });
@@ -369,8 +379,10 @@
       ["transfer", state.transferHistory, function (item) { return eventKey(item); }],
       ["award", (Array.isArray(state.careerAwards) ? state.careerAwards : []).concat(Array.isArray(state.trophyCabinet) ? state.trophyCabinet : []), function (item) { return eventKey(item); }]
     ].forEach(function (source) {
-      var pending = collectNew(state, source[0] === "relationship" ? "relationships" : source[0] === "transfer" ? "transfers" : source[0] === "award" ? "awards" : "press", source[1], source[2]);
-      if (pending.length && created < 8) {
+      if (created >= 8) return;
+      var key = source[0] === "relationship" ? "relationships" : source[0] === "transfer" ? "transfers" : source[0] === "award" ? "awards" : "press";
+      var pending = collectNew(state, key, source[1], source[2], 1);
+      if (pending.length) {
         addEventPost(state, source[0], pending[0].item);
         created++;
       }

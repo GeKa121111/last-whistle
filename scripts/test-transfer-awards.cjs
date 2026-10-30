@@ -108,6 +108,47 @@ assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
 assert.ok(centreStrikerLine.assists < mobileForwardLine.assists,
   "a mobile forward should produce more assists than an otherwise identical centre striker");
 
+const sameStrikerStarter = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "أساسي"
+}, 5, 1);
+const sameStrikerSubstitute = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل"
+}, 5, 1);
+const sameStrikerRotation = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "تناوب"
+}, 5, 1);
+assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances,
+  "playing-time role projections must not change the count of appearances");
+assert.ok(sameStrikerStarter.minutes > sameStrikerRotation.minutes
+  && sameStrikerRotation.minutes > sameStrikerSubstitute.minutes,
+  "starter, rotation and substitute contracts must project progressively fewer minutes");
+assert.ok(sameStrikerStarter.goals > sameStrikerSubstitute.goals,
+  "a substitute with short cameos must not receive starter-level projected goals");
+assert.ok(sameStrikerStarter.assists > sameStrikerSubstitute.assists,
+  "a substitute with short cameos must not receive starter-level projected assists");
+assert.ok(sameStrikerStarter.goals * 90 / Math.max(1, sameStrikerStarter.minutes) <= 0.55,
+  "a projected centre striker must not score at an implausible goals-per-90 rate");
+assert.equal(engine.simulatePlayerSeason({
+  ...sameForward, position: "حارس مرمى"
+}, 5, 1).goals, 0,
+  "an outfield-level goalkeeper projection must not inherit striker goal production");
+const noProjectionProgress = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "أساسي"
+}, 5, 0);
+assert.equal(noProjectionProgress.minutes, 0);
+assert.equal(noProjectionProgress.goals, 0);
+assert.equal(noProjectionProgress.assists, 0);
+
+const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 1);
+assert.equal(savedSeasonStatsRemainAuthoritative.goals, 8,
+  "actual saved season goals must not be replaced by fallback projections");
+assert.equal(savedSeasonStatsRemainAuthoritative.assists, 3,
+  "actual saved season assists must not be replaced by fallback projections");
+
+
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
   country: "مصر", currentClub: "مركز شباب النور", currentClubPower: 52,

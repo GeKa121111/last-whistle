@@ -2896,8 +2896,10 @@ function seasonAwards(state, league, teamRank) {
     const assists = result.events.filter(event => event.type === "assist").length;
     const linkedAssistGoalIds = new Set();
     const assistGoalLinksValid = result.events.filter(event => event.type === "assist").every(assist => {
-      const goalId = String(assist.goalEventId || "");
-      if (!goalId) return !modernShotMetadataPresent && !modernGoalMetadataPresent && !modernAssistMetadataPresent; // Preserve only fully legacy attribution ledgers.
+      const hasGoalId = Object.prototype.hasOwnProperty.call(assist, "goalEventId");
+      if (!hasGoalId) return !modernShotMetadataPresent && !modernGoalMetadataPresent && !modernAssistMetadataPresent; // Preserve only fully legacy attribution ledgers.
+      if (typeof assist.goalEventId !== "string" || !assist.goalEventId.trim()) return false;
+      const goalId = assist.goalEventId;
       if (linkedAssistGoalIds.has(goalId)) return false; // A goal can have at most one credited assist.
       const matches = result.events.map((event, index) => ({ event, index }))
         .filter(item => item.event.type === "goal" && item.event.goalEventId === goalId);

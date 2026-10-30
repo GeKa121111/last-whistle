@@ -282,6 +282,23 @@ assert.equal(corruptedCleanSheetValidation.ok, false,
   "the match-ledger validator must reject a clean-sheet flag that contradicts the event timeline");
 assert.equal(corruptedCleanSheetValidation.cleanSheetConsistent, false,
   "the validator should identify clean-sheet metadata drift explicitly");
+const legacyWithoutCleanSheet = {
+  ...cleanSheetValidationProbe,
+  player: { ...cleanSheetValidationProbe.player }
+};
+delete legacyWithoutCleanSheet.player.cleanSheet;
+assert.equal(engine.validateResult(legacyWithoutCleanSheet).ok, true,
+  "legacy match ledgers without the newer clean-sheet flag must remain valid");
+assert.equal(browserEngine.validateResult(legacyWithoutCleanSheet).ok, true,
+  "the embedded validator must preserve legacy match ledgers without clean-sheet metadata");
+const malformedCleanSheetFlag = {
+  ...cleanSheetValidationProbe,
+  player: { ...cleanSheetValidationProbe.player, cleanSheet: "false" }
+};
+assert.equal(engine.validateResult(malformedCleanSheetFlag).cleanSheetConsistent, false,
+  "non-boolean clean-sheet metadata must be rejected");
+assert.equal(browserEngine.validateResult(malformedCleanSheetFlag).cleanSheetConsistent, false,
+  "the embedded validator must reject non-boolean clean-sheet metadata");
 assert.equal(typeof browserEngine.playerEarnsCleanSheet, "function", "deployed clean-sheet logic must stay exposed and synchronized");
 const lateConcededGoals = [{ type: "goal", side: "opponent", minute: 82 }];
 assert.equal(engine.playerEarnsCleanSheet("قلب دفاع", 65, lateConcededGoals), true,

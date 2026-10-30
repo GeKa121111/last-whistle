@@ -4607,6 +4607,18 @@ function parseCupTieAggregate(value){
  const parsed=Number(value);
  return Number.isSafeInteger(parsed)?{valid:true,value:parsed}:{valid:false,value:0};
 }
+function parseCupTieLeg(value){
+ if(value==null)return {valid:true,value:1};
+ const parsed=typeof value==="string"&&value.trim()!==""?Number(value):value;
+ return parsed===1||parsed===2?{valid:true,value:parsed}:{valid:false,value:1};
+}
+function parseCupTieOpponent(value,fallback,teams,clubName){
+ const candidate=value==null||value===""?fallback:value;
+ if(typeof candidate!=="string"||candidate.trim()==="")return {valid:false,value:""};
+ const opponent=candidate.trim(),currentClub=typeof clubName==="string"?clubName.trim():"";
+ if(!Array.isArray(teams)||!teams.includes(opponent)||opponent===currentClub)return {valid:false,value:""};
+ return {valid:true,value:opponent};
+}
 function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){
  const score=result?.score||{},gf=Number(score.for)||0,ga=Number(score.against)||0;
  const rival=String(opponent||"المنافس"),shootout=result?.shootout||{};
@@ -4631,11 +4643,22 @@ function playCupMatch(){
  if(state.trainedToday){toast('اتدربت النهارده. تقدّم ليوم جديد قبل مباراة الكأس.');return;}
  const comp=CUP_COMPETITIONS.find(x=>x.name===c.name)||{system:'knockout'};
  const isLeague=c.phase==='league',isGroups=c.phase==='groups';
- const knockout=!isLeague&&!isGroups,isTwoLegTie=knockout&&!!(c.twoLegs||[])[c.stage];
- const tieLegAtKickoff=isTwoLegTie?(Number(c.tieLeg)===2?2:1):0;
+ const knockout=!isLeague&&!isGroups;
+ const rawStage=typeof c.stage==="string"&&c.stage.trim()!==""?Number(c.stage):c.stage;
+ const rawTwoLegs=c.twoLegs==null?[]:c.twoLegs;
+ if(knockout&&(!Number.isSafeInteger(rawStage)||rawStage<0||!Array.isArray(rawTwoLegs))){toast('بيانات دور الكأس أو نظام الذهاب والإياب غير صالحة. راجع سجل البطولة.');return;}
+ const hasTwoLegConfig=knockout&&rawTwoLegs.length>0;
+ if(knockout&&hasTwoLegConfig&&(rawStage>=rawTwoLegs.length||typeof rawTwoLegs[rawStage]!=="boolean")){toast('بيانات نظام الذهاب والإياب غير مكتملة أو غير صالحة. راجع سجل البطولة.');return;}
+ const twoLegFlag=hasTwoLegConfig?rawTwoLegs[rawStage]:false;
+ const isTwoLegTie=knockout&&twoLegFlag===true;
+ const parsedTieLeg=isTwoLegTie?parseCupTieLeg(c.tieLeg):{valid:true,value:0};
+ if(!parsedTieLeg.valid){toast('بيانات مرحلة الذهاب والإياب غير صالحة. راجع سجل البطولة قبل لعب المباراة.');return;}
+ const tieLegAtKickoff=isTwoLegTie?parsedTieLeg.value:0;
  const parsedTieAggregate=isTwoLegTie&&tieLegAtKickoff===2
   ?parseCupTieAggregate(c.tieAggregate):{valid:true,value:0};
- if(!parsedTieAggregate.valid){toast('بيانات مجموع مباراتي الكأس غير صالحة. راجع سجل البطولة قبل لعب الإياب.');return;}
+ const parsedTieOpponent=isTwoLegTie&&tieLegAtKickoff===2
+  ?parseCupTieOpponent(c.tieOpponent,c.opponent,c.teams,clubNameForLeague()):{valid:true,value:""};
+ if(!parsedTieAggregate.valid||!parsedTieOpponent.valid){toast('بيانات مجموع المواجهة أو المنافس غير صالحة. راجع سجل البطولة قبل لعب الإياب.');return;}
  if(!checkAction('cup',20))return;
  const roundName=isLeague?'مرحلة الدوري':isGroups?'المجموعات':(c.rounds||[])[c.stage]||'مباراة';
  let opponent;
@@ -4644,7 +4667,7 @@ function playCupMatch(){
   const group=(c.groups||[])[Math.max(0,c.playerGroup||0)]||c.teams.filter(n=>n!==clubNameForLeague()).slice(0,3);const pool=group.filter(n=>n!==clubNameForLeague());
   const maxMeetings=c.system==='caf'?2:1;const used=c.groupOpponents||{};const available=pool.filter(n=>(used[n]||0)<maxMeetings);
   opponent=available.length?available[(c.phasePlayed)%available.length]:pool[c.phasePlayed%pool.length];c.groupOpponents=used;c.groupOpponents[opponent]=(c.groupOpponents[opponent]||0)+1;
- }else opponent=(Number(c.tieLeg)===2&&c.tieOpponent)||c.opponent||c.teams[(c.stage*2+1)%c.teams.length]||c.teams[1];
+ }else opponent=(isTwoLegTie&&tieLegAtKickoff===2?parsedTieOpponent.value:"")||c.opponent||c.teams[(c.stage*2+1)%c.teams.length]||c.teams[1];
  if(!opponent){toast('تعذر تحديد منافس الكأس.');return;}
  const id=buildMatchId('cup',c.name,(Number(c.matchesPlayed)||0)+1,club().name);
  const dKey=disciplineKey('cup',state.leagueCountry,c.name),suspended=Number(state.suspensions?.[dKey])>0;

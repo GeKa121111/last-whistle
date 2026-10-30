@@ -751,6 +751,104 @@ async function main() {
       "an invalid second-leg aggregate must be rejected before energy, calendar, or match history changes");
     results.push("invalid second-leg cup aggregate is rejected without consuming a match action");
 
+    const invalidTieLegBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.tieAggregate = 0;
+      state.cupState.tieLeg = 3;
+      state.cupState.tieOpponent = state.cupState.teams[1];
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieLeg: state.cupState.tieLeg
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const invalidTieLegAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieLeg: state.cupState.tieLeg
+      };
+    });
+    assert.deepEqual(invalidTieLegAfter, invalidTieLegBefore,
+      "an invalid tieLeg must be rejected before consuming a match action");
+    results.push("invalid cup tieLeg is rejected without consuming a match action");
+
+    const invalidTieOpponentBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.tieLeg = 2;
+      state.cupState.tieOpponent = { corrupted: true };
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieOpponent: state.cupState.tieOpponent
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const invalidTieOpponentAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieOpponent: state.cupState.tieOpponent
+      };
+    });
+    assert.deepEqual(invalidTieOpponentAfter, invalidTieOpponentBefore,
+      "an invalid second-leg opponent must be rejected before consuming a match action");
+    results.push("invalid second-leg opponent is rejected without consuming a match action");
+
+    const malformedTwoLegsBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.twoLegs = "true";
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, twoLegs: state.cupState.twoLegs
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const malformedTwoLegsAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, twoLegs: state.cupState.twoLegs
+      };
+    });
+    assert.deepEqual(malformedTwoLegsAfter, malformedTwoLegsBefore,
+      "malformed twoLegs metadata must be rejected before consuming a match action");
+    results.push("malformed twoLegs metadata is rejected without consuming a match action");
+
+    const shortTwoLegsBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.stage = 1;
+      state.cupState.twoLegs = [true];
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, stage: state.cupState.stage,
+        twoLegs: state.cupState.twoLegs
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const shortTwoLegsAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, stage: state.cupState.stage,
+        twoLegs: state.cupState.twoLegs
+      };
+    });
+    assert.deepEqual(shortTwoLegsAfter, shortTwoLegsBefore,
+      "a twoLegs array missing the current knockout stage must be rejected before consuming a match action");
+    results.push("incomplete twoLegs stage metadata is rejected without consuming a match action");
+
     await page.evaluate(backup => {
       const state = window.LWStoryRuntime.getState();
       Object.keys(state).forEach(key => delete state[key]);

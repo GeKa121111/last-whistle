@@ -438,19 +438,22 @@
         return { ok: false, reason: "invalid-event-entry" };
       }
     }
-    const allowedEventTypes = new Set(["assist", "chance", "foul", "goal", "injury", "interception", "offside", "penalty-shootout", "red-card", "save", "shot", "substitution", "substitution-on", "tackle", "yellow-card"]);
+    const allowedEventTypes = new Set(["assist", "chance", "clearance", "foul", "goal", "injury", "interception", "offside", "penalty-save", "penalty-shootout", "recovery", "red-card", "save", "shot", "substitution", "substitution-on", "tackle", "yellow-card"]);
     if (result.events.some(event => typeof event.type !== "string" || !allowedEventTypes.has(event.type))) {
       return { ok: false, reason: "invalid-event-type" };
     }
     const allowedEventSides = {
       assist: ["team"],
       chance: ["team", "opponent"],
+      clearance: ["player"],
       foul: ["player", "team", "opponent"],
       goal: ["team", "opponent"],
       injury: ["player"],
       interception: ["player"],
       offside: ["team", "opponent"],
+      "penalty-save": ["team"],
       "penalty-shootout": ["team"],
+      recovery: ["player"],
       "red-card": ["player"],
       save: ["team"],
       shot: ["team", "opponent"],
@@ -462,8 +465,8 @@
     if (result.events.some(event => !allowedEventSides[event.type]?.includes(event.side))) {
       return { ok: false, reason: "invalid-event-side" };
     }
-    const numericPlayerStatFields = ["minutes", "goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "interceptions", "saves", "rating"];
-    const integerPlayerStatFields = new Set(["minutes", "goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "interceptions", "saves"]);
+    const numericPlayerStatFields = ["minutes", "goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "tacklesWon", "interceptions", "saves", "penaltiesSaved", "clearances", "ballRecoveries", "passAttempts", "passesCompleted", "passingAccuracy", "rating"];
+    const integerPlayerStatFields = new Set(["minutes", "goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "tacklesWon", "interceptions", "saves", "penaltiesSaved", "clearances", "ballRecoveries", "passAttempts", "passesCompleted"]);
     const playerStatsValid = numericPlayerStatFields.every(field => {
       const value = result.player[field];
       if (value == null) return true; // Preserve older records that omit newer optional stats.
@@ -473,6 +476,7 @@
       if (!Number.isFinite(numeric) || numeric < 0) return false;
       if (field === "minutes") return Number.isInteger(numeric) && numeric <= 120;
       if (field === "rating") return numeric <= 10;
+      if (field === "passingAccuracy") return numeric <= 100;
       return !integerPlayerStatFields.has(field) || Number.isInteger(numeric);
     });
     const shotsOnTargetValid = result.player.shotsOnTarget == null || result.player.shots == null

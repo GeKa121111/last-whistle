@@ -44,8 +44,9 @@ let wrongSideAssistProbe = null;
 for (let seed = 610000; seed < 635000 && !(foundEntryMinuteAssist && foundSameMinuteAssist && wrongSideAssistProbe); seed += 1) {
   const options = { ...baseOptions, seed };
   const result = engine.simulateMatch(options);
-  assert.equal(engine.validateResult(result).ok, true,
-    "assist-order regression sample must have a valid match ledger at seed " + seed);
+  const integrity = engine.validateResult(result);
+  assert.equal(integrity.ok, true,
+    "assist-order regression sample must have a valid match ledger at seed " + seed + ": " + JSON.stringify(integrity));
   const entry = result.events.find(event => event.type === "substitution-on" && event.side === "player");
   assert.ok(entry, "assist-order regression requires an actual bench entry");
   const entryIndex = result.events.indexOf(entry);
@@ -106,6 +107,6 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
 require("./assert-static-cache-version.cjs")(sw, 181);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 54);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 55);
 
 console.log("PASS: assists precede their goals, substitute entry-minute activity is ordered correctly, and source/browser assets stay synchronized.");

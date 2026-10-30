@@ -160,6 +160,6 @@ assert.equal(sw, deployedSw, "root and public service workers must remain synchr
 require("./assert-static-cache-version.cjs")(sw, 175);
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 54);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 55);
 
 console.log("PASS: winter transfer-window identity stays stable, and legacy offers survive the break-to-second-half transition.");

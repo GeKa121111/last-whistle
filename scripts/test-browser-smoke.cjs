@@ -823,6 +823,32 @@ async function main() {
       "malformed twoLegs metadata must be rejected before consuming a match action");
     results.push("malformed twoLegs metadata is rejected without consuming a match action");
 
+    const shortTwoLegsBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.stage = 1;
+      state.cupState.twoLegs = [true];
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, stage: state.cupState.stage,
+        twoLegs: state.cupState.twoLegs
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const shortTwoLegsAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, stage: state.cupState.stage,
+        twoLegs: state.cupState.twoLegs
+      };
+    });
+    assert.deepEqual(shortTwoLegsAfter, shortTwoLegsBefore,
+      "a twoLegs array missing the current knockout stage must be rejected before consuming a match action");
+    results.push("incomplete twoLegs stage metadata is rejected without consuming a match action");
+
     await page.evaluate(backup => {
       const state = window.LWStoryRuntime.getState();
       Object.keys(state).forEach(key => delete state[key]);

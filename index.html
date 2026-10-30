@@ -4647,8 +4647,9 @@ function playCupMatch(){
  const rawStage=typeof c.stage==="string"&&c.stage.trim()!==""?Number(c.stage):c.stage;
  const rawTwoLegs=c.twoLegs==null?[]:c.twoLegs;
  if(knockout&&(!Number.isSafeInteger(rawStage)||rawStage<0||!Array.isArray(rawTwoLegs))){toast('بيانات دور الكأس أو نظام الذهاب والإياب غير صالحة. راجع سجل البطولة.');return;}
- const twoLegFlag=knockout?rawTwoLegs[rawStage]:false;
- if(knockout&&twoLegFlag!==undefined&&typeof twoLegFlag!=="boolean"){toast('بيانات نظام الذهاب والإياب غير صالحة. راجع سجل البطولة.');return;}
+ const hasTwoLegConfig=knockout&&rawTwoLegs.length>0;
+ if(knockout&&hasTwoLegConfig&&(rawStage>=rawTwoLegs.length||typeof rawTwoLegs[rawStage]!=="boolean")){toast('بيانات نظام الذهاب والإياب غير مكتملة أو غير صالحة. راجع سجل البطولة.');return;}
+ const twoLegFlag=hasTwoLegConfig?rawTwoLegs[rawStage]:false;
  const isTwoLegTie=knockout&&twoLegFlag===true;
  const parsedTieLeg=isTwoLegTie?parseCupTieLeg(c.tieLeg):{valid:true,value:0};
  if(!parsedTieLeg.valid){toast('بيانات مرحلة الذهاب والإياب غير صالحة. راجع سجل البطولة قبل لعب المباراة.');return;}

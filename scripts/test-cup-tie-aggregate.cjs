@@ -80,6 +80,7 @@ const aggregateValidationIndex = playBody.indexOf("parseCupTieAggregate(c.tieAgg
 const legValidationIndex = playBody.indexOf("parseCupTieLeg(c.tieLeg)");
 const opponentValidationIndex = playBody.indexOf("parseCupTieOpponent(c.tieOpponent,c.opponent,c.teams,clubNameForLeague())");
 const twoLegShapeIndex = playBody.indexOf("!Array.isArray(rawTwoLegs)");
+const twoLegFlagIndex = playBody.indexOf("rawStage>=rawTwoLegs.length");
 const actionIndex = playBody.indexOf("checkAction('cup',20)");
 assert.ok(aggregateValidationIndex >= 0 && actionIndex > aggregateValidationIndex,
   "second-leg aggregate validation must happen before consuming the cup match action");
@@ -89,6 +90,8 @@ assert.ok(opponentValidationIndex >= 0 && actionIndex > opponentValidationIndex,
   "an invalid or mismatched second-leg opponent must be rejected before consuming the cup match action");
 assert.ok(twoLegShapeIndex >= 0 && actionIndex > twoLegShapeIndex,
   "malformed twoLegs metadata must be rejected before consuming the cup match action");
+assert.ok(twoLegFlagIndex >= 0 && actionIndex > twoLegFlagIndex,
+  "a configured twoLegs array must contain a Boolean flag for the current stage");
 assert.ok(playBody.includes("aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2?parsedTieAggregate.value:0"),
   "the match engine must receive only the validated aggregate offset");
 assert.ok(playBody.includes("parsedTieOpponent.value"),

@@ -770,12 +770,51 @@ assert.equal(browserEngine.validateResult(shootoutAtRegulationMinute).ok, false,
 const validShootoutEvent = { ...minuteValidationBase,
   events: [{ type: "penalty-shootout", side: "team", minute: 120, won: true, scoreFor: 5, scoreAgainst: 4 }],
   outcome: "فوز", matchOutcome: "فوز",
+  regulation: { for: 0, against: 0 },
+  extraTime: { played: true, for: 0, against: 0,
+    periods: [{ for: 0, against: 0 }, { for: 0, against: 0 }] },
   shootout: { used: true, won: true, scoreFor: 5, scoreAgainst: 4 }
 };
 assert.equal(engine.validateResult(validShootoutEvent).ok, true,
   "a shootout event at minute 120 must remain valid when the shootout was used");
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
+const shootoutWithoutExtraTime = {
+  ...validShootoutEvent,
+  extraTime: { played: false, for: 0, against: 0, periods: [] }
+};
+const shootoutWithAggregateLead = {
+  ...validShootoutEvent,
+  metadata: { ...validShootoutEvent.metadata, aggregateOffset: 1 }
+};
+const shootoutWithAggregateDeficit = {
+  ...validShootoutEvent,
+  metadata: { ...validShootoutEvent.metadata, aggregateOffset: -1 },
+  outcome: "خسارة", matchOutcome: "فوز"
+};
+const shootoutCreditedToOpponent = {
+  ...validShootoutEvent,
+  events: [{ ...validShootoutEvent.events[0], side: "opponent" }]
+};
+for (const targetEngine of [engine, browserEngine]) {
+  for (const invalidShootout of [
+    shootoutWithoutExtraTime, shootoutWithAggregateLead,
+    shootoutWithAggregateDeficit, shootoutCreditedToOpponent
+  ]) {
+    assert.equal(targetEngine.validateResult(invalidShootout).shootoutLedgerConsistent, false,
+      "shootouts require extra time, a level aggregate, and a team-side result event");
+    assert.equal(targetEngine.validateResult(invalidShootout).ok, false,
+      "ineligible or wrongly attributed shootouts must be rejected");
+  }
+}
+const legacyShootoutWithoutDeciderMetadata = { ...validShootoutEvent };
+delete legacyShootoutWithoutDeciderMetadata.extraTime;
+delete legacyShootoutWithoutDeciderMetadata.regulation;
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(legacyShootoutWithoutDeciderMetadata).ok, true,
+    "legacy shootout saves without regulation/extra-time ledger fields must remain readable");
+}
+
 
 const shootoutWinnerContradiction = {
   ...validShootoutEvent,

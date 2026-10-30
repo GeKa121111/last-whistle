@@ -4573,7 +4573,7 @@ function requestLoan(){
  const targets=transferTargets().filter(t=>(t.club!==state.clubName||t.country!==state.leagueCountry)&&t.power<=overall()+24).sort((a,b)=>Math.abs(a.power-overall())-Math.abs(b.power-overall())).slice(0,3);
  if(!targets.length){toast("مش لاقيين نادي مناسب للإعارة في القوائم المتاحة حاليًا.");return;}
  openModal("اختار وجهة الإعارة",`هتنتقل إعارة لموسم واحد، مع حفظ النادي الأصلي للرجوع إليه بعد نهاية الموسم. اختيار النادي وقوته بيانات محاكاة، مش عرض حقيقي.`,[
-  ...targets.map((t,i)=>({label:`${t.club} — ${t.country} • قوة ${t.power} • ${window.LWCareer?.loanSquadRole(state,t)||"بديل أساسي"}`,className:i===0?"primary":"",action:()=>loanTo(t)})),
+  ...targets.map((t,i)=>({label:`${t.club} — ${t.country} • قوة ${t.power} • ${window.LWCareer?.loanSquadRole?.(state,t)||"بديل أساسي"}`,className:i===0?"primary":"",action:()=>loanTo(t)})),
   {label:"إلغاء",action:()=>{}}
  ]);
 }
@@ -4582,7 +4582,7 @@ function loanTo(target){
  const status=window.LWCareer?.loanTargetStatus(state,target,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open,isListed})||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يمكن إعارة لاعب حر؛ وقّع عقدًا دائمًا أولًا.","already-loaned":"عندك إعارة نشطة بالفعل.","cup-active":"تعذر تنفيذ الإعارة قبل إنهاء بطولة الكأس الحالية.","window-closed":"انتهت نافذة الإعارة؛ جرّب في فترة انتقالات جديدة.","appearances-required":"لازم تلعب مباراتين على الأقل قبل الإعارة.","invalid-target":"وجهة الإعارة غير صالحة.","same-club":"اختار ناديًا مختلفًا عن ناديك الحالي.","unlisted-target":"وجهة الإعارة لم تعد موجودة في الكتالوج الحالي."};
  if(status!=="ready"){toast(messages[status]||"تعذر تنفيذ الإعارة في الحالة الحالية.");return;}
- const hostRole=window.LWCareer?.loanSquadRole(state,target)||"بديل أساسي";
+ const hostRole=window.LWCareer?.loanSquadRole?.(state,target)||"بديل أساسي";
  const previousTarget=seasonMatchTotal(),matchesAlreadyPlayed=Number(state.seasonApps)||0;
  const wasSecondHalf=state.seasonPhase==="secondHalf"||state.seasonPhase==="winterBreak"||!!state.winterBreakPending||matchesAlreadyPlayed>=Math.ceil(previousTarget/2);
  archiveLeagueSegment("loan");

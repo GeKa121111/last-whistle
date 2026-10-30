@@ -686,15 +686,23 @@
         || !isNonNegativeInteger(shootout.scoreAgainst)) return false;
       const scoreFor = Number(shootout.scoreFor);
       const scoreAgainst = Number(shootout.scoreAgainst);
-      const aggregateOffset = result.metadata?.aggregateOffset == null
-        ? 0 : Number(result.metadata.aggregateOffset);
-      const aggregateIsLevel = Number.isInteger(aggregateOffset)
+      const aggregateOffsetValue = result.metadata?.aggregateOffset;
+      const aggregateOffsetPresent = aggregateOffsetValue != null;
+      const aggregateOffset = aggregateOffsetPresent ? Number(aggregateOffsetValue) : 0;
+      const aggregateOffsetValid = !aggregateOffsetPresent
+        || ((typeof aggregateOffsetValue === "number"
+          || (typeof aggregateOffsetValue === "string" && aggregateOffsetValue.trim() !== ""))
+          && Number.isInteger(aggregateOffset));
+      const hasExplicitExtraTimePlayedFlag = result.extraTime != null
+        && Object.prototype.hasOwnProperty.call(result.extraTime, "played");
+      // Older ledgers may contain extra-time scores without the later "played" flag.
+      const legacyDeciderMetadata = result.regulation == null && !hasExplicitExtraTimePlayedFlag;
+      const extraTimeWasPlayed = legacyDeciderMetadata || result.extraTime?.played === true;
+      const aggregateIsLevel = aggregateOffsetValid
         && isNonNegativeInteger(result.score?.for) && isNonNegativeInteger(result.score?.against)
-        && aggregateOffset + Number(result.score.for) - Number(result.score.against) === 0;
-      // Current match records explicitly track extra-time and regulation metadata.
-      // Keep pre-ledger legacy saves (which omit both fields) readable.
-      const modernDeciderMetadataPresent = result.extraTime != null || result.regulation != null;
-      const extraTimeWasPlayed = !modernDeciderMetadataPresent || result.extraTime?.played === true;
+        && (aggregateOffsetPresent
+          ? aggregateOffset + Number(result.score.for) - Number(result.score.against) === 0
+          : legacyDeciderMetadata || Number(result.score.for) === Number(result.score.against));
       if (scoreFor === scoreAgainst || shootout.won !== (scoreFor > scoreAgainst)
         || !aggregateIsLevel || !extraTimeWasPlayed || shootoutEvents.length !== 1) return false;
       const event = shootoutEvents[0];

@@ -2023,4 +2023,34 @@ for (const [label, targetEngine] of [["source", engine], ["browser", browserEngi
   assert.equal(targetEngine.validateResult(extended).ok, true, label + " extended match-stat ledger validates");
 }
 
+
+const scoringCalibrationPositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+const scoringCalibration = [];
+for (const position of scoringCalibrationPositions) {
+  let goals = 0, minutes = 0, teamGoals = 0, shots = 0, appearances = 0;
+  for (let seed = 610000; seed < 610300; seed += 1) {
+    const result = engine.simulateMatch({
+      seed, teamPower: 65, opponentPower: 65, tactic: "balanced", home: false,
+      player: { name: "Scoring Calibration", position, role: "أساسي",
+        shooting: 65, dribbling: 65, passing: 65, speed: 65, fitness: 85,
+        composure: 65, vision: 65, defending: 65, goalkeeping: 65, physical: 65,
+        trust: 70, energy: 95, fatigue: 5 }
+    });
+    goals += Number(result.player.goals) || 0;
+    minutes += Number(result.player.minutes) || 0;
+    shots += Number(result.player.shots) || 0;
+    teamGoals += Number(result.score.for) || 0;
+    if (result.player.minutes > 0) appearances += 1;
+    assert.equal(engine.validateResult(result).ok, true, "calibration result must have a valid scoring ledger");
+  }
+  scoringCalibration.push({
+    position, goalsPer90: Number((goals * 90 / Math.max(1, minutes)).toFixed(3)),
+    goalsPerMatch: Number((goals / 300).toFixed(3)),
+    shotsPer90: Number((shots * 90 / Math.max(1, minutes)).toFixed(2)),
+    teamGoalsPerMatch: Number((teamGoals / 300).toFixed(2)),
+    appearanceRate: Number((appearances / 300).toFixed(2))
+  });
+}
+console.log("POSITION_SCORING_CALIBRATION " + JSON.stringify(scoringCalibration));
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

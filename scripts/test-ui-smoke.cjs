@@ -8,6 +8,18 @@ const htmlPath = path.join(root, "public", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
+const directoryOccurrences = (html.match(/id="globalDirectoryPanel"/g) || []).length;
+if (directoryOccurrences !== 1 || !html.includes('id="page-europe"') || !html.includes('class="page" id="page-wellness"') || !html.includes('class="page" id="page-league"')) {
+  console.error("Global football directory must exist once, on the dedicated World Football page.");
+  process.exit(1);
+}
+if (!html.includes(".app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}")
+  || !html.includes("#page-europe .global-directory-grid")
+  || !html.includes("#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel")) {
+  console.error("Global directory must remain isolated and full-width on mobile.");
+  process.exit(1);
+}
+
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }

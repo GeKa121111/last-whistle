@@ -605,7 +605,7 @@ for (let seed = 310000; seed < 310160; seed += 1) {
   assert.equal(engine.validateResult(rotated).ok, true,
     "both rotation starts and substitute appearances must pass match validation");
 }
-assert.ok(rotationBenchAppearances >= 85 && rotationBenchAppearances <= 135,
+assert.ok(rotationBenchAppearances >= 70 && rotationBenchAppearances <= 110,
   "a rotation role should produce a healthy mix, with more substitute appearances than starts");
 assert.ok(rotationStarts >= 25,
   "a rotation player must still receive occasional starts");

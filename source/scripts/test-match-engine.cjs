@@ -39,6 +39,16 @@ for (const [alias, expected] of [
   assert.equal(engine.normalizePosition(alias), expected, "source match engine must normalize " + alias);
   assert.equal(browserEngine.normalizePosition(alias), expected, "embedded match engine must normalize " + alias);
 }
+
+const aliasStart = rootEngineSource.indexOf("const POSITION_ALIASES = {");
+const aliasEnd = rootEngineSource.indexOf("\n  };", aliasStart);
+assert.ok(aliasStart >= 0 && aliasEnd > aliasStart, "the shared match engine must expose its canonical position aliases");
+const canonicalAliases = [...rootEngineSource.slice(aliasStart, aliasEnd).matchAll(/"([^"]+)":\s*"([^"]+)"/g)];
+assert.ok(canonicalAliases.length >= 60, "the canonical match-engine alias set must remain comprehensive");
+for (const [, alias, expected] of canonicalAliases) {
+  assert.equal(engine.normalizePosition(alias), expected, "source match engine must normalize canonical alias " + alias);
+  assert.equal(browserEngine.normalizePosition(alias), expected, "embedded match engine must normalize canonical alias " + alias);
+}
 assert.equal(engine.positionProfile("CM").shooter, 0.10, "central midfield must use its own low-shot profile");
 assert.equal(engine.positionProfile("CM").creator, 0.28, "central midfield must use its own chance-creation profile");
 assert.equal(engine.positionProfile("ST").shooter, 0.21, "English striker aliases must use the calibrated centre-forward profile");

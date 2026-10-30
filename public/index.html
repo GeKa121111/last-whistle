@@ -793,6 +793,31 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
  body.lw-rebuild #page-home .grid.hub-home-grid>article:nth-child(3),
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
+
+/* Global directory: isolate the reference catalogue and prevent page bleed. */
+.app > .page{display:none!important;width:100%;max-width:100%;min-width:0}
+.app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}
+.app > .page#page-europe > .grid{display:grid;width:100%;min-width:0;grid-template-columns:minmax(0,1fr)}
+#page-europe .global-directory-grid,#page-europe .global-directory-card{width:100%;min-width:0;max-width:100%}
+#page-europe .global-directory-heading{align-items:flex-start;flex-wrap:wrap}
+#page-europe .global-directory-heading>div{min-width:0;flex:1 1 220px}
+#page-europe .global-directory-heading h2{font-size:clamp(16px,4vw,20px);line-height:1.5;overflow-wrap:anywhere}
+#page-europe .global-directory-heading .subline{margin-top:4px;line-height:1.7}
+#page-europe .dataSummary{overflow-wrap:anywhere;word-break:normal}
+#page-europe .field,#page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{width:100%;min-width:0}
+#page-europe .dataCard{width:100%;min-width:0;overflow-wrap:anywhere}
+#page-europe .dataCard h4,#page-europe .dataCard p{word-break:normal;overflow-wrap:anywhere}
+#page-europe .clubRoster{max-width:100%}
+#page-europe .clubRoster .pill{max-width:100%;overflow-wrap:anywhere;white-space:normal}
+#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel{display:none!important}
+@media(max-width:520px){
+ #page-europe .global-directory-card{padding:12px}
+ #page-europe .global-directory-heading{gap:8px}
+ #page-europe .global-directory-heading .pill{white-space:normal}
+ #page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{grid-template-columns:minmax(0,1fr)!important}
+ #page-europe .dataCard{padding:12px}
+}
+
 </style>
 <link rel="stylesheet" href="./redesign.css?v=6">
 <style id="lw-no-flash">
@@ -1149,8 +1174,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           <p class="world-ai-note" id="worldAISimulationNote">قوة الأندية والإحصائيات والصفقات تقديرات محاكاة داخل اللعبة، وليست تحديثات رسمية حية.</p>
         </article>
       </div>
-      <div class="grid"><article class="card span12">
-        <div class="cardHead"><h2>🌍 دليل الدوريات والأندية والبطولات العالمية</h2><span class="pill" id="europeCount">جارٍ تحميل المصادر…</span></div>
+      <div class="grid global-directory-grid"><article class="card span12 global-directory-card" id="globalDirectoryPanel">
+        <div class="cardHead global-directory-heading"><div><span class="hub-overline">GLOBAL FOOTBALL DIRECTORY</span><h2>🌍 دليل الدوريات والأندية والبطولات العالمية</h2><p class="subline">كل بيانات الدوريات والأندية والمراجع في مكان واحد — من غير تكرار داخل صفحات المسيرة.</p></div><span class="pill" id="europeCount">جارٍ تحميل المصادر…</span></div>
         <p class="muted small">فهرس عالمي لمسابقات الدرجة الأولى المعروفة في بيانات FIFA لعام 2023، مع قوائم أندية قابلة للعب من مسابقات OpenFootball التي تتوفر لها جداول فرق. لكل قائمة موسم ومصدر وترخيص ظاهر؛ عدم وجود قائمة يعني أن الأسماء غير متاحة في هذه النسخة، وليس أن الدوري غير موجود.</p>
         <div id="globalDataSummary" class="sectionNote dataSummary">جارٍ تحميل ملف البيانات الثابت…</div>
         <div class="field"><label for="leagueSearch">ابحث باسم الدولة أو الاتحاد أو الدوري أو النادي</label><input id="leagueSearch" placeholder="مثال: إنجلترا، Bundesliga، الأرجنتين…"></div>

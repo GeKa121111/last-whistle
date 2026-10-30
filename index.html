@@ -1408,16 +1408,23 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const poorStarterForm = poorFormEvidence && recentAverageRating <= 5.75 && trust < 35;
     const poorRotationForm = poorFormEvidence && recentAverageRating <= 5.45 && trust < 25;
     const poorStarForm = ratedRows.length >= 7 && recentAverageRating <= 5.35 && trust < 20;
-    if (roleIsYouth && appearances >= 3) role = "بديل";
-    if (roleIsStar && appearances >= 16 && poorStarForm) role = "أساسي";
-    else if (roleIsStarter && appearances >= 16 && poorStarterForm) role = "بديل أساسي";
-    else if ((roleIsRotation || roleKey === "بديل أساسي") && appearances >= 16 && poorRotationForm) role = "بديل";
-    else if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
-    // Promotion and demotion both use sustained form; rotation players can earn a starter role.
-    else if ((roleIsRotation || roleKey === "بديل أساسي") && appearances >= 16 && starterReady) role = "أساسي";
-    const demoted = (roleIsStar && role === "أساسي")
-      || (roleIsStarter && role === "بديل أساسي")
-      || ((roleIsRotation || roleKey === "بديل أساسي") && role === "بديل");
+    let demoted = false;
+    if (roleIsStar && appearances >= 16 && poorStarForm) {
+      role = "أساسي";
+      demoted = true;
+    } else if (roleIsStarter && appearances >= 16 && poorStarterForm) {
+      role = "بديل أساسي";
+      demoted = true;
+    } else if ((roleIsRotation || roleKey === "بديل أساسي") && appearances >= 16 && poorRotationForm) {
+      role = "بديل";
+      demoted = true;
+    }
+    // Keep the established promotion ladder: one strong match may advance a player through two earned tiers.
+    if (!demoted) {
+      if (roleIsYouth && appearances >= 3) role = "بديل";
+      if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+      if ((roleIsRotation || role === "بديل أساسي") && appearances >= 16 && starterReady) role = "أساسي";
+    }
 
     return {
       role, changed: role !== originalRole,

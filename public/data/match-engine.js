@@ -25,8 +25,8 @@
       "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-      "مهاجم": { shooter: 0.21, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.20, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
+      "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.205, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function squadRoleType(value) {

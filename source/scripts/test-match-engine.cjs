@@ -796,6 +796,69 @@ assert.equal(engine.validateResult(validShootoutEvent).ok, true,
   "a shootout event at minute 120 must remain valid when the shootout was used");
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
+const validLateKeeperShootout = {
+  ...validShootoutEvent,
+  player: { ...validShootoutEvent.player, minutes: 90, penaltiesSaved: 1, cleanSheet: true },
+  events: [
+    { type: "substitution-on", side: "player", minute: 30 },
+    { type: "penalty-shootout", side: "team", minute: 120, won: true, scoreFor: 5, scoreAgainst: 4 },
+    { type: "penalty-save", side: "team", minute: 120, creditedToPlayer: true }
+  ],
+  metadata: { ...validShootoutEvent.metadata, position: "حارس مرمى" }
+};
+assert.equal(engine.validateResult(validLateKeeperShootout).ok, true,
+  "a goalkeeper who enters late and remains through extra time may be credited with a shootout save");
+assert.equal(browserEngine.validateResult(validLateKeeperShootout).ok, true,
+  "the embedded validator must accept a valid late-entering goalkeeper shootout save");
+const injuredKeeperWithPostExitSave = {
+  ...validLateKeeperShootout,
+  player: { ...validLateKeeperShootout.player, injuryDays: 2 },
+  events: [
+    { type: "injury", side: "player", minute: 90 },
+    { type: "penalty-shootout", side: "team", minute: 120, won: true, scoreFor: 5, scoreAgainst: 4 },
+    { type: "penalty-save", side: "team", minute: 120, creditedToPlayer: true }
+  ]
+};
+assert.equal(engine.validateResult(injuredKeeperWithPostExitSave).ok, false,
+  "a goalkeeper injured at the regulation whistle cannot receive a later shootout save");
+assert.equal(browserEngine.validateResult(injuredKeeperWithPostExitSave).ok, false,
+  "the embedded validator must reject a shootout save credited after the goalkeeper exits");
+const injuredGoalkeeperBaseOptions = {
+  teamPower: 65, opponentPower: 65,
+  player: { name: "اختبار حارس مصاب قبل الترجيح", position: "حارس مرمى", role: "أساسي",
+    shooting: 15, passing: 60, vision: 50, composure: 80, fitness: 100, trust: 100,
+    energy: 25, fatigue: 70, speed: 45, physical: 65, dribbling: 30 }
+};
+const injuredGoalkeeperSeeds = [27078, 37174, 50989, 51379, 65700, 68844, 83401, 86420, 96424, 96654,
+  109054, 120555, 124394, 128476, 147400, 160790, 161688, 175064, 180997, 185502,
+  197119, 198230, 202081, 202319, 203830, 213501, 222088, 233717, 235215, 235846];
+let injuredKeeperShootoutProbe = null;
+let injuredKeeperShootoutOptions = null;
+for (const seed of injuredGoalkeeperSeeds) {
+  const regulationResult = engine.simulateMatch({ ...injuredGoalkeeperBaseOptions, seed });
+  if (!regulationResult.events.some(event => event.type === "injury" && Number(event.minute) === 90)) continue;
+  const aggregateOffset = Number(regulationResult.regulation.against) - Number(regulationResult.regulation.for);
+  const options = { ...injuredGoalkeeperBaseOptions, seed, knockout: true, aggregateOffset };
+  const result = engine.simulateMatch(options);
+  if (result.shootout.used && result.shootout.won === true) {
+    injuredKeeperShootoutProbe = result;
+    injuredKeeperShootoutOptions = options;
+    break;
+  }
+}
+assert.ok(injuredKeeperShootoutProbe,
+  "a deterministic injured-goalkeeper shootout fixture must be found");
+assert.equal(injuredKeeperShootoutProbe.player.minutes, 90,
+  "the injured goalkeeper must finish regulation with 90 minutes and no extra-time participation");
+assert.ok(injuredKeeperShootoutProbe.events.some(event => event.type === "injury" && Number(event.minute) === 90),
+  "the goalkeeper must be injured at the regulation whistle");
+assert.equal(injuredKeeperShootoutProbe.events.some(event => event.type === "penalty-save" && event.creditedToPlayer === true), false,
+  "an injured goalkeeper must not receive a penalty save after leaving the pitch");
+assert.equal(engine.validateResult(injuredKeeperShootoutProbe).ok, true,
+  "the injured goalkeeper's corrected shootout ledger must validate");
+assert.equal(JSON.stringify(browserEngine.simulateMatch(injuredKeeperShootoutOptions)),
+  JSON.stringify(injuredKeeperShootoutProbe),
+  "the embedded engine must apply the same shootout goalkeeper eligibility rule");
 const shootoutWithoutExtraTime = {
   ...validShootoutEvent,
   extraTime: { played: false, for: 0, against: 0, periods: [] }

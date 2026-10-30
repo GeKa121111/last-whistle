@@ -2792,7 +2792,7 @@ function seasonAwards(state, league, teamRank) {
     const officialOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة" : "تعادل";
     const advancementWinner = shootout.used ? (shootout.won ? teamName : opponentName)
       : aggregateMargin > 0 ? teamName : aggregateMargin < 0 ? opponentName : "";
-    if (shootout.used && shootout.won === true && profile.goalkeeper && minutes >= 90) {
+    if (shootout.used && shootout.won === true && profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured) {
       stats.penaltiesSaved = 1;
       events.push({ type: "penalty-save", minute: 120, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
     }
@@ -3029,8 +3029,10 @@ function seasonAwards(state, league, teamRank) {
       .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
     const playerEndMinute = playerExitEvent ? Number(playerExitEvent.minute)
       : playerEntryMinute + Number(result.player.minutes || 0);
-    const isPlayerActivityEvent = event => event.type !== "penalty-save" && (event.creditedToPlayer === true
-      || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul", "clearance", "recovery"].includes(event.type)));
+    const isPlayerActivityEvent = event => event.type === "penalty-save"
+      ? event.creditedToPlayer === true
+      : (event.creditedToPlayer === true
+        || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul", "clearance", "recovery"].includes(event.type)));
     const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
       Number(event.minute) >= playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventMinutesValid = result.events.every(event => {

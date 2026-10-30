@@ -28,6 +28,6 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 57);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 58);
 
 console.log("PASS: cup aggregate outcomes no longer overwrite the individual fixture result in career records.");

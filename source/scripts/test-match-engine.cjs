@@ -760,8 +760,12 @@ const validExtraTimeGoal = {
   ...minuteValidationBase,
   score: { for: 1, against: 0 },
   regulation: { for: 0, against: 0 },
-  events: [{ type: "goal", goalEventId: "et-goal-1", minute: 105, side: "team",
-    scorer: "teammate", creditedToPlayer: false }],
+  events: [
+    { type: "shot", minute: 105, side: "team", onTarget: true,
+      shooter: "teammate", creditedToPlayer: false },
+    { type: "goal", goalEventId: "et-goal-1", minute: 105, side: "team",
+      scorer: "teammate", creditedToPlayer: false }
+  ],
   outcome: "فوز", matchOutcome: "فوز",
   extraTime: { played: true, for: 1, against: 0,
     periods: [{ for: 1, against: 0 }, { for: 0, against: 0 }] }
@@ -1233,6 +1237,56 @@ for (const [targetEngine, seed, label] of [[engine, 630000, "source"], [browserE
     label + " validator must validate modern goal attribution even when shot flags are absent");
   assert.equal(malformedGoalWithoutShotFlagsValidation.goalAttributionConsistent, false,
     label + " validator must expose malformed modern goal attribution without shot flags");
+
+  const modernGoalLedgerWithoutShotFlags = JSON.parse(JSON.stringify(fixture));
+  for (const event of modernGoalLedgerWithoutShotFlags.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  const linkedLegacyShotValidation = targetEngine.validateResult(modernGoalLedgerWithoutShotFlags);
+  assert.equal(linkedLegacyShotValidation.ok, true,
+    label + " validator must accept modern goal attribution when each goal still has a linked legacy-shaped shot");
+  assert.equal(linkedLegacyShotValidation.goalShotLedgerConsistent, true,
+    label + " validator must verify goal-to-shot links without requiring modern onTarget flags");
+
+  const partiallyLegacyShotLedger = JSON.parse(JSON.stringify(modernGoalLedgerWithoutShotFlags));
+  const partialLegacyGoal = partiallyLegacyShotLedger.events.find(event =>
+    event.type === "goal" && event.side === "opponent");
+  const partialLegacyGoalIndex = partiallyLegacyShotLedger.events.indexOf(partialLegacyGoal);
+  const partialLegacyShot = partiallyLegacyShotLedger.events[partialLegacyGoalIndex - 1];
+  assert.equal(partialLegacyShot.type, "shot",
+    label + " legacy-shaped opponent goal must retain its immediately preceding shot");
+  delete partialLegacyShot.shooter;
+  delete partialLegacyShot.creditedToPlayer;
+  const partialLegacyShotValidation = targetEngine.validateResult(partiallyLegacyShotLedger);
+  assert.equal(partialLegacyShotValidation.ok, true,
+    label + " validator must preserve legacy shot attribution fields when the goal ledger itself is modern");
+  assert.equal(partialLegacyShotValidation.goalShotLedgerConsistent, true,
+    label + " validator must use side and minute when legacy shot attribution fields are absent");
+
+  const missingGoalShotLedger = JSON.parse(JSON.stringify(modernGoalLedgerWithoutShotFlags));
+  const missingShotGoal = missingGoalShotLedger.events.find(event =>
+    event.type === "goal" && event.side === "opponent");
+  const missingShotGoalIndex = missingGoalShotLedger.events.indexOf(missingShotGoal);
+  assert.ok(missingShotGoalIndex > 0,
+    label + " missing-shot regression must retain the goal event");
+  const linkedShotIndex = missingShotGoalIndex - 1;
+  assert.equal(missingGoalShotLedger.events[linkedShotIndex].type, "shot",
+    label + " missing-shot regression must identify the goal's original shot");
+  missingGoalShotLedger.events.splice(linkedShotIndex, 1);
+  const shiftedGoalIndex = missingGoalShotLedger.events.indexOf(missingShotGoal);
+  const previousEvent = missingGoalShotLedger.events[shiftedGoalIndex - 1];
+  if (previousEvent && previousEvent.type === "shot"
+    && previousEvent.side === missingShotGoal.side
+    && Number(previousEvent.minute) === Number(missingShotGoal.minute)) {
+    previousEvent.type = "chance";
+    delete previousEvent.shooter;
+    delete previousEvent.creditedToPlayer;
+  }
+  const missingGoalShotValidation = targetEngine.validateResult(missingGoalShotLedger);
+  assert.equal(missingGoalShotValidation.ok, false,
+    label + " validator must reject modern goal metadata without a corresponding shot event");
+  assert.equal(missingGoalShotValidation.goalShotLedgerConsistent, false,
+    label + " validator must expose missing modern goal-to-shot links");
 }
 
 for (const [targetEngine, seed, label] of [[engine, 640000, "source"], [browserEngine, 640000, "browser"]]) {

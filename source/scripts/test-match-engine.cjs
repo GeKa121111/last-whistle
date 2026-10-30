@@ -1150,6 +1150,24 @@ for (const [targetEngine, seed, label] of [[engine, 620000, "source"], [browserE
     label + " validator must reject two assists linked to the same goal");
   assert.equal(duplicateAssistValidation.assistGoalLinksValid, false,
     label + " validator must flag duplicate assist-to-goal links as inconsistent");
+
+  const numericAssistGoalId = JSON.parse(JSON.stringify(fixture.match));
+  const numericAssist = numericAssistGoalId.events[fixture.assistIndex];
+  let numericGoalId = "1";
+  while (numericAssistGoalId.events.some(event =>
+    event.type === "goal" && event.goalEventId === numericGoalId)) {
+    numericGoalId = String(Number(numericGoalId) + 1);
+  }
+  const linkedGoal = numericAssistGoalId.events.find(event =>
+    event.type === "goal" && event.goalEventId === numericAssist.goalEventId);
+  assert.ok(linkedGoal, label + " numeric-ID regression must retain its original linked goal");
+  linkedGoal.goalEventId = numericGoalId;
+  numericAssist.goalEventId = Number(numericGoalId);
+  const numericAssistValidation = targetEngine.validateResult(numericAssistGoalId);
+  assert.equal(numericAssistValidation.ok, false,
+    label + " validator must reject numeric assist goal IDs instead of coercing them to strings");
+  assert.equal(numericAssistValidation.assistGoalLinksValid, false,
+    label + " validator must report non-string assist goal IDs as inconsistent");
 }
 
 function findModernGoalFixture(targetEngine, firstSeed, label) {

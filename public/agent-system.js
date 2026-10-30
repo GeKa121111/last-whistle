@@ -2,6 +2,7 @@
   "use strict";
   var API = function(){return window.LWStoryRuntime||null;};
   var panel=null, overlay=null, selectedAgentId="", quotedFeeRate=null, lastSnapshot="", panelWasRendered=false;
+  var tickScheduled=false,tickForceQueued=false;
 
   var AGENTS = [
     {
@@ -202,12 +203,6 @@
   }
   function rel(s){return s&&s.agentProfile?cap(s.agentProfile.relationship,0,100):50;}
   function canUseAgent(s){return !!(s&&s.careerStarted&&!s.retired);}
-  function isExpired(s,p){return !!(p&&p.contractMode!=="open-ended"&&Number(s.season)>=Number(p.expiresSeason)&&Number(s.season)>Number(p.hiredSeason));}
-  function checkExpiry(s){
-    var p=s.agentProfile;if(!s.agent||!p||!isExpired(s,p))return false;
-    var name=p.name||"الوكيل";s.agent=false;s.agentProfile=null;
-    record(s,"انتهاء عقد الوكيل","انتهى اتفاق التمثيل مع "+name+" بعد اكتمال مدته. تقدر تختار وكيلًا جديدًا من صفحة العقد والانتقالات.");return true;
-  }
   function currentChapter(s){
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p||p.storyStage>=cfg.chapters.length)return null;
     var stage=Number(p.storyStage)||0,apps=Number(s.apps)||0;
@@ -350,12 +345,21 @@
     save(s,"القرار اتسجل في قصة الوكيل واتطبقت نتائجه.");openActive();
   }
   function endCurrent(){
-    var s=API().getState(),p=s.agentProfile;if(!s.agent||!p)return;
+    var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
+    if(!canUseAgent(s)||!s.agent||!p){
+      if(api&&api.toast)api.toast(s&&s.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن تغيير اتفاق الوكالة.":"لا يوجد اتفاق وكالة نشط.");
+      closeDialog();return;
+    }
     var cfg=agentConfig(s)||LEGACY_AGENT,fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
     frame("إنهاء اتفاق التمثيل","END REPRESENTATION",'<div class="lwa-change-notice"><strong>شرط الخروج: '+fee+' جنيه</strong><p>لو أنهيت الاتفاق، هتدفع الشرط من رصيد اللعبة، وبعدها تقدر تختار وكيلًا آخر أو تكمل من غير وكيل.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-confirm-end"'+(Number(s.money)<fee?" disabled":"")+'>أدفع وأنهي الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="close">أكمل معاه</button></div>');
   }
   function confirmEnd(){
-    var s=API().getState(),p=s.agentProfile,cfg=agentConfig(s)||LEGACY_AGENT;if(!p)return;
+    var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
+    if(!canUseAgent(s)||!s.agent||!p){
+      if(api&&api.toast)api.toast(s&&s.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن إنهاء اتفاق الوكالة.":"لا يوجد اتفاق وكالة نشط.");
+      closeDialog();return;
+    }
+    var cfg=agentConfig(s)||LEGACY_AGENT;
     var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
     if(Number(s.money)<fee){API().toast("رصيدك مش كفاية لشرط الخروج. تقدر تكمّل الاتفاق لحد ما تقدر تغيّره.");return;}
     s.money-=fee;record(s,"إنهاء اتفاق الوكالة","أنهيت اتفاق التمثيل مع "+cfg.name+" ودفعت "+fee+" جنيه داخل اللعبة.");
@@ -457,34 +461,58 @@
     if(action==="agent-end-current"){endCurrent();return;}
     if(action==="agent-confirm-end"){confirmEnd();return;}
   }
-  function tick(){
+  function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
-    var changed=ensureState(s),expired=checkExpiry(s);if(expired)changed=true;
+    var changed=ensureState(s);
     if(s.agent&&renewRelationship(s))changed=true;
-    var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[0]:null;
+    var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
+    var lead=s.agentLead&&typeof s.agentLead==="object"?{id:s.agentLead.id,agentId:s.agentLead.agentId,status:s.agentLead.status,season:s.agentLead.season,day:s.agentLead.day}:s.agentLead;
+    var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+String(p.perks[key]);}).join(","):"";
     var snapshot=[
-      s.careerStarted,s.agent,s.agentLead,s.retired,
+      s.careerStarted,s.agent,JSON.stringify(lead||null),s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
+      p&&p.contractMultiplierDelta,p&&p.negotiationRaiseBonusDelta,p&&p.feeDebt,perks,
       s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
-      history.length,latest&&latest.id,latest&&latest.type,latest&&latest.title,latest&&latest.text,latest&&latest.day,latest&&latest.season
+      history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
     ].join("|");
     var ready=ensurePanel();
-    if(ready&&(snapshot!==lastSnapshot||!panelWasRendered)){
-      renderPanel(s);
-      panelWasRendered=true;
+    if(ready&&(force||snapshot!==lastSnapshot||!panelWasRendered)){
+      if(!document.hidden){renderPanel(s);panelWasRendered=true;}
+      else panelWasRendered=false;
     }else if(!ready){
-      // The contract page may mount after the first tick. Render once it exists.
       panelWasRendered=false;
     }
     if(changed&&api.save)api.save();
     lastSnapshot=snapshot;
+  }
+  function scheduleTick(force){
+    tickForceQueued=tickForceQueued||!!force;
+    if(tickScheduled)return;
+    tickScheduled=true;
+    Promise.resolve().then(function(){
+      tickScheduled=false;
+      var shouldForce=tickForceQueued;tickForceQueued=false;
+      tick(shouldForce);
+    });
   }
   document.addEventListener("click",function(event){
     var b=event.target&&event.target.closest?event.target.closest("[data-lwag-action]"):null;
     if(!b||b.disabled)return;event.preventDefault();handleAction(b.getAttribute("data-lwag-action")||"",b);
   });
   document.addEventListener("keydown",function(e){if(e.key==="Escape"&&overlay&&!overlay.hidden)closeDialog();});
-  function start(){tick();window.setInterval(tick,1000);window.addEventListener("pageshow",tick);window.addEventListener("storage",tick);}
+  function start(){
+    tick(true);
+    var store=window.LWStateStore;
+    if(store&&typeof store.subscribe==="function"){
+      store.subscribe(function(){scheduleTick(false);});
+      window.setInterval(function(){tick(false);},5000);
+    }else{
+      window.setInterval(function(){tick(false);},2500);
+    }
+    window.addEventListener("pageshow",function(){tick(true);});
+    window.addEventListener("storage",function(){tick(true);});
+    document.addEventListener("visibilitychange",function(){if(!document.hidden)tick(true);});
+  }
 
   // Stage 2: post-retirement career paths. Actions are deterministic and persist in the career state.
   function postRetirementOptions(s){

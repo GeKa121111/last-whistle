@@ -91,6 +91,146 @@ async function main() {
         && document.querySelector("#startScreen").classList.contains("show");
     }, null, { timeout: 30000 });
     results.push("startup");
+
+    const metadataShapeProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      if (!engine || typeof engine.validateResult !== "function") return null;
+      const match = engine.simulateMatch({
+        seed: 8144,
+        player: { name: "Metadata Shape", position: "مهاجم", role: "أساسي",
+          shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+      });
+      const malformed = JSON.parse(JSON.stringify(match));
+      malformed.metadata = [];
+      const legacy = JSON.parse(JSON.stringify(match));
+      delete legacy.metadata;
+      return {
+        valid: engine.validateResult(match).ok,
+        malformedReason: engine.validateResult(malformed).reason,
+        legacyValid: engine.validateResult(legacy).ok
+      };
+    });
+    assert.ok(metadataShapeProbe, "the browser must expose the deployed match engine");
+    assert.equal(metadataShapeProbe.valid, true, "a valid generated match must pass in Chromium");
+    assert.equal(metadataShapeProbe.malformedReason, "invalid-metadata-shape",
+      "Chromium must reject a malformed metadata array");
+    assert.equal(metadataShapeProbe.legacyValid, true,
+      "Chromium must retain compatibility with legacy matches that omit metadata");
+    results.push("match metadata shape validation and legacy compatibility");
+
+    const matchOptionsProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      const invalidOptions = [null, true, false, 0, "invalid", []];
+      return invalidOptions.map(options => {
+        try {
+          engine.simulateMatch(options);
+          return false;
+        } catch (error) {
+          return error && error.message === "invalid-match-options";
+        }
+      });
+    });
+    assert.deepEqual(matchOptionsProbe, [true, true, true, true, true, true],
+      "Chromium must reject null, primitive and array match options");
+    results.push("match simulation options container validation");
+
+    const matchSeedReplayProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      const options = {
+        teamPower: 64, opponentPower: 59, home: true,
+        player: { name: "Seed Replay", position: "وسط دفاعي", role: "أساسي",
+          shooting: 58, passing: 68, vision: 66, composure: 64, fitness: 82,
+          trust: 72, energy: 88, fatigue: 12, physical: 70, speed: 62, dribbling: 55 }
+      };
+      const first = engine.simulateMatch(options);
+      const replay = engine.simulateMatch({ ...options, seed: first.metadata.seed });
+      const zero = engine.simulateMatch({ ...options, seed: 0 });
+      const zeroReplay = engine.simulateMatch({ ...options, seed: zero.metadata.seed });
+      return {
+        implicitSeed: first.metadata.seed,
+        implicitReplayMatches: JSON.stringify(first) === JSON.stringify(replay),
+        zeroSeed: zero.metadata.seed,
+        zeroReplayMatches: JSON.stringify(zero) === JSON.stringify(zeroReplay)
+      };
+    });
+    assert.ok(Number.isSafeInteger(matchSeedReplayProbe.implicitSeed),
+      "Chromium must expose the effective implicit match seed");
+    assert.equal(matchSeedReplayProbe.implicitReplayMatches, true,
+      "Chromium matches must be reproducible from their recorded implicit seed");
+    assert.equal(matchSeedReplayProbe.zeroSeed, 0,
+      "Chromium must preserve an explicit zero seed");
+    assert.equal(matchSeedReplayProbe.zeroReplayMatches, true,
+      "Chromium must replay matches generated with an explicit zero seed");
+    results.push("match simulation seed replay metadata");
+
+
+    const saveLedgerProbe = await page.evaluate(() => {
+      const engine = window.LWMatch;
+      const makeOptions = (seed, position) => ({
+        seed, teamPower: 62, opponentPower: 60,
+        player: { name: "Save Ledger Regression", position, role: "أساسي",
+          shooting: 24, passing: 55, vision: 50, composure: 65, fitness: 85,
+          trust: 70, energy: 90, fatigue: 5, physical: 60, speed: 45, dribbling: 35 }
+      });
+      const freeMinute = match => {
+        const entry = match.events.find(event => event.type === "substitution-on" && event.side === "player");
+        const start = entry ? Number(entry.minute) : 0;
+        const exit = match.events
+          .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+          .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+        const end = exit ? Number(exit.minute) : start + Number(match.player.minutes || 0);
+        const used = new Set(match.events.map(event => Number(event.minute)));
+        for (let minute = start + 1; minute < end; minute += 1) if (!used.has(minute)) return minute;
+        return null;
+      };
+      const insert = (match, minute, events) => {
+        const index = match.events.findIndex(event => Number(event.minute) > minute);
+        match.events.splice(index < 0 ? match.events.length : index, 0, ...events);
+      };
+      const keeper = engine.simulateMatch(makeOptions(91821, "حارس مرمى"));
+      const keeperMinute = freeMinute(keeper);
+      keeper.player.saves = Number(keeper.player.saves || 0) + 1;
+      insert(keeper, keeperMinute, [{ type: "save", minute: keeperMinute, side: "team",
+        actor: "Save Ledger Regression", creditedToPlayer: true }]);
+      const orphan = engine.validateResult(keeper);
+
+      const outfield = engine.simulateMatch(makeOptions(91822, "مهاجم"));
+      const outfieldMinute = freeMinute(outfield);
+      outfield.player.saves = Number(outfield.player.saves || 0) + 1;
+      insert(outfield, outfieldMinute, [
+        { type: "shot", minute: outfieldMinute, side: "opponent", onTarget: true,
+          shooter: "opponent", creditedToPlayer: false },
+        { type: "save", minute: outfieldMinute, side: "team",
+          actor: "Save Ledger Regression", creditedToPlayer: true }
+      ]);
+      const wrongPosition = engine.validateResult(outfield);
+
+      const legacy = engine.simulateMatch(makeOptions(91823, "حارس مرمى"));
+      for (const event of legacy.events) if (event.type === "shot") delete event.onTarget;
+      return {
+        orphanReason: orphan.reason,
+        orphanConsistent: orphan.saveShotLedgerConsistent,
+        outfieldReason: wrongPosition.reason,
+        outfieldConsistent: wrongPosition.saveRoleConsistent,
+        legacyAccepted: engine.validateResult(legacy).ok
+      };
+    });
+    assert.equal(saveLedgerProbe.orphanReason, "invalid-save-shot-link",
+      "Chromium must reject a credited save without a matching opponent shot");
+    assert.equal(saveLedgerProbe.orphanConsistent, false,
+      "Chromium must expose orphaned save-shot attribution");
+    assert.equal(saveLedgerProbe.outfieldReason, "invalid-save-player-position",
+      "Chromium must reject saves attributed to an outfield player");
+    assert.equal(saveLedgerProbe.outfieldConsistent, false,
+      "Chromium must expose goalkeeper-only save attribution");
+    assert.equal(saveLedgerProbe.legacyAccepted, true,
+      "Chromium must preserve legacy save ledgers without shot-target metadata");
+    results.push("goalkeeper save-shot attribution and legacy-ledger validation");
+
+
+
+
+
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       true,
@@ -179,7 +319,7 @@ async function main() {
     assert.ok(startingContext.dribbling >= 55 && startingContext.dribbling <= 68, "a winger starts with winger-level dribbling");
     assert.ok(startingContext.speed >= 55 && startingContext.speed <= 68, "a winger starts with winger-level speed");
     assert.ok(startingContext.defending >= 15 && startingContext.defending <= 28, "a winger does not start as a defender");
-    assert.ok(startingContext.goalkeeping >= 10 && startingContext.goalkeeping <= 15, "outfield goalkeeper skill stays within the low 10–15 range");
+    assert.equal(startingContext.goalkeeping, 0, "outfield players must start with no goalkeeper skill");
     assert.ok(startingContext.physical >= 45 && startingContext.physical <= 58, "physical skill is initialized by position");
     assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
       "header, player summary, and store must use the Egyptian currency for an Egyptian league");
@@ -317,6 +457,36 @@ async function main() {
         "mobile section must not overflow horizontally: " + section
         + " (" + layout.documentWidth + "px document vs " + layout.viewportWidth + "px viewport); offenders="
         + JSON.stringify(layout.offenders));
+      if (section === "europe") {
+        const worldLayout = await page.evaluate(() => {
+          const rect = selector => {
+            const node = document.querySelector(selector);
+            if (!node) return null;
+            const box = node.getBoundingClientRect();
+            return { width: Math.round(box.width), left: Math.round(box.left), right: Math.round(box.right) };
+          };
+          const drawer = document.querySelector("#drawer");
+          return {
+            viewportWidth: window.innerWidth,
+            page: rect("#page-europe"),
+            grid: rect("#page-europe .world-ai-dashboard-grid"),
+            card: rect("#worldAISimulationDashboard"),
+            copy: rect("#worldAISimulationDashboard .cardHead > div"),
+            drawerHidden: !!drawer && !drawer.classList.contains("open")
+              && getComputedStyle(drawer).visibility === "hidden"
+          };
+        });
+        assert.ok(worldLayout.page && worldLayout.page.width >= worldLayout.viewportWidth * 0.86,
+          "world dashboard page must use the mobile viewport width: " + JSON.stringify(worldLayout));
+        assert.ok(worldLayout.grid && worldLayout.grid.width >= worldLayout.page.width * 0.9,
+          "world dashboard grid must not collapse into a narrow side column: " + JSON.stringify(worldLayout));
+        assert.ok(worldLayout.card && worldLayout.card.width >= worldLayout.grid.width * 0.9,
+          "world dashboard card must fill its grid: " + JSON.stringify(worldLayout));
+        assert.ok(worldLayout.copy && worldLayout.copy.width >= worldLayout.card.width * 0.65,
+          "world dashboard heading text must have a readable line width: " + JSON.stringify(worldLayout));
+        assert.equal(worldLayout.drawerHidden, true,
+          "the mobile side drawer must be hidden when closed: " + JSON.stringify(worldLayout));
+      }
     }
     await page.locator("#shopItems [data-buy]").first().waitFor({ state: "attached" });
     assert.ok(await page.locator("#shopItems [data-buy]").count() > 0, "the player store must render purchasable items");
@@ -682,6 +852,143 @@ async function main() {
     results.push("two-leg cup fixture keeps opponent and correct home/away leg");
 
     await page.locator("#modalClose").click();
+    const invalidTieAggregateBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.playedToday = false;
+      state.trainedToday = false;
+      state.energy = 85;
+      state.fatigue = 10;
+      state.dailyActionUsed = false;
+      state.dailyActionType = "";
+      state.cupState.tieLeg = 2;
+      state.cupState.tieAggregate = true;
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.render();
+      return {
+        energy: Number(state.energy),
+        matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay),
+        historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length,
+        tieAggregate: state.cupState.tieAggregate,
+        tieLeg: Number(state.cupState.tieLeg)
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const invalidTieAggregateAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy),
+        matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay),
+        historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length,
+        tieAggregate: state.cupState.tieAggregate,
+        tieLeg: Number(state.cupState.tieLeg)
+      };
+    });
+    assert.deepEqual(invalidTieAggregateAfter, invalidTieAggregateBefore,
+      "an invalid second-leg aggregate must be rejected before energy, calendar, or match history changes");
+    results.push("invalid second-leg cup aggregate is rejected without consuming a match action");
+
+    const invalidTieLegBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.tieAggregate = 0;
+      state.cupState.tieLeg = 3;
+      state.cupState.tieOpponent = state.cupState.teams[1];
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieLeg: state.cupState.tieLeg
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const invalidTieLegAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieLeg: state.cupState.tieLeg
+      };
+    });
+    assert.deepEqual(invalidTieLegAfter, invalidTieLegBefore,
+      "an invalid tieLeg must be rejected before consuming a match action");
+    results.push("invalid cup tieLeg is rejected without consuming a match action");
+
+    const invalidTieOpponentBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.tieLeg = 2;
+      state.cupState.tieOpponent = { corrupted: true };
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieOpponent: state.cupState.tieOpponent
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const invalidTieOpponentAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, tieOpponent: state.cupState.tieOpponent
+      };
+    });
+    assert.deepEqual(invalidTieOpponentAfter, invalidTieOpponentBefore,
+      "an invalid second-leg opponent must be rejected before consuming a match action");
+    results.push("invalid second-leg opponent is rejected without consuming a match action");
+
+    const malformedTwoLegsBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.twoLegs = "true";
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, twoLegs: state.cupState.twoLegs
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const malformedTwoLegsAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, twoLegs: state.cupState.twoLegs
+      };
+    });
+    assert.deepEqual(malformedTwoLegsAfter, malformedTwoLegsBefore,
+      "malformed twoLegs metadata must be rejected before consuming a match action");
+    results.push("malformed twoLegs metadata is rejected without consuming a match action");
+
+    const shortTwoLegsBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.cupState.stage = 1;
+      state.cupState.twoLegs = [true];
+      window.LWStoryRuntime.save();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, stage: state.cupState.stage,
+        twoLegs: state.cupState.twoLegs
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const shortTwoLegsAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy), matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay), historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length, stage: state.cupState.stage,
+        twoLegs: state.cupState.twoLegs
+      };
+    });
+    assert.deepEqual(shortTwoLegsAfter, shortTwoLegsBefore,
+      "a twoLegs array missing the current knockout stage must be rejected before consuming a match action");
+    results.push("incomplete twoLegs stage metadata is rejected without consuming a match action");
+
     await page.evaluate(backup => {
       const state = window.LWStoryRuntime.getState();
       Object.keys(state).forEach(key => delete state[key]);
@@ -842,6 +1149,10 @@ async function main() {
         contractSeasons: 3,
         releaseClause: 0
       }];
+      // Simulate continuing into the second half while the January window is still open.
+      // Offers saved by older builds use winter-season-N and must remain negotiable.
+      state.winterBreakPending = false;
+      state.seasonPhase = "secondHalf";
       window.LWStoryRuntime.save();
       window.LWStoryRuntime.showPage("contract");
       window.LWStoryRuntime.render();
@@ -967,6 +1278,61 @@ async function main() {
     assert.ok(completedSeason.goldenBootRowCount > 0, "the golden-boot leaderboard must render player rows");
     assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
     results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
+
+    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary"];
+    const mobileLayoutAudit = [];
+    for (const route of mobileRoutes) {
+      const layout = await page.evaluate(async routeName => {
+        window.LWStoryRuntime.showPage(routeName);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const viewport = window.innerWidth;
+        const documentWidth = document.documentElement.scrollWidth;
+        const bodyWidth = document.body.scrollWidth;
+        const worldGrid = routeName === "europe" ? document.querySelector("#page-europe .world-ai-dashboard-grid") : null;
+        const worldGridWidth = worldGrid ? Math.round(worldGrid.getBoundingClientRect().width) : null;
+        const worldCardWidths = worldGrid
+          ? Array.from(worldGrid.querySelectorAll(".world-ai-dashboard-card")).map(card => Math.round(card.getBoundingClientRect().width))
+          : [];
+        const offenders = Array.from(document.querySelectorAll("body *")).filter(element => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          if (style.display === "none" || style.visibility === "hidden" || style.position === "fixed" || style.position === "sticky") return false;
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          return rect.left < -1 || rect.right > viewport + 1;
+        }).slice(0, 8).map(element => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName.toLowerCase(),
+            id: element.id || "",
+            className: typeof element.className === "string" ? element.className.slice(0, 100) : "",
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth
+          };
+        });
+        return { route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders };
+      }, route);
+      mobileLayoutAudit.push(layout);
+      assert.ok(
+        layout.documentWidth <= layout.viewport + 1 && layout.bodyWidth <= layout.viewport + 1,
+        "mobile page '" + route + "' has horizontal overflow: " + JSON.stringify(layout)
+      );
+      if (route === "europe") {
+        assert.ok(layout.worldGridWidth !== null, "the world dashboard grid must exist on the Europe page");
+        assert.ok(
+          layout.worldGridWidth >= layout.viewport * 0.82,
+          "the mobile world dashboard must use the available width instead of collapsing into a narrow column: " + JSON.stringify(layout)
+        );
+        assert.ok(
+          layout.worldCardWidths.length > 0 && layout.worldCardWidths.every(width => width >= layout.viewport * 0.72),
+          "world dashboard cards must remain readable and full-width on mobile: " + JSON.stringify(layout)
+        );
+      }
+    }
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    results.push("mobile horizontal-overflow audit across all 11 career/world pages");
 
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");

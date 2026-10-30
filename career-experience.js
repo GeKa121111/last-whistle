@@ -9,6 +9,16 @@
   var timing = { value: 0, direction: 1, timer: null, running: false };
   var memory = { sequence: [], answers: [], timer: null, stage: "idle" };
   var investmentSequence = 1;
+  var lastExperienceSnapshot = "";
+  var lastExperienceRuntime = null;
+  var lastSettledDay = null;
+  var experienceTickScheduled = false;
+  var experienceForceQueued = false;
+  var pendingInvestmentsWorld = null;
+  var pendingInvestmentsRevision = null;
+  var pendingInvestmentsLength = -1;
+  var pendingInvestmentsTail = "";
+  var pendingInvestmentsCount = 0;
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -38,6 +48,11 @@
     w.timingWins = Number(w.timingWins) || 0;
     w.mentorSessions = Number(w.mentorSessions) || 0;
     w.investmentSequence = Number(w.investmentSequence) || 1;
+    // Legacy saves may have an absent or stale sequence counter; keep every investment ID unique.
+    var maxInvestmentId = w.investments.reduce(function (max, item) {
+      return Math.max(max, Number(item && item.id) || 0);
+    }, 0);
+    w.investmentSequence = Math.max(w.investmentSequence, maxInvestmentId + 1);
     return w;
   }
 
@@ -58,8 +73,8 @@
     else s[key] = next;
   }
 
-  function record(s, title, text) {
-    var w = world(s);
+  function record(s, title, text, cachedWorld) {
+    var w = cachedWorld || world(s);
     var row = {
       title: String(title || "حدث في المسيرة"),
       text: String(text || ""),
@@ -113,9 +128,9 @@
     return true;
   }
 
-  function renderPanel(s) {
+  function renderPanel(s, cachedWorld) {
     if (!s || !ensurePanel()) return;
-    var w = world(s);
+    var w = cachedWorld || world(s);
     var pending = w.investments.filter(function (item) { return !item.settled; }).length;
     function text(id, value) {
       var element = document.getElementById(id);
@@ -180,18 +195,23 @@
     return '<button type="button" class="lwcx-option" data-lwcx-action="' + esc(action) + '"' + (attrs || "") + '><span><strong>' + esc(label) + '</strong>' + (detail ? '<small>' + esc(detail) + '</small>' : '') + '</span><b aria-hidden="true">←</b></button>';
   }
 
-  function openChallenges() {
+  function openChallenges(s) {
+    s = s || (API() && API().getState());
+    if (!s) return;
     currentView = "challenges";
+    var unavailable = !!s.retired || Number(s.injuryDays) > 0;
+    var energy = Number(s.energy) || 0;
     frame("اختار اللحظة اللي هتلعبها", "PLAYABLE MOMENTS",
-      '<p class="lwcx-intro">دي تحديات تدريبية داخل المسيرة؛ بتأثر على قدراتك ومعنوياتك، لكن مش بتضيف هدف أو مشاركة رسمية لسجل المباريات.</p>' +
+      '<p class="lwcx-intro">دي تحديات تدريبية بتطوّر قدراتك من غير ما تزود إحصائيات المباريات الرسمية. كل تحدي له تكلفة طاقة، والإصابة بتمنع التدريب.</p>' +
       '<div class="lwcx-options">' +
-        actionButton("open-penalty", "ركلة جزاء تدريبية", "اختار الاتجاه والقوة وحاول تتغلب على توقع الحارس.") +
-        actionButton("open-timing", "اختبار التوقيت", "وقّف المؤشر في المنطقة المثالية لرفع هدوئك تحت الضغط.") +
-        actionButton("open-memory", "اختبار التركيز", "احفظ سلسلة الاتجاهات وكررها بالترتيب.") +
+        actionButton("open-penalty", "ركلة جزاء تدريبية", "اختار الاتجاه والقوة وحاول تتغلب على توقع الحارس.", (unavailable || energy < 4) ? ' disabled' : '') +
+        actionButton("open-timing", "اختبار التوقيت", "وقّف المؤشر في المنطقة المثالية لرفع هدوئك تحت الضغط.", (unavailable || energy < 3) ? ' disabled' : '') +
+        actionButton("open-memory", "اختبار التركيز", "احفظ سلسلة الاتجاهات وكررها بالترتيب.", (unavailable || energy < 1) ? ' disabled' : '') +
       '</div>');
   }
 
-  function openPenalty() {
+  function openPenalty(s) {
+    if (!canPractice(s, 4)) return;
     currentView = "penalty";
     if (!penalty.direction) penalty.direction = "";
     var directions = [
@@ -215,7 +235,30 @@
       '</div>');
   }
 
+  function canPractice(s, energyCost) {
+    var api = API();
+    var message = "";
+    if (!s || !s.careerStarted || s.retired) {
+      message = s && s.retired
+        ? "المسيرة انتهت بالاعتزال؛ التحديات التدريبية متاحة أثناء اللعب فقط."
+        : "ابدأ مسيرتك الأول علشان تستخدم التحديات دي.";
+    } else if (Number(s.injuryDays) > 0) {
+      message = "اتعافى الأول قبل أي تحدي تدريبي.";
+    } else if ((Number(s.energy) || 0) < Math.max(0, Number(energyCost) || 0)) {
+      message = "طاقتك مش كفاية للتحدي ده. ارتاح أو تقدّم في أيام المسيرة.";
+    }
+    if (message) {
+      if (api && api.toast) api.toast(message);
+      return false;
+    }
+    return true;
+  }
+
   function finishChallenge(s, title, message, won, skill, amount, energyCost) {
+    if (!canPractice(s, energyCost)) {
+      closeModal();
+      return false;
+    }
     var w = world(s);
     w.challengeCount++;
     w.practiceAttempts++;
@@ -238,11 +281,7 @@
   }
 
   function shootPenalty(s) {
-    if (s.retired || Number(s.injuryDays) > 0 || Number(s.energy) < 4) {
-      var api = API();
-      if (api && api.toast) api.toast(Number(s.injuryDays) > 0 ? "اتعافى الأول قبل تدريب التسديد." : "طاقتك مش كفاية للتحدي ده.");
-      return;
-    }
+    if (!canPractice(s, 4)) return;
     if (!penalty.direction) return;
     var keeper = ["left", "center", "right"][Math.floor(Math.random() * 3)];
     var power = cap(penalty.power, 25, 95);
@@ -258,7 +297,8 @@
     penalty.power = 68;
   }
 
-  function openTiming() {
+  function openTiming(s) {
+    if (!canPractice(s, 3)) return;
     currentView = "timing-intro";
     timing.value = 0;
     timing.direction = 1;
@@ -269,7 +309,8 @@
       "هتحتاج تفاعل يدوي؛ مفيش مكافأة هتتحسب من غير ما توقف المؤشر بنفسك.");
   }
 
-  function startTiming() {
+  function startTiming(s) {
+    if (!canPractice(s, 3) || timing.running) return;
     if (timing.timer) window.clearInterval(timing.timer);
     timing.value = 5;
     timing.direction = 1;
@@ -293,6 +334,7 @@
   }
 
   function stopTiming(s) {
+    if (!timing.running || currentView !== "timing-game") return;
     if (timing.timer) window.clearInterval(timing.timer);
     timing.timer = null;
     timing.running = false;
@@ -313,13 +355,19 @@
     memory.stage = "show";
   }
 
-  function openMemory() {
-    var s = API().getState();
+  function openMemory(s) {
+    if (!canPractice(s, 1)) return;
     createMemorySequence(s);
     currentView = "memory-show";
     drawMemoryShow();
     memory.timer = window.setTimeout(function () {
       if (currentView === "memory-show") {
+        var latest = API() && API().getState();
+        if (!canPractice(latest, 1)) {
+          closeModal();
+          return;
+        }
+        memory.timer = null;
         memory.stage = "answer";
         currentView = "memory-answer";
         drawMemoryAnswer();
@@ -346,6 +394,10 @@
 
   function answerMemory(s, arrow) {
     if (currentView !== "memory-answer") return;
+    if (!canPractice(s, 1)) {
+      closeModal();
+      return;
+    }
     memory.answers.push(arrow);
     if (memory.answers.length < memory.sequence.length) {
       drawMemoryAnswer();
@@ -376,10 +428,22 @@
   }
 
   function makeInvestment(s, risky) {
+    if (!s) return;
     var w = world(s);
     var amount = risky ? 200 : 100;
-    if (s.retired || Number(s.money) < amount) {
-      var api = API();
+    var api = API();
+    var openCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
+    if (!s.careerStarted || s.retired) {
+      if (api && api.toast) api.toast(s.retired
+        ? "المسيرة انتهت بالاعتزال؛ مش متاح تبدأ استثمارات جديدة."
+        : "ابدأ مسيرتك الأول علشان تستخدم الاستثمار.");
+      return;
+    }
+    if (openCount >= 5) {
+      if (api && api.toast) api.toast("عندك 5 عمليات استثمار مفتوحة بالفعل. استنى استحقاق واحدة قبل ما تبدأ غيرها.");
+      return;
+    }
+    if ((Number(s.money) || 0) < amount) {
       if (api && api.toast) api.toast("رصيدك مش كفاية للعملية دي.");
       return;
     }
@@ -402,6 +466,7 @@
 
   function openTrainingSkill() {
     currentView = "training-skill";
+    var s = API().getState();
     frame("حصة مدرب متخصص", "FOCUSED TRAINING",
       '<p class="lwcx-intro">اختار مهارة واحدة. التكلفة 180 جنيهًا داخل اللعبة و8 طاقة، والتدريب يمنح نقطتين في المهارة المختارة.</p>' +
       '<div class="lwcx-skill-grid">' +
@@ -411,16 +476,25 @@
         actionButton("skill-speed", "السرعة", "انطلاقة أسرع.") +
         actionButton("skill-fitness", "اللياقة", "قدرة بدنية أعلى.") +
         actionButton("skill-composure", "الهدوء", "ثبات تحت الضغط.") +
+        (s.pos === "حارس مرمى" ? actionButton("skill-goalkeeping", "حراسة المرمى", "تدريب تخصصي للحارس فقط.") : "") +
       '</div><div class="lwcx-modal-actions"><button type="button" class="lwcx-button" data-lwcx-action="open-finance">رجوع</button></div>');
   }
 
   function applyFocusedTraining(s, skill) {
+    if (!s) return;
+    var allowedSkills = ["shooting", "passing", "dribbling", "speed", "fitness", "composure"];
+    if (s.pos === "حارس مرمى") allowedSkills.push("goalkeeping");
+    if (allowedSkills.indexOf(skill) < 0) {
+      var rejectedApi = API();
+      if (rejectedApi && rejectedApi.toast) rejectedApi.toast("المهارة دي مش متاحة لمركزك.");
+      return;
+    }
     if (s.retired || Number(s.injuryDays) > 0 || Number(s.money) < 180 || Number(s.energy) < 8) {
       var api = API();
       if (api && api.toast) api.toast("راجع الرصيد والطاقة والإصابة قبل التمرين.");
       return;
     }
-    var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء" };
+    var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء", goalkeeping: "حراسة المرمى" };
     s.money = Math.max(0, Number(s.money) - 180);
     stat(s, skill, 2);
     stat(s, "energy", -8);
@@ -431,8 +505,8 @@
     renderFinance();
   }
 
-  function settleInvestments(s) {
-    var w = world(s);
+  function settleInvestments(s, cachedWorld) {
+    var w = cachedWorld || world(s);
     var today = dayNumber(s);
     var changed = false;
     w.investments.forEach(function (item) {
@@ -440,7 +514,7 @@
       item.settled = true;
       s.money = Math.max(0, Number(s.money) || 0) + Math.max(0, Number(item.payout) || 0);
       item.result = item.successful ? "نجحت العملية" : "خسارة استثمارية";
-      record(s, "استحقاق استثمار", item.label + ": رجع لحسابك " + item.payout + " جنيه داخل اللعبة (" + item.result + ").");
+      record(s, "استحقاق استثمار", item.label + ": رجع لحسابك " + item.payout + " جنيه داخل اللعبة (" + item.result + ").", w);
       changed = true;
     });
     if (changed) {
@@ -455,12 +529,14 @@
     currentView = "mentor";
     var s = API().getState();
     var used = !!s.dailyActionUsed && Number(s.dailyActionDay) === Number(s.day);
+    var unavailable = !s.careerStarted || !!s.retired;
+    var energy = Number(s.energy) || 0;
     frame("العلاقات والتوجيه", "PEOPLE AROUND YOU",
-      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. النظام بيحترم النشاط الجانبي اليومي الموجود في اللعبة.</p>' +
+      '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. جلسة المدرب تحتاج 3 طاقة، ودعم الزميل يحتاج طاقة واحدة؛ الراحة الذهنية متاحة حتى مع الطاقة المنخفضة.</p>' +
       '<div class="lwcx-options">' +
-        actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", used ? ' disabled' : '') +
-        actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", used ? ' disabled' : '') +
-        actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", used ? ' disabled' : '') +
+        actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", (used || unavailable || energy < 3) ? ' disabled' : '') +
+        actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", (used || unavailable || energy < 1) ? ' disabled' : '') +
+        actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", (used || unavailable) ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>سجل العلاقات</strong><span>' + world(s).mentorSessions + ' جلسة' + '</span></div>' +
       ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية/.test(row.title); }).slice(0, 4)).map(function (row) {
         return '<div class="lwcx-investment-row"><span><strong>' + esc(row.title) + '</strong><small>الموسم ' + esc(row.season) + ' · اليوم ' + esc(row.day) + '</small></span><b>✓</b></div>';
@@ -469,11 +545,28 @@
   }
 
   function doMentor(s, kind) {
-    if (s.retired) return;
+    var api = API();
+    if (!s || !s.careerStarted || s.retired) {
+      if (api && api.toast) api.toast(s && s.retired
+        ? "المسيرة انتهت بالاعتزال؛ أنشطة المسيرة اليومية مش متاحة."
+        : "ابدأ مسيرتك الأول علشان تستخدم أنشطة العلاقات.");
+      closeModal();
+      return;
+    }
+    if (["coach", "teammate", "reset"].indexOf(kind) < 0) {
+      if (api && api.toast) api.toast("النشاط ده مش متاح.");
+      return;
+    }
     var currentDay = Number(s.day) || 1;
     if (s.dailyActionUsed && Number(s.dailyActionDay) === currentDay) {
       var api = API();
       if (api && api.toast) api.toast("استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد.");
+      openMentor();
+      return;
+    }
+    var requiredEnergy = kind === "coach" ? 3 : kind === "teammate" ? 1 : 0;
+    if ((Number(s.energy) || 0) < requiredEnergy) {
+      if (api && api.toast) api.toast("طاقتك مش كفاية للنشاط ده. ارتاح الأول أو اختار الراحة الذهنية.");
       openMentor();
       return;
     }
@@ -557,19 +650,19 @@
       return;
     }
     if (action === "close") { closeModal(); return; }
-    if (action === "open-challenges") { openChallenges(); return; }
+    if (action === "open-challenges") { openChallenges(s); return; }
     if (action === "open-finance") { currentView = "finance"; renderFinance(); return; }
     if (action === "open-mentor") { openMentor(); return; }
     if (action === "open-legacy") { openLegacy(); return; }
-    if (action === "open-penalty") { penalty = { direction: "", power: 68 }; openPenalty(); return; }
-    if (action === "penalty-target") { penalty.direction = element.getAttribute("data-dir") || ""; openPenalty(); return; }
+    if (action === "open-penalty") { penalty = { direction: "", power: 68 }; openPenalty(s); return; }
+    if (action === "penalty-target") { penalty.direction = element.getAttribute("data-dir") || ""; openPenalty(s); return; }
     if (action === "penalty-shoot") { penalty.power = cap((document.getElementById("lwcx-power") || {}).value || penalty.power, 25, 95); shootPenalty(s); return; }
-    if (action === "open-timing") { openTiming(); return; }
-    if (action === "timing-start") { startTiming(); return; }
+    if (action === "open-timing") { openTiming(s); return; }
+    if (action === "timing-start") { startTiming(s); return; }
     if (action === "timing-stop") { stopTiming(s); return; }
-    if (action === "open-memory") { openMemory(); return; }
+    if (action === "open-memory") { openMemory(s); return; }
     if (action === "memory-answer") { answerMemory(s, element.getAttribute("data-arrow") || ""); return; }
-    if (action === "memory-reset") { openMemory(); return; }
+    if (action === "memory-reset") { openMemory(s); return; }
     if (action === "invest-safe") { makeInvestment(s, false); return; }
     if (action === "invest-risky") { makeInvestment(s, true); return; }
     if (action === "training-skill") { openTrainingSkill(); return; }
@@ -577,14 +670,95 @@
     if (action.indexOf("mentor-") === 0) { doMentor(s, action.slice(7)); return; }
   }
 
-  function tick() {
+  function pendingInvestmentCount(w, revision, force) {
+    var investments = Array.isArray(w.investments) ? w.investments : [];
+    var latest = investments.length ? investments[investments.length - 1] : null;
+    var tail = latest ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":") : "-";
+    if (force || w !== pendingInvestmentsWorld || revision !== pendingInvestmentsRevision
+      || investments.length !== pendingInvestmentsLength || tail !== pendingInvestmentsTail) {
+      pendingInvestmentsCount = investments.reduce(function (count, item) {
+        return count + (item && !item.settled ? 1 : 0);
+      }, 0);
+      pendingInvestmentsWorld = w;
+      pendingInvestmentsRevision = revision;
+      pendingInvestmentsLength = investments.length;
+      pendingInvestmentsTail = tail;
+    }
+    return pendingInvestmentsCount;
+  }
+
+  function panelSignature(s, w, revision, forcePendingCount) {
+    var investments = Array.isArray(w.investments) ? w.investments : [];
+    var latest = investments.length ? investments[investments.length - 1] : null;
+    var latestSignature = latest
+      ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":")
+      : "-";
+    return [
+      s.careerStarted ? 1 : 0,
+      s.retired ? 1 : 0,
+      Number(s.energy) || 0,
+      Math.max(0, Number(s.money) || 0),
+      dayNumber(s),
+      Array.isArray(s.storyHistory) ? s.storyHistory.length : 0,
+      Number(w.challengeWins) || 0,
+      Number(w.practiceAttempts) || 0,
+      Number(w.mentorSessions) || 0,
+      investments.length,
+      latestSignature,
+      pendingInvestmentCount(w, revision, !!forcePendingCount)
+    ].join("|");
+  }
+
+  function tick(force) {
     var api = API();
     if (!api) return;
     var s = api.getState();
     if (!s) return;
-    world(s);
-    if (ensurePanel()) renderPanel(s);
-    settleInvestments(s);
+
+    var today = dayNumber(s);
+    var runtimeChanged = s !== lastExperienceRuntime;
+    var currentWorld = s.careerWorld && typeof s.careerWorld === "object" ? s.careerWorld : null;
+    var needsSettlementCheck = !!force || runtimeChanged || !currentWorld
+      || lastSettledDay === null || today !== lastSettledDay;
+    var w = needsSettlementCheck ? world(s) : currentWorld;
+
+    if (needsSettlementCheck) {
+      // Set the day before settling: api.save() can synchronously publish twice.
+      // The queued follow-up tick must not rescan the portfolio a second time.
+      lastSettledDay = today;
+      var settledInvestments = settleInvestments(s, w);
+      w = s.careerWorld || w;
+      if (settledInvestments) pendingInvestmentsWorld = null;
+    }
+
+    if (!ensurePanel()) {
+      lastExperienceSnapshot = "";
+      lastExperienceRuntime = s;
+      return;
+    }
+
+    var store = window.LWStateStore;
+    var revision = store && typeof store.getRevision === "function" ? Number(store.getRevision()) : null;
+    if (!Number.isFinite(revision)) revision = null;
+    var signature = panelSignature(s, w, revision, needsSettlementCheck || runtimeChanged);
+    if (force || runtimeChanged || signature !== lastExperienceSnapshot) {
+      // Background pages still process due investments, but do not mutate the DOM.
+      if (!document.hidden) renderPanel(s, w);
+      lastExperienceSnapshot = signature;
+    }
+    lastExperienceRuntime = s;
+  }
+
+  function scheduleTick(force) {
+    experienceForceQueued = experienceForceQueued || !!force;
+    if (experienceTickScheduled) return;
+    experienceTickScheduled = true;
+    Promise.resolve().then(function () {
+      experienceTickScheduled = false;
+      var queuedForce = experienceForceQueued;
+      experienceForceQueued = false;
+      tick(queuedForce);
+    });
   }
 
   document.addEventListener("click", function (event) {
@@ -604,10 +778,20 @@
   });
 
   function start() {
-    tick();
-    window.setInterval(tick, 900);
-    window.addEventListener("pageshow", tick);
-    window.addEventListener("storage", tick);
+    tick(true);
+    var store = window.LWStateStore;
+    if (store && typeof store.subscribe === "function") {
+      store.subscribe(function () { scheduleTick(false); });
+      window.setInterval(function () { tick(false); }, 5000);
+    } else {
+      // Older saves/builds without the shared store still receive periodic refreshes.
+      window.setInterval(function () { tick(false); }, 2500);
+    }
+    window.addEventListener("pageshow", function () { tick(true); });
+    window.addEventListener("storage", function () { tick(true); });
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) tick(true);
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });

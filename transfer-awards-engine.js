@@ -42,21 +42,52 @@
     return "midfielder";
   }
 
-  function defensiveAwardBonus(player) {
-    const row = player || {};
-    const type = roleType(row.position);
-    const cleanSheets = Math.max(0, Number(row.cleanSheets) || 0);
-    const saves = Math.max(0, Number(row.saves) || 0);
-    const penaltiesSaved = Math.max(0, Number(row.penaltiesSaved) || 0);
-    const tackles = Math.max(0, Number(row.tacklesWon != null ? row.tacklesWon : row.tackles) || 0);
-    const interceptions = Math.max(0, Number(row.interceptions) || 0);
-    const clearances = Math.max(0, Number(row.clearances) || 0);
-    const recoveries = Math.max(0, Number(row.ballRecoveries) || 0);
-    const keyPasses = Math.max(0, Number(row.keyPasses) || 0);
-    if (type === "keeper") return cleanSheets * 0.8 + saves * 0.12 + penaltiesSaved * 0.6;
-    if (type === "defender") return cleanSheets * 0.55 + tackles * 0.12 + interceptions * 0.11 + clearances * 0.04 + recoveries * 0.04;
-    if (type === "midfielder") return keyPasses * 0.08 + recoveries * 0.05;
-    return 0;
+  // Use season evidence when available; otherwise create a deterministic career-world
+  // projection so goalkeepers are not excluded from end-of-season awards.
+  function defensiveAwardBonus(row) {
+    const value = key => Math.max(0, Number(row && row[key]) || 0);
+    return value("cleanSheets") * 0.35 + value("saves") * 0.025
+      + value("penaltiesSaved") * 0.8 + value("tacklesWon") * 0.05
+      + value("interceptions") * 0.06 + value("clearances") * 0.015
+      + value("ballRecoveries") * 0.025 + value("keyPasses") * 0.08;
+  }
+
+  function applyDefensiveSeasonStats(row, player, season) {
+    player = player || {};
+    const saved = player.seasonStats && Number(player.seasonStats.season) === Number(season)
+      ? player.seasonStats : {};
+    const type = roleType(row.position || player.position);
+    const appearances = Math.max(0, Number(row.appearances) || 0);
+    const ovr = clamp(row.ovr || player.ovr || 60, 35, 99);
+    const strength = clamp(row.leagueStrength || player.leagueStrength || 60, 25, 100);
+    const random = seeded(stableHash("defense|" + season + "|" + String(row.club || player.clubName || player.club || "")
+      + "|" + String(row.name || player.name || "")));
+    const cleanRate = type === "keeper"
+      ? clamp(0.25 + (ovr - 60) * 0.006 + (strength - 60) * 0.002 + (random() - 0.5) * 0.08, 0.12, 0.68)
+      : type === "defender"
+        ? clamp(0.18 + (ovr - 60) * 0.003 + (strength - 60) * 0.002 + (random() - 0.5) * 0.05, 0.05, 0.52)
+        : 0;
+    const projectedCleanSheets = Math.round(appearances * cleanRate);
+    const projectedSaves = type === "keeper"
+      ? Math.round(appearances * clamp(1.6 + (100 - ovr) * 0.025 + (60 - strength) * 0.008 + random() * 0.6, 0.8, 4.2))
+      : 0;
+    const value = (key, fallback = 0) => {
+      const raw = saved[key] != null ? saved[key] : player[key] != null ? player[key] : undefined;
+      return raw === undefined ? Math.max(0, Number(fallback) || 0) : Math.max(0, Number(raw) || 0);
+    };
+    row.cleanSheets = value("cleanSheets", projectedCleanSheets);
+    row.saves = value("saves", projectedSaves);
+    row.penaltiesSaved = value("penaltiesSaved", 0);
+    row.tacklesWon = value("tacklesWon", value("tackles", 0));
+    row.interceptions = value("interceptions", 0);
+    row.clearances = value("clearances", 0);
+    row.ballRecoveries = value("ballRecoveries", 0);
+    row.keyPasses = value("keyPasses", 0);
+    row.defensiveBonus = defensiveAwardBonus(row);
+    row.goldenGloveScore = type === "keeper"
+      ? row.cleanSheets * 3 + row.saves * 0.3 + row.penaltiesSaved * 2 + Math.max(0, Number(row.averageRating) || 0) * 0.3
+      : 0;
+    return row;
   }
 
   function estimatedAge(player, season) {
@@ -71,8 +102,17 @@
       "فرانكو ماستانتونو": 18,
       "نيكو أوريلي": 21
     };
-    if (knownYoung[player.name] !== undefined) return knownYoung[player.name];
-    return 24 + (stableHash(player.name + "|" + season) % 10);
+    const name = String(player && player.name || "");
+    const sourcedAge = Number(player && player.age);
+    const firstSeasonAge = Number.isFinite(sourcedAge) && sourcedAge >= 1
+      ? Math.floor(sourcedAge)
+      : Object.prototype.hasOwnProperty.call(knownYoung, name)
+        ? knownYoung[name]
+        : 24 + (stableHash(name) % 10);
+    const seasonNumber = Math.max(1, Math.floor(Number(season) || 1));
+    // Sourced age, known-player baseline, or fallback estimate all describe the
+    // player's age in season one. Advance the same baseline once per season.
+    return Math.min(40, firstSeasonAge + seasonNumber - 1);
   }
 
   function simulatePlayerSeason(player, season, progress) {
@@ -81,16 +121,16 @@
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
       const appearances = Math.round(Math.max(0, Number(saved.appearances) || 0) * scale);
-      const goals = Math.round(Math.max(0, Number(saved.goals) || 0) * scale);
-      const assists = Math.round(Math.max(0, Number(saved.assists) || 0) * scale);
+      const goals = appearances > 0 ? Math.round(Math.max(0, Number(saved.goals) || 0) * scale) : 0;
+      const assists = appearances > 0 ? Math.round(Math.max(0, Number(saved.assists) || 0) * scale) : 0;
       const averageRating = appearances > 0 ? clamp(saved.averageRating || 0, 0, 10) : 0;
       const leagueStrength = Number(player.leagueStrength) || 60;
       return {
         name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
-        age: Number(player.age) || estimatedAge(player, season), ovr, appearances, goals, assists,
+        age: estimatedAge(player, season), ovr, appearances, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
-        score: Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)),
+        score: appearances > 0 ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)) : 0,
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
         confederation: player.confederation || "", originConfederation: player.originConfederation || player.confederation || "",
         leagueStrength, realPlayer: player.realPlayer !== false, isUser: !!player.isUser
@@ -119,7 +159,7 @@
       club: player.clubName || player.club || "نادي غير محدد",
       country: player.country || "",
       position: player.position || "غير محدد",
-      age: Number(player.age) || estimatedAge(player, season),
+      age: estimatedAge(player, season),
       ovr: ovr,
       appearances: appearances,
       goals: goals,
@@ -139,7 +179,10 @@
     input = input || {};
     const player = input.player || {};
     const targets = Array.isArray(input.targets) ? input.targets : [];
-    if (!input.windowId || Number(player.appearances) < 2 || Number(player.form || 0) < 5.8) return [];
+    const appearances = Number(player.appearances);
+    const form = Number(player.form);
+    if (!input.windowId || !Number.isFinite(appearances) || appearances < 2
+      || !Number.isFinite(form) || form < 5.8) return [];
     const playerOvr = clamp(player.ovr || 50, 35, 99);
     const currentPower = clamp(input.currentClubPower || player.currentClubPower || 50, 35, 99);
     const contributions = Math.max(0, Number(player.goals) || 0) + Math.max(0, Number(player.assists) || 0);
@@ -339,9 +382,19 @@
         realPlayer: false,
         isUser: true
       }, input.userLine);
-      user.score = Number(user.averageRating || 0) * 9 + Number(user.goals || 0) * 0.95
-        + Number(user.assists || 0) * 0.62 + Number(user.leagueStrength || 60) * 0.035;
-      user.weightedGoals = Number(user.goals || 0) * (0.82 + Number(user.leagueStrength || 60) / 450);
+      const userAppearances = Math.max(0, Number(user.appearances || user.apps) || 0);
+      user.appearances = userAppearances;
+      if (userAppearances === 0) {
+        user.goals = 0;
+        user.assists = 0;
+        user.averageRating = 0;
+        user.score = 0;
+        user.weightedGoals = 0;
+      } else {
+        user.score = Number(user.averageRating || 0) * 9 + Number(user.goals || 0) * 0.95
+          + Number(user.assists || 0) * 0.62 + Number(user.leagueStrength || 60) * 0.035;
+        user.weightedGoals = Number(user.goals || 0) * (0.82 + Number(user.leagueStrength || 60) / 450);
+      }
       rows.push(user);
     }
     const unique = new Map();
@@ -367,16 +420,11 @@
       const key = normalized(realPlayer.name) + "|" + normalized(realPlayer.clubName || realPlayer.club || "");
       if (seen.has(key)) continue;
       seen.add(key);
-      const row = simulatePlayerSeason(realPlayer, season, 1);
+      const row = applyDefensiveSeasonStats(simulatePlayerSeason(realPlayer, season, 1), realPlayer, season);
       row.trophyBonus = stableHash(season + "|" + row.club + "|trophy") % 8;
-      const savedStats = realPlayer.seasonStats && Number(realPlayer.seasonStats.season) === season ? realPlayer.seasonStats : {};
-      for (const key of ["cleanSheets", "saves", "penaltiesSaved", "tacklesWon", "interceptions", "clearances", "ballRecoveries", "keyPasses"]) {
-        row[key] = Math.max(0, Number(realPlayer[key] != null ? realPlayer[key] : savedStats[key]) || 0);
-      }
-      row.goldenGloveScore = row.cleanSheets * 3 + row.saves * 0.3 + row.penaltiesSaved * 2 + row.averageRating * 0.3;
       row.ballonScore = row.averageRating * 8.8 + row.goals * 0.94 + row.assists * 0.64
         + row.ovr * 0.08 + row.trophyBonus + (Number(realPlayer.leagueStrength) || 60) * 0.04
-        + (Number(realPlayer.prestige) || 60) * 0.025 + defensiveAwardBonus(row);
+        + (Number(realPlayer.prestige) || 60) * 0.025 + row.defensiveBonus;
       row.theBestScore = row.ballonScore + row.averageRating * 0.22
         + (stableHash(row.name + "|" + season + "|best") % 17) / 10;
       row.originConfederation = realPlayer.originConfederation || realPlayer.confederation || "";
@@ -397,27 +445,18 @@
       score: 0,
       weightedGoals: 0,
       trophyBonus: trophies * 5,
-      cleanSheets: Math.max(0, Number(player.cleanSheets) || 0),
-      saves: Math.max(0, Number(player.saves) || 0),
-      penaltiesSaved: Math.max(0, Number(player.penaltiesSaved) || 0),
-      tacklesWon: Math.max(0, Number(player.tacklesWon != null ? player.tacklesWon : player.tackles) || 0),
-      interceptions: Math.max(0, Number(player.interceptions) || 0),
-      clearances: Math.max(0, Number(player.clearances) || 0),
-      ballRecoveries: Math.max(0, Number(player.ballRecoveries) || 0),
-      keyPasses: Math.max(0, Number(player.keyPasses) || 0),
-      goldenGloveScore: 0,
       confederation: String(player.confederation || ""),
       originConfederation: String(player.originConfederation || player.confederation || ""),
       leagueStrength: Number(player.leagueStrength) || 60,
       realPlayer: false,
       isUser: true
     };
+    applyDefensiveSeasonStats(user, player, season);
     user.score = user.averageRating * 9 + user.goals * 0.95 + user.assists * 0.62
-      + user.ovr * 0.08 + user.leagueStrength * 0.035 + trophies * 5;
+      + user.ovr * 0.08 + user.leagueStrength * 0.035 + trophies * 5 + user.defensiveBonus * 0.3;
     user.weightedGoals = user.goals * (0.82 + user.leagueStrength / 450);
-    user.goldenGloveScore = user.cleanSheets * 3 + user.saves * 0.3 + user.penaltiesSaved * 2 + user.averageRating * 0.3;
     user.ballonScore = user.averageRating * 8.8 + user.goals * 0.94 + user.assists * 0.64
-      + user.ovr * 0.08 + trophies * 5 + user.leagueStrength * 0.04 + defensiveAwardBonus(user);
+      + user.ovr * 0.08 + trophies * 5 + user.leagueStrength * 0.04 + user.defensiveBonus;
     user.theBestScore = user.ballonScore + user.averageRating * 0.22 + (Number(player.professionalism) || 50) * 0.025;
     candidates.push(user);
 
@@ -429,22 +468,24 @@
           || String(a.name).localeCompare(String(b.name), "ar");
       });
     };
-    const bestFive = rank(candidates, "ballonScore").slice(0, 5);
-    const ballonWinner = bestFive[0] || user;
+    const eligibleCandidates = candidates.filter(row => Number(row.appearances) >= 10);
+    const bestFive = rank(eligibleCandidates, "ballonScore").slice(0, 5);
+    const ballonWinner = bestFive[0] || { name: "لا يوجد لاعب مؤهل", club: "", isUser: false };
     const allAwards = [
-      { id: "ballon-dor", title: "الكرة الذهبية (Ballon d'Or)", metric: "ballonScore", pool: candidates },
-      { id: "fifa-the-best", title: "جائزة ذا بيست (FIFA The Best)", metric: "theBestScore", pool: candidates },
-      { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: candidates },
-      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: candidates.filter(row => Number(row.age) <= 21) },
-      { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: candidates.filter(row => row.originConfederation === "CAF") },
-      { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: candidates.filter(row => row.confederation === "UEFA") },
-      { id: "conmebol-player", title: "أفضل لاعب في أمريكا الجنوبية", metric: "ballonScore", pool: candidates.filter(row => row.confederation === "CONMEBOL") }
+      { id: "ballon-dor", title: "الكرة الذهبية (Ballon d'Or)", metric: "ballonScore", pool: eligibleCandidates },
+      { id: "fifa-the-best", title: "جائزة ذا بيست (FIFA The Best)", metric: "theBestScore", pool: eligibleCandidates },
+      { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: eligibleCandidates },
+      { id: "golden-glove", title: "القفاز الذهبي (Golden Glove)", metric: "goldenGloveScore",
+        pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
+      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => Number(row.age) <= 21) },
+      { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.originConfederation === "CAF") },
+      { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "UEFA") },
+      { id: "conmebol-player", title: "أفضل لاعب في أمريكا الجنوبية", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "CONMEBOL") }
     ];
-    const goalkeepers = candidates.filter(row => roleType(row.position) === "keeper");
-    if (goalkeepers.length) allAwards.push({ id: "golden-glove", title: "القفاز الذهبي", metric: "goldenGloveScore", pool: goalkeepers });
-    const awards = allAwards.map(function (definition) {
-      const ranked = rank(definition.pool.length ? definition.pool : candidates, definition.metric);
-      const winner = ranked[0] || user;
+    const awards = allAwards.filter(definition => definition.pool.length)
+      .map(function (definition) {
+      const ranked = rank(definition.pool, definition.metric);
+      const winner = ranked[0];
       return {
         id: definition.id,
         title: definition.title,
@@ -455,11 +496,15 @@
           goals: winner.goals,
           assists: winner.assists,
           averageRating: winner.averageRating,
+          cleanSheets: winner.cleanSheets,
+          saves: winner.saves,
+          penaltiesSaved: winner.penaltiesSaved,
           age: winner.age,
           isUser: !!winner.isUser
         },
         topThree: ranked.slice(0, 3).map(function (row) {
-          return { name: row.name, club: row.club, score: Number(row[definition.metric]) || 0, isUser: !!row.isUser };
+          return { name: row.name, club: row.club, score: Number(row[definition.metric]) || 0,
+            cleanSheets: row.cleanSheets, saves: row.saves, penaltiesSaved: row.penaltiesSaved, isUser: !!row.isUser };
         })
       };
     });
@@ -471,7 +516,9 @@
         club: user.club,
         country: user.country,
         competition: "جوائز نهاية الموسم",
-        note: "فزت بالجائزة بعد تقييم الأهداف والصناعة ومتوسط الأداء وقوة المنافسة والإنجازات.",
+        note: row.id === "golden-glove"
+          ? "حافظت على " + user.cleanSheets + " شباك نظيفة وسجلت " + user.saves + " تصديًا خلال الموسم."
+          : "فزت بالجائزة بعد تقييم الأهداف والصناعة ومتوسط الأداء وقوة المنافسة والإنجازات.",
         winner: user.name
       };
     });
@@ -501,20 +548,13 @@
     const goals = Math.max(0, Number(player.goals) || 0);
     const assists = Math.max(0, Number(player.assists) || 0);
     const cleanSheets = Math.max(0, Number(player.cleanSheets) || 0);
-    const saves = Math.max(0, Number(player.saves) || 0);
-    const penaltiesSaved = Math.max(0, Number(player.penaltiesSaved) || 0);
-    const tackles = Math.max(0, Number(player.tacklesWon != null ? player.tacklesWon : player.tackles) || 0);
-    const interceptions = Math.max(0, Number(player.interceptions) || 0);
-    const clearances = Math.max(0, Number(player.clearances) || 0);
-    const recoveries = Math.max(0, Number(player.ballRecoveries) || 0);
-    const keyPasses = Math.max(0, Number(player.keyPasses) || 0);
     const strength = clamp(player.leagueStrength || 60, 25, 100);
     const participation = clamp(minutes / Math.max(1, apps * 90), 0, 1);
     const role = roleType(player.position);
     const contribution = role === "attacker" ? goals * 1.05 + assists * .72
-      : role === "midfielder" ? goals * .9 + assists * .95 + keyPasses * .14 + recoveries * .05
-      : role === "defender" ? goals * .45 + assists * .6 + cleanSheets * .55 + tackles * .14 + interceptions * .15 + clearances * .04
-      : goals * .2 + cleanSheets * .8 + saves * .16 + penaltiesSaved * .6;
+      : role === "midfielder" ? goals * .9 + assists * .95
+      : role === "defender" ? goals * .55 + assists * .6 + cleanSheets * .32
+      : goals * .2 + cleanSheets * .55;
     const sampleFactor = clamp(apps / 18, .35, 1);
     return Number(clamp((rating * 6.2 + contribution * .42 + strength * .075 + participation * 7) * sampleFactor, 0, 100).toFixed(2));
   }
@@ -580,7 +620,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 1,
+    version: 4,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,
     evaluateNegotiation: evaluateNegotiation,

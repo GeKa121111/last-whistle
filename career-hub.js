@@ -1,11 +1,13 @@
 (function(){
   "use strict";
-  var timer=null;
+  var timer=null,lastSnapshot="",lastRuntime=null;
+  var lastHistoryRef=null,lastHistoryLength=-1,lastHistoryTail="",lastHistoryRevision=null,lastHistorySignature="";
+  var refreshScheduled=false,queuedForce=false;
   var api=function(){return window.LWStoryRuntime||null;};
   var $=function(id){return document.getElementById(id);};
   var clamp=function(v,min,max){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));};
-  var text=function(id,value){var e=$(id);if(e)e.textContent=String(value);};
-  var bar=function(id,value){var e=$(id);if(e)e.style.width=clamp(value,0,100)+"%";};
+  var text=function(id,value){var e=$(id),next=String(value);if(e&&e.textContent!==next)e.textContent=next;};
+  var bar=function(id,value){var e=$(id),next=clamp(value,0,100)+"%";if(e&&e.style.width!==next)e.style.width=next;};
   function statusTrust(v){
     if(v>=80)return "ثقة قوية جدًا — حافظ على مستواك";
     if(v>=60)return "موقفك جيد — الاستمرارية مهمة";
@@ -44,9 +46,35 @@
     if(relation<35)return {title:"حسّن التواصل مع المدرب",text:"العلاقة خارج الملعب محتاجة شغل. اختار جلسة الالتزام بدل الشكوى، وخلي الأداء في الملعب يدعم كلامك."};
     return {title:"جاهز تختار خطوتك",text:"طاقتك وإجهادك في نطاق معقول. اختار تدريبًا يناسب مركزك أو استعد للمباراة حسب جدولك."};
   }
-  function render(){
+  function historyTailSignature(history){
+    var row=history.length?history[history.length-1]:null;
+    return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
+  }
+  function stateSignature(s,revision,force){
+    var history=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
+    var tail=historyTailSignature(history);
+    if(force||revision===null||history!==lastHistoryRef||history.length!==lastHistoryLength||tail!==lastHistoryTail||revision!==lastHistoryRevision){
+      lastHistorySignature=history.map(function(row){
+        return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
+      }).join(",");
+      lastHistoryRef=history;lastHistoryLength=history.length;lastHistoryTail=tail;lastHistoryRevision=revision;
+    }
+    return JSON.stringify([
+      s.careerStarted,s.retired,s.winterBreakPending,s.injuryDays,s.injuryName,
+      s.energy,s.morale,s.fatigue,s.trust,s.coachRelationship,s.playedToday,s.trainedToday,
+      s.dailyActionUsed,s.dailyActionDay,s.dailyActionType,s.day,s.season,
+      s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,lastHistorySignature
+    ]);
+  }
+  function render(force){
     var runtime=api(),s=runtime&&runtime.getState?runtime.getState():null;
-    if(!s)return;
+    if(!s){lastSnapshot="";lastRuntime=null;lastHistoryRef=null;lastHistoryLength=-1;lastHistoryTail="";lastHistoryRevision=null;lastHistorySignature="";return;}
+    var store=window.LWStateStore;
+    var revision=store&&typeof store.getRevision==="function"?Number(store.getRevision()):null;
+    if(!Number.isFinite(revision))revision=null;
+    var signature=stateSignature(s,revision,!!force);
+    if(!force&&runtime===lastRuntime&&signature===lastSnapshot)return;
+    lastRuntime=runtime;lastSnapshot=signature;
     var energy=clamp(s.energy,0,100),morale=clamp(s.morale,0,100),fatigue=clamp(s.fatigue,0,100);
     var trust=clamp(s.trust,0,100),relation=clamp(s.coachRelationship==null?35:s.coachRelationship,0,100),injury=Math.max(0,Number(s.injuryDays)||0);
     var readiness=Math.round(energy*.42+(100-fatigue)*.25+morale*.13+trust*.12+relation*.08);
@@ -107,6 +135,28 @@
     var relationHeader=$("wellnessCoachRelationshipValue");
     if(relationHeader)relationHeader.title="تواصل خارج الملعب؛ لا يضمن وحده المشاركة الأساسية.";
   }
-  function start(){render();timer=window.setInterval(render,700);window.addEventListener("pageshow",render);window.addEventListener("storage",render);}
+  function scheduleRender(force){
+    if(document.hidden)return;
+    queuedForce=queuedForce||!!force;
+    if(refreshScheduled)return;
+    refreshScheduled=true;
+    Promise.resolve().then(function(){
+      refreshScheduled=false;
+      var shouldForce=queuedForce;queuedForce=false;
+      if(document.hidden)return;
+      render(shouldForce);
+    });
+  }
+  function tick(){if(document.hidden)return;render(false);}
+  function refresh(){if(document.hidden)return;render(true);}
+  function start(){
+    render(true);
+    var store=window.LWStateStore;
+    if(store&&typeof store.subscribe==="function")store.subscribe(function(){scheduleRender(false);});
+    timer=window.setInterval(tick,store&&typeof store.subscribe==="function"?5000:1500);
+    window.addEventListener("pageshow",refresh);
+    window.addEventListener("storage",refresh);
+    document.addEventListener("visibilitychange",function(){if(!document.hidden)refresh();});
+  }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
 })();

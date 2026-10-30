@@ -45,14 +45,18 @@
   // The caller passes post-match career totals and the match that has just been completed.
   function evaluateSquadRole(state, matchHistory = [], currentMatch = null) {
     const originalRole = String(state && state.role || "بديل");
-    if (!state || state.academyCareer || state.academyReserve || state.retired) {
+    if (!state || state.academyCareer || state.academyReserve || normalizeLegacyBoolean(state.retired)) {
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
 
-    const validRow = row => row && row.scope !== "international" && Number(row.minutes) > 0;
+    const safeMetric = (value, maximum = 1000000) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, numeric)) : 0;
+    };
+    const validRow = row => row && row.scope !== "international" && safeMetric(row.minutes, 120) > 0;
     const current = validRow(currentMatch) ? { ...currentMatch } : null;
-    const allRows = [current, ...(Array.isArray(matchHistory) ? matchHistory : [])]
+    const allRows = uniqueMatchRows([current, ...(Array.isArray(matchHistory) ? matchHistory : [])])
       .filter(validRow);
     const recent = allRows.slice(0, 8);
     if (!recent.length) {
@@ -60,21 +64,24 @@
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
 
-    const sum = (rows, key) => rows.reduce((total, row) => total + Math.max(0, Number(row[key]) || 0), 0);
+    const sum = (rows, key) => {
+      const maximum = key === "minutes" ? 120 : key === "rating" ? 10 : 20;
+      return rows.reduce((total, row) => total + safeMetric(row[key], maximum), 0);
+    };
     const recentMinutes = sum(recent, "minutes");
     const recentContributions = sum(recent, "goals") + sum(recent, "assists");
     const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
-    const ratedRows = recent.filter(row => Number(row.rating) > 0);
+    const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
     const recentAverageRating = ratedRows.length
-      ? ratedRows.reduce((total, row) => total + Number(row.rating), 0) / ratedRows.length : 0;
+      ? ratedRows.reduce((total, row) => total + safeMetric(row.rating, 10), 0) / ratedRows.length : 0;
 
-    const appearances = Math.max(0, Math.floor(Number(state.apps) || 0));
+    const appearances = Math.floor(safeMetric(state.apps, 1000000));
     const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
     // Saves compact long careers, so estimate missing historical minutes from the observed mean.
     const careerMinutes = Math.max(sum(allRows, "minutes"), appearances * Math.max(1, averageCareerMinutes));
-    const careerContributions = Math.max(0, Number(state.goals) || 0) + Math.max(0, Number(state.assists) || 0);
+    const careerContributions = safeMetric(state.goals, Math.max(0, appearances * 20)) + safeMetric(state.assists, Math.max(0, appearances * 20));
     const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
-    const trust = Math.max(0, Math.min(100, Number(state.trust) || 0));
+    const trust = safeMetric(state.trust, 100);
     const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
     const veteranOutput = roleIsForward && appearances >= 35
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
@@ -106,13 +113,13 @@
 
   const STARTING_RANGES = {
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
-    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[40,50], physical:[55,66] },
-    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[10,15], vision:[45,55], physical:[52,62] },
-    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[10,15], vision:[55,65], physical:[52,62] },
-    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[10,15], vision:[55,65], physical:[40,55] },
-    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[10,15], vision:[50,60], physical:[45,58] },
-    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[10,15], vision:[51,62], physical:[45,57] },
-    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[10,15], vision:[42,54], physical:[53,65] }
+    "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[0,0], vision:[40,50], physical:[55,66] },
+    "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[0,0], vision:[45,55], physical:[52,62] },
+    "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[0,0], vision:[55,65], physical:[52,62] },
+    "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[0,0], vision:[55,65], physical:[40,55] },
+    "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[0,0], vision:[50,60], physical:[45,58] },
+    "مهاجم": { shooting:[53,65], dribbling:[56,68], passing:[50,61], speed:[57,69], fitness:[51,62], composure:[49,60], defending:[15,28], goalkeeping:[0,0], vision:[51,62], physical:[45,57] },
+    "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[0,0], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
     const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
@@ -121,6 +128,7 @@
       const roll = Math.max(0, Math.min(0.999999999, Number(random()) || 0));
       stats[key] = range[0] + Math.floor(roll * (range[1] - range[0] + 1));
     }
+    if (String(position || "جناح") !== "حارس مرمى") stats.goalkeeping = 0;
     return stats;
   }
 
@@ -150,11 +158,37 @@
     return uniqueMatchRows([...leagueRows, ...careerRows]);
   }
 
+  const normalizeLegacyBoolean = (value, fallback = false) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : fallback;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["true", "1", "yes", "on"].includes(normalized)) return true;
+      if (["false", "0", "no", "off", ""].includes(normalized)) return false;
+    }
+    return fallback;
+  };
+
+  const safeLegacyMinutes = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(120, Math.floor(numeric))) : 0;
+  };
+  const safeLegacyCount = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
+  };
+  const safeLegacyRating = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+  };
+
   function rebuildLegacyCareerStats(state) {
     const rows = uniqueCareerHistory(state);
-    state.qualifyingAppearances = rows.filter(row => Number(row.minutes) >= 20).length;
-    state.careerAppearances = Math.max(Number(state.apps) || 0, Number(state.careerAppearances) || 0);
-    state.careerMinutes = rows.reduce((sum, row) => sum + (Number(row.minutes) || 0), 0);
+    const normalizedRows = rows.map(row => ({ row, minutes: safeLegacyMinutes(row.minutes) }));
+    state.qualifyingAppearances = normalizedRows.filter(entry => entry.minutes >= 20).length;
+    state.careerAppearances = Math.max(safeLegacyCount(state.apps), safeLegacyCount(state.careerAppearances));
+    state.careerMinutes = normalizedRows.reduce((sum, entry) => sum + entry.minutes, 0);
     state.careerMilestonesEarned = APPEARANCE_MILESTONES
       .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
     return rows;
@@ -162,43 +196,165 @@
 
   function deriveLeagueRatingStats(state) {
     const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
-      && Number(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
-    state.leagueRatingSum = rows.reduce((sum, row) => sum + Number(row.rating), 0);
+      && safeLegacyMinutes(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
+    state.leagueRatingSum = rows.reduce((sum, row) => sum + safeLegacyRating(row.rating), 0);
     state.leagueRatingCount = rows.length;
     return { sum: state.leagueRatingSum, count: state.leagueRatingCount };
   }
 
   function ensureState(state) {
+    state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
+    state.retired = normalizeLegacyBoolean(state.retired);
+    state.playedToday = normalizeLegacyBoolean(state.playedToday);
+    state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
+    state.nightToday = normalizeLegacyBoolean(state.nightToday);
+    state.dailyActionUsed = normalizeLegacyBoolean(state.dailyActionUsed);
+    state.journeyTransferReviewed = normalizeLegacyBoolean(state.journeyTransferReviewed);
+    state.journeyEventSeen = normalizeLegacyBoolean(state.journeyEventSeen);
+    state.journeySeasonReviewed = normalizeLegacyBoolean(state.journeySeasonReviewed);
+    state.seasonFinished = normalizeLegacyBoolean(state.seasonFinished);
+    state.winterBreakPending = normalizeLegacyBoolean(state.winterBreakPending);
+    state.nationalCalled = normalizeLegacyBoolean(state.nationalCalled);
+    state.nationalTournamentDone = normalizeLegacyBoolean(state.nationalTournamentDone);
+    state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
+    state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
+    state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
+    if (state.cupState && typeof state.cupState === "object" && !Array.isArray(state.cupState)) {
+      state.cupState.champion = normalizeLegacyBoolean(state.cupState.champion);
+      state.cupState.eliminated = normalizeLegacyBoolean(state.cupState.eliminated);
+      state.cupState.abandoned = normalizeLegacyBoolean(state.cupState.abandoned);
+    }
+    if (Array.isArray(state.cupHistory)) {
+      state.cupHistory = state.cupHistory.map(row => {
+        if (!row || typeof row !== "object" || Array.isArray(row)) return row;
+        const normalizedRow = { ...row };
+        for (const flag of ["champion", "eliminated", "abandoned", "leftByTransfer"]) {
+          if (Object.prototype.hasOwnProperty.call(normalizedRow, flag)) {
+            normalizedRow[flag] = normalizeLegacyBoolean(normalizedRow[flag]);
+          }
+        }
+        return normalizedRow;
+      });
+    } else {
+      state.cupHistory = [];
+    }
+    state.academyCareer = normalizeLegacyBoolean(state.academyCareer);
+    state.academyReserve = normalizeLegacyBoolean(state.academyReserve);
+    state.academyGraduationPending = normalizeLegacyBoolean(state.academyGraduationPending);
+    state.academyGraduated = normalizeLegacyBoolean(state.academyGraduated);
+    state.privateCoach = normalizeLegacyBoolean(state.privateCoach);
+    state.xpMultiplier = normalizeLegacyBoolean(state.xpMultiplier);
+    state.careerStarted = normalizeLegacyBoolean(state.careerStarted);
+    state.leagueSegmentIsPartial = normalizeLegacyBoolean(state.leagueSegmentIsPartial);
+    state.boots = normalizeLegacyBoolean(state.boots);
+    if (!state.agent || typeof state.agent !== "object") state.agent = normalizeLegacyBoolean(state.agent);
+    state.diet = normalizeLegacyBoolean(state.diet);
+    state.speedBoots = normalizeLegacyBoolean(state.speedBoots);
+    state.strengthProgram = normalizeLegacyBoolean(state.strengthProgram);
+    state.videoAnalyst = normalizeLegacyBoolean(state.videoAnalyst);
+    state.homeGym = normalizeLegacyBoolean(state.homeGym);
+    state.sleepCoach = normalizeLegacyBoolean(state.sleepCoach);
+    state.physio = normalizeLegacyBoolean(state.physio);
+    state.recoveryRoom = normalizeLegacyBoolean(state.recoveryRoom);
+    state.privateChef = normalizeLegacyBoolean(state.privateChef);
+    state.homeUpgrade = normalizeLegacyBoolean(state.homeUpgrade);
+    state.sportsPsych = normalizeLegacyBoolean(state.sportsPsych);
+    state.mediaTraining = normalizeLegacyBoolean(state.mediaTraining);
+    state.creatorStudio = normalizeLegacyBoolean(state.creatorStudio);
+    state.stylist = normalizeLegacyBoolean(state.stylist);
+    state.charityFoundation = normalizeLegacyBoolean(state.charityFoundation);
     state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
-    state.careerXP = Number(state.careerXP) || 0;
-    state.levelXP = Number(state.levelXP) || 0;
-    state.careerLevel = Math.max(1, Number(state.careerLevel) || 1);
-    state.trainingSessions = Number(state.trainingSessions) || 0;
+    const moneyValue = Number(state.money);
+    state.money = Number.isFinite(moneyValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, moneyValue)) : 0;
+    const savedWageMissing = state.weeklyWage === undefined || state.weeklyWage === null || state.weeklyWage === "";
+    if (savedWageMissing) state.weeklyWage = state.freeAgent || state.retired ? 0 : 250;
+    else {
+      const weeklyWageValue = Number(state.weeklyWage);
+      state.weeklyWage = Number.isFinite(weeklyWageValue)
+        ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(weeklyWageValue))) : 0;
+    }
+    state.agentCommissionPaid = finiteCount(state.agentCommissionPaid);
+    const contractSeasonsMissing = state.contractSeasons === undefined || state.contractSeasons === null || state.contractSeasons === "";
+    if (contractSeasonsMissing) state.contractSeasons = state.freeAgent || state.retired ? 0 : 2;
+    else {
+      const contractSeasonsValue = Number(state.contractSeasons);
+      state.contractSeasons = Number.isFinite(contractSeasonsValue)
+        ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
+        : (state.freeAgent || state.retired ? 0 : 2);
+    }
+    const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
+    state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
+    const careerXPValue = Number(state.careerXP);
+    state.careerXP = Number.isFinite(careerXPValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0;
+    const careerLevelValue = Number(state.careerLevel);
+    state.careerLevel = Number.isFinite(careerLevelValue)
+      ? Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerLevelValue))) : 1;
+    const levelXPThreshold = 100 + Math.min(80, (state.careerLevel - 1) * 8);
+    const levelXPValue = Number(state.levelXP);
+    state.levelXP = Number.isFinite(levelXPValue)
+      ? Math.max(0, Math.min(levelXPThreshold - 0.01, levelXPValue)) : 0;
+    state.trainingSessions = finiteCount(state.trainingSessions);
+    state.injuryDays = Math.min(60, finiteCount(state.injuryDays));
     state.playerPotential = clamp(state.playerPotential || 82, 65, 97);
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);
     state.progressionMatchIds = Array.isArray(state.progressionMatchIds) ? state.progressionMatchIds : [];
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
-    state.competitionStats = state.competitionStats && typeof state.competitionStats === "object" ? state.competitionStats : {};
-    state.careerAppearances = Math.max(0, Number(state.careerAppearances) || Number(state.apps) || 0);
-    state.careerMinutes = Math.max(0, Number(state.careerMinutes) || 0);
-    state.leagueRatingSum = Math.max(0, Number(state.leagueRatingSum) || 0);
-    state.leagueRatingCount = Math.max(0, Number(state.leagueRatingCount) || 0);
+    state.competitionStats = state.competitionStats && typeof state.competitionStats === "object"
+      && !Array.isArray(state.competitionStats) ? state.competitionStats : {};
+    const careerAppearancesValue = Number(state.careerAppearances);
+    const legacyAppsValue = Number(state.apps);
+    const appearanceSource = Number.isFinite(careerAppearancesValue)
+      ? (careerAppearancesValue || (Number.isFinite(legacyAppsValue) ? legacyAppsValue : 0))
+      : (Number.isFinite(legacyAppsValue) ? legacyAppsValue : 0);
+    state.careerAppearances = finiteCount(appearanceSource);
+    state.careerMinutes = finiteCount(state.careerMinutes);
+    const leagueRatingSumValue = Number(state.leagueRatingSum);
+    state.leagueRatingSum = Number.isFinite(leagueRatingSumValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, leagueRatingSumValue)) : 0;
+    state.leagueRatingCount = finiteCount(state.leagueRatingCount);
     if (state.qualifyingAppearances === undefined) {
-      state.qualifyingAppearances = uniqueCareerHistory(state).filter(row => Number(row.minutes) >= 20).length;
+      state.qualifyingAppearances = uniqueCareerHistory(state).filter(row => safeLegacyMinutes(row.minutes) >= 20).length;
     }
-    state.qualifyingAppearances = Math.max(0, Number(state.qualifyingAppearances) || 0);
+    state.qualifyingAppearances = finiteCount(state.qualifyingAppearances);
+    state.suspensions = state.suspensions && typeof state.suspensions === "object" && !Array.isArray(state.suspensions) ? state.suspensions : {};
+    for (const suspensionKey of Object.keys(state.suspensions)) {
+      state.suspensions[suspensionKey] = Math.min(2, finiteCount(state.suspensions[suspensionKey]));
+    }
+    state.bookings = state.bookings && typeof state.bookings === "object" && !Array.isArray(state.bookings) ? state.bookings : {};
+    for (const bookingKey of Object.keys(state.bookings)) {
+      state.bookings[bookingKey] = Math.min(4, finiteCount(state.bookings[bookingKey]));
+    }
+    for (const [competitionKey, stats] of Object.entries(state.competitionStats)) {
+      if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
+        state.competitionStats[competitionKey] = {
+          appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
+        };
+        continue;
+      }
+      for (const field of ["appearances", "qualifyingAppearances", "minutes", "goals", "assists"]) {
+        stats[field] = finiteCount(stats[field]);
+      }
+    }
     if (!hadMilestoneLedger) {
       state.careerMilestonesEarned = APPEARANCE_MILESTONES
         .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
     }
     state.fatigue = clamp(state.fatigue || 0, 0, 100);
+    const trainingXPThreshold = Number(state.age) >= 30 ? 125 : Number(state.age) <= 21 ? 92 : 108;
     for (const key of Object.keys(CONFIG)) {
-      state.trainingXP[key] = Math.max(0, Number(state.trainingXP[key]) || 0);
-      if (!Number.isFinite(Number(state[key]))) state[key] = 50;
+      const trainingXPValue = Number(state.trainingXP[key]);
+      state.trainingXP[key] = Number.isFinite(trainingXPValue)
+        ? Math.max(0, Math.min(trainingXPThreshold - 0.01, trainingXPValue)) : 0;
+      const attributeValue = state[key] === null || state[key] === undefined || state[key] === "" ? NaN : Number(state[key]);
+      state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;
     }
+    // Repair legacy outfield saves without altering any other career or roster data.
+    if (state.pos && state.pos !== "حارس مرمى") state.goalkeeping = 0;
     return state;
   }
 
@@ -233,7 +389,11 @@
 
   function addTrainingXP(state, key, amount) {
     const threshold = Number(state.age) >= 30 ? 125 : Number(state.age) <= 21 ? 92 : 108;
-    state.trainingXP[key] = (Number(state.trainingXP[key]) || 0) + amount;
+    const amountValue = Number(amount);
+    const safeAmount = Number.isFinite(amountValue) ? Math.max(0, Math.min(1000, amountValue)) : 0;
+    const trainingXPValue = Number(state.trainingXP[key]);
+    state.trainingXP[key] = (Number.isFinite(trainingXPValue)
+      ? Math.max(0, Math.min(threshold - 0.01, trainingXPValue)) : 0) + safeAmount;
     let gained = 0;
     while (state.trainingXP[key] >= threshold && Number(state[key]) < limitFor(state, key)) {
       state.trainingXP[key] -= threshold;
@@ -245,9 +405,18 @@
   }
 
   function addCareerXP(state, amount) {
-    const xp = Math.max(0, Math.round(Number(amount) || 0));
-    state.careerXP += xp;
-    state.levelXP += xp;
+    const amountValue = Number(amount);
+    const xp = Number.isFinite(amountValue) ? Math.max(0, Math.min(10000, Math.round(amountValue))) : 0;
+    const careerXPValue = Number(state.careerXP);
+    state.careerXP = Math.min(Number.MAX_SAFE_INTEGER, (Number.isFinite(careerXPValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0) + xp);
+    const careerLevelValue = Number(state.careerLevel);
+    state.careerLevel = Number.isFinite(careerLevelValue)
+      ? Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerLevelValue))) : 1;
+    const threshold = 100 + Math.min(80, (state.careerLevel - 1) * 8);
+    const levelXPValue = Number(state.levelXP);
+    state.levelXP = (Number.isFinite(levelXPValue)
+      ? Math.max(0, Math.min(threshold - 0.01, levelXPValue)) : 0) + xp;
     const oldLevel = state.careerLevel;
     while (state.levelXP >= 100 + Math.min(80, (state.careerLevel - 1) * 8)) {
       state.levelXP -= 100 + Math.min(80, (state.careerLevel - 1) * 8);
@@ -322,25 +491,42 @@
   function matchDevelopment(state, match, legacyMinutes) {
     ensureState(state);
     const data = match && typeof match === "object" ? match : { rating: match, minutes: legacyMinutes };
-    const played = Math.max(0, Number(data.minutes) || 0);
+    const minutesValue = Number(data.minutes);
+    const played = Number.isFinite(minutesValue) ? Math.max(0, Math.min(120, Math.floor(minutesValue))) : 0;
     if (!played) return { gained: 0, skill: "", qualifying: false, milestones: [] };
+    const safeMatchCount = (value, maximum = 100) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.floor(numeric))) : 0;
+    };
+    const goals = safeMatchCount(data.goals, 20);
+    const assists = safeMatchCount(data.assists, 20);
     const matchId = String(data.matchId || ("legacy:" + (state.season || 1) + ":" + (state.apps || 0)
       + ":" + (state.seasonLog?.length || 0) + ":" + played));
     if (state.progressionMatchIds.includes(matchId)) return { gained: 0, skill: "", duplicate: true, qualifying: played >= 20, milestones: [] };
     state.progressionMatchIds.push(matchId);
     if (state.progressionMatchIds.length > 5000) state.progressionMatchIds.splice(0, state.progressionMatchIds.length - 5000);
-    state.careerAppearances++;
-    state.careerMinutes += played;
+    state.careerAppearances = Math.min(Number.MAX_SAFE_INTEGER, state.careerAppearances + 1);
+    state.careerMinutes = Math.min(Number.MAX_SAFE_INTEGER, state.careerMinutes + played);
     const qualifying = played >= 20;
     const competitionKey = String(data.competitionKey || "club|unknown");
     const competition = state.competitionStats[competitionKey] || (state.competitionStats[competitionKey] = {
       appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
     });
-    competition.appearances++;
-    competition.minutes += played;
-    competition.goals += Math.max(0, Number(data.goals) || 0);
-    competition.assists += Math.max(0, Number(data.assists) || 0);
-    if (qualifying) { state.qualifyingAppearances++; competition.qualifyingAppearances++; }
+    if (!competition || typeof competition !== "object" || Array.isArray(competition)) {
+      state.competitionStats[competitionKey] = {
+        appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
+      };
+    }
+    const competitionStats = state.competitionStats[competitionKey];
+    competitionStats.appearances = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.appearances) + 1);
+    competitionStats.minutes = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.minutes) + played);
+    competitionStats.goals = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.goals) + goals);
+    competitionStats.assists = Math.min(Number.MAX_SAFE_INTEGER, finiteCount(competitionStats.assists) + assists);
+    if (qualifying) {
+      state.qualifyingAppearances = Math.min(Number.MAX_SAFE_INTEGER, state.qualifyingAppearances + 1);
+      competitionStats.qualifyingAppearances = Math.min(Number.MAX_SAFE_INTEGER,
+        finiteCount(competitionStats.qualifyingAppearances) + 1);
+    }
     const skill = CAREER_ATTRIBUTE[state.pos] || "passing";
     const ageFactor = Number(state.age) >= 30 ? 0.7 : Number(state.age) <= 21 ? 1.15 : 1;
     const rating = clamp(data.rating || 6, 3, 10);
@@ -349,13 +535,13 @@
     const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
     const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
     const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
-    const tackles = Math.max(0, Number(matchStats.tacklesWon != null ? matchStats.tacklesWon : matchStats.tackles) || 0);
-    const interceptions = Math.max(0, Number(matchStats.interceptions) || 0);
-    const saves = Math.max(0, Number(matchStats.saves) || 0);
-    const penaltiesSaved = Math.max(0, Number(matchStats.penaltiesSaved) || 0);
-    const clearances = Math.max(0, Number(matchStats.clearances) || 0);
-    const recoveries = Math.max(0, Number(matchStats.ballRecoveries) || 0);
-    const keyPasses = Math.max(0, Number(matchStats.keyPasses) || 0);
+    const tackles = safeMatchCount(matchStats.tacklesWon != null ? matchStats.tacklesWon : matchStats.tackles);
+    const interceptions = safeMatchCount(matchStats.interceptions);
+    const saves = safeMatchCount(matchStats.saves);
+    const penaltiesSaved = safeMatchCount(matchStats.penaltiesSaved);
+    const clearances = safeMatchCount(matchStats.clearances);
+    const recoveries = safeMatchCount(matchStats.ballRecoveries);
+    const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
     const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
     const positionActionXP = state.pos === "حارس مرمى"
@@ -364,20 +550,20 @@
         ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
         : state.pos === "وسط مهاجم"
           ? Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
-          : Math.min(12, Math.max(0, Number(data.goals) || 0) * 4 + Math.max(0, Number(data.assists) || 0) * 2);
+          : Math.min(12, goals * 4 + assists * 2);
     const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
       + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
     const levels = addCareerXP(state, xp);
     const focusMultiplier = trainingFocusMultiplier(state, skill);
     const gained = addTrainingXP(state, skill, Math.round(xp * 0.75 * focusMultiplier));
     let defensiveXP = 0, goalkeeperXP = 0;
-    if (defensivePosition && (tackles > 0 || interceptions > 0 || cleanSheet)) {
-      defensiveXP = Math.round((tackles * 2 + interceptions * 3 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+    if (defensivePosition && (tackles > 0 || interceptions > 0 || clearances > 0 || recoveries > 0 || cleanSheet)) {
+      defensiveXP = Math.round((tackles * 2 + interceptions * 3 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
         * trainingFocusMultiplier(state, "defending") * Math.min(1, played / 75));
       addTrainingXP(state, "defending", defensiveXP);
     }
-    if (state.pos === "حارس مرمى" && (saves > 0 || cleanSheet)) {
-      goalkeeperXP = Math.round((saves * 2.2 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
+    if (state.pos === "حارس مرمى" && (saves > 0 || penaltiesSaved > 0 || cleanSheet)) {
+      goalkeeperXP = Math.round((saves * 2.2 + penaltiesSaved * 5 + (cleanSheet ? 4 : 0)) * storeXPMultiplier
         * trainingFocusMultiplier(state, "goalkeeping") * Math.min(1, played / 75));
       addTrainingXP(state, "goalkeeping", goalkeeperXP);
     }
@@ -415,23 +601,50 @@
     };
   }
 
+  function calendarGameDateISO(state) {
+    const calendarDay = Math.max(1, Math.floor(Number(state && state.calendarDay) || 1));
+    const elapsed = calendarDay - 1;
+    const gameYear = 2024 + Math.floor(elapsed / 365);
+    const dayInSeason = elapsed % 365;
+    const reference = new Date(Date.UTC(2021, 7, 1) + dayInSeason * 86400000);
+    const pad = value => String(value).padStart(2, "0");
+    return String(gameYear).padStart(4, "0") + "-" + pad(reference.getUTCMonth() + 1) + "-"
+      + pad(reference.getUTCDate()) + "T00:00:00.000Z";
+  }
+
   function seasonAwards(state, league, teamRank) {
     ensureState(state);
-    const log = Array.isArray(state.seasonLog) ? state.seasonLog : [];
+    const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);
     const competition = String(state.leagueCompetition || "");
     const country = String(state.leagueCountry || "");
-    const playerMatches = log.filter(row => row && row.playerAvailable !== false && Number(row.minutes) > 0
+    const awardCount = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(100, Math.floor(numeric))) : 0;
+    };
+    const awardMinutes = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(120, numeric)) : 0;
+    };
+    const awardRating = value => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+    };
+    const rankValue = Number(teamRank);
+    const safeTeamRank = Number.isFinite(rankValue) && rankValue > 0 ? rankValue : 6;
+    const playerMatches = log.filter(row => row && normalizeLegacyBoolean(row.playerAvailable, true) && awardMinutes(row.minutes) > 0
       && (!row.leagueCountry || row.leagueCountry === country)
       && (!row.leagueCompetition || !competition || row.leagueCompetition === competition));
     const appearances = playerMatches.length;
     if (appearances < 3) return [];
-    const goals = playerMatches.reduce((sum, row) => sum + (Number(row.goals) || 0), 0);
-    const assists = playerMatches.reduce((sum, row) => sum + (Number(row.assists) || 0), 0);
-    const average = playerMatches.reduce((sum, row) => sum + (Number(row.rating) || 0), 0) / appearances;
-    const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - Number(teamRank || 6)) * 0.7;
+    const goals = playerMatches.reduce((sum, row) => sum + awardCount(row.goals), 0);
+    const assists = playerMatches.reduce((sum, row) => sum + awardCount(row.assists), 0);
+    const average = playerMatches.reduce((sum, row) => sum + awardRating(row.rating), 0) / appearances;
+    const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - safeTeamRank) * 0.7;
     const opponents = (Array.isArray(league) ? league : []).filter(team => team && team.name !== state.clubName).map(team => {
       const rng = seeded(hash(String(state.season) + "|" + String(state.leagueCountry) + "|" + team.name));
-      const power = Number(team.power) || 50;
+      const powerValue = Number(team.power);
+      const power = Number.isFinite(powerValue) && powerValue !== 0
+        ? Math.max(0, Math.min(100, powerValue)) : 50;
       return {
         age: 18 + Math.floor(rng() * 18),
         goals: Math.max(0, Math.round(appearances * (0.04 + power / 850 + rng() * 0.09))),
@@ -472,9 +685,14 @@
       state.careerAwards.unshift(award);
       won.push(award);
     }
-    if (won.some(award => award.id === "golden-boot")) state.topScorerAwards = (Number(state.topScorerAwards) || 0) + 1;
+    const scorerCount = Number(state.topScorerAwards);
+    const safeScorerCount = Number.isFinite(scorerCount)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - 1, Math.floor(scorerCount))) : 0;
+    state.topScorerAwards = safeScorerCount + (won.some(award => award.id === "golden-boot") ? 1 : 0);
     const rewards = { "league-player": 650, "golden-boot": 450, playmaker: 400, "young-player": 500 };
-    state.money = (Number(state.money) || 0) + won.reduce((sum, award) => sum + (rewards[award.id] || 0), 0);
+    const balanceValue = Number(state.money);
+    const balance = Number.isFinite(balanceValue) ? Math.max(0, balanceValue) : 0;
+    state.money = balance + won.reduce((sum, award) => sum + (rewards[award.id] || 0), 0);
     return won;
   }
 
@@ -491,47 +709,71 @@
     return last + gap - current;
   }
 
+  const toNonNegativeInteger = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+  };
+
+  const finiteCount = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
+  };
+
   function normalizeLeagueRoundIndex(savedRoundIndex, roundHistory, leagueApps, roundCount) {
     const history = Array.isArray(roundHistory) ? roundHistory : [];
-    const legacyRound = history.length ? Math.max(0, ...history.map(row => Number(row?.matchday) || 0))
-      : Math.max(0, Number(leagueApps) || 0);
+    const historyRound = history.reduce((maximum, row) =>
+      Math.max(maximum, toNonNegativeInteger(row?.matchday)), 0);
+    const legacyRound = Math.max(historyRound, toNonNegativeInteger(leagueApps));
     const hasSavedIndex = savedRoundIndex !== undefined && savedRoundIndex !== null && savedRoundIndex !== "";
     const saved = Number(savedRoundIndex);
-    const candidate = hasSavedIndex && Number.isInteger(saved) ? Math.max(0, saved) : legacyRound;
-    return Math.min(candidate, Math.max(0, Math.floor(Number(roundCount) || 0)));
+    const candidate = hasSavedIndex && Number.isFinite(saved)
+      ? Math.max(0, Math.floor(saved), legacyRound)
+      : legacyRound;
+    return Math.min(candidate, toNonNegativeInteger(roundCount));
   }
 
   function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
+    const parentWageValue = Number(loan.parentWage);
+    const parentContractSeasonsValue = Number(loan.parentContractSeasons);
+    const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     return {
       ...state,
       clubName: String(loan.parentClub || state.clubName || ""),
       leagueCountry: String(loan.parentCountry || state.leagueCountry || ""),
-      weeklyWage: Math.max(0, Number(loan.parentWage) || 0),
-      contractSeasons: Math.max(0, Number(loan.parentContractSeasons) || 0),
-      freeAgent: Boolean(loan.parentFreeAgent)
+      weeklyWage: Number.isFinite(parentWageValue)
+        ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0,
+      contractSeasons: Number.isFinite(parentContractSeasonsValue)
+        ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0,
+      freeAgent: parentFreeAgent
     };
   }
 
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
-    if (state.retired) return "retired";
-    if (state.freeAgent || Number(state.contractSeasons) <= 0) return "free-agent";
-    if (Number(state.contractSeasons) <= 1) return "contract-expiring";
-    if (Math.max(0, Number(state.daysSinceNegotiation) || 0) < 7) return "cooldown";
+    if (normalizeLegacyBoolean(state.retired)) return "retired";
+    if (normalizeLegacyBoolean(state.freeAgent)) return "free-agent";
+    const contractSeasons = Number(state.contractSeasons);
+    if (!Number.isFinite(contractSeasons)) return "contract-expiring";
+    if (contractSeasons <= 0) return "free-agent";
+    if (contractSeasons <= 1) return "contract-expiring";
+    const daysSinceNegotiation = Number(state.daysSinceNegotiation);
+    if (!Number.isFinite(daysSinceNegotiation) || Math.max(0, daysSinceNegotiation) < 7) return "cooldown";
     return "ready";
   }
   function canNegotiateInSeason(state) { return wageNegotiationStatus(state) === "ready"; }
 
   function loanRequestStatus(state, options = {}) {
     if (!state) return "invalid-state";
-    if (state.retired) return "retired";
-    if (state.freeAgent || Number(state.contractSeasons) <= 0) return "free-agent";
+    if (normalizeLegacyBoolean(state.retired)) return "retired";
+    const contractSeasons = Number(state.contractSeasons);
+    if (normalizeLegacyBoolean(state.freeAgent) || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
-    if (Math.max(0, Number(state.apps) || 0) < 2) return "appearances-required";
+    const appearances = Number(state.apps);
+    if (!Number.isFinite(appearances) || appearances < 2) return "appearances-required";
     return "ready";
   }
 
@@ -548,7 +790,7 @@
   function purchaseItem(state, item) {
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
-    if (state.retired) return { ok: false, status: "retired" };
+    if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
       return { ok: false, status: "direct-rating-purchase-disabled" };
     }
@@ -587,7 +829,10 @@
     const status = wageNegotiationStatus(state);
     if (status !== "ready") return { ok: false, status };
     if (![0, 1, 2].includes(Number(level))) return { ok: false, status: "invalid-level" };
-    const oldWage = Math.max(0, Number(state.weeklyWage) || 0);
+    const wageValue = Number(state.weeklyWage);
+    const oldWage = Number.isFinite(wageValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(wageValue))) : 0;
+    state.weeklyWage = oldWage;
     state.daysSinceNegotiation = 0;
     const success = nextRandomUnit(state) * 100 < Math.max(5, Math.min(95, Number(chance) || 0));
     if (!success) {
@@ -595,29 +840,41 @@
       return { ok: true, status: "failed", oldWage, wage: oldWage, trust: state.trust };
     }
     const factor = Number(level) === 2 ? 1.35 : Number(level) === 1 ? 1.15 : 1.05;
-    state.weeklyWage = Math.round(oldWage * factor);
+    state.weeklyWage = Math.min(Number.MAX_SAFE_INTEGER, Math.round(oldWage * factor));
     state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) + 3)));
     return { ok: true, status: "success", oldWage, wage: state.weeklyWage, trust: state.trust };
   }
 
-  function shouldRetire(state, maximumAge = 40) { return Boolean(state && (state.retired || Number(state.age) >= maximumAge)); }
+  function shouldRetire(state, maximumAge = 40) {
+    return Boolean(state && (normalizeLegacyBoolean(state.retired) || Number(state.age) >= maximumAge));
+  }
 
   function makeContractOffer(state, withAgent = false) {
-    const currentWage = Math.max(0, Number(state?.weeklyWage) || 250);
+    const savedWage = Number(state?.weeklyWage);
+    const currentWage = Number.isFinite(savedWage) && savedWage > 0
+      ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(savedWage)) : 250;
     const contractMultiplier = withAgent && typeof withAgent === "object"
       ? Math.max(0.96, Math.min(1.18, Number(withAgent.contractMultiplier) || 1.08))
       : withAgent ? 1.1 : 1;
-    const wage = Math.max(currentWage, Math.round(currentWage * (0.9 + overall(state) / 500
-      + (Number(state?.trust) || 0) / 1000) * contractMultiplier));
+    const ratingValue = Number(overall(state));
+    const rating = Number.isFinite(ratingValue) ? Math.max(0, Math.min(100, ratingValue)) : 50;
+    const trustValue = Number(state?.trust);
+    const trust = Number.isFinite(trustValue) ? Math.max(0, Math.min(100, trustValue)) : 0;
+    const calculatedWage = Math.round(currentWage * (0.9 + rating / 500 + trust / 1000) * contractMultiplier);
+    const wage = Math.max(currentWage, Math.min(Number.MAX_SAFE_INTEGER, calculatedWage));
     return { club: String(state?.clubName || ""), wage, seasons: 3, season: Number(state?.season) || 1 };
   }
 
   function resolveContractDecision(state, decision, offer) {
     if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
+    if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (decision === "accept") {
       if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
-      state.weeklyWage = Math.max(0, Math.round(Number(offer.wage)));
-      state.contractSeasons = Math.max(1, Math.floor(Number(offer.seasons) || 3) + 1);
+      state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
+      const offerSeasonsValue = Number(offer.seasons);
+      const offerSeasons = Number.isFinite(offerSeasonsValue) && offerSeasonsValue > 0
+        ? Math.max(1, Math.min(5, Math.floor(offerSeasonsValue))) : 3;
+      state.contractSeasons = offerSeasons + 1;
       state.freeAgent = false;
       state.contractOffer = null;
       return { ok: true, status: "renewed", wage: state.weeklyWage, seasonsBeforeNewSeason: state.contractSeasons };
@@ -627,21 +884,50 @@
   }
 
   function recordNationalTournamentMatch(state, outcome) {
-    if (!state || state.nationalTournamentDone || Number(state.nationalTournamentMatches || 0) >= 3) return { ok: false, status: "tournament-closed" };
-    const played = Math.max(0, Math.floor(Number(state.nationalTournamentMatches) || 0));
-    if (played < 2) {
-      state.nationalTournamentPoints = Math.max(0, Number(state.nationalTournamentPoints) || 0)
-        + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0);
+    if (!state || typeof state !== "object") return { ok: false, status: "invalid-state" };
+    state.nationalTournamentDone = normalizeLegacyBoolean(state.nationalTournamentDone);
+    state.nationalTournamentQualified = normalizeLegacyBoolean(state.nationalTournamentQualified);
+    state.nationalTournamentWinner = normalizeLegacyBoolean(state.nationalTournamentWinner);
+    state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
+    if (state.nationalTournamentDone) return { ok: false, status: "tournament-closed" };
+    const finiteTournamentCounter = (value, maximum) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.floor(numeric))) : 0;
+    };
+    const played = finiteTournamentCounter(state.nationalTournamentMatches, 4);
+    const points = finiteTournamentCounter(state.nationalTournamentPoints, Math.min(9, played * 3));
+    if (played >= 4) {
+      state.nationalTournamentMatches = 4;
+      state.nationalTournamentPoints = points;
+      return { ok: false, status: "tournament-closed" };
+    }
+    if (!["فوز", "تعادل", "خسارة"].includes(outcome)) return { ok: false, status: "invalid-outcome" };
+    state.nationalTournamentMatches = played;
+    state.nationalTournamentPoints = points;
+    if (played >= 3 && state.nationalTournamentQualified !== true) {
+      return { ok: false, status: "not-qualified" };
+    }
+    if (played < 3) {
+      state.nationalTournamentPoints = Math.min(9, points
+        + (outcome === "فوز" ? 3 : outcome === "تعادل" ? 1 : 0));
       state.nationalTournamentMatches = played + 1;
-      if (state.nationalTournamentMatches === 2) {
-        state.nationalTournamentQualified = state.nationalTournamentPoints >= 3;
+      if (state.nationalTournamentMatches === 3) {
+        // Three group fixtures; four points is the simplified qualifying threshold.
+        state.nationalTournamentQualified = state.nationalTournamentPoints >= 4;
         state.nationalTournamentDone = !state.nationalTournamentQualified;
+        state.nationalTournamentWinner = false;
+        state.nationalTournamentFinalOutcome = "";
       }
       state.internationalPlayed = Boolean(state.nationalTournamentDone);
-      return { ok: true, status: state.nationalTournamentMatches < 2 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
+      return { ok: true, status: state.nationalTournamentMatches < 3 ? "group" : state.nationalTournamentQualified ? "final-qualified" : "eliminated", points: state.nationalTournamentPoints };
     }
-    state.nationalTournamentMatches = 3; state.nationalTournamentDone = true; state.internationalPlayed = true;
-    return { ok: true, status: "final-complete", points: state.nationalTournamentPoints };
+    if (outcome === "تعادل") return { ok: false, status: "final-winner-required" };
+    state.nationalTournamentMatches = 4;
+    state.nationalTournamentDone = true;
+    state.internationalPlayed = true;
+    state.nationalTournamentWinner = outcome === "فوز";
+    state.nationalTournamentFinalOutcome = outcome;
+    return { ok: true, status: state.nationalTournamentWinner ? "champion" : "final-lost", points: state.nationalTournamentPoints };
   }
 
   function applySeasonAging(state) {
@@ -667,15 +953,6 @@
     return notes.length ? "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء."
       : "الاحترافية ساعدتك على تقليل تراجع السمات في هذا الموسم.";
   }
-
-  function calendarGameDateISO(state) {
-    const calendarDay = Math.max(1, Math.floor(Number(state && state.calendarDay) || 1));
-    const elapsed = calendarDay - 1, gameYear = 2024 + Math.floor(elapsed / 365), dayInSeason = elapsed % 365;
-    const reference = new Date(Date.UTC(2021, 7, 1) + dayInSeason * 86400000);
-    const pad = value => String(value).padStart(2, "0");
-    return String(gameYear).padStart(4, "0") + "-" + pad(reference.getUTCMonth() + 1) + "-" + pad(reference.getUTCDate()) + "T00:00:00.000Z";
-  }
-
   window.LWCareer = {
     calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,

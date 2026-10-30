@@ -14,13 +14,32 @@ if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and publi
 if (html.includes("قوائم الدرجة الأولى المتاحة مأخوذة من ملفات OpenFootball مع موسم ومصدر لكل دوري")) {
   console.error("Player creation must not show the OpenFootball catalog disclaimer."); process.exit(1);
 }
-if (!serviceWorker.includes('const CACHE_NAME = "last-whistle-static-v74";')) {
-  console.error("Service-worker cache version must change when the offline shell is updated."); process.exit(1);
+const cacheDeclaration = serviceWorker.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
+if (!cacheDeclaration || !/last-whistle-static-v\d+/.test(cacheDeclaration)) {
+  console.error("Service worker must use a versioned cache name."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
 if (!storySource.includes("lastRenderedStoryPanelSignature")
   || !storySource.includes("storyPanelSignature===lastRenderedStoryPanelSignature")) {
   console.error("Story panel must avoid rebuilding unchanged interactive choices on every poll."); process.exit(1);
+}
+if (!html.includes('html.lw-rebuild-pending body .app { visibility: hidden !important; }')
+  || !html.includes('<html lang="ar" dir="rtl" class="lw-rebuild-pending">')) {
+  console.error("Legacy homepage must be hidden before first paint while the redesigned shell initializes.");
+  process.exit(1);
+}
+if (!storySource.includes('document.documentElement.classList.remove("lw-rebuild-pending")')
+  || storySource.indexOf('document.documentElement.classList.remove("lw-rebuild-pending")') < storySource.indexOf("bindNewControls();")) {
+  console.error("First-paint gate must only release after the redesigned shell and controls are mounted.");
+  process.exit(1);
+}
+if (!storySource.includes("if(el.textContent!==text)el.textContent=text")
+  || !storySource.includes("if(document.hidden)return;")
+  || !storySource.includes("window.setInterval(tick,5000)")
+  || !storySource.includes("window.setInterval(tick,2500)")
+  || !storySource.includes('store.subscribe(function(){scheduleTick();})')
+  || !storySource.includes("document.addEventListener(\"visibilitychange\"")) {
+  console.error("Story polling must skip unchanged DOM writes and pause while the app is backgrounded."); process.exit(1);
 }
 const shellStart = serviceWorker.indexOf("const APP_SHELL = [");
 const shellEnd = serviceWorker.indexOf("];", shellStart);
@@ -59,7 +78,9 @@ const required = [
   "function runSeasonAITtraining()",
   "function canAccessTransferMarket()",
   "function isNaturalWinterTransferWindow()",
-  'if(activateMidSeasonBreakIfDue())break;',
+  "function activateMidSeasonBreakIfDue(){",
+  "if(activateMidSeasonBreakIfDue())break;",
+  "activateMidSeasonBreakIfDue();",
   "const developmentResult=runSeasonAITtraining();",
   "report.completedSeason=currentSeason",
   "transferButton.hidden=!transferVisible",
@@ -113,22 +134,22 @@ const required = [
   "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=9",
-  "career-experience.js?v=1",
+  "story-mode.js?v=11",
+  "career-experience.js?v=6",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
-  "career-hub.js?v=1",
+  "career-hub.js?v=3",
   "player-store.css?v=2",
-  "ai-career-engine.js?v=4",
+  "ai-career-engine.js?v=5",
   "football-world-ai.css?v=1",
-  "football-world-ai.js?v=10",
+  "football-world-ai.js?v=30",
   'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
   "window.LWWorldAI.advanceToSeasonAsync",
   "window.LWWorldAI?.completeSeason",
   "function renderWorldAIDashboard",
   "opponentTacticalIQ:opponentPlan.iq",
-  "agent-system.js?v=2",
+  "agent-system.js?v=5",
   "agent-system.css?v=1",
   'id="shopFilters"',
   'id="storeBalance"',
@@ -223,6 +244,25 @@ if (!html.includes("let lastAchievementsRenderSignature") ||
     !html.includes('box&&!box.querySelector("#realPlayerTeam")') ||
     !html.includes('addEventListener("input",scheduleGlobalCatalogRender)')) {
   console.error("UI performance regression: stable widgets must be cached and catalog searches must avoid full-page rerenders.");
+  process.exit(1);
+}
+
+const nationalRenderStart = html.indexOf("function renderNational(){");
+const nationalMatchStart = html.indexOf("function nationalMatch(){");
+const nationalMatchEnd = html.indexOf("function newCareer()", nationalMatchStart);
+if (nationalRenderStart < 0 || nationalMatchStart < 0 || nationalMatchEnd < nationalMatchStart) {
+  console.error("National tournament regression test could not locate the render/match functions.");
+  process.exit(1);
+}
+const nationalRenderSource = html.slice(nationalRenderStart, html.indexOf("const SHOP", nationalRenderStart));
+const nationalMatchSource = html.slice(nationalMatchStart, nationalMatchEnd);
+if (!nationalRenderSource.includes("البطولة المصغرة تبدأ بثلاث مباريات في دور المجموعات.")
+  || !nationalRenderSource.includes("tm<3?")
+  || !nationalMatchSource.includes("tournamentMatchIndex<3?")
+  || !nationalMatchSource.includes("knockout:tournamentMatchIndex>=3")
+  || !nationalMatchSource.includes("Number(state.nationalTournamentMatches)>=4")
+  || !html.includes("state.nationalTournamentMatches=3;}state.nationalTournamentFormat=2;")) {
+  console.error("National tournament must have three group fixtures, a separate final, and legacy-save migration.");
   process.exit(1);
 }
 
@@ -323,16 +363,20 @@ for (const marker of ["runTransferWindow", "completeSeason", "advanceToSeason", 
   if (!worldAISource.includes(marker)) { console.error("Football world AI engine is missing:", marker); process.exit(1); }
 }
 const squadRefreshSource = fs.readFileSync(path.join(root, "scripts", "refresh-world-squads.cjs"), "utf8");
-for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW", "WF"]', '["LW", "RW", "LWF", "RWF"]']) {
+for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW"]', '["LW", "RW", "LWF", "RWF", "WF"]']) {
   if (!squadRefreshSource.includes(marker)) { console.error("Sourced squad position normalization collapsed striker roles:", marker); process.exit(1); }
 }
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
-if (!workerSource.includes("last-whistle-static-v74")) { console.error("Application runtime fix must refresh the service-worker cache."); process.exit(1); }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=9", "career-experience.css?v=1", "career-experience.js?v=1", "agent-system.css?v=1", "agent-system.js?v=2", "career-hub.css?v=1", "career-hub.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=4", "football-world-ai.css?v=1", "football-world-ai.js?v=10", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=2", "world-roster-audit.json", "redesign.css?v=5"]) {
+const workerCacheDeclaration = workerSource.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
+if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
+  console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
+}
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=5", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=30", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=22", "world-roster-audit.json", "redesign.css?v=6"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 56);
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
 try {
   new vm.Script(experienceSource, { filename: "public/career-experience.js" });
@@ -340,6 +384,52 @@ try {
   console.error("Career experience JavaScript syntax error:", error.message);
   process.exit(1);
 }
+function extractExperienceFunction(source, functionName) {
+  const start = source.indexOf("function " + functionName + "(");
+  if (start < 0) throw new Error("Missing career experience function: " + functionName);
+  const end = source.indexOf("\n  function ", start + 1);
+  if (end < 0) throw new Error("Cannot find end of career experience function: " + functionName);
+  return source.slice(start, end);
+}
+const trainingUIState = { pos: "جناح" };
+const trainingUIHarness = {
+  currentView: "",
+  API: () => ({ getState: () => trainingUIState }),
+  frame: (title, chapter, body) => { trainingUIHarness.renderedBody = body; },
+  actionButton: (id, label) => '<button data-lwcx-action="' + id + '">' + label + '</button>'
+};
+vm.createContext(trainingUIHarness);
+vm.runInContext(extractExperienceFunction(experienceSource, "openTrainingSkill") + "\nthis.openTrainingSkill = openTrainingSkill;", trainingUIHarness);
+trainingUIHarness.openTrainingSkill();
+assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-goalkeeping"'), false,
+  "goalkeeping-focused training must not be offered to an outfield player");
+trainingUIState.pos = "حارس مرمى";
+trainingUIHarness.openTrainingSkill();
+assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-goalkeeping"'), true,
+  "goalkeeping-focused training must be offered to goalkeepers");
+const focusedTrainingMessages = [];
+const focusedTrainingHarness = {
+  currentView: "",
+  API: () => ({ toast: message => focusedTrainingMessages.push(String(message)) }),
+  stat: (state, key, delta) => { state[key] = (Number(state[key]) || 0) + Number(delta || 0); },
+  record: () => {},
+  save: () => {},
+  renderFinance: () => {}
+};
+vm.createContext(focusedTrainingHarness);
+vm.runInContext(extractExperienceFunction(experienceSource, "applyFocusedTraining") + "\nthis.applyFocusedTraining = applyFocusedTraining;", focusedTrainingHarness);
+const wingerTrainingState = { pos: "جناح", retired: false, injuryDays: 0, money: 1000, energy: 90, goalkeeping: 12, careerXP: 0 };
+focusedTrainingHarness.applyFocusedTraining(wingerTrainingState, "goalkeeping");
+assert.equal(wingerTrainingState.money, 1000, "an outfield player must not pay for invalid goalkeeper training");
+assert.equal(wingerTrainingState.energy, 90, "rejected goalkeeper training must not consume energy");
+assert.equal(wingerTrainingState.goalkeeping, 12, "rejected goalkeeper training must not raise goalkeeper skill");
+assert.equal(wingerTrainingState.careerXP, 0, "rejected goalkeeper training must not grant XP");
+const keeperTrainingState = { pos: "حارس مرمى", retired: false, injuryDays: 0, money: 1000, energy: 90, goalkeeping: 60, careerXP: 0 };
+focusedTrainingHarness.applyFocusedTraining(keeperTrainingState, "goalkeeping");
+assert.equal(keeperTrainingState.money, 820, "valid goalkeeper training should charge the listed fee");
+assert.equal(keeperTrainingState.energy, 82, "valid goalkeeper training should charge the listed energy");
+assert.equal(keeperTrainingState.goalkeeping, 62, "valid goalkeeper training should increase goalkeeper skill");
+assert.equal(keeperTrainingState.careerXP, 10, "valid goalkeeper training should grant career XP");
 for (const marker of ["data-lwcx-action", "careerWorld", "open-penalty", "open-timing", "open-memory", "invest-safe", "invest-risky", "mentor-coach", "open-legacy", "settleInvestments"]) {
   if (!experienceSource.includes(marker)) {
     console.error("Career experience test failed. Missing marker:", marker);
@@ -392,7 +482,9 @@ if (closedWindow.open || closedWindow.days !== 84) { console.error("Transfer tes
 const staleWinterPause = evaluateTransferWindow({ calendarDay: 100, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
 if (staleWinterPause.open) { console.error("Transfer test failed: a stale pending winter pause must not force the market open outside January.", JSON.stringify(staleWinterPause)); process.exit(1); }
 const winterPause = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: true, freeAgent: false });
-if (!winterPause.open || winterPause.id !== "winter-season-2") { console.error("Transfer test failed: a pending winter break must open only inside the natural January window.", JSON.stringify(winterPause)); process.exit(1); }
+if (!winterPause.open || winterPause.id !== "winter-0") { console.error("Transfer test failed: the winter window must use a stable calendar-year ID inside January.", JSON.stringify(winterPause)); process.exit(1); }
+const winterPauseContinued = evaluateTransferWindow({ calendarDay: 190, season: 2, seasonApps: 19, winterBreakPending: false, freeAgent: false });
+if (winterPauseContinued.id !== winterPause.id) { console.error("Transfer test failed: continuing into the second half must not change the active winter-window ID.", JSON.stringify({ winterPause, winterPauseContinued })); process.exit(1); }
 
 const marketAccessStart = html.indexOf("function canAccessTransferMarket(){");
 const marketAccessEnd = html.indexOf("\nfunction ", marketAccessStart + 1);
@@ -520,7 +612,7 @@ if (!html.includes("function buildSeasonAwardCeremony(place){")
   || !html.includes('id="playmakerLeaderboard"')) {
   console.error("Season awards test failed: ceremony, leaderboards, or trophy cabinet is missing."); process.exit(1);
 }
-if (!html.includes('src="./transfer-awards-engine.js?v=1"')
+if (!html.includes('src="./transfer-awards-engine.js?v=8"')
   || !html.includes("transferOffersWindowId")
   || !html.includes("awardCeremonies")
   || !html.includes("currentCompetitions")) {
@@ -585,7 +677,7 @@ const interactionSandbox = {
     const day = Math.max(1, Number(interactionSandbox.state.calendarDay) || 1);
     const d = ((day - 1) % 365) + 1, year = Math.floor((day - 1) / 365);
     if (d <= 62) return { open: true, id: "summer-" + year, name: "الانتقالات الصيفية", days: 62 - d };
-    if (d >= 184 && d <= 214) return { open: true, id: interactionSandbox.state.winterBreakPending ? "winter-season-" + interactionSandbox.state.season : "winter-" + year, name: "الانتقالات الشتوية", days: 214 - d };
+    if (d >= 184 && d <= 214) return { open: true, id: "winter-" + year, name: "الانتقالات الشتوية", days: 214 - d };
     return { open: false, id: "closed-" + year, name: "السوق مغلق", days: d < 184 ? 184 - d : 365 - d + 1 };
   },
   saveGame: () => { interactionSaveCount++; return true; },
@@ -648,5 +740,182 @@ assert.equal(interactionNode("seasonTransferAction").hidden, true, "the transfer
 assert.notEqual(interactionNode("seasonStageAction").dataset.seasonAction, "transfer-review", "the main season CTA must not route academy players to professional transfers");
 interactionSandbox.runSeasonJourneyAction("transfer-review");
 assert.ok(interactionMessages.some(message => message.includes("سن 18")), "academy players must be told the professional market unlocks at 18");
+
+
+const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const offerWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesWindow");
+const offerAvailabilitySource = extractTopLevelFunction(html, "offerIsAvailable");
+const offerState = {
+  careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
+  calendarDay: 15, season: 1, day: 15, apps: 2, clubName: "نادي أ", leagueCountry: "مصر",
+  clubPower: 50, transferOffers: [], transferOffersWindowId: "", transferOffersAttemptKey: "",
+  transferHistory: []
+};
+let offerProfile = { name: "محمد", age: 24, potential: 72, goals: 0, assists: 0, appearances: 2, form: 6.0, ovr: 55, position: "وسط", currentClub: "نادي أ", currentClubPower: 50, country: "مصر" };
+let offerGenerationCalls = 0;
+const offerSandbox = {
+  state: offerState,
+  canAccessTransferMarket: () => true,
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
+  activeCupInProgress: () => true,
+  transferPlayerProfile: () => ({ ...offerProfile }),
+  transferTargets: () => [{ club: "نادي ب", country: "مصر", power: 50, division: 1, players: [] }],
+  window: { LWTransferAwards: { generateOffers: ({ windowId }) => {
+    offerGenerationCalls++;
+    return offerProfile.form >= 6.3
+      ? [{ id: "offer-" + windowId, windowId, club: "نادي ب", country: "مصر", status: "pending" }]
+      : [];
+  } } },
+  saveGame: () => true,
+  log: () => {},
+  setStory: () => {}
+};
+vm.createContext(offerSandbox);
+vm.runInContext(offerWindowMatchSource, offerSandbox, { filename: "transferOfferMatchesWindow" });
+vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
+vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 1, "an eligible player should get one offer-generation attempt even if no club fits yet");
+assert.equal(offerState.transferOffersWindowId, "summer-0");
+assert.equal(offerState.transferOffers.length, 0);
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 1, "the same empty profile must not repeatedly scan and generate offers");
+
+offerProfile.position = "مهاجم";
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 2, "a position change must refresh position-specific offer context");
+offerProfile.age = 20;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 3, "an age change must retry an empty offer search");
+offerProfile.potential = 84;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 4, "a potential change must retry youth-role offer matching");
+offerProfile.goals = 2;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 5, "goal contributions must refresh the eligible target range");
+offerProfile.assists = 1;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 6, "assist contributions must refresh the eligible target range");
+
+offerProfile.form = 6.4;
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 7, "improved form must retry offer generation within the same open window");
+assert.equal(offerState.transferOffers.length, 1, "a newly suitable offer must be added without waiting for another window");
+assert.equal(offerSandbox.offerIsAvailable(offerState.transferOffers[0]), true,
+  "an active cup tournament must not block a valid offer during an open transfer window");
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 7, "the same window must not replenish offers after generation");
+assert.equal(offerState.transferOffers.length, 1, "repeat market renders must not duplicate offers");
+offerSandbox.transferWindow = () => ({ open: true, id: "winter-0", name: "الانتقالات الشتوية", days: 10 });
+offerSandbox.ensureTransferOffers();
+assert.equal(offerGenerationCalls, 8, "a new transfer window must generate its own offers");
+assert.ok(offerState.transferOffers.some(offer => offer.windowId === "winter-0"));
+
+// Keep the delegated favourite-league action single-bound.
+const favoriteClickBindings = [...html.matchAll(/\$\("leagueCatalog"\)\.addEventListener\("click"/g)].length;
+if (favoriteClickBindings !== 1) {
+  console.error("Listener regression failed: leagueCatalog must have one delegated click listener, found", favoriteClickBindings);
+  process.exit(1);
+}
+
+// Execute transfer eligibility gates with controlled state, including the actual calendar countdown.
+const eligibilityStart = html.indexOf("function transferEligibilityReason(target){");
+const eligibilityEnd = html.indexOf("\nfunction transferChance(target){", eligibilityStart);
+if (eligibilityStart < 0 || eligibilityEnd < 0) {
+  console.error("Transfer integration test failed: eligibility helper boundaries missing.");
+  process.exit(1);
+}
+const eligibilitySource = html.slice(eligibilityStart, eligibilityEnd);
+function evaluateTransferEligibility(state, options = {}) {
+  const sandbox = {
+    state,
+    activeCupInProgress: () => !!options.cupActive,
+    isYouthAcademyPlayer: () => !!options.youth,
+    transferWindow: () => options.window || { open: true, name: "الانتقالات الصيفية", days: 0 },
+    transferAverageRating: () => options.average == null ? 6.5 : options.average,
+    transferFactors: () => options.factors || { ageAdjustment: 0, contractAdjustment: 0, currentRoleAdjustment: 0, positionAdjustment: 0, targetRoleAdjustment: 0 },
+    overall: () => options.overall == null ? 70 : options.overall
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(eligibilitySource, sandbox, { filename: "transferEligibility" });
+  return sandbox.transferEligibilityReason({ club: "Next FC", country: "Egypt", power: 75 });
+}
+const transferReadyState = {
+  retired: false, careerStarted: true, age: 24, loan: null, clubName: "Current FC", leagueCountry: "Egypt",
+  apps: 2, daysSinceTransfer: 9, transferCooldown: 0, trust: 50, freeAgent: false
+};
+const transferChecks = [
+  [evaluateTransferEligibility({ ...transferReadyState }), "" , "eligible player should pass transfer gating"],
+  [evaluateTransferEligibility({ ...transferReadyState, apps: 1 }).includes("مباراتين"), true, "appearance gate should explain the two-match minimum"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { window: { open: false, name: "السوق مغلق", days: 17 } }).includes("17 يوم"), true, "closed market should show its opening countdown"],
+  [evaluateTransferEligibility({ ...transferReadyState, loan: { parentClub: "Parent FC" } }).includes("معار"), true, "an active loan should block permanent transfer"],
+  [evaluateTransferEligibility({ ...transferReadyState, trust: 10 }).includes("20/100"), true, "low coach trust should explain the threshold"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { cupActive: true }), "", "an active cup should not block transfer requests during an open window"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { average: 5.5 }).includes("5.8"), true, "poor match ratings should explain the minimum rating"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { overall: 50 }).includes("أعلى من مستواك الحالي"), true, "an unrealistic destination should be rejected"],
+  [evaluateTransferEligibility({ ...transferReadyState, daysSinceTransfer: 2 }).includes("5 أيام"), true, "recent transfers should enforce a seven-day cooldown"],
+  [evaluateTransferEligibility({ ...transferReadyState, age: 17 }).includes("سن 18"), true, "underage players should not enter the senior transfer market"],
+  [evaluateTransferEligibility({ ...transferReadyState }, { youth: true }).includes("أكاديمية الناشئين"), true, "youth academy players should remain gated until graduation"]
+];
+for (const [actual, expected, message] of transferChecks) {
+  if (actual !== expected) {
+    console.error("Transfer integration test failed:", message, "expected", expected, "got", actual);
+    process.exit(1);
+  }
+}
+
+// Exercise the actual transfer-review modal and its midseason continuation choices.
+const reviewStart = html.indexOf("function openWinterMarket(){");
+const reviewEnd = html.indexOf("\nfunction resumeManualSeason(){", reviewStart);
+if (reviewStart < 0 || reviewEnd < 0) {
+  console.error("Transfer review integration test failed: modal function boundaries missing.");
+  process.exit(1);
+}
+const reviewSource = html.slice(reviewStart, reviewEnd);
+function exerciseTransferReview(winterBreak) {
+  const sandbox = {
+    state: { retired: false, freeAgent: false, weeklyWage: 400, contractSeasons: 2, apps: 5,
+      winterBreakPending: winterBreak, journeyTransferReviewed: false, season: 1, day: 10,
+      age: 24, careerStarted: true, clubName: "Current FC", leagueCountry: "Egypt" },
+    canAccessTransferMarket: () => true,
+    transferWindow: () => ({ open: !winterBreak, name: winterBreak ? "السوق مغلق" : "الانتقالات الصيفية", days: 0 }),
+    seasonMatchTotal: () => 38,
+    currencyLabel: () => "جنيه",
+    log: () => {},
+    saveGame: () => {},
+    render: () => {},
+    openTransferMarketPage: () => { sandbox.lastPage = "transfers"; },
+    openModal: (title, message, choices) => { sandbox.lastModal = { title, message, choices }; },
+    resumeManualSeason: () => { sandbox.resumed = true; },
+    simulateSeasonBlock: () => { sandbox.simulated = true; },
+    toast: message => { sandbox.lastToast = message; }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(reviewSource, sandbox, { filename: "openWinterMarket" });
+  sandbox.openWinterMarket();
+  return sandbox;
+}
+const normalReview = exerciseTransferReview(false);
+if (!normalReview.lastModal || normalReview.lastModal.choices[0].label !== "مراجعة العقد والسوق") {
+  console.error("Transfer review integration test failed: normal market review action missing.");
+  process.exit(1);
+}
+normalReview.lastModal.choices[0].action();
+if (normalReview.lastPage !== "transfers" || normalReview.state.journeyTransferReviewed !== true) {
+  console.error("Transfer review integration test failed: review action must mark the milestone and open the transfer market.");
+  process.exit(1);
+}
+const winterReview = exerciseTransferReview(true);
+if (!winterReview.lastModal || !winterReview.lastModal.choices.some(choice => choice.label === "أكمل بالمباريات اليدوية")
+    || !winterReview.lastModal.choices.some(choice => choice.label.startsWith("حاكي آخر"))) {
+  console.error("Transfer review integration test failed: winter pause must expose continuation paths.");
+  process.exit(1);
+}
+winterReview.lastModal.choices.find(choice => choice.label === "أكمل بالمباريات اليدوية").action();
+winterReview.lastModal.choices.find(choice => choice.label.startsWith("حاكي آخر")).action();
+if (!winterReview.resumed || !winterReview.simulated) {
+  console.error("Transfer review integration test failed: both winter continuation paths must be callable.");
+  process.exit(1);
+}
 
 console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");

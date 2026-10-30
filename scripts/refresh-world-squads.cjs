@@ -110,46 +110,102 @@ function normalized(text) {
 function roleFor(position) {
   const value = String(position || "").trim().toUpperCase();
   if (["G", "GK"].includes(value)) return "حارس مرمى";
-  if (["D", "DF", "CB", "LB", "RB", "LWB", "RWB"].includes(value)) return "قلب دفاع";
-  if (["LW", "RW", "LWF", "RWF"].includes(value)) return "جناح";
+  if (["D", "DF", "CB"].includes(value)) return "قلب دفاع";
+  if (["LB", "RB", "LWB", "RWB"].includes(value)) return "ظهير";
+  if (["LW", "RW", "LWF", "RWF", "WF"].includes(value)) return "جناح";
   if (["ST", "LS", "RS", "F"].includes(value)) return "رأس حربة";
-  if (["CF", "SS", "FW", "WF"].includes(value)) return "مهاجم";
-  if (["M", "MF", "DM", "CM", "AM"].includes(value)) return "وسط مهاجم";
+  if (["CF", "SS", "FW"].includes(value)) return "مهاجم";
+  if (value === "DM") return "وسط دفاعي";
+  if (["M", "MF", "CM", "AM"].includes(value)) return "وسط مهاجم";
   return "";
 }
 
-function parseAge(dob) {
+function seasonReferenceDate(seasonLabel) {
+  const label = String(seasonLabel || SEASON).trim();
+  const calendarYearSeason = label.match(/^(\d{4})\s+Apertura$/i);
+  if (calendarYearSeason) return new Date(Date.UTC(Number(calendarYearSeason[1]), 0, 1));
+  const splitSeason = label.match(/^(\d{4})\/(?:\d{2}|\d{4})$/);
+  if (splitSeason) return new Date(Date.UTC(Number(splitSeason[1]), 6, 1));
+  const fallbackYear = Number(String(SEASON).match(/^\d{4}/)?.[0]) || 2026;
+  return new Date(Date.UTC(fallbackYear, 6, 1));
+}
+
+function parseAge(dob, referenceDate = seasonReferenceDate(SEASON)) {
   const m = String(dob || "").match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/);
   if (!m) return null;
   let year = Number(m[3]);
   if (year < 100) year += year >= 40 ? 1900 : 2000;
   const month = Number(m[2]), day = Number(m[1]);
-  const seasonDate = new Date();
+  const seasonDate = referenceDate instanceof Date && Number.isFinite(referenceDate.getTime())
+    ? referenceDate
+    : seasonReferenceDate(SEASON);
+  const daysInMonth = month >= 1 && month <= 12
+    ? new Date(Date.UTC(year, month, 0)).getUTCDate()
+    : 0;
+  if (!Number.isInteger(day) || day < 1 || day > daysInMonth) return null;
   let age = seasonDate.getUTCFullYear() - year;
   if (seasonDate.getUTCMonth() + 1 < month ||
       (seasonDate.getUTCMonth() + 1 === month && seasonDate.getUTCDate() < day)) age--;
   return age >= 15 && age <= 48 ? age : null;
 }
 
+function resolveSameOriginRedirect(currentUrl, location, expectedOrigin) {
+  const target = new URL(location, currentUrl);
+  if (!/^https?:$/.test(target.protocol) || target.origin !== expectedOrigin) {
+    const error = new Error("Blocked cross-origin roster redirect from " + currentUrl + " to " + target.href);
+    error.code = "UNSAFE_REDIRECT";
+    throw error;
+  }
+  return target;
+}
+
 async function fetchHtml(url) {
   let lastError;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": "LastWhistleRosterRefresh/1.0 (game database refresh)",
-          "Accept": "text/html,application/xhtml+xml"
-        },
-        signal: AbortSignal.timeout(25000)
-      });
-      if (!response.ok) throw new Error("HTTP " + response.status + " for " + url);
+      const originalUrl = new URL(url);
+      const expectedOrigin = originalUrl.origin;
+      let currentUrl = originalUrl;
+      let response;
+      let redirects = 0;
+      while (true) {
+        response = await fetch(currentUrl.href, {
+          headers: {
+            "User-Agent": "LastWhistleRosterRefresh/1.0 (game database refresh)",
+            "Accept": "text/html,application/xhtml+xml"
+          },
+          redirect: "manual",
+          signal: AbortSignal.timeout(25000)
+        });
+        if (![301, 302, 303, 307, 308].includes(response.status)) break;
+        const location = response.headers && response.headers.get("location");
+        if (!location) {
+          const error = new Error("Roster source returned a redirect without a Location header: " + currentUrl.href);
+          error.code = "INVALID_REDIRECT";
+          throw error;
+        }
+        if (redirects >= 5) {
+          const error = new Error("Too many roster source redirects for " + url);
+          error.code = "REDIRECT_LIMIT";
+          throw error;
+        }
+        currentUrl = resolveSameOriginRedirect(currentUrl.href, location, expectedOrigin);
+        redirects += 1;
+      }
+      if (response.url && new URL(response.url).origin !== expectedOrigin) {
+        const error = new Error("Blocked cross-origin roster response from " + response.url);
+        error.code = "UNSAFE_REDIRECT";
+        throw error;
+      }
+      if (!response.ok) throw new Error("HTTP " + response.status + " for " + currentUrl.href);
       const html = await response.text();
-      if (html.length < 1500) throw new Error("Unexpectedly short HTML (" + html.length + " bytes) from " + url);
+      if (html.length < 1500) throw new Error("Unexpectedly short HTML (" + html.length + " bytes) from " + currentUrl.href);
       if (/403 forbidden|access denied|cloudflare ray id/i.test(html.slice(0, 2000))) {
-        throw new Error("Access denied while fetching " + url);
+        throw new Error("Access denied while fetching " + currentUrl.href);
       }
       return html;
     } catch (error) {
+      if (error && ["UNSAFE_REDIRECT", "INVALID_REDIRECT", "REDIRECT_LIMIT"].includes(error.code)) throw error;
       lastError = error;
       await new Promise(resolve => setTimeout(resolve, attempt * 1200));
     }
@@ -172,7 +228,7 @@ function parseTeamLinks(indexHtml, indexUrl, teamDirectory) {
   for (const match of indexHtml.matchAll(re)) {
     let url;
     try { url = new URL(decodeEntities(match[2]), indexUrl); } catch { continue; }
-    if (!/^https?:$/.test(url.protocol) || !url.pathname.toLowerCase().endsWith(".htm")) continue;
+    if (!/^https?:$/.test(url.protocol) || url.origin !== page.origin || !/\.html?$/i.test(url.pathname)) continue;
     if (!url.pathname.startsWith(basePrefix) || url.pathname === basePrefix) continue;
     if (seen.has(url.href)) continue;
     const linkText = plainText(match[3]);
@@ -183,7 +239,7 @@ function parseTeamLinks(indexHtml, indexUrl, teamDirectory) {
   }
   return teams;
 }
-function parsePlayers(teamHtml) {
+function parsePlayers(teamHtml, referenceDate = seasonReferenceDate(SEASON)) {
   const cutoff = teamHtml.search(/Players\s+no\s+longer\s+at\s+this\s+club/i);
   const activeHtml = cutoff >= 0 ? teamHtml.slice(0, cutoff) : teamHtml;
   const players = [];
@@ -202,7 +258,7 @@ function parsePlayers(teamHtml) {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const shirt = Number.parseInt(cells[0], 10);
-    const age = parseAge(cells[6]);
+    const age = parseAge(cells[6], referenceDate);
     players.push({
       name,
       number: Number.isFinite(shirt) && shirt > 0 ? shirt : null,
@@ -255,7 +311,7 @@ async function main() {
     for (const team of teams) {
       const html = await fetchHtml(team.url);
       const teamName = extractTeamName(html, team.name);
-      const players = parsePlayers(html);
+      const players = parsePlayers(html, seasonReferenceDate(league.sourceSeason || SEASON));
       if (players.length < 12) {
         throw new Error("Only " + players.length + " current players parsed for " + teamName + " (" + team.url + ")");
       }
@@ -314,7 +370,11 @@ async function main() {
   console.log("World roster refresh complete:\n" + JSON.stringify(report, null, 2));
 }
 
-main().catch(error => {
-  console.error("World roster refresh FAILED:", error && error.stack || error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error("World roster refresh FAILED:", error && error.stack || error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { parseAge, seasonReferenceDate, roleFor, parseTeamLinks, fetchHtml };

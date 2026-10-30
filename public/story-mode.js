@@ -5,6 +5,7 @@ var stateRef = null;
 var previousSnapshot = "";
 var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
+var storyTickScheduled = false;
 var eventDefs = [
   {
     id:"family-pressure",chapter:"01 / THE BEGINNING",title:"مكالمة آخر الليل",tag:"أول قرار في المسيرة",
@@ -273,6 +274,7 @@ function ensureShell(){
     document.head.appendChild(style);
   }
   bindNewControls();
+  document.documentElement.classList.remove("lw-rebuild-pending");
 }
 function bindNewControls(){
   var mappings=[["lw-cta-match","heroMatch"],["lw-cta-training","heroTrain"],["lw-cta-season","seasonStageAction"],["lw-cta-transfers","seasonTransferAction"]];
@@ -398,7 +400,7 @@ function chooseStory(id,index){
 function renderOverview(s){
   var api=API();if(!s)return;
   var overview=document.getElementById("lw-command-center");var appRoot=document.querySelector(".app.hasSidebar");var activePage=appRoot&&appRoot.getAttribute("data-active-page");if(!activePage)activePage=s.currentPage||"home";if(overview)overview.style.display=activePage==="home"?"":"none";
-  var set=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value);};
+  var set=function(id,value){var el=document.getElementById(id);if(!el)return;var text=value==null?"—":String(value);if(el.textContent!==text)el.textContent=text;};
   var val=api&&typeof api.overall==="function"?api.overall():(typeof s.overall==="number"?s.overall:null);
   if(val==null){
     var keys=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision"];
@@ -417,7 +419,7 @@ function renderOverview(s){
   set("lw-hub-energy",Math.max(0,Math.min(100,Number(s.energy)||0))+"%");
   set("lw-hub-progress-label","الموسم "+(s.season||1)+" • المباريات");
   set("lw-hub-progress-value",pct+"%");
-  var bar=document.getElementById("lw-hub-progress-bar");if(bar)bar.style.width=pct+"%";
+  var bar=document.getElementById("lw-hub-progress-bar");if(bar&&bar.style.width!==pct+"%")bar.style.width=pct+"%";
   set("lw-next-opponent",getNextFixture(s));
   var calendarDay=Math.max(1,Number(s.calendarDay)||Number(s.day)||1);
   var lastMatchDay=Math.max(0,Number(s.lastLeagueMatchCalendarDay)||0);
@@ -429,12 +431,12 @@ function renderOverview(s){
   set("lw-hub-money",Number(s.money||0).toLocaleString("en-US")+(currency?" "+currency:""));
   var desc=" "+(s.age||17)+" سنة • "+(s.leagueCountry||"مصر")+" • "+(s.role||"بديل");
   set("lw-overview-sub","مسيرة "+(s.name||"لاعب جديد")+" — "+(s.clubName||"ناديك")+" / "+desc+". كل قرار بيغير طريقك.");
-  var cta=document.getElementById("lw-cta-match");if(cta)cta.disabled=!!s.retired;
-  var train=document.getElementById("lw-cta-training");if(train)train.disabled=!!s.retired;
+  var cta=document.getElementById("lw-cta-match");if(cta&&cta.disabled!==!!s.retired)cta.disabled=!!s.retired;
+  var train=document.getElementById("lw-cta-training");if(train&&train.disabled!==!!s.retired)train.disabled=!!s.retired;
   var seasonSource=document.getElementById("seasonStageAction"),seasonCta=document.getElementById("lw-cta-season");
-  if(seasonSource&&seasonCta){seasonCta.textContent=seasonSource.textContent;seasonCta.disabled=seasonSource.disabled;}
+  if(seasonSource&&seasonCta){if(seasonCta.textContent!==seasonSource.textContent)seasonCta.textContent=seasonSource.textContent;if(seasonCta.disabled!==seasonSource.disabled)seasonCta.disabled=seasonSource.disabled;}
   var transferSource=document.getElementById("seasonTransferAction"),transferCta=document.getElementById("lw-cta-transfers");
-  if(transferSource&&transferCta){transferCta.textContent=transferSource.textContent;transferCta.disabled=transferSource.disabled;transferCta.hidden=!!transferSource.hidden;transferCta.style.display=transferSource.hidden?"none":"";}
+  if(transferSource&&transferCta){if(transferCta.textContent!==transferSource.textContent)transferCta.textContent=transferSource.textContent;if(transferCta.disabled!==transferSource.disabled)transferCta.disabled=transferSource.disabled;if(transferCta.hidden!==!!transferSource.hidden)transferCta.hidden=!!transferSource.hidden;var display=transferSource.hidden?"none":"";if(transferCta.style.display!==display)transferCta.style.display=display;}
 }
 
 function finiteNumber(v){var n=Number(v);return Number.isFinite(n)?n:0;}
@@ -483,6 +485,7 @@ function syncMatchContext(s){
   if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)acceptMatchReport(report);
 }
 function tick(){
+  if(document.hidden)return;
   var api=API();if(!api)return;
   var s=api.getState();if(!s)return;
   if(!stateRef){stateRef=s;}
@@ -494,13 +497,26 @@ function tick(){
   if(snapshot!==previousSnapshot){previousSnapshot=snapshot;}
   if(lastPending!==s.storyPendingId)lastPending=s.storyPendingId||"";
 }
+function scheduleTick(){
+  if(storyTickScheduled)return;
+  storyTickScheduled=true;
+  Promise.resolve().then(function(){storyTickScheduled=false;tick();});
+}
 function start(){
   ensureShell();tick();
   document.addEventListener("click",function(e){
     var target=e.target.closest("[data-action],#heroMatch,#heroTrain,#heroStory,#createCareerBtn,#continueSavedBtn");
-    if(target){window.setTimeout(tick,250);window.setTimeout(tick,850);}
+    if(target){window.setTimeout(scheduleTick,250);window.setTimeout(scheduleTick,850);}
   },true);
-  window.setInterval(tick,900);
+  // State changes are the primary refresh path; retain a low-frequency safety poll.
+  var store=window.LWStateStore;
+  if(store&&typeof store.subscribe==="function"){
+    store.subscribe(function(){scheduleTick();});
+    window.setInterval(tick,5000);
+  }else{
+    window.setInterval(tick,2500);
+  }
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)tick();});
   window.addEventListener("pageshow",tick);
   window.addEventListener("storage",tick);
 }

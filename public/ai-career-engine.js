@@ -156,21 +156,25 @@
     clubs = Array.isArray(clubs) ? clubs : [];
     const current = clamp(overall, 35, 99);
     const age = number(state.age, 24);
+    const normalizeClubPart = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const currentClubName = normalizeClubPart(state.clubName);
+    const currentCountry = normalizeClubPart(state.leagueCountry || "مصر");
     const seen = new Set();
     return clubs.filter(club => club && club.name && club.country)
-      .filter(club => !(String(club.name) === String(state.clubName) && String(club.country) === String(state.leagueCountry || "مصر")))
+      .filter(club => !(normalizeClubPart(club.name) === currentClubName
+        && normalizeClubPart(club.country) === currentCountry))
       .map(club => {
         const power = clamp(club.ovr || club.power || 55, 25, 99);
         const gap = power - current;
-        const key = String(club.name).trim().toLocaleLowerCase() + "|" + String(club.country).trim().toLocaleLowerCase();
+        const key = normalizeClubPart(club.name) + "|" + normalizeClubPart(club.country);
         return { name: String(club.name), country: String(club.country), power, prestige: clamp(club.prestige || 50, 0, 100),
           gap, key, score: 100 - Math.abs(gap - 5) * 3.2 + clamp(club.prestige || 50, 0, 100) * 0.12
             - Math.max(0, gap - 14) * 2.5 - Math.max(0, -gap - 18) * 1.1 + (age <= 23 && gap >= 0 ? 3 : 0) };
       })
       .filter(row => {
-        if (seen.has(row.key)) return false;
+        if (row.gap > 18 || row.gap < -22 || seen.has(row.key)) return false;
         seen.add(row.key);
-        return row.gap <= 18 && row.gap >= -22;
+        return true;
       })
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
       .slice(0, 3)
@@ -313,10 +317,11 @@
       goalsFor, goalsAgainst, matchId: row.matchId || row.id || null };
   }
   function clubRank(state) {
-    const name = String(state && state.clubName || "");
+    const normalizeClubName = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const name = normalizeClubName(state && state.clubName);
     const rows = Array.isArray(state && state.leagueTable) ? state.leagueTable :
       Array.isArray(state && state.standings) ? state.standings : Array.isArray(state && state.league) ? state.league : [];
-    const row = rows.find(item => item && String(item.club || item.name || item.team || "") === name);
+    const row = rows.find(item => item && normalizeClubName(item.club || item.name || item.team || "") === name);
     if (!row) return { rank: null, points: null, teams: rows.length };
     const rank = num(row.rank, num(row.position, rows.indexOf(row) + 1));
     const pointsValue = row.pts ?? row.points;
@@ -467,8 +472,12 @@
   const originalTransfers = base.recommendTransfers;
   function recommendTransfers(state, clubs, overall) {
     const context = contextSnapshot(state, overall);
+    const normalizeClubPart = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
     return originalTransfers(state, clubs, overall).map(row => {
-      const club = (Array.isArray(clubs) ? clubs : []).find(item => item && String(item.name) === row.name);
+      const club = (Array.isArray(clubs) ? clubs : []).find(item => item
+        && normalizeClubPart(item.name) === normalizeClubPart(row.name)
+        && normalizeClubPart(item.country) === normalizeClubPart(row.country)
+        && clamp(num(item.ovr || item.power || 55, 55), 25, 99) === row.power);
       const prestige = clamp(num(club && club.prestige, 50), 0, 100);
       const rotationRisk = context.minutesLastFive < 130 && num(club && (club.power || club.ovr), 55) > context.overall + 8;
       const youthPath = context.stage === "academy" || context.stage === "development";

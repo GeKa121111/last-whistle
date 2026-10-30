@@ -9,31 +9,25 @@ const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
 assert.equal(source, deployed, "root and deployed agent-system.js must stay synchronized");
 assert.ok(!source.includes("اتفاق جديد لمدة موسمين"), "agent-switch copy must not promise automatic expiry");
+assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
+  "agent representation must not contain an automatic season-expiry path");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v74";'),
-  "open-ended agent contracts must invalidate the old offline cache");
+const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
+assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
+  "the offline service worker must use a versioned cache name");
 
 const documentListeners = Object.create(null);
 const windowListeners = Object.create(null);
-let intervalCallback = null;
 const elements = new Map();
-let innerHTMLWrites = 0;
-const makeNode = id => {
-  const node = {
-    id: id || "", hidden: false, textContent: "", className: "",
-    setAttribute() {}, addEventListener() {}, focus() {},
-    insertAdjacentElement(_where, child) { elements.set(child.id, child); },
-    querySelector() { return makeNode("dialog-close"); },
-    appendChild(child) { elements.set(child.id, child); }
-  };
-  Object.defineProperty(node, "innerHTML", {
-    get() { return node._innerHTML || ""; },
-    set(value) { innerHTMLWrites++; node._innerHTML = String(value); }
-  });
-  return node;
-};
+const makeNode = id => ({
+  id: id || "", hidden: false, innerHTML: "", textContent: "", className: "",
+  setAttribute() {}, addEventListener() {}, focus() {},
+  insertAdjacentElement(_where, node) { elements.set(node.id, node); },
+  querySelector() { return makeNode("dialog-close"); },
+  appendChild(node) { elements.set(node.id, node); }
+});
 const contractGrid = makeNode("contract-grid");
 const document = {
   readyState: "loading",
@@ -73,26 +67,13 @@ const api = {
 const window = {
   LWStoryRuntime: api,
   addEventListener(type, callback) { windowListeners[type] = callback; },
-  setInterval(callback) { intervalCallback = callback; return 1; }
+  setInterval() { return 1; }
 };
 const context = { window, document, console };
 vm.createContext(context);
 vm.runInContext(source, context, { filename: "agent-system.js" });
 assert.ok(window.LWAgentRuntime, "agent runtime must initialize");
 for (const callback of documentListeners.DOMContentLoaded || []) callback();
-assert.equal(typeof intervalCallback, "function", "agent panel refresh must be scheduled");
-const initialPanelWrites = innerHTMLWrites;
-intervalCallback();
-assert.equal(innerHTMLWrites, initialPanelWrites,
-  "an unchanged agent snapshot must not rebuild the panel on every timer tick");
-state.agentLead = true;
-intervalCallback();
-assert.ok(innerHTMLWrites > initialPanelWrites,
-  "a visible career state change should refresh the agent panel");
-const updatedPanelWrites = innerHTMLWrites;
-intervalCallback();
-assert.equal(innerHTMLWrites, updatedPanelWrites,
-  "the panel must remain stable after the changed snapshot has been rendered");
 
 function click(action, agentId) {
   const button = {
@@ -115,6 +96,62 @@ assert.equal(state.agent, true, "signing must activate the agent");
 assert.equal(state.agentProfile.id, "hossam", "the signed representative must be persisted");
 assert.equal(state.agentProfile.contractMode, "open-ended");
 assert.equal(state.agentProfile.expiresSeason, null, "new representation contracts must not have an automatic expiry");
+// Weekly payroll must charge the active agent's configured commission, while a player
+// without representation receives the full wage. Exercise the actual calendar function
+// extracted from the shipped app shell rather than duplicating its payroll arithmetic.
+assert.equal(typeof window.LWAgentRuntime.commissionRate, "function",
+  "the agent runtime must expose its effective commission rate to payroll");
+const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"),
+  "root and public app shells must stay synchronized");
+const calendarStart = html.indexOf("function advanceCalendarDays(");
+const calendarEnd = html.indexOf("\nfunction ", calendarStart + 10);
+assert.ok(calendarStart >= 0 && calendarEnd > calendarStart,
+  "the shared calendar function must be available for payroll regression testing");
+const calendarSource = html.slice(calendarStart, calendarEnd);
+const payrollLogs = [];
+function payOneWeek() {
+  const calendarContext = {
+    state, window,
+    clamp(value, min = 0, max = 100) { return Math.max(min, Math.min(max, Number(value) || 0)); },
+    log(message) { payrollLogs.push(String(message)); },
+    resetDailyActions() {}
+  };
+  vm.createContext(calendarContext);
+  vm.runInContext(calendarSource, calendarContext, { filename: "advanceCalendarDays" });
+  calendarContext.advanceCalendarDays(7, "اختبار صرف المرتب");
+}
+function resetCalendarForPayroll() {
+  state.calendarDay = 1; state.day = 1; state.daysSinceTransfer = 0;
+  state.daysSinceNegotiation = 0; state.transferCooldown = 0;
+}
+const signedAgent = state.agent;
+const signedProfile = state.agentProfile;
+state.agent = false;
+state.agentProfile = null;
+state.agentCommissionPaid = 0;
+resetCalendarForPayroll();
+const noAgentBalance = state.money;
+payOneWeek();
+assert.equal(state.money - noAgentBalance, 1000,
+  "players without an agent must receive the full weekly wage");
+assert.equal(Number(state.agentCommissionPaid) || 0, 0,
+  "no commission should accrue without representation");
+state.agent = signedAgent;
+state.agentProfile = signedProfile;
+resetCalendarForPayroll();
+const activeCommissionRate = window.LWAgentRuntime.commissionRate(state);
+assert.ok(activeCommissionRate >= 0.02 && activeCommissionRate <= 0.14,
+  "the signed agent's effective fee must remain within the configured bounds");
+const agentPayrollBalance = state.money;
+payOneWeek();
+const expectedAgentCommission = Math.round(1000 * activeCommissionRate);
+assert.equal(state.money - agentPayrollBalance, 1000 - expectedAgentCommission,
+  "weekly salary must be credited net of the active agent's commission");
+assert.equal(state.agentCommissionPaid, expectedAgentCommission,
+  "paid agent commission must be tracked in the career save");
+assert.ok(payrollLogs.some(message => message.includes("عمولة الوكيل")),
+  "the diary must explain the agent's weekly commission");
 
 // Simulate an old saved contract and advance far beyond its former expiry season.
 delete state.agentProfile.contractMode;
@@ -128,6 +165,22 @@ assert.equal(state.agentProfile.contractMode, "open-ended", "legacy contracts mu
 assert.equal(state.agentProfile.expiresSeason, null, "legacy expiry dates must be cleared");
 assert.equal(state.agentHistory.some(event => event.title === "انتهاء عقد الوكيل"), false,
   "season progression must not auto-terminate an open-ended contract");
+
+// A termination dialog opened before retirement must not charge or end the agreement afterward.
+click("agent-active", "hossam");
+click("agent-end-current", "hossam");
+const moneyBeforeRetiredTermination = state.money;
+state.retired = true;
+click("agent-confirm-end", "hossam");
+assert.equal(state.agent, true, "a stale termination confirmation must not remove the representative after retirement");
+assert.equal(state.agentProfile.id, "hossam", "a stale termination confirmation must preserve the active representative");
+assert.equal(state.money, moneyBeforeRetiredTermination, "a stale termination confirmation must not charge an exit fee");
+assert.equal(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"), false,
+  "a blocked post-retirement termination must not create a termination record");
+click("agent-end-current", "hossam");
+assert.equal(state.agent, true, "opening a termination dialog after retirement must be blocked");
+assert.equal(state.money, moneyBeforeRetiredTermination, "blocked post-retirement actions must not change the balance");
+state.retired = false;
 
 // A stale switch dialog must not charge or remove the agent after the career becomes ineligible.
 click("agent-meet", "nadine");

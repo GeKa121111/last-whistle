@@ -650,6 +650,14 @@ assert.equal(prospectPromotion.role, "بديل",
   "a prospect label should become a normal substitute role after recording real appearances");
 assert.equal(career.normalizeCareerPosition("ST"), "رأس حربة",
   "legacy English striker positions must normalize to the centre-forward career role");
+for (const [alias, expected] of [
+  ["left back", "ظهير"], ["right back", "ظهير"], ["left wing back", "ظهير"],
+  ["right wing back", "ظهير"], ["wingback", "ظهير"], ["central midfield", "وسط"],
+  ["left midfielder", "جناح"], ["right midfielder", "جناح"]
+]) {
+  assert.equal(career.normalizeCareerPosition(alias), expected,
+    "career engine must normalize the same English position alias: " + alias);
+}
 const forwardAliasHistory = Array.from({ length: 8 }, (_, index) => ({
   id: "forward-alias-" + index, scope: "league", minutes: 60, rating: 6.0, goals: 1, assists: 0
 }));

@@ -44,11 +44,18 @@
   }
   function groupForPosition(position) {
     const p = normalize(position);
-    if (p.includes("حارس")) return "goalkeeper";
-    // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before the role wording.
-    if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")) return "midfielder";
-    if (p.includes("دفاع") || p.includes("ظهير") || p.includes("مدافع")) return "defender";
-    if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربة") || p.includes("راسحربه")) return "attacker";
+    if (p.includes("حارس") || ["gk", "goalkeeper", "goalie", "keeper"].includes(p) || p.includes("goalkeeper")) return "goalkeeper";
+    // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before role wording.
+    if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")
+      || ["dm", "cdm", "cm", "rcm", "lcm", "am", "cam", "lam", "ram", "lm", "rm", "mf"].includes(p)
+      || p.includes("midfielder") || p.includes("midfield")) return "midfielder";
+    if (p.includes("دفاع") || p.includes("ظهير") || p.includes("مدافع")
+      || ["cb", "rcb", "lcb", "lb", "rb", "rwb", "lwb", "wb", "sw", "df"].includes(p)
+      || p.includes("defender") || p.includes("centreback") || p.includes("centerback")
+      || p.includes("fullback") || p.includes("wingback")) return "defender";
+    if (p.includes("مهاجم") || p.includes("جناح") || p.includes("رأسحربة") || p.includes("راسحربة") || p.includes("راسحربه")
+      || ["st", "f", "striker", "cf", "ss", "fw", "lw", "rw", "lwf", "rwf", "wf"].includes(p)
+      || p.includes("forward") || p.includes("winger") || p.includes("wing")) return "attacker";
     return "midfielder";
   }
   function positionProductionProfile(position) {
@@ -949,10 +956,27 @@
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return { season: next, moves, alreadyAdvanced: false };
   }
-  function getClubPower(save, name, country, db) {
+  function getClubMatchProfile(save, name, country, db) {
     const world = ensureState(save, db);
     const club = world.clubs[clubKey(name, country)] || Object.values(world.clubs).find(item => normalize(item.name) === normalize(name));
-    return club ? Number(club.power) || Number(club.basePower) || null : null;
+    if (!club) return null;
+    const goalkeepers = rosterPlayers(world, club)
+      .filter(player => (player.group || groupForPosition(player.position)) === "goalkeeper")
+      .map(player => clamp(Number(player.goalkeeping) || Number(player.ovr) || 55, 35, 99))
+      .sort((a, b) => b - a);
+    const starter = goalkeepers.length ? goalkeepers[0] : null;
+    const backup = goalkeepers.length > 1 ? goalkeepers[1] : starter;
+    const goalkeeping = starter == null ? null
+      : clamp(Math.round(starter * 0.88 + backup * 0.12), 35, 99);
+    return {
+      power: Number(club.power) || Number(club.basePower) || null,
+      goalkeeping
+    };
+  }
+
+  function getClubPower(save, name, country, db) {
+    const profile = getClubMatchProfile(save, name, country, db);
+    return profile ? profile.power : null;
   }
   function transferTargets(save, db) {
     const world = ensureState(save, db);
@@ -1026,7 +1050,7 @@
   }
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
-    ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
+    ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
     getLeagueTable, leaderboard, dashboard
   });
 })(window);

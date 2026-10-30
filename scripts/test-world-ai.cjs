@@ -392,6 +392,11 @@ assert.equal(promotionWorld.clubs["promotion-first-5"].division, 2,
 
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");
+assert.equal(ai.groupForPosition("GK"), "goalkeeper", "English GK codes must be recognized for club keeper depth");
+assert.equal(ai.groupForPosition("CB"), "defender", "English centre-back codes must not fall through to midfield");
+assert.equal(ai.groupForPosition("CDM"), "midfielder", "English defensive-midfield codes must remain midfielders");
+assert.equal(ai.groupForPosition("ST"), "attacker", "English striker codes must remain in the attacking line");
+assert.equal(ai.groupForPosition("RW"), "attacker", "English winger codes must remain in the attacking line");
 const centreStrikerProfile = ai.positionProductionProfile("رأس حربة");
 const mobileForwardProfile = ai.positionProductionProfile("مهاجم");
 const wingerProfile = ai.positionProductionProfile("جناح");
@@ -414,6 +419,37 @@ const save = {
   seasonApps: 0, seasonAppsTarget: 34, careerMatchHistory: []
 };
 const world = ai.ensureState(save, db);
+
+// Match simulation must read the actual goalkeeper depth of each club, not use a fixed 55.
+const matchProfileSave = { season: 1, worldSimulation: JSON.parse(JSON.stringify(world)) };
+const matchProfileWorld = matchProfileSave.worldSimulation;
+const matchProfileClub = Object.values(matchProfileWorld.clubs).find(club =>
+  Array.isArray(club.roster) && club.roster
+    .map(id => matchProfileWorld.players[id])
+    .filter(player => player && (player.group === "goalkeeper" || ai.groupForPosition(player.position) === "goalkeeper"))
+    .length >= 2);
+assert.ok(matchProfileClub, "goalkeeper-strength regression requires a club with a starter and backup keeper");
+const matchProfileKeepers = matchProfileClub.roster
+  .map(id => matchProfileWorld.players[id])
+  .filter(player => player && (player.group === "goalkeeper" || ai.groupForPosition(player.position) === "goalkeeper"))
+  .sort((a, b) => Number(b.ovr || 0) - Number(a.ovr || 0));
+matchProfileKeepers[0].group = "goalkeeper";
+matchProfileKeepers[0].position = "حارس مرمى";
+matchProfileKeepers[0].goalkeeping = 94;
+matchProfileKeepers[1].group = "goalkeeper";
+matchProfileKeepers[1].position = "حارس مرمى";
+matchProfileKeepers[1].goalkeeping = 70;
+assert.equal(typeof ai.getClubMatchProfile, "function",
+  "world AI must expose a compact club match profile with actual goalkeeper depth");
+const matchProfile = ai.getClubMatchProfile(
+  matchProfileSave, matchProfileClub.name, matchProfileClub.country, db
+);
+assert.equal(matchProfile.power, Number(matchProfileClub.power) || Number(matchProfileClub.basePower) || null,
+  "club match profile must preserve the existing team-power value");
+assert.equal(matchProfile.goalkeeping, 91,
+  "club match profile must weight the starting keeper heavily and retain the backup as depth");
+
+
 const duplicateSourceName = "Scotland Test Player 1-1";
 const duplicateSourcePlayers = Object.values(world.players).filter(player =>
   player && player.name === duplicateSourceName && player.isRealPlayer === true && player.isGenerated !== true);

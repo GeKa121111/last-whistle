@@ -1,0 +1,70 @@
+/* LAST WHISTLE — career social network */
+body.lw-rebuild #page-social{direction:rtl;color:var(--text)}
+body.lw-rebuild .lwsocial-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px;border:1px solid #345044;border-radius:20px;background:radial-gradient(circle at 8% 8%,#2b5b4938,transparent 36%),linear-gradient(135deg,#14231d,#101725 72%);margin-bottom:14px}
+body.lw-rebuild .lwsocial-brand{display:flex;align-items:center;gap:12px;min-width:0}
+body.lw-rebuild .lwsocial-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:16px;background:#1f382b;border:1px solid #496948;font-size:26px;flex:0 0 auto}
+body.lw-rebuild .lwsocial-kicker{font-size:9px;letter-spacing:.15em;color:#a8bd9b;font-weight:950}
+body.lw-rebuild .lwsocial-hero h2{font-size:22px;font-weight:950;margin:3px 0;color:#f5f8ef}
+body.lw-rebuild .lwsocial-hero p{font-size:11px;color:#aab8a5;margin:0;line-height:1.75}
+body.lw-rebuild .lwsocial-metrics{display:flex;gap:8px;flex-wrap:wrap}
+body.lw-rebuild .lwsocial-metric{min-width:82px;padding:9px 11px;border:1px solid #344a3a;border-radius:13px;background:#0e1812;text-align:center}
+body.lw-rebuild .lwsocial-metric strong{display:block;color:#e4f2d1;font-size:17px;font-variant-numeric:tabular-nums}
+body.lw-rebuild .lwsocial-metric small{display:block;color:#9aab96;font-size:9px}
+body.lw-rebuild .lwsocial-composer{padding:17px;border:1px solid #34483a;border-radius:18px;background:linear-gradient(145deg,#15221a,#101722);margin-bottom:13px}
+body.lw-rebuild .lwsocial-composer-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+body.lw-rebuild .lwsocial-avatar{width:40px;height:40px;display:grid;place-items:center;border-radius:13px;background:#24372b;border:1px solid #476248;font-size:19px;flex:0 0 auto}
+body.lw-rebuild .lwsocial-composer-head strong{display:block;font-size:13px;color:#eff6e8}
+body.lw-rebuild .lwsocial-composer-head small{display:block;color:#98a994;font-size:10px}
+body.lw-rebuild #lw-social-composer{display:block;width:100%;min-height:93px;resize:vertical;border:1px solid #34483a;border-radius:13px;background:#0b120e;color:#f3f7ee;padding:12px;font:inherit;font-size:13px;line-height:1.8;outline:none}
+body.lw-rebuild #lw-social-composer:focus{border-color:#83b65a;box-shadow:0 0 0 3px #83b65a18}
+body.lw-rebuild .lwsocial-quick{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+body.lw-rebuild .lwsocial-quick button{border:1px solid #3a4e3c;border-radius:999px;background:#1a2b20;color:#cfe6c5;padding:7px 10px;font-size:10px}
+body.lw-rebuild .lwsocial-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;color:#91a18c;font-size:10px}
+body.lw-rebuild .lwsocial-submit{border:0;border-radius:11px;background:linear-gradient(135deg,#d9ff62,#a7d64c);color:#182314;padding:10px 17px;font-weight:950;font-size:11px}
+body.lw-rebuild .lwsocial-submit:disabled{opacity:.4;cursor:not-allowed}
+body.lw-rebuild .lwsocial-filters{display:flex;gap:7px;overflow:auto;padding:2px 0 11px;scrollbar-width:none}
+body.lw-rebuild .lwsocial-filters button{white-space:nowrap;border:1px solid #304137;border-radius:999px;padding:8px 13px;background:#121c17;color:#aabd9f;font-size:10px;font-weight:800}
+body.lw-rebuild .lwsocial-filters button.active{background:#d9ff62;color:#172313;border-color:#d9ff62}
+body.lw-rebuild .lwsocial-feed{display:grid;gap:11px}
+body.lw-rebuild .lwsocial-post{padding:15px;border:1px solid #2e4034;border-radius:17px;background:linear-gradient(145deg,#151f1a,#101722);box-shadow:0 8px 22px #0002;min-width:0}
+body.lw-rebuild .lwsocial-post-head{display:flex;align-items:center;gap:10px;min-width:0}
+body.lw-rebuild .lwsocial-author{min-width:0;flex:1}
+body.lw-rebuild .lwsocial-author strong{display:flex;align-items:center;gap:5px;color:#f2f7ed;font-size:12px}
+body.lw-rebuild .lwsocial-author small{display:block;color:#8fa08d;font-size:9px;margin-top:2px}
+body.lw-rebuild .lwsocial-verified{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;background:#4e9bd4;color:#fff;font-size:9px}
+body.lw-rebuild .lwsocial-kind{border:1px solid #3d4f3e;border-radius:999px;padding:5px 8px;color:#c8dfa9;font-size:9px;white-space:nowrap}
+body.lw-rebuild .lwsocial-post-body{white-space:pre-wrap;overflow-wrap:anywhere;color:#e1e9df;font-size:13px;line-height:1.9;margin:13px 0}
+body.lw-rebuild .lwsocial-engagement{display:flex;gap:15px;color:#91a28f;font-size:10px;padding:8px 0;border-top:1px solid #2b3b30;border-bottom:1px solid #2b3b30}
+body.lw-rebuild .lwsocial-comments{display:grid;gap:10px;padding:12px 0 4px}
+body.lw-rebuild .lwsocial-comment{display:flex;align-items:flex-start;gap:9px;min-width:0}
+body.lw-rebuild .lwsocial-comment-avatar{width:27px;height:27px;border-radius:9px;background:#202d25;display:grid;place-items:center;font-size:13px;flex:0 0 auto}
+body.lw-rebuild .lwsocial-comment>div{min-width:0;flex:1}
+body.lw-rebuild .lwsocial-comment strong{font-size:10px;color:#dce9d7}
+body.lw-rebuild .lwsocial-comment strong small{font-size:8px;color:#8da08d;margin-right:5px;font-weight:600}
+body.lw-rebuild .lwsocial-comment p{font-size:11px;color:#b4c0b1;line-height:1.7;margin:2px 0}
+body.lw-rebuild .lwsocial-comment-likes{color:#809580;font-size:8px}
+body.lw-rebuild .lwsocial-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+body.lw-rebuild .lwsocial-actions button{border:1px solid #33463a;border-radius:10px;padding:7px 10px;background:#18251d;color:#b9cdb1;font-size:9px;font-weight:800}
+body.lw-rebuild .lwsocial-actions button:first-child{margin-left:auto}
+body.lw-rebuild .lwsocial-empty{padding:32px 18px;text-align:center;border:1px dashed #405141;border-radius:16px;color:#aabd9d;background:#121b16}
+body.lw-rebuild .lwsocial-empty span{font-size:32px}
+body.lw-rebuild .lwsocial-empty strong{display:block;color:#e0efcf;margin:8px 0;font-size:14px}
+body.lw-rebuild .lwsocial-empty p{font-size:11px;line-height:1.8;max-width:420px;margin:0 auto}
+body.lw-rebuild .bottomNav{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+@media(max-width:760px){
+ body.lw-rebuild .lwsocial-hero{align-items:flex-start;flex-direction:column;padding:15px}
+ body.lw-rebuild .lwsocial-metrics{width:100%}
+ body.lw-rebuild .lwsocial-metric{flex:1;min-width:0}
+ body.lw-rebuild .lwsocial-composer{padding:13px}
+ body.lw-rebuild .lwsocial-post{padding:13px}
+ body.lw-rebuild .lwsocial-kind{font-size:8px;padding:4px 6px}
+ body.lw-rebuild .lwsocial-actions button{flex:1}
+ body.lw-rebuild .lwsocial-actions button:first-child{margin-left:0}
+}
+
+/* Social narrative categories and contextual response feedback */
+body.lw-rebuild .lwsocial-kind-rumor{border-color:#75633c;background:#2c2617;color:#f3d78f}
+body.lw-rebuild .lwsocial-kind-role{border-color:#3d684e;background:#18291f;color:#c6e8b1}
+body.lw-rebuild .lwsocial-kind-bench{border-color:#3d5a70;background:#172533;color:#b8d9ef}
+body.lw-rebuild .lwsocial-kind-conflict{border-color:#744247;background:#301b20;color:#f0b8be}
+body.lw-rebuild .lwsocial-response{align-self:center;color:#b8d99b;font-size:9px;font-weight:850;padding:6px 9px;border-radius:9px;background:#243523}

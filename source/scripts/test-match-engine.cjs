@@ -37,6 +37,49 @@ assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
   "the mobile forward must contribute more to chance creation than the centre striker");
 assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
   "the centre striker must receive a distinct finishing advantage");
+
+assert.equal(typeof engine.normalizePosition, "function", "English and Arabic positions must share one canonical match profile");
+const englishPositionCases = [
+  ["GK", "حارس مرمى"], ["Goalkeeper", "حارس مرمى"],
+  ["CB", "قلب دفاع"], ["LCB", "قلب دفاع"], ["RB", "ظهير"], ["LWB", "ظهير"],
+  ["CDM", "وسط دفاعي"], ["DM", "وسط دفاعي"], ["CM", "وسط"], ["CAM", "وسط مهاجم"],
+  ["RW", "جناح"], ["LW", "جناح"], ["CF", "مهاجم"], ["ST", "رأس حربة"]
+];
+for (const [code, canonical] of englishPositionCases) {
+  assert.equal(engine.normalizePosition(code), canonical, code + " must map to its canonical Arabic match role");
+  assert.equal(browserEngine.normalizePosition(code), canonical, "deployed " + code + " mapping must match the source engine");
+  assert.deepEqual(engine.positionProfile(code), engine.positionProfile(canonical), code + " must use the canonical role profile");
+  assert.deepEqual(browserEngine.positionProfile(code), browserEngine.positionProfile(canonical), "deployed " + code + " must use the canonical role profile");
+}
+assert.equal(engine.positionProfile("GK").goalkeeper, true, "GK must activate goalkeeper-specific simulation");
+assert.equal(engine.positionProfile("CB").defender, 0.35, "CB must receive a centre-back defensive profile");
+assert.equal(engine.positionPerformanceImpact("GK", { saves: 2 }, 0), 0.84, "GK saves must use goalkeeper rating weights");
+assert.equal(engine.positionPerformanceImpact("CB", { tackles: 2 }, 0), 0.38, "CB tackles must use defender rating weights");
+assert.equal(engine.playerEarnsCleanSheet("CB", 65, []), true, "CB must be eligible for a personal clean sheet");
+assert.equal(engine.playerEarnsCleanSheet("ST", 65, []), false, "ST must not inherit defender clean-sheet eligibility");
+const englishGoalkeeperOptions = {
+  seed: 880001, teamPower: 65, opponentPower: 65,
+  player: { name: "English GK", position: "GK", role: "أساسي", shooting: 45, passing: 55,
+    vision: 50, composure: 55, fitness: 85, speed: 40, physical: 65, dribbling: 40,
+    defending: 70, goalkeeping: 80, trust: 70, energy: 90, fatigue: 5 }
+};
+const englishGoalkeeperResult = engine.simulateMatch(englishGoalkeeperOptions);
+assert.equal(englishGoalkeeperResult.metadata.position, "حارس مرمى", "match metadata must store the canonical goalkeeper role");
+assert.equal(englishGoalkeeperResult.player.tackles, 0, "an English GK must not receive outfield tackles");
+assert.equal(englishGoalkeeperResult.player.interceptions, 0, "an English GK must not receive outfield interceptions");
+assert.equal(engine.validateResult(englishGoalkeeperResult).ok, true, "English GK events must pass the match ledger validator");
+const browserEnglishGoalkeeper = browserEngine.simulateMatch(englishGoalkeeperOptions);
+assert.deepEqual(JSON.parse(JSON.stringify(browserEnglishGoalkeeper)), englishGoalkeeperResult,
+  "the deployed browser engine must match English-position source simulation");
+const englishCentreBackResult = engine.simulateMatch({
+  seed: 880002, teamPower: 65, opponentPower: 65,
+  player: { name: "English CB", position: "CB", role: "أساسي", shooting: 50, passing: 55,
+    vision: 50, composure: 55, fitness: 85, speed: 55, physical: 75, dribbling: 45,
+    defending: 80, goalkeeping: 20, trust: 70, energy: 90, fatigue: 5 }
+});
+assert.equal(englishCentreBackResult.metadata.position, "قلب دفاع", "CB match metadata must be canonical");
+assert.equal(englishCentreBackResult.player.saves, 0, "an English CB must not receive goalkeeper saves");
+assert.equal(engine.validateResult(englishCentreBackResult).ok, true, "English CB events must pass the match ledger validator");
 assert.equal(typeof engine.positionPerformanceImpact, "function", "role-aware match impact must be exposed for regression tests");
 
 assert.equal(typeof engine.playerEarnsCleanSheet, "function", "clean-sheet eligibility must be testable independently");

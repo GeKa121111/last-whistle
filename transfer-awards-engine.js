@@ -32,14 +32,44 @@
 
   function roleType(position) {
     const value = normalized(position);
-    if (value.includes("حارس")) return "keeper";
-    // Central/attacking midfielders are still midfielders; classify their line
-    // before checking role words such as "defensive" or "attacking".
-    if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")) return "midfielder";
-    if (value.includes("دفاع") || value.includes("ظهير")) return "defender";
-    if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")) return "striker";
-    if (value.includes("جناح") || value.includes("مهاجم")) return "attacker";
+    if (value.includes("حارس") || ["gk", "goalkeeper", "goalie", "keeper"].includes(value)
+      || value.includes("goalkeeper")) return "keeper";
+    // Classify the tactical line before role wording so defensive midfielders stay in midfield.
+    if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")
+      || ["dm", "cdm", "cm", "rcm", "lcm", "am", "cam", "lam", "ram", "lm", "rm", "mf"].includes(value)
+      || value.includes("midfielder") || value.includes("midfield")) return "midfielder";
+    if (value.includes("دفاع") || value.includes("ظهير") || value.includes("مدافع")
+      || ["cb", "rcb", "lcb", "lb", "rb", "rwb", "lwb", "sw", "df"].includes(value)
+      || value.includes("defender") || value.includes("centreback") || value.includes("centerback")
+      || value.includes("fullback") || value.includes("wingback")) return "defender";
+    if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")
+      || value === "st" || value === "striker" || value === "centreforward" || value === "centerforward") return "striker";
+    if (value.includes("جناح") || ["lw", "rw", "lwf", "rwf", "wf"].includes(value)
+      || value.includes("winger") || value === "wing") return "winger";
+    if (value.includes("مهاجم") || value === "cf" || value === "ss" || value === "fw"
+      || value.includes("secondstriker") || value.includes("forward")) return "attacker";
     return "midfielder";
+  }
+
+  function projectedMinutesPerAppearance(player) {
+    const role = normalized(player && (player.role || player.squadRole || player.playingTime) || "");
+    if (role === "بديلأساسي" || role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return 60;
+    if (role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return 24;
+    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 30;
+    if (role.includes("نجمالفريق") || role.includes("starplayer") || role === "اساسي" || role === "regularstarter") return 82;
+    return 76;
+  }
+
+  function seasonProductionRates(type) {
+    const profiles = {
+      striker: { goalsPer90: 0.37, assistsPer90: 0.085 },
+      attacker: { goalsPer90: 0.26, assistsPer90: 0.14 },
+      winger: { goalsPer90: 0.22, assistsPer90: 0.17 },
+      midfielder: { goalsPer90: 0.105, assistsPer90: 0.125 },
+      defender: { goalsPer90: 0.04, assistsPer90: 0.045 },
+      keeper: { goalsPer90: 0.001, assistsPer90: 0.002 }
+    };
+    return profiles[type] || profiles.midfielder;
   }
 
   // Use season evidence when available; otherwise create a deterministic career-world
@@ -142,13 +172,21 @@
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
-    const attackRate = type === "striker" ? 0.62 : type === "attacker" ? 0.43 : type === "midfielder" ? 0.19 : type === "defender" ? 0.055 : 0.005;
-    const assistRate = type === "striker" ? 0.20 : type === "attacker" ? 0.30 : type === "midfielder" ? 0.36 : type === "defender" ? 0.10 : 0.015;
+    const minutesPerAppearance = projectedMinutesPerAppearance(player);
+    const fullSeasonMinutes = Math.round(expectedApps * minutesPerAppearance);
+    const projectedMinutes = Math.round(fullSeasonMinutes * scale);
+    const production = seasonProductionRates(type);
+    const overallMultiplier = clamp(0.85 + (ovr - 60) * 0.004, 0.75, 1.08);
+    // Build a full-season production baseline, then apply progress once to the
+    // final totals below. Scaling both the minute baseline and totals would square
+    // progress and severely undercount mid-season goals and assists.
+    const goalsExpected = fullSeasonMinutes / 90 * production.goalsPer90 * overallMultiplier;
+    const assistsExpected = fullSeasonMinutes / 90 * production.assistsPer90 * overallMultiplier;
+    const goalsFull = Math.max(0, Math.round(goalsExpected * (0.84 + random() * 0.32)));
+    const assistsFull = Math.max(0, Math.round(assistsExpected * (0.84 + random() * 0.32)));
+    const goals = appearances > 0 ? Math.round(goalsFull * scale) : 0;
+    const assists = appearances > 0 ? Math.round(assistsFull * scale) : 0;
     const ratingBase = 5.8 + Math.max(0, ovr - 48) * 0.031 + Math.max(0, (Number(player.prestige) || 60) - 65) * 0.002;
-    const goalsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * attackRate + random() * (type === "striker" ? 8 : type === "attacker" ? 7 : 4)));
-    const assistsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * assistRate + random() * 5));
-    const goals = Math.round(goalsFull * scale);
-    const assists = Math.round(assistsFull * scale);
     const rating = appearances > 0 ? Math.min(9.2, ratingBase + random() * 0.56) : 0;
     const competitionStrength = Number(player.leagueStrength) || 60;
     const score = appearances > 0
@@ -162,6 +200,7 @@
       age: estimatedAge(player, season),
       ovr: ovr,
       appearances: appearances,
+      minutes: projectedMinutes,
       goals: goals,
       assists: assists,
       averageRating: Number(rating.toFixed(2)),

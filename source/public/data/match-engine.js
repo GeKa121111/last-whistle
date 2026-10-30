@@ -17,12 +17,38 @@
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
+  const POSITION_ALIASES = {
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى",
+    "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
+    "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+    "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
+    "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
+    "fullback": "ظهير", "wing back": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+    "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
+    "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
+    "attacking mid": "وسط مهاجم",
+    "cm": "وسط", "central midfielder": "وسط",
+    "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+    "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
+    "winger": "جناح", "wide midfielder": "جناح",
+    "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+    "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  };
+  function normalizePosition(position) {
+    const raw = String(position || "").trim();
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+    return POSITION_ALIASES[key] || raw;
+  }
   function positionProfile(position) {
+    position = normalizePosition(position);
     return ({
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
       "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
       "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
       "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
+      "وسط": { shooter: 0.10, creator: 0.28, defender: 0.18 },
       "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
       "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
@@ -59,6 +85,7 @@
     return Math.round(clamp(minutes, 0, 90));
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    position = normalizePosition(position);
     const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
@@ -72,6 +99,7 @@
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
       return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
+    if (position === "وسط") return tackles * 0.12 + interceptions * 0.15 + clearances * 0.08 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
     return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
@@ -105,7 +133,8 @@
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
-    const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
+    const normalizedPosition = normalizePosition(position);
+    const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(normalizedPosition);
     const played = Math.max(0, Number(minutes) || 0);
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;
   }
@@ -150,7 +179,8 @@
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
-    const profile = positionProfile(String(player.position || player.pos || ""));
+    const position = normalizePosition(String(player.position || player.pos || ""));
+    const profile = positionProfile(position);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
     const tactic = ["balanced", "attack", "defend", "counter"].includes(options.tactic) ? options.tactic : "balanced";
@@ -214,7 +244,6 @@
     const extraTime = { played: false, for: 0, against: 0, periods: [] };
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
-    const position = String(player.position || player.pos || "");
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);
     if (redCard) {
@@ -590,10 +619,11 @@
         && shot.creditedToPlayer === false
         && event.side === "team" && event.creditedToPlayer === true;
     });
-    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
-      .includes(String(result.metadata?.position || ""));
+    const matchPosition = normalizePosition(result.metadata?.position || "");
+    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
+      .includes(matchPosition);
     const saveRoleConsistent = !modernShotMetadataPresent || !knownMatchPosition
-      || positionProfile(result.metadata.position).goalkeeper
+      || positionProfile(matchPosition).goalkeeper
       || (saveEvents.length === 0 && (result.player.saves == null || Number(result.player.saves) === 0));
     if (!keyPassesLedgerConsistent) return { ok: false, reason: "inconsistent-key-pass-ledger" };
     if (!savesLedgerConsistent) return { ok: false, reason: "inconsistent-save-ledger" };
@@ -927,5 +957,5 @@
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();

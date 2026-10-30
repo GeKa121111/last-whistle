@@ -108,6 +108,72 @@ assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
 assert.ok(centreStrikerLine.assists < mobileForwardLine.assists,
   "a mobile forward should produce more assists than an otherwise identical centre striker");
 
+// English position codes from imported squad data must resolve to the same
+// production profile as their Arabic equivalents.
+const codeKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "GK" }, 3, 1);
+const arabicKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "حارس مرمى" }, 3, 1);
+assert.equal(codeKeeper.goals, arabicKeeper.goals,
+  "GK must use goalkeeper production instead of falling through to midfield");
+assert.equal(codeKeeper.assists, arabicKeeper.assists,
+  "GK and حارس مرمى must share the same production profile");
+const codeCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "CB" }, 3, 1);
+const arabicCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "قلب دفاع" }, 3, 1);
+assert.equal(codeCentreBack.goals, arabicCentreBack.goals,
+  "CB must use the same defensive production profile as قلب دفاع");
+assert.equal(codeCentreBack.assists, arabicCentreBack.assists,
+  "CB and قلب دفاع must share the same production profile");
+
+const sameStrikerStarter = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "أساسي"
+}, 5, 1);
+const sameStrikerSubstitute = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل"
+}, 5, 1);
+const sameStrikerRotation = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "تناوب"
+}, 5, 1);
+assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances,
+  "playing-time role projections must not change the count of appearances");
+assert.ok(sameStrikerStarter.minutes > sameStrikerRotation.minutes
+  && sameStrikerRotation.minutes > sameStrikerSubstitute.minutes,
+  "starter, rotation and substitute contracts must project progressively fewer minutes");
+assert.ok(sameStrikerStarter.goals > sameStrikerSubstitute.goals,
+  "a substitute with short cameos must not receive starter-level projected goals");
+assert.ok(sameStrikerStarter.assists > sameStrikerSubstitute.assists,
+  "a substitute with short cameos must not receive starter-level projected assists");
+assert.ok(sameStrikerStarter.goals * 90 / Math.max(1, sameStrikerStarter.minutes) <= 0.55,
+  "a projected centre striker must not score at an implausible goals-per-90 rate");
+assert.equal(engine.simulatePlayerSeason({
+  ...sameForward, position: "حارس مرمى"
+}, 5, 1).goals, 0,
+  "an outfield-level goalkeeper projection must not inherit striker goal production");
+const noProjectionProgress = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "أساسي"
+}, 5, 0);
+assert.equal(noProjectionProgress.minutes, 0);
+assert.equal(noProjectionProgress.goals, 0);
+assert.equal(noProjectionProgress.assists, 0);
+
+const sameStrikerHalfSeason = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "أساسي"
+}, 5, 0.5);
+assert.equal(sameStrikerHalfSeason.minutes, Math.round(sameStrikerStarter.minutes * 0.5),
+  "partial-season projected minutes must scale linearly with season progress");
+assert.equal(sameStrikerHalfSeason.goals, Math.round(sameStrikerStarter.goals * 0.5),
+  "partial-season goals must apply progress once, not square the progress factor");
+assert.equal(sameStrikerHalfSeason.assists, Math.round(sameStrikerStarter.assists * 0.5),
+  "partial-season assists must apply progress once, not square the progress factor");
+
+const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 1);
+assert.equal(savedSeasonStatsRemainAuthoritative.goals, 8,
+  "actual saved season goals must not be replaced by fallback projections");
+assert.equal(savedSeasonStatsRemainAuthoritative.assists, 3,
+  "actual saved season assists must not be replaced by fallback projections");
+
+
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
   country: "مصر", currentClub: "مركز شباب النور", currentClubPower: 52,

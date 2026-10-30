@@ -798,7 +798,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
-<script src="./football-world-ai.js?v=30"></script>
+<script src="./football-world-ai.js?v=32"></script>
+  <link rel="stylesheet" href="./social-media.css?v=2">
 </head>
 <body>
 
@@ -839,6 +840,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقد والانتقالات والوكلاء</button>
     <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> المنتخب</button>
     <button class="navBtn" data-page="life"><span class="ico">🎙️</span> الحياة والسمعة</button>
+    <button class="navBtn" data-page="social"><span class="ico">📱</span> دوشة الملاعب</button>
     <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
     <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
   </nav>
@@ -1203,6 +1205,46 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         <article class="card span12"><div class="cardHead"><h2>🏟️ أرشيف الدوريات والأندية</h2><span class="pill" id="leagueArchiveCount">0 مرحلة</span></div><p class="muted small">كل مرحلة محفوظة قبل الانتقال أو نهاية الموسم، بما فيها الجدول والجولات ونتائج مبارياتك.</p><div id="leagueArchiveList" class="eventFeed"></div></article>
       </div>
     </section>
+
+    <section class="page" id="page-social">
+      <div class="grid">
+        <article class="card span12">
+          <div class="lwsocial-hero">
+            <div class="lwsocial-brand">
+              <div class="lwsocial-logo">📱</div>
+              <div>
+                <span class="lwsocial-kicker">LAST WHISTLE SOCIAL</span>
+                <h2>دوشة الملاعب</h2>
+                <p id="lw-social-status">الملعب بيتكلم حتى بعد صافرة النهاية.</p>
+              </div>
+            </div>
+            <div class="lwsocial-metrics">
+              <div class="lwsocial-metric"><strong id="lw-social-followers">0</strong><small>متابع</small></div>
+              <div class="lwsocial-metric"><strong id="lw-social-reputation">0/100</strong><small>سمعة إعلامية</small></div>
+              <div class="lwsocial-metric"><strong id="lw-social-count">0</strong><small>بوستاتك</small></div>
+            </div>
+          </div>
+          <div class="lwsocial-composer">
+            <div class="lwsocial-composer-head"><span class="lwsocial-avatar">👤</span><div><strong>اكتب للناس</strong><small>كل كلمة ممكن تعمل تفاعل مختلف.</small></div></div>
+            <textarea id="lw-social-composer" maxlength="240" placeholder="قول لجمهورك إيه اللي في دماغك..."></textarea>
+            <div class="lwsocial-quick">
+              <button type="button" data-sm-quick="الفوز ده للجمهور اللي واقف معانا في كل الظروف.">أهدي الفوز للجمهور</button>
+              <button type="button" data-sm-quick="لسه عندي كتير أقدمه، والشغل هو اللي هيتكلم.">لسه عندي كتير</button>
+              <button type="button" data-sm-quick="شكراً لكل واحد دعمني.. وجودكم فارق معايا.">شكراً على الدعم</button>
+            </div>
+            <div class="lwsocial-composer-foot"><span id="lw-social-counter">0/240</span><button type="button" id="lw-social-submit" class="lwsocial-submit" disabled>نشر البوست ↗</button></div>
+          </div>
+          <div class="lwsocial-filters" id="lw-social-filters">
+            <button type="button" class="active" data-sm-filter="all">الكل</button>
+            <button type="button" data-sm-filter="fans">الجمهور والزملاء</button>
+            <button type="button" data-sm-filter="media">الإعلام</button>
+            <button type="button" data-sm-filter="transfers">الانتقالات</button>
+            <button type="button" data-sm-filter="mine">بوستاتي</button>
+          </div>
+          <div class="lwsocial-feed" id="lw-social-feed" aria-live="polite"></div>
+        </article>
+      </div>
+    </section>
   </main>
 </div>
 <nav class="bottomNav" aria-label="التنقل السريع">
@@ -1211,6 +1253,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   <button data-page="stats" aria-label="الإحصائيات"><span>📊</span>الإحصائيات</button>
   <button data-page="wellness" aria-label="الجاهزية والراحة"><span>🩺</span>الجاهزية</button>
   <button data-page="league" aria-label="الدوري"><span>🏆</span>الدوري</button>
+  <button data-page="social" aria-label="السوشيال ميديا"><span>📱</span>السوشيال</button>
 </nav>
 
 <div class="drawerShade" id="drawerShade"></div>
@@ -1247,15 +1290,39 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     speed: { cost: 20, xp: 24, secondary: { fitness: 7 } },
     physical: { cost: 20, xp: 26, secondary: { defending: 5, fitness: 4 } }
   };
+  const POSITION_ALIASES = {
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
+    "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع", "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+    "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير", "fb": "ظهير",
+    "full back": "ظهير", "fullback": "ظهير", "wing back": "ظهير", "wingback": "ظهير",
+    "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي", "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم", "attacking mid": "وسط مهاجم",
+    "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "midfielder": "وسط",
+    "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+    "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح", "winger": "جناح",
+    "wide midfielder": "جناح", "left midfielder": "جناح", "right midfielder": "جناح",
+    "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+    "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  };
+  function normalizeCareerPosition(position) {
+    const raw = String(position || "").trim();
+    if (!raw) return "";
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+    return POSITION_ALIASES[key] || raw;
+  }
+
   const CAREER_ATTRIBUTE = {
     "حارس مرمى": "goalkeeping", "قلب دفاع": "physical", "ظهير": "speed",
-    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "dribbling", "رأس حربة": "shooting"
+    "وسط": "passing", "وسط دفاعي": "physical", "وسط مهاجم": "vision",
+    "جناح": "dribbling", "مهاجم": "dribbling", "رأس حربة": "shooting"
   };
 
   const DEVELOPMENT_PLANS = {
     "حارس مرمى": { title: "حارس متكامل", summary: "رد الفعل والتمركز والهدوء بالكرة. ارفع الحراسة أولًا، وادعمها بالاتزان والتمرير واللياقة.", primary: ["goalkeeping"], secondary: ["composure", "passing", "fitness"], matchSkill: "goalkeeping" },
     "قلب دفاع": { title: "قلب دفاع قوي وقارئ للعب", summary: "اكسب الالتحامات والكرات الهوائية، وادعم قوتك بالتمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending", "physical"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
     "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والقوة في الالتحامات، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending", "physical"], matchSkill: "speed" },
+    "وسط": { title: "لاعب وسط متكامل", summary: "اربط الدفاع بالهجوم، ووزّع اللعب بالتمرير والرؤية مع الحفاظ على اللياقة والقدرة على افتكاك الكرة.", primary: ["passing", "vision"], secondary: ["fitness", "composure", "defending", "dribbling"], matchSkill: "passing" },
     "وسط دفاعي": { title: "محور ارتكاز", summary: "اكسب الالتحامات واقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية.", primary: ["defending", "physical"], secondary: ["vision", "fitness", "composure", "passing"], matchSkill: "defending" },
     "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
     "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ووازن ده بالقوة وقت الالتحام ثم حسّن الإنهاء وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness", "physical"], matchSkill: "dribbling" },
@@ -1263,7 +1330,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "رأس حربة": { title: "رأس حربة هدّاف", summary: "مهمتك الأساسية إنهاء الهجمة داخل المنطقة، استغلال العرضيات والكرات البينية، وحماية الكرة تحت ضغط المدافعين. ركّز على التسديد والهدوء والقوة البدنية.", primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
-    const position = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const rawPosition = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const position = normalizeCareerPosition(rawPosition) || "جناح";
     const plan = DEVELOPMENT_PLANS[position] || DEVELOPMENT_PLANS["جناح"];
     return { position, title: plan.title, summary: plan.summary, primary: plan.primary.slice(), secondary: plan.secondary.slice(), matchSkill: plan.matchSkill };
   }
@@ -1350,6 +1418,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
     "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[0,0], vision:[40,50], physical:[55,66] },
     "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[0,0], vision:[45,55], physical:[52,62] },
+    "وسط": { shooting:[42,55], dribbling:[48,60], passing:[56,68], speed:[48,60], fitness:[54,66], composure:[52,64], defending:[42,56], goalkeeping:[0,0], vision:[56,68], physical:[45,58] },
     "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[0,0], vision:[55,65], physical:[52,62] },
     "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[0,0], vision:[55,65], physical:[40,55] },
     "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[0,0], vision:[50,60], physical:[45,58] },
@@ -1357,13 +1426,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[0,0], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
-    const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
+    const normalizedPosition = normalizeCareerPosition(position || "جناح") || "جناح";
+    const ranges = STARTING_RANGES[normalizedPosition] || STARTING_RANGES["جناح"];
     const stats = {};
     for (const [key, range] of Object.entries(ranges)) {
       const roll = Math.max(0, Math.min(0.999999999, Number(random()) || 0));
       stats[key] = range[0] + Math.floor(roll * (range[1] - range[0] + 1));
     }
-    if (String(position || "جناح") !== "حارس مرمى") stats.goalkeeping = 0;
+    if (normalizedPosition !== "حارس مرمى") stats.goalkeeping = 0;
     return stats;
   }
 
@@ -1438,6 +1508,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function ensureState(state) {
+    if (state.pos !== undefined && state.pos !== null && String(state.pos).trim()) {
+      state.pos = normalizeCareerPosition(state.pos);
+    }
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
     state.retired = normalizeLegacyBoolean(state.retired);
     state.playedToday = normalizeLegacyBoolean(state.playedToday);
@@ -1597,6 +1670,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "حارس مرمى": { goalkeeping:.52,composure:.14,vision:.12,fitness:.08,passing:.06,physical:.04,speed:.02,defending:.02 },
     "قلب دفاع": { defending:.25,physical:.20,fitness:.15,speed:.12,composure:.10,passing:.08,vision:.05,dribbling:.03,shooting:.02 },
     "ظهير": { speed:.20,defending:.18,fitness:.15,physical:.12,passing:.12,dribbling:.08,vision:.05,composure:.05,shooting:.05 },
+    "وسط": { passing:.18,vision:.16,fitness:.13,dribbling:.12,defending:.12,composure:.10,physical:.08,speed:.06,shooting:.05 },
     "وسط دفاعي": { defending:.20,passing:.18,vision:.16,physical:.12,fitness:.12,composure:.10,speed:.06,dribbling:.03,shooting:.03 },
     "وسط مهاجم": { vision:.22,passing:.22,composure:.14,dribbling:.12,shooting:.10,speed:.07,fitness:.07,physical:.03,defending:.03 },
     "جناح": { shooting:.18,dribbling:.20,speed:.19,passing:.13,vision:.10,fitness:.08,composure:.07,physical:.03,defending:.02 },
@@ -1779,12 +1853,15 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
     const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
+    const creativeMidfieldPosition = ["وسط", "وسط مهاجم"].includes(String(state.pos || ""));
     const positionActionXP = state.pos === "حارس مرمى"
       ? Math.min(18, saves * 2 + penaltiesSaved * 5 + (cleanSheet ? 5 : 0))
       : defensivePosition
         ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
-        : state.pos === "وسط مهاجم"
-          ? Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
+        : creativeMidfieldPosition
+          ? state.pos === "وسط"
+            ? Math.min(12, keyPasses * 1.1 + recoveries * 0.8 + tackles * 0.3)
+            : Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
           : Math.min(12, goals * 4 + assists * 2);
     const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
       + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
@@ -2047,6 +2124,16 @@ function seasonAwards(state, league, teamRank) {
     return "ready";
   }
 
+  function loanSquadRole(state, target) {
+    if (!state || typeof state !== "object") return "بديل أساسي";
+    const playerOverall = overall(state);
+    const rawTargetPower = Number(target && target.power);
+    const targetPower = Number.isFinite(rawTargetPower) && rawTargetPower > 0
+      ? clamp(rawTargetPower, 25, 95) : 50;
+    const powerGap = playerOverall - targetPower;
+    return powerGap >= 5 ? "أساسي" : powerGap >= -2 ? "بديل أساسي" : "بديل";
+  }
+
   function purchaseItem(state, item) {
     if (!state || !item || typeof item.id !== "string" || !item.id.trim()
       || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
@@ -2216,8 +2303,8 @@ function seasonAwards(state, league, teamRank) {
     calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
-    loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
-    resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
+    loanRequestStatus, loanTargetStatus, loanSquadRole, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
+    resolveContractDecision, recordNationalTournamentMatch, normalizeCareerPosition, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();
 
@@ -2417,12 +2504,38 @@ function seasonAwards(state, league, teamRank) {
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
+  const POSITION_ALIASES = {
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى",
+    "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
+    "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+    "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
+    "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
+    "fullback": "ظهير", "wing back": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+    "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
+    "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
+    "attacking mid": "وسط مهاجم",
+    "cm": "وسط", "central midfielder": "وسط",
+    "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+    "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
+    "winger": "جناح", "wide midfielder": "جناح",
+    "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+    "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  };
+  function normalizePosition(position) {
+    const raw = String(position || "").trim();
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+    return POSITION_ALIASES[key] || raw;
+  }
   function positionProfile(position) {
+    position = normalizePosition(position);
     return ({
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
       "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
       "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
       "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
+      "وسط": { shooter: 0.10, creator: 0.28, defender: 0.18 },
       "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
       "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
@@ -2459,6 +2572,7 @@ function seasonAwards(state, league, teamRank) {
     return Math.round(clamp(minutes, 0, 90));
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    position = normalizePosition(position);
     const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
@@ -2472,6 +2586,7 @@ function seasonAwards(state, league, teamRank) {
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
       return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
+    if (position === "وسط") return tackles * 0.12 + interceptions * 0.15 + clearances * 0.08 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
     return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
@@ -2505,7 +2620,8 @@ function seasonAwards(state, league, teamRank) {
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
-    const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
+    const normalizedPosition = normalizePosition(position);
+    const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(normalizedPosition);
     const played = Math.max(0, Number(minutes) || 0);
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;
   }
@@ -2550,7 +2666,8 @@ function seasonAwards(state, league, teamRank) {
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
-    const profile = positionProfile(String(player.position || player.pos || ""));
+    const position = normalizePosition(String(player.position || player.pos || ""));
+    const profile = positionProfile(position);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
     const tactic = ["balanced", "attack", "defend", "counter"].includes(options.tactic) ? options.tactic : "balanced";
@@ -2614,7 +2731,6 @@ function seasonAwards(state, league, teamRank) {
     const extraTime = { played: false, for: 0, against: 0, periods: [] };
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
-    const position = String(player.position || player.pos || "");
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);
     if (redCard) {
@@ -2990,10 +3106,11 @@ function seasonAwards(state, league, teamRank) {
         && shot.creditedToPlayer === false
         && event.side === "team" && event.creditedToPlayer === true;
     });
-    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
-      .includes(String(result.metadata?.position || ""));
+    const matchPosition = normalizePosition(result.metadata?.position || "");
+    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
+      .includes(matchPosition);
     const saveRoleConsistent = !modernShotMetadataPresent || !knownMatchPosition
-      || positionProfile(result.metadata.position).goalkeeper
+      || positionProfile(matchPosition).goalkeeper
       || (saveEvents.length === 0 && (result.player.saves == null || Number(result.player.saves) === 0));
     if (!keyPassesLedgerConsistent) return { ok: false, reason: "inconsistent-key-pass-ledger" };
     if (!savesLedgerConsistent) return { ok: false, reason: "inconsistent-save-ledger" };
@@ -3327,7 +3444,7 @@ function seasonAwards(state, league, teamRank) {
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();;</script>
 <script>
 (function(){
@@ -3359,6 +3476,7 @@ const POSITIONS=[
 {id:"حارس مرمى",icon:"🧤",short:"GK",story:"بدأت كحارس صغير بيتدرب بعد ما كل الناس تمشي. مدرب الحراس لاحظ رد فعلك، لكن طريقك محتاج هدوء وشجاعة وتركيز تحت الضغط.",boost:{composure:5,fitness:3,passing:1,goalkeeping:8,vision:2},role:"بديل"},
 {id:"قلب دفاع",icon:"🛡️",short:"CB",story:"كنت آخر واحد بيستسلم في التدريبات. كابتن الفريق شايف فيك قائد دفاع محتمل؛ التحدي إنك تقرأ اللعب قبل ما الخطر يوصل.",boost:{fitness:4,passing:2,composure:3,defending:7},role:"بديل"},
 {id:"ظهير",icon:"🏃",short:"FB",story:"مدربك بيقول إنك لازم تبقى جناح في الهجوم ومدافع في الرجوع. فرصتك تكسب مكانك بالسرعة والتحمل والعرضيات.",boost:{speed:5,fitness:4,passing:1,defending:3},role:"بديل"},
+{id:"وسط",icon:"🧠",short:"CM",story:"إنت حلقة الوصل بين الدفاع والهجوم. اقرأ المساحة، وزّع اللعب بتمريرة دقيقة، وساعد فريقك في استعادة الكرة والتحكم في الإيقاع.",boost:{passing:5,vision:4,fitness:3,composure:2,defending:1,dribbling:1},role:"بديل"},
 {id:"وسط دفاعي",icon:"🧭",short:"CDM",story:"مش أكتر لاعب بيظهر في اللقطات، بس إنت اللي بتقطع الهجمة وتبدأ هجمة جديدة. حلمك تبقى ميزان الفريق.",boost:{passing:4,fitness:3,composure:3,defending:5,vision:3},role:"بديل"},
 {id:"وسط مهاجم",icon:"🎩",short:"CAM",story:"عينك دايمًا شايفة التمريرة اللي محدش واخد باله منها. المدرب عايزك تتحمل مسؤولية صناعة اللعب تحت الضغط.",boost:{passing:5,composure:4,dribbling:2,vision:8},role:"بديل"},
 {id:"جناح",icon:"⚡",short:"W",story:"بدأت تلعب على الخط وتراوغ أي حد يقف قدامك. الكشافين بيحبوا سرعتك، بس لازم تتعلم إمتى تمرر وإمتى تدخل جوه وتسدد.",boost:{speed:5,dribbling:4,shooting:1,vision:2},role:"بديل"},
@@ -4063,12 +4181,12 @@ function openModal(title,text,choices,options={}){
 }
 function closeModal(){$("modalShade").classList.remove("open");}
 function showPage(page, scrollTop=true){
- const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","diary"].includes(page)?page:"home";
+ const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","social","diary"].includes(page)?page:"home";
  state.currentPage=valid;
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+valid));
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
- const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",diary:"المذكرات"};
+ const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",social:"دوشة الملاعب",diary:"المذكرات"};
  $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -4465,7 +4583,7 @@ function requestLoan(){
  const targets=transferTargets().filter(t=>(t.club!==state.clubName||t.country!==state.leagueCountry)&&t.power<=overall()+24).sort((a,b)=>Math.abs(a.power-overall())-Math.abs(b.power-overall())).slice(0,3);
  if(!targets.length){toast("مش لاقيين نادي مناسب للإعارة في القوائم المتاحة حاليًا.");return;}
  openModal("اختار وجهة الإعارة",`هتنتقل إعارة لموسم واحد، مع حفظ النادي الأصلي للرجوع إليه بعد نهاية الموسم. اختيار النادي وقوته بيانات محاكاة، مش عرض حقيقي.`,[
-  ...targets.map((t,i)=>({label:`${t.club} — ${t.country} • قوة ${t.power}`,className:i===0?"primary":"",action:()=>loanTo(t)})),
+  ...targets.map((t,i)=>({label:`${t.club} — ${t.country} • قوة ${t.power} • ${window.LWCareer?.loanSquadRole?.(state,t)||"بديل أساسي"}`,className:i===0?"primary":"",action:()=>loanTo(t)})),
   {label:"إلغاء",action:()=>{}}
  ]);
 }
@@ -4474,13 +4592,14 @@ function loanTo(target){
  const status=window.LWCareer?.loanTargetStatus(state,target,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open,isListed})||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يمكن إعارة لاعب حر؛ وقّع عقدًا دائمًا أولًا.","already-loaned":"عندك إعارة نشطة بالفعل.","cup-active":"تعذر تنفيذ الإعارة قبل إنهاء بطولة الكأس الحالية.","window-closed":"انتهت نافذة الإعارة؛ جرّب في فترة انتقالات جديدة.","appearances-required":"لازم تلعب مباراتين على الأقل قبل الإعارة.","invalid-target":"وجهة الإعارة غير صالحة.","same-club":"اختار ناديًا مختلفًا عن ناديك الحالي.","unlisted-target":"وجهة الإعارة لم تعد موجودة في الكتالوج الحالي."};
  if(status!=="ready"){toast(messages[status]||"تعذر تنفيذ الإعارة في الحالة الحالية.");return;}
+ const hostRole=window.LWCareer?.loanSquadRole?.(state,target)||"بديل أساسي";
  const previousTarget=seasonMatchTotal(),matchesAlreadyPlayed=Number(state.seasonApps)||0;
  const wasSecondHalf=state.seasonPhase==="secondHalf"||state.seasonPhase==="winterBreak"||!!state.winterBreakPending||matchesAlreadyPlayed>=Math.ceil(previousTarget/2);
  archiveLeagueSegment("loan");
- const original={parentClub:state.clubName,parentCountry:state.leagueCountry,parentDivision:state.leagueDivision,parentCompetition:state.leagueCompetition,parentSource:state.leagueSource,parentPower:state.clubPower,parentTier:state.clubTier,parentIndex:state.clubIndex,parentWage:state.weeklyWage,parentContractSeasons:state.contractSeasons,parentFreeAgent:state.freeAgent};
+ const original={parentClub:state.clubName,parentCountry:state.leagueCountry,parentDivision:state.leagueDivision,parentCompetition:state.leagueCompetition,parentSource:state.leagueSource,parentPower:state.clubPower,parentTier:state.clubTier,parentIndex:state.clubIndex,parentWage:state.weeklyWage,parentContractSeasons:state.contractSeasons,parentFreeAgent:state.freeAgent,parentRole:String(state.role||"بديل")};
  state.loan={...original,hostClub:target.club,hostCountry:target.country,startSeason:state.season,returnAfterSeason:state.season};
- state.clubName=target.club;state.leagueCountry=target.country;state.leagueDivision=1;state.leagueCompetition=target.league;state.leagueSource=`OpenFootball • ${target.season}`;state.clubPower=target.power||clubPowerFor(target.club,target.country);state.clubTier=clubTierForPower(state.clubPower);state.clubIndex=state.clubTier;state.weeklyWage=Math.max(original.parentWage,Math.round(transferWage(target)*0.55));state.role="بديل أساسي";state.trust=clamp(state.trust+3);state.daysSinceTransfer=0;state.transferCooldown=0;state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=Number(state.seasonApps)>0;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed);state.winterBreakPending=false;state.seasonPhase=wasSecondHalf?"secondHalf":"firstHalf";
- state.transferHistory.unshift({season:state.season,day:state.day,text:`إعارة لمدة موسم واحد إلى ${target.club} (${target.country}). النادي الأصلي: ${original.parentClub}. الرجوع مقرر بعد نهاية الموسم.`});log(`انتقلت إعارة إلى ${target.club} لمدة موسم واحد.`);setStory("فرصة إعارة جديدة",`انضممت مؤقتًا إلى ${target.club}. استغل الدقائق، وارجع لناديك الأصلي بمستوى أعلى.`);saveGame(true);render();showPage("contract");toast("تم تسجيل الإعارة داخل المسيرة.");
+ state.clubName=target.club;state.leagueCountry=target.country;state.leagueDivision=Math.max(1,Number(target.division)||1);state.leagueCompetition=target.league;state.leagueSource=`${String(target.source||"قاعدة بيانات الأندية")} • ${String(target.season||"موسم الإعارة")}`;state.clubPower=target.power||clubPowerFor(target.club,target.country);state.clubTier=clubTierForPower(state.clubPower);state.clubIndex=state.clubTier;state.weeklyWage=Math.max(original.parentWage,Math.round(transferWage(target)*0.55));state.role=hostRole;state.trust=clamp(state.trust+3);state.daysSinceTransfer=0;state.transferCooldown=0;state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=Number(state.seasonApps)>0;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed);state.winterBreakPending=false;state.seasonPhase=wasSecondHalf?"secondHalf":"firstHalf";
+ state.transferHistory.unshift({season:state.season,day:state.day,text:`إعارة لمدة موسم واحد إلى ${target.club} (${target.country}). النادي الأصلي: ${original.parentClub}. الرجوع مقرر بعد نهاية الموسم.`});log(`انتقلت إعارة إلى ${target.club} لمدة موسم واحد.`);setStory("فرصة إعارة جديدة",`انضممت مؤقتًا إلى ${target.club} بدور متوقع: ${hostRole}. استغل الدقائق، وارجع لناديك الأصلي بمستوى أعلى.`);saveGame(true);render();showPage("contract");toast("تم تسجيل الإعارة داخل المسيرة.");
 }
 function returnFromLoan(){
  const l=state.loan;if(!l)return false;
@@ -4492,7 +4611,7 @@ function returnFromLoan(){
  // this, league results earned during the loan vanish when the next season is built.
  archiveLeagueSegment("loan-return");
  const hostClub=state.clubName;
- state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;state.leagueDivision=Math.max(1,Number(l.parentDivision)||1);state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");state.clubPower=Math.max(1,Number(l.parentPower)||clubPowerFor(l.parentClub,l.parentCountry));state.clubTier=Number.isFinite(Number(l.parentTier))?Number(l.parentTier):clubTierForPower(state.clubPower);state.clubIndex=Number.isFinite(Number(l.parentIndex))?Number(l.parentIndex):state.clubTier;const parentWageValue=Number(l.parentWage),parentContractSeasonsValue=Number(l.parentContractSeasons);state.weeklyWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;state.contractSeasons=Number.isFinite(parentContractSeasonsValue)?Math.max(0,Math.min(10,Math.floor(parentContractSeasonsValue))):0;state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;
+ state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;state.leagueDivision=Math.max(1,Number(l.parentDivision)||1);state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");state.clubPower=Math.max(1,Number(l.parentPower)||clubPowerFor(l.parentClub,l.parentCountry));state.clubTier=Number.isFinite(Number(l.parentTier))?Number(l.parentTier):clubTierForPower(state.clubPower);state.clubIndex=Number.isFinite(Number(l.parentIndex))?Number(l.parentIndex):state.clubTier;const parentWageValue=Number(l.parentWage),parentContractSeasonsValue=Number(l.parentContractSeasons);state.weeklyWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;state.contractSeasons=Number.isFinite(parentContractSeasonsValue)?Math.max(0,Math.min(10,Math.floor(parentContractSeasonsValue))):0;state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;
  log(`انتهت الإعارة من ${hostClub} وعدت إلى ${state.clubName}.`);state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهت الإعارة والعودة إلى ${state.clubName} (${state.leagueCountry}).`});return true;
 }
 
@@ -5612,9 +5731,11 @@ function disciplineKey(scope,country,competition){return `${scope}|${country||""
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}
- const dynamicOwnPower=window.LWWorldAI?.getClubPower(state,club().name,state.leagueCountry,window.LWWorldDB)||Number(state.clubPower)||52;
+ const ownClubProfile=window.LWWorldAI?.getClubMatchProfile(state,club().name,state.leagueCountry,window.LWWorldDB)||null;
+ const opponentClubProfile=window.LWWorldAI?.getClubMatchProfile(state,opponent,state.leagueCountry,window.LWWorldDB)||null;
+ const dynamicOwnPower=Number(ownClubProfile?.power)||Number(state.clubPower)||52;
  const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(dynamicOwnPower)||55)-55)*.16,30,94);
- const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
+ const opponentPower=clamp(Number(opponentClubProfile?.power)||Number(opponentTeam?.power)||55,30,94);
  const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
  const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  const key=disciplineKey(scope,state.leagueCountry,competition);
@@ -5623,7 +5744,7 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
  return window.LWMatch.simulateMatch({
   seed:window.LWMatch.hash(`${matchId}|${state.energy}|${state.fatigue}|${state.trust}|${state.morale}`),
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
-  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp((opponentPower+55)/2,35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:55,
+  teamPower,opponentPower,opponentTactic:opponentPlan.tactic,opponentTacticalIQ:opponentPlan.iq||opponentIQ,opponentGoalkeeping:clamp(Number(opponentClubProfile?.goalkeeping)||((opponentPower+55)/2),35,88),teamGoalkeeping:state.pos==="حارس مرمى"?state.goalkeeping:clamp(Number(ownClubProfile?.goalkeeping)||((dynamicOwnPower+55)/2),35,88),
   playerAvailable:available,
   player:{name:state.name,position:state.pos,role:state.role,shooting:state.shooting,dribbling:state.dribbling,passing:state.passing,vision:state.vision,composure:state.composure,fitness:state.fitness,speed:state.speed,physical:state.physical,goalkeeping:state.goalkeeping,trust:state.trust,energy:state.energy,fatigue:state.fatigue,injuryDays:state.injuryDays,suspensionMatches:suspended?1:0}
  });
@@ -6520,5 +6641,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./career-hub.js?v=3"></script>
 <script src="./ai-career-engine.js?v=5"></script>
 <script src="./ai-career-ui.js?v=1"></script>
+<script src="./social-media.js?v=2"></script>
 </body>
 </html>

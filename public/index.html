@@ -2506,18 +2506,44 @@ function seasonAwards(state, league, teamRank) {
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
-  function positionProfile(position) {
-    return ({
-      "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
-      "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
-      "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
-      "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
-      "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
-      "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-      "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.205, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
-    })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
-  }
+  const POSITION_ALIASES = {
+  "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى",
+  "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
+  "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+  "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
+  "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
+  "fullback": "ظهير", "wing back": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+  "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
+  "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+  "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
+  "attacking mid": "وسط مهاجم",
+  "cm": "وسط", "central midfielder": "وسط",
+  "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+  "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
+  "winger": "جناح", "wide midfielder": "جناح",
+  "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+  "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+  "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+};
+function normalizePosition(position) {
+  const raw = String(position || "").trim();
+  const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  return POSITION_ALIASES[key] || raw;
+}
+function positionProfile(position) {
+  position = normalizePosition(position);
+  return ({
+    "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
+    "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
+    "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
+    "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
+    "وسط": { shooter: 0.10, creator: 0.28, defender: 0.18 },
+    "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
+    "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
+    "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+    "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
+  })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
+}
   function squadRoleType(value) {
     const role = String(value || "بديل").trim().toLocaleLowerCase();
     // Keep the historical "بديل أساسي" label as a short-starting rotation role.
@@ -3519,7 +3545,7 @@ function seasonAwards(state, league, teamRank) {
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();</script>
 <script>
 (function(){

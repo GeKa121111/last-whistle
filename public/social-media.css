@@ -1,5 +1,5 @@
 /* LAST WHISTLE — career social network */
-body.lw-rebuild .lw-social-page{direction:rtl;color:var(--text)}
+body.lw-rebuild #page-social{direction:rtl;color:var(--text)}
 body.lw-rebuild .lwsocial-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px;border:1px solid #345044;border-radius:20px;background:radial-gradient(circle at 8% 8%,#2b5b4938,transparent 36%),linear-gradient(135deg,#14231d,#101725 72%);margin-bottom:14px}
 body.lw-rebuild .lwsocial-brand{display:flex;align-items:center;gap:12px;min-width:0}
 body.lw-rebuild .lwsocial-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:16px;background:#1f382b;border:1px solid #496948;font-size:26px;flex:0 0 auto}

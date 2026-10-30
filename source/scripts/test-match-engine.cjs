@@ -1263,6 +1263,36 @@ for (const [targetEngine, seed, label] of [[engine, 630000, "source"], [browserE
   assert.equal(partialLegacyShotValidation.goalShotLedgerConsistent, true,
     label + " validator must use side and minute when legacy shot attribution fields are absent");
 
+  const nonScoringLegacyShotIndex = modernGoalLedgerWithoutShotFlags.events.findIndex((event, index) =>
+    event.type === "shot" && event.creditedToPlayer !== true
+      && modernGoalLedgerWithoutShotFlags.events[index + 1]?.type !== "goal");
+  assert.ok(nonScoringLegacyShotIndex >= 0,
+    label + " legacy attribution regression must include a non-scoring shot");
+
+  const invalidLegacyShooter = JSON.parse(JSON.stringify(modernGoalLedgerWithoutShotFlags));
+  const malformedLegacyShooterShot = invalidLegacyShooter.events[nonScoringLegacyShotIndex];
+  malformedLegacyShooterShot.shooter = malformedLegacyShooterShot.side === "team" ? "opponent" : "teammate";
+  const invalidLegacyShooterValidation = targetEngine.validateResult(invalidLegacyShooter);
+  assert.equal(invalidLegacyShooterValidation.ok, false,
+    label + " validator must reject a wrong-side shooter even when onTarget metadata is absent");
+  assert.equal(invalidLegacyShooterValidation.shotAttributionConsistent, false,
+    label + " validator must expose invalid legacy shot attribution");
+
+  const invalidLegacyCredit = JSON.parse(JSON.stringify(modernGoalLedgerWithoutShotFlags));
+  invalidLegacyCredit.events[nonScoringLegacyShotIndex].creditedToPlayer = "false";
+  const invalidLegacyCreditValidation = targetEngine.validateResult(invalidLegacyCredit);
+  assert.equal(invalidLegacyCreditValidation.ok, false,
+    label + " validator must reject non-boolean legacy player-credit metadata without onTarget flags");
+  assert.equal(invalidLegacyCreditValidation.shotAttributionConsistent, false,
+    label + " validator must expose malformed legacy player-credit metadata");
+
+  const omittedLegacyAttribution = JSON.parse(JSON.stringify(modernGoalLedgerWithoutShotFlags));
+  delete omittedLegacyAttribution.events[nonScoringLegacyShotIndex].shooter;
+  delete omittedLegacyAttribution.events[nonScoringLegacyShotIndex].creditedToPlayer;
+  const omittedLegacyAttributionValidation = targetEngine.validateResult(omittedLegacyAttribution);
+  assert.equal(omittedLegacyAttributionValidation.ok, true,
+    label + " validator must preserve legacy shots that omit optional shooter and credit fields");
+
   const missingGoalShotLedger = JSON.parse(JSON.stringify(modernGoalLedgerWithoutShotFlags));
   const missingShotGoal = missingGoalShotLedger.events.find(event =>
     event.type === "goal" && event.side === "opponent");

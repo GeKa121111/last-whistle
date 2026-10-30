@@ -2797,7 +2797,7 @@ function seasonAwards(state, league, teamRank) {
       if (aggregateOffset + finalFor - finalAgainst === 0) {
         shootout.used = true;
         const skill = clamp(player.composure, 25, 95);
-        const playerKeeperActive = profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured;
+        const playerKeeperActive = Boolean(profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured);
         const opponentKeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
         const teamKeeper = clamp(playerKeeperActive
           ? (player.goalkeeping ?? options.teamGoalkeeping ?? 55)

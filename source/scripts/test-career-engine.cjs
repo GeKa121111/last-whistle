@@ -746,6 +746,33 @@ const prospectPromotion = career.evaluateSquadRole({
 }, rotationHistory.slice(0, 2));
 assert.equal(prospectPromotion.role, "بديل",
   "a prospect label should become a normal substitute role after recording real appearances");
+
+const poorFormHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "poor-form-" + index, scope: "league", minutes: 70, rating: 5.2,
+  goals: 0, assists: 0
+}));
+const poorStarterDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, poorFormHistory);
+assert.equal(poorStarterDecision.role, "بديل أساسي",
+  "a starter with sustained poor ratings and low trust must lose the automatic starter role");
+assert.equal(poorStarterDecision.reason, "form-demotion",
+  "role demotions must be identifiable separately from promotions");
+const poorRotationDecision = career.evaluateSquadRole({
+  role: "تناوب", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
+}, poorFormHistory);
+assert.equal(poorRotationDecision.role, "بديل",
+  "a rotation player with sustained poor form must move to a substitute role");
+const poorStarDecision = career.evaluateSquadRole({
+  role: "نجم الفريق", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
+}, poorFormHistory);
+assert.equal(poorStarDecision.role, "أساسي",
+  "a star-player role must step down to starter after a long poor run, not remain protected forever");
+const shortPoorRunDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 10, pos: "وسط"
+}, poorFormHistory.slice(0, 3));
+assert.equal(shortPoorRunDecision.role, "أساسي",
+  "a small poor-form sample must not demote a player after only three rated matches");
 assert.equal(career.normalizeCareerPosition("ST"), "رأس حربة",
   "legacy English striker positions must normalize to the centre-forward career role");
 for (const [alias, expected] of [

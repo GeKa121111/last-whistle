@@ -23,7 +23,7 @@
     "centre back": "قلب دفاع", "central defender": "قلب دفاع",
     "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
     "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
-    "fullback": "ظهير", "wing back": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+    "fullback": "ظهير", "wing back": "ظهير", "wingback": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
     "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
     "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
     "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
@@ -31,7 +31,7 @@
     "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "central midfield": "وسط", "midfielder": "وسط",
     "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
     "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
-    "winger": "جناح", "wide midfielder": "جناح",
+    "winger": "جناح", "wide midfielder": "جناح", "left midfielder": "جناح", "right midfielder": "جناح",
     "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
     "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
     "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"

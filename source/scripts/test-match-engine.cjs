@@ -181,7 +181,9 @@ const extraTimeConcessions = extraTimeParticipation.events.filter(event => event
 assert.equal(engine.playerConcededGoals(extraTimeParticipation.player.minutes, extraTimeParticipation.events),
   extraTimeConcessions,
   "a player who stays on the pitch must be accountable for goals conceded during extra time");
-assert.equal(engine.validateResult(extraTimeParticipation).ok, true,
+const extraTimeValidation = engine.validateResult(extraTimeParticipation);
+if (!extraTimeValidation.ok) console.log("EXTRA_TIME_VALIDATION_DEBUG " + JSON.stringify({ validation: extraTimeValidation, shootout: extraTimeParticipation.shootout, score: extraTimeParticipation.score, minutes: extraTimeParticipation.player.minutes, events: extraTimeParticipation.events.filter(event => Number(event.minute) >= 90) }));
+assert.equal(extraTimeValidation.ok, true,
   "extra-time player activity and extended minutes must remain internally consistent");
 
 let extraTimePeriodLedgerProbe = null;

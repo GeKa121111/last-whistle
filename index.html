@@ -4600,6 +4600,13 @@ function resolveExtraTime(ourPower,oppPower){
  const oppGoals=randomUnit()<clamp(28-gap*1.4,8,62)?1:0;
  return {ourGoals,oppGoals,text:`الوقت الإضافي (شوطان حتى 15 دقيقة): ${ourGoals}-${oppGoals}`};
 }
+function parseCupTieAggregate(value){
+ if(value==null)return {valid:true,value:0};
+ if(typeof value!=="number"&&typeof value!=="string")return {valid:false,value:0};
+ if(typeof value==="string"&&value.trim()==="")return {valid:false,value:0};
+ const parsed=Number(value);
+ return Number.isSafeInteger(parsed)?{valid:true,value:parsed}:{valid:false,value:0};
+}
 function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){
  const score=result?.score||{},gf=Number(score.for)||0,ga=Number(score.against)||0;
  const rival=String(opponent||"المنافس"),shootout=result?.shootout||{};
@@ -4622,9 +4629,15 @@ function playCupMatch(){
  if(Number(c.createdSeason||state.season)!==Number(state.season)){closeUnfinishedCupAtSeasonEnd();saveGame(true);render();toast("اتقفلت البطولة القديمة مع نهاية موسمها؛ اختار بطولة جديدة للموسم الحالي.");return;}
  if(state.playedToday){toast('لعبت مباراة النهارده. تقدّم ليوم جديد قبل مباراة الكأس.');return;}
  if(state.trainedToday){toast('اتدربت النهارده. تقدّم ليوم جديد قبل مباراة الكأس.');return;}
- if(!checkAction('cup',20))return;
  const comp=CUP_COMPETITIONS.find(x=>x.name===c.name)||{system:'knockout'};
- const isLeague=c.phase==='league',isGroups=c.phase==='groups',roundName=isLeague?'مرحلة الدوري':isGroups?'المجموعات':(c.rounds||[])[c.stage]||'مباراة';
+ const isLeague=c.phase==='league',isGroups=c.phase==='groups';
+ const knockout=!isLeague&&!isGroups,isTwoLegTie=knockout&&!!(c.twoLegs||[])[c.stage];
+ const tieLegAtKickoff=isTwoLegTie?(Number(c.tieLeg)===2?2:1):0;
+ const parsedTieAggregate=isTwoLegTie&&tieLegAtKickoff===2
+  ?parseCupTieAggregate(c.tieAggregate):{valid:true,value:0};
+ if(!parsedTieAggregate.valid){toast('بيانات مجموع مباراتي الكأس غير صالحة. راجع سجل البطولة قبل لعب الإياب.');return;}
+ if(!checkAction('cup',20))return;
+ const roundName=isLeague?'مرحلة الدوري':isGroups?'المجموعات':(c.rounds||[])[c.stage]||'مباراة';
  let opponent;
  if(isLeague){const pool=c.teams.filter(n=>n!==clubNameForLeague()&&!(c.leagueOpponents||[]).includes(n));opponent=pool.length?pool[rand(0,pool.length-1)]:c.teams[(c.phasePlayed+1)%c.teams.length];c.leagueOpponents=c.leagueOpponents||[];c.leagueOpponents.push(opponent);}
  else if(isGroups){
@@ -4633,11 +4646,9 @@ function playCupMatch(){
   opponent=available.length?available[(c.phasePlayed)%available.length]:pool[c.phasePlayed%pool.length];c.groupOpponents=used;c.groupOpponents[opponent]=(c.groupOpponents[opponent]||0)+1;
  }else opponent=(Number(c.tieLeg)===2&&c.tieOpponent)||c.opponent||c.teams[(c.stage*2+1)%c.teams.length]||c.teams[1];
  if(!opponent){toast('تعذر تحديد منافس الكأس.');return;}
- const knockout=!isLeague&&!isGroups,isTwoLegTie=knockout&&!!(c.twoLegs||[])[c.stage];
- const tieLegAtKickoff=isTwoLegTie?(Number(c.tieLeg)===2?2:1):0;
  const id=buildMatchId('cup',c.name,(Number(c.matchesPlayed)||0)+1,club().name);
  const dKey=disciplineKey('cup',state.leagueCountry,c.name),suspended=Number(state.suspensions?.[dKey])>0;
- const result=simulateCareerMatch({opponent,opponentTeam:{power:clubPowerFor(opponent,state.leagueCountry||'')},scope:'cup',competition:c.name,tactic:state.lastTactic||'balanced',matchId:id,home:isTwoLegTie?tieLegAtKickoff===1:(Number(c.matchesPlayed)||0)%2===0,mode:'cup',knockout:knockout&&(!isTwoLegTie||tieLegAtKickoff===2),aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2?Number(c.tieAggregate)||0:0,playerAvailable:!suspended});
+ const result=simulateCareerMatch({opponent,opponentTeam:{power:clubPowerFor(opponent,state.leagueCountry||'')},scope:'cup',competition:c.name,tactic:state.lastTactic||'balanced',matchId:id,home:isTwoLegTie?tieLegAtKickoff===1:(Number(c.matchesPlayed)||0)%2===0,mode:'cup',knockout:knockout&&(!isTwoLegTie||tieLegAtKickoff===2),aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2?parsedTieAggregate.value:0,playerAvailable:!suspended});
  const settled=applyMatchResult(result,{id,scope:'cup',country:state.leagueCountry,competition:c.name,opponent,tactic:result.tactic,home:result.home,matchday:(Number(c.matchesPlayed)||0)+1,suspendedAtKickoff:suspended});
  if(!settled){toast('تم منع تكرار أو اعتماد نتيجة كأس غير متسقة.');return;}
  const gf=Number(result.score.for)||0,ga=Number(result.score.against)||0,won=result.outcome==='فوز',draw=result.outcome==='تعادل';

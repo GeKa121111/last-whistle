@@ -1282,7 +1282,6 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
-
     const safeMetric = (value, maximum = 1000000) => {
       const numeric = Number(value);
       return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, numeric)) : 0;
@@ -1296,7 +1295,6 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       return { role: originalRole, changed: false, reason: "no-appearances", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
-
     const sum = (rows, key) => {
       const maximum = key === "minutes" ? 120 : key === "rating" ? 10 : 20;
       return rows.reduce((total, row) => total + safeMetric(row[key], maximum), 0);
@@ -1307,7 +1305,6 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
     const recentAverageRating = ratedRows.length
       ? ratedRows.reduce((total, row) => total + safeMetric(row.rating, 10), 0) / ratedRows.length : 0;
-
     const appearances = Math.floor(safeMetric(state.apps, 1000000));
     const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
     // Saves compact long careers, so estimate missing historical minutes from the observed mean.
@@ -1320,17 +1317,22 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
     const recentReady = recentAverageRating >= 6.25
       && (trust >= 22 || recentContributionsPer90 >= 0.25);
+    const starterReady = (recentAverageRating >= 6.35
+      && (trust >= 30 || recentContributionsPer90 >= 0.30))
+      || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
     let role = originalRole;
-
-    // Non-academy youth players start with this display label; it should not lock them out of promotion forever.
-    if (role.startsWith("ناشئ") && appearances >= 3) role = "بديل";
-    if (role === "بديل" && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
-    if (role === "بديل أساسي" && appearances >= 16
-      && ((recentAverageRating >= 6.35 && (trust >= 30 || recentContributionsPer90 >= 0.30))
-        || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9))) {
-      role = "أساسي";
-    }
-
+    const roleKey = role.trim().toLocaleLowerCase();
+    const roleIsYouth = roleKey.includes("ناشئ") || roleKey.includes("صاعد")
+      || roleKey.includes("prospect") || roleKey.includes("youngster");
+    const roleIsRotation = roleKey.includes("تناوب") || roleKey.includes("rotation")
+      || roleKey.includes("squad player");
+    const roleIsBench = roleKey === "بديل" || roleKey.includes("لاعب بديل")
+      || roleKey.includes("احتياطي") || roleKey.includes("impact sub") || roleKey.includes("fringe player");
+    if (roleIsYouth && appearances >= 3) role = "بديل";
+    if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+    // Rotation players move to a regular starting role only after sustained performance.
+    if (roleIsRotation && appearances >= 16 && starterReady) role = "أساسي";
+    if (role === "بديل أساسي" && appearances >= 16 && starterReady) role = "أساسي";
     return {
       role, changed: role !== originalRole,
       reason: role === originalRole ? "keep-role" : role === "أساسي" ? "starter-ready" : "rotation-ready",
@@ -2427,10 +2429,25 @@ function seasonAwards(state, league, teamRank) {
       "رأس حربة": { shooter: 0.60, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
-  function selectedMinutes(player, available, random) {
+  function squadRoleType(value) {
+    const role = String(value || "بديل").trim().toLocaleLowerCase();
+    // Keep the historical "بديل أساسي" label as a short-starting rotation role.
+    if (role === "بديل أساسي") return "legacy-rotation-starter";
+    if (role.includes("نجم الفريق") || role.includes("star player")) return "star";
+    if (role === "أساسي" || role.includes("لاعب أساسي") || role.includes("regular starter")) return "starter";
+    if (role.includes("تناوب") || role.includes("rotation") || role.includes("squad player")) return "rotation";
+    if (role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return "prospect";
+    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impact sub") || role.includes("fringe player")) return "substitute";
+    return "substitute";
+  }
+  function selectedMinutes(player, available, random, roleType, startsOnBench) {
     if (!available) return 0;
-    const role = String(player.role || "بديل").trim();
-    const roleBase = role === "أساسي" ? 83 : role === "بديل أساسي" ? 66 : 39;
+    // A rotation contract means shared starts and substitute appearances; it is not a fixed cameo role.
+    const roleBase = roleType === "star" ? 88
+      : roleType === "starter" ? 83
+        : roleType === "legacy-rotation-starter" ? 66
+          : roleType === "rotation" ? (startsOnBench ? 32 : 69)
+            : roleType === "prospect" ? 18 : 30;
     const trust = clamp(player.trust, 0, 100);
     const fitness = clamp(player.fitness, 0, 100);
     const energy = clamp(player.energy, 0, 100);
@@ -2543,11 +2560,12 @@ function seasonAwards(state, league, teamRank) {
     const homeAdvantage = options.home ? 3 : 0;
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
-    const plannedMinutes = selectedMinutes(player, !unavailable, random);
-    // A true bench substitute enters late and plays through the end of regulation;
-    // other squad roles retain their existing start-and-exit minute model.
-    const playerRole = String(player.role || "بديل").trim();
-    const playerStartsOnBench = playerRole.includes("بديل") && playerRole !== "بديل أساسي";
+    const playerRoleType = squadRoleType(player.role);
+    // A rotation contract mixes starts and substitute appearances, with a slight bench preference.
+    const playerStartsOnBench = playerRoleType === "rotation"
+      ? (!unavailable && random() < 0.55)
+      : playerRoleType === "substitute" || playerRoleType === "prospect";
+    const plannedMinutes = selectedMinutes(player, !unavailable, random, playerRoleType, playerStartsOnBench);
     const playerStartMinute = plannedMinutes > 0 && playerStartsOnBench
       ? Math.max(0, 90 - plannedMinutes) : 0;
     const plannedEndMinute = Math.min(90, playerStartMinute + plannedMinutes);

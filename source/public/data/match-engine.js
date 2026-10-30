@@ -29,10 +29,25 @@
       "رأس حربة": { shooter: 0.60, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
-  function selectedMinutes(player, available, random) {
+  function squadRoleType(value) {
+    const role = String(value || "بديل").trim().toLocaleLowerCase();
+    // Keep the historical "بديل أساسي" label as a short-starting rotation role.
+    if (role === "بديل أساسي") return "legacy-rotation-starter";
+    if (role.includes("نجم الفريق") || role.includes("star player")) return "star";
+    if (role === "أساسي" || role.includes("لاعب أساسي") || role.includes("regular starter")) return "starter";
+    if (role.includes("تناوب") || role.includes("rotation") || role.includes("squad player")) return "rotation";
+    if (role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return "prospect";
+    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impact sub") || role.includes("fringe player")) return "substitute";
+    return "substitute";
+  }
+  function selectedMinutes(player, available, random, roleType, startsOnBench) {
     if (!available) return 0;
-    const role = String(player.role || "بديل").trim();
-    const roleBase = role === "أساسي" ? 83 : role === "بديل أساسي" ? 66 : 39;
+    // A rotation contract means shared starts and substitute appearances; it is not a fixed cameo role.
+    const roleBase = roleType === "star" ? 88
+      : roleType === "starter" ? 83
+        : roleType === "legacy-rotation-starter" ? 66
+          : roleType === "rotation" ? (startsOnBench ? 32 : 69)
+            : roleType === "prospect" ? 18 : 30;
     const trust = clamp(player.trust, 0, 100);
     const fitness = clamp(player.fitness, 0, 100);
     const energy = clamp(player.energy, 0, 100);
@@ -145,11 +160,12 @@
     const homeAdvantage = options.home ? 3 : 0;
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
-    const plannedMinutes = selectedMinutes(player, !unavailable, random);
-    // A true bench substitute enters late and plays through the end of regulation;
-    // other squad roles retain their existing start-and-exit minute model.
-    const playerRole = String(player.role || "بديل").trim();
-    const playerStartsOnBench = playerRole.includes("بديل") && playerRole !== "بديل أساسي";
+    const playerRoleType = squadRoleType(player.role);
+    // A rotation contract mixes starts and substitute appearances, with a slight bench preference.
+    const playerStartsOnBench = playerRoleType === "rotation"
+      ? (!unavailable && random() < 0.55)
+      : playerRoleType === "substitute" || playerRoleType === "prospect";
+    const plannedMinutes = selectedMinutes(player, !unavailable, random, playerRoleType, playerStartsOnBench);
     const playerStartMinute = plannedMinutes > 0 && playerStartsOnBench
       ? Math.max(0, 90 - plannedMinutes) : 0;
     const plannedEndMinute = Math.min(90, playerStartMinute + plannedMinutes);

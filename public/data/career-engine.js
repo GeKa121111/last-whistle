@@ -49,7 +49,6 @@
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
-
     const safeMetric = (value, maximum = 1000000) => {
       const numeric = Number(value);
       return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, numeric)) : 0;
@@ -63,7 +62,6 @@
       return { role: originalRole, changed: false, reason: "no-appearances", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
-
     const sum = (rows, key) => {
       const maximum = key === "minutes" ? 120 : key === "rating" ? 10 : 20;
       return rows.reduce((total, row) => total + safeMetric(row[key], maximum), 0);
@@ -74,7 +72,6 @@
     const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
     const recentAverageRating = ratedRows.length
       ? ratedRows.reduce((total, row) => total + safeMetric(row.rating, 10), 0) / ratedRows.length : 0;
-
     const appearances = Math.floor(safeMetric(state.apps, 1000000));
     const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
     // Saves compact long careers, so estimate missing historical minutes from the observed mean.
@@ -87,17 +84,22 @@
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
     const recentReady = recentAverageRating >= 6.25
       && (trust >= 22 || recentContributionsPer90 >= 0.25);
+    const starterReady = (recentAverageRating >= 6.35
+      && (trust >= 30 || recentContributionsPer90 >= 0.30))
+      || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
     let role = originalRole;
-
-    // Non-academy youth players start with this display label; it should not lock them out of promotion forever.
-    if (role.startsWith("ناشئ") && appearances >= 3) role = "بديل";
-    if (role === "بديل" && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
-    if (role === "بديل أساسي" && appearances >= 16
-      && ((recentAverageRating >= 6.35 && (trust >= 30 || recentContributionsPer90 >= 0.30))
-        || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9))) {
-      role = "أساسي";
-    }
-
+    const roleKey = role.trim().toLocaleLowerCase();
+    const roleIsYouth = roleKey.includes("ناشئ") || roleKey.includes("صاعد")
+      || roleKey.includes("prospect") || roleKey.includes("youngster");
+    const roleIsRotation = roleKey.includes("تناوب") || roleKey.includes("rotation")
+      || roleKey.includes("squad player");
+    const roleIsBench = roleKey === "بديل" || roleKey.includes("لاعب بديل")
+      || roleKey.includes("احتياطي") || roleKey.includes("impact sub") || roleKey.includes("fringe player");
+    if (roleIsYouth && appearances >= 3) role = "بديل";
+    if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+    // Rotation players move to a regular starting role only after sustained performance.
+    if (roleIsRotation && appearances >= 16 && starterReady) role = "أساسي";
+    if (role === "بديل أساسي" && appearances >= 16 && starterReady) role = "أساسي";
     return {
       role, changed: role !== originalRole,
       reason: role === originalRole ? "keep-role" : role === "أساسي" ? "starter-ready" : "rotation-ready",

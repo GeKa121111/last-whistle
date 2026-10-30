@@ -656,8 +656,13 @@ const forwardAliasHistory = Array.from({ length: 8 }, (_, index) => ({
 const englishForwardPromotion = career.evaluateSquadRole({
   role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "ST"
 }, forwardAliasHistory);
-assert.equal(englishForwardPromotion.role, "بديل أساسي",
+const arabicForwardPromotion = career.evaluateSquadRole({
+  role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "رأس حربة"
+}, forwardAliasHistory);
+assert.equal(englishForwardPromotion.role, arabicForwardPromotion.role,
   "a legacy ST save must receive the same evidence-based forward promotion as an Arabic position");
+assert.equal(englishForwardPromotion.role, "أساسي",
+  "the high-output forward fixture should complete both promotion thresholds in one evaluation");
 const englishMidfieldControl = career.evaluateSquadRole({
   role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "CM"
 }, forwardAliasHistory);

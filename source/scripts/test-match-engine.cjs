@@ -823,6 +823,56 @@ for (const targetEngine of [engine, browserEngine]) {
   assert.equal(targetEngine.validateResult(legacyShootoutWithoutDeciderMetadata).ok, true,
     "legacy shootout saves without regulation/extra-time ledger fields must remain readable");
 }
+function makeAggregateOffsetFixture(targetEngine, seed) {
+  const match = targetEngine.simulateMatch({
+    seed,
+    player: { name: "Aggregate Offset Regression", position: "وسط مهاجم", role: "أساسي",
+      shooting: 65, composure: 65, trust: 50, fitness: 80, energy: 80, fatigue: 10 }
+  });
+  assert.equal(match.shootout.used, false, "aggregate-offset fixture must not require a shootout");
+  return match;
+}
+function setExpectedAggregateOutcome(match, offset) {
+  match.metadata.aggregateOffset = offset;
+  const margin = Number(offset) + Number(match.score.for) - Number(match.score.against);
+  match.outcome = margin > 0 ? "فوز" : margin < 0 ? "خسارة" : "تعادل";
+  return match;
+}
+for (const [targetEngine, label, seed] of [
+  [engine, "source", 872001],
+  [browserEngine, "browser", 872001]
+]) {
+  for (const numericString of ["1", "-1"]) {
+    const legacyNumericStringOffset = setExpectedAggregateOutcome(
+      makeAggregateOffsetFixture(targetEngine, seed), numericString);
+    const numericStringValidation = targetEngine.validateResult(legacyNumericStringOffset);
+    assert.equal(numericStringValidation.ok, true,
+      label + " validator must preserve integer-valued numeric-string aggregate offsets");
+    assert.equal(numericStringValidation.aggregateOffsetConsistent, true,
+      label + " validator must report integer-valued numeric-string aggregate offsets as consistent");
+  }
+
+  const nullAggregateOffset = makeAggregateOffsetFixture(targetEngine, seed + 1);
+  nullAggregateOffset.metadata.aggregateOffset = null;
+  assert.equal(targetEngine.validateResult(nullAggregateOffset).ok, true,
+    label + " validator must treat a null aggregate offset as absent for legacy compatibility");
+
+  for (const invalidValue of [
+    "", " ", "Infinity", "1.5", true, false, 1.5, Infinity, -Infinity, NaN,
+    9007199254740992, [], {}
+  ]) {
+    const malformedOffset = makeAggregateOffsetFixture(targetEngine, seed + 2);
+    malformedOffset.metadata.aggregateOffset = invalidValue;
+    const validation = targetEngine.validateResult(malformedOffset);
+    assert.equal(validation.ok, false,
+      label + " validator must reject malformed aggregate offsets on non-shootout results: " + String(invalidValue));
+    assert.equal(validation.reason, "invalid-aggregate-offset",
+      label + " validator must return a stable invalid aggregate-offset reason");
+    assert.equal(validation.aggregateOffsetConsistent, false,
+      label + " validator must expose malformed aggregate offsets");
+  }
+}
+
 const legacyShootoutWithUnflaggedExtraTime = {
   ...validShootoutEvent,
   metadata: { position: "مهاجم" },

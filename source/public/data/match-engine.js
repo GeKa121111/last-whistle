@@ -210,7 +210,7 @@
       rating: 0, playerAvailable: minutes > 0
     };
     const regulation = { for: 0, against: 0 };
-    const shootout = { used: false, won: null, scoreFor: 0, scoreAgainst: 0 };
+    const shootout = { used: false, won: null, scoreFor: 0, scoreAgainst: 0, attempts: [] };
     const extraTime = { played: false, for: 0, against: 0, periods: [] };
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
@@ -393,11 +393,69 @@
       if (aggregateOffset + finalFor - finalAgainst === 0) {
         shootout.used = true;
         const skill = clamp(player.composure, 25, 95);
-        const chance = clamp(0.50 + (teamPower - opponentPower) * 0.004 + (skill - 50) * 0.002, 0.33, 0.67);
-        shootout.won = random() < chance;
-        shootout.scoreFor = shootout.won ? 5 : 4;
-        shootout.scoreAgainst = shootout.won ? 4 : 5;
-        events.push({ type: "penalty-shootout", minute: 120, side: "team", won: shootout.won, scoreFor: shootout.scoreFor, scoreAgainst: shootout.scoreAgainst });
+        const playerKeeperActive = Boolean(profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured);
+        const opponentKeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
+        const teamKeeper = clamp(playerKeeperActive
+          ? (player.goalkeeping ?? options.teamGoalkeeping ?? 55)
+          : (options.teamGoalkeeping ?? 55), 25, 95);
+        const teamKickChance = clamp(0.76 + (teamPower - opponentPower) * 0.0012
+          + (skill - 50) * 0.0007 - (opponentKeeper - 55) * 0.0009, 0.62, 0.88);
+        const opponentSaveChance = clamp(0.10 + (teamKeeper - 55) * 0.0025, 0.04, 0.22);
+        const opponentMissChance = 0.10;
+        const attempts = [];
+        let teamGoals = 0;
+        let opponentGoals = 0;
+        function takeTeamPenalty(round) {
+          const scored = random() < teamKickChance;
+          attempts.push({ side: "team", round, scored, savedByPlayer: false });
+          if (scored) teamGoals++;
+        }
+        function takeOpponentPenalty(round) {
+          const roll = random();
+          const savedByPlayer = playerKeeperActive && roll < opponentSaveChance;
+          const scored = !savedByPlayer && roll >= opponentSaveChance + opponentMissChance;
+          attempts.push({ side: "opponent", round, scored, savedByPlayer });
+          if (scored) opponentGoals++;
+          if (savedByPlayer) {
+            stats.penaltiesSaved++;
+            events.push({ type: "penalty-save", minute: 120, side: "team",
+              actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true,
+              attemptNumber: round, shootoutSide: "opponent" });
+          }
+        }
+        // Standard five-kick sequence, ending early only when the remaining kicks cannot change the winner.
+        for (let round = 1; round <= 5; round++) {
+          takeTeamPenalty(round);
+          takeOpponentPenalty(round);
+          if (Math.abs(teamGoals - opponentGoals) > 5 - round) break;
+        }
+        // Sudden death continues in paired kicks until one side wins a round.
+        for (let round = 6; teamGoals === opponentGoals && round <= 30; round++) {
+          takeTeamPenalty(round);
+          takeOpponentPenalty(round);
+        }
+        // A deterministic safety decider prevents a pathological PRNG sequence from looping forever.
+        if (teamGoals === opponentGoals) {
+          const teamScored = random() < teamKickChance;
+          const opponentScored = !teamScored;
+          attempts.push({ side: "team", round: 31, scored: teamScored, savedByPlayer: false });
+          if (teamScored) teamGoals++;
+          const savedByPlayer = playerKeeperActive && teamScored && random() < opponentSaveChance;
+          attempts.push({ side: "opponent", round: 31, scored: opponentScored, savedByPlayer });
+          if (opponentScored) opponentGoals++;
+          if (savedByPlayer) {
+            stats.penaltiesSaved++;
+            events.push({ type: "penalty-save", minute: 120, side: "team",
+              actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true,
+              attemptNumber: 31, shootoutSide: "opponent" });
+          }
+        }
+        shootout.attempts = attempts;
+        shootout.scoreFor = teamGoals;
+        shootout.scoreAgainst = opponentGoals;
+        shootout.won = teamGoals > opponentGoals;
+        events.push({ type: "penalty-shootout", minute: 120, side: "team",
+          won: shootout.won, scoreFor: shootout.scoreFor, scoreAgainst: shootout.scoreAgainst });
       }
     }
     const aggregateMargin = aggregateOffset + finalFor - finalAgainst;
@@ -410,10 +468,6 @@
     const officialOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة" : "تعادل";
     const advancementWinner = shootout.used ? (shootout.won ? teamName : opponentName)
       : aggregateMargin > 0 ? teamName : aggregateMargin < 0 ? opponentName : "";
-    if (shootout.used && shootout.won === true && profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured) {
-      stats.penaltiesSaved = 1;
-      events.push({ type: "penalty-save", minute: 120, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
-    }
     const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
@@ -794,18 +848,18 @@
         const scoresAreZero = isNonNegativeInteger(shootout.scoreFor)
           && isNonNegativeInteger(shootout.scoreAgainst)
           && Number(shootout.scoreFor) === 0 && Number(shootout.scoreAgainst) === 0;
+        const attemptsAbsentOrEmpty = shootout.attempts == null
+          || (Array.isArray(shootout.attempts) && shootout.attempts.length === 0);
         return unusedFlagValid && unusedWinnerValid && shootoutEvents.length === 0
-          && (scoresAbsent || scoresAreZero);
+          && (scoresAbsent || scoresAreZero) && attemptsAbsentOrEmpty;
       }
       if (typeof shootout.won !== "boolean"
         || !isNonNegativeInteger(shootout.scoreFor)
         || !isNonNegativeInteger(shootout.scoreAgainst)) return false;
       const scoreFor = Number(shootout.scoreFor);
       const scoreAgainst = Number(shootout.scoreAgainst);
-      // Aggregate offset validation is shared with the complete match ledger.
       const hasExplicitExtraTimePlayedFlag = result.extraTime != null
         && Object.prototype.hasOwnProperty.call(result.extraTime, "played");
-      // Older ledgers may contain extra-time scores without the later "played" flag.
       const legacyDeciderMetadata = result.regulation == null && !hasExplicitExtraTimePlayedFlag;
       const extraTimeWasPlayed = legacyDeciderMetadata || result.extraTime?.played === true;
       const aggregateIsLevel = aggregateOffsetConsistent
@@ -815,10 +869,53 @@
           : legacyDeciderMetadata || Number(result.score.for) === Number(result.score.against));
       if (scoreFor === scoreAgainst || shootout.won !== (scoreFor > scoreAgainst)
         || !aggregateIsLevel || !extraTimeWasPlayed || shootoutEvents.length !== 1) return false;
-      const event = shootoutEvents[0];
-      return event.side === "team" && typeof event.won === "boolean" && event.won === shootout.won
-        && isNonNegativeInteger(event.scoreFor) && isNonNegativeInteger(event.scoreAgainst)
-        && Number(event.scoreFor) === scoreFor && Number(event.scoreAgainst) === scoreAgainst;
+      const summary = shootoutEvents[0];
+      const summaryValid = summary.side === "team" && typeof summary.won === "boolean"
+        && summary.won === shootout.won
+        && isNonNegativeInteger(summary.scoreFor) && isNonNegativeInteger(summary.scoreAgainst)
+        && Number(summary.scoreFor) === scoreFor && Number(summary.scoreAgainst) === scoreAgainst;
+      if (!summaryValid) return false;
+      // Old career saves have only a summary score. Keep them readable; validate the detailed ledger when present.
+      if (shootout.attempts == null) return true;
+      const attempts = shootout.attempts;
+      if (!Array.isArray(attempts) || attempts.length < 6 || attempts.length % 2 !== 0) return false;
+      const attemptScores = { team: 0, opponent: 0 };
+      const savedRounds = [];
+      for (let index = 0; index < attempts.length; index++) {
+        const attempt = attempts[index];
+        const expectedSide = index % 2 === 0 ? "team" : "opponent";
+        const expectedRound = Math.floor(index / 2) + 1;
+        if (!attempt || typeof attempt !== "object" || Array.isArray(attempt)
+          || attempt.side !== expectedSide || attempt.round !== expectedRound
+          || typeof attempt.scored !== "boolean" || typeof attempt.savedByPlayer !== "boolean") return false;
+        if (attempt.savedByPlayer && (attempt.side !== "opponent" || attempt.scored)) return false;
+        if (attempt.scored) attemptScores[attempt.side]++;
+        if (attempt.savedByPlayer) savedRounds.push(attempt.round);
+      }
+      if (attemptScores.team !== scoreFor || attemptScores.opponent !== scoreAgainst) return false;
+      const saveEvents = result.events.filter(event => event.type === "penalty-save");
+      if (saveEvents.length !== savedRounds.length) return false;
+      const playerIsGoalkeeper = positionProfile(result.metadata?.position || "").goalkeeper === true;
+      const playerEntry = result.events.find(event => event.type === "substitution-on" && event.side === "player");
+      const playerEntryMinute = playerEntry ? Math.max(0, Number(playerEntry.minute) || 0) : 0;
+      const playerExit = result.events
+        .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
+        .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
+      const playerEndMinute = playerExit ? Number(playerExit.minute)
+        : playerEntryMinute + Number(result.player.minutes || 0);
+      const playerKeeperActive = playerIsGoalkeeper && !playerExit && playerEndMinute >= 120;
+      if (savedRounds.length > 0 && !playerKeeperActive) return false;
+      const eventRounds = [];
+      for (const event of saveEvents) {
+        if (event.creditedToPlayer !== true || event.side !== "team"
+          || Number(event.minute) !== 120 || event.shootoutSide !== "opponent"
+          || !Number.isInteger(Number(event.attemptNumber))) return false;
+        eventRounds.push(Number(event.attemptNumber));
+      }
+      savedRounds.sort((a, b) => a - b);
+      eventRounds.sort((a, b) => a - b);
+      return savedRounds.length === eventRounds.length
+        && savedRounds.every((round, index) => round === eventRounds[index]);
     })();
     const eventsChronological = result.events.every((event, index) => index === 0
       || Number(result.events[index - 1].minute) <= Number(event.minute));

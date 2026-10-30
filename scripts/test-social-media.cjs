@@ -149,7 +149,7 @@ assert.equal(bold.ok, true);
 assert.ok(state.coachRelationship < beforeCoach);
 assert.ok(state.professionalism < beforeProfessionalism);
 assert.ok(state.followers > beforeFollowers);
-assert.equal(social.respond(state, postResult.post.id, "respect").reason, "daily-reply-limit");
+assert.equal(social.respond(state, postResult.post.id, "respect").reason, "post-already-answered");
 
 const pressState = { type: "مقابلة صحفية — تصريح واثق", text: "أكدت إني جاهز للمنافسة" };
 state.pressHistory.unshift(pressState);

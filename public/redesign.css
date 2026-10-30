@@ -324,3 +324,27 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
  body.lw-rebuild #page-europe label{overflow-wrap:anywhere;word-break:normal}
  body.lw-rebuild #page-europe .cardHead{align-items:flex-start;flex-wrap:wrap}
 }
+
+/* Global directory: isolate the reference catalogue and prevent page bleed. */
+.app > .page{display:none!important;width:100%;max-width:100%;min-width:0}
+.app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}
+.app > .page#page-europe > .grid{display:grid;width:100%;min-width:0;grid-template-columns:minmax(0,1fr)}
+#page-europe .global-directory-grid,#page-europe .global-directory-card{width:100%;min-width:0;max-width:100%}
+#page-europe .global-directory-heading{align-items:flex-start;flex-wrap:wrap}
+#page-europe .global-directory-heading>div{min-width:0;flex:1 1 220px}
+#page-europe .global-directory-heading h2{font-size:clamp(16px,4vw,20px);line-height:1.5;overflow-wrap:anywhere}
+#page-europe .global-directory-heading .subline{margin-top:4px;line-height:1.7}
+#page-europe .dataSummary{overflow-wrap:anywhere;word-break:normal}
+#page-europe .field,#page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{width:100%;min-width:0}
+#page-europe .dataCard{width:100%;min-width:0;overflow-wrap:anywhere}
+#page-europe .dataCard h4,#page-europe .dataCard p{word-break:normal;overflow-wrap:anywhere}
+#page-europe .clubRoster{max-width:100%}
+#page-europe .clubRoster .pill{max-width:100%;overflow-wrap:anywhere;white-space:normal}
+#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel{display:none!important}
+@media(max-width:520px){
+ #page-europe .global-directory-card{padding:12px}
+ #page-europe .global-directory-heading{gap:8px}
+ #page-europe .global-directory-heading .pill{white-space:normal}
+ #page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{grid-template-columns:minmax(0,1fr)!important}
+ #page-europe .dataCard{padding:12px}
+}

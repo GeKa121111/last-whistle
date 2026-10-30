@@ -102,7 +102,7 @@ assert.equal(playBody.includes("Number(c.tieLeg)===2"),false,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 219);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 56);
+require("./assert-static-cache-version.cjs")(sw, 220);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 57);
 
 console.log("PASS: malformed second-leg cup aggregates are rejected before match actions, while legacy integer values remain compatible.");

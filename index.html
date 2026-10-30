@@ -3221,8 +3221,9 @@ function seasonAwards(state, league, teamRank) {
       : result.shootout?.used ? (result.shootout.won ? "فوز" : "خسارة") : "تعادل";
     const outcomeConsistent = !result.outcome || result.outcome === expectedOutcome;
     const matchOutcomeConsistent = !result.matchOutcome || result.matchOutcome === expectedMatchOutcome;
-    const cleanSheetConsistent = result.player.cleanSheet === playerEarnsCleanSheet(
-      result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null);
+    const cleanSheetConsistent = result.player.cleanSheet == null
+      || (typeof result.player.cleanSheet === "boolean" && result.player.cleanSheet === playerEarnsCleanSheet(
+        result.metadata?.position || "", result.player.minutes, result.events, redCardEvent ? redCardEvent.minute : null));
     const valid = metadataShapeConsistent && keyPassesLedgerConsistent && savesLedgerConsistent
       && shotTargetMetadataConsistent && shotAttributionConsistent && assistGoalLinksValid && goalAttributionConsistent && goalShotLedgerConsistent && cleanSheetConsistent && outcomeConsistent && matchOutcomeConsistent
       && teamGoals === Number(result.score.for) && opponentGoals === Number(result.score.against)

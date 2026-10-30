@@ -663,6 +663,15 @@
       }
       return true;
     })();
+    // Validate aggregate offsets for every result, not only shootout ledgers.
+    // Integer-valued numeric strings remain supported for older career saves.
+    const aggregateOffsetValue = result.metadata?.aggregateOffset;
+    const aggregateOffsetPresent = aggregateOffsetValue != null;
+    const aggregateOffset = aggregateOffsetPresent ? Number(aggregateOffsetValue) : 0;
+    const aggregateOffsetConsistent = !aggregateOffsetPresent
+      || ((typeof aggregateOffsetValue === "number"
+        || (typeof aggregateOffsetValue === "string" && aggregateOffsetValue.trim() !== ""))
+        && Number.isSafeInteger(aggregateOffset));
     const shootoutLedgerConsistent = (() => {
       const shootout = result.shootout;
       const shootoutEvents = result.events.filter(event => event.type === "penalty-shootout");
@@ -686,19 +695,13 @@
         || !isNonNegativeInteger(shootout.scoreAgainst)) return false;
       const scoreFor = Number(shootout.scoreFor);
       const scoreAgainst = Number(shootout.scoreAgainst);
-      const aggregateOffsetValue = result.metadata?.aggregateOffset;
-      const aggregateOffsetPresent = aggregateOffsetValue != null;
-      const aggregateOffset = aggregateOffsetPresent ? Number(aggregateOffsetValue) : 0;
-      const aggregateOffsetValid = !aggregateOffsetPresent
-        || ((typeof aggregateOffsetValue === "number"
-          || (typeof aggregateOffsetValue === "string" && aggregateOffsetValue.trim() !== ""))
-          && Number.isInteger(aggregateOffset));
+      // Aggregate offset validation is shared with the complete match ledger.
       const hasExplicitExtraTimePlayedFlag = result.extraTime != null
         && Object.prototype.hasOwnProperty.call(result.extraTime, "played");
       // Older ledgers may contain extra-time scores without the later "played" flag.
       const legacyDeciderMetadata = result.regulation == null && !hasExplicitExtraTimePlayedFlag;
       const extraTimeWasPlayed = legacyDeciderMetadata || result.extraTime?.played === true;
-      const aggregateIsLevel = aggregateOffsetValid
+      const aggregateIsLevel = aggregateOffsetConsistent
         && isNonNegativeInteger(result.score?.for) && isNonNegativeInteger(result.score?.against)
         && (aggregateOffsetPresent
           ? aggregateOffset + Number(result.score.for) - Number(result.score.against) === 0
@@ -729,7 +732,7 @@
     const matchMargin = Number(result.score.for) - Number(result.score.against);
     const expectedMatchOutcome = matchMargin > 0 ? "فوز" : matchMargin < 0 ? "خسارة"
       : result.shootout?.used ? (result.shootout.won ? "فوز" : "خسارة") : "تعادل";
-    const aggregateMargin = (Number(result.metadata?.aggregateOffset) || 0) + matchMargin;
+    const aggregateMargin = aggregateOffset + matchMargin;
     const expectedOutcome = aggregateMargin > 0 ? "فوز" : aggregateMargin < 0 ? "خسارة"
       : result.shootout?.used ? (result.shootout.won ? "فوز" : "خسارة") : "تعادل";
     const outcomeConsistent = !result.outcome || result.outcome === expectedOutcome;
@@ -747,11 +750,12 @@
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)
-      && playerEventsInBounds && eventMinutesValid && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
+      && playerEventsInBounds && eventMinutesValid && aggregateOffsetConsistent && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
-    return { ok: valid, reason: valid ? "" : "inconsistent-match-ledger", teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    const reason = !aggregateOffsetConsistent ? "invalid-aggregate-offset" : valid ? "" : "inconsistent-match-ledger";
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, playerEventsInBounds, eventMinutesValid, aggregateOffsetConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

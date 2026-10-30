@@ -18,7 +18,7 @@
     return value >>> 0;
   }
   const POSITION_ALIASES = {
-    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى",
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
     "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
     "centre back": "قلب دفاع", "central defender": "قلب دفاع",
     "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
@@ -28,7 +28,7 @@
     "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
     "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
     "attacking mid": "وسط مهاجم",
-    "cm": "وسط", "central midfielder": "وسط",
+    "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "central midfield": "وسط", "midfielder": "وسط",
     "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
     "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
     "winger": "جناح", "wide midfielder": "جناح",

@@ -425,6 +425,8 @@ assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).freeAgent, 
   "a legacy string true parentFreeAgent must preserve a parent's free-agent state");
 assert.ok(rootHtml.includes("state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);"),
   "browser loan return must normalize legacy parentFreeAgent values");
+assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
+  "browser loan return must restore the parent club role while preserving legacy saves without it");
 assert.ok(!rootHtml.includes("state.freeAgent=!!l.parentFreeAgent;"),
   "browser loan return must not coerce string false to true");
 
@@ -1029,15 +1031,16 @@ const parseSavedBooleanForLoanReturn = (value, fallback = false) => {
   }
   return fallback;
 };
-function runBrowserLoanReturn(parentWage, parentContractSeasons) {
+function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "أساسي") {
   const state = {
     clubName: "Loan Club", leagueCountry: "Spain", season: 4, day: 12,
-    transferCooldown: 0, transferHistory: [],
+    role: "بديل أساسي", transferCooldown: 0, transferHistory: [],
     loan: {
       parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 1,
       parentCompetition: "Parent League", parentSource: "test fixture",
       parentPower: 52, parentTier: 1, parentIndex: 1,
-      parentWage, parentContractSeasons, parentFreeAgent: false
+      parentWage, parentContractSeasons, parentFreeAgent: false,
+      ...(parentRole ? { parentRole } : {})
     }
   };
   const sandbox = {
@@ -1095,7 +1098,11 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
     "browser loan return must restore only a finite, bounded parent contract duration");
   assert.equal(browserReturn.state.loan, null, "a successful loan return must clear the active loan");
   assert.equal(browserReturn.state.clubName, "Parent Club", "a successful loan return must restore the parent club");
+  assert.equal(browserReturn.state.role, "أساسي", "a successful loan return must restore the parent club squad role");
 }
+const legacyLoanRoleReturn = runBrowserLoanReturn(400, 2, null);
+assert.equal(legacyLoanRoleReturn.result, true, "legacy loan records without a parent role must still return safely");
+assert.equal(legacyLoanRoleReturn.state.role, "بديل أساسي", "legacy loan records without a parent role must preserve the current role");
 const parentFreeAgentCases = [
   [true, true], [false, false],
   ["true", true], ["TRUE", true], ["1", true], ["yes", true], ["on", true],

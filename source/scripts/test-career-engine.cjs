@@ -200,6 +200,10 @@ assert.equal(inlineContext.normalizeCareerPosition("CM"), "وسط",
   "inline app must expose the same position-alias migration as the shared engine");
 assert.ok(rootHtml.includes('if (state.pos && state.pos !== "حارس مرمى") state.goalkeeping = 0;'),
   "inline app must normalize legacy outfield saves");
+const setupPositionOptions = rootHtml.match(/const POSITIONS=\[([\s\S]*?)\];/);
+assert.ok(setupPositionOptions && setupPositionOptions[1].includes('id:"وسط"')
+  && setupPositionOptions[1].includes('short:"CM"'),
+  "new-career setup must expose a dedicated central-midfield position choice");
 
 const expectedPlans = {
   "حارس مرمى": { primary: "goalkeeping", secondary: ["composure", "passing", "fitness"] },

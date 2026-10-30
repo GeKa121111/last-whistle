@@ -24,7 +24,7 @@ const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must stay synchronized");
 assert.ok(sw.includes("./social-media.css?v=2") && sw.includes("./social-media.js?v=2"),
   "offline app shell must cache both social media assets");
-assert.ok(sw.includes("last-whistle-static-v227"), "social media integration must refresh the PWA cache");
+assert.ok(sw.includes("last-whistle-static-v228"), "social media integration must refresh the PWA cache");
 
 const sandbox = { window: {}, Math, console };
 vm.createContext(sandbox);

@@ -793,6 +793,20 @@ assert.equal(mixedMinuteDecision.role, "أساسي",
   "short poor cameos must not outweigh two strong full-match performances");
 assert.ok(mixedMinuteDecision.recentAverageRating > 7,
   "recent squad-form rating must be weighted by minutes played");
+const strongCameoHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "strong-cameo-" + index, scope: "league", minutes: 5, rating: 8.5, goals: 1, assists: 1
+}));
+const cameoRotationPromotion = career.evaluateSquadRole({
+  role: "بديل", apps: 16, goals: 8, assists: 8, trust: 55, pos: "وسط"
+}, strongCameoHistory);
+assert.equal(cameoRotationPromotion.role, "بديل",
+  "high ratings and contributions in five-minute cameos must not trigger a rotation promotion");
+const cameoStarterPromotion = career.evaluateSquadRole({
+  role: "تناوب", apps: 16, goals: 8, assists: 8, trust: 55, pos: "وسط"
+}, strongCameoHistory);
+assert.equal(cameoStarterPromotion.role, "تناوب",
+  "short cameos alone must not promote a rotation player to the starting eleven");
+
 
 const poorRotationDecision = career.evaluateSquadRole({
   role: "تناوب", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
@@ -1247,6 +1261,12 @@ const browserMixedMinuteDecision = deployedCareer.evaluateSquadRole({
 }, mixedMinuteHistory);
 assert.equal(JSON.stringify(browserMixedMinuteDecision), JSON.stringify(mixedMinuteDecision),
   "the embedded browser career engine must use the same minute-weighted recent rating");
+const browserCameoRotationPromotion = deployedCareer.evaluateSquadRole({
+  role: "بديل", apps: 16, goals: 8, assists: 8, trust: 55, pos: "وسط"
+}, strongCameoHistory);
+assert.equal(JSON.stringify(browserCameoRotationPromotion), JSON.stringify(cameoRotationPromotion),
+  "the embedded engine must require sufficient minutes before a rotation promotion");
+
 
 const browserPoorStarDecision = deployedCareer.evaluateSquadRole({
   role: "نجم الفريق", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"

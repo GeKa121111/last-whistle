@@ -1388,13 +1388,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
     const trust = safeMetric(state.trust, 100);
     const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(normalizeCareerPosition(state.pos));
-    const veteranOutput = roleIsForward && appearances >= 35
+    const veteranOutput = roleIsForward && appearances >= 35 && ratedMinutes >= 240
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
-    const recentReady = recentAverageRating >= 6.25
+    const recentReady = ratedMinutes >= 240 && recentAverageRating >= 6.25
       && (trust >= 22 || recentContributionsPer90 >= 0.25);
-    const starterReady = (recentAverageRating >= 6.35
+    const starterReady = (ratedMinutes >= 360 && recentAverageRating >= 6.35
       && (trust >= 30 || recentContributionsPer90 >= 0.30))
-      || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
+      || (appearances >= 35 && roleIsForward && ratedMinutes >= 240
+        && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
     let role = originalRole;
     const roleKey = role.trim().toLocaleLowerCase();
     const roleIsYouth = roleKey.includes("ناشئ") || roleKey.includes("صاعد")

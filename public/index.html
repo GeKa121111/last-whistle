@@ -2446,8 +2446,8 @@ function seasonAwards(state, league, teamRank) {
     const roleBase = roleType === "star" ? 88
       : roleType === "starter" ? 83
         : roleType === "legacy-rotation-starter" ? 66
-          : roleType === "rotation" ? (startsOnBench ? 36 : 69)
-            : roleType === "prospect" ? 22 : 39;
+          : roleType === "rotation" ? (startsOnBench ? 32 : 69)
+            : roleType === "prospect" ? 18 : 30;
     const trust = clamp(player.trust, 0, 100);
     const fitness = clamp(player.fitness, 0, 100);
     const energy = clamp(player.energy, 0, 100);
@@ -2561,9 +2561,9 @@ function seasonAwards(state, league, teamRank) {
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
     const playerRoleType = squadRoleType(player.role);
-    // A rotation contract is mostly a bench role, but the player also earns occasional starts.
+    // A rotation contract mixes starts and substitute appearances, with a slight bench preference.
     const playerStartsOnBench = playerRoleType === "rotation"
-      ? (!unavailable && random() < 0.68)
+      ? (!unavailable && random() < 0.55)
       : playerRoleType === "substitute" || playerRoleType === "prospect";
     const plannedMinutes = selectedMinutes(player, !unavailable, random, playerRoleType, playerStartsOnBench);
     const playerStartMinute = plannedMinutes > 0 && playerStartsOnBench

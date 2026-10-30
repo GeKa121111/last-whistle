@@ -24,6 +24,7 @@ const offerAvailabilitySource = section("function offerIsAvailable(", "\nfunctio
 const transferEligibilitySource = section("function transferEligibilityReason(target){", "\nfunction transferEligible(");
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
 const transferToSource = section("function transferTo(){", "\nfunction ");
+const loanToSource = section("function loanTo(target){", "\nfunction returnFromLoan(");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
@@ -153,6 +154,56 @@ assert.equal(eliminatedCupScenario.state.cupHistory[0].abandoned, false,
 
 assert.match(transferToSource, /archiveCupForTransfer\(\)/, "transfer completion must archive the active cup before switching clubs");
 assert.doesNotMatch(transferToSource, /activeCupInProgress\(\)/, "transfer completion must not stay blocked by the active cup");
+
+const secondDivisionLoanTarget = {
+  club: "نادي الدرجة الثانية", country: "مصر", division: 2,
+  league: "دوري الدرجة الثانية", season: "2026/27", source: "LWWorldDB", power: 54
+};
+const loanState = {
+  retired: false, age: 24, academyReserve: false, academyGraduationPending: false,
+  careerStarted: true, clubName: "النادي الأصلي", leagueCountry: "مصر", leagueDivision: 1,
+  leagueCompetition: "الدوري الممتاز", leagueSource: "LWWorldDB", clubPower: 72,
+  clubTier: 3, clubIndex: 3, weeklyWage: 1200, contractSeasons: 3, freeAgent: false,
+  season: 4, day: 190, seasonApps: 8, seasonPhase: "firstHalf", winterBreakPending: false,
+  leagueSegmentIsPartial: false, transferHistory: [], trust: 60, daysSinceTransfer: 0,
+  transferCooldown: 0
+};
+const loanScenario = {
+  state: loanState,
+  target: secondDivisionLoanTarget,
+  window: { LWCareer: { loanTargetStatus: () => "ready" } },
+  transferTargets: () => [secondDivisionLoanTarget],
+  activeCupInProgress: () => false,
+  transferWindow: () => ({ open: true }),
+  seasonMatchTotal: () => 34,
+  archiveLeagueSegment: () => {},
+  clubPowerFor: () => 52,
+  clubTierForPower: () => 1,
+  transferWage: () => 800,
+  createLeague: () => {
+    loanState.createdLeagueDivision = loanState.leagueDivision;
+    return [{ name: secondDivisionLoanTarget.club, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, power: 54 }];
+  },
+  buildFixtureSchedule: () => [],
+  seedDestinationLeagueProgress: () => 34,
+  clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
+  saveGame: () => {}, render: () => {}, showPage: () => {}, toast: () => {},
+  setStory: () => {}, log: () => {}
+};
+vm.createContext(loanScenario);
+vm.runInContext(loanToSource, loanScenario, { filename: "loanTo-second-division" });
+loanScenario.loanTo(loanScenario.target);
+assert.equal(loanState.leagueDivision, 2,
+  "a loan to a second-division club must preserve the destination division");
+assert.equal(loanState.createdLeagueDivision, 2,
+  "the destination league must be built using the loan club's actual division");
+assert.equal(loanState.leagueDivisionSnapshot, 2,
+  "the saved league snapshot must retain the loan destination division");
+assert.equal(loanState.leagueSource, "LWWorldDB • 2026/27",
+  "loan history must retain the destination roster source instead of labeling every loan OpenFootball");
+assert.equal(loanState.loan.hostClub, secondDivisionLoanTarget.club,
+  "the loan record must retain the selected host club");
+
 
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");

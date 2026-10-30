@@ -116,7 +116,7 @@ assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared 
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }
-  const positions = { goalkeeper: "حارس مرمى", defender: "قلب دفاع", midfielder: "وسط مهاجم", attacker: "مهاجم" };
+  const positions = { goalkeeper: "حارس مرمى", defender: "قلب دفاع", midfielder: "وسط", attacker: "مهاجم" };
   const club = { id, name: id, country: "Testland", leagueId: "test-market", division, power: division === 1 ? 67 : 65, basePower: division === 1 ? 67 : 65, prestige: 60, budget: 1200, currency: "€", roster: [], updatedSeason: 1 };
   world.clubs[id] = club;
   for (const [group, count] of Object.entries(counts)) {

@@ -45,6 +45,26 @@ assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
 assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
   "the centre striker must receive a distinct finishing advantage");
 assert.equal(typeof engine.positionPerformanceImpact, "function", "role-aware match impact must be exposed for regression tests");
+const midfieldImpactStats = { tacklesWon: 2, interceptions: 3, ballRecoveries: 4, keyPasses: 5 };
+const centralMidfieldImpact = engine.positionPerformanceImpact("وسط", midfieldImpactStats);
+assert.ok(Math.abs(centralMidfieldImpact - 1.69) < 1e-9,
+  "central midfield match impact must reward a balanced mix of defensive work and key passes");
+assert.equal(engine.positionPerformanceImpact("CM", midfieldImpactStats), centralMidfieldImpact,
+  "English CM aliases must receive the same role-aware impact as central midfield");
+assert.equal(browserEngine.positionPerformanceImpact("CM", midfieldImpactStats), centralMidfieldImpact,
+  "the embedded browser engine must apply the same central-midfield impact");
+assert.equal(engine.positionPerformanceImpact("CDM", midfieldImpactStats),
+  engine.positionPerformanceImpact("وسط دفاعي", midfieldImpactStats),
+  "English CDM aliases must receive the defensive-midfield impact");
+assert.equal(engine.positionPerformanceImpact("GK", { saves: 2 }),
+  engine.positionPerformanceImpact("حارس مرمى", { saves: 2 }),
+  "English goalkeeper aliases must receive goalkeeper match impact");
+assert.equal(engine.playerEarnsCleanSheet("CB", 90, []), true,
+  "English centre-back aliases must qualify for clean sheets");
+assert.equal(browserEngine.playerEarnsCleanSheet("CDM", 90, []), true,
+  "the embedded engine must normalize defensive-midfield clean-sheet eligibility");
+assert.equal(engine.playerEarnsCleanSheet("CM", 90, []), false,
+  "central midfielders must not receive defender clean-sheet eligibility");
 
 assert.equal(typeof engine.playerEarnsCleanSheet, "function", "clean-sheet eligibility must be testable independently");
 

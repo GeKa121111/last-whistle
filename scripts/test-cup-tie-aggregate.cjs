@@ -8,19 +8,25 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 assert.equal(html, publicHtml, "root and public app shells must stay synchronized");
 
-const helper = html.match(/function parseCupTieAggregate\\(value\\)\\s*\\{[\\s\\S]*?\\n\\}/);
-const legHelper = html.match(/function parseCupTieLeg\\(value\\)\\s*\\{[\\s\\S]*?\\n\\}/);
-const opponentHelper = html.match(/function parseCupTieOpponent\\(value,fallback,teams,clubName\\)\\s*\\{[\\s\\S]*?\\n\\}/);
+function extractHelper(name) {
+  const start = html.indexOf("function " + name + "(");
+  if (start < 0) return null;
+  const end = html.indexOf("\n}", start);
+  return end < 0 ? null : html.slice(start, end + 2);
+}
+const helper = extractHelper("parseCupTieAggregate");
+const legHelper = extractHelper("parseCupTieLeg");
+const opponentHelper = extractHelper("parseCupTieOpponent");
 assert.ok(helper, "the cup tie aggregate parser must exist in the shipped app shell");
 assert.ok(legHelper, "the cup tie leg parser must exist in the shipped app shell");
 assert.ok(opponentHelper, "the cup tie opponent parser must exist in the shipped app shell");
 const sandbox = {};
 vm.runInNewContext([
-  helper[0], legHelper[0], opponentHelper[0],
+  helper, legHelper, opponentHelper,
   "globalThis.parseAggregate = parseCupTieAggregate;",
   "globalThis.parseLeg = parseCupTieLeg;",
   "globalThis.parseOpponent = parseCupTieOpponent;"
-].join("\\n"), sandbox);
+].join("\n"), sandbox);
 const parse = value => sandbox.parseAggregate(value);
 const parseLeg = value => sandbox.parseLeg(value);
 const parseOpponent = (value,fallback,teams,clubName) => sandbox.parseOpponent(value,fallback,teams,clubName);
@@ -83,16 +89,16 @@ assert.ok(opponentValidationIndex >= 0 && actionIndex > opponentValidationIndex,
   "an invalid or mismatched second-leg opponent must be rejected before consuming the cup match action");
 assert.ok(twoLegShapeIndex >= 0 && actionIndex > twoLegShapeIndex,
   "malformed twoLegs metadata must be rejected before consuming the cup match action");
-assert.match(playBody, /aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2\\?parsedTieAggregate\\.value:0/,
+assert.ok(playBody.includes("aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2?parsedTieAggregate.value:0"),
   "the match engine must receive only the validated aggregate offset");
-assert.match(playBody, /parsedTieOpponent\\.value/,
+assert.ok(playBody.includes("parsedTieOpponent.value"),
   "the second leg must use the validated first-leg opponent");
-assert.doesNotMatch(playBody, /Number\\(c\\.tieLeg\\)===2/,
+assert.equal(playBody.includes("Number(c.tieLeg)===2"),false,
   "raw tieLeg coercion must not decide whether this is the return leg");
 
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-assert.match(sw, /last-whistle-static-v211/, "the app shell cache must advance after the embedded UI fix");
+assert.ok(sw.includes("last-whistle-static-v211"), "the app shell cache must advance after the embedded UI fix");
 
 console.log("PASS: malformed second-leg cup aggregates are rejected before match actions, while legacy integer values remain compatible.");

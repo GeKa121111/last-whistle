@@ -1856,4 +1856,46 @@ assert.doesNotThrow(() => engine.simulateMatch(),
 assert.doesNotThrow(() => browserEngine.simulateMatch({}),
   "the embedded engine must accept a normal options object");
 
+
+const seedReplayOptions = {
+  teamPower: 64, opponentPower: 59, home: true, tactic: "balanced",
+  player: { name: "Seed Replay", position: "وسط دفاعي", role: "أساسي",
+    shooting: 58, passing: 68, vision: 66, composure: 64, fitness: 82,
+    trust: 72, energy: 88, fatigue: 12, physical: 70, speed: 62, dribbling: 55 }
+};
+const implicitSeedResult = engine.simulateMatch(seedReplayOptions);
+assert.ok(Number.isSafeInteger(implicitSeedResult.metadata.seed),
+  "the generated metadata must expose the actual safe-integer seed used by the engine");
+const implicitSeedReplay = engine.simulateMatch({
+  ...seedReplayOptions, seed: implicitSeedResult.metadata.seed
+});
+assert.equal(JSON.stringify(implicitSeedReplay), JSON.stringify(implicitSeedResult),
+  "a match without an explicit seed must be exactly reproducible from metadata.seed");
+const browserImplicitSeedResult = browserEngine.simulateMatch(seedReplayOptions);
+assert.equal(browserImplicitSeedResult.metadata.seed, implicitSeedResult.metadata.seed,
+  "source and browser engines must record the same implicit seed");
+assert.equal(JSON.stringify(browserEngine.simulateMatch({
+  ...seedReplayOptions, seed: browserImplicitSeedResult.metadata.seed
+})), JSON.stringify(browserImplicitSeedResult),
+  "the embedded engine must replay an implicitly seeded match from metadata.seed");
+
+for (const explicitSeed of [0, 42, "0042"]) {
+  const first = engine.simulateMatch({ ...seedReplayOptions, seed: explicitSeed });
+  assert.equal(first.metadata.seed, explicitSeed,
+    "metadata must preserve the exact explicit seed value used by all RNG streams");
+  assert.equal(JSON.stringify(engine.simulateMatch({ ...seedReplayOptions, seed: first.metadata.seed })),
+    JSON.stringify(first), "explicit seeds must replay exactly: " + String(explicitSeed));
+  const browserFirst = browserEngine.simulateMatch({ ...seedReplayOptions, seed: explicitSeed });
+  assert.equal(browserFirst.metadata.seed, explicitSeed);
+  assert.equal(JSON.stringify(browserEngine.simulateMatch({
+    ...seedReplayOptions, seed: browserFirst.metadata.seed
+  })), JSON.stringify(browserFirst), "browser explicit seed replay must remain exact");
+}
+for (const invalidSeed of [null, true, false, [], {}, NaN, Infinity, -Infinity, "", "  ", "not-a-number", Symbol("invalid")]) {
+  assert.throws(() => engine.simulateMatch({ ...seedReplayOptions, seed: invalidSeed }),
+    /invalid-match-seed/, "the source engine must reject invalid seeds: " + String(invalidSeed));
+  assert.throws(() => browserEngine.simulateMatch({ ...seedReplayOptions, seed: invalidSeed }),
+    /invalid-match-seed/, "the embedded engine must reject invalid seeds: " + String(invalidSeed));
+}
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

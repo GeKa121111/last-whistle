@@ -770,6 +770,30 @@ assert.equal(poorStarterDecision.role, "بديل أساسي",
   "a starter with sustained poor ratings and low trust must lose the automatic starter role");
 assert.equal(poorStarterDecision.reason, "form-demotion",
   "role demotions must be identifiable separately from promotions");
+const shortCameoHistory = Array.from({ length: 6 }, (_, index) => ({
+  id: "short-cameo-" + index, scope: "league", minutes: 5, rating: 4.4, goals: 0, assists: 0
+}));
+const cameoOnlyDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, shortCameoHistory);
+assert.equal(cameoOnlyDecision.role, "أساسي",
+  "six five-minute cameos are not enough evidence to demote a starter");
+const mixedMinuteHistory = [
+  ...Array.from({ length: 2 }, (_, index) => ({
+    id: "full-start-" + index, scope: "league", minutes: 90, rating: 7.5, goals: 0, assists: 0
+  })),
+  ...Array.from({ length: 6 }, (_, index) => ({
+    id: "short-poor-cameo-" + index, scope: "league", minutes: 5, rating: 4.5, goals: 0, assists: 0
+  }))
+];
+const mixedMinuteDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, mixedMinuteHistory);
+assert.equal(mixedMinuteDecision.role, "أساسي",
+  "short poor cameos must not outweigh two strong full-match performances");
+assert.ok(mixedMinuteDecision.recentAverageRating > 7,
+  "recent squad-form rating must be weighted by minutes played");
+
 const poorRotationDecision = career.evaluateSquadRole({
   role: "تناوب", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
 }, poorFormHistory);
@@ -1213,6 +1237,17 @@ const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
 }, poorFormHistory);
 assert.equal(JSON.stringify(browserPoorStarterDecision), JSON.stringify(poorStarterDecision),
   "the embedded browser career engine must apply the same evidence-based starter demotion");
+const browserCameoOnlyDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, shortCameoHistory);
+assert.equal(JSON.stringify(browserCameoOnlyDecision), JSON.stringify(cameoOnlyDecision),
+  "the embedded browser career engine must use the same minimum-minute demotion evidence");
+const browserMixedMinuteDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, mixedMinuteHistory);
+assert.equal(JSON.stringify(browserMixedMinuteDecision), JSON.stringify(mixedMinuteDecision),
+  "the embedded browser career engine must use the same minute-weighted recent rating");
+
 const browserPoorStarDecision = deployedCareer.evaluateSquadRole({
   role: "نجم الفريق", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
 }, poorFormHistory);

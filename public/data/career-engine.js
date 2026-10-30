@@ -98,8 +98,11 @@
     const recentContributions = sum(recent, "goals") + sum(recent, "assists");
     const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
     const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
-    const recentAverageRating = ratedRows.length
-      ? ratedRows.reduce((total, row) => total + safeMetric(row.rating, 10), 0) / ratedRows.length : 0;
+    const ratedMinutes = ratedRows.reduce((total, row) => total + safeMetric(row.minutes, 120), 0);
+    // A five-minute cameo must not carry the same weight as a full match when judging squad form.
+    const recentAverageRating = ratedMinutes > 0
+      ? ratedRows.reduce((total, row) => total
+        + safeMetric(row.rating, 10) * safeMetric(row.minutes, 120), 0) / ratedMinutes : 0;
 
     const appearances = Math.floor(safeMetric(state.apps, 1000000));
     const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
@@ -128,10 +131,10 @@
     const roleIsStarter = roleKey === "أساسي" || roleKey.includes("لاعب أساسي")
       || roleKey.includes("regular starter");
     // Demotions require a sustained sample: one or two bad matches must never change a contract role.
-    const poorFormEvidence = ratedRows.length >= 6;
+    const poorFormEvidence = ratedRows.length >= 6 && ratedMinutes >= 360;
     const poorStarterForm = poorFormEvidence && recentAverageRating <= 5.75 && trust < 35;
     const poorRotationForm = poorFormEvidence && recentAverageRating <= 5.45 && trust < 25;
-    const poorStarForm = ratedRows.length >= 7 && recentAverageRating <= 5.35 && trust < 20;
+    const poorStarForm = ratedRows.length >= 7 && ratedMinutes >= 420 && recentAverageRating <= 5.35 && trust < 20;
     let demoted = false;
     if (roleIsStar && appearances >= 16 && poorStarForm) {
       role = "أساسي";

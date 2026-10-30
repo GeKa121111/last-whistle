@@ -44,7 +44,7 @@ assert.ok(loanToMatch, "the deployed loan action must remain available for behav
 const loanToSource = loanToMatch[0].slice(0, loanToMatch[0].lastIndexOf("\nfunction returnFromLoan"));
 function runLoanDivisionCase(division) {
   const target = { club: "نادي اختبار الإعارة", country: "مصر", league: division === 2 ? "الدرجة الثانية" : "الدوري الممتاز",
-    division, power: 55, season: "2026/27" };
+    division, power: 55, season: "2026/27", source: "محاكاة عالم الكرة" };
   const loanState = { clubName: "النادي الأصلي", leagueCountry: "مصر", leagueDivision: 1,
     leagueCompetition: "الدوري الممتاز", leagueSource: "بيانات الاختبار", clubPower: 62,
     clubTier: 1, clubIndex: 1, weeklyWage: 500, contractSeasons: 2, freeAgent: false,
@@ -70,11 +70,14 @@ function runLoanDivisionCase(division) {
   };
   vm.runInNewContext(loanToSource + "\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo division regression" });
   sandbox.loanTo(target);
-  return loanState.leagueDivision;
+  return { division: loanState.leagueDivision, source: loanState.leagueSource };
 }
-assert.equal(runLoanDivisionCase(2), 2,
+const secondDivisionLoan = runLoanDivisionCase(2);
+assert.equal(secondDivisionLoan.division, 2,
   "a loan to a second-division club must keep the host club's actual division");
-assert.equal(runLoanDivisionCase(undefined), 1,
+assert.equal(secondDivisionLoan.source, "محاكاة عالم الكرة • 2026/27",
+  "a loan destination must preserve its actual roster/league data source instead of being mislabeled as OpenFootball");
+assert.equal(runLoanDivisionCase(undefined).division, 1,
   "legacy loan destinations without a division must retain the first-division fallback");
 assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");

@@ -1843,4 +1843,17 @@ for (const legacyMetadata of ["missing", null]) {
     "the embedded engine must preserve missing/null legacy metadata");
 }
 
+
+const invalidMatchOptions = [null, true, false, 0, 1, "", "invalid", [], [1], Symbol("invalid")];
+for (const invalidOptions of invalidMatchOptions) {
+  assert.throws(() => engine.simulateMatch(invalidOptions), /invalid-match-options/,
+    "the source engine must reject non-object simulation options: " + String(invalidOptions));
+  assert.throws(() => browserEngine.simulateMatch(invalidOptions), /invalid-match-options/,
+    "the embedded engine must reject non-object simulation options: " + String(invalidOptions));
+}
+assert.doesNotThrow(() => engine.simulateMatch(),
+  "omitted options must continue to use the default empty options object");
+assert.doesNotThrow(() => browserEngine.simulateMatch({}),
+  "the embedded engine must accept a normal options object");
+
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");

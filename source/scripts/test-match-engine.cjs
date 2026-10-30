@@ -1064,8 +1064,9 @@ assert.deepEqual(malformedStoryReport.score, { for: 0, against: 0 },
   "non-finite score values must not leak into story reports");
 assert.deepEqual(malformedStoryReport.player, {
   minutes: 0, goals: 0, assists: 0, rating: 0, shots: 0, fouls: 0,
-  redCards: 0, yellowCards: 0, injuryDays: 0, tackles: 0, interceptions: 0,
-  saves: 0, cleanSheet: true
+  redCards: 0, yellowCards: 0, injuryDays: 0, tackles: 0, tacklesWon: 0,
+  interceptions: 0, saves: 0, penaltiesSaved: 0, clearances: 0, ballRecoveries: 0,
+  passAttempts: 0, passesCompleted: 0, passingAccuracy: 0, cleanSheet: true
 }, "all player numeric fields in story reports must be finite");
 assert.deepEqual(malformedStoryReport.events, [
   { minute: 0, type: "goal", side: "team", description: "" },

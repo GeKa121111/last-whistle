@@ -13,6 +13,12 @@ const repositoryRoot = path.resolve(__dirname, "..", "..");
 const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
+assert.ok(rootHtml.includes("getClubMatchProfile(state,club().name,state.leagueCountry,window.LWWorldDB)"),
+  "career matches must read the player's club match profile once for team power and goalkeeper strength");
+assert.ok(rootHtml.includes("teamGoalkeeping:state.pos===\"حارس مرمى\"?state.goalkeeping:clamp(Number(ownClubProfile?.goalkeeping)||((dynamicOwnPower+55)/2),35,88)"),
+  "an outfield career must use its own club goalkeeper rather than a fixed 55 rating");
+assert.ok(rootHtml.includes("opponentGoalkeeping:clamp(Number(opponentClubProfile?.goalkeeping)||((opponentPower+55)/2),35,88)"),
+  "the opponent's actual goalkeeper strength must affect match simulation");
 assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),

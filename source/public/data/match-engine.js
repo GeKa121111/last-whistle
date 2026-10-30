@@ -24,9 +24,9 @@
       "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
       "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
       "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
-      "جناح": { shooter: 0.14, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-      "مهاجم": { shooter: 0.15, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.17, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
+      "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
+      "مهاجم": { shooter: 0.21, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.20, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function squadRoleType(value) {
@@ -304,7 +304,7 @@
           const scorer = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
           const goalEventId = "goal-" + (events.filter(event => event.type === "goal").length + 1);
           events.push({ type: "goal", goalEventId, minute, side, scorer, creditedToPlayer: byPlayer });
-          if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.015 + clamp(player.passing, 0, 100) * 0.00085 + clamp(player.vision, 0, 100) * 0.00075 + profile.creator * 0.10, 0.05, 0.28)) {
+          if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.005 + clamp(player.passing, 0, 100) * 0.00065 + clamp(player.vision, 0, 100) * 0.00055 + profile.creator * 0.12, 0.04, 0.24)) {
             stats.assists++;
             stats.keyPasses++;
             events.push({ type: "assist", goalEventId, minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });

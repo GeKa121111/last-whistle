@@ -635,7 +635,8 @@
       ? event.creditedToPlayer === true
       : (event.creditedToPlayer === true
         || (event.side === "player" && ["red-card", "injury", "yellow-card", "tackle", "interception", "foul", "clearance", "recovery"].includes(event.type)));
-    const playerEventsInBounds = result.events.filter(isPlayerActivityEvent).every(event =>
+    const playerEventsInBounds = result.events.filter(event =>
+      isPlayerActivityEvent(event) && !(event.type === "penalty-save" && !playerExitEvent)).every(event =>
       Number(event.minute) >= playerEntryMinute && Number(event.minute) <= playerEndMinute);
     const eventMinutesValid = result.events.every(event => {
       if (!event || typeof event !== "object"

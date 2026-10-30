@@ -173,21 +173,31 @@ assert.ok(Number.isFinite(malformedAwardState.money),
   "award processing must leave a finite balance after malformed match stats");
 
 
+const inlineAliasesStart = rootHtml.indexOf("  const POSITION_ALIASES = {");
+const inlineAliasesEnd = rootHtml.indexOf("\n\n  const CAREER_ATTRIBUTE", inlineAliasesStart);
 const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");
 const inlineStatsStart = rootHtml.indexOf("  function startingStatsForPosition(position", inlineRangesStart);
 const inlineStatsEnd = rootHtml.indexOf("\n\n  function uniqueMatchRows", inlineStatsStart);
-assert.ok(inlineRangesStart >= 0 && inlineStatsStart > inlineRangesStart && inlineStatsEnd > inlineStatsStart,
-  "inline career starting-stat source must remain extractable for regression testing");
+assert.ok(inlineAliasesStart >= 0 && inlineAliasesEnd > inlineAliasesStart
+  && inlineRangesStart > inlineAliasesEnd && inlineStatsStart > inlineRangesStart && inlineStatsEnd > inlineStatsStart,
+  "inline career position aliases and starting-stat source must remain extractable for regression testing");
 const inlineContext = { Math };
 vm.createContext(inlineContext);
-vm.runInContext(rootHtml.slice(inlineRangesStart, inlineStatsEnd) +
-  "\nthis.startingStatsForPosition = startingStatsForPosition;", inlineContext);
-for (const position of ["قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]) {
+vm.runInContext(rootHtml.slice(inlineAliasesStart, inlineAliasesEnd) + "\n"
+  + rootHtml.slice(inlineRangesStart, inlineStatsEnd)
+  + "\nthis.normalizeCareerPosition = normalizeCareerPosition;"
+  + "\nthis.startingStatsForPosition = startingStatsForPosition;", inlineContext);
+for (const position of ["قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]) {
   assert.equal(inlineContext.startingStatsForPosition(position, () => 0.5).goalkeeping, 0,
     "inline app must give zero goalkeeper skill to " + position);
 }
 assert.ok(inlineContext.startingStatsForPosition("حارس مرمى", () => 0.5).goalkeeping > 0,
   "inline app must preserve goalkeeper specialization");
+assert.deepEqual(inlineContext.startingStatsForPosition("CM", () => 0.5),
+  inlineContext.startingStatsForPosition("وسط", () => 0.5),
+  "inline app must resolve English central-midfield codes to the central-midfield baseline");
+assert.equal(inlineContext.normalizeCareerPosition("CM"), "وسط",
+  "inline app must expose the same position-alias migration as the shared engine");
 assert.ok(rootHtml.includes('if (state.pos && state.pos !== "حارس مرمى") state.goalkeeping = 0;'),
   "inline app must normalize legacy outfield saves");
 

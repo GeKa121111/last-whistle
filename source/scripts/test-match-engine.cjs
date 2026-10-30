@@ -28,7 +28,14 @@ vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
-const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+assert.equal(engine.normalizePosition("CM"), "وسط", "CM must normalize to central midfield");
+assert.equal(engine.normalizePosition("CDM"), "وسط دفاعي", "CDM must normalize to defensive midfield");
+assert.equal(browserEngine.normalizePosition("CM"), "وسط", "the embedded match engine must normalize CM aliases");
+assert.equal(engine.positionProfile("CM").shooter, 0.10, "central midfield must use its own low-shot profile");
+assert.equal(engine.positionProfile("CM").creator, 0.28, "central midfield must use its own chance-creation profile");
+assert.equal(engine.positionProfile("ST").shooter, 0.21, "English striker aliases must use the calibrated centre-forward profile");
+assert.equal(browserEngine.positionProfile("CM").creator, 0.28, "the embedded match engine must use the central-midfield profile");
+const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const mobileForwardProfile = engine.positionProfile("مهاجم");
 const centreStrikerProfile = engine.positionProfile("رأس حربة");
 assert.ok(centreStrikerProfile.shooter > mobileForwardProfile.shooter,
@@ -2133,7 +2140,7 @@ for (const [label, targetEngine] of [["source", engine], ["browser", browserEngi
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");
 
 // Deterministic scoring calibration: report per-position rates before changing balance values.
-const scoringCalibrationPositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+const scoringCalibrationPositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const scoringCalibration = [];
 for (const position of scoringCalibrationPositions) {
   let goals = 0, assists = 0, minutes = 0, teamGoals = 0, opponentGoals = 0, shots = 0, appearances = 0;

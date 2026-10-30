@@ -844,6 +844,38 @@ for (const targetEngine of [engine, browserEngine]) {
     "the validator must reject mismatched regulation metadata when extraTime metadata is absent");
 }
 
+const malformedRegulationArrayWithExtraTime = { ...validExtraTimeGoal, regulation: [] };
+const malformedRegulationStringWithExtraTime = { ...validExtraTimeGoal, regulation: "0-0" };
+const malformedRegulationBooleanWithoutExtraTime = { ...validRegulationOnly, regulation: false };
+const malformedPartialRegulation = { ...validExtraTimeGoal, regulation: { for: 0 } };
+const legacyEmptyRegulationWithExtraTime = { ...validExtraTimeGoal, regulation: {} };
+const legacyMissingRegulationWithExtraTime = { ...validExtraTimeGoal };
+delete legacyMissingRegulationWithExtraTime.regulation;
+const legacyNullRegulationWithExtraTime = { ...validExtraTimeGoal, regulation: null };
+const legacyEmptyRegulationWithoutExtraTime = { ...validRegulationOnly, regulation: {} };
+for (const targetEngine of [engine, browserEngine]) {
+  for (const malformedRegulation of [
+    malformedRegulationArrayWithExtraTime,
+    malformedRegulationStringWithExtraTime,
+    malformedRegulationBooleanWithoutExtraTime,
+    malformedPartialRegulation
+  ]) {
+    const validation = targetEngine.validateResult(malformedRegulation);
+    assert.equal(validation.extraTimeLedgerConsistent, false,
+      "present regulation metadata must be a non-array object with either both valid scores or neither");
+    assert.equal(validation.ok, false,
+      "array, primitive, and partial regulation metadata must be rejected");
+  }
+  assert.equal(targetEngine.validateResult(legacyEmptyRegulationWithExtraTime).ok, true,
+    "legacy empty regulation objects must remain compatible with extra time");
+  assert.equal(targetEngine.validateResult(legacyMissingRegulationWithExtraTime).ok, true,
+    "legacy records without regulation metadata must remain compatible with extra time");
+  assert.equal(targetEngine.validateResult(legacyNullRegulationWithExtraTime).ok, true,
+    "legacy null regulation metadata must remain compatible with extra time");
+  assert.equal(targetEngine.validateResult(legacyEmptyRegulationWithoutExtraTime).ok, true,
+    "legacy empty regulation objects must remain compatible without extra time");
+}
+
 const malformedExtraTimePeriodScore = { ...validExtraTimeGoal,
   extraTime: { ...validExtraTimeGoal.extraTime,
     periods: [{ for: null, against: 0 }, { for: 1, against: 0 }] }

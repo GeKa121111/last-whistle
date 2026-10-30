@@ -2966,14 +2966,20 @@ function seasonAwards(state, league, teamRank) {
       const isNonNegativeInteger = value =>
         (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
         && Number.isInteger(Number(value)) && Number(value) >= 0;
+      const regulationMetadata = result.regulation;
+      const regulationMetadataPresent = regulationMetadata != null;
+      if (regulationMetadataPresent
+        && (typeof regulationMetadata !== "object" || Array.isArray(regulationMetadata))) return false;
+      const regulationScoresPresent = regulationMetadataPresent
+        && (regulationMetadata.for != null || regulationMetadata.against != null);
+      if (regulationScoresPresent
+        && (!isNonNegativeInteger(regulationMetadata.for)
+          || !isNonNegativeInteger(regulationMetadata.against))) return false;
       const regulationMatchesFinalScore = () => {
-        const regulation = result.regulation;
-        if (!regulation || typeof regulation !== "object"
-          || (regulation.for == null && regulation.against == null)) return true;
-        return isNonNegativeInteger(regulation.for) && isNonNegativeInteger(regulation.against)
-          && isNonNegativeInteger(result.score.for) && isNonNegativeInteger(result.score.against)
-          && Number(result.score.for) === Number(regulation.for)
-          && Number(result.score.against) === Number(regulation.against);
+        if (!regulationScoresPresent) return true;
+        return isNonNegativeInteger(result.score.for) && isNonNegativeInteger(result.score.against)
+          && Number(result.score.for) === Number(regulationMetadata.for)
+          && Number(result.score.against) === Number(regulationMetadata.against);
       };
       if (extraTime == null) {
         return !hasExtraTimeActivity && regulationMatchesFinalScore();
@@ -3016,12 +3022,10 @@ function seasonAwards(state, league, teamRank) {
         extraFor = periodFor;
         extraAgainst = periodAgainst;
       }
-      if (result.regulation && typeof result.regulation === "object"
-        && (result.regulation.for != null || result.regulation.against != null)) {
-        if (!isNonNegativeInteger(result.regulation.for) || !isNonNegativeInteger(result.regulation.against)
-          || !isNonNegativeInteger(result.score.for) || !isNonNegativeInteger(result.score.against)) return false;
-        const regulationFor = Number(result.regulation.for);
-        const regulationAgainst = Number(result.regulation.against);
+      if (regulationScoresPresent) {
+        if (!isNonNegativeInteger(result.score.for) || !isNonNegativeInteger(result.score.against)) return false;
+        const regulationFor = Number(regulationMetadata.for);
+        const regulationAgainst = Number(regulationMetadata.against);
         const finalFor = Number(result.score.for);
         const finalAgainst = Number(result.score.against);
         if (finalFor !== regulationFor + extraFor

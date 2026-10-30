@@ -770,12 +770,70 @@ assert.equal(browserEngine.validateResult(shootoutAtRegulationMinute).ok, false,
 const validShootoutEvent = { ...minuteValidationBase,
   events: [{ type: "penalty-shootout", side: "team", minute: 120, won: true, scoreFor: 5, scoreAgainst: 4 }],
   outcome: "فوز", matchOutcome: "فوز",
+  regulation: { for: 0, against: 0 },
+  extraTime: { played: true, for: 0, against: 0,
+    periods: [{ for: 0, against: 0 }, { for: 0, against: 0 }] },
   shootout: { used: true, won: true, scoreFor: 5, scoreAgainst: 4 }
 };
 assert.equal(engine.validateResult(validShootoutEvent).ok, true,
   "a shootout event at minute 120 must remain valid when the shootout was used");
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
+const shootoutWithoutExtraTime = {
+  ...validShootoutEvent,
+  extraTime: { played: false, for: 0, against: 0, periods: [] }
+};
+const shootoutWithAggregateLead = {
+  ...validShootoutEvent,
+  metadata: { ...validShootoutEvent.metadata, aggregateOffset: 1 }
+};
+const shootoutWithAggregateDeficit = {
+  ...validShootoutEvent,
+  metadata: { ...validShootoutEvent.metadata, aggregateOffset: -1 },
+  outcome: "خسارة", matchOutcome: "فوز"
+};
+const shootoutWithInvalidAggregateOffset = {
+  ...validShootoutEvent,
+  metadata: { ...validShootoutEvent.metadata, aggregateOffset: "" }
+};
+const shootoutCreditedToOpponent = {
+  ...validShootoutEvent,
+  events: [{ ...validShootoutEvent.events[0], side: "opponent" }]
+};
+for (const targetEngine of [engine, browserEngine]) {
+  for (const invalidShootout of [
+    shootoutWithoutExtraTime, shootoutWithAggregateLead, shootoutWithAggregateDeficit,
+    shootoutWithInvalidAggregateOffset
+  ]) {
+    assert.equal(targetEngine.validateResult(invalidShootout).shootoutLedgerConsistent, false,
+      "shootouts require extra time and a level aggregate");
+    assert.equal(targetEngine.validateResult(invalidShootout).ok, false,
+      "ineligible shootouts must be rejected");
+  }
+  const wrongSideValidation = targetEngine.validateResult(shootoutCreditedToOpponent);
+  assert.equal(wrongSideValidation.ok, false,
+    "a shootout result attributed to the opponent must be rejected");
+  assert.equal(wrongSideValidation.reason, "invalid-event-side",
+    "the shared event-side validator must report an invalid shootout side");
+}
+const legacyShootoutWithoutDeciderMetadata = { ...validShootoutEvent };
+delete legacyShootoutWithoutDeciderMetadata.extraTime;
+delete legacyShootoutWithoutDeciderMetadata.regulation;
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(legacyShootoutWithoutDeciderMetadata).ok, true,
+    "legacy shootout saves without regulation/extra-time ledger fields must remain readable");
+}
+const legacyShootoutWithUnflaggedExtraTime = {
+  ...validShootoutEvent,
+  metadata: { position: "مهاجم" },
+  extraTime: { for: 0, against: 0 }
+};
+delete legacyShootoutWithUnflaggedExtraTime.regulation;
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(legacyShootoutWithUnflaggedExtraTime).ok, true,
+    "legacy shootout saves with unflagged extra-time scores must remain readable");
+}
+
 
 const shootoutWinnerContradiction = {
   ...validShootoutEvent,

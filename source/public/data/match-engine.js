@@ -686,10 +686,27 @@
         || !isNonNegativeInteger(shootout.scoreAgainst)) return false;
       const scoreFor = Number(shootout.scoreFor);
       const scoreAgainst = Number(shootout.scoreAgainst);
+      const aggregateOffsetValue = result.metadata?.aggregateOffset;
+      const aggregateOffsetPresent = aggregateOffsetValue != null;
+      const aggregateOffset = aggregateOffsetPresent ? Number(aggregateOffsetValue) : 0;
+      const aggregateOffsetValid = !aggregateOffsetPresent
+        || ((typeof aggregateOffsetValue === "number"
+          || (typeof aggregateOffsetValue === "string" && aggregateOffsetValue.trim() !== ""))
+          && Number.isInteger(aggregateOffset));
+      const hasExplicitExtraTimePlayedFlag = result.extraTime != null
+        && Object.prototype.hasOwnProperty.call(result.extraTime, "played");
+      // Older ledgers may contain extra-time scores without the later "played" flag.
+      const legacyDeciderMetadata = result.regulation == null && !hasExplicitExtraTimePlayedFlag;
+      const extraTimeWasPlayed = legacyDeciderMetadata || result.extraTime?.played === true;
+      const aggregateIsLevel = aggregateOffsetValid
+        && isNonNegativeInteger(result.score?.for) && isNonNegativeInteger(result.score?.against)
+        && (aggregateOffsetPresent
+          ? aggregateOffset + Number(result.score.for) - Number(result.score.against) === 0
+          : legacyDeciderMetadata || Number(result.score.for) === Number(result.score.against));
       if (scoreFor === scoreAgainst || shootout.won !== (scoreFor > scoreAgainst)
-        || shootoutEvents.length !== 1) return false;
+        || !aggregateIsLevel || !extraTimeWasPlayed || shootoutEvents.length !== 1) return false;
       const event = shootoutEvents[0];
-      return typeof event.won === "boolean" && event.won === shootout.won
+      return event.side === "team" && typeof event.won === "boolean" && event.won === shootout.won
         && isNonNegativeInteger(event.scoreFor) && isNonNegativeInteger(event.scoreAgainst)
         && Number(event.scoreFor) === scoreFor && Number(event.scoreAgainst) === scoreAgainst;
     })();

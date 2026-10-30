@@ -1043,6 +1043,9 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+assert.equal(deployedCareer.normalizeCareerPosition("CM"), "وسط", "the embedded career engine must normalize CM aliases");
+assert.equal(deployedCareer.positionDevelopmentPlan("CM").position, "وسط", "the embedded career engine must expose the CM development plan");
+assert.equal(deployedCareer.loanSquadRole({ pos: "CM", age: 22, shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70, composure: 70, defending: 70, goalkeeping: 90, vision: 70, physical: 70 }, { power: 60 }), "أساسي", "the embedded career engine must calculate a realistic loan role");
 
 const browserLoanReturnFunction = deployedHtml.match(/function returnFromLoan\(\)\s*\{[\s\S]*?\n\}/);
 assert.ok(browserLoanReturnFunction, "the deployed browser loan-return function must exist for runtime regression coverage");

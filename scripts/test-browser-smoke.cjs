@@ -712,6 +712,45 @@ async function main() {
     results.push("two-leg cup fixture keeps opponent and correct home/away leg");
 
     await page.locator("#modalClose").click();
+    const invalidTieAggregateBefore = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      state.playedToday = false;
+      state.trainedToday = false;
+      state.energy = 85;
+      state.fatigue = 10;
+      state.dailyActionUsed = false;
+      state.dailyActionType = "";
+      state.cupState.tieLeg = 2;
+      state.cupState.tieAggregate = true;
+      window.LWStoryRuntime.save();
+      window.LWStoryRuntime.render();
+      return {
+        energy: Number(state.energy),
+        matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay),
+        historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length,
+        tieAggregate: state.cupState.tieAggregate,
+        tieLeg: Number(state.cupState.tieLeg)
+      };
+    });
+    await page.locator("#cupActive [data-play-cup]").click();
+    const invalidTieAggregateAfter = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      return {
+        energy: Number(state.energy),
+        matchesPlayed: Number(state.cupState.matchesPlayed),
+        calendarDay: Number(state.calendarDay),
+        historyLength: state.cupState.history.length,
+        cupMatchHistoryLength: state.cupMatchHistory.length,
+        tieAggregate: state.cupState.tieAggregate,
+        tieLeg: Number(state.cupState.tieLeg)
+      };
+    });
+    assert.deepEqual(invalidTieAggregateAfter, invalidTieAggregateBefore,
+      "an invalid second-leg aggregate must be rejected before energy, calendar, or match history changes");
+    results.push("invalid second-leg cup aggregate is rejected without consuming a match action");
+
     await page.evaluate(backup => {
       const state = window.LWStoryRuntime.getState();
       Object.keys(state).forEach(key => delete state[key]);

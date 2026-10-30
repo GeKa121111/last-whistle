@@ -13,7 +13,7 @@
   const POSITIONS = Object.freeze({
     goalkeeper: ["حارس مرمى"],
     defender: ["قلب دفاع", "ظهير"],
-    midfielder: ["وسط دفاعي", "وسط مهاجم"],
+    midfielder: ["وسط دفاعي", "وسط مهاجم", "وسط"],
     attacker: ["جناح", "مهاجم", "رأس حربة"]
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));

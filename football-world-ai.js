@@ -949,10 +949,27 @@
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return { season: next, moves, alreadyAdvanced: false };
   }
-  function getClubPower(save, name, country, db) {
+  function getClubMatchProfile(save, name, country, db) {
     const world = ensureState(save, db);
     const club = world.clubs[clubKey(name, country)] || Object.values(world.clubs).find(item => normalize(item.name) === normalize(name));
-    return club ? Number(club.power) || Number(club.basePower) || null : null;
+    if (!club) return null;
+    const goalkeepers = rosterPlayers(world, club)
+      .filter(player => (player.group || groupForPosition(player.position)) === "goalkeeper")
+      .map(player => clamp(Number(player.goalkeeping) || Number(player.ovr) || 55, 35, 99))
+      .sort((a, b) => b - a);
+    const starter = goalkeepers.length ? goalkeepers[0] : null;
+    const backup = goalkeepers.length > 1 ? goalkeepers[1] : starter;
+    const goalkeeping = starter == null ? null
+      : clamp(Math.round(starter * 0.88 + backup * 0.12), 35, 99);
+    return {
+      power: Number(club.power) || Number(club.basePower) || null,
+      goalkeeping
+    };
+  }
+
+  function getClubPower(save, name, country, db) {
+    const profile = getClubMatchProfile(save, name, country, db);
+    return profile ? profile.power : null;
   }
   function transferTargets(save, db) {
     const world = ensureState(save, db);
@@ -1026,7 +1043,7 @@
   }
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
-    ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
+    ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
     getLeagueTable, leaderboard, dashboard
   });
 })(window);

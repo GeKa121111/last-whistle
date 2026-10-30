@@ -792,13 +792,18 @@ const shootoutWithAggregateDeficit = {
   metadata: { ...validShootoutEvent.metadata, aggregateOffset: -1 },
   outcome: "خسارة", matchOutcome: "فوز"
 };
+const shootoutWithInvalidAggregateOffset = {
+  ...validShootoutEvent,
+  metadata: { ...validShootoutEvent.metadata, aggregateOffset: "" }
+};
 const shootoutCreditedToOpponent = {
   ...validShootoutEvent,
   events: [{ ...validShootoutEvent.events[0], side: "opponent" }]
 };
 for (const targetEngine of [engine, browserEngine]) {
   for (const invalidShootout of [
-    shootoutWithoutExtraTime, shootoutWithAggregateLead, shootoutWithAggregateDeficit
+    shootoutWithoutExtraTime, shootoutWithAggregateLead, shootoutWithAggregateDeficit,
+    shootoutWithInvalidAggregateOffset
   ]) {
     assert.equal(targetEngine.validateResult(invalidShootout).shootoutLedgerConsistent, false,
       "shootouts require extra time and a level aggregate");
@@ -817,6 +822,16 @@ delete legacyShootoutWithoutDeciderMetadata.regulation;
 for (const targetEngine of [engine, browserEngine]) {
   assert.equal(targetEngine.validateResult(legacyShootoutWithoutDeciderMetadata).ok, true,
     "legacy shootout saves without regulation/extra-time ledger fields must remain readable");
+}
+const legacyShootoutWithUnflaggedExtraTime = {
+  ...validShootoutEvent,
+  metadata: { position: "مهاجم" },
+  extraTime: { for: 0, against: 0 }
+};
+delete legacyShootoutWithUnflaggedExtraTime.regulation;
+for (const targetEngine of [engine, browserEngine]) {
+  assert.equal(targetEngine.validateResult(legacyShootoutWithUnflaggedExtraTime).ok, true,
+    "legacy shootout saves with unflagged extra-time scores must remain readable");
 }
 
 

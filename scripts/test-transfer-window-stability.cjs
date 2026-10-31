@@ -18,7 +18,8 @@ function section(startMarker, endMarker) {
 }
 
 const transferWindowSource = section("function transferWindow(){", "\nfunction transferOfferMatchesWindow(");
-const transferOfferMatchSource = section("function transferOfferMatchesWindow(", "\nfunction canAccessTransferMarket(");
+const transferOfferMatchSource = section("function transferOfferMatchesWindow(", "\nfunction currentFreeAgentTransferWindowId(");
+const transferOfferCurrentMatchSource = section("function currentFreeAgentTransferWindowId()", "\nfunction canAccessTransferMarket(");
 const ensureOffersSource = section("function ensureTransferOffers(){", "\nfunction offerIsAvailable(");
 const offerAvailabilitySource = section("function offerIsAvailable(", "\nfunction beginTransferNegotiation(");
 const transferEligibilitySource = section("function transferEligibilityReason(target){", "\nfunction transferEligible(");
@@ -51,7 +52,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(
-  transferWindowSource + "\n" + transferOfferMatchSource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+  transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   sandbox,
   { filename: "transfer-window-regression" }
 );
@@ -74,6 +75,8 @@ assert.equal(generatedOffers, 0, "continuing the season must not regenerate or d
 assert.equal(state.transferOffers[0].status, "pending", "the legacy offer must remain pending after continuing the season");
 assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), true,
   "an offer from an older save must remain negotiable after the winter-break flag is cleared");
+assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], winterWindowAfterContinue), true,
+  "the completion validator must accept the same legacy winter offer as the negotiation UI");
 
 state.calendarDay = 230;
 assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
@@ -82,7 +85,83 @@ state.calendarDay = 365 + 190;
 state.season = 5;
 assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
   "a legacy offer from the previous season must not leak into the next winter window");
+assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], sandbox.transferWindow()), false,
+  "the completion validator must reject a legacy offer from the previous winter");
 
+
+
+ // A legacy January offer must pass both negotiation and final transfer validation.
+ // The old transferTo check compared winter-season-N directly with winter-0.
+ const legacyWinterCompletion = {
+  state: {
+   retired: false, age: 24, loan: null, freeAgent: false, calendarDay: 190, season: 4,
+   clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1, clubPower: 60,
+   pendingTransfer: { club: "نادي ب", country: "مصر", league: "الدوري المصري", division: 1,
+    source: "LWWorldDB", season: "2026/27", windowId: "winter-season-4",
+    power: 65, wage: 700, contractSeasons: 3, role: "أساسي", currency: "ج.م", signingBonus: 120 },
+   lastOfferWindow: "", seasonApps: 12, seasonPhase: "secondHalf", winterBreakPending: false,
+   trust: 55, followers: 100, money: 500, weeklyWage: 250, contractSeasons: 2,
+   currentReleaseClause: 0, goalBonusPerGoal: 0, cleanSheetBonus: 0, transferCooldown: 0,
+   transferOffers: [{ id: "other-pending", status: "pending" }], transferHistory: []
+  },
+  transferWindow: () => ({ open: true, id: "winter-0", name: "الانتقالات الشتوية", days: 24 }),
+  canAccessTransferMarket: () => true,
+  transferTargets: () => [{ club: "نادي ب", country: "مصر", league: "الدوري المصري" }],
+  seasonMatchTotal: () => 30,
+  club: () => ({ name: "نادي أ" }),
+  archiveCupForTransfer: () => {},
+  archiveLeagueSegment: () => {},
+  clubPowerFor: () => 65,
+  clubTierForPower: () => 1,
+  clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
+  createLeague: () => ["نادي ب", "نادي تاني"],
+  seedDestinationLeagueProgress: () => 18,
+  buildFixtureSchedule: () => [],
+  setStory: () => {},
+  log: () => {},
+  saveGame: () => {},
+  render: () => {},
+  showPage: () => {},
+  toast: () => {},
+  currencyLabel: () => "ج.م",
+  window: { LWAgentRuntime: null }
+ };
+ vm.createContext(legacyWinterCompletion);
+ vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  legacyWinterCompletion, { filename: "legacy-winter-transfer-completion" });
+ assert.equal(legacyWinterCompletion.transferOfferMatchesCurrentWindow(
+  legacyWinterCompletion.state.pendingTransfer, legacyWinterCompletion.transferWindow()), true,
+  "legacy winter-season-4 must resolve to the active winter-0 window");
+ legacyWinterCompletion.transferTo();
+ assert.equal(legacyWinterCompletion.state.clubName, "نادي ب",
+  "an accepted legacy winter offer must complete the transfer instead of being discarded");
+ assert.equal(legacyWinterCompletion.state.pendingTransfer, null,
+  "a completed transfer must clear its pending offer");
+ assert.equal(legacyWinterCompletion.state.transferCooldown, 14,
+  "a completed transfer must apply the normal transfer cooldown");
+ assert.equal(legacyWinterCompletion.state.transferHistory.length, 1,
+  "a completed transfer must be recorded exactly once");
+ assert.equal(legacyWinterCompletion.state.transferOffers[0].status, "expired",
+  "other pending offers must be closed after the player changes clubs");
+ legacyWinterCompletion.transferTo();
+ assert.equal(legacyWinterCompletion.state.transferHistory.length, 1,
+  "replaying transfer completion without a pending transfer must not duplicate history");
+
+
+ // Free-agent offers are valid only in the matching rolling 14-day window.
+ const freeAgentWindowState = {
+  state: { freeAgent: true, calendarDay: 30, lastOfferWindow: "", season: 1 },
+  transferWindow: () => ({ open: false, id: "closed-0", name: "السوق مغلق", days: 5 })
+ };
+ vm.createContext(freeAgentWindowState);
+ vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource, freeAgentWindowState,
+  { filename: "free-agent-window-identity" });
+ assert.equal(freeAgentWindowState.transferOfferMatchesCurrentWindow(
+  { id: "old-free-agent", windowId: "free-agent-1" }, freeAgentWindowState.transferWindow()), false,
+  "an offer from the previous 14-day free-agent period must expire");
+ assert.equal(freeAgentWindowState.transferOfferMatchesCurrentWindow(
+  { id: "current-free-agent", windowId: "free-agent-2" }, freeAgentWindowState.transferWindow()), true,
+  "the current 14-day free-agent offer must remain valid");
 
 const cupScenario = {
   state: {
@@ -215,7 +294,7 @@ const expiryTest=()=>{
     render:()=>{renderCount++;}
   };
   vm.createContext(scenario);
-  vm.runInContext(transferToSource,scenario,{filename:"expired-transfer-offer"});
+  vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,scenario,{filename:"expired-transfer-offer"});
   scenario.transferTo();
   assert.equal(scenario.state.pendingTransfer,null,
     "a saved direct transfer offer from the previous window must be cleared");
@@ -237,7 +316,7 @@ const expiryTest=()=>{
   };
   toastMessage="";saveCount=0;renderCount=0;
   vm.createContext(legacy);
-  vm.runInContext(transferToSource,legacy,{filename:"expired-legacy-transfer-offer"});
+  vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,legacy,{filename:"expired-legacy-transfer-offer"});
   legacy.transferTo();
   assert.equal(legacy.state.pendingTransfer,null,
     "legacy direct offers without their own window ID must expire using lastOfferWindow");
@@ -257,7 +336,7 @@ const expiryTest=()=>{
   };
   toastMessage="";
   vm.createContext(freeAgent);
-  vm.runInContext(transferToSource,freeAgent,{filename:"current-free-agent-offer"});
+  vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,freeAgent,{filename:"current-free-agent-offer"});
   freeAgent.transferTo();
   assert.equal(targetLookups,1,
     "a current 14-day free-agent offer must pass expiry validation even when regular windows are closed");
@@ -270,7 +349,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v248"), "transfer-offer expiry must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v249"), "legacy winter completion and free-agent expiry must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

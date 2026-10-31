@@ -4531,7 +4531,7 @@ function ensureTransferOffers(){
 }
 function offerIsAvailable(offer){
  const windowInfo=transferWindow();
- const windowMatches=windowInfo.open?transferOfferMatchesWindow(offer,windowInfo.id,windowInfo):!!state.freeAgent;
+ const windowMatches=transferOfferMatchesCurrentWindow(offer,windowInfo);
  return !!offer&&canAccessTransferMarket()&&offer.status==="pending"&&(windowInfo.open||state.freeAgent)
   &&windowMatches&&!state.retired&&!state.loan
   &&Number(state.transferCooldown||0)<=0;
@@ -4888,6 +4888,18 @@ function transferOfferMatchesWindow(offer,windowId,windowInfo){
  if(String(offer.windowId||"")===String(windowId||""))return true;
  return !!windowInfo&&windowInfo.open&&windowInfo.name==="الانتقالات الشتوية"
   &&String(offer.windowId||"")==="winter-season-"+(Number(state.season)||0);
+}
+function currentFreeAgentTransferWindowId(){
+ return "free-agent-"+Math.floor((Number(state.calendarDay)||1)/14);
+}
+function transferOfferMatchesCurrentWindow(offer,windowInfo=transferWindow()){
+ if(!offer)return false;
+ const offerWindowId=String(offer.windowId||state.lastOfferWindow||"");
+ if(!offerWindowId)return false;
+ if(offerWindowId.startsWith("free-agent-"))
+  return !!state.freeAgent&&offerWindowId===currentFreeAgentTransferWindowId();
+ return !!windowInfo&&windowInfo.open
+  &&transferOfferMatchesWindow({...offer,windowId:offerWindowId},windowInfo.id,windowInfo);
 }
 function canAccessTransferMarket(){return !state.retired&&Number(state.age)>=18&&!isYouthAcademyPlayer()&&!state.academyReserve&&!state.academyGraduationPending;}
 function isNaturalWinterTransferWindow(){const calendarDay=Math.max(1,Number(state.calendarDay)||1),d=((calendarDay-1)%365)+1;return d>=184&&d<=214;}
@@ -6520,12 +6532,10 @@ function transferTo(){
   const p=state.pendingTransfer;if(!p||!p.club||!p.country||p.club===state.clubName)return;
  const currentWindow=transferWindow();
  const offerWindowId=String(p.windowId||state.lastOfferWindow||"");
- const currentFreeAgentWindowId="free-agent-"+Math.floor((Number(state.calendarDay)||1)/14);
- const offerWindowMatches=offerWindowId
-  ? offerWindowId.startsWith("free-agent-")
-    ? !!state.freeAgent&&offerWindowId===currentFreeAgentWindowId
-    : currentWindow.open&&offerWindowId===currentWindow.id
-  : true;
+ // Use the same compatibility-aware validator as the negotiation UI. Legacy winter-season-N IDs
+ // remain valid in their matching January window instead of being discarded at completion.
+ const offerWindowMatches=!offerWindowId
+  ||transferOfferMatchesCurrentWindow({...p,windowId:offerWindowId},currentWindow);
  if(offerWindowId&&!offerWindowMatches){
   state.pendingTransfer=null;toast("العرض انتهت صلاحيته مع إغلاق نافذة الانتقالات.");saveGame(true);render();return;
  }

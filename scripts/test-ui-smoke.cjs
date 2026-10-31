@@ -91,7 +91,11 @@ if (!html.includes('$("mobileMore").addEventListener("click",openDrawer)')
 }
 
 
-const transferSearchMarkup = html.match(/<div class="marketTools">([\\s\\S]*?)<\\/div>/)?.[1] || "";
+const marketToolsStart = html.indexOf('<div class="marketTools">');
+const marketToolsEnd = html.indexOf("</div>", marketToolsStart);
+const transferSearchMarkup = marketToolsStart >= 0 && marketToolsEnd > marketToolsStart
+  ? html.slice(marketToolsStart, marketToolsEnd + "</div>".length)
+  : "";
 if (!transferSearchMarkup.includes('id="transferSearch" type="search"')
   || !transferSearchMarkup.includes('aria-label="ابحث عن نادٍ أو دوري أو دولة"')
   || !transferSearchMarkup.includes('aria-controls="transferMarket"')

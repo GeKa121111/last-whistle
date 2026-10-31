@@ -142,6 +142,8 @@ assert.equal(cupScenario.transferEligibilityReason({ club: "نادي ب", countr
    "the selected destination competition must be preserved with its division");
  assert.equal(offerScenario.state.pendingTransfer.source, "LWWorldDB",
    "the selected destination data provenance must remain intact");
+ assert.equal(offerScenario.state.pendingTransfer.windowId, "summer-0",
+   "the automatic transfer approach must remember the window that created it");
  assert.ok(Array.isArray(offerScenario.modalActions) && offerScenario.modalActions.length === 3,
    "the real transfer approach flow must still expose accept, reject, and negotiate actions");
 
@@ -200,10 +202,75 @@ assert.doesNotMatch(transferToSource, /activeCupInProgress\(\)/, "transfer compl
 assert.ok(transferToSource.includes("state.leagueDivision=Math.max(1,Number(p.division)||1)"),
   "permanent transfer completion must apply the selected destination division");
 
+
+const expiryTest=()=>{
+  let toastMessage="",saveCount=0,renderCount=0;
+  const scenario={
+    state:{retired:false,age:24,loan:null,clubName:"نادي أ",freeAgent:false,
+      lastOfferWindow:"summer-0",pendingTransfer:{club:"نادي ب",country:"مصر",division:2,windowId:"summer-0"}},
+    canAccessTransferMarket:()=>true,
+    transferWindow:()=>({open:true,id:"winter-0",name:"الانتقالات الشتوية",days:10}),
+    toast:message=>{toastMessage=message;},
+    saveGame:()=>{saveCount++;},
+    render:()=>{renderCount++;}
+  };
+  vm.createContext(scenario);
+  vm.runInContext(transferToSource,scenario,{filename:"expired-transfer-offer"});
+  scenario.transferTo();
+  assert.equal(scenario.state.pendingTransfer,null,
+    "a saved direct transfer offer from the previous window must be cleared");
+  assert.equal(scenario.state.clubName,"نادي أ",
+    "an expired direct transfer offer must not change the player's club");
+  assert.match(toastMessage,/انتهت صلاحيتها/,
+    "the player must be told that the old transfer offer expired");
+  assert.equal(saveCount,1,"clearing an expired offer must be persisted");
+  assert.equal(renderCount,1,"the transfer UI must refresh after expiry");
+
+  const legacy={
+    state:{retired:false,age:24,loan:null,clubName:"نادي أ",freeAgent:false,
+      lastOfferWindow:"summer-0",pendingTransfer:{club:"نادي ب",country:"مصر",division:2}},
+    canAccessTransferMarket:()=>true,
+    transferWindow:()=>({open:true,id:"winter-0",name:"الانتقالات الشتوية",days:10}),
+    toast:message=>{toastMessage=message;},
+    saveGame:()=>{saveCount++;},
+    render:()=>{renderCount++;}
+  };
+  toastMessage="";saveCount=0;renderCount=0;
+  vm.createContext(legacy);
+  vm.runInContext(transferToSource,legacy,{filename:"expired-legacy-transfer-offer"});
+  legacy.transferTo();
+  assert.equal(legacy.state.pendingTransfer,null,
+    "legacy direct offers without their own window ID must expire using lastOfferWindow");
+  assert.equal(legacy.state.clubName,"نادي أ",
+    "an expired legacy offer must not move the player");
+
+  let targetLookups=0;
+  const freeAgent={
+    state:{retired:false,age:24,loan:null,clubName:"لاعب حر",freeAgent:true,calendarDay:30,
+      pendingTransfer:{club:"نادي ج",country:"مصر",windowId:"free-agent-2"}},
+    canAccessTransferMarket:()=>true,
+    transferWindow:()=>({open:false,id:"closed-0",name:"السوق مغلق",days:5}),
+    transferTargets:()=>{targetLookups++;return [];},
+    toast:message=>{toastMessage=message;},
+    saveGame:()=>{},
+    render:()=>{}
+  };
+  toastMessage="";
+  vm.createContext(freeAgent);
+  vm.runInContext(transferToSource,freeAgent,{filename:"current-free-agent-offer"});
+  freeAgent.transferTo();
+  assert.equal(targetLookups,1,
+    "a current 14-day free-agent offer must pass expiry validation even when regular windows are closed");
+  assert.doesNotMatch(toastMessage,/انتهت صلاحيتها/,
+    "a current free-agent offer must not be mislabeled as expired");
+};
+expiryTest();
+
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
+assert.ok(sw.includes("last-whistle-static-v248"), "transfer-offer expiry must invalidate the deployed PWA cache");
 assert.ok(sw.includes("last-whistle-static-v247"), "the transfer destination fix must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");

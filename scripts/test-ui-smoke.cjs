@@ -25,7 +25,7 @@ if (!redesign.includes(".app > .page.active{display:block!important;width:100%;m
   console.error("Global directory must remain isolated and full-width on mobile.");
   process.exit(1);
 }
-if (!html.includes('href="./redesign.css?v=8"') || !serviceWorker.includes("./redesign.css?v=8")) {
+if (!html.includes('href="./redesign.css?v=9"') || !serviceWorker.includes("./redesign.css?v=9")) {
   console.error("The active responsive stylesheet must be version 8 in the HTML and offline app shell.");
   process.exit(1);
 }
@@ -227,6 +227,21 @@ for (const page of ["home", "training", "stats", "wellness", "league", "europe",
     console.error("Navigation target is missing or unlinked:", page); process.exit(1);
   }
 }
+for (const page of ["league", "contract", "national"]) {
+  const pageStart = html.indexOf('id="page-' + page + '"');
+  const pageEnd = html.indexOf("</section>", pageStart);
+  const pageMarkup = pageStart >= 0 && pageEnd > pageStart ? html.slice(pageStart, pageEnd) : "";
+  if (!pageMarkup.includes('class="hub-page-heading"') || !pageMarkup.includes("<h1>")) {
+    console.error("Feature page is missing its consistent page heading:", page); process.exit(1);
+  }
+}
+if (!html.includes('class="league-table-hint"')
+  || !html.includes('aria-label="جدول ترتيب الدوري الحالي"')
+  || !html.includes('class="league-table-caption"')
+  || !redesign.includes(".league-table-hint")
+  || !redesign.includes(".league-table-caption")) {
+  console.error("League standings must expose an accessible label and visible mobile scroll guidance."); process.exit(1);
+}
 if (!html.includes('Math.floor((Math.max(1,oldDay)-1)/7)') || !html.includes('Math.floor((Math.max(1,newDay)-1)/7)')) {
   console.error("Weekly wage must be paid after seven full elapsed days."); process.exit(1);
 }
@@ -402,7 +417,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=8"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=9"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 65);

@@ -348,3 +348,9 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
  #page-europe .globalFilters,#page-europe .dataGrid,#page-europe .officialList{grid-template-columns:minmax(0,1fr)!important}
  #page-europe .dataCard{padding:12px}
 }
+
+
+/* League table: make its context and horizontal mobile scrolling obvious. */
+body.lw-rebuild .league-table-caption{caption-side:top;padding:10px 12px;color:#91a18d;font-size:10px;font-weight:800;text-align:right}
+body.lw-rebuild .league-table-hint{display:none;margin:8px 0 9px;padding:8px 10px;border:1px solid #34452e;border-radius:9px;background:#141f13;color:#bfd58f;font-size:10px;line-height:1.7}
+@media(max-width:1000px){body.lw-rebuild .league-table-hint{display:block}}

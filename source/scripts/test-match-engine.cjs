@@ -260,6 +260,12 @@ assert.equal(engine.playerConcededGoals(extraTimeParticipation.player.minutes, e
 const extraTimeValidation = engine.validateResult(extraTimeParticipation);
 assert.equal(extraTimeValidation.ok, true,
   "extra-time player activity and extended minutes must remain internally consistent");
+const shortenedExtraTimeMinutes = JSON.parse(JSON.stringify(extraTimeParticipation));
+shortenedExtraTimeMinutes.player.minutes = 90;
+assert.equal(engine.validateResult(shortenedExtraTimeMinutes).reason, "invalid-player-minutes-ledger",
+  "a player who completes extra time must not be settled with only 90 recorded minutes");
+assert.equal(browserEngine.validateResult(shortenedExtraTimeMinutes).reason, "invalid-player-minutes-ledger",
+  "the embedded validator must enforce the same 120-minute extra-time participation ledger");
 
 assert.equal(typeof engine.rollExtraTimePlayerExit, "function",
   "extra-time player exits must be independently testable");
@@ -740,6 +746,34 @@ assert.equal(legacyZeroMinuteAssistValidation.reason, "unavailable-player-has-ev
   "positive legacy player stats must count as activity when availability metadata is absent");
 assert.equal(browserEngine.validateResult(legacyZeroMinuteAssist).reason, "unavailable-player-has-events",
   "the embedded engine must reject legacy zero-minute assists too");
+// A modern regulation-time result cannot claim more than 90 player minutes.
+const regulationOnly = engine.simulateMatch({
+  seed: 420042, knockout: false, teamPower: 66, opponentPower: 64,
+  player: { name: "اختبار حد دقائق المباراة", position: "مهاجم", role: "أساسي",
+    shooting: 78, passing: 75, vision: 72, composure: 80, fitness: 100,
+    trust: 85, energy: 100, fatigue: 0, speed: 82, physical: 78, dribbling: 80 }
+});
+assert.equal(regulationOnly.extraTime.played, false,
+  "the regulation-only fixture must not enter extra time");
+assert.ok(regulationOnly.player.minutes > 0,
+  "the regulation-only fixture must include a real player appearance");
+assert.equal(engine.validateResult(regulationOnly).ok, true,
+  "a valid 90-minute appearance must pass the modern minutes ledger");
+const overlongRegulationMatch = JSON.parse(JSON.stringify(regulationOnly));
+overlongRegulationMatch.player.minutes = 120;
+const overlongRegulationValidation = engine.validateResult(overlongRegulationMatch);
+assert.equal(overlongRegulationValidation.ok, false,
+  "a regulation-only match must reject a player credited with 120 minutes");
+assert.equal(overlongRegulationValidation.reason, "invalid-player-minutes-ledger",
+  "overlong regulation appearances must report a dedicated minutes-ledger error");
+assert.equal(browserEngine.validateResult(overlongRegulationMatch).reason, "invalid-player-minutes-ledger",
+  "the deployed validator must reject the same impossible 120-minute regulation appearance");
+const legacyRegulationMatch = JSON.parse(JSON.stringify(regulationOnly));
+delete legacyRegulationMatch.player.playerAvailable;
+delete legacyRegulationMatch.extraTime;
+assert.equal(engine.validateResult(legacyRegulationMatch).ok, true,
+  "legacy match saves without modern participation markers must remain readable");
+
 // Bench-role appearances must begin late, not be simulated as a first-half starter.
 const substituteOptions = {
   seed: 24061028, teamPower: 62, opponentPower: 58,

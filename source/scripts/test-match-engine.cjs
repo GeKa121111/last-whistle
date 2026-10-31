@@ -1015,6 +1015,28 @@ assert.equal(engine.validateResult(legacyShootoutPenaltySave).ok, true,
   "legacy shootout ledgers without an explicit player exit must remain readable");
 assert.equal(browserEngine.validateResult(legacyShootoutPenaltySave).ok, true,
   "the embedded validator must preserve legacy shootout saves without explicit exit metadata");
+const fieldPlayerLegacyShootoutSave = {
+  ...legacyShootoutPenaltySave,
+  player: { ...legacyShootoutPenaltySave.player, cleanSheet: false },
+  metadata: { ...legacyShootoutPenaltySave.metadata, position: "CM" }
+};
+const penaltySaveWithoutShootout = {
+  ...legacyShootoutPenaltySave,
+  shootout: { used: false, won: null, scoreFor: 0, scoreAgainst: 0, attempts: [] },
+  events: [{ type: "penalty-save", side: "team", minute: 120, creditedToPlayer: true }]
+};
+for (const targetEngine of [engine, browserEngine]) {
+  const fieldPlayerSaveValidation = targetEngine.validateResult(fieldPlayerLegacyShootoutSave);
+  assert.equal(fieldPlayerSaveValidation.penaltySaveRoleConsistent, false,
+    "a legacy shootout penalty save must not be credited to a recognized outfield position alias");
+  assert.equal(fieldPlayerSaveValidation.ok, false,
+    "a central midfielder must not receive a goalkeeper penalty-save event");
+  const noShootoutSaveValidation = targetEngine.validateResult(penaltySaveWithoutShootout);
+  assert.equal(noShootoutSaveValidation.penaltySaveRoleConsistent, false,
+    "a penalty-save event must be tied to an actual shootout");
+  assert.equal(noShootoutSaveValidation.ok, false,
+    "a penalty-save event without a shootout must be rejected");
+}
 const lateSubstitutedKeeperWithLateSave = {
   ...validLateKeeperShootout,
   player: { ...validLateKeeperShootout.player, minutes: 60 },
@@ -1564,6 +1586,34 @@ function ensureShotTargetMetadataForLedger(match) {
     creditedToPlayer: false, onTarget: false });
   match.events.sort((a, b) => Number(a.minute) - Number(b.minute));
 }
+function makeModernSaveRoleFixture(targetEngine, seed, position) {
+  const match = targetEngine.simulateMatch({
+    seed,
+    player: { name: "Position Save Role Regression", position, role: "أساسي",
+      shooting: 45, passing: 70, vision: 65, composure: 65, fitness: 90,
+      trust: 80, energy: 90, fatigue: 5, goalkeeping: 85 }
+  });
+  assert.ok(match.player.minutes > 0, "save-role fixture must include an appearance");
+  ensureShotTargetMetadataForLedger(match);
+  const entry = match.events.find(event => event.type === "substitution-on" && event.side === "player");
+  const exits = match.events.filter(event => event.side === "player"
+    && ["red-card", "injury", "substitution"].includes(event.type))
+    .sort((a, b) => Number(a.minute) - Number(b.minute));
+  const startMinute = entry ? Math.max(0, Number(entry.minute) || 0) : 0;
+  const endMinute = exits.length ? Number(exits[0].minute) : startMinute + Number(match.player.minutes);
+  const occupiedMinutes = new Set(match.events.map(event => Number(event.minute)));
+  let minute = 0;
+  for (let candidate = Math.max(1, startMinute + 1); candidate <= Math.min(120, endMinute); candidate += 1) {
+    if (!occupiedMinutes.has(candidate)) { minute = candidate; break; }
+  }
+  assert.ok(minute > 0, "save-role fixture must have an unused on-pitch minute");
+  match.events.push({ type: "shot", minute, side: "opponent", shooter: "opponent",
+    creditedToPlayer: false, onTarget: true });
+  match.events.push({ type: "save", minute, side: "team", creditedToPlayer: true });
+  match.events.sort((a, b) => Number(a.minute) - Number(b.minute));
+  match.player.saves = Number(match.player.saves || 0) + 1;
+  return match;
+}
 for (const [targetEngine, seed, label] of [[engine, 8140, "source"], [browserEngine, 8141, "browser"]]) {
   const inconsistentKeyPasses = targetEngine.simulateMatch({
     seed,
@@ -1590,6 +1640,18 @@ for (const [targetEngine, seed, label] of [[engine, 8140, "source"], [browserEng
     label + " validator must reject save totals that disagree with save events");
   assert.equal(saveValidation.reason, "inconsistent-save-ledger",
     label + " validator must return a stable save ledger reason");
+
+  for (const [index, position] of ["وسط", "CM", "CB", "CF", "LW"].entries()) {
+    const invalidSaveRole = makeModernSaveRoleFixture(targetEngine, seed + 30 + index, position);
+    const roleValidation = targetEngine.validateResult(invalidSaveRole);
+    assert.equal(roleValidation.ok, false,
+      label + " validator must reject modern goalkeeper saves credited to outfield position " + position);
+    assert.equal(roleValidation.reason, "invalid-save-player-position",
+      label + " validator must report the outfield save-role violation for " + position);
+  }
+  const validGoalkeeperAliasSave = makeModernSaveRoleFixture(targetEngine, seed + 50, "GK");
+  assert.equal(targetEngine.validateResult(validGoalkeeperAliasSave).ok, true,
+    label + " validator must continue accepting saves credited to the GK alias");
 
   const legacyStatsMatch = targetEngine.simulateMatch({
     seed: seed + 20,

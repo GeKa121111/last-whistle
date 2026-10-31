@@ -728,15 +728,21 @@
         && shot.creditedToPlayer === false
         && event.side === "team" && event.creditedToPlayer === true;
     });
-    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
-      .includes(String(result.metadata?.position || ""));
+    const normalizedMatchPosition = normalizePosition(result.metadata?.position || "");
+    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
+      .includes(normalizedMatchPosition);
     const saveRoleConsistent = !modernShotMetadataPresent || !knownMatchPosition
-      || positionProfile(result.metadata.position).goalkeeper
+      || positionProfile(normalizedMatchPosition).goalkeeper
       || (saveEvents.length === 0 && (result.player.saves == null || Number(result.player.saves) === 0));
+    const penaltySaveEvents = result.events.filter(event => event.type === "penalty-save");
+    const penaltySaveRoleConsistent = penaltySaveEvents.length === 0
+      || (result.shootout?.used === true
+        && (!knownMatchPosition || positionProfile(normalizedMatchPosition).goalkeeper === true));
     if (!keyPassesLedgerConsistent) return { ok: false, reason: "inconsistent-key-pass-ledger" };
     if (!savesLedgerConsistent) return { ok: false, reason: "inconsistent-save-ledger" };
     if (!saveShotLedgerConsistent) return { ok: false, reason: "invalid-save-shot-link", saveShotLedgerConsistent };
     if (!saveRoleConsistent) return { ok: false, reason: "invalid-save-player-position", saveRoleConsistent };
+    if (!penaltySaveRoleConsistent) return { ok: false, reason: "invalid-penalty-save-attribution", penaltySaveRoleConsistent };
     const playerAvailabilityValid = result.player.playerAvailable == null
       || (typeof result.player.playerAvailable === "boolean"
         && (result.player.minutes == null
@@ -1059,7 +1065,7 @@
     const reason = !metadataShapeConsistent ? "invalid-metadata-shape"
       : !aggregateOffsetConsistent ? "invalid-aggregate-offset"
         : !extraTimeEventSeedConsistent ? "invalid-extra-time-event-seed" : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

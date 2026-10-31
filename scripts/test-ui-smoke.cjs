@@ -454,7 +454,7 @@ if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDecla
 for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=12"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 68);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 47);
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
 try {

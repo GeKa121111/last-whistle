@@ -194,7 +194,8 @@
   }
 
 
-function uniqueMatchRows(rows) {
+
+  function uniqueMatchRows(rows) {
     const seenById = new Map();
     const seenFallback = new Set();
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
@@ -231,6 +232,7 @@ function uniqueMatchRows(rows) {
       return true;
     });
   }
+
   function uniqueCareerHistory(state) {
     const leagueRows = (Array.isArray(state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object")

@@ -773,6 +773,9 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const legacyOfferMigrationSource = extractTopLevelFunction(html, "migrateLegacyPendingTransferOffer");
+const duplicateOfferDedupeSource = extractTopLevelFunction(html, "dedupeTransferOffersForWindow");
+const normalizedTargetKeySource = extractTopLevelFunction(html, "normalizedTargetKey");
 const offerWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesWindow");
 const currentFreeAgentWindowSource = extractTopLevelFunction(html, "currentFreeAgentTransferWindowId");
 const offerCurrentWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesCurrentWindow");
@@ -803,7 +806,9 @@ const offerSandbox = {
   setStory: () => {}
 };
 vm.createContext(offerSandbox);
-vm.runInContext(offerWindowMatchSource + "\n" + currentFreeAgentWindowSource + "\n" + offerCurrentWindowMatchSource, offerSandbox, { filename: "transferOfferWindowValidators" });
+vm.runInContext(offerWindowMatchSource + "\n" + currentFreeAgentWindowSource + "\n" + offerCurrentWindowMatchSource
+  + "\n" + normalizedTargetKeySource + "\n" + legacyOfferMigrationSource + "\n" + duplicateOfferDedupeSource,
+  offerSandbox, { filename: "transferOfferWindowValidators" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
 vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
 offerSandbox.ensureTransferOffers();

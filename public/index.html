@@ -6211,19 +6211,28 @@ function disciplineKey(scope,country,competition){return `${scope}|${country||""
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
 function careerMatchPlayerEligible(state,scope="league"){
  if(!state)return false;
- const retired=state.retired===true||state.retired==="true"||state.retired===1||state.retired==="1";
- if(retired)return false;
+ const legacyBoolean=value=>{
+  if(typeof value==="boolean")return value;
+  if(typeof value==="number")return Number.isFinite(value)&&value!==0;
+  if(typeof value==="string"){
+   const normalized=value.trim().toLowerCase();
+   if(["true","1","yes","on"].includes(normalized))return true;
+   if(["false","0","no","off",""].includes(normalized))return false;
+  }
+  return false;
+ };
+ if(legacyBoolean(state.retired))return false;
  if(scope==="international")return true;
  const loan=state.loan&&typeof state.loan==="object"?state.loan:null;
  const freeAgentValue=loan&&loan.parentFreeAgent!==undefined?loan.parentFreeAgent:state.freeAgent;
- const freeAgent=freeAgentValue===true||freeAgentValue==="true"||freeAgentValue===1||freeAgentValue==="1";
+ const freeAgent=legacyBoolean(freeAgentValue);
  const contractValue=loan&&loan.parentContractSeasons!==undefined&&loan.parentContractSeasons!==null
   ?loan.parentContractSeasons:state.contractSeasons;
  const contractMissing=contractValue===undefined||contractValue===null||contractValue==="";
  const contractSeasons=Number(contractValue);
  const expired=!contractMissing&&Number.isFinite(contractSeasons)&&contractSeasons<=0;
  const contractTypeValue=loan&&loan.parentContractType!==undefined?loan.parentContractType:state.contractType;
- const freeAgentType=String(contractTypeValue||"").toLowerCase()==="free-agent";
+ const freeAgentType=String(contractTypeValue||"").trim().toLowerCase()==="free-agent";
  return !freeAgent&&!freeAgentType&&!expired;
 }
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){

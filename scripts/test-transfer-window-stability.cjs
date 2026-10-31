@@ -251,8 +251,8 @@ vm.runInContext(
   { filename: "legacy-missing-signing-bonus" }
 );
 legacyMissingSigningBonusScenario.transferTo();
-assert.equal(legacyMissingSigningBonusScenario.state.money, 1000,
-  "legacy offers without a signing-bonus field must retain the two-week-wage fallback");
+assert.equal(legacyMissingSigningBonusScenario.state.money, 2300,
+  "legacy offers without a signing-bonus field must retain the two-week destination-wage fallback");
 
 sameNameDifferentCountry.transferTo();
 assert.equal(sameNameDifferentCountry.state.clubName, "United",

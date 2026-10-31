@@ -1731,6 +1731,81 @@ assert.equal(career.resolveContractDecision(legacyRetiredContractState, "accept"
 assert.equal(legacyRetiredContractState.weeklyWage, 900,
   "legacy retired saves must keep their existing wage when renewal is rejected");
 
+// Contract decisions must be bound to the active expiring contract and its current offer.
+const contractDecisionCases = [
+  {
+    name: "decline without an offer",
+    expected: "invalid-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5 },
+    decision: "decline",
+    offer: null
+  },
+  {
+    name: "early renewal",
+    expected: "not-expiring",
+    state: { freeAgent: false, retired: false, contractSeasons: 2, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: 650, seasons: 3 }
+  },
+  {
+    name: "offer from a previous club",
+    expected: "club-mismatch",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Current FC", season: 5,
+      contractOffer: { club: "Previous FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Previous FC", season: 5, wage: 650, seasons: 3 }
+  },
+  {
+    name: "offer from a previous season",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 4, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 4, wage: 650, seasons: 3 }
+  },
+  {
+    name: "superseded offer",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 700, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: 650, seasons: 3 }
+  },
+  {
+    name: "missing accepted wage",
+    expected: "invalid-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5 },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: null, seasons: 3 }
+  }
+];
+for (const engine of [career, deployedCareer]) {
+  for (const testCase of contractDecisionCases) {
+    const state = JSON.parse(JSON.stringify(testCase.state));
+    const offer = testCase.offer === null ? null : JSON.parse(JSON.stringify(testCase.offer));
+    const before = JSON.stringify(state);
+    const result = engine.resolveContractDecision(state, testCase.decision, offer);
+    assert.equal(result.status, testCase.expected, testCase.name + " must be rejected by both engines");
+    assert.equal(result.ok, false, testCase.name + " must not be accepted");
+    assert.equal(JSON.stringify(state), before, testCase.name + " must not mutate the saved contract");
+  }
+}
+for (const engine of [career, deployedCareer]) {
+  const zeroTermRenewal = { weeklyWage: 500, contractSeasons: 0, freeAgent: false, clubName: "Test FC" };
+  const zeroTermDecision = engine.resolveContractDecision(zeroTermRenewal, "accept",
+    { club: "Test FC", wage: 650, seasons: 3 });
+  assert.equal(zeroTermDecision.status, "renewed",
+    "an active contract at zero remaining seasons must still be renewable before free-agent status is committed");
+  assert.equal(zeroTermRenewal.contractSeasons, 4);
+  const validDecline = { weeklyWage: 500, contractSeasons: 1, freeAgent: false, clubName: "Test FC" };
+  const declineDecision = engine.resolveContractDecision(validDecline, "decline",
+    { club: "Test FC", wage: 650, seasons: 3 });
+  assert.equal(declineDecision.status, "free-agent", "a valid current offer must still be rejectable");
+  assert.equal(validDecline.freeAgent, true);
+}
+
+
 
 // A loan requires a finite, positive active contract. NaN/Infinity used to pass
 // the <= 0 check because comparisons against NaN and positive Infinity are false.

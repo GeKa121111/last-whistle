@@ -2247,8 +2247,43 @@ function seasonAwards(state, league, teamRank) {
     if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
     if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (state.loan) return { ok: false, status: "loaned" };
+    if (!offer || typeof offer !== "object" || Array.isArray(offer)) return { ok: false, status: "invalid-offer" };
+    if (normalizeLegacyBoolean(state.freeAgent)) return { ok: false, status: "free-agent" };
+    const contractSeasonsValue = Number(state.contractSeasons);
+    if (!Number.isFinite(contractSeasonsValue) || contractSeasonsValue < 0) return { ok: false, status: "invalid-contract" };
+    if (contractSeasonsValue > 1) return { ok: false, status: "not-expiring" };
+
+    const currentClub = String(state.clubName || "").trim();
+    const offeredClub = String(offer.club || "").trim();
+    if (currentClub && offeredClub && currentClub !== offeredClub) return { ok: false, status: "club-mismatch" };
+    const hasOfferSeason = offer.season !== undefined && offer.season !== null && offer.season !== "";
+    if (hasOfferSeason) {
+      const offerSeason = Number(offer.season);
+      const currentSeason = Number(state.season);
+      if (!Number.isFinite(offerSeason) || !Number.isFinite(currentSeason) || offerSeason !== currentSeason) {
+        return { ok: false, status: "stale-offer" };
+      }
+    }
+
+    const pendingOffer = state.contractOffer;
+    if (pendingOffer && typeof pendingOffer === "object" && pendingOffer !== offer) {
+      const keys = ["club", "season", "wage", "seasons"];
+      const matchesPending = keys.every(key => {
+        const pendingValue = pendingOffer[key], suppliedValue = offer[key];
+        if (pendingValue === undefined || pendingValue === null || pendingValue === ""
+          || suppliedValue === undefined || suppliedValue === null || suppliedValue === "") return true;
+        return key === "club"
+          ? String(pendingValue).trim() === String(suppliedValue).trim()
+          : Number(pendingValue) === Number(suppliedValue);
+      });
+      if (!matchesPending) return { ok: false, status: "stale-offer" };
+    }
+
     if (decision === "accept") {
-      if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
+      if (offer.wage === undefined || offer.wage === null || offer.wage === ""
+        || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) {
+        return { ok: false, status: "invalid-offer" };
+      }
       state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
       const offerSeasonsValue = Number(offer.seasons);
       const offerSeasons = Number.isFinite(offerSeasonsValue) && offerSeasonsValue > 0

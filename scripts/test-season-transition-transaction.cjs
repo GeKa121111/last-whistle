@@ -69,9 +69,11 @@ function makeSandbox(initialState) {
   assert.equal(sandbox.state.season, 4, "season number must roll back");
   assert.equal(sandbox.state.age, 22, "player age must roll back");
   assert.equal(sandbox.state.contractSeasons, 2, "contract duration must not be deducted on a failed transition");
-  assert.deepEqual(sandbox.state.loan, { parentClub: "Original FC", parentContractSeasons: 2 },
+  assert.equal(sandbox.state.loan.parentClub, "Original FC",
     "the parent-club loan must be restored if the transition fails");
-  assert.deepEqual(sandbox.state.currentCompetitions, ["League", "Cup"],
+  assert.equal(sandbox.state.loan.parentContractSeasons, 2,
+    "the original parent-contract term must survive a failed transition");
+  assert.equal(Array.from(sandbox.state.currentCompetitions).join("|"), "League|Cup",
     "the previous season's competitions must be restored");
   assert.equal(sandbox.state.worldSimulation.lastAdvancedTo, 4,
     "a partially merged world-season marker must be rolled back");
@@ -79,7 +81,8 @@ function makeSandbox(initialState) {
     "partial world-simulation rows must not leak into the restored save");
   assert.equal(sandbox.state.worldSimulation.players[0].age, 28,
     "existing world-player data must be restored");
-  assert.deepEqual(sandbox.state.seasonLog, [{ matchId: "season-4-final", minutes: 90, goals: 1 }],
+  assert.equal(JSON.stringify(sandbox.state.seasonLog),
+    JSON.stringify([{ matchId: "season-4-final", minutes: 90, goals: 1 }]),
     "season history must survive a failed transition");
   assert.equal(Object.prototype.hasOwnProperty.call(sandbox.state, "partialTransitionMarker"), false,
     "new partial-transition fields must be removed during rollback");

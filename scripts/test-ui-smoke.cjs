@@ -17,8 +17,8 @@ if (worldAiCss !== publicWorldAiCss) {
   console.error("Root football-world-ai.css and public/football-world-ai.css are out of sync.");
   process.exit(1);
 }
-if (!/body\\.lw-rebuild\\s+#page-europe:not\\(\\.active\\)\\s*\\{[^}]*display\\s*:\\s*none\\s*!important/i.test(worldAiCss)
-  || /body\\.lw-rebuild\\s+#page-europe\\s*\\{[^}]*display\\s*:\\s*block/i.test(worldAiCss)) {
+if (!worldAiCss.includes("body.lw-rebuild #page-europe:not(.active){display:none!important;}")
+  || worldAiCss.includes("body.lw-rebuild #page-europe{\\n    display:block;")) {
   console.error("Global directory visibility regression: the Europe page must stay hidden unless its navigation tab is active.");
   process.exit(1);
 }

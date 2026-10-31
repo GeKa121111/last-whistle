@@ -748,9 +748,17 @@
         && (result.player.minutes == null
           || result.player.playerAvailable === (Number(result.player.minutes) > 0)));
     if (!playerAvailabilityValid) return { ok: false, reason: "invalid-player-availability" };
+    // Legacy results may omit playerAvailable, but an explicit zero-minute record is authoritative.
+    const playerActivityStatFields = ["goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses",
+      "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "tacklesWon", "interceptions",
+      "saves", "penaltiesSaved", "clearances", "ballRecoveries", "passAttempts", "passesCompleted",
+      "passingAccuracy", "rating"];
     const playerActivityPresent = result.events.some(event =>
-      event.side === "player" || event.creditedToPlayer === true);
-    const noPlayerActivityWhenUnavailable = result.player.playerAvailable !== false || !playerActivityPresent;
+      event.side === "player" || event.creditedToPlayer === true)
+      || playerActivityStatFields.some(field => Number(result.player[field]) > 0);
+    const zeroMinutesRecorded = result.player.minutes != null && Number(result.player.minutes) === 0;
+    const playerUnavailable = result.player.playerAvailable === false || zeroMinutesRecorded;
+    const noPlayerActivityWhenUnavailable = !playerUnavailable || !playerActivityPresent;
     if (!noPlayerActivityWhenUnavailable) {
       return { ok: false, reason: "unavailable-player-has-events", noPlayerActivityWhenUnavailable };
     }

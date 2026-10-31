@@ -6345,7 +6345,7 @@ function matchCleanSheetContractBonus(state,result,youthNoPay=false){
 function matchOutcomeForCareerRecord(result,meta={}){
  return String(meta.outcome||result?.matchOutcome||result?.outcome||"تعادل");
 }
-function applyMatchResult(result,meta){
+function applyMatchResultUnsafe(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
  const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
  const incomingScope=meta.scope||"league";
@@ -6424,6 +6424,30 @@ function applyMatchResult(result,meta){
  calendarEvent(eventKind,`${competition||"مباراة"}: ${record.club} ضد ${record.opponent}`,`${record.teamGoals}-${record.oppGoals}${participated?` • ${minutes} دقيقة • تقييم ${rating.toFixed(1)}`:" • اللاعب لم يشارك"}`);
  log(`${scope==="international"?"دولي • ":scope==="cup"?"كأس • ":"دوري • "}${record.club} ${record.teamGoals}-${record.oppGoals} ${record.opponent}${participated?` • ${minutes} دقيقة • ${rating.toFixed(1)}/10${goals?` • ${goals} هدف`:""}${assists?" • صناعة":""}`:" • لم يشارك اللاعب"}.`);
  return {record,matchPay,participated};
+}
+function applyMatchResult(result,meta){
+ let snapshot;
+ try{
+  snapshot=cloneSeasonTransitionState(state);
+ }catch(error){
+  console.error("Match settlement was not started because a safe snapshot could not be created",error);
+  try{toast("تعذر تأمين بيانات المسيرة قبل اعتماد المباراة. لم يتم تسجيل النتيجة.");}catch(toastError){}
+  return false;
+ }
+ try{
+  return applyMatchResultUnsafe(result,meta);
+ }catch(error){
+  try{restoreSeasonTransitionState(snapshot);}catch(restoreError){
+   console.error("Match settlement rollback failed",restoreError);
+   try{toast("تعذر اعتماد المباراة وتعذر استعادة نسخة المسيرة تلقائيًا. أوقف اللعب واحفظ نسخة احتياطية.");}catch(toastError){}
+   return false;
+  }
+  console.error("Match settlement rolled back",error);
+  try{render();}catch(renderError){console.warn("Match settlement rollback render failed",renderError);}
+  try{saveGame(true);}catch(saveError){console.warn("Match settlement rollback queue failed",saveError);}
+  try{toast("تعذر اعتماد نتيجة المباراة. تمت استعادة بيانات المسيرة؛ يمكنك المحاولة مرة أخرى.");}catch(toastError){}
+  return false;
+ }
 }
 function formatMatchEvents(events){
  const labels={goal:"هدف",assist:"تمريرة حاسمة",save:"تصدي",tackle:"افتكاك",interception:"اعتراض",foul:"مخالفة",offside:"تسلل", "yellow-card":"إنذار", "red-card":"طرد",injury:"إصابة","substitution-on":"دخول بديل",substitution:"تبديل"};

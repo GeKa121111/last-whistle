@@ -1533,6 +1533,65 @@ const staleFreeAgentLoan = {
 };
 assert.equal(eligibilityContext.isCareerMatchEligible(staleFreeAgentLoan, "league"), true,
   "a legacy top-level free-agent flag must not override an explicit professional parent contract");
+for (const malformedParentTerm of ["Infinity", "not-a-number", Infinity, NaN]) {
+  const malformedParentLoan = {
+    ...legacyLoanWage,
+    freeAgent: false, contractType: "professional", weeklyWage: 900, contractSeasons: 2,
+    loan: {
+      ...legacyLoanWage.loan,
+      parentFreeAgent: false, parentContractType: "professional",
+      parentContractSeasons: malformedParentTerm
+    }
+  };
+  const browserMalformedParentLoan = {
+    ...malformedParentLoan, loan: { ...malformedParentLoan.loan }
+  };
+  career.ensureState(malformedParentLoan);
+  deployedCareer.ensureState(browserMalformedParentLoan);
+  assert.equal(malformedParentLoan.weeklyWage, 0,
+    "a malformed saved parent term must not keep a loan wage active in the shared engine");
+  assert.equal(browserMalformedParentLoan.weeklyWage, 0,
+    "the embedded engine must also stop payroll for a malformed parent contract term");
+  const sharedMalformedSnapshot = career.contractStateForSeasonTransition(malformedParentLoan);
+  const browserMalformedSnapshot = deployedCareer.contractStateForSeasonTransition(browserMalformedParentLoan);
+  assert.equal(sharedMalformedSnapshot.freeAgent, true,
+    "a non-finite parent contract term must restore as free agency");
+  assert.equal(browserMalformedSnapshot.freeAgent, true,
+    "the embedded engine must restore a non-finite parent term as free agency");
+  assert.equal(JSON.stringify(browserMalformedSnapshot), JSON.stringify(sharedMalformedSnapshot),
+    "shared and embedded malformed parent-term recovery must remain identical");
+  assert.equal(eligibilityContext.isCareerMatchEligible(malformedParentLoan, "league"), false,
+    "a malformed parent term must block club appearances before the loan is returned");
+}
+
+for (const blankParentContractType of [null, "", "   "]) {
+  const blankTypeLoan = {
+    ...legacyLoanWage,
+    freeAgent: true, contractType: "professional", weeklyWage: 900, contractSeasons: 2,
+    loan: {
+      ...legacyLoanWage.loan,
+      parentContractSeasons: 2,
+      parentContractType: blankParentContractType
+    }
+  };
+  delete blankTypeLoan.loan.parentFreeAgent;
+  const browserBlankTypeLoan = { ...blankTypeLoan, loan: { ...blankTypeLoan.loan } };
+  career.ensureState(blankTypeLoan);
+  deployedCareer.ensureState(browserBlankTypeLoan);
+  assert.equal(blankTypeLoan.weeklyWage, 900,
+    "a blank legacy parent contract type must fall back to the saved professional contract, not a stale free-agent flag");
+  assert.equal(browserBlankTypeLoan.weeklyWage, 900,
+    "embedded loan normalization must fall back from a blank parent contract type");
+  const sharedBlankTypeSnapshot = career.contractStateForSeasonTransition(blankTypeLoan);
+  const browserBlankTypeSnapshot = deployedCareer.contractStateForSeasonTransition(browserBlankTypeLoan);
+  assert.equal(sharedBlankTypeSnapshot.freeAgent, false);
+  assert.equal(sharedBlankTypeSnapshot.contractType, "professional");
+  assert.equal(eligibilityContext.isCareerMatchEligible(blankTypeLoan, "league"), true,
+    "a blank parent contract type must not override a valid professional parent contract");
+  assert.equal(JSON.stringify(browserBlankTypeSnapshot), JSON.stringify(sharedBlankTypeSnapshot),
+    "shared and embedded blank parent contract type fallback must remain identical");
+}
+
 
 const missingTopLevelLoanTerm = {
   pos: "مهاجم", age: 24, freeAgent: true, contractType: "professional", weeklyWage: 900,

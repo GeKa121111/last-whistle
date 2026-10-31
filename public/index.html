@@ -6335,7 +6335,10 @@ function careerMatchPlayerEligible(state,scope="league"){
  if(legacyBoolean(state.retired))return false;
  if(scope==="international")return true;
  const loan=state.loan&&typeof state.loan==="object"?state.loan:null;
- const contractTypeValue=loan&&loan.parentContractType!==undefined?loan.parentContractType:state.contractType;
+ const savedParentContractType=loan?loan.parentContractType:undefined;
+ const hasSavedParentContractType=savedParentContractType!==undefined&&savedParentContractType!==null
+  &&!(typeof savedParentContractType==="string"&&!savedParentContractType.trim());
+ const contractTypeValue=loan&&hasSavedParentContractType?savedParentContractType:state.contractType;
  const normalizedContractType=String(contractTypeValue||"").trim().toLowerCase();
  const savedParentFreeAgent=loan?loan.parentFreeAgent:undefined;
  const hasSavedParentFreeAgent=savedParentFreeAgent!==undefined&&savedParentFreeAgent!==null
@@ -6350,7 +6353,7 @@ function careerMatchPlayerEligible(state,scope="league"){
  const contractValue=hasSavedParentContractSeasons?savedParentContractSeasons:state.contractSeasons;
  const contractMissing=contractValue===undefined||contractValue===null||contractValue==="";
  const contractSeasons=Number(contractValue);
- const expired=!contractMissing&&Number.isFinite(contractSeasons)&&contractSeasons<=0;
+ const expired=!contractMissing&&(!Number.isFinite(contractSeasons)||contractSeasons<=0);
  const freeAgentType=normalizedContractType==="free-agent";
  return !freeAgent&&!freeAgentType&&!expired;
 }

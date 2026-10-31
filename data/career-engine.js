@@ -292,8 +292,12 @@
     if (state.pos && String(state.pos).trim()) state.pos = normalizeCareerPosition(state.pos);
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
     const hasActiveLoan = !!(state.loan && typeof state.loan === "object" && !Array.isArray(state.loan));
-    const effectiveContractType = String(hasActiveLoan && state.loan.parentContractType !== undefined
-      ? state.loan.parentContractType : state.contractType || "").trim().toLowerCase();
+    const savedParentContractType = hasActiveLoan ? state.loan.parentContractType : undefined;
+    const hasSavedParentContractType = savedParentContractType !== undefined
+      && savedParentContractType !== null
+      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
+    const effectiveContractType = String(hasActiveLoan && hasSavedParentContractType
+      ? savedParentContractType : state.contractType || "").trim().toLowerCase();
     const savedParentFreeAgent = hasActiveLoan ? state.loan.parentFreeAgent : undefined;
     const hasSavedParentFreeAgent = savedParentFreeAgent !== undefined
       && savedParentFreeAgent !== null
@@ -307,8 +311,15 @@
     const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
       && savedParentContractSeasons !== null
       && !(typeof savedParentContractSeasons === "string" && savedParentContractSeasons.trim() === "");
-    const effectiveContractSeasons = hasActiveLoan && hasSavedParentContractSeasons
-      ? Number(savedParentContractSeasons) : Number(state.contractSeasons);
+    const savedStateContractSeasons = state.contractSeasons;
+    const stateContractSeasonsMissing = savedStateContractSeasons === undefined || savedStateContractSeasons === null
+      || (typeof savedStateContractSeasons === "string" && savedStateContractSeasons.trim() === "");
+    const fallbackParentContractSeasons = stateContractSeasonsMissing
+      ? (effectiveFreeAgent || effectiveContractType === "free-agent" ? 0 : 2)
+      : Number(savedStateContractSeasons);
+    const effectiveContractSeasons = hasActiveLoan
+      ? hasSavedParentContractSeasons ? Number(savedParentContractSeasons) : fallbackParentContractSeasons
+      : Number(state.contractSeasons);
     if (!hasActiveLoan && effectiveContractType === "free-agent") state.freeAgent = true;
     if (!hasActiveLoan && state.freeAgent && !normalizeLegacyBoolean(state.academyGraduationPending)) state.contractType = "free-agent";
     state.retired = normalizeLegacyBoolean(state.retired);
@@ -399,7 +410,7 @@
     if (!hasActiveLoan && state.freeAgent) state.contractSeasons = 0;
     if (effectiveFreeAgent || state.retired || effectiveContractType === "free-agent"
       || (!hasActiveLoan && Number(state.contractSeasons) <= 0)
-      || (hasActiveLoan && Number.isFinite(effectiveContractSeasons) && effectiveContractSeasons <= 0)) {
+      || (hasActiveLoan && (!Number.isFinite(effectiveContractSeasons) || effectiveContractSeasons <= 0))) {
       state.weeklyWage = 0;
     }
     const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";

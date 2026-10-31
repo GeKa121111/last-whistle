@@ -1118,7 +1118,9 @@ assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
  // The async wrapper must reject stale season requests before its own completion/promotion side effects.
  const staleWrapperSave = { season: 1, name: "Stale world-season wrapper regression" };
  const staleWrapperWorld = ai.ensureState(staleWrapperSave, db);
- const staleLeagueId = "stale-season-guard-league";
+ const staleLeagueId = "scotland";
+ assert.ok(db.leagues().some(profile => String(profile.id) === staleLeagueId),
+   "the stale-season fixture must use a league supported by the current source catalogue");
  const staleFirstDivision = [], staleSecondDivision = [];
  for (let index = 0; index < 6; index++) {
    const id = "stale-season-first-" + index;

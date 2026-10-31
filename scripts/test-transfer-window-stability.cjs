@@ -221,7 +221,7 @@ const expiryTest=()=>{
     "a saved direct transfer offer from the previous window must be cleared");
   assert.equal(scenario.state.clubName,"نادي أ",
     "an expired direct transfer offer must not change the player's club");
-  assert.match(toastMessage,/انتهت صلاحيتها/,
+  assert.match(toastMessage,/انتهت صلاحيته/,
     "the player must be told that the old transfer offer expired");
   assert.equal(saveCount,1,"clearing an expired offer must be persisted");
   assert.equal(renderCount,1,"the transfer UI must refresh after expiry");

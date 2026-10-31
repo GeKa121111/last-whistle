@@ -201,7 +201,10 @@
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
     const identityValue = (row, field) => {
-      const value = field === "competition" ? row.competition || row.leagueCompetition : row[field];
+      const value = field === "competition"
+        ? [row.competition, row.leagueCompetition].find(candidate =>
+          candidate !== undefined && candidate !== null && String(candidate).trim() !== "")
+        : row[field];
       return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
     };
     const rowSignature = row => {

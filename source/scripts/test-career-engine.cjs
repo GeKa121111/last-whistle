@@ -98,8 +98,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 298);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 55);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 311);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 61);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -443,6 +443,29 @@ delete partialLegacyDuplicate.day;
 delete partialLegacyDuplicate.matchday;
 assert.equal(career.uniqueMatchRows([legacyLeagueFixture, partialLegacyDuplicate]).length, 1,
   "a partially enriched copy with matching opponent and competition identity must still be deduplicated");
+
+const whitespaceCompetitionLeagueFixture = {
+  id: "legacy-whitespace-competition-id", scope: "league", competition: "   ",
+  leagueCompetition: "Premier League", season: 4, segmentId: "season-4",
+  club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+  minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const whitespaceCompetitionCupFixture = {
+  ...whitespaceCompetitionLeagueFixture,
+  competition: "National Cup", leagueCompetition: "National Cup", goals: 1, rating: 8
+};
+assert.equal(career.uniqueMatchRows([
+  whitespaceCompetitionLeagueFixture, whitespaceCompetitionCupFixture
+]).length, 2,
+  "a whitespace competition field must not hide the legacy leagueCompetition and collapse another competition");
+const normalizedCompetitionCopy = {
+  ...whitespaceCompetitionLeagueFixture, competition: "Premier League"
+};
+assert.equal(career.uniqueMatchRows([
+  whitespaceCompetitionLeagueFixture, normalizedCompetitionCopy
+]).length, 1,
+  "a whitespace competition field with a matching legacy leagueCompetition must still deduplicate its copied fixture");
+
 
 const crossCompetitionHistory = {
   apps: 2, seasonLog: [legacyLeagueFixture], careerMatchHistory: [legacyCupFixture]
@@ -1331,6 +1354,27 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+const whitespaceCompetitionParityRows = [
+  {
+    id: "legacy-whitespace-competition-id", scope: "league", competition: "   ",
+    leagueCompetition: "Premier League", season: 4, segmentId: "season-4",
+    club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+    minutes: 90, rating: 7, goals: 0, assists: 0
+  },
+  {
+    id: "legacy-whitespace-competition-id", scope: "league", competition: "National Cup",
+    leagueCompetition: "National Cup", season: 4, segmentId: "season-4",
+    club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+    minutes: 90, rating: 8, goals: 1, assists: 0
+  }
+];
+assert.equal(deployedCareer.uniqueMatchRows(whitespaceCompetitionParityRows).length, 2,
+  "the deployed browser engine must preserve competition identity when the primary legacy field is whitespace");
+assert.equal(JSON.stringify(deployedCareer.uniqueMatchRows(whitespaceCompetitionParityRows)),
+  JSON.stringify(career.uniqueMatchRows(whitespaceCompetitionParityRows)),
+  "source and embedded history deduplication must stay identical for whitespace competition values");
+
 const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
   role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
 }, poorFormHistory);

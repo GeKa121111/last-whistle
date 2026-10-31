@@ -431,7 +431,7 @@ async function main() {
 
     const sections = ["home", "training", "stats", "wellness", "league", "europe", "contract", "national", "shop", "life", "diary"];
     for (const section of sections) {
-      await page.locator("#menuOpen").click();
+      await page.locator("#mobileMore").click();
       await page.locator('#drawer .navBtn[data-page="' + section + '"]').click();
       await page.waitForFunction(value => {
         const active = document.querySelector(".page.active");
@@ -522,7 +522,7 @@ async function main() {
       if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
       if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
     });
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
     await page.locator('#shopItems [data-buy="xpMultiplier"]').click();
     await page.waitForFunction(() => {
@@ -587,7 +587,7 @@ async function main() {
     results.push("career and store ownership persist after reload");
 
     // Full backup must remain portable with the multi-thousand-player world simulation.
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     const [backupDownload] = await Promise.all([
       page.waitForEvent("download"),
       page.locator("#exportSaveBtn").click()
@@ -680,7 +680,7 @@ async function main() {
     }, null, { timeout: 10000 });
     results.push("compressed backup exports and restores the player career and full world AI database");
 
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     await page.waitForFunction(() => {
       const app = document.querySelector(".app.hasSidebar");
@@ -1040,7 +1040,7 @@ async function main() {
       state.trainingIntensity = "intense";
       window.LWStoryRuntime.save();
     });
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     await page.locator("#lw-cta-season").click();
     await page.waitForFunction(() => {
@@ -1217,7 +1217,7 @@ async function main() {
       window.LWStoryRuntime.render();
     }, transferFixture.backup);
 
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     // At the winter break, the primary season action correctly reopens the winter-market decision.
     await page.locator("#lw-cta-season").click();

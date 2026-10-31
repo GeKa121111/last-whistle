@@ -6676,6 +6676,10 @@ function simulateSeasonBlock(targetApps){
  if(state.trainedToday)advanceCalendarDays(1,"راحة بعد التدريب قبل محاكاة المباريات");
  const target=Math.min(seasonMatchTotal(),Math.max(state.seasonApps,targetApps));let simulated=0;
  while(state.seasonApps<target){
+  let roundSnapshot;
+  try{roundSnapshot=cloneSeasonTransitionState(state);}catch(error){toast("تعذر تأمين نسخة آمنة من جولة الدوري؛ لم يتم تنفيذها. حاول الحفظ ثم أعد المحاولة.");break;}
+  const simulatedBeforeRound=simulated;
+  try{
   const roundIndex=Math.max(0,Number(state.leagueRoundIndex)||0),round=state.fixtureSchedule[roundIndex]||[],ours=clubNameForLeague();
   if(roundIndex>=state.fixtureSchedule.length)break;
   let fixture=round.find(pair=>Array.isArray(pair)&&pair.includes(ours));
@@ -6694,7 +6698,7 @@ function simulateSeasonBlock(targetApps){
   const tactic=state.lastTactic||"balanced";
   const result=simulateCareerMatch({opponent,opponentTeam,scope:"league",competition:state.leagueCompetition,tactic,matchId:id,home:fixture[0]===ours,mode:"season-simulation",playerAvailable:!suspended});
   const settled=applyMatchResult(result,{id,scope:"league",country:state.leagueCountry,competition:state.leagueCompetition,opponent,tactic,home:fixture[0]===ours,matchday:roundIndex+1,suspendedAtKickoff:suspended});
-  if(!settled){toast("تم منع تسجيل نتيجة مباراة مكررة.");break;}
+  if(!settled){restoreSeasonTransitionState(roundSnapshot);toast("تم منع تسجيل نتيجة مباراة مكررة؛ لم يتم تغيير تقدم الجولة.");break;}
   const gf=result.score.for,ga=result.score.against;
   state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;state.seasonApps++;state.leagueApps++;state.leagueRoundIndex=roundIndex+1;updateLeague(opponent,gf,ga,roundIndex);simulateOtherFixtures(roundIndex,fixture);recordLeagueRound(roundIndex,fixture,opponent,gf,ga,settled);
   const injuryText=result.player.injuryDays?` إصابة ${result.player.injuryDays} يوم.`:"";
@@ -6704,6 +6708,14 @@ function simulateSeasonBlock(targetApps){
   // AI-managed development: one position-specific training day, followed by recovery before the next fixture.
   advanceCalendarDays(1,"استشفاء بعد المباراة");advanceCalendarDays(seasonMatchIntervalDays()-1,"استشفاء وتجهيز للمباراة التالية");
   if(injuryText)log(`${state.name} سيغيب ${result.player.injuryDays} يومًا بعد المباراة.`);
+  }catch(error){
+   restoreSeasonTransitionState(roundSnapshot);
+   simulated=simulatedBeforeRound;
+   const reason=String(error&&error.message||error||"unknown");
+   try{log("تعذر اعتماد جولة الدوري؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
+   try{toast("تعذر اعتماد جولة الدوري. تمت استعادة بيانات المسيرة؛ يمكنك المحاولة مرة أخرى.");}catch(toastError){}
+   break;
+  }
  }
  if(state.seasonApps>=seasonMatchTotal()){state.seasonPhase="complete";state.winterBreakPending=false;setStory("اكتمل الموسم",`خلصت ${state.seasonApps} مباراة من أصل ${seasonMatchTotal()} في الموسم ${state.season}. اتسجلت المشاركات الفعلية فقط.`);log("اكتملت محاكاة الموسم بالكامل.");saveGame(true);render();finishSeason();return;}
  saveGame(true);render();

@@ -690,6 +690,26 @@ assert.ok(tacticalSignatures.size > 1, "different opponent tactics must change a
 const unavailable = engine.simulateMatch({ seed: 42, playerAvailable: false, player: { position: "مهاجم", energy: 90 } });
 assert.equal(unavailable.player.minutes, 0, "unavailable player cannot play");
 assert.equal(unavailable.player.goals, 0, "unavailable player cannot score");
+const impossibleZeroMinuteGoal = JSON.parse(JSON.stringify(unavailable));
+impossibleZeroMinuteGoal.score = { for: 1, against: 0 };
+impossibleZeroMinuteGoal.regulation = { for: 1, against: 0 };
+impossibleZeroMinuteGoal.outcome = "فوز";
+impossibleZeroMinuteGoal.matchOutcome = "فوز";
+impossibleZeroMinuteGoal.player = {
+  ...impossibleZeroMinuteGoal.player, goals: 1, shots: 1, shotsOnTarget: 1, chances: 1
+};
+impossibleZeroMinuteGoal.events = [
+  { type: "substitution-on", minute: 1, side: "player", reason: "invalid zero-minute entry" },
+  { type: "shot", minute: 1, side: "team", onTarget: true, shooter: "player", creditedToPlayer: true },
+  { type: "goal", minute: 1, side: "team", goalEventId: "zero-minute-goal", scorer: "player", creditedToPlayer: true }
+];
+const impossibleGoalValidation = engine.validateResult(impossibleZeroMinuteGoal);
+assert.equal(impossibleGoalValidation.ok, false,
+  "a player marked unavailable must not receive a goal or any other player event with zero minutes");
+assert.equal(impossibleGoalValidation.reason, "unavailable-player-has-events",
+  "zero-minute player activity must have a distinct ledger validation reason");
+assert.equal(browserEngine.validateResult(impossibleZeroMinuteGoal).reason, "unavailable-player-has-events",
+  "the deployed validator must reject the same impossible zero-minute player goal");
 // Bench-role appearances must begin late, not be simulated as a first-half starter.
 const substituteOptions = {
   seed: 24061028, teamPower: 62, opponentPower: 58,

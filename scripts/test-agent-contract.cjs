@@ -277,4 +277,20 @@ assert.equal(state.agentDebtPaid, 1170, "repayments across representatives must 
 const duplicateAfterSettlement = window.LWAgentRuntime.collectDebtFromPayroll(state, 1000 - karimCommission, state.calendarDay);
 assert.equal(duplicateAfterSettlement.paid, 0, "a repeated callback after settlement must remain idempotent");
 
-console.log("PASS: agent debts migrate, survive representative changes and termination, repay FIFO from future net wages, and cannot be collected twice per payroll day.");
+// A legacy/free-agent save can retain an old wage value. It must not generate salary or agent commission.
+const balanceBeforeUnsignedPayroll = state.money;
+const commissionBeforeUnsignedPayroll = state.agentCommissionPaid;
+const debtPaidBeforeUnsignedPayroll = state.agentDebtPaid;
+state.freeAgent = true;
+state.contractSeasons = 0;
+state.contractType = "free-agent";
+state.weeklyWage = 1000;
+payOneWeek();
+assert.equal(state.money, balanceBeforeUnsignedPayroll,
+  "an unsigned player must not receive a stale weekly wage");
+assert.equal(state.agentCommissionPaid, commissionBeforeUnsignedPayroll,
+  "an unsigned player must not accrue a new weekly agent commission");
+assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
+  "no debt may be collected when no contracted wage is paid");
+
+console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, and no salary for unsigned free agents.");

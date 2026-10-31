@@ -1621,6 +1621,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
         : (state.freeAgent || state.retired ? 0 : 2);
     }
+    if(state.freeAgent||state.retired||String(state.contractType||"").toLowerCase()==="free-agent"||Number(state.contractSeasons)<=0)state.weeklyWage=0;
     const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
     state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
     const careerXPValue = Number(state.careerXP);
@@ -4835,7 +4836,7 @@ function returnFromLoan(){
 }
 
 function renderContract(){
- const statusPill=$("contractStatusPill");if(statusPill){statusPill.textContent=state.retired?"معتزل":state.loan?"معار":state.academyGraduationPending?"قرار التخرج":state.academyCareer?"أكاديمية الناشئين":state.academyReserve?"فريق الرديف":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"ناشئ / هاوي":Number(state.contractSeasons)<=1?"ينتهي بنهاية الموسم":"ساري";statusPill.className="pill "+(state.retired?"red":state.loan?"gold":state.academyGraduationPending||state.academyCareer||state.academyReserve||Number(state.contractSeasons)<=1?"gold":state.freeAgent?"red":"green");}setText("contractClub",state.academyGraduationPending?"أكاديمية "+(state.clubName||"النادي")+" — اختر مسارك":state.academyCareer?"أكاديمية "+(state.clubName||"النادي"):state.academyReserve?"فريق الرديف — "+(state.clubName||"النادي"):state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي"):state.freeAgent?"لاعب حر — بدون عقد":club().name);setText("currentClubLeague",`${state.leagueCompetition||"الدوري المحلي"} • ${state.leagueCountry||"مصر"} • ${state.leagueSource||"بيانات اللعبة"}`);setText("weeklyWage",Number(state.weeklyWage||0).toLocaleString("en-US"));setText("weeklyWageLabel",state.loan?"مرتب الإعارة / أسبوع":currencyLabel()+" / أسبوع");setText("contractYears",state.freeAgent?0:state.contractSeasons);setText("contractTrust",state.trust+"%");
+ const statusPill=$("contractStatusPill");if(statusPill){statusPill.textContent=state.retired?"معتزل":state.loan?"معار":state.academyGraduationPending?"قرار التخرج":state.academyCareer?"أكاديمية الناشئين":state.academyReserve?"فريق الرديف":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"ناشئ / هاوي":Number(state.contractSeasons)<=1?"ينتهي بنهاية الموسم":"ساري";statusPill.className="pill "+(state.retired?"red":state.loan?"gold":state.academyGraduationPending||state.academyCareer||state.academyReserve||Number(state.contractSeasons)<=1?"gold":state.freeAgent?"red":"green");}setText("contractClub",state.academyGraduationPending?"أكاديمية "+(state.clubName||"النادي")+" — اختر مسارك":state.academyCareer?"أكاديمية "+(state.clubName||"النادي"):state.academyReserve?"فريق الرديف — "+(state.clubName||"النادي"):state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي"):state.freeAgent?"لاعب حر — بدون عقد":club().name);setText("currentClubLeague",`${state.leagueCompetition||"الدوري المحلي"} • ${state.leagueCountry||"مصر"} • ${state.leagueSource||"بيانات اللعبة"}`);setText("weeklyWage",careerMatchPlayerEligible(state,"league")?Number(state.weeklyWage||0).toLocaleString("en-US"):"0");setText("weeklyWageLabel",state.loan?"مرتب الإعارة / أسبوع":currencyLabel()+" / أسبوع");setText("contractYears",state.freeAgent?0:state.contractSeasons);setText("contractTrust",state.trust+"%");
  const negotiationStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
  const contractHint=state.academyGraduationPending?"أكملت أكاديمية الناشئين. اختار عقد الفريق الأول أو موسم الرديف قبل بدء أي مفاوضات.":state.academyCareer?"أنت ضمن أكاديمية النادي؛ مرتبك صفر خلال مرحلة الناشئين، والتطور والمشاركة هما طريقك للتصعيد في سن 18.":state.academyReserve?"أنت في فريق الرديف لموسم واحد؛ الأداء الجيد هيفتح لك طريق الفريق الأول.":state.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن بدء تفاوض جديد.":state.loan?"عقدك مع "+String(state.loan.parentClub||"النادي الأصلي")+" مستمر خلال الإعارة؛ التفاوض المباشر متوقف حتى العودة.":state.freeAgent?"انتهى عقدك؛ لا يوجد مرتب حاليًا. استخدم سوق الأندية للحصول على عقد جديد.":Number(state.contractSeasons)<=1?"عقدك ينتهي بنهاية الموسم؛ سيظهر عرض تجديد رسمي عند إتمام الموسم.":negotiationStatus==="cooldown"?`التفاوض القادم متاح بعد ${Math.max(1,7-(Number(state.daysSinceNegotiation)||0))} أيام.`:"تقدر تفاوض على تحسين الراتب ما دام عقدك ساريًا لأكثر من موسم.";
  setText("contractMessage",contractHint);
@@ -4943,7 +4944,7 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  const wages=Math.max(0,newWeek-oldWeek),wageValue=Number(state.weeklyWage),grossWeeklyWage=Number.isFinite(wageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(wageValue))):0;
  const moneyValue=Number(state.money),balance=Number.isFinite(moneyValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,moneyValue)):0;
  state.weeklyWage=grossWeeklyWage;state.money=balance;
- if(wages&&grossWeeklyWage>0){
+ if(wages&&grossWeeklyWage>0&&careerMatchPlayerEligible(state,"league")){
   const calculatedGrossPay=wages*grossWeeklyWage,grossPay=Number.isFinite(calculatedGrossPay)?Math.min(Number.MAX_SAFE_INTEGER,calculatedGrossPay):Number.MAX_SAFE_INTEGER;
   const rawRate=Number(window.LWAgentRuntime?.commissionRate?.(state)),rate=Number.isFinite(rawRate)?Math.max(0,Math.min(.14,rawRate)):0;
   const commission=Math.min(grossPay,Math.round(grossPay*rate)),netPay=grossPay-commission;
@@ -5965,8 +5966,20 @@ function playSeasonBlock(){
 function disciplineKey(scope,country,competition){return `${scope}|${country||""}|${competition||""}`;}
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
 function careerMatchPlayerEligible(state,scope="league"){
- const freeAgent=!!state&&(state.freeAgent===true||state.freeAgent==="true"||state.freeAgent===1||state.freeAgent==="1");
- return scope==="international"||!freeAgent;
+ if(!state)return false;
+ const retired=state.retired===true||state.retired==="true"||state.retired===1||state.retired==="1";
+ if(retired)return false;
+ if(scope==="international")return true;
+ const loan=state.loan&&typeof state.loan==="object"?state.loan:null;
+ const freeAgentValue=loan&&loan.parentFreeAgent!==undefined?loan.parentFreeAgent:state.freeAgent;
+ const freeAgent=freeAgentValue===true||freeAgentValue==="true"||freeAgentValue===1||freeAgentValue==="1";
+ const contractValue=loan&&loan.parentContractSeasons!==undefined&&loan.parentContractSeasons!==null
+  ?loan.parentContractSeasons:state.contractSeasons;
+ const contractMissing=contractValue===undefined||contractValue===null||contractValue==="";
+ const contractSeasons=Number(contractValue);
+ const expired=!contractMissing&&Number.isFinite(contractSeasons)&&contractSeasons<=0;
+ const freeAgentType=!loan&&String(state.contractType||"").toLowerCase()==="free-agent";
+ return !freeAgent&&!freeAgentType&&!expired;
 }
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}

@@ -74,12 +74,22 @@ assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true }, "league"), f
   "an unsigned free agent must not be eligible for club matches");
 assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: "true" }, "cup"), false,
   "legacy string booleans must also block club appearances");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: false, contractSeasons: 0 }, "league"), false,
+  "an expired contract must block club appearances even if an old save missed the free-agent flag");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: false, contractType: "free-agent", contractSeasons: 2 }, "league"), false,
+  "the saved free-agent contract type must block club appearances");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true, contractSeasons: 0, loan: { parentFreeAgent: false, parentContractSeasons: 1 } }, "league"), true,
+  "an active parent contract must remain eligible while the player is on loan");
 assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true }, "international"), true,
   "free-agent status must not block national-team appearances");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true, retired: true }, "international"), false,
+  "retirement must still block national-team appearances");
 assert.match(careerMatchSimulationSource, /careerMatchPlayerEligible\(state,scope\)/,
   "the match simulator must make free agents unavailable for club fixtures");
 assert.match(applyMatchResultSource, /careerMatchPlayerEligible\(state,incomingScope\)/,
   "result settlement must reject any club appearance that bypasses the simulator");
+assert.match(app, /if\(wages&&grossWeeklyWage>0&&careerMatchPlayerEligible\(state,"league"\)\)/,
+  "weekly payroll must be gated by an active club contract");
 vm.runInContext(
   transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
     + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
@@ -799,7 +809,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v261"), "signing-bonus commission changes must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v262"), "signing-bonus commission changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=9"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

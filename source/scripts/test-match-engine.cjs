@@ -634,8 +634,10 @@ const substituteOptions = {
 };
 const substituteResult = engine.simulateMatch(substituteOptions);
 const substituteEntry = substituteResult.events.find(event => event.type === "substitution-on" && event.side === "player");
-assert.ok(substituteEntry && substituteEntry.minute > 0,
-  "a bench-role player must have an explicit late entry event");
+assert.ok(substituteEntry && substituteEntry.minute >= 55,
+  "a regular substitute must enter in the final 35 minutes, not during the first half");
+assert.ok(substituteResult.player.minutes <= 35,
+  "a regular substitute must not receive more than 35 planned minutes even with high fitness and energy");
 const substituteExit = substituteResult.events
   .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
   .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
@@ -655,8 +657,10 @@ for (const [benchRole, seed] of [["ناشئ / بديل", 24061029], ["لاعب �
     player: { ...substituteOptions.player, role: benchRole }
   });
   const entry = youthSubstitute.events.find(event => event.type === "substitution-on" && event.side === "player");
-  assert.ok(entry && Number(entry.minute) > 0,
-    benchRole + " must be treated as a real bench role");
+  assert.ok(entry && Number(entry.minute) >= 60,
+    benchRole + " must be treated as a late bench role and enter no earlier than minute 60");
+  assert.ok(youthSubstitute.player.minutes <= 30,
+    benchRole + " must be capped at 30 playing minutes for a prospect cameo");
   assert.equal(engine.validateResult(youthSubstitute).ok, true,
     benchRole + " must keep player events inside the actual playing interval");
 }
@@ -694,8 +698,13 @@ for (let seed = 310000; seed < 310160; seed += 1) {
       trust: 80, fitness: 90, energy: 95, fatigue: 0 }
   });
   const entry = rotated.events.find(event => event.type === "substitution-on" && event.side === "player");
-  if (entry) rotationBenchAppearances += 1;
-  else rotationStarts += 1;
+  if (entry) {
+    rotationBenchAppearances += 1;
+    assert.ok(Number(entry.minute) >= 45,
+      "a rotation player brought on from the bench must enter in the second half");
+    assert.ok(rotated.player.minutes <= 45,
+      "a rotation bench appearance must not exceed 45 playing minutes");
+  } else rotationStarts += 1;
   assert.equal(engine.validateResult(rotated).ok, true,
     "both rotation starts and substitute appearances must pass match validation");
 }

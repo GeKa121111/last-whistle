@@ -2172,7 +2172,17 @@ function seasonAwards(state, league, teamRank) {
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
-    const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional")).trim();
+    const savedParentContractType = loan.parentContractType;
+    const hasSavedParentContractType = savedParentContractType !== undefined
+      && savedParentContractType !== null
+      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
+    const savedStateContractType = state.contractType;
+    const hasSavedStateContractType = savedStateContractType !== undefined
+      && savedStateContractType !== null
+      && !(typeof savedStateContractType === "string" && savedStateContractType.trim() === "");
+    const parentContractType = String(hasSavedParentContractType ? savedParentContractType
+      : hasSavedStateContractType ? savedStateContractType
+        : parentFreeAgent ? "free-agent" : "professional").trim();
     const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
     // Older loan saves may omit this snapshot or serialize it as null/blank; fall back to the parent term on state.
     const savedParentContractSeasons = loan.parentContractSeasons;
@@ -5176,7 +5186,14 @@ function returnFromLoan(){
  archiveLeagueSegment("loan-return");
  const hostClub=state.clubName;
  const parentFreeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);
- const parentContractType=String(l.parentContractType||state.contractType||"professional").trim();
+ const savedParentContractType=l.parentContractType;
+  const hasSavedParentContractType=savedParentContractType!==undefined&&savedParentContractType!==null
+   &&!(typeof savedParentContractType==="string"&&!savedParentContractType.trim());
+  const savedStateContractType=state.contractType;
+  const hasSavedStateContractType=savedStateContractType!==undefined&&savedStateContractType!==null
+   &&!(typeof savedStateContractType==="string"&&!savedStateContractType.trim());
+  const parentContractType=String(hasSavedParentContractType?savedParentContractType
+   :hasSavedStateContractType?savedStateContractType:parentFreeAgent?"free-agent":"professional").trim();
  const parentIsFreeAgent=parentFreeAgent||parentContractType.toLowerCase()==="free-agent";
  const savedParentContractSeasons=l.parentContractSeasons;
  const parentTermMissing=savedParentContractSeasons===undefined||savedParentContractSeasons===null

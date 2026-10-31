@@ -869,7 +869,17 @@
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
-    const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional")).trim();
+    const savedParentContractType = loan.parentContractType;
+    const hasSavedParentContractType = savedParentContractType !== undefined
+      && savedParentContractType !== null
+      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
+    const savedStateContractType = state.contractType;
+    const hasSavedStateContractType = savedStateContractType !== undefined
+      && savedStateContractType !== null
+      && !(typeof savedStateContractType === "string" && savedStateContractType.trim() === "");
+    const parentContractType = String(hasSavedParentContractType ? savedParentContractType
+      : hasSavedStateContractType ? savedStateContractType
+        : parentFreeAgent ? "free-agent" : "professional").trim();
     const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
     // Older loan saves may omit this snapshot or serialize it as null/blank; fall back to the parent term on state.
     const savedParentContractSeasons = loan.parentContractSeasons;

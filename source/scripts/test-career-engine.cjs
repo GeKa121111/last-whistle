@@ -1590,6 +1590,12 @@ for (const blankParentContractType of [null, "", "   "]) {
     "a blank parent contract type must not override a valid professional parent contract");
   assert.equal(JSON.stringify(browserBlankTypeSnapshot), JSON.stringify(sharedBlankTypeSnapshot),
     "shared and embedded blank parent contract type fallback must remain identical");
+  const browserBlankTypeReturn = runBrowserLoanReturn(400, 2, "أساسي", 2, false, blankParentContractType);
+  assert.equal(browserBlankTypeReturn.result, true);
+  assert.equal(browserBlankTypeReturn.state.contractType, "professional",
+    "loan return must restore a professional contract when the saved parent type is blank or whitespace");
+  assert.equal(browserBlankTypeReturn.state.freeAgent, false);
+
 }
 
 

@@ -1286,6 +1286,9 @@ async function main() {
     assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
     results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
 
+    // The end-of-season report is modal; close it before testing the page drawer.
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("#modalShade")?.classList.contains("open"));
     const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary", "social"];
     const mobileLayoutAudit = [];
     for (const route of mobileRoutes) {

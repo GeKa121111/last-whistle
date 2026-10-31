@@ -1286,7 +1286,7 @@ async function main() {
     assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
     results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
 
-    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary"];
+    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary", "social"];
     const mobileLayoutAudit = [];
     for (const route of mobileRoutes) {
       const layout = await page.evaluate(async routeName => {
@@ -1359,7 +1359,44 @@ async function main() {
       }
     }
     await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
-    results.push("mobile horizontal-overflow audit across all 11 career/world pages");
+    results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");
+
+    // At tablet widths the redesign hides the bottom bar and moves the drawer off-canvas.
+    // The hamburger must remain visible so every page remains reachable.
+    await page.setViewportSize({ width: 820, height: 900 });
+    await page.evaluate(() => new Promise(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve))
+    ));
+    const tabletNavigationBefore = await page.evaluate(() => {
+      const menu = document.querySelector("#menuOpen");
+      const bottom = document.querySelector(".bottomNav");
+      const drawer = document.querySelector("#drawer");
+      const menuRect = menu.getBoundingClientRect();
+      return {
+        menuVisible: getComputedStyle(menu).display !== "none" && menuRect.width >= 30 && menuRect.height >= 30,
+        bottomNavigationHidden: getComputedStyle(bottom).display === "none",
+        drawerInitiallyClosed: !drawer.classList.contains("open")
+      };
+    });
+    assert.equal(tabletNavigationBefore.menuVisible, true,
+      "tablet navigation must expose a working hamburger between 761px and 1000px: " + JSON.stringify(tabletNavigationBefore));
+    assert.equal(tabletNavigationBefore.bottomNavigationHidden, true,
+      "tablet layout should use the sidebar drawer rather than the narrow mobile bottom bar");
+    assert.equal(tabletNavigationBefore.drawerInitiallyClosed, true,
+      "tablet drawer should start closed to preserve the content width");
+    await page.locator("#menuOpen").click();
+    await page.waitForFunction(() => {
+      const drawer = document.querySelector("#drawer");
+      const rect = drawer.getBoundingClientRect();
+      return drawer.classList.contains("open") && rect.width > 0
+        && rect.left < window.innerWidth && rect.right <= window.innerWidth + 1;
+    }, null, { timeout: 5000 });
+    await page.locator('#drawer .navBtn[data-page="training"]').click();
+    await page.waitForFunction(() => {
+      return document.querySelector("#page-training")?.classList.contains("active")
+        && !document.querySelector("#drawer")?.classList.contains("open");
+    }, null, { timeout: 5000 });
+    results.push("tablet navigation at 820px opens the drawer and routes to training");
 
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");

@@ -355,3 +355,12 @@ body.lw-rebuild .app.hasSidebar>main>#page-europe:not(.active){display:none!impo
 body.lw-rebuild .league-table-caption{caption-side:top;padding:10px 12px;color:#91a18d;font-size:10px;font-weight:800;text-align:right}
 body.lw-rebuild .league-table-hint{display:none;margin:8px 0 9px;padding:8px 10px;border:1px solid #34452e;border-radius:9px;background:#141f13;color:#bfd58f;font-size:10px;line-height:1.7}
 @media(max-width:1000px){body.lw-rebuild .league-table-hint{display:block}}
+
+/* Tablet navigation: the sidebar is off-canvas from 761px to 1000px,
+   so expose its trigger and close control while the bottom bar is desktop-hidden. */
+@media (min-width:761px) and (max-width:1000px) {
+  body.lw-rebuild #menuOpen,
+  body.lw-rebuild #menuClose {
+    display:inline-grid!important;
+  }
+}

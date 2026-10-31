@@ -98,8 +98,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 178);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 52);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 297);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 54);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1350,6 +1350,9 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "�
 const parentLoanContractCases = [
   [Infinity, 1, 0, 1],
   [400, 0, 400, 0],
+  [400, null, 400, 3],
+  [400, "", 400, 3],
+  [400, "   ", 400, 3],
   ["Infinity", "Infinity", 0, 0],
   [NaN, NaN, 0, 0],
   [-400, -2, 0, 0],
@@ -1419,6 +1422,47 @@ const browserLegacyLoanTermReturn = runBrowserLoanReturn(400, undefined, "أسا
 assert.equal(browserLegacyLoanTermReturn.result, true, "a legacy loan without parentContractSeasons must still return");
 assert.equal(browserLegacyLoanTermReturn.state.contractSeasons, 2,
   "browser loan return must retain the top-level parent contract duration when the legacy snapshot is missing");
+for (const missingParentTerm of [null, "", "   "]) {
+  const legacyLoanWithBlankTerm = {
+    ...onLoan,
+    contractSeasons: 2,
+    loan: { ...onLoan.loan, parentContractSeasons: missingParentTerm }
+  };
+  const sharedBlankTerm = career.contractStateForSeasonTransition(legacyLoanWithBlankTerm);
+  const browserBlankTerm = deployedCareer.contractStateForSeasonTransition({
+    ...legacyLoanWithBlankTerm,
+    loan: { ...legacyLoanWithBlankTerm.loan }
+  });
+  assert.equal(sharedBlankTerm.contractSeasons, 2,
+    "null or blank parent-term snapshots must fall back to the unchanged top-level parent contract");
+  assert.equal(browserBlankTerm.contractSeasons, 2,
+    "the embedded browser engine must treat null or blank parent terms as missing legacy metadata");
+  assert.equal(JSON.stringify(browserBlankTerm), JSON.stringify(sharedBlankTerm),
+    "shared and embedded null/blank parent-term fallback must stay identical");
+
+  const browserBlankTermReturn = runBrowserLoanReturn(400, missingParentTerm, "أساسي", 2);
+  assert.equal(browserBlankTermReturn.result, true);
+  assert.equal(browserBlankTermReturn.state.contractSeasons, 2,
+    "browser loan return must preserve the parent term when the legacy snapshot is null or blank");
+
+  const staleFlagsLoan = {
+    ...legacyLoanWage,
+    freeAgent: true,
+    contractType: "professional",
+    weeklyWage: 900,
+    contractSeasons: 2,
+    loan: { ...legacyLoanWage.loan, parentContractSeasons: missingParentTerm }
+  };
+  const browserStaleFlagsLoan = { ...staleFlagsLoan, loan: { ...staleFlagsLoan.loan } };
+  career.ensureState(staleFlagsLoan);
+  deployedCareer.ensureState(browserStaleFlagsLoan);
+  assert.equal(staleFlagsLoan.weeklyWage, 900,
+    "a null/blank parent term must not zero a live loan wage when the unchanged parent term is still active");
+  assert.equal(browserStaleFlagsLoan.weeklyWage, 900,
+    "embedded state normalization must preserve the live host wage for a null/blank legacy parent term");
+  assert.equal(staleFlagsLoan.contractSeasons, 2);
+  assert.equal(browserStaleFlagsLoan.contractSeasons, 2);
+}
 const parentFreeAgentCases = [
   [true, true], [false, false],
   ["true", true], ["TRUE", true], ["1", true], ["yes", true], ["on", true],

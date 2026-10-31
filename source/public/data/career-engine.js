@@ -274,8 +274,12 @@
       ? state.loan.parentContractType : state.contractType || "").toLowerCase();
     const effectiveFreeAgent = hasActiveLoan && state.loan.parentFreeAgent !== undefined
       ? normalizeLegacyBoolean(state.loan.parentFreeAgent) : state.freeAgent;
-    const effectiveContractSeasons = hasActiveLoan && state.loan.parentContractSeasons !== undefined
-      ? Number(state.loan.parentContractSeasons) : Number(state.contractSeasons);
+    const savedParentContractSeasons = hasActiveLoan ? state.loan.parentContractSeasons : undefined;
+    const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
+      && savedParentContractSeasons !== null
+      && !(typeof savedParentContractSeasons === "string" && savedParentContractSeasons.trim() === "");
+    const effectiveContractSeasons = hasActiveLoan && hasSavedParentContractSeasons
+      ? Number(savedParentContractSeasons) : Number(state.contractSeasons);
     if (!hasActiveLoan && effectiveContractType === "free-agent") state.freeAgent = true;
     if (!hasActiveLoan && state.freeAgent && !normalizeLegacyBoolean(state.academyGraduationPending)) state.contractType = "free-agent";
     state.retired = normalizeLegacyBoolean(state.retired);
@@ -820,9 +824,13 @@
     if (!state || !state.loan) return state;
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
-    // Older loan saves did not always snapshot this field; loanTo leaves the parent term on state.
-    const parentContractSeasonsValue = loan.parentContractSeasons === undefined
-      ? Number(state.contractSeasons) : Number(loan.parentContractSeasons);
+    // Older loan saves may omit this snapshot or serialize it as null/blank; loanTo leaves the parent term on state.
+    const savedParentContractSeasons = loan.parentContractSeasons;
+    const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
+      && savedParentContractSeasons !== null
+      && !(typeof savedParentContractSeasons === "string" && savedParentContractSeasons.trim() === "");
+    const parentContractSeasonsValue = hasSavedParentContractSeasons
+      ? Number(savedParentContractSeasons) : Number(state.contractSeasons);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional"));
     const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";

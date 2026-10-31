@@ -236,7 +236,7 @@ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 1000 - (1000 - nad
   "a duplicate payroll callback must not reduce the debt again");
 const balanceBeforeSecondDebtPay = state.money;
 payOneWeek();
-assert.equal(state.money - balanceBeforeSecondDebtPay, 1000 - nadineCommission - (1000 - nadineCommission),
+assert.equal(state.money - balanceBeforeSecondDebtPay, 1000 - nadineCommission - nadineCommission,
   "the next salary must settle the remainder and credit only the surplus");
 assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 0,
   "the old representative's debt must clear after sufficient future wages");

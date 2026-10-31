@@ -794,7 +794,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
 </style>
-<link rel="stylesheet" href="./redesign.css?v=13">
+<link rel="stylesheet" href="./redesign.css?v=17">
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
@@ -1098,7 +1098,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         <article class="card span6"><h2>⚽ المنافسة على مركزك</h2><p class="muted small">تقييم افتراضي للمنافسة على دورك حسب مستواك وفورمتك وثقة المدرب، وليس قائمة أسماء حقيقية.</p><div id="squadCompetition" class="eventFeed"></div></article>
         <article class="card span6"><h2>🤝 الرعاية والإعلانات</h2><p class="muted small" id="sponsorStatus">تقدر تفاوض على عقد رعاية مرتبط بمشاركاتك وسمعتك.</p><button class="btn primary" id="sponsorBtn" type="button">تفاوض على عقد رعاية</button></article>
         <article class="card span6"><h2>📈 سلم الأندية</h2><p class="muted small">كل نقلة أصعب من اللي قبلها. لازم تثبت إنك جاهز، والعروض مش بتتكرر كل يوم.</p><div id="clubLadder"></div></article>
-        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p><div class="marketTools"><input id="transferSearch" placeholder="ابحث عن نادي أو دوري أو دولة"><span class="pill" id="transferMarketCount">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid"></div></article>
+        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p><div class="marketTools"><input id="transferSearch" type="search" aria-label="ابحث عن نادٍ أو دوري أو دولة" aria-controls="transferMarket" aria-describedby="transferMarketNotice" placeholder="ابحث عن نادي أو دوري أو دولة" autocomplete="off"><span class="pill" id="transferMarketCount" role="status" aria-live="polite" aria-atomic="true">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid" aria-label="نتائج سوق الأندية"></div></article>
         <article class="card span12"><h2>📑 تاريخ العقود والانتقالات</h2><div id="transferHistory" class="eventFeed"></div></article>
       </div>
     </section>
@@ -1251,12 +1251,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   </main>
 </div>
 <nav class="bottomNav" aria-label="التنقل السريع">
-  <button class="active" data-page="home" aria-label="الرئيسية"><span>⌂</span>الرئيسية</button>
-  <button data-page="training" aria-label="التدريب"><span>🏋️</span>التدريب</button>
-  <button data-page="stats" aria-label="الإحصائيات"><span>📊</span>الإحصائيات</button>
-  <button data-page="wellness" aria-label="الجاهزية والراحة"><span>🩺</span>الجاهزية</button>
-  <button data-page="league" aria-label="الدوري"><span>🏆</span>الدوري</button>
-  <button data-page="social" aria-label="السوشيال ميديا"><span>📱</span>السوشيال</button>
+  <button class="active" data-page="home" aria-label="الرئيسية"><span aria-hidden="true">⌂</span>الرئيسية</button>
+  <button data-page="training" aria-label="التدريب"><span aria-hidden="true">🏋️</span>التدريب</button>
+  <button data-page="stats" aria-label="الإحصائيات"><span aria-hidden="true">📊</span>الإحصائيات</button>
+  <button data-page="wellness" aria-label="الجاهزية والراحة"><span aria-hidden="true">🩺</span>الجاهزية</button>
+  <button type="button" id="mobileMore" aria-label="فتح بقية الأقسام" aria-controls="drawer" aria-expanded="false"><span aria-hidden="true">⋯</span>المزيد</button>
 </nav>
 
 <div class="drawerShade" id="drawerShade"></div>
@@ -3955,6 +3954,7 @@ const INITIAL = {
 let state = structuredCloneSafe(INITIAL);
 let modalResolver = null;
 let modalReturnFocus = null;
+let drawerReturnFocus = null;
 let toastTimer = null;
 function structuredCloneSafe(obj){try{return JSON.parse(JSON.stringify(obj));}catch(e){return {...obj};}}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));}
@@ -4086,13 +4086,25 @@ function persistGame(silent=false){
   return false;
  }
 }
-function flushQueuedSave(){
+async function flushQueuedSave(){
  cancelQueuedSave();
  if(!saveQueued)return true;
  saveQueued=false;
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
-  window.LWStateStore.flush(state).catch(err=>console.warn("Final IndexedDB flush failed",err));
-  return true;
+  try{
+   await window.LWStateStore.flush(state);
+   return true;
+  }catch(err){
+   try{
+    localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
+    console.warn("Final IndexedDB flush failed; legacy fallback saved",err);
+    return true;
+   }catch(fallbackError){
+    saveQueued=true;
+    console.warn("Final IndexedDB flush and legacy fallback failed",err,fallbackError);
+    return false;
+   }
+  }
  }
  const saved=persistGame(true);
  if(!saved)saveQueued=true;
@@ -4440,20 +4452,24 @@ function showPage(page, scrollTop=true){
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+valid));
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>{const active=b.dataset.page===valid;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
+ const mobileQuickPages=["home","training","stats","wellness"];
+ const mobileMore=$("mobileMore");if(mobileMore)mobileMore.classList.toggle("active",!mobileQuickPages.includes(valid));
  const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",social:"دوشة الملاعب",diary:"المذكرات"};
  $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
 function syncDrawerAccessibility(){
- const drawer=$("drawer"),opener=$("menuOpen");if(!drawer)return;
+ const drawer=$("drawer"),opener=$("menuOpen"),more=$("mobileMore");if(!drawer)return;
  const compact=window.matchMedia?window.matchMedia("(max-width:1000px)").matches:window.innerWidth<=1000;
- const open=drawer.classList.contains("open");
- if(opener)opener.setAttribute("aria-expanded",compact&&open?"true":"false");
+ const open=drawer.classList.contains("open"),expanded=compact&&open?"true":"false";
+ if(opener)opener.setAttribute("aria-expanded",expanded);
+ if(more)more.setAttribute("aria-expanded",expanded);
  if(compact&&!open){drawer.setAttribute("aria-hidden","true");drawer.setAttribute("inert","");}
  else{drawer.removeAttribute("aria-hidden");drawer.removeAttribute("inert");}
 }
-function openDrawer(){
+function openDrawer(event){
  const drawer=$("drawer"),shade=$("drawerShade");if(!drawer||!shade)return;
+ drawerReturnFocus=event&&event.currentTarget?event.currentTarget:$("menuOpen");
  drawer.classList.add("open");shade.classList.add("open");syncDrawerAccessibility();
  const first=drawer.querySelector(".navBtn:not([disabled])");if(first)first.focus({preventScroll:true});
 }
@@ -4462,8 +4478,8 @@ function closeDrawer(){
  const wasOpen=drawer.classList.contains("open");
  drawer.classList.remove("open");shade.classList.remove("open");syncDrawerAccessibility();
  const compact=window.matchMedia?window.matchMedia("(max-width:1000px)").matches:window.innerWidth<=1000;
- const opener=$("menuOpen");
- if(wasOpen&&compact&&opener&&opener.getClientRects().length)opener.focus({preventScroll:true});
+ const opener=drawerReturnFocus||$("menuOpen");drawerReturnFocus=null;
+ if(wasOpen&&compact&&opener&&opener.isConnected&&opener.getClientRects().length)opener.focus({preventScroll:true});
 }
 function setBar(id,val){const el=$(id);if(el)el.style.width=clamp(val)+"%";}
 function setText(id,value){const el=$(id);if(el)el.textContent=value;}
@@ -6988,7 +7004,7 @@ function bind(){
  $("cupCatalog").addEventListener("click",e=>{const b=e.target.closest("[data-enter-cup]");if(b)enterCup(b.dataset.enterCup);});
  $("cupActive").addEventListener("click",e=>{if(e.target.closest("[data-play-cup]"))playCupMatch();});
  
- $("menuOpen").addEventListener("click",openDrawer);$("menuClose").addEventListener("click",closeDrawer);$("drawerShade").addEventListener("click",closeDrawer);
+ $("menuOpen").addEventListener("click",openDrawer);$("mobileMore").addEventListener("click",openDrawer);$("menuClose").addEventListener("click",closeDrawer);$("drawerShade").addEventListener("click",closeDrawer);
  $("modalClose").addEventListener("click",closeModal);
  $("modalShade").addEventListener("click",e=>{if(e.target===$("modalShade"))closeModal();});
  document.addEventListener("keydown",e=>{

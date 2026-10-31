@@ -4086,13 +4086,25 @@ function persistGame(silent=false){
   return false;
  }
 }
-function flushQueuedSave(){
+async function flushQueuedSave(){
  cancelQueuedSave();
  if(!saveQueued)return true;
  saveQueued=false;
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
-  window.LWStateStore.flush(state).catch(err=>console.warn("Final IndexedDB flush failed",err));
-  return true;
+  try{
+   await window.LWStateStore.flush(state);
+   return true;
+  }catch(err){
+   try{
+    localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
+    console.warn("Final IndexedDB flush failed; legacy fallback saved",err);
+    return true;
+   }catch(fallbackError){
+    saveQueued=true;
+    console.warn("Final IndexedDB flush and legacy fallback failed",err,fallbackError);
+    return false;
+   }
+  }
  }
  const saved=persistGame(true);
  if(!saved)saveQueued=true;

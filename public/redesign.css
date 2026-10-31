@@ -364,3 +364,263 @@ body.lw-rebuild .league-table-hint{display:none;margin:8px 0 9px;padding:8px 10p
     display:inline-grid!important;
   }
 }
+
+
+/* CAREER HUB — dark theme consolidation.
+   The shared Career Hub stylesheet originally shipped light cards inside the dark app.
+   Keep the feature layouts; normalize only their surfaces, text, and compact labels. */
+body.lw-rebuild .hub-launch-panel{
+  border-color:#2b3a2e;
+  background-color:#101712;
+  background-image:radial-gradient(ellipse at 92% 0%,#1b3020 0,transparent 46%),linear-gradient(145deg,#101712,#0c120e);
+  box-shadow:0 12px 30px rgba(0,0,0,.24);
+}
+body.lw-rebuild .hub-launch-header h2,
+body.lw-rebuild .hub-readiness-main h2{color:#eef5e8}
+body.lw-rebuild .hub-overline{color:#9eaf91}
+body.lw-rebuild .hub-launch-header p,
+body.lw-rebuild .hub-readiness-main p{color:#a4b1a0}
+body.lw-rebuild .hub-tile{
+  border-color:#2b3a2e;
+  background:#121d16;
+  color:#e7f0e2;
+}
+body.lw-rebuild .hub-tile:hover,
+body.lw-rebuild .hub-tile.active{
+  border-color:#799d48;
+  background:#1a2919;
+  box-shadow:inset 0 0 0 1px rgba(216,255,98,.12),0 8px 18px rgba(0,0,0,.16);
+}
+body.lw-rebuild .hub-tile-icon{
+  border-color:#344535;
+  background:#1b291d;
+}
+body.lw-rebuild .hub-tile-title{color:#e7f0e2}
+body.lw-rebuild .hub-tile-desc{color:#a2b09d;font-size:10px}
+body.lw-rebuild .hub-tile-arrow{color:#a8bc91}
+body.lw-rebuild .hub-readiness-hint,
+body.lw-rebuild .hub-readiness-note{
+  border-color:#3a4c2f;
+  background:#172216;
+  color:#c6d9a8;
+}
+body.lw-rebuild .hub-page-heading{border-color:#29382d}
+body.lw-rebuild .hub-page-heading h1{color:#eef5e8}
+body.lw-rebuild .hub-page-heading p{color:#a4b1a0;font-size:11px}
+body.lw-rebuild .hub-training-card .trainingControls{
+  border-color:#2d3d31;
+  background:#111a14;
+}
+body.lw-rebuild .hub-training-card .trainingControls label{color:#d7e3d1}
+body.lw-rebuild .hub-training-card #trainingIntensity{
+  border-color:#3b4d3e;
+  background:#0b120d;
+  color:#edf4e8;
+  color-scheme:dark;
+}
+body.lw-rebuild .hub-training-card #trainingIntensity option{background:#111a14;color:#edf4e8}
+body.lw-rebuild .hub-training-card .trainingNote{color:#a4b19f;font-size:10px}
+body.lw-rebuild .hub-drill-grid .actionBtn{border-color:#304032;background:#141f17}
+body.lw-rebuild .hub-drill-grid .actionBtn:hover{border-color:#75934c;background:#19291a}
+body.lw-rebuild .hub-drill-grid .actionTitle{color:#e7f0e2;font-size:11px}
+body.lw-rebuild .hub-drill-grid .actionDesc{color:#a4b19f;font-size:10px}
+body.lw-rebuild .hub-training-rules>div{
+  border-color:#2d3d31;
+  background:#111a14;
+}
+body.lw-rebuild .hub-training-rules b{color:#dce8d5}
+body.lw-rebuild .hub-training-rules p{color:#a4b19f;font-size:10px}
+body.lw-rebuild .hub-readiness-feature{
+  border-color:#304334;
+  background-color:#101813;
+  background-image:radial-gradient(ellipse at 95% 0%,rgba(61,94,49,.25) 0,transparent 48%),linear-gradient(145deg,#101813,#111a15);
+}
+body.lw-rebuild .hub-readiness-score{
+  border-color:#425638;
+  background:#152019;
+}
+body.lw-rebuild .hub-readiness-score strong{color:#d9ff62}
+body.lw-rebuild .hub-readiness-score span{color:#a4b49a;font-size:9px}
+body.lw-rebuild .hub-meter-row>div:first-child span{color:#b7c5b0}
+body.lw-rebuild .hub-meter-row>div:first-child b{color:#e4eedc}
+body.lw-rebuild .hub-meter-row small{color:#9cae98;font-size:9px}
+body.lw-rebuild .hub-injury-panel{
+  border-color:#3a4b32;
+  background:#152019;
+}
+body.lw-rebuild .hub-injury-panel span,
+body.lw-rebuild .hub-injury-panel small{color:#a9b99d;font-size:10px}
+body.lw-rebuild .hub-injury-panel strong{color:#e0edcf}
+body.lw-rebuild .hub-injury-panel.is-injured{
+  border-color:#71404a;
+  background:#29171b;
+}
+body.lw-rebuild .hub-injury-panel.is-injured span,
+body.lw-rebuild .hub-injury-panel.is-injured strong,
+body.lw-rebuild .hub-injury-panel.is-injured small{color:#ffc0c8}
+body.lw-rebuild .hub-definition{
+  border-color:#2d3d31;
+  background:#111a14;
+  color:#a6b4a1;
+  font-size:10px;
+}
+body.lw-rebuild .hub-definition b{color:#d8e6ce}
+body.lw-rebuild .hub-coach-foot{border-color:#2a392d;color:#a4b19f}
+body.lw-rebuild .hub-coach-foot span{color:#a4b19f;font-size:10px}
+body.lw-rebuild .hub-recovery-action{
+  border-color:#2d3d31;
+  background-color:#111a14;
+  background-image:linear-gradient(145deg,#152019,#101712);
+}
+body.lw-rebuild .hub-recovery-icon{
+  border-color:#344535;
+  background:#1b291d;
+}
+body.lw-rebuild .hub-recovery-action h3{color:#e7f0e2}
+body.lw-rebuild .hub-recovery-action p{color:#a4b19f;font-size:10px}
+body.lw-rebuild .hub-card-foot{border-color:#2a392d;color:#a4b19f;font-size:10px}
+body.lw-rebuild .transferShortlistCard{
+  border-color:#354b38;
+  background-color:#111a14;
+  background-image:linear-gradient(145deg,#17231a,#101712);
+}
+body.lw-rebuild .transferShortlistHead h4,
+body.lw-rebuild .transferShortlistRow b{color:#e7f0e2}
+body.lw-rebuild .transferShortlistHead p,
+body.lw-rebuild .transferShortlistRow small{color:#a4b19f}
+body.lw-rebuild .transferShortlistRow{border-color:#2a392d}
+body.lw-rebuild .transferShortlistNumbers{color:#d9ff62}
+@media(max-width:760px){
+  body.lw-rebuild .hub-launch-panel{padding:14px}
+  body.lw-rebuild .hub-launch-header p{font-size:10px}
+  body.lw-rebuild .hub-page-heading p{font-size:11px}
+  body.lw-rebuild .hub-tile-desc{font-size:10px}
+  body.lw-rebuild .hub-recovery-action p,
+  body.lw-rebuild .hub-training-card .trainingNote,
+  body.lw-rebuild .hub-training-rules p{font-size:10px}
+}
+
+
+/* Mobile navigation: four high-frequency destinations plus one accessible
+   route into the complete drawer. Keep the header trigger for tablet only. */
+@media(max-width:760px){
+  body.lw-rebuild #menuOpen{display:none!important}
+  body.lw-rebuild .bottomNav{
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    align-items:stretch;
+    gap:4px;
+    width:calc(100vw - 18px);
+    padding:5px;
+  }
+  body.lw-rebuild .bottomNav button{
+    width:100%;
+    min-width:0;
+    min-height:52px;
+    padding:5px 2px;
+    font-size:10px;
+    line-height:1.35;
+    white-space:normal;
+  }
+  body.lw-rebuild .bottomNav button span{font-size:19px}
+  body.lw-rebuild #mobileMore[aria-expanded="true"]{
+    border-color:#455a31;
+    background:#1d2b18;
+    color:var(--lw-lime);
+  }
+}
+@media(max-width:360px){
+  body.lw-rebuild .bottomNav button{font-size:9px;min-height:50px}
+}
+
+
+/* Contracts and performance: improve information density and the transfer-market
+   search semantics without changing the underlying transfer logic. */
+body.lw-rebuild #page-contract .kpiLabel,
+body.lw-rebuild #page-stats .kpiLabel{
+  color:#a9b8a2;
+  font-size:11px;
+  line-height:1.55;
+}
+body.lw-rebuild #page-contract .dataCard p{
+  color:#a2b19c;
+  font-size:11px;
+  line-height:1.75;
+}
+body.lw-rebuild #page-contract .marketTools{
+  align-items:center;
+  gap:9px;
+  min-width:0;
+}
+body.lw-rebuild #page-contract #transferSearch{
+  min-width:0;
+  color:#edf4e8;
+}
+body.lw-rebuild #page-contract #transferSearch::placeholder{color:#758774}
+body.lw-rebuild #page-contract #transferSearch:focus-visible{
+  outline:2px solid rgba(216,255,98,.65);
+  outline-offset:2px;
+}
+body.lw-rebuild #page-contract #transferMarketCount{
+  flex:0 0 auto;
+  min-height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+@media(max-width:520px){
+  body.lw-rebuild #page-contract .marketTools{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    width:100%;
+  }
+  body.lw-rebuild #page-contract #transferSearch{width:100%;min-height:46px}
+  body.lw-rebuild #page-contract #transferMarketCount{align-self:flex-start}
+  body.lw-rebuild #page-contract .transferOfferCard{padding:12px}
+}
+
+
+/* Stats and competition pages: align secondary copy with the contract screens. */
+body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel,
+body.lw-rebuild #page-stats .muted.small,
+body.lw-rebuild #page-league .muted.small,
+body.lw-rebuild #page-league .dataDisclaimer,
+body.lw-rebuild #page-contract .muted.small,
+body.lw-rebuild #page-contract .dataDisclaimer{
+  color:#a6b49f;
+  font-size:11px;
+  line-height:1.75;
+}
+body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel{
+  display:block;
+  min-height:2.8em;
+}
+body.lw-rebuild #page-league .league-table-hint{
+  font-size:11px;
+  line-height:1.75;
+}
+@media(max-width:380px){
+  body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel,
+  body.lw-rebuild #page-league .muted.small,
+  body.lw-rebuild #page-contract .muted.small{font-size:10px}
+}
+
+
+/* Transfer offer actions need comfortable, predictable mobile touch targets. */
+body.lw-rebuild #page-contract .transfer-card-actions .btn{
+  flex:1 1 145px;
+  min-width:0;
+  min-height:46px;
+  padding:10px 12px;
+  font-size:11px;
+  line-height:1.5;
+  white-space:normal;
+  text-align:center;
+}
+@media(max-width:380px){
+  body.lw-rebuild #page-contract .transfer-card-actions .btn{
+    flex-basis:100%;
+    width:100%;
+  }
+}

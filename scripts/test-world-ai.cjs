@@ -34,8 +34,10 @@ assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p 
   "CF must use the mobile-forward production profile");
 
 const lineupMarker = "  function makeLineup(world, club) {";
+const rosterPlayersMarker = "  function rosterPlayers(world, club) {";
 const playersForClubMarker = "  function playersForClub(world, club) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
+assert.ok(aiSourceRaw.includes(rosterPlayersMarker), "AI engine must retain the active-roster helper for free-agent regression coverage");
 assert.ok(aiSourceRaw.includes(playersForClubMarker), "AI engine must retain the club-player filter for retired-roster regression coverage");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
@@ -58,6 +60,7 @@ assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
+  .replace(rosterPlayersMarker, "  global.__lwTestRosterPlayers = rosterPlayers;\n" + rosterPlayersMarker)
   .replace(lineupMarker, "  global.__lwTestMakeLineup = makeLineup;\n" + lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
@@ -91,6 +94,28 @@ const retiredLineup = sandbox.window.__lwTestMakeLineup(retiredLineupWorld, {
 assert.equal(retiredLineup.map(player => player.id).join(","), "active",
   "AI match lineups must exclude retired and free-agent players even when stale roster IDs remain");
 
+// A stale free-agent ID must not occupy a squad slot or count toward recruitment needs.
+const staleFreeAgentRosterWorld = { players: {
+  active: { id: "active", group: "attacker", ovr: 70, freeAgent: false, retired: false },
+  free: { id: "free", group: "attacker", ovr: 99, freeAgent: true, retired: false },
+  retired: { id: "retired", group: "attacker", ovr: 98, freeAgent: false, retired: true }
+}, nextGeneratedPlayer: 1, dbVersion: 0 };
+const staleFreeAgentRosterClub = {
+  id: "stale-free-agent-club", name: "Stale Free Agent Club", country: "Testland",
+  leagueId: "test", division: 1, power: 60, basePower: 60, prestige: 50,
+  roster: ["active", "free", "retired"]
+};
+assert.equal(sandbox.window.__lwTestRosterPlayers(staleFreeAgentRosterWorld, staleFreeAgentRosterClub)
+  .map(player => player.id).join(","), "active",
+  "free agents and retired players must not count toward an active club's roster needs");
+sandbox.window.__lwTestFillRoster(staleFreeAgentRosterWorld, staleFreeAgentRosterClub);
+assert.ok(!staleFreeAgentRosterClub.roster.includes("free"),
+  "roster repair must remove stale free-agent IDs before filling vacancies");
+assert.ok(!staleFreeAgentRosterClub.roster.includes("retired"),
+  "roster repair must keep retired players out of active squads");
+assert.equal(staleFreeAgentRosterClub.roster.length, 16,
+  "roster repair must refill the squad after removing unattached players");
+
 // Transfer-market competition labels must follow the simulated club's current division.
 // AI world clubs keep their dynamic division, while leagueFor supplies the matching
 // first/second-tier competition name after relegation or promotion.
@@ -122,6 +147,7 @@ assert.equal(firstTierTarget.league, db.leagueFor(transferCompetitionSeed.countr
 assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestSignFreeAgents, "function", "the free-agent signing simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestFillRoster, "function", "the roster filler must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestRosterPlayers, "function", "active roster players must be available to the free-agent regression guard");
 assert.equal(typeof sandbox.window.__lwTestBaseGetSeasonLines, "function", "projected season lines must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestBaseCompleteSeason, "function", "legacy season completion must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared season rows must be available to the regression guard");
@@ -154,6 +180,27 @@ assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared 
    "shared match-based season rows must exclude retired players");
  assert.ok(retiredSeasonWorld.seasonStats["1"].some(row => row.id === retiredSeasonPlayerId && row.goals === 9),
    "excluding future rows must preserve the player's previous season statistics");
+
+ // Unattached free agents must not receive invented appearances or production in later seasons.
+ const freeAgentSeasonPlayer = Object.values(retiredSeasonWorld.players).find(player =>
+   player && !player.retired && player.clubId);
+ assert.ok(freeAgentSeasonPlayer, "the free-agent projection fixture must start from an attached player");
+ const freeAgentSeasonClub = retiredSeasonWorld.clubs[freeAgentSeasonPlayer.clubId];
+ freeAgentSeasonClub.roster = freeAgentSeasonClub.roster.filter(id => id !== freeAgentSeasonPlayer.id);
+ freeAgentSeasonPlayer.previousClubId = freeAgentSeasonPlayer.clubId;
+ freeAgentSeasonPlayer.clubId = "";
+ freeAgentSeasonPlayer.leagueId = "";
+ freeAgentSeasonPlayer.division = 0;
+ freeAgentSeasonPlayer.freeAgent = true;
+ const freeAgentProjectedRows = sandbox.window.__lwTestBaseGetSeasonLines(retiredSeasonSave, 3, 1, db);
+ assert.ok(!freeAgentProjectedRows.some(row => row.id === freeAgentSeasonPlayer.id),
+   "free agents without a club must be omitted from unfinished-season projections");
+ const freeAgentCompletedRows = sandbox.window.__lwTestBaseCompleteSeason(retiredSeasonSave, 3, db);
+ assert.ok(!freeAgentCompletedRows.rows.some(row => row.id === freeAgentSeasonPlayer.id),
+   "free agents without a club must not receive legacy completed-season statistics");
+ const freeAgentSharedRows = sandbox.window.__lwTestBuildPlayerRows(retiredSeasonWorld, 3, new Map());
+ assert.ok(!freeAgentSharedRows.some(row => row.id === freeAgentSeasonPlayer.id),
+   "free agents without a club must be omitted from shared match-based season statistics");
 
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };

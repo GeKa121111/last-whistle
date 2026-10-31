@@ -165,7 +165,7 @@
   function fillRoster(world, club) {
     club.roster = (club.roster || []).filter(id => {
       const player = world.players[id];
-      return Boolean(player && !player.retired);
+      return Boolean(player && !player.retired && !player.freeAgent);
     });
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
@@ -455,7 +455,7 @@
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 55;
   }
   function rosterPlayers(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired);
+    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired && !player.freeAgent);
   }
   function roleStats(world, club) {
     const output = {};
@@ -546,7 +546,7 @@
     }
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
-      const rows = Object.values(world.players || {}).filter(player => player && !player.retired).map(player =>
+      const rows = Object.values(world.players || {}).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player =>
         generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
@@ -615,7 +615,7 @@
       alreadyCompleted: true, transfers: (world.marketReports.find(row => row.season === year) || {}).moves || 0
     };
     const strengthByLeague = buildLeagueStrengthLookup(world);
-    const rows = Object.values(world.players).filter(player => player && !player.retired).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
+    const rows = Object.values(world.players).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
     const tables = simulateLeagueTables(world, year, 1);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
@@ -1234,7 +1234,7 @@
       const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + Number(division));
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(world.players).filter(player => player && !player.retired).map(player => {
+    return Object.values(world.players).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player => {
       const acc = accumulators.get(player.id) || playerAccumulator();
       const historicalClub = world.clubs[acc.clubId || player.clubId] || null;
       const apps = Number(acc.appearances) || 0, goals = Number(acc.goals) || 0, assists = Number(acc.assists) || 0;

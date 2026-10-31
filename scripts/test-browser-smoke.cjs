@@ -1362,6 +1362,44 @@ async function main() {
       }
     }
     await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+
+    // The Career Hub must not mix the dark app shell with legacy white cards.
+    const careerThemeAudit = await page.evaluate(() => {
+      const surfaces = [
+        [".hub-launch-panel", "rgb(16, 23, 18)"],
+        [".hub-tile", "rgb(18, 29, 22)"],
+        [".hub-training-card .trainingControls", "rgb(17, 26, 20)"],
+        [".hub-training-rules>div", "rgb(17, 26, 20)"],
+        [".hub-readiness-feature", "rgb(16, 24, 19)"],
+        [".hub-readiness-score", "rgb(21, 32, 25)"],
+        [".hub-injury-panel", "rgb(21, 32, 25)"],
+        [".hub-recovery-action", "rgb(17, 26, 20)"],
+        [".hub-definition", "rgb(17, 26, 20)"]
+      ];
+      return surfaces.map(([selector, expected]) => {
+        const element = document.querySelector(selector);
+        return { selector, expected, actual: element ? getComputedStyle(element).backgroundColor : null };
+      });
+    });
+    for (const surface of careerThemeAudit) {
+      assert.ok(surface.actual, "Career Hub surface is missing: " + surface.selector);
+      assert.equal(surface.actual, surface.expected,
+        "Career Hub surface must use the shared dark theme: " + JSON.stringify(surface));
+    }
+    const careerTypeAudit = await page.evaluate(() => [
+      [".hub-tile-desc", "10px"],
+      [".hub-training-card .trainingNote", "10px"],
+      [".hub-recovery-action p", "10px"]
+    ].map(([selector, expected]) => {
+      const element = document.querySelector(selector);
+      return { selector, expected, actual: element ? getComputedStyle(element).fontSize : null };
+    }));
+    for (const type of careerTypeAudit) {
+      assert.equal(type.actual, type.expected,
+        "Career Hub helper text must remain readable on mobile: " + JSON.stringify(type));
+    }
+    results.push("Career Hub dark-theme consistency and readable mobile helper text");
+
     results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");
 
     // At tablet widths the redesign hides the bottom bar and moves the drawer off-canvas.

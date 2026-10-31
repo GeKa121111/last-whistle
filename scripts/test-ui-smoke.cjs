@@ -48,7 +48,30 @@ if (!redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page{display:none!
   console.error("Global directory must remain isolated and full-width on mobile.");
   process.exit(1);
 }
-if (!html.includes('href="./redesign.css?v=12"') || !serviceWorker.includes("./redesign.css?v=12")) {
+
+const careerHubThemeRules = [
+  "CAREER HUB — dark theme consolidation",
+  "body.lw-rebuild .hub-launch-panel{",
+  "body.lw-rebuild .hub-tile{",
+  "body.lw-rebuild .hub-training-card .trainingControls{",
+  "body.lw-rebuild .hub-training-rules>div{",
+  "body.lw-rebuild .hub-readiness-feature{",
+  "body.lw-rebuild .hub-readiness-score{",
+  "body.lw-rebuild .hub-injury-panel{",
+  "body.lw-rebuild .hub-recovery-action{",
+  "body.lw-rebuild .transferShortlistCard{"
+];
+if (careerHubThemeRules.some(rule => !redesign.includes(rule))) {
+  console.error("Career Hub theme regression: every primary feature surface must use the consolidated dark theme.");
+  process.exit(1);
+}
+if (!redesign.includes("body.lw-rebuild .hub-tile-desc{color:#a2b09d;font-size:10px}")
+  || !redesign.includes("body.lw-rebuild .hub-recovery-action p{color:#a4b19f;font-size:10px}")) {
+  console.error("Career Hub typography regression: mobile helper text must remain readable.");
+  process.exit(1);
+}
+
+if (!html.includes('href="./redesign.css?v=13"') || !serviceWorker.includes("./redesign.css?v=13")) {
   console.error("The active responsive stylesheet must use the same current version in the HTML and offline app shell.");
   process.exit(1);
 }

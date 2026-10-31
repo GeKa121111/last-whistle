@@ -34,7 +34,7 @@ const beginNegotiationSource = section("function beginTransferNegotiation(", "\n
 const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
-const applyMatchResultSource = section("function applyMatchResult(", "\nfunction applyLeagueResult(");
+const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",

@@ -6613,7 +6613,21 @@ function match(tactic=""){
  ]);return;}
  if(!["balanced","attack","defend","counter"].includes(tactic))tactic="balanced";
  if(state.winterBreakPending){openModal("توقف منتصف الموسم","وصلت لفترة انتقالات منتصف الموسم. راجع السوق أو اختار طريقة تكملة الموسم.",[{label:"مراجعة الانتقالات",className:"primary",action:()=>openWinterMarket()},{label:"كمّل بالمباريات اليدوية",action:()=>resumeManualSeason()},{label:"حاكي باقي الموسم",action:()=>simulateSeasonBlock(seasonMatchTotal())}]);return;}
- if(state.seasonApps>=seasonMatchTotal()){openModal("الموسم خلص يا كابتن","لعبت كل مباريات الدوري في الموسم الحالي. راجع ترتيبك، وبعدها ابدأ موسم جديد.",[{label:"ابدأ الموسم الجديد",className:"primary",action:()=>startNewSeason()},{label:"راجع جدول الدوري",action:()=>showPage("league")}]);return;}
+ if(state.seasonApps>=seasonMatchTotal()){
+  if(!state.seasonFinished){
+   openModal("الموسم خلص — التقرير محتاج مراجعة","اكتملت مباريات الموسم، لكن خطة التطوير السنوية لم تكتمل بعد. تقدر تعيد المحاولة أو تتجاوز الجزء المتبقي بقرار منك.",[
+    {label:"أعد محاولة اعتماد نهاية الموسم",className:"primary",action:()=>finishSeason()},
+    {label:"تجاوز بقية التطوير والمتابعة",action:()=>skipSeasonTrainingAndFinish()},
+    {label:"راجع جدول الدوري",action:()=>showPage("league")}
+   ]);
+  }else{
+   openModal("الموسم خلص يا كابتن","لعبت كل مباريات الدوري في الموسم الحالي. راجع ترتيبك، وبعدها ابدأ موسم جديد.",[
+    {label:"ابدأ الموسم الجديد",className:"primary",action:()=>startNewSeason()},
+    {label:"راجع جدول الدوري",action:()=>showPage("league")}
+   ]);
+  }
+  return;
+ }
  if(state.playedToday){toast("إنت لعبت مباراة النهارده بالفعل. تقدّم لليوم التالي.");return;}
  if(state.trainedToday){toast("اتدربت النهارده بالفعل. تقدّم ليوم جديد قبل المباراة.");return;}
  if(state.injuryDays>0){checkAction("match",20);return;}
@@ -6795,16 +6809,39 @@ function settleTrailingByeRounds(){
   simulateOtherFixtures(index,null);state.leagueRoundIndex=index+1;
  }
 }
-function finishSeason(){
+function skipSeasonTrainingAndFinish(){
+ if(state.retired||state.seasonFinished||state.seasonApps<seasonMatchTotal())return;
+ const report=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"
+  ?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0};
+ report.skills=report.skills&&typeof report.skills==="object"?report.skills:{};
+ report.sessions=Math.max(0,Number(report.sessions)||0);
+ report.completed=true;report.completedSeason=Math.max(1,Number(state.season)||1);report.skipped=true;
+ delete report.error;
+ state.seasonTrainingReport=report;
+ log("اختار اللاعب تجاوز بقية خطة التطوير السنوية بعد تعذر إكمالها؛ تم حفظ الجلسات التي نجحت بالفعل.");
+ finishSeason(true);
+}
+function finishSeason(skipAnnualTraining=false){
  if(state.retired){toast("المسيرة انتهت بالاعتزال؛ ابدأ مسيرة جديدة لو حابب.");return;}
  if(state.seasonApps<seasonMatchTotal()||state.seasonFinished)return;
  settleTrailingByeRounds();
  const closedCup=closeUnfinishedCupAtSeasonEnd();
  if(closedCup)log("أُغلقت البطولة التي لم تُستكمل مع نهاية الموسم حتى لا تستمر حالتها إلى الموسم التالي.");
  ensureSeasonDevelopmentSnapshot();
- const developmentResult=runSeasonAITtraining();
- if(developmentResult?.ok&&Number(developmentResult.sessions)>0)log("اكتملت خطة التطوير السنوية بالـ AI: "+Number(developmentResult.sessions)+" حصة مخططة حسب العمر والإمكانات والمركز وأداء المباريات.");
- if(developmentResult?.error)log("تعذر إكمال جزء من خطة التطوير السنوية: "+developmentResult.error);
+ const developmentResult=skipAnnualTraining
+  ?{ok:true,sessions:Number(state.seasonTrainingReport?.sessions)||0,skipped:true}
+  :runSeasonAITtraining();
+ if(developmentResult?.ok&&!developmentResult.skipped&&Number(developmentResult.sessions)>0)log("اكتملت خطة التطوير السنوية بالـ AI: "+Number(developmentResult.sessions)+" حصة مخططة حسب العمر والإمكانات والمركز وأداء المباريات.");
+ if(developmentResult?.error){
+  log("تعذر إكمال جزء من خطة التطوير السنوية: "+developmentResult.error);
+  saveGame(true);render();
+  openModal("تعذر اعتماد نهاية الموسم","لم تكتمل خطة التطوير السنوية. لم يتم اعتماد الموسم أو أرشفة نتائجه بعد؛ أعد المحاولة، أو تجاوز بقية التطوير إذا رغبت.",[
+   {label:"أعد المحاولة",className:"primary",action:()=>finishSeason()},
+   {label:"تجاوز بقية التطوير",action:()=>skipSeasonTrainingAndFinish()},
+   {label:"راجع الأداء",action:()=>showPage("home")}
+  ]);
+  return;
+ }
  state.seasonFinished=true;
  const completeLeagueSegment=!state.leagueSegmentIsPartial&&state.leagueApps>=seasonMatchTotal();
  const academySeason=isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending;
@@ -6841,7 +6878,7 @@ function finishSeason(){
   const changes=keys.map(key=>({key,delta:(Number(state[key])||0)-(Number(dev.attributes?.[key])||0)})).filter(row=>row.delta>0).sort((a,b)=>b.delta-a.delta);
   const labels={shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",defending:"الدفاع",goalkeeping:"حراسة المرمى",vision:"الرؤية",physical:"القوة البدنية"};
   const delta=overall()-(Number(dev.ovr)||overall());
-  developmentNote="\n\nتقرير تطور اللاعب بالـ AI: التقييم العام "+dev.ovr+" ← "+overall()+" ("+(delta>=0?"+":"")+delta+"). حصص التدريب التلقائية: "+(Number(training?.sessions)||0)+"، خبرة تدريب: "+(Number(training?.xp)||0)+". "+(changes.length?"أبرز التحسينات: "+changes.slice(0,4).map(row=>labels[row.key]+" +"+row.delta).join("، ")+".":"لم ترتفع المهارات الأساسية نقطة كاملة خلال هذا الموسم.")+(Number(training?.sessions)>0?" الخطة الآلية اتحددت حسب المركز والإمكانات والجاهزية.":" التغيرات محسوبة مقارنة ببداية الموسم.");
+  developmentNote="\n\nتقرير تطور اللاعب بالـ AI: التقييم العام "+dev.ovr+" ← "+overall()+" ("+(delta>=0?"+":"")+delta+"). حصص التدريب التلقائية: "+(Number(training?.sessions)||0)+"، خبرة تدريب: "+(Number(training?.xp)||0)+". "+(changes.length?"أبرز التحسينات: "+changes.slice(0,4).map(row=>labels[row.key]+" +"+row.delta).join("، ")+".":"لم ترتفع المهارات الأساسية نقطة كاملة خلال هذا الموسم.")+(Number(training?.sessions)>0?" الخطة الآلية اتحددت حسب المركز والإمكانات والجاهزية.":" التغيرات محسوبة مقارنة ببداية الموسم.")+(training?.skipped?" تم تجاوز بقية خطة التطوير السنوية بناءً على اختيارك.":"");
   state.seasonDevelopmentHistory=Array.isArray(state.seasonDevelopmentHistory)?state.seasonDevelopmentHistory:[];
   if(!state.seasonDevelopmentHistory.some(row=>Number(row.season)===Number(state.season))){
    state.seasonDevelopmentHistory.unshift({season:Number(state.season),ovrBefore:dev.ovr,ovrAfter:overall(),sessions:Number(training?.sessions)||0,xp:Number(training?.xp)||0,skills:changes.slice(0,10),injuries:Number(training?.injuries)||0});

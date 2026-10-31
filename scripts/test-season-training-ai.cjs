@@ -181,4 +181,47 @@ assert.equal(flaky.state.seasonTrainingReport.sessions, retried.plannedSessions,
   "retrying must finish the plan without losing or duplicating successful sessions");
 assert.equal(flaky.state.trainingSessions, retried.plannedSessions,
   "the career training-session count must match the once-applied annual plan");
+
+const finishStart = html.indexOf("function finishSeason(skipAnnualTraining=false){");
+const finishEnd = html.indexOf("\\nfunction ", finishStart + 10);
+assert.ok(finishStart >= 0 && finishEnd > finishStart, "season completion handler must be present");
+const finishSource = html.slice(finishStart, finishEnd);
+const trainingErrorGuard = finishSource.indexOf("if(developmentResult?.error){");
+const seasonCommit = finishSource.indexOf("state.seasonFinished=true;");
+assert.ok(trainingErrorGuard >= 0 && trainingErrorGuard < seasonCommit,
+  "a failed annual training batch must stop before the season is finalized");
+assert.ok(finishSource.slice(trainingErrorGuard, seasonCommit).includes("return;"),
+  "failed training must leave the season open for a retry");
+assert.ok(finishSource.includes("action:()=>finishSeason()") && finishSource.includes("action:()=>skipSeasonTrainingAndFinish()"),
+  "the recovery modal must expose retry and explicit skip actions");
+
+const skipStart = html.indexOf("function skipSeasonTrainingAndFinish(){");
+const skipEnd = html.indexOf("\\nfunction finishSeason(", skipStart);
+assert.ok(skipStart >= 0 && skipEnd > skipStart, "an explicit annual-training skip path must exist");
+const skipSource = html.slice(skipStart, skipEnd);
+const skipState = { season: 6, seasonApps: 22, seasonTrainingReport: {
+  sessions: 3, skills: { shooting: 2, passing: 1 }, xp: 90, injuries: 1,
+  completed: false, error: "temporary failure"
+} };
+let skipCalled = false;
+const skipSandbox = {
+  state: skipState,
+  log: () => {},
+  finishSeason: skip => { skipCalled = skip === true; }
+};
+vm.createContext(skipSandbox);
+new vm.Script(skipSource + "\\nthis.skip = skipSeasonTrainingAndFinish;", {
+  filename: "season-training-skip.js"
+}).runInContext(skipSandbox);
+skipSandbox.skip();
+assert.equal(skipCalled, true, "the skip action must finalize only through the explicit skip-training route");
+assert.equal(skipState.seasonTrainingReport.sessions, 3, "successful training sessions must remain in the report");
+assert.equal(skipState.seasonTrainingReport.completed, true, "an explicitly skipped report must become terminal");
+assert.equal(skipState.seasonTrainingReport.completedSeason, 6, "the skipped report must retain its season number");
+assert.equal(skipState.seasonTrainingReport.skipped, true, "the report must disclose that the player skipped the remaining plan");
+assert.equal(Object.prototype.hasOwnProperty.call(skipState.seasonTrainingReport, "error"), false,
+  "a consciously skipped plan must not retain a retryable error");
+assert.ok(html.includes("لم يتم اعتماد الموسم أو أرشفة نتائجه بعد"),
+  "the recovery message must make clear that the season was not partially archived");
+
 console.log("PASS: match evidence, position-specific focus, potential caps and one-time season-end training all work.");

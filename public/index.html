@@ -4489,13 +4489,69 @@ function transferPlayerProfile(){
   appearances:Number(state.apps)||0,goals:Number(state.seasonGoals)||0,assists:Number(state.seasonAssists)||0,
   trust:Number(state.trust)||0};
 }
+function migrateLegacyPendingTransferOffer(){
+ const pending=state.pendingTransfer;
+ if(!pending||!pending.club||!pending.country||!canAccessTransferMarket()||state.retired||state.loan)return null;
+ state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers:[];
+ const windowInfo=transferWindow();
+ const inferredWindowId=windowInfo.open?windowInfo.id:(state.freeAgent?currentFreeAgentTransferWindowId():"");
+ const windowId=String(pending.windowId||state.lastOfferWindow||inferredWindowId);
+ if(!windowId||!transferOfferMatchesCurrentWindow({...pending,windowId},windowInfo)){
+  state.pendingTransfer=null;
+  state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
+  state.transferHistory.unshift({season:state.season,day:state.day,text:"انتهت صلاحية عرض الانتقال المحفوظ من "+pending.club+" بعد إغلاق نافذته."});
+  saveGame(true);return null;
+ }
+ const key=normalizedTargetKey(pending);
+ const existing=state.transferOffers.find(offer=>offer&&offer.status==="pending"
+  &&normalizedTargetKey(offer)===key&&transferOfferMatchesCurrentWindow(offer,windowInfo));
+ const wage=Math.max(0,Number(pending.wage)||0);
+ if(existing){
+  if(wage>Number(existing.wage||0)){existing.wage=wage;existing.maxWage=Math.max(Number(existing.maxWage)||0,Math.round(wage*1.18));}
+  state.transferOffersWindowId=windowId;state.pendingTransfer=null;saveGame(true);return existing;
+ }
+ const offer={...pending,id:"legacy-"+stableHash(windowId+"|"+pending.country+"|"+pending.club).toString(36),
+  windowId:windowId,status:"pending",legacyDirectOffer:true,role:String(pending.role||"تناوب"),wage:wage,
+  maxWage:Math.max(wage,Number(pending.maxWage)||Math.round(wage*1.18)),
+  signingBonus:Math.max(0,Number(pending.signingBonus)||0),
+  goalBonus:Math.max(0,Number(pending.weeklyGoalBonus??pending.goalBonus)||0),
+  cleanSheetBonus:Math.max(0,Number(pending.weeklyCleanSheetBonus??pending.cleanSheetBonus)||0),
+  contractSeasons:clamp(pending.contractSeasons||3,1,5),
+  releaseClause:Math.max(0,Number(pending.releaseClause)||0),
+  currency:pending.currency||currencyLabel(pending.country),patience:100};
+ state.transferOffers.push(offer);state.transferOffers=state.transferOffers.slice(-40);
+ state.transferOffersWindowId=windowId;state.pendingTransfer=null;saveGame(true);return offer;
+}
+function dedupeTransferOffersForWindow(windowId,windowInfo=transferWindow()){
+ if(!Array.isArray(state.transferOffers))return false;
+ const seen=new Map(),activeId=String(state.transferNegotiation?.offerId||"");
+ const score=offer=>(String(offer.id||"")===activeId?1e12:0)
+  +Math.max(0,Number(offer.wage)||0)+Math.max(0,Number(offer.signingBonus)||0)*0.01;
+ let changed=false;
+ for(const offer of state.transferOffers){
+  if(!offer||offer.status!=="pending"||!offer.club||!offer.country
+   ||!transferOfferMatchesWindow(offer,windowId,windowInfo))continue;
+  const key=normalizedTargetKey(offer);if(!key||key==="|")continue;
+  const previous=seen.get(key);
+  if(!previous){seen.set(key,offer);continue;}
+  const keep=score(offer)>score(previous)?offer:previous;
+  const duplicate=keep===offer?previous:offer;
+  duplicate.status="superseded";duplicate.supersededBy=String(keep.id||"");
+  duplicate.supersededWindowId=String(windowId||"");
+  changed=true;seen.set(key,keep);
+ }
+ return changed;
+}
 function ensureTransferOffers(){
  state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers:[];
  const windowInfo=transferWindow();
  if(!canAccessTransferMarket())return;
+ migrateLegacyPendingTransferOffer();
+ if(state.pendingTransfer||state.transferNegotiation)return;
  if(!state.careerStarted||state.retired||state.loan||Number(state.transferCooldown||0)>0)return;
  if(!windowInfo.open&&!state.freeAgent)return;
  const windowId=windowInfo.open?windowInfo.id:"free-agent-"+Math.floor((Number(state.calendarDay)||1)/14);
+ const dedupedExisting=dedupeTransferOffersForWindow(windowId,windowInfo);
  const profile=transferPlayerProfile();
  if(profile.appearances<2||profile.form<5.8)return;
  // If a window produced no suitable offers, retry only after the player's relevant profile changes.
@@ -4517,12 +4573,17 @@ function ensureTransferOffers(){
  const hasOffersForWindow=state.transferOffers.some(offer=>transferOfferMatchesWindow(offer,windowId,windowInfo));
  const legacyWindowId=windowInfo.open&&windowInfo.name==="الانتقالات الشتوية"?"winter-season-"+(Number(state.season)||0):"";
  const storedWindowMatches=state.transferOffersWindowId===windowId||(legacyWindowId&&state.transferOffersWindowId===legacyWindowId);
- if(storedWindowMatches&&(hasOffersForWindow||String(state.transferOffersAttemptKey||"")===attemptKey))return;
+ if(storedWindowMatches&&(hasOffersForWindow||String(state.transferOffersAttemptKey||"")===attemptKey)){
+  if(dedupedExisting)saveGame(true);
+  return;
+ }
  state.transferOffers=state.transferOffers.map(offer=>offer&&offer.status==="pending"&&!transferOfferMatchesWindow(offer,windowId,windowInfo)?{...offer,status:"expired"}:offer);
  const targets=transferTargets().filter(target=>!(target.club===state.clubName&&target.country===state.leagueCountry)
   &&!(Number(target.division)>=2&&target.country!==state.leagueCountry)&&!(target.power>=70&&profile.ovr<60));
  const offers=window.LWTransferAwards?.generateOffers({player:profile,targets:targets,windowId:windowId,currentClubPower:state.clubPower})||[];
- state.transferOffers.push(...offers);state.transferOffers=state.transferOffers.slice(-40);state.transferOffersWindowId=windowId;state.transferOffersAttemptKey=attemptKey;
+ state.transferOffers.push(...offers);state.transferOffers=state.transferOffers.slice(-40);
+ dedupeTransferOffersForWindow(windowId,windowInfo);
+ state.transferOffersWindowId=windowId;state.transferOffersAttemptKey=attemptKey;
  if(offers.length){
   const note="وصلت عروض انتقال رسمية داخل اللعبة من "+offers.map(offer=>offer.club).join("، ")+". راجع الدور والراتب وابدأ المفاوضات قبل إغلاق النافذة.";
   state.transferHistory.unshift({season:state.season,day:state.day,text:note});log(note);setStory("عروض انتقال جديدة",note);
@@ -4537,6 +4598,12 @@ function offerIsAvailable(offer){
   &&Number(state.transferCooldown||0)<=0;
 }
 function beginTransferNegotiation(id){
+ migrateLegacyPendingTransferOffer();
+ if(state.pendingTransfer){toast("عندك عرض انتقال معلّق بالفعل. احسمه قبل بدء مفاوضات جديدة.");return;}
+ if(state.transferNegotiation){
+  if(state.transferNegotiation.offerId===id){renderTransferMarket();return;}
+  toast("عندك مفاوضات مفتوحة بالفعل. أنهِها أو ارفض العرض الحالي أولًا.");renderTransferMarket();return;
+ }
  ensureTransferOffers();
  const offer=state.transferOffers.find(item=>item&&item.id===id);
  if(!offerIsAvailable(offer)){toast("العرض لم يعد متاحًا. راجع نافذة الانتقالات الحالية.");renderTransferMarket();return;}
@@ -4590,6 +4657,7 @@ function renderNegotiationPanel(){
 }
 function submitTransferNegotiation(){
  const n=state.transferNegotiation;if(!n)return;
+ if(state.pendingTransfer){toast("عندك عرض انتقال معلّق بالفعل. احسمه قبل إتمام مفاوضات أخرى.");return;}
  const offer=state.transferOffers.find(item=>item&&item.id===n.offerId);
  if(!offerIsAvailable(offer)){state.transferNegotiation=null;saveGame(true);renderTransferMarket();toast("العرض انتهت صلاحيته.");return;}
  const terms=negotiationTermsFromDom();
@@ -6506,24 +6574,28 @@ function nextDay(){
 function maybeOfferTransfer(){
  if(!canAccessTransferMarket())return;
  const w=transferWindow();
- if(!w.open||state.lastOfferWindow===w.id||state.transferCooldown>0||state.daysSinceTransfer<7)return;
+ migrateLegacyPendingTransferOffer();
+ if(!w.open||state.lastOfferWindow===w.id||state.transferCooldown>0||state.daysSinceTransfer<7
+  ||state.pendingTransfer||state.transferNegotiation)return;
  if(state.apps<2||overall()<52||state.trust<30)return;
  const average=transferAverageRating();
- const agentOfferChance=window.LWAgentRuntime?.transferOfferChance(state,.45)??(state.agent?.5:.45);if(average<6.1||randomUnit()>agentOfferChance)return;
- const eligibleTargets=transferTargets().filter(target=>transferEligible(target));
- if(!eligibleTargets.length)return;
- const targets=window.LWAgentRuntime?.prioritizeTargets(state,eligibleTargets)||eligibleTargets;
- const target=pick(targets);const baseWage=transferWage(target);const wage=window.LWAgentRuntime?.adjustTransferWage(state,baseWage)??baseWage;
- state.pendingTransfer={...target,division:Math.max(1,Number(target.division)||1),windowId:w.id,tier:clubTierForPower(target.power),wage};state.lastOfferWindow=w.id;
- openModal("عرض انتقال من سوق الأندية ✉️",`${target.club} من ${target.country} يتابعك بعد أدائك الأخير.
-المسابقة: ${target.league} • قائمة موسم ${target.season}.
-قوة النادي داخل اللعبة تقديرية: ${target.power}/100.
-الراتب المقترح: ${wage} ${currencyLabel()} أسبوعيًا داخل اللعبة.
-هذا العرض جزء من محاكاة اللعبة وليس عرضًا حقيقيًا من النادي.`,[
-  {label:"أقبل العرض",className:"primary",action:()=>transferTo()},
-  {label:"أرفض وأكمل",action:()=>{const p=state.pendingTransfer;if(p)state.transferHistory.unshift({season:state.season,day:state.day,text:`رفضت عرض ${p.club} في ${p.country} (${p.league}). لن يتكرر العرض في نافذة الانتقالات الحالية.`});state.pendingTransfer=null;log("رفضت عرض انتقال خلال "+w.name+".");saveGame(true);render();}},
-  {label:"أتفاوض على المرتب",action:()=>{const p=state.pendingTransfer;if(!p)return;p.wage=Math.round(p.wage*(state.trust>=60&&average>=7?1.15:1.05));openModal("تفاوض مع النادي الجديد","المرتب بعد التفاوض: "+p.wage+" "+currencyLabel()+" أسبوعيًا.",[{label:"موافق",className:"primary",action:()=>transferTo()},{label:"أرفض العرض",action:()=>{state.pendingTransfer=null;saveGame(true);render();}}]);}}
+ const agentOfferChance=window.LWAgentRuntime?.transferOfferChance(state,.45)??(state.agent?.5:.45);
+ if(average<6.1||randomUnit()>agentOfferChance)return;
+ // Automatic approaches enter the same official-offer and negotiation pipeline as market offers.
+ ensureTransferOffers();
+ const offer=(state.transferOffers||[]).find(item=>offerIsAvailable(item));
+ if(!offer)return;
+ state.lastOfferWindow=w.id;
+ const leagueName=String(offer.league||"الدوري المحلي")+(Number(offer.division)>=2?" — الدرجة الثانية":" — الدرجة الأولى");
+ openModal("عرض انتقال رسمي ✉️",`${offer.club} من ${offer.country} مهتم بالتعاقد معك بعد أدائك الأخير.
+المسابقة: ${leagueName} • الدور المتوقع: ${offer.role}.
+الراتب المبدئي: ${Number(offer.wage)||0} ${offer.currency||currencyLabel()} أسبوعيًا.
+ابدأ مفاوضات العقد من نفس نظام العروض الرسمية؛ لا يتم الانتقال قبل قبول الشروط.`,[
+  {label:"ابدأ التفاوض",className:"primary",action:()=>beginTransferNegotiation(offer.id)},
+  {label:"رفض العرض",action:()=>rejectTransferOffer(offer.id)},
+  {label:"لاحقًا",action:()=>{saveGame(true);render();}}
  ]);
+ saveGame(true);
 }
 function transferTo(){
  if(!canAccessTransferMarket()){toast("انتقالات الفريق الأول متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}

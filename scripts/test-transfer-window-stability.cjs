@@ -26,6 +26,10 @@ const transferEligibilitySource = section("function transferEligibilityReason(ta
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
 const transferToSource = section("function transferTo(){", "\nfunction ");
 const maybeOfferTransferSource = section("function maybeOfferTransfer(){", "\nfunction transferTo(){");
+const legacyMigrationSource = section("function migrateLegacyPendingTransferOffer(", "\nfunction dedupeTransferOffersForWindow(");
+const dedupeOffersSource = section("function dedupeTransferOffersForWindow(", "\nfunction ensureTransferOffers(){");
+const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfunction transferFactors(");
+const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
@@ -36,7 +40,7 @@ const state = {
 let generatedOffers = 0;
 const sandbox = {
   state,
-  window: { LWTransferAwards: { generateOffers() { generatedOffers++; return []; } } },
+  window: { LWTransferAwards: { generateOffers() { generatedOffers++; return []; } }, LWWorldDB: { normalize: value => String(value || "").trim().toLocaleLowerCase() } },
   canAccessTransferMarket: () => true,
   activeCupInProgress: () => true,
   transferPlayerProfile: () => ({
@@ -52,7 +56,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(
-  transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+  transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
+    + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
+    + ensureOffersSource + "\n" + offerAvailabilitySource,
   sandbox,
   { filename: "transfer-window-regression" }
 );
@@ -189,42 +195,172 @@ assert.equal(cupScenario.transferEligibilityReason({ club: "نادي ب", countr
    league: "الدوري المصري — الدرجة الثانية", season: "2026/27",
    source: "LWWorldDB", power: 58
  };
- const offerScenario = {
-   state: {
-     retired: false, age: 24, careerStarted: true, academyReserve: false,
-     academyGraduationPending: false, loan: null, transferCooldown: 0,
-     daysSinceTransfer: 14, apps: 12, trust: 60, clubName: "نادي أ",
-     leagueCountry: "مصر", lastOfferWindow: "", agent: false
-   },
-   window: { LWAgentRuntime: null },
-   canAccessTransferMarket: () => true,
-   transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
-   overall: () => 68,
-   transferAverageRating: () => 7.0,
-   randomUnit: () => 0,
-   transferTargets: () => [secondTierTarget],
-   transferEligible: () => true,
-   pick: rows => rows[0],
-   transferWage: () => 2500,
-   clubTierForPower: () => 2,
-   currencyLabel: () => "ج.م",
-   openModal: (title, body, actions) => { offerScenario.modalActions = actions; }
- };
- vm.createContext(offerScenario);
- vm.runInContext(maybeOfferTransferSource, offerScenario, { filename: "second-tier-transfer-approach" });
- offerScenario.maybeOfferTransfer();
- assert.equal(offerScenario.state.pendingTransfer.club, secondTierTarget.club,
-   "the generated approach must keep the selected destination club");
- assert.equal(offerScenario.state.pendingTransfer.division, 2,
-   "a second-tier transfer approach must not be rewritten as a first-tier transfer");
- assert.equal(offerScenario.state.pendingTransfer.league, secondTierTarget.league,
-   "the selected destination competition must be preserved with its division");
- assert.equal(offerScenario.state.pendingTransfer.source, "LWWorldDB",
-   "the selected destination data provenance must remain intact");
- assert.equal(offerScenario.state.pendingTransfer.windowId, "summer-0",
-   "the automatic transfer approach must remember the window that created it");
- assert.ok(Array.isArray(offerScenario.modalActions) && offerScenario.modalActions.length === 3,
-   "the real transfer approach flow must still expose accept, reject, and negotiate actions");
+ // Automatic approaches must use the same persisted offer and negotiation flow as the transfer-market screen.
+const secondTierOffer = {
+  ...secondTierTarget, id: "offer-summer-0-second-tier", windowId: "summer-0",
+  role: "أساسي", wage: 2500, currency: "ج.م", status: "pending",
+  signingBonus: 10000, goalBonus: 450, cleanSheetBonus: 300,
+  maxWage: 3000, releaseClause: 180000, contractSeasons: 3
+};
+const offerScenario = {
+  state: {
+    retired: false, age: 24, careerStarted: true, academyReserve: false,
+    academyGraduationPending: false, loan: null, transferCooldown: 0,
+    daysSinceTransfer: 14, apps: 12, trust: 60, clubName: "نادي أ",
+    leagueCountry: "مصر", lastOfferWindow: "", agent: false,
+    pendingTransfer: null, transferNegotiation: null, transferOffers: []
+  },
+  window: { LWAgentRuntime: null },
+  canAccessTransferMarket: () => true, migrateLegacyPendingTransferOffer: () => null,
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
+  overall: () => 68, transferAverageRating: () => 7.0, randomUnit: () => 0,
+  ensureTransferOffers: () => { offerScenario.state.transferOffers = [secondTierOffer]; },
+  offerIsAvailable: offer => !!offer && offer.status === "pending",
+  beginTransferNegotiation: id => { offerScenario.negotiationStarted = id; },
+  rejectTransferOffer: id => { offerScenario.rejected = id; },
+  saveGame: () => {}, render: () => {}, currencyLabel: () => "ج.م",
+  openModal: (title, body, actions) => { offerScenario.modalActions = actions; }
+};
+vm.createContext(offerScenario);
+vm.runInContext(maybeOfferTransferSource, offerScenario, { filename: "unified-second-tier-transfer-approach" });
+offerScenario.maybeOfferTransfer();
+assert.equal(offerScenario.state.pendingTransfer, null,
+  "an automatic approach must not create a separate direct-transfer transaction");
+assert.equal(offerScenario.state.transferOffers[0].division, 2,
+  "the unified official offer must preserve the selected second-tier division");
+assert.equal(offerScenario.state.transferOffers[0].league, secondTierTarget.league,
+  "the unified offer must preserve the destination competition");
+assert.equal(offerScenario.state.transferOffers[0].source, "LWWorldDB",
+  "the unified offer must preserve destination data provenance");
+assert.equal(offerScenario.state.lastOfferWindow, "summer-0",
+  "the automatic approach must remain limited to one prompt per transfer window");
+assert.ok(Array.isArray(offerScenario.modalActions) && offerScenario.modalActions.length === 3,
+  "the automatic approach must offer negotiate, reject, and defer actions");
+offerScenario.modalActions[0].action();
+assert.equal(offerScenario.negotiationStarted, secondTierOffer.id,
+  "the automatic approach must enter the official contract negotiation engine");
+offerScenario.modalActions[1].action();
+assert.equal(offerScenario.rejected, secondTierOffer.id,
+  "rejecting an automatic approach must use the official offer rejection handler");
+
+let blockedEnsureCalls = 0, blockedModal = false;
+const blockedApproach = {
+  state: { retired: false, age: 24, careerStarted: true, loan: null, transferCooldown: 0,
+    daysSinceTransfer: 14, apps: 12, trust: 60, lastOfferWindow: "",
+    pendingTransfer: { club: "نادي قديم", country: "مصر" }, transferNegotiation: null },
+  window: { LWAgentRuntime: null }, canAccessTransferMarket: () => true,
+  migrateLegacyPendingTransferOffer: () => null,
+  transferWindow: () => ({ open: true, id: "summer-0" }),
+  ensureTransferOffers: () => { blockedEnsureCalls++; },
+  overall: () => 68, transferAverageRating: () => 7, randomUnit: () => 0,
+  openModal: () => { blockedModal = true; }
+};
+vm.createContext(blockedApproach);
+vm.runInContext(maybeOfferTransferSource, blockedApproach, { filename: "pending-transfer-guard" });
+blockedApproach.maybeOfferTransfer();
+assert.equal(blockedEnsureCalls, 0, "a saved direct offer must block a second automatic offer batch");
+assert.equal(blockedModal, false, "a second automatic offer must not overlap an unresolved transfer");
+
+const duplicateOfferScenario = {
+  state: { transferOffers: [
+    { id: "lower-offer", status: "pending", windowId: "summer-0", club: " نادي ب ", country: "مصر", wage: 900 },
+    { id: "higher-offer", status: "pending", windowId: "summer-0", club: "نادي ب", country: "مصر", wage: 1500 },
+    { id: "next-window", status: "pending", windowId: "winter-0", club: "نادي ب", country: "مصر", wage: 2000 }
+  ], transferNegotiation: null },
+  window: { LWWorldDB: { normalize: value => String(value || "").trim().toLocaleLowerCase() } }
+};
+vm.createContext(duplicateOfferScenario);
+vm.runInContext(transferOfferMatchSource + "\n" + normalizedTargetKeySource + "\n" + dedupeOffersSource,
+  duplicateOfferScenario, { filename: "duplicate-club-offer-dedupe" });
+assert.equal(duplicateOfferScenario.dedupeTransferOffersForWindow("summer-0",
+  { open: true, id: "summer-0", name: "الانتقالات الصيفية" }), true,
+  "duplicate pending offers must be reconciled for the active transfer window");
+assert.equal(duplicateOfferScenario.state.transferOffers[0].status, "superseded",
+  "the weaker duplicate offer must be marked superseded, not silently deleted");
+assert.equal(duplicateOfferScenario.state.transferOffers[0].supersededBy, "higher-offer",
+  "the superseded offer must retain a pointer to the surviving offer");
+assert.equal(duplicateOfferScenario.state.transferOffers[1].status, "pending",
+  "the stronger offer from the same club must remain available");
+assert.equal(duplicateOfferScenario.state.transferOffers[2].status, "pending",
+  "offers from a different transfer window must not be deduplicated");
+
+const activeNegotiationDuplicate = {
+  state: { transferOffers: [
+    { id: "active-negotiation", status: "pending", windowId: "summer-0", club: "نادي ج", country: "مصر", wage: 800 },
+    { id: "new-higher-offer", status: "pending", windowId: "summer-0", club: "نادي ج", country: "مصر", wage: 2500 }
+  ], transferNegotiation: { offerId: "active-negotiation" } },
+  window: { LWWorldDB: { normalize: value => String(value || "").trim().toLocaleLowerCase() } }
+};
+vm.createContext(activeNegotiationDuplicate);
+vm.runInContext(transferOfferMatchSource + "\n" + normalizedTargetKeySource + "\n" + dedupeOffersSource,
+  activeNegotiationDuplicate, { filename: "preserve-active-transfer-negotiation" });
+activeNegotiationDuplicate.dedupeTransferOffersForWindow("summer-0",
+  { open: true, id: "summer-0", name: "الانتقالات الصيفية" });
+assert.equal(activeNegotiationDuplicate.state.transferOffers[0].status, "pending",
+  "an offer with active negotiations must not be superseded by a duplicate");
+assert.equal(activeNegotiationDuplicate.state.transferOffers[1].status, "superseded",
+  "a duplicate must not replace an offer the player is already negotiating");
+
+const negotiationGuard = {
+  state: { pendingTransfer: { club: "نادي قديم", country: "مصر" }, transferNegotiation: null,
+    transferOffers: [{ id: "new-offer", status: "pending" }] },
+  migrateLegacyPendingTransferOffer: () => null, ensureTransferOffers: () => {},
+  offerIsAvailable: () => true, toast: message => { negotiationGuard.toastMessage = message; },
+  renderTransferMarket: () => {}
+};
+vm.createContext(negotiationGuard);
+vm.runInContext(beginNegotiationSource, negotiationGuard, { filename: "prevent-parallel-transfer-negotiations" });
+negotiationGuard.beginTransferNegotiation("new-offer");
+assert.equal(negotiationGuard.state.transferNegotiation, null,
+  "the negotiation screen must not overwrite an unresolved direct transfer");
+assert.match(negotiationGuard.toastMessage, /عرض انتقال معلّق/,
+  "the player must be told to resolve the pending transfer first");
+
+const legacyMigration = {
+  state: { pendingTransfer: { club: "نادي محفوظ", country: "مصر", league: "الدوري المصري — الدرجة الثانية",
+    division: 2, source: "LWWorldDB", windowId: "summer-0", wage: 1700, role: "أساسي" },
+    transferOffers: [], transferHistory: [], lastOfferWindow: "summer-0", freeAgent: false,
+    season: 4, day: 22, calendarDay: 100 },
+  window: { LWWorldDB: { normalize: value => String(value || "").trim().toLocaleLowerCase() } },
+  canAccessTransferMarket: () => true, transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية" }),
+  stableHash: value => String(value).split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0),
+  clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
+  currencyLabel: () => "ج.م", saveGame: () => { legacyMigration.saved = true; }
+};
+vm.createContext(legacyMigration);
+vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
+  + normalizedTargetKeySource + "\n" + legacyMigrationSource, legacyMigration,
+  { filename: "legacy-pending-transfer-migration" });
+const migratedLegacyOffer = legacyMigration.migrateLegacyPendingTransferOffer();
+assert.equal(legacyMigration.state.pendingTransfer, null,
+  "a legacy direct pending transfer must be converted instead of blocking the new negotiation flow");
+assert.equal(migratedLegacyOffer.legacyDirectOffer, true,
+  "the migrated offer must retain a marker identifying its legacy origin");
+assert.equal(migratedLegacyOffer.division, 2, "legacy offer migration must preserve the destination division");
+assert.equal(migratedLegacyOffer.wage, 1700, "legacy offer migration must preserve the previously negotiated wage");
+assert.equal(migratedLegacyOffer.windowId, "summer-0", "legacy offer migration must retain its original transfer window");
+assert.equal(legacyMigration.state.transferOffersWindowId, "summer-0",
+  "migration must mark the active window so ensureTransferOffers does not regenerate a replacement batch");
+assert.equal(legacyMigration.saved, true, "legacy offer migration must be persisted immediately");
+
+const expiredLegacyMigration = {
+  state: { pendingTransfer: { club: "نادي قديم", country: "مصر", windowId: "summer-0" },
+    transferOffers: [], transferHistory: [], lastOfferWindow: "summer-0", freeAgent: false, season: 4, day: 30 },
+  window: { LWWorldDB: { normalize: value => String(value || "").trim().toLocaleLowerCase() } },
+  canAccessTransferMarket: () => true,
+  transferWindow: () => ({ open: true, id: "winter-0", name: "الانتقالات الشتوية" }),
+  saveGame: () => { expiredLegacyMigration.saved = true; }
+};
+vm.createContext(expiredLegacyMigration);
+vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
+  + normalizedTargetKeySource + "\n" + legacyMigrationSource, expiredLegacyMigration,
+  { filename: "expired-legacy-pending-transfer" });
+assert.equal(expiredLegacyMigration.migrateLegacyPendingTransferOffer(), null,
+  "a legacy offer from a closed window must not be reactivated");
+assert.equal(expiredLegacyMigration.state.pendingTransfer, null,
+  "an expired legacy direct offer must be cleared from the active save");
+assert.match(expiredLegacyMigration.state.transferHistory[0].text, /انتهت صلاحية/,
+  "an expired legacy offer must leave an audit entry in the career history");
 
 const cupArchiveScenario = {
   state: {
@@ -349,9 +485,9 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v250"), "legacy winter completion and free-agent expiry must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v251"), "unified transfer negotiations and duplicate-offer reconciliation must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);
 
-console.log("PASS: winter transfer-window identity stays stable, and legacy offers survive the break-to-second-half transition.");
+console.log("PASS: transfer windows remain stable; automatic approaches share official negotiation, duplicate club offers are reconciled, legacy direct offers migrate safely, and pending deals cannot overlap.");

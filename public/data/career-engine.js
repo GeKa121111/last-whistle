@@ -820,7 +820,9 @@
     if (!state || !state.loan) return state;
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
-    const parentContractSeasonsValue = Number(loan.parentContractSeasons);
+    // Older loan saves did not always snapshot this field; loanTo leaves the parent term on state.
+    const parentContractSeasonsValue = loan.parentContractSeasons === undefined
+      ? Number(state.contractSeasons) : Number(loan.parentContractSeasons);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional"));
     const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";

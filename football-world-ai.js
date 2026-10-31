@@ -1084,7 +1084,7 @@
     return groups;
   }
   function playersForClub(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.freeAgent);
+    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.freeAgent && !player.retired);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);

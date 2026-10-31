@@ -34,7 +34,9 @@ assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p 
   "CF must use the mobile-forward production profile");
 
 const lineupMarker = "  function makeLineup(world, club) {";
+const playersForClubMarker = "  function playersForClub(world, club) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
+assert.ok(aiSourceRaw.includes(playersForClubMarker), "AI engine must retain the club-player filter for retired-roster regression coverage");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season) {";
@@ -56,7 +58,7 @@ assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
-  .replace(lineupMarker, lineupMarker + `
+  .replace(lineupMarker, "  global.__lwTestMakeLineup = makeLineup;\n" + lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
@@ -75,6 +77,19 @@ new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContex
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+
+// Legacy saves can retain a retired player ID in a club roster after an interrupted migration.
+// The matchday lineup must never select that player, even if their old OVR is the highest.
+const retiredLineupWorld = { players: {
+  active: { id: "active", name: "Active player", group: "attacker", ovr: 70, freeAgent: false, retired: false },
+  retired: { id: "retired", name: "Retired player", group: "attacker", ovr: 99, freeAgent: false, retired: true },
+  free: { id: "free", name: "Free agent", group: "attacker", ovr: 95, freeAgent: true, retired: false }
+} };
+const retiredLineup = sandbox.window.__lwTestMakeLineup(retiredLineupWorld, {
+  id: "legacy-retired-roster", roster: ["active", "retired", "free"]
+});
+assert.deepEqual(retiredLineup.map(player => player.id), ["active"],
+  "AI match lineups must exclude retired and free-agent players even when stale roster IDs remain");
 
 // Transfer-market competition labels must follow the simulated club's current division.
 // AI world clubs keep their dynamic division, while leagueFor supplies the matching

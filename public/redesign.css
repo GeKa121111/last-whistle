@@ -329,6 +329,7 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
 body.lw-rebuild .app.hasSidebar>main>.page{display:none!important;width:100%;max-width:100%;min-width:0}
 body.lw-rebuild .app.hasSidebar>main>.page.active{display:block!important;width:100%;max-width:100%;min-width:0}
 body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid{display:grid!important;width:100%!important;min-width:0!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}
+body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid>.world-ai-dashboard-card{grid-column:1/-1!important;width:100%;min-width:0;max-width:100%}
 #page-europe .global-directory-grid,#page-europe .global-directory-card{grid-column:1/-1!important;width:100%;min-width:0;max-width:100%}
 #page-europe .global-directory-heading{align-items:flex-start;flex-wrap:wrap}
 #page-europe .global-directory-heading>div{min-width:0;flex:1 1 220px}

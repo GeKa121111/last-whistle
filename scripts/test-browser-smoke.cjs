@@ -1319,9 +1319,29 @@ async function main() {
             clientWidth: element.clientWidth
           };
         });
-        return { route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders };
+        const directory = document.querySelector("#globalDirectoryPanel");
+        const directoryPage = directory ? directory.closest(".page") : null;
+        const directoryRect = directory ? directory.getBoundingClientRect() : null;
+        const activePages = Array.from(document.querySelectorAll("main > .page.active")).map(page => page.id);
+        const directoryVisible = Boolean(directory && directoryPage
+          && directoryPage.parentElement === document.querySelector("main")
+          && getComputedStyle(directoryPage).display !== "none"
+          && directoryRect && directoryRect.width > 0 && directoryRect.height > 0);
+        return {
+          route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders,
+          activePages, directoryCount: document.querySelectorAll("#globalDirectoryPanel").length,
+          directoryPage: directoryPage ? directoryPage.id : null, directoryVisible
+        };
       }, route);
       mobileLayoutAudit.push(layout);
+      assert.deepEqual(layout.activePages, ["page-" + route],
+        "only the selected page may be active on mobile: " + JSON.stringify(layout));
+      assert.equal(layout.directoryCount, 1,
+        "the global football directory must exist exactly once: " + JSON.stringify(layout));
+      assert.equal(layout.directoryPage, "page-europe",
+        "the global football directory must remain inside the dedicated World Football page: " + JSON.stringify(layout));
+      assert.equal(layout.directoryVisible, route === "europe",
+        "the global football directory must be visible only on the World Football page: " + JSON.stringify(layout));
       assert.ok(
         layout.documentWidth <= layout.viewport + 1 && layout.bodyWidth <= layout.viewport + 1,
         "mobile page '" + route + "' has horizontal overflow: " + JSON.stringify(layout)

@@ -3413,6 +3413,29 @@ function seasonAwards(state, league, teamRank) {
       .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
     const playerEndMinute = playerExitEvent ? Number(playerExitEvent.minute)
       : playerEntryMinute + Number(result.player.minutes || 0);
+    // Modern results carry an explicit availability flag, substitution-on event, or
+    // extra-time played flag. Use those fields as a strict participation ledger while
+    // leaving older saved match records on the legacy-compatible validation path.
+    const hasModernPlayerMinutesLedger = typeof result.player.playerAvailable === "boolean"
+      || result.events.some(event => event.type === "substitution-on" && event.side === "player")
+      || (result.extraTime && typeof result.extraTime === "object" && !Array.isArray(result.extraTime)
+        && typeof result.extraTime.played === "boolean");
+    const playerMinutesValue = result.player.minutes == null ? null : Number(result.player.minutes);
+    const matchDurationMinutes = result.extraTime?.played === true ? 120 : 90;
+    const expectedPlayerMinutes = playerExitEvent
+      ? Number(playerExitEvent.minute) - playerEntryMinute
+      : matchDurationMinutes - playerEntryMinute;
+    const playerMinutesLedgerConsistent = !hasModernPlayerMinutesLedger || (
+      playerMinutesValue !== null
+      && Number.isInteger(playerMinutesValue)
+      && playerMinutesValue >= 0
+      && playerMinutesValue <= matchDurationMinutes
+      && (playerMinutesValue === 0
+        ? !playerEntryEvent && !playerExitEvent
+        : Number.isFinite(expectedPlayerMinutes)
+          && expectedPlayerMinutes >= 0
+          && playerMinutesValue === expectedPlayerMinutes)
+    );
     const isPlayerActivityEvent = event => event.type === "penalty-save"
       ? event.creditedToPlayer === true
       : (event.creditedToPlayer === true
@@ -3680,14 +3703,16 @@ function seasonAwards(state, league, teamRank) {
       && Number(result.player.passesCompleted || 0) <= Number(result.player.passAttempts || 0)
       && Number(result.player.passingAccuracy || 0) === (Number(result.player.passAttempts) > 0
         ? Math.round(Number(result.player.passesCompleted) / Number(result.player.passAttempts) * 1000) / 10 : 0)
-      && playerEventsInBounds && eventMinutesValid && aggregateOffsetConsistent && extraTimeEventSeedConsistent && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
+      && playerEventsInBounds && playerMinutesLedgerConsistent && eventMinutesValid && aggregateOffsetConsistent && extraTimeEventSeedConsistent && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
     const reason = !metadataShapeConsistent ? "invalid-metadata-shape"
       : !aggregateOffsetConsistent ? "invalid-aggregate-offset"
-        : !extraTimeEventSeedConsistent ? "invalid-extra-time-event-seed" : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+        : !extraTimeEventSeedConsistent ? "invalid-extra-time-event-seed"
+          : !playerMinutesLedgerConsistent ? "invalid-player-minutes-ledger"
+            : valid ? "" : "inconsistent-match-ledger";
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, playerMinutesLedgerConsistent, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

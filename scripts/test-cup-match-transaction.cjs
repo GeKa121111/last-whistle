@@ -88,7 +88,7 @@ function makeHarness(options = {}) {
     opponentName: "Opponent FC"
   };
   const sandbox = {
-    state, events, console,
+    state, events, console: { error: () => {}, warn: () => {} },
     CUP_COMPETITIONS: [{ name: "Test Cup", system: phase === "groups" ? "caf" : phase }],
     isYouthAcademyPlayer: () => false,
     toast: () => { events.toasts++; },

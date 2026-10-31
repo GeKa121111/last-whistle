@@ -1549,9 +1549,16 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
     const hasActiveLoan = !!(state.loan && typeof state.loan === "object" && !Array.isArray(state.loan));
     const effectiveContractType = String(hasActiveLoan && state.loan.parentContractType !== undefined
-      ? state.loan.parentContractType : state.contractType || "").toLowerCase();
-    const effectiveFreeAgent = hasActiveLoan && state.loan.parentFreeAgent !== undefined
-      ? normalizeLegacyBoolean(state.loan.parentFreeAgent) : state.freeAgent;
+      ? state.loan.parentContractType : state.contractType || "").trim().toLowerCase();
+    const savedParentFreeAgent = hasActiveLoan ? state.loan.parentFreeAgent : undefined;
+    const hasSavedParentFreeAgent = savedParentFreeAgent !== undefined
+      && savedParentFreeAgent !== null
+      && !(typeof savedParentFreeAgent === "string" && savedParentFreeAgent.trim() === "");
+    const effectiveFreeAgent = hasActiveLoan
+      ? hasSavedParentFreeAgent ? normalizeLegacyBoolean(savedParentFreeAgent)
+        : effectiveContractType === "free-agent" ? true
+          : effectiveContractType ? false : state.freeAgent
+      : state.freeAgent;
     const savedParentContractSeasons = hasActiveLoan ? state.loan.parentContractSeasons : undefined;
     const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
       && savedParentContractSeasons !== null
@@ -1633,13 +1640,17 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(weeklyWageValue))) : 0;
     }
     state.agentCommissionPaid = finiteCount(state.agentCommissionPaid);
-    const contractSeasonsMissing = state.contractSeasons === undefined || state.contractSeasons === null || state.contractSeasons === "";
-    if (contractSeasonsMissing) state.contractSeasons = state.freeAgent || state.retired ? 0 : 2;
+    const defaultContractIsFreeAgent = hasActiveLoan
+      ? (effectiveFreeAgent || effectiveContractType === "free-agent") : state.freeAgent;
+    const defaultContractSeasons = defaultContractIsFreeAgent || state.retired ? 0 : 2;
+    const contractSeasonsMissing = state.contractSeasons === undefined || state.contractSeasons === null
+      || (typeof state.contractSeasons === "string" && state.contractSeasons.trim() === "");
+    if (contractSeasonsMissing) state.contractSeasons = defaultContractSeasons;
     else {
       const contractSeasonsValue = Number(state.contractSeasons);
       state.contractSeasons = Number.isFinite(contractSeasonsValue)
         ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
-        : (state.freeAgent || state.retired ? 0 : 2);
+        : defaultContractSeasons;
     }
     if (!hasActiveLoan && state.freeAgent) state.contractSeasons = 0;
     if (effectiveFreeAgent || state.retired || effectiveContractType === "free-agent"
@@ -2127,16 +2138,21 @@ function seasonAwards(state, league, teamRank) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
-    // Older loan saves did not always snapshot this field; loanTo leaves the parent term on state.
+    const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
+    const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional")).trim();
+    const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
+    // Older loan saves may omit this snapshot or serialize it as null/blank; fall back to the parent term on state.
     const savedParentContractSeasons = loan.parentContractSeasons;
     const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
       && savedParentContractSeasons !== null
       && !(typeof savedParentContractSeasons === "string" && savedParentContractSeasons.trim() === "");
+    const savedStateContractSeasons = state.contractSeasons;
+    const stateContractSeasonsMissing = savedStateContractSeasons === undefined || savedStateContractSeasons === null
+      || (typeof savedStateContractSeasons === "string" && savedStateContractSeasons.trim() === "");
+    const fallbackParentContractSeasons = stateContractSeasonsMissing
+      ? (parentIsFreeAgent ? 0 : 2) : Number(savedStateContractSeasons);
     const parentContractSeasonsValue = hasSavedParentContractSeasons
-      ? Number(savedParentContractSeasons) : Number(state.contractSeasons);
-    const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
-    const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional"));
-    const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
+      ? Number(savedParentContractSeasons) : fallbackParentContractSeasons;
     return {
       ...state,
       loan: null,
@@ -5099,18 +5115,30 @@ function returnFromLoan(){
  // this, league results earned during the loan vanish when the next season is built.
  archiveLeagueSegment("loan-return");
  const hostClub=state.clubName;
- state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;state.leagueDivision=Math.max(1,Number(l.parentDivision)||1);state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");state.clubPower=Math.max(1,Number(l.parentPower)||clubPowerFor(l.parentClub,l.parentCountry));state.clubTier=Number.isFinite(Number(l.parentTier))?Number(l.parentTier):clubTierForPower(state.clubPower);state.clubIndex=Number.isFinite(Number(l.parentIndex))?Number(l.parentIndex):state.clubTier;const parentWageValue=Number(l.parentWage),parentContractSeasonsValue=l.parentContractSeasons===undefined||l.parentContractSeasons===null||(typeof l.parentContractSeasons==="string"&&!l.parentContractSeasons.trim())?Number(state.contractSeasons):Number(l.parentContractSeasons);state.weeklyWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;state.contractSeasons=Number.isFinite(parentContractSeasonsValue)?Math.max(0,Math.min(10,Math.floor(parentContractSeasonsValue))):0;state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent)||String(l.parentContractType||"").toLowerCase()==="free-agent";state.contractType=state.freeAgent?"free-agent":String(l.parentContractType||state.contractType||"professional");state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;
+ const parentFreeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);
+ const parentContractType=String(l.parentContractType||state.contractType||"professional").trim();
+ const parentIsFreeAgent=parentFreeAgent||parentContractType.toLowerCase()==="free-agent";
+ const savedParentContractSeasons=l.parentContractSeasons;
+ const parentTermMissing=savedParentContractSeasons===undefined||savedParentContractSeasons===null
+  ||(typeof savedParentContractSeasons==="string"&&!savedParentContractSeasons.trim());
+ const savedStateContractSeasons=state.contractSeasons;
+ const stateTermMissing=savedStateContractSeasons===undefined||savedStateContractSeasons===null
+  ||(typeof savedStateContractSeasons==="string"&&!savedStateContractSeasons.trim());
+ const fallbackParentContractSeasons=stateTermMissing?(parentIsFreeAgent?0:2):Number(savedStateContractSeasons);
+ const parentContractSeasonsValue=parentTermMissing?fallbackParentContractSeasons:Number(savedParentContractSeasons);
+ state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;state.leagueDivision=Math.max(1,Number(l.parentDivision)||1);state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");state.clubPower=Math.max(1,Number(l.parentPower)||clubPowerFor(l.parentClub,l.parentCountry));state.clubTier=Number.isFinite(Number(l.parentTier))?Number(l.parentTier):clubTierForPower(state.clubPower);state.clubIndex=Number.isFinite(Number(l.parentIndex))?Number(l.parentIndex):state.clubTier;const parentWageValue=Number(l.parentWage);state.weeklyWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;state.contractSeasons=Number.isFinite(parentContractSeasonsValue)?Math.max(0,Math.min(10,Math.floor(parentContractSeasonsValue))):0;state.freeAgent=parentIsFreeAgent;state.contractType=parentIsFreeAgent?"free-agent":parentContractType;state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;
  log(`انتهت الإعارة من ${hostClub} وعدت إلى ${state.clubName}.`);state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهت الإعارة والعودة إلى ${state.clubName} (${state.leagueCountry}).`});return true;
 }
 
 function renderContract(){
- const statusPill=$("contractStatusPill");if(statusPill){statusPill.textContent=state.retired?"معتزل":state.loan?"معار":state.academyGraduationPending?"قرار التخرج":state.academyCareer?"أكاديمية الناشئين":state.academyReserve?"فريق الرديف":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"ناشئ / هاوي":Number(state.contractSeasons)<=1?"ينتهي بنهاية الموسم":"ساري";statusPill.className="pill "+(state.retired?"red":state.loan?"gold":state.academyGraduationPending||state.academyCareer||state.academyReserve||Number(state.contractSeasons)<=1?"gold":state.freeAgent?"red":"green");}setText("contractClub",state.academyGraduationPending?"أكاديمية "+(state.clubName||"النادي")+" — اختر مسارك":state.academyCareer?"أكاديمية "+(state.clubName||"النادي"):state.academyReserve?"فريق الرديف — "+(state.clubName||"النادي"):state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي"):state.freeAgent?"لاعب حر — بدون عقد":club().name);setText("currentClubLeague",`${state.leagueCompetition||"الدوري المحلي"} • ${state.leagueCountry||"مصر"} • ${state.leagueSource||"بيانات اللعبة"}`);setText("weeklyWage",careerMatchPlayerEligible(state,"league")?Number(state.weeklyWage||0).toLocaleString("en-US"):"0");setText("weeklyWageLabel",state.loan?"مرتب الإعارة / أسبوع":currencyLabel()+" / أسبوع");setText("contractYears",state.freeAgent?0:state.contractSeasons);setText("contractTrust",state.trust+"%");
+ const contractDisplayState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
+ const statusPill=$("contractStatusPill");if(statusPill){statusPill.textContent=state.retired?"معتزل":state.loan?"معار":state.academyGraduationPending?"قرار التخرج":state.academyCareer?"أكاديمية الناشئين":state.academyReserve?"فريق الرديف":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"ناشئ / هاوي":Number(state.contractSeasons)<=1?"ينتهي بنهاية الموسم":"ساري";statusPill.className="pill "+(state.retired?"red":state.loan?"gold":state.academyGraduationPending||state.academyCareer||state.academyReserve||Number(state.contractSeasons)<=1?"gold":state.freeAgent?"red":"green");}setText("contractClub",state.academyGraduationPending?"أكاديمية "+(state.clubName||"النادي")+" — اختر مسارك":state.academyCareer?"أكاديمية "+(state.clubName||"النادي"):state.academyReserve?"فريق الرديف — "+(state.clubName||"النادي"):state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي"):state.freeAgent?"لاعب حر — بدون عقد":club().name);setText("currentClubLeague",`${state.leagueCompetition||"الدوري المحلي"} • ${state.leagueCountry||"مصر"} • ${state.leagueSource||"بيانات اللعبة"}`);setText("weeklyWage",careerMatchPlayerEligible(state,"league")?Number(state.weeklyWage||0).toLocaleString("en-US"):"0");setText("weeklyWageLabel",state.loan?"مرتب الإعارة / أسبوع":currencyLabel()+" / أسبوع");setText("contractYears",contractDisplayState.freeAgent?0:contractDisplayState.contractSeasons);setText("contractTrust",state.trust+"%");
  const negotiationStatus=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
  const contractHint=state.academyGraduationPending?"أكملت أكاديمية الناشئين. اختار عقد الفريق الأول أو موسم الرديف قبل بدء أي مفاوضات.":state.academyCareer?"أنت ضمن أكاديمية النادي؛ مرتبك صفر خلال مرحلة الناشئين، والتطور والمشاركة هما طريقك للتصعيد في سن 18.":state.academyReserve?"أنت في فريق الرديف لموسم واحد؛ الأداء الجيد هيفتح لك طريق الفريق الأول.":state.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن بدء تفاوض جديد.":state.loan?"عقدك مع "+String(state.loan.parentClub||"النادي الأصلي")+" مستمر خلال الإعارة؛ التفاوض المباشر متوقف حتى العودة.":state.freeAgent?"انتهى عقدك؛ لا يوجد مرتب حاليًا. استخدم سوق الأندية للحصول على عقد جديد.":Number(state.contractSeasons)<=1?"عقدك ينتهي بنهاية الموسم؛ سيظهر عرض تجديد رسمي عند إتمام الموسم.":negotiationStatus==="cooldown"?`التفاوض القادم متاح بعد ${Math.max(1,7-(Number(state.daysSinceNegotiation)||0))} أيام.`:"تقدر تفاوض على تحسين الراتب ما دام عقدك ساريًا لأكثر من موسم.";
  setText("contractMessage",contractHint);
  const negotiationButton=$("negotiateBtn");if(negotiationButton){negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";negotiationButton.textContent=state.retired?"المسيرة انتهت":state.loan?"التفاوض متوقف أثناء الإعارة":state.freeAgent?"لا يوجد عقد للتفاوض":Number(state.contractSeasons)<=1?"انتظار عرض التجديد":negotiationStatus==="cooldown"?"التفاوض متاح لاحقًا":"تفاوض على العقد";}
  renderTransferMarket();
- setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+state.contractSeasons+" موسم");
+ setText("contractPill",state.retired?"معتزل":contractDisplayState.freeAgent?"لاعب حر":contractDisplayState.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+contractDisplayState.contractSeasons+" موسم");
  const stages=[["درجة ثانية / أكاديمية",0,0,250],["درجة أولى / نادي صاعد",55,35,650],["دوري ممتاز / نادي ثابت",62,48,1500],["نادي أوروبي كبير",70,60,4000]];
  $("clubLadder").innerHTML=stages.map((c,i)=>`<div class="feedItem"><b>${i===state.clubIndex?"📍":i<state.clubIndex?"✅":"🔒"} ${c[0]} ${i===state.clubIndex?"(أنت هنا)":""}</b><span class="muted">${i===state.clubIndex?"مرحلتك الحالية":`الشروط: تقييم ${c[1]}+ وثقة ${c[2]}+`} • مرتب نموذجي ${c[3]} ${currencyLabel()}/أسبوع</span></div>`).join("");
  $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(x=>`<div class="feedItem"><b>الموسم ${x.season} • اليوم ${x.day}</b>${x.text}</div>`).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';
@@ -6248,15 +6276,23 @@ function careerMatchPlayerEligible(state,scope="league"){
  if(legacyBoolean(state.retired))return false;
  if(scope==="international")return true;
  const loan=state.loan&&typeof state.loan==="object"?state.loan:null;
- const freeAgentValue=loan&&loan.parentFreeAgent!==undefined?loan.parentFreeAgent:state.freeAgent;
+ const contractTypeValue=loan&&loan.parentContractType!==undefined?loan.parentContractType:state.contractType;
+ const normalizedContractType=String(contractTypeValue||"").trim().toLowerCase();
+ const savedParentFreeAgent=loan?loan.parentFreeAgent:undefined;
+ const hasSavedParentFreeAgent=savedParentFreeAgent!==undefined&&savedParentFreeAgent!==null
+  &&!(typeof savedParentFreeAgent==="string"&&!savedParentFreeAgent.trim());
+ const freeAgentValue=loan
+  ?hasSavedParentFreeAgent?savedParentFreeAgent:normalizedContractType==="free-agent"?true:normalizedContractType?false:state.freeAgent
+  :state.freeAgent;
  const freeAgent=legacyBoolean(freeAgentValue);
- const contractValue=loan&&loan.parentContractSeasons!==undefined&&loan.parentContractSeasons!==null
-  ?loan.parentContractSeasons:state.contractSeasons;
+ const savedParentContractSeasons=loan?loan.parentContractSeasons:undefined;
+ const hasSavedParentContractSeasons=savedParentContractSeasons!==undefined&&savedParentContractSeasons!==null
+  &&!(typeof savedParentContractSeasons==="string"&&!savedParentContractSeasons.trim());
+ const contractValue=hasSavedParentContractSeasons?savedParentContractSeasons:state.contractSeasons;
  const contractMissing=contractValue===undefined||contractValue===null||contractValue==="";
  const contractSeasons=Number(contractValue);
  const expired=!contractMissing&&Number.isFinite(contractSeasons)&&contractSeasons<=0;
- const contractTypeValue=loan&&loan.parentContractType!==undefined?loan.parentContractType:state.contractType;
- const freeAgentType=String(contractTypeValue||"").trim().toLowerCase()==="free-agent";
+ const freeAgentType=normalizedContractType==="free-agent";
  return !freeAgent&&!freeAgentType&&!expired;
 }
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){

@@ -98,8 +98,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 297);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 54);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 298);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 55);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1324,7 +1324,7 @@ const parseSavedBooleanForLoanReturn = (value, fallback = false) => {
   }
   return fallback;
 };
-function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "أساسي", fallbackContractSeasons = 3) {
+function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "أساسي", fallbackContractSeasons = 3, parentFreeAgent = false, parentContractType = "professional") {
   const state = {
     clubName: "Loan Club", leagueCountry: "Spain", season: 4, day: 12,
     role: "بديل أساسي", transferCooldown: 0, transferHistory: [], contractSeasons: fallbackContractSeasons,
@@ -1332,7 +1332,7 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "�
       parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 1,
       parentCompetition: "Parent League", parentSource: "test fixture",
       parentPower: 52, parentTier: 1, parentIndex: 1,
-      parentWage, parentContractSeasons, parentFreeAgent: false,
+      parentWage, parentContractSeasons, parentFreeAgent, parentContractType,
       ...(parentRole ? { parentRole } : {})
     }
   };
@@ -1463,6 +1463,75 @@ for (const missingParentTerm of [null, "", "   "]) {
   assert.equal(staleFlagsLoan.contractSeasons, 2);
   assert.equal(browserStaleFlagsLoan.contractSeasons, 2);
 }
+const eligibilityFunction = rootHtml.match(/function careerMatchPlayerEligible\(state,scope="league"\)\s*\{[\s\S]*?\n\}/);
+assert.ok(eligibilityFunction, "career match eligibility must be available for parent-contract regression tests");
+const eligibilityContext = {};
+vm.runInNewContext(eligibilityFunction[0] + "\nglobalThis.isCareerMatchEligible = careerMatchPlayerEligible;", eligibilityContext);
+for (const savedParentTerm of [null, "", "   "]) {
+  const expiredLoan = {
+    retired: false, freeAgent: false, contractType: "professional", contractSeasons: 0,
+    loan: { parentFreeAgent: false, parentContractType: "professional", parentContractSeasons: savedParentTerm }
+  };
+  assert.equal(eligibilityContext.isCareerMatchEligible(expiredLoan, "league"), false,
+    "blank parent-term snapshots must fall back to an expired top-level contract and block club appearances");
+  const activeLoan = { ...expiredLoan, contractSeasons: 2 };
+  assert.equal(eligibilityContext.isCareerMatchEligible(activeLoan, "league"), true,
+    "blank parent-term snapshots must preserve a still-active top-level parent contract");
+}
+const staleFreeAgentLoan = {
+  retired: false, freeAgent: true, contractType: "professional", contractSeasons: 2,
+  loan: { parentContractType: "professional", parentContractSeasons: 2 }
+};
+assert.equal(eligibilityContext.isCareerMatchEligible(staleFreeAgentLoan, "league"), true,
+  "a legacy top-level free-agent flag must not override an explicit professional parent contract");
+
+const missingTopLevelLoanTerm = {
+  pos: "مهاجم", age: 24, freeAgent: true, contractType: "professional", weeklyWage: 900,
+  trainingXP: {}, randomSeed: 1,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: null, parentContractType: "professional" }
+};
+const browserMissingTopLevelLoanTerm = {
+  ...missingTopLevelLoanTerm, loan: { ...missingTopLevelLoanTerm.loan }
+};
+const rawMissingTopLevelSnapshot = career.contractStateForSeasonTransition({
+  ...missingTopLevelLoanTerm, loan: { ...missingTopLevelLoanTerm.loan }
+});
+assert.equal(rawMissingTopLevelSnapshot.contractSeasons, 2,
+  "a legacy professional loan with no usable term snapshot or top-level term must receive the safe active-contract default");
+career.ensureState(missingTopLevelLoanTerm);
+deployedCareer.ensureState(browserMissingTopLevelLoanTerm);
+assert.equal(missingTopLevelLoanTerm.contractSeasons, 2,
+  "loan migration must infer the default parent term from the saved professional parent contract, not a stale free-agent flag");
+assert.equal(browserMissingTopLevelLoanTerm.contractSeasons, 2,
+  "embedded loan migration must use the same parent-contract default");
+assert.equal(missingTopLevelLoanTerm.weeklyWage, 900);
+assert.equal(browserMissingTopLevelLoanTerm.weeklyWage, 900);
+const browserMissingTopLevelReturn = runBrowserLoanReturn(400, null, "أساسي", null, false, "professional");
+assert.equal(browserMissingTopLevelReturn.result, true);
+assert.equal(browserMissingTopLevelReturn.state.contractSeasons, 2,
+  "loan return must restore the safe active-contract default when both legacy term fields are missing");
+
+const freeAgentParentWithoutTerm = {
+  pos: "مهاجم", age: 24, freeAgent: false, contractType: "professional", weeklyWage: 900,
+  trainingXP: {}, randomSeed: 1,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: null, parentFreeAgent: true, parentContractType: "free-agent" }
+};
+career.ensureState(freeAgentParentWithoutTerm);
+assert.equal(freeAgentParentWithoutTerm.contractSeasons, 0);
+assert.equal(freeAgentParentWithoutTerm.weeklyWage, 0);
+const browserFreeAgentParentReturn = runBrowserLoanReturn(0, null, "أساسي", null, true, "free-agent");
+assert.equal(browserFreeAgentParentReturn.state.contractSeasons, 0);
+assert.equal(browserFreeAgentParentReturn.state.freeAgent, true);
+
+assert.ok(rootHtml.includes('const contractDisplayState=window.LWCareer?.contractStateForSeasonTransition(state)||state;'),
+  "the contract panel must read the parent-club contract while a legacy save is on loan");
+assert.ok(rootHtml.includes('setText("contractYears",contractDisplayState.freeAgent?0:contractDisplayState.contractSeasons);'),
+  "the contract panel must not display a stale top-level free-agent flag during a loan");
+assert.ok(rootHtml.includes('setText("contractPill",state.retired?"معتزل":contractDisplayState.freeAgent?'),
+  "the contract pill must reflect the parent contract snapshot while on loan");
+
 const parentFreeAgentCases = [
   [true, true], [false, false],
   ["true", true], ["TRUE", true], ["1", true], ["yes", true], ["on", true],

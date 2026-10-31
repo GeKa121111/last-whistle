@@ -1152,6 +1152,20 @@ assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
  );
  const staleTableSnapshot = JSON.stringify(staleWrapperWorld.leagueTables["1"]);
  const staleStatsSnapshot = JSON.stringify(staleWrapperWorld.seasonStats["1"]);
+
+ // Direct completion requests must not reconstruct an older season from the current rosters.
+ const staleCompletionResult = ai.completeSeason(staleWrapperSave, 2, db);
+ assert.equal(staleCompletionResult.staleRequest, true, "a direct completion request for an older, unrecorded season must be rejected");
+ assert.equal(staleCompletionResult.season, 3, "a stale completion must report the stable world season");
+ assert.equal(staleWrapperWorld.currentSeason, 3, "a stale completion must not rewind the world clock");
+ assert.deepEqual(staleWrapperWorld.completedSeasons, [1], "a stale completion must not mark the requested old season complete");
+ assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.matchesBySeason, "2"), false,
+   "a stale completion must not generate fixtures from current rosters");
+ assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.seasonStats, "2"), false,
+   "a stale completion must not fabricate historical player statistics");
+ assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.leagueTables, "2"), false,
+   "a stale completion must not generate historical league tables");
+
  const staleWrapperResult = ai.advanceToSeason(staleWrapperSave, 2, db);
  assert.equal(staleWrapperResult.alreadyAdvanced, true,
    "a request older than currentSeason must be rejected by the effective world wrapper");

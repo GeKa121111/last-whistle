@@ -1638,7 +1638,16 @@
   function completeSeason(save, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
+    const stableCurrentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     const alreadyCompleted = Array.isArray(world.completedSeasons) && world.completedSeasons.includes(year);
+    // Do not fabricate an older season from today's squads when a stale completion request arrives.
+    if (stableCurrentSeason > year && !alreadyCompleted) {
+      const market = (world.marketReports || []).find(row => Number(row.season) === year) || {};
+      return {
+        season: stableCurrentSeason, rows: [], tables: {}, matches: [], competitions: [],
+        alreadyCompleted: true, staleRequest: true, transfers: Number(market.moves) || 0
+      };
+    }
     if (alreadyCompleted) {
       // Preserve the legacy fallback for compact saves whose old match list was pruned.
       if (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))) {
@@ -1934,7 +1943,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=24");
+    const worker = new global.Worker("./football-world-worker.js?v=25");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

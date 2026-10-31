@@ -568,13 +568,25 @@ assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).freeAgent, 
   "a legacy string true parentFreeAgent must preserve a parent's free-agent state");
 assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).contractType, "free-agent",
   "a free-agent parent contract must retain its type when a loan ends");
+assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).contractSeasons, 0,
+  "a legacy free-agent parent must not retain a positive professional contract term");
+assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).weeklyWage, 0,
+  "a legacy free-agent parent must not regain a professional wage on loan return");
+const legacyTrueBrowserReturn = runBrowserLoanReturn(400, 1, "أساسي", 3, true, "professional");
+assert.equal(legacyTrueBrowserReturn.state.freeAgent, true);
+assert.equal(legacyTrueBrowserReturn.state.contractType, "free-agent");
+assert.equal(legacyTrueBrowserReturn.state.contractSeasons, 0);
+assert.equal(legacyTrueBrowserReturn.state.weeklyWage, 0);
 assert.ok(rootHtml.includes("parentContractType:state.contractType"),
   "browser loan snapshots must preserve the parent contract type");
-assert.ok(rootHtml.includes('state.contractType=parentIsFreeAgent?"free-agent":parentContractType;'),
+assert.ok(rootHtml.includes('state.contractType=parentHasNoContract?"free-agent":parentContractType;'),
   "browser loan return must restore the normalized parent contract type");
 assert.ok(rootHtml.includes('const parentFreeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);')
   && rootHtml.includes('const parentIsFreeAgent=parentFreeAgent||parentContractType.toLowerCase()==="free-agent";')
-  && rootHtml.includes('state.freeAgent=parentIsFreeAgent;'),
+  && rootHtml.includes('const parentHasNoContract=parentIsFreeAgent||restoredParentContractSeasons<=0;')
+  && rootHtml.includes('state.weeklyWage=parentHasNoContract?0:restoredParentWage;')
+  && rootHtml.includes('state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;')
+  && rootHtml.includes('state.freeAgent=parentHasNoContract;'),
   "browser loan return must normalize legacy parentFreeAgent values and restore the parent contract consistently");
 assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
   "browser loan return must restore the parent club role while preserving legacy saves without it");
@@ -1351,7 +1363,7 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "�
 }
 const parentLoanContractCases = [
   [Infinity, 1, 0, 1],
-  [400, 0, 400, 0],
+  [400, 0, 0, 0],
   [400, null, 400, 3],
   [400, "", 400, 3],
   [400, "   ", 400, 3],
@@ -1380,10 +1392,19 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
     "parent-club wages restored after a loan must be finite, non-negative, integral, and safe");
   assert.equal(sharedSnapshot.contractSeasons, expectedSeasons,
     "parent-club contract duration restored after a loan must be finite and bounded");
+  const expectedFreeAgent = expectedSeasons <= 0;
+  assert.equal(sharedSnapshot.freeAgent, expectedFreeAgent,
+    "an expired parent contract must restore as a free agent, not as a renewable contract");
+  assert.equal(sharedSnapshot.contractType, expectedFreeAgent ? "free-agent" : "professional",
+    "the restored contract type must agree with the remaining parent-contract term");
   assert.equal(browserSnapshot.weeklyWage, expectedWage,
     "embedded browser engine must sanitize parent-club wages like the shared engine");
   assert.equal(browserSnapshot.contractSeasons, expectedSeasons,
     "embedded browser engine must sanitize parent-club contract duration like the shared engine");
+  assert.equal(browserSnapshot.freeAgent, expectedFreeAgent,
+    "embedded browser engine must mark an expired parent contract as free agency");
+  assert.equal(browserSnapshot.contractType, expectedFreeAgent ? "free-agent" : "professional",
+    "embedded browser contract type must agree with the parent-contract term");
   assert.equal(JSON.stringify(browserSnapshot), JSON.stringify(sharedSnapshot),
     "embedded and shared loan-contract restoration must stay behaviorally identical");
   assert.equal(loanState.weeklyWage, 900, "restoring the parent contract must not mutate active loan wages");
@@ -1395,6 +1416,10 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
     "browser loan return must restore only a finite, bounded, integral parent wage");
   assert.equal(browserReturn.state.contractSeasons, expectedSeasons,
     "browser loan return must restore only a finite, bounded parent contract duration");
+  assert.equal(browserReturn.state.freeAgent, expectedFreeAgent,
+    "browser loan return must mark an expired parent contract as free agency");
+  assert.equal(browserReturn.state.contractType, expectedFreeAgent ? "free-agent" : "professional",
+    "browser loan return must not leave an expired professional contract active");
   assert.equal(browserReturn.state.loan, null, "a successful loan return must clear the active loan");
   assert.equal(browserReturn.state.clubName, "Parent Club", "a successful loan return must restore the parent club");
   assert.equal(browserReturn.state.role, "أساسي", "a successful loan return must restore the parent club squad role");

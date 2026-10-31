@@ -831,7 +831,7 @@
     return Math.min(candidate, toNonNegativeInteger(roundCount));
   }
 
-  function contractStateForSeasonTransition(state) {
+function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
@@ -850,20 +850,22 @@
       ? (parentIsFreeAgent ? 0 : 2) : Number(savedStateContractSeasons);
     const parentContractSeasonsValue = hasSavedParentContractSeasons
       ? Number(savedParentContractSeasons) : fallbackParentContractSeasons;
+    const restoredParentContractSeasons = Number.isFinite(parentContractSeasonsValue)
+      ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0;
+    const parentHasNoContract = parentIsFreeAgent || restoredParentContractSeasons <= 0;
+    const restoredParentWage = Number.isFinite(parentWageValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0;
     return {
       ...state,
       loan: null,
       clubName: String(loan.parentClub || state.clubName || ""),
       leagueCountry: String(loan.parentCountry || state.leagueCountry || ""),
-      weeklyWage: Number.isFinite(parentWageValue)
-        ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0,
-      contractSeasons: Number.isFinite(parentContractSeasonsValue)
-        ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0,
-      contractType: parentIsFreeAgent ? "free-agent" : parentContractType,
-      freeAgent: parentIsFreeAgent
+      weeklyWage: parentHasNoContract ? 0 : restoredParentWage,
+      contractSeasons: parentHasNoContract ? 0 : restoredParentContractSeasons,
+      contractType: parentHasNoContract ? "free-agent" : parentContractType,
+      freeAgent: parentHasNoContract
     };
   }
-
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";

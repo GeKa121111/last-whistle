@@ -221,7 +221,7 @@ const required = [
   "function activateMidSeasonBreakIfDue(){",
   "if(activateMidSeasonBreakIfDue())break;",
   "activateMidSeasonBreakIfDue();",
-  "const developmentResult=runSeasonAITtraining();",
+  ":runSeasonAITtraining();",
   "report.completedSeason=currentSeason",
   "transferButton.hidden=!transferVisible",
   "ensureSeasonDevelopmentSnapshot();",

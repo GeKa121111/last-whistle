@@ -523,7 +523,7 @@ const directLoanTransitionContext = {
   returnFromLoan: () => { directLoanReturnCalls++; },
   toast: () => {}
 };
-const startNewSeasonStart = rootHtml.indexOf("async function startNewSeason(showStory=true){");
+const startNewSeasonStart = rootHtml.indexOf("function createSingleFlightGate(){");
 const startNewSeasonEnd = rootHtml.indexOf("\nfunction nextDay()", startNewSeasonStart);
 assert.ok(startNewSeasonStart >= 0 && startNewSeasonEnd > startNewSeasonStart,
   "the deployed season-start function must be available for loan-contract regression coverage");

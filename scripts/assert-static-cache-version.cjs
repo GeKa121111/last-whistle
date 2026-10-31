@@ -27,12 +27,12 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 294;
+  const minimumCacheVersion = 295;
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
     ["career-state-store.js", 2],
     ["data/career-engine.js", 52],
-    ["data/match-engine.js", 70],
+    ["data/match-engine.js", 71],
     ["football-world-ai.js", 37],
     ["football-world-worker.js", 26],
     ["transfer-awards-engine.js", 10]

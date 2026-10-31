@@ -1088,9 +1088,9 @@ if (!winterReview.resumed || !winterReview.simulated) {
 }
 
 const gateStart = rootHtml.indexOf("function createSingleFlightGate(){");
-const gateEnd = rootHtml.indexOf("\\nconst seasonTransitionGate", gateStart);
+const gateEnd = rootHtml.indexOf("\nconst seasonTransitionGate", gateStart);
 const seasonStart = rootHtml.indexOf("function startNewSeason(showStory=true){", gateEnd);
-const seasonInternalStart = rootHtml.indexOf("\\nasync function startNewSeasonInternal(showStory=true){", seasonStart);
+const seasonInternalStart = rootHtml.indexOf("\nasync function startNewSeasonInternal(showStory=true){", seasonStart);
 if (gateStart < 0 || gateEnd < 0 || seasonStart < gateEnd || seasonInternalStart < 0
   || !rootHtml.slice(seasonStart, seasonInternalStart).includes("return seasonTransitionGate(()=>startNewSeasonInternal(showStory));")) {
   console.error("Season transition concurrency guard is missing or disconnected from startNewSeason.");

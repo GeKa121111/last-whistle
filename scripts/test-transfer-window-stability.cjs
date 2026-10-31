@@ -284,9 +284,9 @@ for (const feeCase of agentSigningBonusCases) {
   };
   vm.createContext(feeScenario);
   vm.runInContext(
-    transferOfferMatchSource + "\\n" + transferOfferCurrentMatchSource + "\\n" + transferToSource,
+    transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
     feeScenario,
-    { filename: "agent-signing-bonus-commission-" + feeCase.label.replace(/\\s+/g, "-") }
+    { filename: "agent-signing-bonus-commission-" + feeCase.label.replace(/\s+/g, "-") }
   );
   feeScenario.transferTo();
   assert.equal(feeCalls.length, 1, feeCase.label + " must call the agent fee handler exactly once");

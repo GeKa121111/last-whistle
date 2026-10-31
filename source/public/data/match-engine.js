@@ -808,10 +808,9 @@
     // Modern results carry an explicit availability flag, substitution-on event, or
     // extra-time played flag. Use those fields as a strict participation ledger while
     // leaving older saved match records on the legacy-compatible validation path.
-    const hasModernPlayerMinutesLedger = typeof result.player.playerAvailable === "boolean"
-      || result.events.some(event => event.type === "substitution-on" && event.side === "player")
-      || (result.extraTime && typeof result.extraTime === "object" && !Array.isArray(result.extraTime)
-        && typeof result.extraTime.played === "boolean");
+    const hasModernPlayerMinutesLedger = (result.metadata && typeof result.metadata === "object"
+      && Object.prototype.hasOwnProperty.call(result.metadata, "extraTimeEventSeed"))
+      || result.events.some(event => event.type === "substitution-on" && event.side === "player");
     const playerMinutesValue = result.player.minutes == null ? null : Number(result.player.minutes);
     const matchDurationMinutes = result.extraTime?.played === true ? 120 : 90;
     const expectedPlayerMinutes = playerExitEvent

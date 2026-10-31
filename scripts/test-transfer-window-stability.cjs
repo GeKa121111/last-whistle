@@ -215,6 +215,45 @@ vm.runInContext(
   sameNameDifferentCountry,
   { filename: "same-name-cross-country-transfer" }
 );
+// A negotiated zero signing bonus is a real contract term, not a request for the
+// legacy two-week-wage fallback. Missing legacy values must still retain that fallback.
+const zeroSigningBonusScenario = {
+  ...sameNameDifferentCountry,
+  state: {
+    ...sameNameDifferentCountry.state,
+    pendingTransfer: { ...sameNameDifferentCountry.state.pendingTransfer, signingBonus: 0 },
+    transferOffers: [], transferHistory: [], money: 500
+  }
+};
+vm.createContext(zeroSigningBonusScenario);
+vm.runInContext(
+  transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  zeroSigningBonusScenario,
+  { filename: "explicit-zero-signing-bonus" }
+);
+zeroSigningBonusScenario.transferTo();
+assert.equal(zeroSigningBonusScenario.state.money, 500,
+  "an explicitly negotiated zero signing bonus must not be replaced by two weeks of wages");
+
+const legacyMissingSigningBonusScenario = {
+  ...sameNameDifferentCountry,
+  state: {
+    ...sameNameDifferentCountry.state,
+    pendingTransfer: { ...sameNameDifferentCountry.state.pendingTransfer },
+    transferOffers: [], transferHistory: [], money: 500
+  }
+};
+delete legacyMissingSigningBonusScenario.state.pendingTransfer.signingBonus;
+vm.createContext(legacyMissingSigningBonusScenario);
+vm.runInContext(
+  transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  legacyMissingSigningBonusScenario,
+  { filename: "legacy-missing-signing-bonus" }
+);
+legacyMissingSigningBonusScenario.transferTo();
+assert.equal(legacyMissingSigningBonusScenario.state.money, 1000,
+  "legacy offers without a signing-bonus field must retain the two-week-wage fallback");
+
 sameNameDifferentCountry.transferTo();
 assert.equal(sameNameDifferentCountry.state.clubName, "United",
   "the destination club name may legitimately match the previous club name");
@@ -701,7 +740,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v257"), "legacy contract-term preservation must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v258"), "legacy contract-term preservation must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=9"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

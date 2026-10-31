@@ -30,8 +30,30 @@
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
   }
 
+  // Keep award projections consistent with the career/match engines when a
+  // roster stores an English position abbreviation instead of its Arabic label.
+  const POSITION_ROLE_ALIASES = Object.freeze({
+    gk: "keeper", goalkeeper: "keeper", keeper: "keeper", goalie: "keeper",
+    cb: "defender", lcb: "defender", rcb: "defender", centerback: "defender",
+    centreback: "defender", centraldefender: "defender",
+    lb: "defender", rb: "defender", lwb: "defender", rwb: "defender", wb: "defender", fb: "defender",
+    leftback: "defender", rightback: "defender", leftwingback: "defender", rightwingback: "defender",
+    fullback: "defender", wingback: "defender",
+    cdm: "midfielder", dm: "midfielder", defensivemidfielder: "midfielder",
+    defensivemid: "midfielder", holdingmidfielder: "midfielder",
+    cm: "midfielder", rcm: "midfielder", lcm: "midfielder",
+    centralmidfielder: "midfielder", centralmidfield: "midfielder", midfielder: "midfielder",
+    cam: "midfielder", am: "midfielder", attackingmidfielder: "midfielder", attackingmid: "midfielder",
+    lw: "attacker", rw: "attacker", lm: "attacker", rm: "attacker", lwf: "attacker", rwf: "attacker",
+    leftwing: "attacker", rightwing: "attacker", leftwinger: "attacker", rightwinger: "attacker",
+    winger: "attacker", widemidfielder: "attacker", leftmidfielder: "attacker", rightmidfielder: "attacker",
+    cf: "attacker", ss: "attacker", secondstriker: "attacker", mobileforward: "attacker",
+    st: "striker", fw: "striker", fwd: "striker", striker: "striker", forward: "striker",
+    centreforward: "striker", centerforward: "striker"
+  });
   function roleType(position) {
     const value = normalized(position);
+    if (POSITION_ROLE_ALIASES[value]) return POSITION_ROLE_ALIASES[value];
     if (value.includes("حارس")) return "keeper";
     // Central/attacking midfielders are still midfielders; classify their line
     // before checking role words such as "defensive" or "attacking".
@@ -620,7 +642,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 4,
+    version: 5,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,
     evaluateNegotiation: evaluateNegotiation,

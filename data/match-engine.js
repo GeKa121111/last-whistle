@@ -17,6 +17,23 @@
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
+  function rollExtraTimePlayerExit(random, eligible, injuryChance, redCardChance) {
+    if (!eligible) return null;
+    if (typeof random !== "function") throw new TypeError("invalid-extra-time-random");
+    const roll = () => {
+      const value = Number(random());
+      return Number.isFinite(value) ? Math.max(0, Math.min(0.999999999, value)) : 0;
+    };
+    const redCardRolled = roll() < clamp(redCardChance, 0, 1);
+    const injuryRolled = roll() < clamp(injuryChance, 0, 1);
+    if (!redCardRolled && !injuryRolled) return null;
+    const redMinute = redCardRolled ? 91 + Math.floor(roll() * 29) : 121;
+    const injuryMinute = injuryRolled ? 91 + Math.floor(roll() * 29) : 121;
+    if (redCardRolled && (!injuryRolled || redMinute <= injuryMinute)) {
+      return { type: "red-card", minute: redMinute };
+    }
+    return { type: "injury", minute: injuryMinute };
+  }
   const POSITION_ALIASES = {
     "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
     "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
@@ -185,6 +202,7 @@
     // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
+    const extraTimeEventRandom = seededRandom(hash("extra-time-player-events:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -228,8 +246,8 @@
       if (redMinuteRolled <= injuryMinuteRolled) injured = false;
       else redCard = false;
     }
-    const redMinute = redCard ? redMinuteRolled : 121;
-    const injuryMinute = injured ? injuryMinuteRolled : 121;
+    let redMinute = redCard ? redMinuteRolled : 121;
+    let injuryMinute = injured ? injuryMinuteRolled : 121;
     let minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
     let playerEndMinute = playerStartMinute + minutes;
     const events = [];
@@ -420,6 +438,32 @@
         playerEndMinute = 120;
         minutes = playerEndMinute - playerStartMinute;
         stats.minutes = minutes;
+        const extraTimeExit = rollExtraTimePlayerExit(
+          extraTimeEventRandom,
+          true,
+          injuryChance * (30 / 90),
+          0.0035 * (30 / 90)
+        );
+        if (extraTimeExit) {
+          playerEndMinute = extraTimeExit.minute;
+          minutes = Math.max(0, playerEndMinute - playerStartMinute);
+          stats.minutes = minutes;
+          if (extraTimeExit.type === "red-card") {
+            redCard = true;
+            redMinute = extraTimeExit.minute;
+            stats.redCards = 1;
+            events.push({ type: "red-card", minute: redMinute, side: "player",
+              actor: String(player.name || "اللاعب"), reason: "طرد مباشر في الوقت الإضافي" });
+          } else {
+            injured = true;
+            injuryMinute = extraTimeExit.minute;
+            stats.injuryDays = extraTimeEventRandom() < 0.50 ? 2
+              : extraTimeEventRandom() < 0.60 ? 5
+                : extraTimeEventRandom() < 0.75 ? 10 : 21;
+            events.push({ type: "injury", minute: injuryMinute, side: "player",
+              actor: String(player.name || "اللاعب"), days: stats.injuryDays });
+          }
+        }
       }
       const firstExtra = createPeriod(90, 15, true);
       const secondExtra = createPeriod(105, 15, true);
@@ -1067,5 +1111,5 @@
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, rollExtraTimePlayerExit, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();

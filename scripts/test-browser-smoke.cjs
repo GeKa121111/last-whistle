@@ -1400,6 +1400,74 @@ async function main() {
     }
     results.push("Career Hub dark-theme consistency and readable mobile helper text");
 
+
+    // Mobile navigation uses four primary tabs and a More drawer with focus restoration.
+    const mobileNavShape = await page.evaluate(() => {
+      const nav = document.querySelector(".bottomNav");
+      const more = document.querySelector("#mobileMore");
+      const menu = document.querySelector("#menuOpen");
+      const buttons = Array.from(nav.querySelectorAll("button"));
+      return {
+        buttonCount: buttons.length,
+        routes: buttons.filter(button => button.dataset.page).map(button => button.dataset.page),
+        moreVisible: Boolean(more && getComputedStyle(more).display !== "none"),
+        moreHeight: more ? Math.round(more.getBoundingClientRect().height) : 0,
+        headerMenuHidden: menu ? getComputedStyle(menu).display === "none" : false,
+        navFits: nav.scrollWidth <= nav.clientWidth + 1
+      };
+    });
+    assert.equal(mobileNavShape.buttonCount, 5, "mobile bottom navigation must have five evenly-spaced actions");
+    assert.deepEqual(mobileNavShape.routes, ["home", "training", "stats", "wellness"],
+      "the mobile bottom bar must prioritize the four most-used player destinations");
+    assert.equal(mobileNavShape.moreVisible, true, "the More entry must remain visible on mobile");
+    assert.ok(mobileNavShape.moreHeight >= 44, "the More entry must meet the minimum touch-target height");
+    assert.equal(mobileNavShape.headerMenuHidden, true,
+      "mobile must have one clear entry to the full drawer rather than duplicate hamburger controls");
+    assert.equal(mobileNavShape.navFits, true, "the five-action mobile bar must fit without internal horizontal scrolling");
+    await page.locator("#mobileMore").click();
+    await page.waitForFunction(() => document.querySelector("#drawer")?.classList.contains("open"));
+    const mobileDrawerOpen = await page.evaluate(() => ({
+      moreExpanded: document.querySelector("#mobileMore").getAttribute("aria-expanded"),
+      headerExpanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+      hidden: document.querySelector("#drawer").getAttribute("aria-hidden"),
+      inert: document.querySelector("#drawer").hasAttribute("inert"),
+      focusInside: document.querySelector("#drawer").contains(document.activeElement)
+    }));
+    assert.equal(mobileDrawerOpen.moreExpanded, "true", "More must expose the expanded drawer state");
+    assert.equal(mobileDrawerOpen.headerExpanded, "true", "both drawer triggers must share the expanded state");
+    assert.equal(mobileDrawerOpen.hidden, null, "the open drawer must be exposed to assistive technology");
+    assert.equal(mobileDrawerOpen.inert, false, "the open drawer must be keyboard accessible");
+    assert.equal(mobileDrawerOpen.focusInside, true, "opening More must move focus into the drawer");
+    await page.locator('#drawer .navBtn[data-page="diary"]').click();
+    await page.waitForFunction(() => document.querySelector("#page-diary")?.classList.contains("active")
+      && !document.querySelector("#drawer")?.classList.contains("open"));
+    const mobileDrawerClosed = await page.evaluate(() => ({
+      moreExpanded: document.querySelector("#mobileMore").getAttribute("aria-expanded"),
+      headerExpanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+      moreActive: document.querySelector("#mobileMore").classList.contains("active"),
+      hidden: document.querySelector("#drawer").getAttribute("aria-hidden"),
+      inert: document.querySelector("#drawer").hasAttribute("inert"),
+      focusReturned: document.activeElement === document.querySelector("#mobileMore"),
+      currentPage: document.querySelector('#drawer .navBtn[data-page="diary"]').getAttribute("aria-current")
+    }));
+    assert.equal(mobileDrawerClosed.moreExpanded, "false", "closing More must reset expanded state");
+    assert.equal(mobileDrawerClosed.headerExpanded, "false", "the header trigger state must remain synchronized");
+    assert.equal(mobileDrawerClosed.moreActive, true, "More must indicate when a non-primary section is active");
+    assert.equal(mobileDrawerClosed.hidden, "true", "the closed drawer must be hidden from assistive technology");
+    assert.equal(mobileDrawerClosed.inert, true, "the closed drawer must not remain keyboard-focusable");
+    assert.equal(mobileDrawerClosed.focusReturned, true, "navigation must restore focus to the More trigger");
+    assert.equal(mobileDrawerClosed.currentPage, "page", "the selected drawer route must remain marked current");
+    await page.locator('.bottomNav [data-page="wellness"]').click();
+    const quickTabAfterDrawer = await page.evaluate(() => ({
+      pageActive: document.querySelector("#page-wellness")?.classList.contains("active"),
+      moreActive: document.querySelector("#mobileMore")?.classList.contains("active"),
+      ariaCurrent: document.querySelector('.bottomNav [data-page="wellness"]')?.getAttribute("aria-current")
+    }));
+    assert.equal(quickTabAfterDrawer.pageActive, true, "primary tabs must still navigate after using More");
+    assert.equal(quickTabAfterDrawer.moreActive, false, "More should not look selected on a primary tab");
+    assert.equal(quickTabAfterDrawer.ariaCurrent, "page", "the active primary tab must expose aria-current");
+    results.push("five-item mobile navigation, More drawer, aria state, and focus restoration");
+
     results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");
 
     // At tablet widths the redesign hides the bottom bar and moves the drawer off-canvas.

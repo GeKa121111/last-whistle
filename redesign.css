@@ -499,3 +499,36 @@ body.lw-rebuild .transferShortlistNumbers{color:#d9ff62}
   body.lw-rebuild .hub-training-card .trainingNote,
   body.lw-rebuild .hub-training-rules p{font-size:10px}
 }
+
+
+/* Mobile navigation: four high-frequency destinations plus one accessible
+   route into the complete drawer. Keep the header trigger for tablet only. */
+@media(max-width:760px){
+  body.lw-rebuild #menuOpen{display:none!important}
+  body.lw-rebuild .bottomNav{
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    align-items:stretch;
+    gap:4px;
+    width:calc(100vw - 18px);
+    padding:5px;
+  }
+  body.lw-rebuild .bottomNav button{
+    width:100%;
+    min-width:0;
+    min-height:52px;
+    padding:5px 2px;
+    font-size:10px;
+    line-height:1.35;
+    white-space:normal;
+  }
+  body.lw-rebuild .bottomNav button span{font-size:19px}
+  body.lw-rebuild #mobileMore[aria-expanded="true"]{
+    border-color:#455a31;
+    background:#1d2b18;
+    color:var(--lw-lime);
+  }
+}
+@media(max-width:360px){
+  body.lw-rebuild .bottomNav button{font-size:9px;min-height:50px}
+}

@@ -71,7 +71,26 @@ if (!redesign.includes("body.lw-rebuild .hub-tile-desc{color:#a2b09d;font-size:1
   process.exit(1);
 }
 
-if (!html.includes('href="./redesign.css?v=13"') || !serviceWorker.includes("./redesign.css?v=13")) {
+
+// Mobile navigation must stay concise while every less-frequent page remains reachable.
+const bottomNavMarkup = html.match(/<nav class="bottomNav"[\s\S]*?<\/nav>/)?.[0] || "";
+const bottomNavPages = Array.from(bottomNavMarkup.matchAll(/data-page="([^"]+)"/g)).map(match => match[1]);
+if (bottomNavPages.join(",") !== "home,training,stats,wellness"
+  || !bottomNavMarkup.includes('id="mobileMore"')
+  || !bottomNavMarkup.includes('aria-controls="drawer"')
+  || !bottomNavMarkup.includes('aria-expanded="false"')) {
+  console.error("Mobile navigation must expose four primary routes and an accessible More entry to the full drawer.");
+  process.exit(1);
+}
+if (!html.includes('$("mobileMore").addEventListener("click",openDrawer)')
+  || !html.includes("let drawerReturnFocus = null;")
+  || !redesign.includes("body.lw-rebuild #menuOpen{display:none!important}")
+  || !redesign.includes("grid-template-columns:repeat(5,minmax(0,1fr))")) {
+  console.error("Mobile More navigation must open the drawer, restore focus, and fit five touch targets.");
+  process.exit(1);
+}
+
+if (!html.includes('href="./redesign.css?v=14"') || !serviceWorker.includes("./redesign.css?v=14")) {
   console.error("The active responsive stylesheet must use the same current version in the HTML and offline app shell.");
   process.exit(1);
 }
@@ -474,7 +493,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=13"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=14"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);

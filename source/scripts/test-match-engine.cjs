@@ -771,6 +771,7 @@ assert.equal(browserEngine.validateResult(overlongRegulationMatch).reason, "inva
 const legacyRegulationMatch = JSON.parse(JSON.stringify(regulationOnly));
 delete legacyRegulationMatch.player.playerAvailable;
 delete legacyRegulationMatch.extraTime;
+delete legacyRegulationMatch.metadata.extraTimeEventSeed;
 assert.equal(engine.validateResult(legacyRegulationMatch).ok, true,
   "legacy match saves without modern participation markers must remain readable");
 

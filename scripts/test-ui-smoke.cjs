@@ -11,6 +11,27 @@ if (rootHtml !== html) { console.error("Root index.html and public/index.html ar
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
+const worldAiCss = fs.readFileSync(path.join(root, "football-world-ai.css"), "utf8");
+const publicWorldAiCss = fs.readFileSync(path.join(root, "public", "football-world-ai.css"), "utf8");
+if (worldAiCss !== publicWorldAiCss) {
+  console.error("Root football-world-ai.css and public/football-world-ai.css are out of sync.");
+  process.exit(1);
+}
+if (!/body\\.lw-rebuild\\s+#page-europe:not\\(\\.active\\)\\s*\\{[^}]*display\\s*:\\s*none\\s*!important/i.test(worldAiCss)
+  || /body\\.lw-rebuild\\s+#page-europe\\s*\\{[^}]*display\\s*:\\s*block/i.test(worldAiCss)) {
+  console.error("Global directory visibility regression: the Europe page must stay hidden unless its navigation tab is active.");
+  process.exit(1);
+}
+const directoryTitle = "🌍 دليل الدوريات والأندية والبطولات العالمية";
+const directoryTitleCount = html.split(directoryTitle).length - 1;
+const europePageStart = html.indexOf('id="page-europe"');
+const directoryPanelStart = html.indexOf('id="globalDirectoryPanel"');
+const nextPageStart = html.indexOf('id="page-life"', europePageStart);
+if (directoryTitleCount !== 1 || europePageStart < 0 || directoryPanelStart < europePageStart
+  || nextPageStart < 0 || directoryPanelStart > nextPageStart) {
+  console.error("Global directory must exist once and remain inside the dedicated World Football page.");
+  process.exit(1);
+}
 const redesign = fs.readFileSync(path.join(root, "redesign.css"), "utf8");
 const publicRedesign = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (redesign !== publicRedesign) { console.error("Root redesign.css and public/redesign.css are out of sync."); process.exit(1); }
@@ -181,7 +202,7 @@ const required = [
   "career-hub.js?v=3",
   "player-store.css?v=2",
   "ai-career-engine.js?v=5",
-  "football-world-ai.css?v=1",
+  "football-world-ai.css?v=2",
   "football-world-ai.js?v=36",
   'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
@@ -428,7 +449,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=9"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=9"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 65);

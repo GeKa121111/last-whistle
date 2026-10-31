@@ -18,7 +18,7 @@ if (worldAiCss !== publicWorldAiCss) {
   process.exit(1);
 }
 if (!worldAiCss.includes("body.lw-rebuild #page-europe:not(.active){display:none!important;}")
-  || worldAiCss.includes("body.lw-rebuild #page-europe{\\n    display:block;")) {
+  || worldAiCss.includes("body.lw-rebuild #page-europe{")) {
   console.error("Global directory visibility regression: the Europe page must stay hidden unless its navigation tab is active.");
   process.exit(1);
 }

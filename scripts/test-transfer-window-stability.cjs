@@ -32,6 +32,9 @@ const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfu
 const transferFactorsSource = section("function transferFactors(", "\nfunction transferAverageRating(");
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
 const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
+const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
+const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
+const applyMatchResultSource = section("function applyMatchResult(", "\nfunction applyLeagueResult(");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
@@ -64,6 +67,19 @@ const sandbox = {
   console
 };
 vm.createContext(sandbox);
+vm.runInContext(freeAgentEligibilitySource, sandbox, { filename: "free-agent-match-eligibility" });
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: false }, "league"), true,
+  "a contracted player remains eligible for club matches");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true }, "league"), false,
+  "an unsigned free agent must not be eligible for club matches");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: "true" }, "cup"), false,
+  "legacy string booleans must also block club appearances");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true }, "international"), true,
+  "free-agent status must not block national-team appearances");
+assert.match(careerMatchSimulationSource, /careerMatchPlayerEligible\(state,scope\)/,
+  "the match simulator must make free agents unavailable for club fixtures");
+assert.match(applyMatchResultSource, /careerMatchPlayerEligible\(state,incomingScope\)/,
+  "result settlement must reject any club appearance that bypasses the simulator");
 vm.runInContext(
   transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
     + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
@@ -783,7 +799,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v260"), "signing-bonus commission changes must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v261"), "signing-bonus commission changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=9"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

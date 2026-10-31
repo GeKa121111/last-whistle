@@ -5964,6 +5964,10 @@ function playSeasonBlock(){
 }
 function disciplineKey(scope,country,competition){return `${scope}|${country||""}|${competition||""}`;}
 function buildMatchId(scope,competition,sequence,clubName=club().name){return `${scope}|${ensureLeagueSegmentId()}|${state.season}|${state.leagueCountry||""}|${competition||""}|${clubName}|${sequence}`;}
+function careerMatchPlayerEligible(state,scope="league"){
+ const freeAgent=!!state&&(state.freeAgent===true||state.freeAgent==="true"||state.freeAgent===1||state.freeAgent==="1");
+ return scope==="international"||!freeAgent;
+}
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}
  const dynamicOwnPower=window.LWWorldAI?.getClubPower(state,club().name,state.leagueCountry,window.LWWorldDB)||Number(state.clubPower)||52;
@@ -5973,7 +5977,7 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
  const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  const key=disciplineKey(scope,state.leagueCountry,competition);
  const suspended=(Number(state.suspensions?.[key])||0)>0;
- const available=!!playerAvailable&&state.injuryDays<=0&&!suspended&&state.energy>0;
+ const available=!!playerAvailable&&state.injuryDays<=0&&!suspended&&state.energy>0&&careerMatchPlayerEligible(state,scope);
  return window.LWMatch.simulateMatch({
   seed:window.LWMatch.hash(`${matchId}|${state.energy}|${state.fatigue}|${state.trust}|${state.morale}`),
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,
@@ -5993,9 +5997,15 @@ function matchOutcomeForCareerRecord(result,meta={}){
 function applyMatchResult(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
  const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
+ const incomingScope=meta.scope||"league";
+ if(!careerMatchPlayerEligible(state,incomingScope)&&Number(result.player?.minutes)>0){
+  console.error("Rejected club appearance for an unsigned free agent",result);
+  toast("لا يمكن اعتماد مشاركة نادي للاعب حر بدون عقد.");
+  return false;
+ }
  if(state.recordedMatchIds.includes(id))return false;
  state.recordedMatchIds.push(id);if(state.recordedMatchIds.length>4000)state.recordedMatchIds.splice(0,state.recordedMatchIds.length-4000);
- const scope=meta.scope||"league",competition=meta.competition||"",country=meta.country||state.leagueCountry||"",key=disciplineKey(scope,country,competition);
+ const scope=incomingScope,competition=meta.competition||"",country=meta.country||state.leagueCountry||"",key=disciplineKey(scope,country,competition);
  const suspendedAtKickoff=!!meta.suspendedAtKickoff;
  if(suspendedAtKickoff){state.suspensions[key]=Math.max(0,(Number(state.suspensions[key])||0)-1);}
  const m=result.player,minutes=Math.max(0,Number(m.minutes)||0),goals=Math.max(0,Number(m.goals)||0),assists=Math.max(0,Number(m.assists)||0),rating=minutes>0?Number(m.rating)||0:0;

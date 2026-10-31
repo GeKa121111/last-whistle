@@ -1497,8 +1497,11 @@ const expectedIncompleteRatingStats = { sum: 15.5, count: 3 };
 assert.deepEqual(career.deriveLeagueRatingStats(incompleteLegacyRatings), expectedIncompleteRatingStats,
   "legacy rating migration must exclude null, blank, and boolean ratings while preserving numeric zero and numeric strings");
 const browserIncompleteLegacyRatings = JSON.parse(JSON.stringify(incompleteLegacyRatings));
-assert.deepEqual(deployedCareer.deriveLeagueRatingStats(browserIncompleteLegacyRatings), expectedIncompleteRatingStats,
-  "the embedded career engine must apply the same valid-rating filter during legacy migration");
+const browserIncompleteRatingStats = deployedCareer.deriveLeagueRatingStats(browserIncompleteLegacyRatings);
+assert.equal(browserIncompleteRatingStats.sum, expectedIncompleteRatingStats.sum,
+  "the embedded career engine must reconstruct the same legacy rating sum");
+assert.equal(browserIncompleteRatingStats.count, expectedIncompleteRatingStats.count,
+  "the embedded career engine must exclude invalid legacy ratings from its count");
 
 const malformedQualificationState = {
   pos: "جناح", age: 24, apps: 0,

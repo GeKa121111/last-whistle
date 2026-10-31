@@ -1120,6 +1120,12 @@ async function main() {
       state.loan = null;
       state.freeAgent = false;
       state.transferCooldown = 0;
+      state.age = Math.max(18, Number(state.age) || 18);
+      state.apps = Math.max(2, Number(state.apps) || 0);
+      state.trust = Math.max(60, Number(state.trust) || 0);
+      state.daysSinceTransfer = Math.max(14, Number(state.daysSinceTransfer) || 0);
+      state.academyReserve = false;
+      state.academyGraduationPending = false;
       state.winterBreakPending = true;
       state.cupState = null;
       const windowId = "winter-season-" + Number(state.season);
@@ -1136,7 +1142,8 @@ async function main() {
         source: "LWWorldDB",
         sourceUrl: profile.url || "",
         division: Number(target.division) || 1,
-        power: Number(target.ovr) || 60,
+        // The smoke test verifies the negotiation flow, not whether this generated career can join a top-tier club.
+        power: Math.min(Number(target.ovr) || 60, 45),
         prestige: Number(target.prestige) || 60,
         currency: profile.currency || "ج.م",
         stars: Array.isArray(target.stars) ? target.stars.slice(0, 3) : [],

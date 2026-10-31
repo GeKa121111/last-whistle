@@ -411,6 +411,37 @@ const deduped = career.uniqueMatchRows([
   { id: "match-2", minutes: 30 }
 ]);
 assert.equal(deduped.length, 2, "match history must deduplicate explicit match IDs");
+const legacyLeagueFixture = {
+  id: "legacy-reused-fixture-id", scope: "league", competition: "Premier League",
+  season: 4, segmentId: "season-4", club: "Test FC", opponent: "League Opponent",
+  day: 12, matchday: 8, minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const legacyCupFixture = {
+  ...legacyLeagueFixture, scope: "cup", competition: "National Cup",
+  opponent: "Cup Opponent", matchday: 2, goals: 1, rating: 8
+};
+const reusedLegacyIdRows = [legacyLeagueFixture, legacyCupFixture];
+assert.equal(career.uniqueMatchRows(reusedLegacyIdRows).length, 2,
+  "legacy IDs reused across league and cup scopes must not collapse distinct fixtures");
+assert.equal(JSON.stringify(deployedCareer.uniqueMatchRows(reusedLegacyIdRows)),
+  JSON.stringify(career.uniqueMatchRows(reusedLegacyIdRows)),
+  "embedded and shared match-history deduplication must preserve the same cross-competition fixtures");
+assert.equal(career.uniqueMatchRows([legacyLeagueFixture, { ...legacyLeagueFixture }]).length, 1,
+  "the same fixture copied into multiple history arrays must still be counted once");
+const crossCompetitionHistory = {
+  apps: 2, seasonLog: [legacyLeagueFixture], careerMatchHistory: [legacyCupFixture]
+};
+career.rebuildLegacyCareerStats(crossCompetitionHistory);
+assert.equal(crossCompetitionHistory.careerMinutes, 180,
+  "legacy career-stat rebuilding must preserve minutes from distinct competitions that reused an ID");
+assert.equal(crossCompetitionHistory.qualifyingAppearances, 2,
+  "legacy career-stat rebuilding must retain both real fixtures across competition scopes");
+const browserCrossCompetitionHistory = {
+  apps: 2, seasonLog: [legacyLeagueFixture], careerMatchHistory: [legacyCupFixture]
+};
+deployedCareer.rebuildLegacyCareerStats(browserCrossCompetitionHistory);
+assert.equal(JSON.stringify(browserCrossCompetitionHistory), JSON.stringify(crossCompetitionHistory),
+  "embedded legacy career-stat rebuilding must preserve cross-competition fixtures identically");
 assert.equal(career.leagueMatchTarget(16), 30, "a 16-team league must schedule 30 matches");
 assert.equal(career.leagueMatchTarget(18), 34, "an 18-team league must schedule 34 matches");
 assert.equal(career.leagueMatchTarget(20), 38, "a 20-team league must schedule 38 matches");

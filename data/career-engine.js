@@ -194,23 +194,43 @@
   }
 
 
-  function uniqueMatchRows(rows) {
-    const seen = new Set();
+function uniqueMatchRows(rows) {
+    const seenById = new Map();
+    const seenFallback = new Set();
+    const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
+    const identityValue = (row, field) => {
+      const value = field === "competition" ? row.competition || row.leagueCompetition : row[field];
+      return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
+    };
     return (Array.isArray(rows) ? rows : []).filter(row => {
-      if (!row || typeof row !== "object") return false;
-      const id = String(row.id || row.matchId || "").trim();
-      const fallback = [row.scope || "", row.competition || row.leagueCompetition || "",
-        row.season || "", row.segmentId || "", row.club || "", row.opponent || "",
-        row.day || "", row.calendarDay || "", row.matchday || "",
+      if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+      const rawId = row.id !== undefined && row.id !== null && String(row.id).trim() !== ""
+        ? row.id : row.matchId;
+      const id = String(rawId ?? "").trim();
+      if (id) {
+        const identity = Object.fromEntries(identityFields.map(field => [field, identityValue(row, field)]));
+        const candidates = seenById.get(id) || [];
+        const duplicate = candidates.some(existing => identityFields.every(field =>
+          !existing[field] || !identity[field] || existing[field] === identity[field]));
+        if (duplicate) return false;
+        candidates.push(identity);
+        seenById.set(id, candidates);
+        return true;
+      }
+      const fallback = [
+        identityValue(row, "scope"), identityValue(row, "competition"),
+        identityValue(row, "season"), identityValue(row, "segmentId"),
+        identityValue(row, "club"), identityValue(row, "opponent"),
+        identityValue(row, "day"), identityValue(row, "calendarDay"), identityValue(row, "matchday"),
         row.teamGoals ?? row.scoreFor ?? "", row.oppGoals ?? row.scoreAgainst ?? "",
-        row.minutes ?? "", row.goals ?? "", row.assists ?? ""].join("|");
-      const key = id ? "id:" + id : "row:" + fallback;
-      if (seen.has(key)) return false;
-      seen.add(key);
+        row.minutes ?? "", row.goals ?? "", row.assists ?? ""
+      ].join("|");
+      const key = "row:" + fallback;
+      if (seenFallback.has(key)) return false;
+      seenFallback.add(key);
       return true;
     });
   }
-
   function uniqueCareerHistory(state) {
     const leagueRows = (Array.isArray(state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object")

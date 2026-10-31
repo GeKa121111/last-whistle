@@ -809,7 +809,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v271"), "world-season and worker-engine changes must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v272"), "world-season and worker-engine changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=9"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 67);

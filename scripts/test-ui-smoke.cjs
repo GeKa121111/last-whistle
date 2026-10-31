@@ -90,7 +90,24 @@ if (!html.includes('$("mobileMore").addEventListener("click",openDrawer)')
   process.exit(1);
 }
 
-if (!html.includes('href="./redesign.css?v=14"') || !serviceWorker.includes("./redesign.css?v=14")) {
+
+const transferSearchMarkup = html.match(/<div class="marketTools">([\\s\\S]*?)<\\/div>/)?.[1] || "";
+if (!transferSearchMarkup.includes('id="transferSearch" type="search"')
+  || !transferSearchMarkup.includes('aria-label="ابحث عن نادٍ أو دوري أو دولة"')
+  || !transferSearchMarkup.includes('aria-controls="transferMarket"')
+  || !transferSearchMarkup.includes('aria-describedby="transferMarketNotice"')
+  || !transferSearchMarkup.includes('id="transferMarketCount" role="status" aria-live="polite"')
+  || !html.includes('id="transferMarket" class="dataGrid" aria-label="نتائج سوق الأندية"')) {
+  console.error("Transfer market search must expose a real accessible name, result status, and controlled results region.");
+  process.exit(1);
+}
+if (!redesign.includes("body.lw-rebuild #page-contract .kpiLabel")
+  || !redesign.includes("body.lw-rebuild #page-contract .dataCard p")) {
+  console.error("Contract and transfer-market helper text must retain the readable shared typography.");
+  process.exit(1);
+}
+
+if (!html.includes('href="./redesign.css?v=15"') || !serviceWorker.includes("./redesign.css?v=15")) {
   console.error("The active responsive stylesheet must use the same current version in the HTML and offline app shell.");
   process.exit(1);
 }
@@ -493,7 +510,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=14"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=15]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);

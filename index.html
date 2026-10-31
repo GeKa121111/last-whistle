@@ -794,7 +794,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
  body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{grid-column:span 12!important}
 }
 </style>
-<link rel="stylesheet" href="./redesign.css?v=14">
+<link rel="stylesheet" href="./redesign.css?v=15">
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
@@ -1098,7 +1098,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         <article class="card span6"><h2>⚽ المنافسة على مركزك</h2><p class="muted small">تقييم افتراضي للمنافسة على دورك حسب مستواك وفورمتك وثقة المدرب، وليس قائمة أسماء حقيقية.</p><div id="squadCompetition" class="eventFeed"></div></article>
         <article class="card span6"><h2>🤝 الرعاية والإعلانات</h2><p class="muted small" id="sponsorStatus">تقدر تفاوض على عقد رعاية مرتبط بمشاركاتك وسمعتك.</p><button class="btn primary" id="sponsorBtn" type="button">تفاوض على عقد رعاية</button></article>
         <article class="card span6"><h2>📈 سلم الأندية</h2><p class="muted small">كل نقلة أصعب من اللي قبلها. لازم تثبت إنك جاهز، والعروض مش بتتكرر كل يوم.</p><div id="clubLadder"></div></article>
-        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p><div class="marketTools"><input id="transferSearch" placeholder="ابحث عن نادي أو دوري أو دولة"><span class="pill" id="transferMarketCount">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid"></div></article>
+        <article class="card span12"><div class="cardHead"><h2>🌐 سوق الأندية العالمية</h2><span class="pill" id="marketAvailability">18 قائمة مفتوحة</span></div><p class="dataDisclaimer" id="transferMarketNotice">السوق مرتبط بتقويم الانتقالات داخل المسيرة؛ ستظهر حالة النافذة وسبب عدم أهلية أي طلب هنا.</p><div class="marketTools"><input id="transferSearch" type="search" aria-label="ابحث عن نادٍ أو دوري أو دولة" aria-controls="transferMarket" aria-describedby="transferMarketNotice" placeholder="ابحث عن نادي أو دوري أو دولة" autocomplete="off"><span class="pill" id="transferMarketCount" role="status" aria-live="polite" aria-atomic="true">—</span><button class="btn" id="requestLoanBtn" type="button">طلب إعارة لموسم</button></div><div id="transferMarket" class="dataGrid" aria-label="نتائج سوق الأندية"></div></article>
         <article class="card span12"><h2>📑 تاريخ العقود والانتقالات</h2><div id="transferHistory" class="eventFeed"></div></article>
       </div>
     </section>

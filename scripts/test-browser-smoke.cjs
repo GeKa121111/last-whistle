@@ -1468,6 +1468,44 @@ async function main() {
     assert.equal(quickTabAfterDrawer.ariaCurrent, "page", "the active primary tab must expose aria-current");
     results.push("five-item mobile navigation, More drawer, aria state, and focus restoration");
 
+    // The transfer-market search has a programmatic label, and its result count is announced.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
+    const contractMarketAccess = await page.evaluate(() => {
+      const search = document.querySelector("#transferSearch");
+      const count = document.querySelector("#transferMarketCount");
+      const list = document.querySelector("#transferMarket");
+      const kpiLabel = document.querySelector("#page-contract .kpiLabel");
+      return {
+        type: search?.type,
+        label: search?.getAttribute("aria-label"),
+        controls: search?.getAttribute("aria-controls"),
+        description: search?.getAttribute("aria-describedby"),
+        countRole: count?.getAttribute("role"),
+        countLive: count?.getAttribute("aria-live"),
+        countAtomic: count?.getAttribute("aria-atomic"),
+        resultsLabel: list?.getAttribute("aria-label"),
+        searchFits: !!search && search.getBoundingClientRect().right <= window.innerWidth + 1
+          && search.getBoundingClientRect().width > 0,
+        kpiLabelSize: kpiLabel ? getComputedStyle(kpiLabel).fontSize : null
+      };
+    });
+    assert.equal(contractMarketAccess.type, "search", "transfer-market filter must use a search input");
+    assert.equal(contractMarketAccess.label, "ابحث عن نادٍ أو دوري أو دولة",
+      "transfer-market search must have a programmatic Arabic label");
+    assert.equal(contractMarketAccess.controls, "transferMarket",
+      "transfer-market search must identify its results region");
+    assert.equal(contractMarketAccess.description, "transferMarketNotice",
+      "transfer-market search must point to the eligibility and market explanation");
+    assert.equal(contractMarketAccess.countRole, "status", "the result count must be exposed as a status region");
+    assert.equal(contractMarketAccess.countLive, "polite", "result updates must be announced without interrupting");
+    assert.equal(contractMarketAccess.countAtomic, "true", "the entire result count must be announced together");
+    assert.equal(contractMarketAccess.resultsLabel, "نتائج سوق الأندية", "the results region must have an accessible name");
+    assert.equal(contractMarketAccess.searchFits, true, "the contract search field must fit the mobile viewport");
+    assert.equal(contractMarketAccess.kpiLabelSize, "11px", "contract KPI labels must be readable on mobile");
+    results.push("contract market search accessibility, live result count, and readable KPI labels");
+
+
+
     results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");
 
     // At tablet widths the redesign hides the bottom bar and moves the drawer off-canvas.

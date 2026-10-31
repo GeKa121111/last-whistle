@@ -532,3 +532,50 @@ body.lw-rebuild .transferShortlistNumbers{color:#d9ff62}
 @media(max-width:360px){
   body.lw-rebuild .bottomNav button{font-size:9px;min-height:50px}
 }
+
+
+/* Contracts and performance: improve information density and the transfer-market
+   search semantics without changing the underlying transfer logic. */
+body.lw-rebuild #page-contract .kpiLabel,
+body.lw-rebuild #page-stats .kpiLabel{
+  color:#a9b8a2;
+  font-size:11px;
+  line-height:1.55;
+}
+body.lw-rebuild #page-contract .dataCard p{
+  color:#a2b19c;
+  font-size:11px;
+  line-height:1.75;
+}
+body.lw-rebuild #page-contract .marketTools{
+  align-items:center;
+  gap:9px;
+  min-width:0;
+}
+body.lw-rebuild #page-contract #transferSearch{
+  min-width:0;
+  color:#edf4e8;
+}
+body.lw-rebuild #page-contract #transferSearch::placeholder{color:#758774}
+body.lw-rebuild #page-contract #transferSearch:focus-visible{
+  outline:2px solid rgba(216,255,98,.65);
+  outline-offset:2px;
+}
+body.lw-rebuild #page-contract #transferMarketCount{
+  flex:0 0 auto;
+  min-height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+@media(max-width:520px){
+  body.lw-rebuild #page-contract .marketTools{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    width:100%;
+  }
+  body.lw-rebuild #page-contract #transferSearch{width:100%;min-height:46px}
+  body.lw-rebuild #page-contract #transferMarketCount{align-self:flex-start}
+  body.lw-rebuild #page-contract .transferOfferCard{padding:12px}
+}

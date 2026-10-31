@@ -4061,26 +4061,53 @@ function decodeStoredSave(raw){
 let saveQueueTimer=0;
 let saveIdleHandle=0;
 let saveQueued=false;
+let saveRevision=0;
+let saveFlushPromise=null;
+let saveWriteInFlight=0;
 function cancelQueuedSave(){
  if(saveQueueTimer){clearTimeout(saveQueueTimer);saveQueueTimer=0;}
  if(saveIdleHandle&&typeof window.cancelIdleCallback==="function"){window.cancelIdleCallback(saveIdleHandle);saveIdleHandle=0;}
 }
-function persistGame(silent=false){
+function clearFallbackAfterIndexedDBSave(snapshot,revision){
+ if(revision!==saveRevision||saveQueued)return;
+ const fallbackValue=FALLBACK_STORAGE_PREFIX+encodeStoredSave(snapshot);
+ try{
+  const raw=localStorage.getItem(STORAGE_KEY);
+  if(typeof raw==="string"&&raw.startsWith(FALLBACK_STORAGE_PREFIX)){
+   try{localStorage.removeItem(STORAGE_KEY);}
+   catch(removeError){
+    try{localStorage.setItem(STORAGE_KEY,fallbackValue);}
+    catch(fallbackError){console.warn("IndexedDB save completed but its fallback could not be refreshed",removeError,fallbackError);}
+   }
+  }
+ }catch(readError){
+  try{localStorage.setItem(STORAGE_KEY,fallbackValue);}
+  catch(fallbackError){console.warn("IndexedDB save completed but its fallback could not be refreshed",readError,fallbackError);}
+ }
+}
+function persistGame(silent=false,revision=saveRevision){
  try{
   state.schemaVersion=10;
+  const snapshot=structuredCloneSafe(state);
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
    window.LWStateStore.publish(state,{source:"save"});
-   window.LWStateStore.save(state,{slotId:"career:default",label:String(state.name||"المسيرة الرئيسية")}).then(()=>{
-    try{const raw=localStorage.getItem(STORAGE_KEY);if(typeof raw==="string"&&raw.startsWith(FALLBACK_STORAGE_PREFIX))localStorage.removeItem(STORAGE_KEY);}catch(_){}
+   const writePromise=window.LWStateStore.save(snapshot,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")});
+   saveWriteInFlight++;
+   Promise.resolve(writePromise).then(()=>{
+    clearFallbackAfterIndexedDBSave(snapshot,revision);
     if(!silent)toast("اتحفظت مسيرتك بنجاح في قاعدة بيانات الجهاز.");
    }).catch(err=>{
-    try{localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(state));}catch(_){}
+    const fallbackSnapshot=revision===saveRevision?snapshot:structuredCloneSafe(state);
+    try{localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(fallbackSnapshot));}
+    catch(fallbackError){console.warn("IndexedDB save and fallback snapshot both failed",err,fallbackError);}
     console.warn("IndexedDB save failed; fallback snapshot preserved",err);
     if(!silent)toast("تعذر الحفظ في قاعدة البيانات؛ تم استخدام الحفظ الاحتياطي إن أمكن.");
+   }).finally(()=>{
+    saveWriteInFlight=Math.max(0,saveWriteInFlight-1);
    });
    return true;
   }
-  localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
+  localStorage.setItem(STORAGE_KEY,encodeStoredSave(snapshot));
   if(!silent)toast("اتحفظت مسيرتك بنجاح على الجهاز.");
   return true;
  }catch(err){
@@ -4088,51 +4115,76 @@ function persistGame(silent=false){
   return false;
  }
 }
-async function flushQueuedSave(){
+function scheduleQueuedSaveFlush(){
  cancelQueuedSave();
- if(!saveQueued)return true;
- saveQueued=false;
- if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
-  try{
-   await window.LWStateStore.flush(state);
-   try{const raw=localStorage.getItem(STORAGE_KEY);if(typeof raw==="string"&&raw.startsWith(FALLBACK_STORAGE_PREFIX))localStorage.removeItem(STORAGE_KEY);}catch(_){}
-   return true;
-  }catch(err){
-   try{
-    localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(state));
-    console.warn("Final IndexedDB flush failed; fallback snapshot preserved",err);
-    return true;
-   }catch(fallbackError){
-    saveQueued=true;
-    console.warn("Final IndexedDB flush and legacy fallback failed",err,fallbackError);
-    return false;
-   }
-  }
- }
- const saved=persistGame(true);
- if(!saved)saveQueued=true;
- return saved;
-}
-function saveGame(silent=false){
- if(!silent){
-  cancelQueuedSave();saveQueued=false;
-  return persistGame(false);
- }
- saveQueued=true;
- cancelQueuedSave();
- // Large world saves are compressed JSON. Batch rapid actions and do the work
- // during browser idle time where supported, while flushing before the page hides.
  if(typeof window.requestIdleCallback==="function"){
   saveIdleHandle=window.requestIdleCallback(()=>{saveIdleHandle=0;flushQueuedSave();},{timeout:1200});
  }else{
   saveQueueTimer=setTimeout(()=>{saveQueueTimer=0;flushQueuedSave();},650);
  }
+}
+async function flushQueuedSave(options={}){
+ cancelQueuedSave();
+ const backupFirst=options&&options.backupFirst===true;
+ if(backupFirst&&(saveQueued||saveFlushPromise||saveWriteInFlight>0)){
+  try{
+   localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(structuredCloneSafe(state)));
+  }catch(backupError){
+   console.warn("Synchronous page-hide save snapshot could not be written",backupError);
+  }
+ }
+ if(saveFlushPromise)return saveFlushPromise;
+ if(!saveQueued)return true;
+ saveQueued=false;
+ const revision=saveRevision;
+ const snapshot=structuredCloneSafe(state);
+ if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
+  const pending=(async()=>{
+   try{
+    await window.LWStateStore.flush(snapshot);
+    clearFallbackAfterIndexedDBSave(snapshot,revision);
+    return true;
+   }catch(err){
+    const fallbackSnapshot=revision===saveRevision?snapshot:structuredCloneSafe(state);
+    try{
+     localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(fallbackSnapshot));
+     console.warn("Final IndexedDB flush failed; fallback snapshot preserved",err);
+     return true;
+    }catch(fallbackError){
+     saveQueued=true;
+     console.warn("Final IndexedDB flush and legacy fallback failed",err,fallbackError);
+     return false;
+    }
+   }
+  })();
+  saveFlushPromise=pending;
+  let result;
+  try{result=await pending;}
+  finally{if(saveFlushPromise===pending)saveFlushPromise=null;}
+  if(saveQueued&&revision!==saveRevision){
+   const nextResult=await flushQueuedSave(options);
+   return result&&nextResult;
+  }
+  return result;
+ }
+ const saved=persistGame(true,revision);
+ if(!saved)saveQueued=true;
+ return saved;
+}
+function saveGame(silent=false){
+ saveRevision++;
+ if(!silent){
+  cancelQueuedSave();saveQueued=false;
+  return persistGame(false,saveRevision);
+ }
+ saveQueued=true;
+ scheduleQueuedSaveFlush();
  return true;
 }
 if(!window.__lwSaveFlushInstalled){
  window.__lwSaveFlushInstalled=true;
- window.addEventListener("pagehide",flushQueuedSave);
- document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushQueuedSave();});
+ window.addEventListener("pagehide",()=>flushQueuedSave({backupFirst:true}));
+ document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushQueuedSave({backupFirst:true});});
 }
 function exportSave(){
  try{

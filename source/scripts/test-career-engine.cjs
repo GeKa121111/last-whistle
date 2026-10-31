@@ -425,6 +425,25 @@ assert.equal(career.uniqueMatchRows(reusedLegacyIdRows).length, 2,
   "legacy IDs reused across league and cup scopes must not collapse distinct fixtures");
 assert.equal(career.uniqueMatchRows([legacyLeagueFixture, { ...legacyLeagueFixture }]).length, 1,
   "the same fixture copied into multiple history arrays must still be counted once");
+const sparseLegacyLeagueFixture = {
+  id: "legacy-sparse-reused-id", scope: "league", season: 4,
+  segmentId: "season-4", club: "Test FC", minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const sparseLegacyCupFixture = {
+  id: "legacy-sparse-reused-id", competition: "National Cup", season: 4,
+  segmentId: "season-4", club: "Test FC", opponent: "Cup Opponent",
+  day: 12, matchday: 2, minutes: 90, rating: 8, goals: 1, assists: 0
+};
+assert.equal(career.uniqueMatchRows([sparseLegacyLeagueFixture, sparseLegacyCupFixture]).length, 2,
+  "a sparse legacy row must not swallow a distinct fixture with the same reused ID");
+assert.equal(career.uniqueMatchRows([sparseLegacyLeagueFixture, { ...sparseLegacyLeagueFixture }]).length, 1,
+  "exactly repeated sparse legacy rows must still be deduplicated");
+const partialLegacyDuplicate = { ...legacyLeagueFixture };
+delete partialLegacyDuplicate.day;
+delete partialLegacyDuplicate.matchday;
+assert.equal(career.uniqueMatchRows([legacyLeagueFixture, partialLegacyDuplicate]).length, 1,
+  "a partially enriched copy with matching opponent and competition identity must still be deduplicated");
+
 const crossCompetitionHistory = {
   apps: 2, seasonLog: [legacyLeagueFixture], careerMatchHistory: [legacyCupFixture]
 };

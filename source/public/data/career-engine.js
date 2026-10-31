@@ -199,9 +199,17 @@
     const seenById = new Map();
     const seenFallback = new Set();
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
+    const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
     const identityValue = (row, field) => {
       const value = field === "competition" ? row.competition || row.leagueCompetition : row[field];
       return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
+    };
+    const rowSignature = row => {
+      try {
+        return JSON.stringify(Object.keys(row).sort().map(key => [key, row[key]]));
+      } catch (error) {
+        return null;
+      }
     };
     return (Array.isArray(rows) ? rows : []).filter(row => {
       if (!row || typeof row !== "object" || Array.isArray(row)) return false;
@@ -210,11 +218,21 @@
       const id = String(rawId ?? "").trim();
       if (id) {
         const identity = Object.fromEntries(identityFields.map(field => [field, identityValue(row, field)]));
+        const signature = rowSignature(row);
         const candidates = seenById.get(id) || [];
-        const duplicate = candidates.some(existing => identityFields.every(field =>
-          !existing[field] || !identity[field] || existing[field] === identity[field]));
+        const duplicate = candidates.some(existing => {
+          const identityConflict = identityFields.some(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] !== identity[field]);
+          if (identityConflict) return false;
+          if (signature !== null && existing.signature === signature) return true;
+          const sharedIdentityCount = identityFields.reduce((count, field) =>
+            count + (existing.identity[field] && identity[field] && existing.identity[field] === identity[field] ? 1 : 0), 0);
+          const sharedEventIdentity = eventIdentityFields.some(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] === identity[field]);
+          return sharedIdentityCount >= 2 && sharedEventIdentity;
+        });
         if (duplicate) return false;
-        candidates.push(identity);
+        candidates.push({ identity, signature });
         seenById.set(id, candidates);
         return true;
       }

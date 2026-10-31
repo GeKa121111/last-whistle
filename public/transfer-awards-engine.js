@@ -52,7 +52,10 @@
     centreforward: "striker", centerforward: "striker"
   });
   function roleType(position) {
-    const value = normalized(position);
+    const store = global.LWStateStore;
+    const canonical = store && typeof store.normalizePosition === "function"
+      ? store.normalizePosition(position) : position;
+    const value = normalized(canonical);
     if (POSITION_ROLE_ALIASES[value]) return POSITION_ROLE_ALIASES[value];
     if (value.includes("حارس")) return "keeper";
     // Central/attacking midfielders are still midfielders; classify their line

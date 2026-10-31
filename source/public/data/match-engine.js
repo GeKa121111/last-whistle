@@ -39,7 +39,9 @@
   function normalizePosition(position) {
     const raw = String(position || "").trim();
     const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-    return POSITION_ALIASES[key] || raw;
+    const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
+      && window.LWStateStore.normalizePosition;
+    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
   }
 
   function positionProfile(position) {

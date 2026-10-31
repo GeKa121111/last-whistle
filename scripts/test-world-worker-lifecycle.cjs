@@ -114,7 +114,7 @@ async function main() {
   assert.ok(pageAiVersion && workerAiVersion, "page and worker must declare their world-AI asset versions");
   assert.equal(workerAiVersion[1], pageAiVersion[1], "main thread and worker must run the same world-AI engine version");
   assert.equal(pageAiVersion[1], "36", "the current page must load the expected world-AI asset");
-  assert.equal(worker.url, "./football-world-worker.js?v=25");
+  assert.equal(worker.url, "./football-world-worker.js?v=26");
   assert.equal(worker.terminateCalls, 0, "successful requests must not terminate the shared worker");
   assert.deepEqual(worker.messages.map(row => row.command), ["dashboard", "advanceToSeason", "completeSeason"]);
   assert.deepEqual(worker.messages.map(row => row.inputCount), [0, 1, 2],

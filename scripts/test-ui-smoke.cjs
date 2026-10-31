@@ -203,7 +203,7 @@ const required = [
   "player-store.css?v=2",
   "ai-career-engine.js?v=5",
   "football-world-ai.css?v=2",
-  "football-world-ai.js?v=36",
+  "football-world-ai.js?v=37",
   'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
   "window.LWWorldAI.advanceToSeasonAsync",
@@ -449,7 +449,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=9"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=9"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 65);
@@ -689,7 +689,7 @@ if (!html.includes("function buildSeasonAwardCeremony(place){")
   || !html.includes('id="playmakerLeaderboard"')) {
   console.error("Season awards test failed: ceremony, leaderboards, or trophy cabinet is missing."); process.exit(1);
 }
-if (!html.includes('src="./transfer-awards-engine.js?v=9"')
+if (!html.includes('src="./transfer-awards-engine.js?v=10"')
   || !html.includes("transferOffersWindowId")
   || !html.includes("awardCeremonies")
   || !html.includes("currentCompetitions")) {

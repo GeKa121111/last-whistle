@@ -1480,6 +1480,26 @@ assert.equal(JSON.stringify(browserMalformedLegacyStats), JSON.stringify(malform
 assert.equal(JSON.stringify(browserLegacyRatings), JSON.stringify(rebuiltLeagueRatings),
   "embedded browser rating reconstruction must match the shared career engine");
 
+const incompleteLegacyRatings = {
+  seasonLog: [
+    { id: "rating-number", scope: "league", minutes: 90, rating: 8 },
+    { id: "rating-string", scope: "league", minutes: 75, rating: "7.5" },
+    { id: "rating-zero", scope: "league", minutes: 90, rating: 0 },
+    { id: "rating-null", scope: "league", minutes: 90, rating: null },
+    { id: "rating-empty", scope: "league", minutes: 90, rating: "" },
+    { id: "rating-whitespace", scope: "league", minutes: 90, rating: "   " },
+    { id: "rating-boolean", scope: "league", minutes: 90, rating: true },
+    { id: "rating-missing", scope: "league", minutes: 90 }
+  ],
+  careerMatchHistory: []
+};
+const expectedIncompleteRatingStats = { sum: 15.5, count: 3 };
+assert.deepEqual(career.deriveLeagueRatingStats(incompleteLegacyRatings), expectedIncompleteRatingStats,
+  "legacy rating migration must exclude null, blank, and boolean ratings while preserving numeric zero and numeric strings");
+const browserIncompleteLegacyRatings = JSON.parse(JSON.stringify(incompleteLegacyRatings));
+assert.deepEqual(deployedCareer.deriveLeagueRatingStats(browserIncompleteLegacyRatings), expectedIncompleteRatingStats,
+  "the embedded career engine must apply the same valid-rating filter during legacy migration");
+
 const malformedQualificationState = {
   pos: "جناح", age: 24, apps: 0,
   seasonLog: [

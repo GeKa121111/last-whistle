@@ -256,8 +256,11 @@
   }
 
   function deriveLeagueRatingStats(state) {
+    const hasUsableRating = value => (typeof value === "number"
+      || (typeof value === "string" && value.trim() !== ""))
+      && Number.isFinite(Number(value));
     const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
-      && safeLegacyMinutes(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
+      && safeLegacyMinutes(row.minutes) > 0 && hasUsableRating(row.rating));
     state.leagueRatingSum = rows.reduce((sum, row) => sum + safeLegacyRating(row.rating), 0);
     state.leagueRatingCount = rows.length;
     return { sum: state.leagueRatingSum, count: state.leagueRatingCount };

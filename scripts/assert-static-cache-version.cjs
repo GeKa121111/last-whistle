@@ -35,6 +35,11 @@ if (require.main === module) {
     ["football-world-worker.js", 26],
     ["transfer-awards-engine.js", 10]
   ];
-  requiredAssets.forEach(([asset, minimum]) => module.exports.assertAssetVersionAtLeast(html, asset, minimum));
+  requiredAssets.forEach(([asset, minimum]) => {
+    const assetSource = asset === "football-world-worker.js"
+      ? fs.readFileSync(path.join(root, "football-world-ai.js"), "utf8")
+      : html;
+    module.exports.assertAssetVersionAtLeast(assetSource, asset, minimum);
+  });
   console.log("Static cache v" + cacheVersion + " and " + requiredAssets.length + " versioned app assets verified.");
 }

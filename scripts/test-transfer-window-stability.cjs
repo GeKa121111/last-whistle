@@ -144,7 +144,7 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
  // The old transferTo check compared winter-season-N directly with winter-0.
  const legacyWinterCompletion = {
   state: {
-   retired: false, age: 24, loan: null, freeAgent: false, calendarDay: 190, season: 4,
+   retired: false, age: 24, loan: null, freeAgent: false, contractType: "free-agent", calendarDay: 190, season: 4,
    clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1, clubPower: 60,
    pendingTransfer: { club: "نادي ب", country: "مصر", league: "الدوري المصري", division: 1,
     source: "LWWorldDB", season: "2026/27", windowId: "winter-season-4",
@@ -177,7 +177,8 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
   window: { LWAgentRuntime: null }
  };
  vm.createContext(legacyWinterCompletion);
- vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+ vm.runInContext(freeAgentEligibilitySource + "\n" + transferOfferMatchSource + "\n"
+  + transferOfferCurrentMatchSource + "\n" + transferToSource,
   legacyWinterCompletion, { filename: "legacy-winter-transfer-completion" });
  assert.equal(legacyWinterCompletion.transferOfferMatchesCurrentWindow(
   legacyWinterCompletion.state.pendingTransfer, legacyWinterCompletion.transferWindow()), true,
@@ -185,6 +186,10 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
  legacyWinterCompletion.transferTo();
  assert.equal(legacyWinterCompletion.state.clubName, "نادي ب",
   "an accepted legacy winter offer must complete the transfer instead of being discarded");
+ assert.equal(legacyWinterCompletion.state.contractType, "professional",
+  "signing a club contract must replace a legacy free-agent contract type");
+ assert.equal(legacyWinterCompletion.careerMatchPlayerEligible(legacyWinterCompletion.state, "league"), true,
+  "a player signed from a legacy free-agent save must become eligible for club matches");
  assert.equal(legacyWinterCompletion.state.pendingTransfer, null,
   "a completed transfer must clear its pending offer");
  assert.equal(legacyWinterCompletion.state.transferCooldown, 14,

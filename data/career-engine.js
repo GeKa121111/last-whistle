@@ -269,6 +269,15 @@
   function ensureState(state) {
     if (state.pos && String(state.pos).trim()) state.pos = normalizeCareerPosition(state.pos);
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
+    const hasActiveLoan = !!(state.loan && typeof state.loan === "object" && !Array.isArray(state.loan));
+    const effectiveContractType = String(hasActiveLoan && state.loan.parentContractType !== undefined
+      ? state.loan.parentContractType : state.contractType || "").toLowerCase();
+    const effectiveFreeAgent = hasActiveLoan && state.loan.parentFreeAgent !== undefined
+      ? normalizeLegacyBoolean(state.loan.parentFreeAgent) : state.freeAgent;
+    const effectiveContractSeasons = hasActiveLoan && state.loan.parentContractSeasons !== undefined
+      ? Number(state.loan.parentContractSeasons) : Number(state.contractSeasons);
+    if (!hasActiveLoan && effectiveContractType === "free-agent") state.freeAgent = true;
+    if (!hasActiveLoan && state.freeAgent && !normalizeLegacyBoolean(state.academyGraduationPending)) state.contractType = "free-agent";
     state.retired = normalizeLegacyBoolean(state.retired);
     state.playedToday = normalizeLegacyBoolean(state.playedToday);
     state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
@@ -349,6 +358,12 @@
       state.contractSeasons = Number.isFinite(contractSeasonsValue)
         ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
         : (state.freeAgent || state.retired ? 0 : 2);
+    }
+    if (!hasActiveLoan && state.freeAgent) state.contractSeasons = 0;
+    if (effectiveFreeAgent || state.retired || effectiveContractType === "free-agent"
+      || (!hasActiveLoan && Number(state.contractSeasons) <= 0)
+      || (hasActiveLoan && Number.isFinite(effectiveContractSeasons) && effectiveContractSeasons <= 0)) {
+      state.weeklyWage = 0;
     }
     const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
     state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
@@ -807,6 +822,8 @@
     const parentWageValue = Number(loan.parentWage);
     const parentContractSeasonsValue = Number(loan.parentContractSeasons);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
+    const parentContractType = String(loan.parentContractType || state.contractType || (parentFreeAgent ? "free-agent" : "professional"));
+    const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
     return {
       ...state,
       loan: null,
@@ -816,7 +833,8 @@
         ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0,
       contractSeasons: Number.isFinite(parentContractSeasonsValue)
         ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0,
-      freeAgent: parentFreeAgent
+      contractType: parentIsFreeAgent ? "free-agent" : parentContractType,
+      freeAgent: parentIsFreeAgent
     };
   }
 
@@ -824,7 +842,7 @@
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
     if (state.loan) return "loaned";
-    if (normalizeLegacyBoolean(state.freeAgent)) return "free-agent";
+    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") return "free-agent";
     const contractSeasons = Number(state.contractSeasons);
     if (!Number.isFinite(contractSeasons)) return "contract-expiring";
     if (contractSeasons <= 0) return "free-agent";
@@ -839,7 +857,8 @@
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
     const contractSeasons = Number(state.contractSeasons);
-    if (normalizeLegacyBoolean(state.freeAgent) || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
+    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent"
+      || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
@@ -951,7 +970,9 @@
     if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (state.loan) return { ok: false, status: "loaned" };
     if (!offer || typeof offer !== "object" || Array.isArray(offer)) return { ok: false, status: "invalid-offer" };
-    if (normalizeLegacyBoolean(state.freeAgent)) return { ok: false, status: "free-agent" };
+    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") {
+      return { ok: false, status: "free-agent" };
+    }
     const contractSeasonsValue = Number(state.contractSeasons);
     if (!Number.isFinite(contractSeasonsValue) || contractSeasonsValue < 0) return { ok: false, status: "invalid-contract" };
     if (contractSeasonsValue > 1) return { ok: false, status: "not-expiring" };
@@ -993,10 +1014,11 @@
         ? Math.max(1, Math.min(5, Math.floor(offerSeasonsValue))) : 3;
       state.contractSeasons = offerSeasons + 1;
       state.freeAgent = false;
+      state.contractType = "professional";
       state.contractOffer = null;
       return { ok: true, status: "renewed", wage: state.weeklyWage, seasonsBeforeNewSeason: state.contractSeasons };
     }
-    state.contractSeasons = 0; state.weeklyWage = 0; state.freeAgent = true; state.contractOffer = null;
+    state.contractSeasons = 0; state.weeklyWage = 0; state.freeAgent = true; state.contractType = "free-agent"; state.contractOffer = null;
     return { ok: true, status: "free-agent", wage: 0, seasonsBeforeNewSeason: 0 };
   }
 

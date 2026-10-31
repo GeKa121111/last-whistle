@@ -831,7 +831,7 @@
     return Math.min(candidate, toNonNegativeInteger(roundCount));
   }
 
-function contractStateForSeasonTransition(state) {
+  function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
@@ -866,6 +866,7 @@ function contractStateForSeasonTransition(state) {
       freeAgent: parentHasNoContract
     };
   }
+
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";

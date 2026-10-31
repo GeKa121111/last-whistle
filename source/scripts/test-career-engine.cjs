@@ -572,11 +572,6 @@ assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).contractSea
   "a legacy free-agent parent must not retain a positive professional contract term");
 assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).weeklyWage, 0,
   "a legacy free-agent parent must not regain a professional wage on loan return");
-const legacyTrueBrowserReturn = runBrowserLoanReturn(400, 1, "أساسي", 3, true, "professional");
-assert.equal(legacyTrueBrowserReturn.state.freeAgent, true);
-assert.equal(legacyTrueBrowserReturn.state.contractType, "free-agent");
-assert.equal(legacyTrueBrowserReturn.state.contractSeasons, 0);
-assert.equal(legacyTrueBrowserReturn.state.weeklyWage, 0);
 assert.ok(rootHtml.includes("parentContractType:state.contractType"),
   "browser loan snapshots must preserve the parent contract type");
 assert.ok(rootHtml.includes('state.contractType=parentHasNoContract?"free-agent":parentContractType;'),
@@ -1427,6 +1422,11 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
 const legacyLoanRoleReturn = runBrowserLoanReturn(400, 2, null);
 assert.equal(legacyLoanRoleReturn.result, true, "legacy loan records without a parent role must still return safely");
 assert.equal(legacyLoanRoleReturn.state.role, "بديل أساسي", "legacy loan records without a parent role must preserve the current role");
+const legacyTrueBrowserReturn = runBrowserLoanReturn(400, 1, "أساسي", 3, true, "professional");
+assert.equal(legacyTrueBrowserReturn.state.freeAgent, true);
+assert.equal(legacyTrueBrowserReturn.state.contractType, "free-agent");
+assert.equal(legacyTrueBrowserReturn.state.contractSeasons, 0);
+assert.equal(legacyTrueBrowserReturn.state.weeklyWage, 0);
 
 const legacyLoanWithoutParentTerm = {
   ...onLoan,

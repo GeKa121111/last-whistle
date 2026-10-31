@@ -2134,7 +2134,7 @@ function seasonAwards(state, league, teamRank) {
     return Math.min(candidate, toNonNegativeInteger(roundCount));
   }
 
-function contractStateForSeasonTransition(state) {
+  function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
     const parentWageValue = Number(loan.parentWage);
@@ -2169,6 +2169,7 @@ function contractStateForSeasonTransition(state) {
       freeAgent: parentHasNoContract
     };
   }
+
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
@@ -5165,6 +5166,7 @@ function returnFromLoan(){
   ?`انتهت الإعارة وأصبحت لاعبًا حرًا بعد انتهاء عقدك مع ${state.clubName}.`
   :`انتهت الإعارة والعودة إلى ${state.clubName} (${state.leagueCountry}).`});return true;
 }
+
 function renderContract(){
  const contractDisplayState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
  const statusPill=$("contractStatusPill");if(statusPill){statusPill.textContent=state.retired?"معتزل":state.loan?"معار":state.academyGraduationPending?"قرار التخرج":state.academyCareer?"أكاديمية الناشئين":state.academyReserve?"فريق الرديف":state.freeAgent?"لاعب حر":state.contractType==="youth-amateur"?"ناشئ / هاوي":Number(state.contractSeasons)<=1?"ينتهي بنهاية الموسم":"ساري";statusPill.className="pill "+(state.retired?"red":state.loan?"gold":state.academyGraduationPending||state.academyCareer||state.academyReserve||Number(state.contractSeasons)<=1?"gold":state.freeAgent?"red":"green");}setText("contractClub",state.academyGraduationPending?"أكاديمية "+(state.clubName||"النادي")+" — اختر مسارك":state.academyCareer?"أكاديمية "+(state.clubName||"النادي"):state.academyReserve?"فريق الرديف — "+(state.clubName||"النادي"):state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي"):state.freeAgent?"لاعب حر — بدون عقد":club().name);setText("currentClubLeague",`${state.leagueCompetition||"الدوري المحلي"} • ${state.leagueCountry||"مصر"} • ${state.leagueSource||"بيانات اللعبة"}`);setText("weeklyWage",careerMatchPlayerEligible(state,"league")?Number(state.weeklyWage||0).toLocaleString("en-US"):"0");setText("weeklyWageLabel",state.loan?"مرتب الإعارة / أسبوع":currencyLabel()+" / أسبوع");setText("contractYears",contractDisplayState.freeAgent?0:contractDisplayState.contractSeasons);setText("contractTrust",state.trust+"%");

@@ -33,9 +33,12 @@ const beginNegotiationSource = section("function beginTransferNegotiation(", "\n
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
-  careerStarted: true, retired: false, loan: null, freeAgent: false, transferCooldown: 0,
+  careerStarted: true, retired: false, age: 24, loan: null, freeAgent: false,
+  transferCooldown: 0, daysSinceTransfer: 14, apps: 12, trust: 60,
+  clubName: "نادي أ", leagueCountry: "مصر", academyReserve: false, academyGraduationPending: false,
   transferOffersWindowId: "winter-season-4", transferOffersAttemptKey: "legacy-attempt",
-  transferOffers: [{ id: "legacy-january-offer", status: "pending", windowId: "winter-season-4" }]
+  transferOffers: [{ id: "legacy-january-offer", status: "pending", windowId: "winter-season-4",
+    club: "نادي ب", country: "مصر", league: "الدوري المصري", division: 1, power: 50 }]
 };
 let generatedOffers = 0;
 const sandbox = {
@@ -49,6 +52,10 @@ const sandbox = {
     potential: 80, position: "مهاجم"
   }),
   transferTargets: () => [],
+  transferFactors: () => ({ ageAdjustment: 0, contractAdjustment: 0, currentRoleAdjustment: 0, positionAdjustment: 0, targetRoleAdjustment: 0 }),
+  transferAverageRating: () => 6.1,
+  overall: () => 68,
+  isYouthAcademyPlayer: () => false,
   saveGame: () => {},
   log: () => {},
   setStory: () => {},
@@ -58,7 +65,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
     + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
-    + ensureOffersSource + "\n" + offerAvailabilitySource,
+    + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   sandbox,
   { filename: "transfer-window-regression" }
 );
@@ -70,6 +77,15 @@ sandbox.ensureTransferOffers();
 assert.equal(generatedOffers, 0, "a legacy saved winter offer must not trigger a duplicate offer batch");
 assert.equal(state.transferOffers[0].status, "pending", "the saved offer must stay pending during the break");
 assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), true, "the legacy offer must be negotiable during the winter break");
+state.trust = 10;
+assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false, "an offer must become unavailable when coach trust falls below the eligibility threshold");
+state.trust = 60;
+state.daysSinceTransfer = 3;
+assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false, "an offer must not be negotiable during the seven-day post-transfer cooldown");
+state.daysSinceTransfer = 14;
+state.transferCooldown = 2;
+assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false, "an offer must respect the explicit transfer cooldown");
+state.transferCooldown = 0;
 
 state.winterBreakPending = false;
 state.seasonPhase = "secondHalf";
@@ -362,6 +378,50 @@ assert.equal(expiredLegacyMigration.state.pendingTransfer, null,
 assert.match(expiredLegacyMigration.state.transferHistory[0].text, /انتهت صلاحية/,
   "an expired legacy offer must leave an audit entry in the career history");
 
+
+// Offers must not be generated for an ineligible player, and must become usable only after eligibility recovers.
+const eligibilityState = {
+  calendarDay: 190, season: 4, careerStarted: true, retired: false, age: 24, loan: null,
+  freeAgent: false, transferCooldown: 0, daysSinceTransfer: 14, apps: 12, trust: 10,
+  clubName: "نادي أ", leagueCountry: "مصر", clubPower: 50, pos: "ST", role: "أساسي",
+  contractSeasons: 3, transferOffers: [], transferOffersWindowId: "", transferOffersAttemptKey: "",
+  transferHistory: [], seasonGoals: 0, seasonAssists: 0, season: 4, day: 190
+};
+let eligibilityGenerationCalls = 0;
+const eligibilitySandbox = {
+  state: eligibilityState,
+  window: { LWTransferAwards: { generateOffers: ({ windowId }) => {
+    eligibilityGenerationCalls++;
+    return [{ id: "eligible-offer", windowId, club: "نادي ب", country: "مصر", league: "الدوري المصري",
+      division: 1, power: 50, wage: 1000, maxWage: 1200, status: "pending" }];
+  } } },
+  canAccessTransferMarket: () => true,
+  transferPlayerProfile: () => ({ name: "لاعب اختبار", currentClub: "نادي أ", country: "مصر",
+    appearances: 12, form: 6.2, ovr: 68, currentClubPower: 50, goals: 0, assists: 0, age: 24, potential: 80, position: "ST" }),
+  transferTargets: () => [{ club: "نادي ب", country: "مصر", league: "الدوري المصري", division: 1, power: 50 }],
+  transferFactors: () => ({ ageAdjustment: 0, contractAdjustment: 0, currentRoleAdjustment: 0, positionAdjustment: 0, targetRoleAdjustment: 0 }),
+  transferAverageRating: () => 6.2, overall: () => 68, isYouthAcademyPlayer: () => false,
+  saveGame: () => {}, log: () => {}, setStory: () => {}, console
+};
+vm.createContext(eligibilitySandbox);
+vm.runInContext(transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
+  + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
+  + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+  eligibilitySandbox, { filename: "transfer-offer-eligibility-guard" });
+eligibilitySandbox.ensureTransferOffers();
+assert.equal(eligibilityGenerationCalls, 0, "low coach trust must prevent official offers from being generated");
+eligibilityState.trust = 25;
+eligibilitySandbox.ensureTransferOffers();
+assert.equal(eligibilityGenerationCalls, 1, "the same transfer window must retry once coach trust becomes eligible");
+assert.equal(eligibilitySandbox.offerIsAvailable(eligibilityState.transferOffers[0]), true,
+  "an offer must become negotiable once the player satisfies the shared eligibility rules");
+eligibilityState.trust = 10;
+assert.equal(eligibilitySandbox.offerIsAvailable(eligibilityState.transferOffers[0]), false,
+  "a previously generated offer must not bypass a later loss of coach trust");
+eligibilityState.trust = 25;eligibilityState.daysSinceTransfer = 3;
+assert.equal(eligibilitySandbox.offerIsAvailable(eligibilityState.transferOffers[0]), false,
+  "a previously generated offer must not bypass the post-transfer waiting period");
+
 const cupArchiveScenario = {
   state: {
     season: 4, clubName: "نادي أ",
@@ -485,7 +545,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v251"), "unified transfer negotiations and duplicate-offer reconciliation must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v252"), "transfer eligibility and unified negotiation rules must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

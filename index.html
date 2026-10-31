@@ -4554,6 +4554,8 @@ function ensureTransferOffers(){
  const dedupedExisting=dedupeTransferOffersForWindow(windowId,windowInfo);
  const profile=transferPlayerProfile();
  if(profile.appearances<2||profile.form<5.8)return;
+ if(Number(state.apps||0)<2||Math.max(0,Number(state.daysSinceTransfer)||0)<7
+  ||Number(state.trust||0)<20||transferAverageRating()<5.8)return;
  // If a window produced no suitable offers, retry only after the player's relevant profile changes.
  // Once an offer has been generated for this window, don't replenish it after the player rejects it.
  const attemptKey=JSON.stringify([
@@ -4568,6 +4570,8 @@ function ensureTransferOffers(){
   Number(profile.assists)||0,
   Number(profile.age)||0,
   Number(profile.potential)||0,
+  Number(state.trust)||0,
+  Math.max(0,Number(state.daysSinceTransfer)||0),
   String(profile.position||"")
  ]);
  const hasOffersForWindow=state.transferOffers.some(offer=>transferOfferMatchesWindow(offer,windowId,windowInfo));
@@ -4578,7 +4582,8 @@ function ensureTransferOffers(){
   return;
  }
  state.transferOffers=state.transferOffers.map(offer=>offer&&offer.status==="pending"&&!transferOfferMatchesWindow(offer,windowId,windowInfo)?{...offer,status:"expired"}:offer);
- const targets=transferTargets().filter(target=>!(target.club===state.clubName&&target.country===state.leagueCountry)
+ const targets=transferTargets().filter(target=>transferEligibilityReason(target)===""
+  &&!(target.club===state.clubName&&target.country===state.leagueCountry)
   &&!(Number(target.division)>=2&&target.country!==state.leagueCountry)&&!(target.power>=70&&profile.ovr<60));
  const offers=window.LWTransferAwards?.generateOffers({player:profile,targets:targets,windowId:windowId,currentClubPower:state.clubPower})||[];
  state.transferOffers.push(...offers);state.transferOffers=state.transferOffers.slice(-40);
@@ -4595,7 +4600,8 @@ function offerIsAvailable(offer){
  const windowMatches=transferOfferMatchesCurrentWindow(offer,windowInfo);
  return !!offer&&canAccessTransferMarket()&&offer.status==="pending"&&(windowInfo.open||state.freeAgent)
   &&windowMatches&&!state.retired&&!state.loan
-  &&Number(state.transferCooldown||0)<=0;
+  &&Number(state.transferCooldown||0)<=0
+  &&transferEligibilityReason(offer)==="";
 }
 function beginTransferNegotiation(id){
  migrateLegacyPendingTransferOffer();

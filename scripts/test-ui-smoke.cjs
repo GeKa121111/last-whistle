@@ -773,6 +773,7 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const transferEligibilitySource = extractTopLevelFunction(html, "transferEligibilityReason");
 const legacyOfferMigrationSource = extractTopLevelFunction(html, "migrateLegacyPendingTransferOffer");
 const duplicateOfferDedupeSource = extractTopLevelFunction(html, "dedupeTransferOffersForWindow");
 const normalizedTargetKeySource = extractTopLevelFunction(html, "normalizedTargetKey");
@@ -782,7 +783,8 @@ const offerCurrentWindowMatchSource = extractTopLevelFunction(html, "transferOff
 const offerAvailabilitySource = extractTopLevelFunction(html, "offerIsAvailable");
 const offerState = {
   careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
-  calendarDay: 15, season: 1, day: 15, apps: 2, clubName: "نادي أ", leagueCountry: "مصر",
+  calendarDay: 15, season: 1, day: 15, age: 24, apps: 2, daysSinceTransfer: 14, trust: 60,
+  clubName: "نادي أ", leagueCountry: "مصر",
   clubPower: 50, transferOffers: [], transferOffersWindowId: "", transferOffersAttemptKey: "",
   transferHistory: []
 };
@@ -795,6 +797,8 @@ const offerSandbox = {
   activeCupInProgress: () => true,
   transferPlayerProfile: () => ({ ...offerProfile }),
   transferTargets: () => [{ club: "نادي ب", country: "مصر", power: 50, division: 1, players: [] }],
+  transferFactors: () => ({ ageAdjustment: 0, contractAdjustment: 0, currentRoleAdjustment: 0, positionAdjustment: 0, targetRoleAdjustment: 0 }),
+  transferAverageRating: () => 6.1, overall: () => 55, isYouthAcademyPlayer: () => false,
   window: { LWTransferAwards: { generateOffers: ({ windowId }) => {
     offerGenerationCalls++;
     return offerProfile.form >= 6.3
@@ -807,8 +811,8 @@ const offerSandbox = {
 };
 vm.createContext(offerSandbox);
 vm.runInContext(offerWindowMatchSource + "\n" + currentFreeAgentWindowSource + "\n" + offerCurrentWindowMatchSource
-  + "\n" + normalizedTargetKeySource + "\n" + legacyOfferMigrationSource + "\n" + duplicateOfferDedupeSource,
-  offerSandbox, { filename: "transferOfferWindowValidators" });
+  + "\n" + normalizedTargetKeySource + "\n" + legacyOfferMigrationSource + "\n" + duplicateOfferDedupeSource
+  + "\n" + transferEligibilitySource, offerSandbox, { filename: "transferOfferWindowValidators" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
 vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
 offerSandbox.ensureTransferOffers();

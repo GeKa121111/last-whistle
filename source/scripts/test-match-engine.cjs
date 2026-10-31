@@ -261,6 +261,70 @@ const extraTimeValidation = engine.validateResult(extraTimeParticipation);
 assert.equal(extraTimeValidation.ok, true,
   "extra-time player activity and extended minutes must remain internally consistent");
 
+assert.equal(typeof engine.rollExtraTimePlayerExit, "function",
+  "extra-time player exits must be independently testable");
+function findExtraTimeExitSeed(expectedType) {
+  const injuryChance = 0.008 * (30 / 90);
+  const redCardChance = 0.0035 * (30 / 90);
+  for (let seed = 1; seed <= 100000; seed += 1) {
+    const exit = engine.rollExtraTimePlayerExit(engine.seededRandom(seed), true, injuryChance, redCardChance);
+    if (exit && exit.type === expectedType) return seed;
+  }
+  throw new Error("could not find deterministic extra-time " + expectedType + " seed");
+}
+const extraTimeRedSeed = findExtraTimeExitSeed("red-card");
+const extraTimeInjurySeed = findExtraTimeExitSeed("injury");
+const extraTimeRedResult = engine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeRedSeed
+});
+const extraTimeRedEvent = extraTimeRedResult.events.find(event => event.type === "red-card" && event.side === "player");
+assert.ok(extraTimeRedResult.extraTime.played && extraTimeRedEvent && Number(extraTimeRedEvent.minute) > 90,
+  "a player who remains on the pitch must be able to receive a red card during extra time");
+assert.equal(extraTimeRedResult.player.redCards, 1,
+  "an extra-time dismissal must update the player's red-card statistic");
+assert.equal(extraTimeRedResult.player.minutes, Number(extraTimeRedEvent.minute),
+  "an extra-time dismissal must end the player's minutes at the dismissal minute");
+assert.equal(extraTimeRedResult.player.injuryDays, 0,
+  "an extra-time red card must not also create an injury");
+assert.equal(engine.validateResult(extraTimeRedResult).ok, true,
+  "an extra-time dismissal must preserve the event, minute and result ledgers");
+assert.equal(JSON.stringify(browserEngine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeRedSeed
+})), JSON.stringify(extraTimeRedResult),
+  "the embedded engine must reproduce deterministic extra-time dismissals");
+
+const extraTimeInjuryResult = engine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeInjurySeed
+});
+const extraTimeInjuryEvent = extraTimeInjuryResult.events.find(event => event.type === "injury" && event.side === "player");
+assert.ok(extraTimeInjuryResult.extraTime.played && extraTimeInjuryEvent && Number(extraTimeInjuryEvent.minute) > 90,
+  "a player who remains on the pitch must be able to suffer an injury during extra time");
+assert.ok(extraTimeInjuryResult.player.injuryDays > 0,
+  "an extra-time injury must assign a recovery duration");
+assert.equal(extraTimeInjuryResult.player.minutes, Number(extraTimeInjuryEvent.minute),
+  "an extra-time injury must end the player's minutes at the injury minute");
+assert.equal(extraTimeInjuryResult.player.redCards, 0,
+  "an extra-time injury must not also create a dismissal");
+assert.equal(engine.validateResult(extraTimeInjuryResult).ok, true,
+  "an extra-time injury must preserve the event, minute and result ledgers");
+assert.equal(JSON.stringify(browserEngine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeInjurySeed
+})), JSON.stringify(extraTimeInjuryResult),
+  "the embedded engine must reproduce deterministic extra-time injuries");
+
+assert.equal(extraTimeRedResult.metadata.extraTimeEventSeed, extraTimeRedSeed,
+  "the extra-time event seed must be stored for deterministic replay");
+assert.equal(extraTimeInjuryResult.metadata.extraTimeEventSeed, extraTimeInjurySeed,
+  "the injury event seed must be stored for deterministic replay");
+const invalidExtraTimeSeedResult = JSON.parse(JSON.stringify(extraTimeInjuryResult));
+invalidExtraTimeSeedResult.metadata.extraTimeEventSeed = "not-a-number";
+assert.equal(engine.validateResult(invalidExtraTimeSeedResult).ok, false,
+  "result validation must reject malformed extra-time replay seeds");
+assert.equal(engine.validateResult(invalidExtraTimeSeedResult).reason, "invalid-extra-time-event-seed",
+  "malformed extra-time replay seeds must have a distinct validation reason");
+assert.equal(engine.validateResult(extraTimeRedResult).extraTimeEventSeedConsistent, true);
+assert.equal(browserEngine.validateResult(extraTimeInjuryResult).extraTimeEventSeedConsistent, true);
+
 let extraTimePeriodLedgerProbe = null;
 for (let seed = 151501; seed < 156501 && !extraTimePeriodLedgerProbe; seed += 1) {
   const result = engine.simulateMatch({

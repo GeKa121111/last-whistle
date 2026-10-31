@@ -4365,7 +4365,7 @@ function showPage(page, scrollTop=true){
  document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",social:"دوشة الملاعب",diary:"المذكرات"};
- $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";closeDrawer();render();
+ $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
 function openDrawer(){$("drawer").classList.add("open");$("drawerShade").classList.add("open");}
@@ -6948,7 +6948,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 </script>
-<script src="./story-mode.js?v=11"></script>
+<script src="./story-mode.js?v=12"></script>
 <script src="./career-experience.js?v=6"></script>
 <script src="./agent-system.js?v=6"></script>
 <script src="./career-hub.js?v=3"></script>

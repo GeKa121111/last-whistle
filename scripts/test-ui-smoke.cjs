@@ -46,6 +46,17 @@ if (!cacheDeclaration || !/last-whistle-static-v\d+/.test(cacheDeclaration)) {
   console.error("Service worker must use a versioned cache name."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
+if (!storySource.includes('home.insertAdjacentElement("afterbegin",shell)')
+  || !storySource.includes('shell.insertAdjacentElement("afterend",story)')
+  || storySource.includes('header.insertAdjacentElement("afterend",shell)')) {
+  console.error("Career overview and story panel must live inside the home page, not beside the global header.");
+  process.exit(1);
+}
+if (html.includes('const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";')
+  || storySource.includes('if(overview)overview.style.display=activePage==="home"?"":"none";')) {
+  console.error("Home-only panels must rely on page containment rather than duplicated global visibility toggles.");
+  process.exit(1);
+}
 if (!storySource.includes("lastRenderedStoryPanelSignature")
   || !storySource.includes("storyPanelSignature===lastRenderedStoryPanelSignature")) {
   console.error("Story panel must avoid rebuilding unchanged interactive choices on every poll."); process.exit(1);
@@ -163,7 +174,7 @@ const required = [
   "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=11",
+  "story-mode.js?v=12",
   "career-experience.js?v=6",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
@@ -417,7 +428,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=9"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=36", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=25", "world-roster-audit.json", "redesign.css?v=9"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 65);

@@ -234,6 +234,8 @@ function ensureShell(){
   if(!app)return;
   var header=app.querySelector(".header");
   if(!header)return;
+  var home=document.getElementById("page-home");
+  if(!home)return;
   if(!document.getElementById("lw-command-center")){
     var shell=document.createElement("section");
     shell.id="lw-command-center";
@@ -256,14 +258,19 @@ function ensureShell(){
       '<button type="button" class="btn ghost" id="lw-cta-transfers"><i>⇄</i> سوق الانتقالات</button>'+
       '</div>'+
       '<div class="lw-next-match"><div><small>NEXT FIXTURE <span>•</span> المباراة القادمة</small><strong id="lw-next-opponent">منافسك القادم</strong></div><span class="lw-match-day"><b id="lw-console-round">1</b><small id="lw-next-match-meta">جولة الموسم</small></span></div>';
-    header.insertAdjacentElement("afterend",shell);
+    home.insertAdjacentElement("afterbegin",shell);
     var story=document.createElement("section");
     story.id="lw-story-panel";
     story.setAttribute("aria-live","polite");
     story.setAttribute("aria-label","أحداث المسيرة والقرارات المصيرية");
     story.innerHTML='<div class="lw-story-layout"><div><div class="lw-story-top"><span>STORYLINE</span><span class="lw-story-badge" id="lw-story-tag">قرارك يصنع الفارق</span><span class="lw-chapter-count" id="lw-chapter-count">0 فصل محسوم</span></div><h2 class="lw-story-title" id="lw-story-title">الموسم لسه بيكتب أول سطر</h2><p class="lw-story-body" id="lw-story-body">لما تظهر لحظة مصيرية، هتلاقي القرار هنا. كل اختيار له تبعات فعلية بتتسجل في مسيرتك.</p><div class="lw-story-consequence" id="lw-story-consequence">قراراتك هتأثر على المعنويات، ثقة المدرب، السمعة والعلاقات.</div></div><div class="lw-choice-wrap" id="lw-story-choices"><div class="lw-empty-story">ابدأ مسيرتك. أول فصل قصصي هيظهر هنا، وقراراتك هتفضل محفوظة على جهازك.</div></div></div><div style="padding:0 22px 18px"><div class="lw-history" id="lw-story-history"></div></div>';
-    var home=document.getElementById("page-home");
-    if(home)home.insertAdjacentElement("afterbegin",story);
+    shell.insertAdjacentElement("afterend",story);
+  }
+  var commandCenter=document.getElementById("lw-command-center");
+  var storyPanel=document.getElementById("lw-story-panel");
+  if(commandCenter&&commandCenter.parentNode!==home)home.insertAdjacentElement("afterbegin",commandCenter);
+  if(commandCenter&&storyPanel&&(storyPanel.parentNode!==home||storyPanel.previousElementSibling!==commandCenter)){
+    commandCenter.insertAdjacentElement("afterend",storyPanel);
   }
   var oldHero=app.querySelector(".hero");
   if(oldHero)oldHero.setAttribute("aria-hidden","true");
@@ -399,7 +406,7 @@ function chooseStory(id,index){
 }
 function renderOverview(s){
   var api=API();if(!s)return;
-  var overview=document.getElementById("lw-command-center");var appRoot=document.querySelector(".app.hasSidebar");var activePage=appRoot&&appRoot.getAttribute("data-active-page");if(!activePage)activePage=s.currentPage||"home";if(overview)overview.style.display=activePage==="home"?"":"none";
+  
   var set=function(id,value){var el=document.getElementById(id);if(!el)return;var text=value==null?"—":String(value);if(el.textContent!==text)el.textContent=text;};
   var val=api&&typeof api.overall==="function"?api.overall():(typeof s.overall==="number"?s.overall:null);
   if(val==null){

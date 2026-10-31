@@ -31,6 +31,7 @@ const dedupeOffersSource = section("function dedupeTransferOffersForWindow(", "\
 const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfunction transferFactors(");
 const transferFactorsSource = section("function transferFactors(", "\nfunction transferAverageRating(");
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
+const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
@@ -466,6 +467,48 @@ assert.equal(roleContractState.transferOffers.length, 1, "the improved role/cont
 assert.equal(roleContractSandbox.offerIsAvailable(roleContractState.transferOffers[0]), true,
   "the newly eligible offer must pass the same final availability validator");
 
+
+// A successful contract negotiation must not be recorded as a completed transfer if the destination disappeared before commit.
+function makeNegotiationCompletionScenario(completeTransfer) {
+  const offer = { id: "vanished-club-offer", status: "pending", club: "نادي ب", country: "مصر",
+    league: "الدوري المصري", division: 1, power: 50, wage: 1000, currency: "ج.م",
+    signingBonus: 5000, goalBonus: 300, cleanSheetBonus: 200, contractSeasons: 3, releaseClause: 0, role: "أساسي" };
+  const scenario = {
+    state: { clubName: "نادي أ", leagueCountry: "مصر", season: 4, day: 190, pendingTransfer: null,
+      transferNegotiation: { offerId: offer.id, patience: 100, round: 0 }, transferOffers: [offer], transferHistory: [] },
+    window: { LWTransferAwards: { evaluateNegotiation: () => ({ status: "accepted", patience: 100,
+      terms: { weeklyWage: 1000, signingBonus: 5000, goalBonus: 300, cleanSheetBonus: 200,
+        contractSeasons: 3, releaseClause: 0 } }) } },
+    offerIsAvailable: () => true, negotiationTermsFromDom: () => ({ weeklyWage: 1000 }),
+    transferTo: () => {
+      if (completeTransfer) { scenario.state.clubName = offer.club; scenario.state.leagueCountry = offer.country; }
+      scenario.state.pendingTransfer = null; scenario.state.transferNegotiation = null;
+    },
+    saveGame: () => {}, renderTransferMarket: () => { scenario.rendered = true; },
+    toast: message => { scenario.toastMessage = message; }, log: () => {}
+  };
+  vm.createContext(scenario);
+  vm.runInContext(submitNegotiationSource, scenario, { filename: completeTransfer ? "completed-negotiated-transfer" : "vanished-negotiated-transfer" });
+  scenario.submitTransferNegotiation();
+  return scenario;
+}
+const vanishedTransfer = makeNegotiationCompletionScenario(false);
+assert.equal(vanishedTransfer.state.clubName, "نادي أ", "a vanished destination must not change the player's club");
+assert.equal(vanishedTransfer.state.transferOffers[0].status, "expired",
+  "an accepted contract must be marked expired if the actual transfer cannot complete");
+assert.equal(vanishedTransfer.state.transferOffers[0].expiredReason, "destination-unavailable",
+  "the failed transfer must retain a machine-readable reason");
+assert.equal(vanishedTransfer.state.pendingTransfer, null, "a failed completion must not leave a pending transfer behind");
+assert.equal(vanishedTransfer.state.transferNegotiation, null, "a failed completion must release the negotiation lock");
+assert.match(vanishedTransfer.state.transferHistory[0].text, /تعذر إتمام الانتقال/,
+  "a failed completion must be recorded in the career history");
+const completedTransfer = makeNegotiationCompletionScenario(true);
+assert.equal(completedTransfer.state.clubName, "نادي ب", "a successful completion must apply the destination club");
+assert.equal(completedTransfer.state.transferOffers[0].status, "accepted",
+  "a successfully completed transfer must retain the accepted offer status");
+assert.equal(completedTransfer.state.transferOffers[0].expiredReason, undefined,
+  "a successful transfer must not receive a failure reason");
+
 const cupArchiveScenario = {
   state: {
     season: 4, clubName: "نادي أ",
@@ -589,7 +632,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v253"), "role/contract offer retries and shared eligibility rules must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v254"), "negotiation completion and transfer availability validation must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

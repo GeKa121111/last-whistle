@@ -4681,7 +4681,15 @@ function submitTransferNegotiation(){
    releaseClause:result.terms.releaseClause,role:offer.role};
   state.transferNegotiation=null;
   state.transferHistory.unshift({season:state.season,day:state.day,text:"نجحت مفاوضات عقد "+offer.club+": راتب "+result.terms.weeklyWage+" "+offer.currency+" أسبوعيًا ومكافأة توقيع "+result.terms.signingBonus+" ومدة "+result.terms.contractSeasons+" مواسم."});
-  saveGame(true);transferTo();return;
+  saveGame(true);transferTo();
+  // Negotiation acceptance is not a completed move until the destination club is actually applied.
+  if(state.clubName!==offer.club||state.leagueCountry!==offer.country||state.pendingTransfer){
+   state.pendingTransfer=null;offer.status="expired";offer.expiredReason="destination-unavailable";
+   state.transferHistory.unshift({season:state.season,day:state.day,
+    text:"تعذر إتمام الانتقال إلى "+offer.club+" لأن النادي أو نافذة الانتقالات لم تعد متاحة. انتهت صلاحية العرض بعد نجاح المفاوضات."});
+   saveGame(true);renderTransferMarket();toast("المفاوضات نجحت، لكن الانتقال لم يكتمل لأن العرض لم يعد متاحًا.");return;
+  }
+  return;
  }
  if(result.status==="withdrawn"){
   offer.status="withdrawn";state.transferHistory.unshift({season:state.season,day:state.day,text:"انسحب "+offer.club+" من المفاوضات بعد نفاد صبر الإدارة."});

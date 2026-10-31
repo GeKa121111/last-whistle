@@ -748,6 +748,12 @@
         && (result.player.minutes == null
           || result.player.playerAvailable === (Number(result.player.minutes) > 0)));
     if (!playerAvailabilityValid) return { ok: false, reason: "invalid-player-availability" };
+    const playerActivityPresent = result.events.some(event =>
+      event.side === "player" || event.creditedToPlayer === true);
+    const noPlayerActivityWhenUnavailable = result.player.playerAvailable !== false || !playerActivityPresent;
+    if (!noPlayerActivityWhenUnavailable) {
+      return { ok: false, reason: "unavailable-player-has-events", noPlayerActivityWhenUnavailable };
+    }
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;
@@ -1065,7 +1071,7 @@
     const reason = !metadataShapeConsistent ? "invalid-metadata-shape"
       : !aggregateOffsetConsistent ? "invalid-aggregate-offset"
         : !extraTimeEventSeedConsistent ? "invalid-extra-time-event-seed" : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

@@ -183,7 +183,7 @@ assert.equal(flaky.state.trainingSessions, retried.plannedSessions,
   "the career training-session count must match the once-applied annual plan");
 
 const finishStart = html.indexOf("function finishSeason(skipAnnualTraining=false){");
-const finishEnd = html.indexOf("\\nfunction ", finishStart + 10);
+const finishEnd = html.indexOf("\nfunction ", finishStart + 10);
 assert.ok(finishStart >= 0 && finishEnd > finishStart, "season completion handler must be present");
 const finishSource = html.slice(finishStart, finishEnd);
 const trainingErrorGuard = finishSource.indexOf("if(developmentResult?.error){");
@@ -196,7 +196,7 @@ assert.ok(finishSource.includes("action:()=>finishSeason()") && finishSource.inc
   "the recovery modal must expose retry and explicit skip actions");
 
 const skipStart = html.indexOf("function skipSeasonTrainingAndFinish(){");
-const skipEnd = html.indexOf("\\nfunction finishSeason(", skipStart);
+const skipEnd = html.indexOf("\nfunction finishSeason(", skipStart);
 assert.ok(skipStart >= 0 && skipEnd > skipStart, "an explicit annual-training skip path must exist");
 const skipSource = html.slice(skipStart, skipEnd);
 const skipState = { season: 6, seasonApps: 22, seasonTrainingReport: {
@@ -210,7 +210,7 @@ const skipSandbox = {
   finishSeason: skip => { skipCalled = skip === true; }
 };
 vm.createContext(skipSandbox);
-new vm.Script(skipSource + "\\nthis.skip = skipSeasonTrainingAndFinish;", {
+new vm.Script(skipSource + "\nthis.skip = skipSeasonTrainingAndFinish;", {
   filename: "season-training-skip.js"
 }).runInContext(skipSandbox);
 skipSandbox.skip();

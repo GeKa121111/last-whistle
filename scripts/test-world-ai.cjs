@@ -1114,5 +1114,61 @@ assert.equal(projectionCacheWorld.lastAdvancedTo, 2,
 assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
   "a stale season request must not create or remove transfer records");
 
+
+ // The async wrapper must reject stale season requests before its own completion/promotion side effects.
+ const staleWrapperSave = { season: 1, name: "Stale world-season wrapper regression" };
+ const staleWrapperWorld = ai.ensureState(staleWrapperSave, db);
+ const staleLeagueId = "stale-season-guard-league";
+ const staleFirstDivision = [], staleSecondDivision = [];
+ for (let index = 0; index < 6; index++) {
+   const id = "stale-season-first-" + index;
+   staleWrapperWorld.clubs[id] = { id, name: id, country: "Testland", leagueId: staleLeagueId, division: 1, roster: [] };
+   staleFirstDivision.push({ clubId: id, rank: index + 1 });
+ }
+ for (let index = 0; index < 3; index++) {
+   const id = "stale-season-second-" + index;
+   staleWrapperWorld.clubs[id] = { id, name: id, country: "Testland", leagueId: staleLeagueId, division: 2, roster: [] };
+   staleSecondDivision.push({ clubId: id, rank: index + 1 });
+ }
+ staleWrapperWorld.currentSeason = 3;
+ staleWrapperWorld.lastAdvancedTo = 0;
+ staleWrapperWorld.lastCompletedSeason = 1;
+ staleWrapperWorld.completedSeasons = [1];
+ staleWrapperWorld.matchesBySeason = { "1": [] };
+ staleWrapperWorld.seasonStats = { "1": [{ id: "season-one-snapshot", goals: 9 }] };
+ staleWrapperWorld.leagueTables = { "1": {
+   [staleLeagueId]: staleFirstDivision,
+   [staleLeagueId + ":2"]: staleSecondDivision
+ } };
+ staleWrapperWorld.promotionHistory = [];
+ staleWrapperWorld.notes = [];
+ staleWrapperWorld.transfers = [];
+ staleWrapperWorld.marketReports = [];
+ const staleDivisionSnapshot = JSON.stringify(
+   Object.values(staleWrapperWorld.clubs).filter(club => club.leagueId === staleLeagueId)
+     .map(club => [club.id, club.division]).sort((a,b) => a[0].localeCompare(b[0]))
+ );
+ const staleTableSnapshot = JSON.stringify(staleWrapperWorld.leagueTables["1"]);
+ const staleStatsSnapshot = JSON.stringify(staleWrapperWorld.seasonStats["1"]);
+ const staleWrapperResult = ai.advanceToSeason(staleWrapperSave, 2, db);
+ assert.equal(staleWrapperResult.alreadyAdvanced, true,
+   "a request older than currentSeason must be rejected by the effective world wrapper");
+ assert.equal(staleWrapperResult.season, 3, "a stale wrapper request must return the stable world season");
+ assert.equal(staleWrapperWorld.currentSeason, 3, "a stale wrapper request must not rewind the world clock");
+ assert.equal(staleWrapperWorld.lastAdvancedTo, 0, "a stale wrapper request must not rewrite a missing legacy transfer marker");
+ assert.deepEqual(staleWrapperWorld.promotionHistory, [],
+   "a stale wrapper request must not apply promotion/relegation to the current squads");
+ assert.equal(JSON.stringify(Object.values(staleWrapperWorld.clubs)
+   .filter(club => club.leagueId === staleLeagueId)
+   .map(club => [club.id, club.division]).sort((a,b) => a[0].localeCompare(b[0]))), staleDivisionSnapshot,
+   "a stale wrapper request must preserve every club's division");
+ assert.equal(JSON.stringify(staleWrapperWorld.leagueTables["1"]), staleTableSnapshot,
+   "a stale wrapper request must preserve archived league tables");
+ assert.equal(JSON.stringify(staleWrapperWorld.seasonStats["1"]), staleStatsSnapshot,
+   "a stale wrapper request must preserve saved player-season statistics");
+ assert.deepEqual(staleWrapperWorld.notes, [], "a stale wrapper request must not append promotion or market notes");
+ assert.deepEqual(staleWrapperWorld.transfers, [], "a stale wrapper request must not create transfer records");
+ assert.deepEqual(staleWrapperWorld.marketReports, [], "a stale wrapper request must not create market reports");
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

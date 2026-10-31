@@ -1701,7 +1701,10 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = base.ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    if (world.lastAdvancedTo >= next) return base.advanceToSeason(save, next, db);
+    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const currentSeason = Math.max(1, int(world.currentSeason, 1));
+    // A stale request must exit before completing an older season or applying promotion/relegation.
+    if (lastAdvancedTo >= next || currentSeason > next) return base.advanceToSeason(save, next, db);
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
     const promotions = applyPromotionRelegation(world, previous);
@@ -1931,7 +1934,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=23");
+    const worker = new global.Worker("./football-world-worker.js?v=24");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

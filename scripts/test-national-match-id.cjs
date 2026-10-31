@@ -5,6 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
+const career = require(path.join(root, "source", "public", "data", "career-engine.js"));
 const app = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const deployedApp = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 assert.equal(app, deployedApp, "root and public app shells must remain synchronized");
@@ -20,6 +21,11 @@ assert.ok(nationalMatchSource.includes("buildMatchId(\"international\",competiti
   "international match IDs must not depend on player caps");
 assert.ok(nationalMatchSource.includes("matchday:nationalMatchday"),
   "international matchday metadata must stay aligned with the tournament fixture counter");
+const tournamentPreviewAt = nationalMatchSource.indexOf("const tournamentPreview=structuredCloneSafe(state);");
+const tournamentPreflightAt = nationalMatchSource.indexOf("recordNationalTournamentMatch(tournamentPreview,result.outcome)");
+const matchSettlementAt = nationalMatchSource.indexOf("applyMatchResult(result,{id");
+assert.ok(tournamentPreviewAt >= 0 && tournamentPreflightAt > tournamentPreviewAt && matchSettlementAt > tournamentPreflightAt,
+  "tournament progression must be validated on a copy before match statistics are committed");
 assert.equal(nationalMatchSource.includes("(Number(state.nationalCaps)||0)+1"), false,
   "a non-appearance must not cause the next international fixture to reuse its ID");
 
@@ -36,12 +42,12 @@ const sandbox = {
   state,
   window: {
     LWCareer: {
-      recordNationalTournamentMatch(currentState) {
-        currentState.nationalTournamentMatches++;
-        return { ok: true, status: "group" };
+      recordNationalTournamentMatch(currentState, outcome) {
+        return career.recordNationalTournamentMatch(currentState, outcome);
       }
     }
   },
+  structuredCloneSafe: value => JSON.parse(JSON.stringify(value)),
   isYouthAcademyPlayer: () => false,
   calendarHasConflict: () => false,
   checkAction: () => true,
@@ -79,6 +85,7 @@ sandbox.playNationalFixture();
 
 assert.equal(state.nationalCaps, 0, "the fixture counter must advance even when the player does not appear");
 assert.equal(state.nationalTournamentMatches, 2, "both non-appearance fixtures must advance the tournament");
+assert.equal(state.nationalTournamentPoints, 2, "the validated group draws must commit their points with the fixtures");
 assert.deepEqual(built.map(row => row.sequence), [1, 2],
   "sequential national fixtures must receive different IDs when caps remain unchanged");
 assert.notEqual(built[0].id, built[1].id, "a second non-appearance must not collide with the first fixture ID");
@@ -87,4 +94,52 @@ assert.deepEqual(settled.map(row => row.matchday), [1, 2],
 assert.deepEqual(simulated.map(row => row.matchId), built.map(row => row.id),
   "the simulator and settlement must use the same unique fixture IDs");
 
-console.log("PASS: international fixtures remain uniquely identifiable when the player is an unused substitute.");
+function runRejectedTournamentFixture(overrides, expectedStatus) {
+  const invalidState = {
+    ...state,
+    nationalTournamentMatches: 3,
+    nationalTournamentPoints: overrides.nationalTournamentPoints,
+    nationalTournamentQualified: overrides.nationalTournamentQualified,
+    nationalTournamentDone: false,
+    nationalTournamentWinner: false,
+    internationalPlayed: false,
+    nationalCaps: 0,
+    recordedMatchIds: []
+  };
+  const rejectedSettlements = [];
+  const invalidSandbox = {
+    ...sandbox,
+    state: invalidState,
+    window: {
+      LWCareer: {
+        recordNationalTournamentMatch(currentState, outcome) {
+          const result = career.recordNationalTournamentMatch(currentState, outcome);
+          assert.equal(result.status, expectedStatus);
+          return result;
+        }
+      }
+    },
+    applyMatchResult: (result, meta) => {
+      rejectedSettlements.push(meta);
+      return { record: { id: meta.id }, participated: false };
+    }
+  };
+  vm.createContext(invalidSandbox);
+  vm.runInContext(nationalMatchSource + "\\nglobalThis.playNationalFixture = nationalMatch;", invalidSandbox,
+    { filename: "national-match-transaction-regression.js" });
+  invalidSandbox.playNationalFixture();
+  assert.equal(rejectedSettlements.length, 0,
+    "an invalid tournament transition must be rejected before match statistics are recorded");
+  assert.equal(invalidState.nationalTournamentMatches, 3,
+    "a rejected tournament transition must leave the fixture counter unchanged");
+  assert.equal(invalidState.nationalTournamentPoints, overrides.nationalTournamentPoints,
+    "a rejected tournament transition must leave points unchanged");
+  assert.equal(invalidState.nationalCaps, 0,
+    "a rejected tournament transition must not credit an international appearance");
+  assert.equal(invalidState.internationalPlayed, false,
+    "a rejected tournament transition must not close or advance the international record");
+}
+runRejectedTournamentFixture({ nationalTournamentPoints: 2, nationalTournamentQualified: false }, "not-qualified");
+runRejectedTournamentFixture({ nationalTournamentPoints: 4, nationalTournamentQualified: true }, "final-winner-required");
+
+console.log("PASS: international fixtures remain unique for unused substitutes, and rejected tournament transitions cannot partially commit match statistics.");

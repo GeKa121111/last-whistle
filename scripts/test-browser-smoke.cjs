@@ -1375,7 +1375,10 @@ async function main() {
       return {
         menuVisible: getComputedStyle(menu).display !== "none" && menuRect.width >= 30 && menuRect.height >= 30,
         bottomNavigationHidden: getComputedStyle(bottom).display === "none",
-        drawerInitiallyClosed: !drawer.classList.contains("open")
+        drawerInitiallyClosed: !drawer.classList.contains("open"),
+        drawerAriaHidden: drawer.getAttribute("aria-hidden"),
+        drawerInert: drawer.hasAttribute("inert"),
+        menuExpanded: menu.getAttribute("aria-expanded")
       };
     });
     assert.equal(tabletNavigationBefore.menuVisible, true,
@@ -1384,6 +1387,12 @@ async function main() {
       "tablet layout should use the sidebar drawer rather than the narrow mobile bottom bar");
     assert.equal(tabletNavigationBefore.drawerInitiallyClosed, true,
       "tablet drawer should start closed to preserve the content width");
+    assert.equal(tabletNavigationBefore.drawerAriaHidden, "true",
+      "closed tablet drawer must be hidden from assistive technology");
+    assert.equal(tabletNavigationBefore.drawerInert, true,
+      "closed tablet drawer must not contain keyboard-focusable controls");
+    assert.equal(tabletNavigationBefore.menuExpanded, "false",
+      "the menu trigger must expose the collapsed state");
     await page.locator("#menuOpen").click();
     await page.waitForFunction(() => {
       const drawer = document.querySelector("#drawer");
@@ -1391,12 +1400,38 @@ async function main() {
       return drawer.classList.contains("open") && rect.width > 0
         && rect.left < window.innerWidth && rect.right <= window.innerWidth + 1;
     }, null, { timeout: 5000 });
+    const drawerAccessible = await page.evaluate(() => {
+      const drawer = document.querySelector("#drawer");
+      return {
+        expanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+        ariaHidden: drawer.getAttribute("aria-hidden"),
+        inert: drawer.hasAttribute("inert"),
+        focusInsideDrawer: drawer.contains(document.activeElement)
+      };
+    });
+    assert.equal(drawerAccessible.expanded, "true", "opening the tablet drawer must expose aria-expanded=true");
+    assert.equal(drawerAccessible.ariaHidden, null, "open drawer must be exposed to assistive technology");
+    assert.equal(drawerAccessible.inert, false, "open drawer controls must become keyboard accessible");
+    assert.equal(drawerAccessible.focusInsideDrawer, true, "opening the drawer must move focus into it");
     await page.locator('#drawer .navBtn[data-page="training"]').click();
     await page.waitForFunction(() => {
       return document.querySelector("#page-training")?.classList.contains("active")
         && !document.querySelector("#drawer")?.classList.contains("open");
     }, null, { timeout: 5000 });
-    results.push("tablet navigation at 820px opens the drawer and routes to training");
+    const drawerAfterNavigation = await page.evaluate(() => ({
+      expanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+      ariaHidden: document.querySelector("#drawer").getAttribute("aria-hidden"),
+      inert: document.querySelector("#drawer").hasAttribute("inert"),
+      currentPage: document.querySelector('#drawer .navBtn[data-page="training"]').getAttribute("aria-current"),
+      focusReturned: document.activeElement === document.querySelector("#menuOpen")
+    }));
+    assert.equal(drawerAfterNavigation.expanded, "false", "closing the drawer must reset aria-expanded");
+    assert.equal(drawerAfterNavigation.ariaHidden, "true", "closed drawer must return to aria-hidden");
+    assert.equal(drawerAfterNavigation.inert, true, "closed drawer must return to inert");
+    assert.equal(drawerAfterNavigation.currentPage, "page",
+      "active navigation must expose aria-current=page");
+    assert.equal(drawerAfterNavigation.focusReturned, true, "closing the drawer must restore focus to its trigger");
+    results.push("tablet navigation and drawer keyboard/accessibility state at 820px");
 
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");

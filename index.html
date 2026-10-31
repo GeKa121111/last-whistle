@@ -851,7 +851,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 </aside>
 
   <header class="header">
-    <button class="menuBtn" id="menuOpen" aria-label="فتح قائمة المسيرة" aria-controls="drawer">☰</button>
+    <button class="menuBtn" id="menuOpen" aria-label="فتح قائمة المسيرة" aria-controls="drawer" aria-expanded="false">☰</button>
     <div class="brandMark" aria-hidden="true"><span>LW</span><i></i></div>
     <div class="brandLockup">
       <div class="brand">LAST <span>WHISTLE</span></div>
@@ -4419,14 +4419,33 @@ function showPage(page, scrollTop=true){
  const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","social","diary"].includes(page)?page:"home";
  state.currentPage=valid;
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+valid));
- document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
+ document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>{const active=b.dataset.page===valid;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
  document.querySelectorAll(".hub-tile[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===valid));
  const labels={home:"الرئيسية",training:"التدريب",stats:"الإحصائيات",wellness:"الجاهزية والراحة",league:"الدوري المحلي",europe:"عالم الكرة",contract:"العقد والانتقالات",national:"المنتخب",shop:"المتجر",life:"الحياة والسمعة",social:"دوشة الملاعب",diary:"المذكرات"};
  $("pageName").textContent=labels[valid];const app=document.querySelector(".app");if(app)app.setAttribute("data-active-page",valid);closeDrawer();render();
  if(scrollTop)window.scrollTo({top:0,behavior:"smooth"});
 }
-function openDrawer(){$("drawer").classList.add("open");$("drawerShade").classList.add("open");}
-function closeDrawer(){$("drawer").classList.remove("open");$("drawerShade").classList.remove("open");}
+function syncDrawerAccessibility(){
+ const drawer=$("drawer"),opener=$("menuOpen");if(!drawer)return;
+ const compact=window.matchMedia?window.matchMedia("(max-width:1000px)").matches:window.innerWidth<=1000;
+ const open=drawer.classList.contains("open");
+ if(opener)opener.setAttribute("aria-expanded",compact&&open?"true":"false");
+ if(compact&&!open){drawer.setAttribute("aria-hidden","true");drawer.setAttribute("inert","");}
+ else{drawer.removeAttribute("aria-hidden");drawer.removeAttribute("inert");}
+}
+function openDrawer(){
+ const drawer=$("drawer"),shade=$("drawerShade");if(!drawer||!shade)return;
+ drawer.classList.add("open");shade.classList.add("open");syncDrawerAccessibility();
+ const first=drawer.querySelector(".navBtn:not([disabled])");if(first)first.focus({preventScroll:true});
+}
+function closeDrawer(){
+ const drawer=$("drawer"),shade=$("drawerShade");if(!drawer||!shade)return;
+ const wasOpen=drawer.classList.contains("open");
+ drawer.classList.remove("open");shade.classList.remove("open");syncDrawerAccessibility();
+ const compact=window.matchMedia?window.matchMedia("(max-width:1000px)").matches:window.innerWidth<=1000;
+ const opener=$("menuOpen");
+ if(wasOpen&&compact&&opener&&opener.getClientRects().length)opener.focus({preventScroll:true});
+}
 function setBar(id,val){const el=$(id);if(el)el.style.width=clamp(val)+"%";}
 function setText(id,value){const el=$(id);if(el)el.textContent=value;}
 function renderProfessionalLife(){
@@ -6954,7 +6973,7 @@ function bind(){
  $("modalClose").addEventListener("click",closeModal);
  $("modalShade").addEventListener("click",e=>{if(e.target===$("modalShade"))closeModal();});
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeDrawer();}});
- document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
+ document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));syncDrawerAccessibility();document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>{const active=b.dataset.page===(state.currentPage||"home");if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});window.addEventListener("resize",syncDrawerAccessibility,{passive:true});
  $("seasonStageAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonStageAction").dataset.seasonAction||"season-block"));
  $("seasonTransferAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonTransferAction").dataset.seasonAction||"transfer-review"));
  document.querySelectorAll("[data-action]").forEach(b=>b.addEventListener("click",()=>{

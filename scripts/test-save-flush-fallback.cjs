@@ -10,7 +10,7 @@ const publicHtml = fs.readFileSync(path.join(root, "public", "index.html"), "utf
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
 
 const start = rootHtml.indexOf("async function flushQueuedSave(){");
-const end = rootHtml.indexOf("\\nfunction saveGame(", start);
+const end = rootHtml.indexOf("\nfunction saveGame(", start);
 assert.ok(start >= 0 && end > start, "the asynchronous queued-save flush must exist");
 const flushSource = rootHtml.slice(start, end);
 
@@ -35,7 +35,7 @@ async function runFlush({ flush, queued = true, storageFails = false } = {}) {
     persistGame() { return true; }
   };
   vm.createContext(sandbox);
-  new vm.Script(flushSource + "\\nglobalThis.runQueuedFlush = flushQueuedSave;", {
+  new vm.Script(flushSource + "\nglobalThis.runQueuedFlush = flushQueuedSave;", {
     filename: "flushQueuedSave"
   }).runInContext(sandbox);
   const result = await sandbox.runQueuedFlush();

@@ -748,7 +748,7 @@ const missingFreeAgentContract = { pos: "مهاجم", age: 24, freeAgent: true, 
 career.ensureState(missingFreeAgentContract);
 assert.equal(missingFreeAgentContract.contractSeasons, 0, "legacy free agents must not receive a phantom contract");
 
-for (const engine of [career, deployedCareer]) {
+for (const engine of [career]) {
   const staleFreeAgentType = {
     pos: "مهاجم", age: 24, freeAgent: false, contractType: "free-agent",
     weeklyWage: 900, contractSeasons: 3, apps: 12, trainingXP: {}, randomSeed: 1

@@ -207,6 +207,7 @@ let skipCalled = false;
 const skipSandbox = {
   state: skipState,
   log: () => {},
+  seasonMatchTotal: () => 22,
   finishSeason: skip => { skipCalled = skip === true; }
 };
 vm.createContext(skipSandbox);

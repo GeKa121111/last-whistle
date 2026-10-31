@@ -4619,7 +4619,7 @@ function beginTransferNegotiation(id){
   response:"الإدارة قدمت عرضها الأول. تقدر تفاوض على الراتب والمكافآت والمدة والشرط الجزائي.",
   salaryPeriod:"weekly",requestedWage:Number(offer.wage)||0,signingBonus:Number(offer.signingBonus)||0,
   goalBonus:Number(offer.goalBonus)||0,cleanSheetBonus:Number(offer.cleanSheetBonus)||0,
-  contractSeasons:3,releaseClause:Number(offer.releaseClause)||0};
+  contractSeasons:clamp(offer.contractSeasons||3,1,5),releaseClause:Number(offer.releaseClause)||0};
  saveGame(true);renderTransferMarket();
 }
 function negotiationTermsFromDom(){

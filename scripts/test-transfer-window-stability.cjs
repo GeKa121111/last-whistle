@@ -392,7 +392,7 @@ assert.match(negotiationGuard.toastMessage, /عرض انتقال معلّق/,
 
 const legacyMigration = {
   state: { pendingTransfer: { club: "نادي محفوظ", country: "مصر", league: "الدوري المصري — الدرجة الثانية",
-    division: 2, source: "LWWorldDB", windowId: "summer-0", wage: 1700, role: "أساسي" },
+    division: 2, source: "LWWorldDB", windowId: "summer-0", wage: 1700, role: "أساسي", contractSeasons: 4 },
     transferOffers: [], transferHistory: [], lastOfferWindow: "summer-0", freeAgent: false,
     season: 4, day: 22, calendarDay: 100 },
   window: { LWWorldDB: { normalize: value => String(value || "").trim().toLocaleLowerCase() } },
@@ -416,6 +416,19 @@ assert.equal(migratedLegacyOffer.windowId, "summer-0", "legacy offer migration m
 assert.equal(legacyMigration.state.transferOffersWindowId, "summer-0",
   "migration must mark the active window so ensureTransferOffers does not regenerate a replacement batch");
 assert.equal(legacyMigration.saved, true, "legacy offer migration must be persisted immediately");
+assert.equal(migratedLegacyOffer.contractSeasons, 4,
+  "legacy offer migration must preserve the negotiated contract term");
+legacyMigration.state.transferNegotiation = null;
+legacyMigration.migrateLegacyPendingTransferOffer = () => migratedLegacyOffer;
+legacyMigration.ensureTransferOffers = () => {};
+legacyMigration.offerIsAvailable = () => true;
+legacyMigration.toast = () => {};
+legacyMigration.renderTransferMarket = () => {};
+vm.runInContext(beginNegotiationSource, legacyMigration, { filename: "preserve-legacy-contract-term-in-negotiation" });
+legacyMigration.beginTransferNegotiation(migratedLegacyOffer.id);
+assert.equal(legacyMigration.state.transferNegotiation.contractSeasons, 4,
+  "opening negotiations must use the migrated offer's original contract term instead of resetting it to three seasons");
+
 
 const expiredLegacyMigration = {
   state: { pendingTransfer: { club: "نادي قديم", country: "مصر", windowId: "summer-0" },
@@ -688,7 +701,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v255"), "same-name cross-country transfer validation must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v256"), "legacy contract-term preservation must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

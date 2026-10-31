@@ -1324,10 +1324,10 @@ const parseSavedBooleanForLoanReturn = (value, fallback = false) => {
   }
   return fallback;
 };
-function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "أساسي") {
+function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "أساسي", fallbackContractSeasons = 3) {
   const state = {
     clubName: "Loan Club", leagueCountry: "Spain", season: 4, day: 12,
-    role: "بديل أساسي", transferCooldown: 0, transferHistory: [],
+    role: "بديل أساسي", transferCooldown: 0, transferHistory: [], contractSeasons: fallbackContractSeasons,
     loan: {
       parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 1,
       parentCompetition: "Parent League", parentSource: "test fixture",
@@ -1349,6 +1349,7 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "�
 }
 const parentLoanContractCases = [
   [Infinity, 1, 0, 1],
+  [400, 0, 400, 0],
   ["Infinity", "Infinity", 0, 0],
   [NaN, NaN, 0, 0],
   [-400, -2, 0, 0],
@@ -1396,6 +1397,28 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
 const legacyLoanRoleReturn = runBrowserLoanReturn(400, 2, null);
 assert.equal(legacyLoanRoleReturn.result, true, "legacy loan records without a parent role must still return safely");
 assert.equal(legacyLoanRoleReturn.state.role, "بديل أساسي", "legacy loan records without a parent role must preserve the current role");
+
+const legacyLoanWithoutParentTerm = {
+  ...onLoan,
+  contractSeasons: 2,
+  loan: { ...onLoan.loan }
+};
+delete legacyLoanWithoutParentTerm.loan.parentContractSeasons;
+const sharedLegacyLoanTerm = career.contractStateForSeasonTransition(legacyLoanWithoutParentTerm);
+const browserLegacyLoanTerm = deployedCareer.contractStateForSeasonTransition({
+  ...legacyLoanWithoutParentTerm,
+  loan: { ...legacyLoanWithoutParentTerm.loan }
+});
+assert.equal(sharedLegacyLoanTerm.contractSeasons, 2,
+  "a legacy loan without a parent-term snapshot must preserve the unchanged top-level parent contract duration");
+assert.equal(browserLegacyLoanTerm.contractSeasons, 2,
+  "the embedded career engine must restore the top-level parent term when old loan metadata omitted it");
+assert.equal(JSON.stringify(browserLegacyLoanTerm), JSON.stringify(sharedLegacyLoanTerm),
+  "shared and embedded legacy loan-term fallback must remain identical");
+const browserLegacyLoanTermReturn = runBrowserLoanReturn(400, undefined, "أساسي", 2);
+assert.equal(browserLegacyLoanTermReturn.result, true, "a legacy loan without parentContractSeasons must still return");
+assert.equal(browserLegacyLoanTermReturn.state.contractSeasons, 2,
+  "browser loan return must retain the top-level parent contract duration when the legacy snapshot is missing");
 const parentFreeAgentCases = [
   [true, true], [false, false],
   ["true", true], ["TRUE", true], ["1", true], ["yes", true], ["on", true],

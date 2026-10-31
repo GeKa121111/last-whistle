@@ -1504,6 +1504,27 @@ async function main() {
     assert.equal(contractMarketAccess.kpiLabelSize, "11px", "contract KPI labels must be readable on mobile");
     results.push("contract market search accessibility, live result count, and readable KPI labels");
 
+    // Secondary labels on the statistics, competition, and contract pages share one readable scale.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("stats"));
+    const statsTypography = await page.evaluate(() => ({
+      kpi: document.querySelector("#page-stats .hub-stats-summary .kpiLabel")
+        ? getComputedStyle(document.querySelector("#page-stats .hub-stats-summary .kpiLabel")).fontSize : null,
+      copy: document.querySelector("#page-stats .muted.small")
+        ? getComputedStyle(document.querySelector("#page-stats .muted.small")).fontSize : null
+    }));
+    assert.equal(statsTypography.kpi, "11px", "statistics KPI labels must use the readable secondary type scale");
+    assert.equal(statsTypography.copy, "11px", "statistics explanatory copy must remain readable on mobile");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("league"));
+    const leagueTypography = await page.evaluate(() => {
+      const element = document.querySelector("#page-league .muted.small");
+      return element ? getComputedStyle(element).fontSize : null;
+    });
+    assert.equal(leagueTypography, "11px", "competition explanatory copy must use the readable secondary type scale");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
+    results.push("readable secondary typography on stats, competition, and contract pages");
+
+
+
 
 
     results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");

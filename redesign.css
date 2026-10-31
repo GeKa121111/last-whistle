@@ -579,3 +579,29 @@ body.lw-rebuild #page-contract #transferMarketCount{
   body.lw-rebuild #page-contract #transferMarketCount{align-self:flex-start}
   body.lw-rebuild #page-contract .transferOfferCard{padding:12px}
 }
+
+
+/* Stats and competition pages: align secondary copy with the contract screens. */
+body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel,
+body.lw-rebuild #page-stats .muted.small,
+body.lw-rebuild #page-league .muted.small,
+body.lw-rebuild #page-league .dataDisclaimer,
+body.lw-rebuild #page-contract .muted.small,
+body.lw-rebuild #page-contract .dataDisclaimer{
+  color:#a6b49f;
+  font-size:11px;
+  line-height:1.75;
+}
+body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel{
+  display:block;
+  min-height:2.8em;
+}
+body.lw-rebuild #page-league .league-table-hint{
+  font-size:11px;
+  line-height:1.75;
+}
+@media(max-width:380px){
+  body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel,
+  body.lw-rebuild #page-league .muted.small,
+  body.lw-rebuild #page-contract .muted.small{font-size:10px}
+}

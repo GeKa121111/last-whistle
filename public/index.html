@@ -5514,7 +5514,7 @@ function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){
  }
  return {legText,aggregateText};
 }
-function playCupMatch(){
+function playCupMatchUnsafe(){
  if(isYouthAcademyPlayer()||state.academyReserve){toast("مباريات الكأس للفريق الأول؛ كمل مسيرة الناشئين أو الرديف.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  const c=state.cupState;if(!c||c.champion||c.eliminated||c.abandoned)return;
@@ -5542,18 +5542,18 @@ function playCupMatch(){
  if(!checkAction('cup',20))return;
  const roundName=isLeague?'مرحلة الدوري':isGroups?'المجموعات':(c.rounds||[])[c.stage]||'مباراة';
  let opponent;
- if(isLeague){const pool=c.teams.filter(n=>n!==clubNameForLeague()&&!(c.leagueOpponents||[]).includes(n));opponent=pool.length?pool[rand(0,pool.length-1)]:c.teams[(c.phasePlayed+1)%c.teams.length];c.leagueOpponents=c.leagueOpponents||[];c.leagueOpponents.push(opponent);}
+ if(isLeague){const usedOpponents=Array.isArray(c.leagueOpponents)?c.leagueOpponents:[];const pool=c.teams.filter(n=>n!==clubNameForLeague()&&!usedOpponents.includes(n));const fallbackPool=c.teams.filter(n=>n!==clubNameForLeague());opponent=pool.length?pool[rand(0,pool.length-1)]:fallbackPool.length?fallbackPool[(Number(c.phasePlayed)||0)%fallbackPool.length]:null;}
  else if(isGroups){
   const group=(c.groups||[])[Math.max(0,c.playerGroup||0)]||c.teams.filter(n=>n!==clubNameForLeague()).slice(0,3);const pool=group.filter(n=>n!==clubNameForLeague());
-  const maxMeetings=c.system==='caf'?2:1;const used=c.groupOpponents||{};const available=pool.filter(n=>(used[n]||0)<maxMeetings);
-  opponent=available.length?available[(c.phasePlayed)%available.length]:pool[c.phasePlayed%pool.length];c.groupOpponents=used;c.groupOpponents[opponent]=(c.groupOpponents[opponent]||0)+1;
+  const maxMeetings=c.system==='caf'?2:1;const used=c.groupOpponents&&typeof c.groupOpponents==='object'&&!Array.isArray(c.groupOpponents)?c.groupOpponents:{};const available=pool.filter(n=>(Number(used[n])||0)<maxMeetings);
+  opponent=available.length?available[(Number(c.phasePlayed)||0)%available.length]:pool.length?pool[(Number(c.phasePlayed)||0)%pool.length]:null;
  }else opponent=(isTwoLegTie&&tieLegAtKickoff===2?parsedTieOpponent.value:"")||c.opponent||c.teams[(c.stage*2+1)%c.teams.length]||c.teams[1];
  if(!opponent){toast('تعذر تحديد منافس الكأس.');return;}
  const id=buildMatchId('cup',c.name,(Number(c.matchesPlayed)||0)+1,club().name);
  const dKey=disciplineKey('cup',state.leagueCountry,c.name),suspended=Number(state.suspensions?.[dKey])>0;
  const result=simulateCareerMatch({opponent,opponentTeam:{power:clubPowerFor(opponent,state.leagueCountry||'')},scope:'cup',competition:c.name,tactic:state.lastTactic||'balanced',matchId:id,home:isTwoLegTie?tieLegAtKickoff===1:(Number(c.matchesPlayed)||0)%2===0,mode:'cup',knockout:knockout&&(!isTwoLegTie||tieLegAtKickoff===2),aggregateOffset:isTwoLegTie&&tieLegAtKickoff===2?parsedTieAggregate.value:0,playerAvailable:!suspended});
  const settled=applyMatchResult(result,{id,scope:'cup',country:state.leagueCountry,competition:c.name,opponent,tactic:result.tactic,home:result.home,matchday:(Number(c.matchesPlayed)||0)+1,suspendedAtKickoff:suspended});
- if(!settled){toast('تم منع تكرار أو اعتماد نتيجة كأس غير متسقة.');return;}
+ if(!settled){toast('تم منع تكرار أو اعتماد نتيجة كأس غير متسقة.');return false;}if(isLeague){c.leagueOpponents=Array.isArray(c.leagueOpponents)?c.leagueOpponents:[];c.leagueOpponents.push(opponent);}if(isGroups){const used=c.groupOpponents&&typeof c.groupOpponents==='object'&&!Array.isArray(c.groupOpponents)?c.groupOpponents:{};used[opponent]=(Number(used[opponent])||0)+1;c.groupOpponents=used;}
  const gf=Number(result.score.for)||0,ga=Number(result.score.against)||0,won=result.outcome==='فوز',draw=result.outcome==='تعادل';
  const extraTimeText=result.extraTime?.played?`الوقت الإضافي: ${result.extraTime.for}-${result.extraTime.against}`:'';
  const shootout=result.shootout?.used?` ركلات الترجيح ${result.shootout.scoreFor}-${result.shootout.scoreAgainst}.`:'';
@@ -5585,6 +5585,29 @@ function playCupMatch(){
  const cupDate=nextAvailableMatchDay(state.calendarDay+3,'cup-match');if(cupDate>state.calendarDay+3)advanceCalendarDays(cupDate-(state.calendarDay+3),'ترتيب موعد البطولة');
  log(`مباراة ${c.name}: ${gf}-${ga} أمام ${opponent}، ${roundName}${shootout}${participated?` • لعبت ${result.player.minutes} دقيقة • ${result.player.rating}/10`:" • لم تشارك"}.`);
  advanceCalendarDays(3,'مباراة الكأس');saveGame(true);render();openModal('نتيجة البطولة',state.storyText,[{label:'كمّل',className:'primary',action:()=>{render();showPage('europe');}}]);
+
+ return true;
+}
+function playCupMatch(){
+ let snapshot;
+ try{snapshot=cloneSeasonTransitionState(state);}catch(error){console.error("Cup match was not started because a safe career snapshot could not be created",error);try{toast("تعذر تأمين بيانات المسيرة قبل مباراة الكأس. لم يتم تنفيذ المباراة.");}catch(toastError){}return false;}
+ try{
+  const outcome=playCupMatchUnsafe();
+  if(outcome===false){
+   restoreSeasonTransitionState(snapshot);
+   try{render();}catch(renderError){console.warn("Cup-match rollback render failed",renderError);}
+   try{saveGame(true);}catch(saveError){console.warn("Cup-match rollback save queue failed",saveError);}
+   return false;
+  }
+  return outcome;
+ }catch(error){
+  try{restoreSeasonTransitionState(snapshot);}catch(restoreError){console.error("Cup-match rollback failed",restoreError);try{toast("تعذر اعتماد مباراة الكأس وتعذر استعادة نسخة المسيرة تلقائيًا. أوقف اللعب واحفظ نسخة احتياطية.");}catch(toastError){}return false;}
+  console.error("Cup-match settlement rolled back",error);
+  try{render();}catch(renderError){console.warn("Cup-match rollback render failed",renderError);}
+  try{saveGame(true);}catch(saveError){console.warn("Cup-match rollback save queue failed",saveError);}
+  try{toast("تعذر اعتماد مباراة الكأس. تمت استعادة بيانات المسيرة؛ يمكنك المحاولة مرة أخرى.");}catch(toastError){}
+  return false;
+ }
 }
 
 let globalCatalogRenderKey="";

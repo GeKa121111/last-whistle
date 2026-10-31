@@ -23,6 +23,12 @@
       .replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
       .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
   }
+  function normalizePosition(value) {
+    const store = global.LWStateStore;
+    const canonical = store && typeof store.normalizePosition === "function"
+      ? store.normalizePosition(value) : value;
+    return normalize(canonical);
+  }
   function hash(value) {
     let h = 2166136261;
     for (const char of String(value)) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
@@ -43,7 +49,7 @@
     return choices[Math.floor(rng() * choices.length)];
   }
   function groupForPosition(position) {
-    const p = normalize(position);
+    const p = normalizePosition(position);
     if (p.includes("حارس")) return "goalkeeper";
     // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before the role wording.
     if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")) return "midfielder";
@@ -52,7 +58,7 @@
     return "midfielder";
   }
   function positionProductionProfile(position) {
-    const p = normalize(position);
+    const p = normalizePosition(position);
     // Centre strikers should finish moves more often; mobile forwards and wingers
     // should contribute more assists rather than sharing one generic attacker rate.
     if (p === "st" || p === "f" || p === "striker"
@@ -84,11 +90,11 @@
   function sourcePlayerIdentityKey(player) {
     const name = normalize(player && player.name);
     if (!name) return "";
-    return [name, normalize(player && player.position), int(player && player.age, 0)].join("|");
+    return [name, normalizePosition(player && player.position), int(player && player.age, 0)].join("|");
   }
   function rosterIdentityKey(player) {
     const name = normalize(player && player.name);
-    return name ? name + "|" + normalize(player && player.position) : "";
+    return name ? name + "|" + normalizePosition(player && player.position) : "";
   }
   function marketValue(player, seller) {
     const ovr = clamp(player.ovr, 35, 99);
@@ -141,7 +147,7 @@
   function makePlayer(world, row, club, index, generated, forcedGroup) {
     const rng = random(hash(club.id + "|" + (row && row.name || "academy") + "|" + index + "|" + VERSION));
     let position = String(row && row.position || "");
-    if (!position || normalize(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
+    if (!position || normalizePosition(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
     const group = groupForPosition(position);
     const ovr = clamp(row && (row.ovr || row.power) || club.power - 5 + Math.round(rng() * 9 - 5), 38, 96);
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
@@ -1036,7 +1042,7 @@
     };
   }
   global.LWWorldAI = Object.freeze({
-    version: VERSION, normalize, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
+    version: VERSION, normalize, normalizePosition, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
     getLeagueTable, leaderboard, dashboard
   });

@@ -253,6 +253,49 @@ vm.runInContext(
 legacyMissingSigningBonusScenario.transferTo();
 assert.equal(legacyMissingSigningBonusScenario.state.money, 2300,
   "legacy offers without a signing-bonus field must retain the two-week destination-wage fallback");
+ 
+// Agent commission on a completed transfer is based on the actual signing bonus,
+// not an assumed two weeks of wages. Legacy offers still use their two-week fallback.
+const agentSigningBonusCases = [
+  { label: "negotiated signing bonus", bonus: 200, expectedGross: 200 },
+  { label: "explicit zero signing bonus", bonus: 0, expectedGross: 0 },
+  { label: "legacy missing signing bonus", missing: true, expectedGross: 1800 }
+];
+for (const feeCase of agentSigningBonusCases) {
+  const feeCalls = [];
+  const feeState = {
+    ...sameNameDifferentCountry.state,
+    pendingTransfer: { ...sameNameDifferentCountry.state.pendingTransfer },
+    transferOffers: [], transferHistory: [], money: 500
+  };
+  if (feeCase.missing) delete feeState.pendingTransfer.signingBonus;
+  else feeState.pendingTransfer.signingBonus = feeCase.bonus;
+  const feeScenario = {
+    ...sameNameDifferentCountry,
+    state: feeState,
+    window: {
+      LWAgentRuntime: {
+        chargeFee(_state, reason, gross) {
+          feeCalls.push({ reason, gross });
+          return 0;
+        }
+      }
+    }
+  };
+  vm.createContext(feeScenario);
+  vm.runInContext(
+    transferOfferMatchSource + "\\n" + transferOfferCurrentMatchSource + "\\n" + transferToSource,
+    feeScenario,
+    { filename: "agent-signing-bonus-commission-" + feeCase.label.replace(/\\s+/g, "-") }
+  );
+  feeScenario.transferTo();
+  assert.equal(feeCalls.length, 1, feeCase.label + " must call the agent fee handler exactly once");
+  assert.equal(feeCalls[0].reason, "مكافأة التوقيع",
+    feeCase.label + " must identify the signing-bonus commission");
+  assert.equal(feeCalls[0].gross, feeCase.expectedGross,
+    feeCase.label + " must calculate commission from the actual signing bonus");
+}
+
 
 sameNameDifferentCountry.transferTo();
 assert.equal(sameNameDifferentCountry.state.clubName, "United",

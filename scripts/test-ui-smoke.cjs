@@ -40,13 +40,14 @@ if (directoryOccurrences !== 1 || !html.includes('id="page-europe"') || !html.in
   console.error("Global football directory must exist once on the dedicated World Football page.");
   process.exit(1);
 }
-if (!redesign.includes(".app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}")
-  || !redesign.includes("#page-europe .global-directory-grid")
-  || !redesign.includes("#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel")) {
+if (!redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page{display:none!important;width:100%;max-width:100%;min-width:0}")
+  || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page.active{display:block!important;width:100%;max-width:100%;min-width:0}")
+  || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid")
+  || !redesign.includes("#page-europe .global-directory-grid")) {
   console.error("Global directory must remain isolated and full-width on mobile.");
   process.exit(1);
 }
-if (!html.includes('href="./redesign.css?v=9"') || !serviceWorker.includes("./redesign.css?v=9")) {
+if (!html.includes('href="./redesign.css?v=10"') || !serviceWorker.includes("./redesign.css?v=10")) {
   console.error("The active responsive stylesheet must be version 8 in the HTML and offline app shell.");
   process.exit(1);
 }
@@ -449,7 +450,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=9"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=10"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 65);

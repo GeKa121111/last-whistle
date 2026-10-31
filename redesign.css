@@ -303,7 +303,7 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
    column even when Android Chrome reports a wider layout viewport. */
 @media(max-width:1000px){
  body.lw-rebuild .app.hasSidebar{display:block!important;width:auto!important;max-width:760px!important;margin:0 auto!important;padding:8px 10px calc(112px + env(safe-area-inset-bottom))!important}
- body.lw-rebuild .app.hasSidebar>.page{width:100%;min-width:0;max-width:100%;overflow-x:clip}
+ body.lw-rebuild .app.hasSidebar>main{display:block!important;width:100%;min-width:0;max-width:100%}body.lw-rebuild .app.hasSidebar>main>.page{width:100%;min-width:0;max-width:100%;overflow-x:clip}
  body.lw-rebuild #page-wellness>.grid,
  body.lw-rebuild #page-league>.grid,
  body.lw-rebuild #page-europe>.grid{display:grid;grid-template-columns:minmax(0,1fr);width:100%;min-width:0}
@@ -326,10 +326,10 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
 }
 
 /* Global directory: isolate the reference catalogue and prevent page bleed. */
-.app > .page{display:none!important;width:100%;max-width:100%;min-width:0}
-.app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}
-.app > .page#page-europe > .grid{display:grid;width:100%;min-width:0;grid-template-columns:minmax(0,1fr)}
-#page-europe .global-directory-grid,#page-europe .global-directory-card{width:100%;min-width:0;max-width:100%}
+body.lw-rebuild .app.hasSidebar>main>.page{display:none!important;width:100%;max-width:100%;min-width:0}
+body.lw-rebuild .app.hasSidebar>main>.page.active{display:block!important;width:100%;max-width:100%;min-width:0}
+body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid{display:grid!important;width:100%!important;min-width:0!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}
+#page-europe .global-directory-grid,#page-europe .global-directory-card{grid-column:1/-1!important;width:100%;min-width:0;max-width:100%}
 #page-europe .global-directory-heading{align-items:flex-start;flex-wrap:wrap}
 #page-europe .global-directory-heading>div{min-width:0;flex:1 1 220px}
 #page-europe .global-directory-heading h2{font-size:clamp(16px,4vw,20px);line-height:1.5;overflow-wrap:anywhere}
@@ -340,7 +340,7 @@ body.lw-rebuild .startFoot .btn.primary{background:var(--lw-lime);border-color:v
 #page-europe .dataCard h4,#page-europe .dataCard p{word-break:normal;overflow-wrap:anywhere}
 #page-europe .clubRoster{max-width:100%}
 #page-europe .clubRoster .pill{max-width:100%;overflow-wrap:anywhere;white-space:normal}
-#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel{display:none!important}
+body.lw-rebuild .app.hasSidebar>main>#page-europe:not(.active){display:none!important}
 @media(max-width:520px){
  #page-europe .global-directory-card{padding:12px}
  #page-europe .global-directory-heading{gap:8px}

@@ -6502,7 +6502,7 @@ function maybeOfferTransfer(){
  if(!eligibleTargets.length)return;
  const targets=window.LWAgentRuntime?.prioritizeTargets(state,eligibleTargets)||eligibleTargets;
  const target=pick(targets);const baseWage=transferWage(target);const wage=window.LWAgentRuntime?.adjustTransferWage(state,baseWage)??baseWage;
- state.pendingTransfer={...target,division:1,tier:clubTierForPower(target.power),wage};state.lastOfferWindow=w.id;
+ state.pendingTransfer={...target,division:Math.max(1,Number(target.division)||1),tier:clubTierForPower(target.power),wage};state.lastOfferWindow=w.id;
  openModal("عرض انتقال من سوق الأندية ✉️",`${target.club} من ${target.country} يتابعك بعد أدائك الأخير.
 المسابقة: ${target.league} • قائمة موسم ${target.season}.
 قوة النادي داخل اللعبة تقديرية: ${target.power}/100.

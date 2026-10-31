@@ -24,6 +24,7 @@ const offerAvailabilitySource = section("function offerIsAvailable(", "\nfunctio
 const transferEligibilitySource = section("function transferEligibilityReason(target){", "\nfunction transferEligible(");
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
 const transferToSource = section("function transferTo(){", "\nfunction ");
+const maybeOfferTransferSource = section("function maybeOfferTransfer(){", "\nfunction transferTo(){");
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
@@ -101,6 +102,49 @@ vm.runInContext(transferEligibilitySource, cupScenario, { filename: "transferEli
 assert.equal(cupScenario.transferEligibilityReason({ club: "نادي ب", country: "مصر", power: 50 }), "",
   "active cups must not block transfer approaches during an open window");
 
+
+ // A transfer approach must preserve the destination club's actual division.
+ // The world database can return second-tier clubs; hard-coding division 1 silently promoted them.
+ const secondTierTarget = {
+   club: "نادي الدرجة الثانية", country: "مصر", division: 2,
+   league: "الدوري المصري — الدرجة الثانية", season: "2026/27",
+   source: "LWWorldDB", power: 58
+ };
+ const offerScenario = {
+   state: {
+     retired: false, age: 24, careerStarted: true, academyReserve: false,
+     academyGraduationPending: false, loan: null, transferCooldown: 0,
+     daysSinceTransfer: 14, apps: 12, trust: 60, clubName: "نادي أ",
+     leagueCountry: "مصر", lastOfferWindow: "", agent: false
+   },
+   window: { LWAgentRuntime: null },
+   canAccessTransferMarket: () => true,
+   transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
+   overall: () => 68,
+   transferAverageRating: () => 7.0,
+   randomUnit: () => 0,
+   transferTargets: () => [secondTierTarget],
+   transferEligible: () => true,
+   pick: rows => rows[0],
+   transferWage: () => 2500,
+   clubTierForPower: () => 2,
+   currencyLabel: () => "ج.م",
+   openModal: (title, body, actions) => { offerScenario.modalActions = actions; }
+ };
+ vm.createContext(offerScenario);
+ vm.runInContext(maybeOfferTransferSource, offerScenario, { filename: "second-tier-transfer-approach" });
+ offerScenario.maybeOfferTransfer();
+ assert.equal(offerScenario.state.pendingTransfer.club, secondTierTarget.club,
+   "the generated approach must keep the selected destination club");
+ assert.equal(offerScenario.state.pendingTransfer.division, 2,
+   "a second-tier transfer approach must not be rewritten as a first-tier transfer");
+ assert.equal(offerScenario.state.pendingTransfer.league, secondTierTarget.league,
+   "the selected destination competition must be preserved with its division");
+ assert.equal(offerScenario.state.pendingTransfer.source, "LWWorldDB",
+   "the selected destination data provenance must remain intact");
+ assert.ok(Array.isArray(offerScenario.modalActions) && offerScenario.modalActions.length === 3,
+   "the real transfer approach flow must still expose accept, reject, and negotiate actions");
+
 const cupArchiveScenario = {
   state: {
     season: 4, clubName: "نادي أ",
@@ -153,11 +197,14 @@ assert.equal(eliminatedCupScenario.state.cupHistory[0].abandoned, false,
 
 assert.match(transferToSource, /archiveCupForTransfer\(\)/, "transfer completion must archive the active cup before switching clubs");
 assert.doesNotMatch(transferToSource, /activeCupInProgress\(\)/, "transfer completion must not stay blocked by the active cup");
+assert.ok(transferToSource.includes("state.leagueDivision=Math.max(1,Number(p.division)||1)"),
+  "permanent transfer completion must apply the selected destination division");
 
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
+assert.ok(sw.includes("last-whistle-static-v247"), "the transfer destination fix must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

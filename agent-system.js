@@ -167,8 +167,108 @@
     p.lastPerformanceMilestone=Math.max(0,Number(p.lastPerformanceMilestone)||Math.floor((Number(s.apps)||0)/5));
     p.strategyOverride=String(p.strategyOverride||"");
     p.perks=p.perks&&typeof p.perks==="object"?p.perks:{};
-    p.feeDebt=Math.max(0,Number(p.feeDebt)||0);
+    p.feeDebt=Math.max(0,Math.floor(Number(p.feeDebt)||0));
     return p;
+  }
+  function safeWholeAmount(value){
+    var n=Number(value);
+    return Number.isFinite(n)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(n))):0;
+  }
+  function outstandingFeeDebt(s,agentId){
+    var ledger=s&&Array.isArray(s.agentFeeDebtLedger)?s.agentFeeDebtLedger:[];
+    var target=agentId==null?null:String(agentId);
+    return ledger.reduce(function(total,entry){
+      if(!entry||typeof entry!=="object"||(target!==null&&String(entry.agentId||"legacy")!==target))return total;
+      var outstanding=entry.outstanding==null
+        ?Math.max(0,safeWholeAmount(entry.amount)-safeWholeAmount(entry.paid))
+        :safeWholeAmount(entry.outstanding);
+      return Math.min(Number.MAX_SAFE_INTEGER,total+outstanding);
+    },0);
+  }
+  function syncCurrentAgentDebt(s){
+    if(s&&s.agentProfile)s.agentProfile.feeDebt=outstandingFeeDebt(s,s.agentProfile.id);
+  }
+  function appendFeeDebt(s,amount,reason){
+    var value=safeWholeAmount(amount);
+    if(!s||!value)return null;
+    if(!Array.isArray(s.agentFeeDebtLedger))s.agentFeeDebtLedger=[];
+    s.agentFeeDebtSequence=safeWholeAmount(s.agentFeeDebtSequence)+1;
+    var p=s.agentProfile||{},cfg=agentConfig(s)||LEGACY_AGENT;
+    var entry={
+      id:"agent-fee-debt-"+(safeWholeAmount(s.season)||1)+"-"+(safeWholeAmount(s.day)||1)+"-"+s.agentFeeDebtSequence,
+      agentId:String(p.id||"legacy"),agentName:String(p.name||cfg.name||"وكيل سابق"),
+      reason:String(reason||"أتعاب وكالة غير مسددة"),amount:value,paid:0,outstanding:value,
+      createdSeason:safeWholeAmount(s.season)||1,createdDay:safeWholeAmount(s.day)||1
+    };
+    s.agentFeeDebtLedger.push(entry);
+    syncCurrentAgentDebt(s);
+    return entry;
+  }
+  function ensureFeeDebtLedger(s){
+    if(!s||typeof s!=="object")return false;
+    var changed=false;
+    if(!Array.isArray(s.agentFeeDebtLedger)){s.agentFeeDebtLedger=[];changed=true;}
+    var sequence=safeWholeAmount(s.agentFeeDebtSequence),normalized=[];
+    s.agentFeeDebtLedger.forEach(function(raw){
+      if(!raw||typeof raw!=="object"){changed=true;return;}
+      var amount=safeWholeAmount(raw.amount),paid=safeWholeAmount(raw.paid);
+      if(!amount&&raw.outstanding!=null)amount=Math.min(Number.MAX_SAFE_INTEGER,safeWholeAmount(raw.outstanding)+paid);
+      paid=Math.min(amount,paid);
+      var entry={
+        id:String(raw.id||""),agentId:String(raw.agentId||"legacy"),
+        agentName:String(raw.agentName||"وكيل سابق"),reason:String(raw.reason||"أتعاب وكالة غير مسددة"),
+        amount:amount,paid:paid,outstanding:Math.max(0,amount-paid),
+        createdSeason:safeWholeAmount(raw.createdSeason)||1,createdDay:safeWholeAmount(raw.createdDay)||1
+      };
+      if(!entry.id){sequence++;entry.id="agent-fee-debt-"+entry.createdSeason+"-"+entry.createdDay+"-"+sequence;}
+      if(entry.id!==raw.id||entry.agentId!==raw.agentId||entry.agentName!==raw.agentName
+        ||entry.reason!==raw.reason||entry.amount!==Number(raw.amount)||entry.paid!==Number(raw.paid)
+        ||entry.outstanding!==Number(raw.outstanding)||entry.createdSeason!==Number(raw.createdSeason)
+        ||entry.createdDay!==Number(raw.createdDay))changed=true;
+      normalized.push(entry);
+    });
+    if(normalized.length!==s.agentFeeDebtLedger.length)changed=true;
+    s.agentFeeDebtLedger=normalized;
+    if(sequence!==s.agentFeeDebtSequence){s.agentFeeDebtSequence=sequence;changed=true;}
+    var paidTotal=safeWholeAmount(s.agentDebtPaid);
+    if(paidTotal!==s.agentDebtPaid){s.agentDebtPaid=paidTotal;changed=true;}
+    var lastPayrollDay=safeWholeAmount(s.agentDebtLastPayrollDay);
+    if(lastPayrollDay!==s.agentDebtLastPayrollDay){s.agentDebtLastPayrollDay=lastPayrollDay;changed=true;}
+    if(s.agentProfile){
+      var profileDebt=safeWholeAmount(s.agentProfile.feeDebt);
+      var tracked=outstandingFeeDebt(s,s.agentProfile.id);
+      if(profileDebt>tracked){
+        appendFeeDebt(s,profileDebt-tracked,"رصيد مديونية محفوظ من إصدار سابق");
+        tracked=outstandingFeeDebt(s,s.agentProfile.id);changed=true;
+      }
+      if(profileDebt!==tracked){s.agentProfile.feeDebt=tracked;changed=true;}
+    }
+    return changed;
+  }
+  function collectDebtFromPayroll(s,available,payrollDay){
+    if(!s||typeof s!=="object")return {paid:0,netPay:safeWholeAmount(available),remaining:0};
+    ensureFeeDebtLedger(s);
+    var netPay=safeWholeAmount(available),day=safeWholeAmount(payrollDay==null?(s.calendarDay||s.day):payrollDay);
+    if(!netPay)return {paid:0,netPay:0,remaining:outstandingFeeDebt(s)};
+    if(day>0&&safeWholeAmount(s.agentDebtLastPayrollDay)===day)
+      return {paid:0,netPay:netPay,remaining:outstandingFeeDebt(s),duplicate:true};
+    if(day>0)s.agentDebtLastPayrollDay=day;
+    var remainingPay=netPay,paid=0,paidAgents=[];
+    s.agentFeeDebtLedger.forEach(function(entry){
+      if(remainingPay<=0)return;
+      var outstanding=safeWholeAmount(entry.outstanding);if(!outstanding)return;
+      var portion=Math.min(outstanding,remainingPay);
+      entry.paid=Math.min(entry.amount,safeWholeAmount(entry.paid)+portion);
+      entry.outstanding=Math.max(0,entry.amount-entry.paid);
+      remainingPay-=portion;paid+=portion;paidAgents.push(entry.agentName+" ("+portion+")");
+    });
+    if(paid>0){
+      s.agentDebtPaid=Math.min(Number.MAX_SAFE_INTEGER,safeWholeAmount(s.agentDebtPaid)+paid);
+      syncCurrentAgentDebt(s);
+      var left=outstandingFeeDebt(s);
+      record(s,"سداد مديونية الوكيل","تم سداد "+paid+" جنيه من المرتب مقابل أتعاب "+paidAgents.join("، ")+". "+(left?"المتبقي على المسيرة "+left+" جنيه.":"تم إغلاق كل المديونيات المستحقة."));
+    }
+    return {paid:paid,netPay:remainingPay,remaining:outstandingFeeDebt(s),duplicate:false};
   }
   function makeProfile(id,s,legacy){
     var a=BY_ID[id]||LEGACY_AGENT;
@@ -189,6 +289,7 @@
       if(oldContractMode!=="open-ended"||oldExpiresSeason!=null)changed=true;
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
+    if(ensureFeeDebtLedger(s))changed=true;
     return changed;
   }
   function record(s,title,text){
@@ -224,10 +325,11 @@
     panel.innerHTML=
       '<div class="lwa-header"><div><div class="lwa-eyebrow"><span class="lwa-dot"></span> REPRESENTATION / PLAYER CAREER</div><h2 id="lwa-title">وكلاء أعمالك… كل واحد بطريقته</h2><p>اختار الشخصية اللي تناسب طموحك. قصته مش ديكور؛ أسلوبه هيأثر على التفاوض، نوعية عروض الانتقال، الرعاية، وتكاليف قراراتك.</p></div><div class="lwa-header-mark">AGENT<br>NETWORK</div></div>'+
       '<div id="lwa-current-summary" class="lwa-current-summary"></div>'+
+      '<div id="lwa-agent-debt" hidden style="margin:-5px 0 16px;padding:11px 13px;border:1px solid #69533a;border-radius:12px;background:#241b10;color:#f1d7a0;font-size:10px;line-height:1.8"></div>'+
       '<div class="lwa-market-head"><div><span class="lwa-market-kicker">THE AGENT MARKET</span><h3>قابل الوكلاء واسمع قصصهم</h3></div><span id="lwa-agent-count" class="lwa-count">6 شخصيات</span></div>'+
       '<div id="lwa-agent-cards" class="lwa-agent-grid"></div>'+
       '<div class="lwa-history-wrap"><div class="lwa-history-head"><strong>سجل علاقتك بالوكلاء</strong><span id="lwa-history-count">0 حدث</span></div><div id="lwa-agent-history" class="lwa-agent-history"></div></div>'+
-      '<div class="lwa-agent-disclaimer">كل الأسماء والقصص شخصيات خيالية داخل Last Whistle. الأتعاب محسوبة من مكافآت اللعبة وخدمات التفاوض فقط، والانتقال النهائي يظل بقرارك من سوق الانتقالات.</div>';
+      '<div class="lwa-agent-disclaimer">كل الأسماء والقصص شخصيات خيالية داخل Last Whistle. الأتعاب محسوبة من مكافآت اللعبة وخدمات التفاوض فقط، والانتقال النهائي يظل بقرارك من سوق الانتقالات. أي أتعاب غير مسددة تظل محفوظة وتُحصّل تدريجيًا من المرتبات القادمة.</div>';
     grid.insertAdjacentElement("afterbegin",panel);return true;
   }
   function renderCard(a,activeId){
@@ -251,6 +353,13 @@
       }else{
         summary.innerHTML='<div class="lwa-current-left"><div class="lwa-current-label">NO ACTIVE REPRESENTATIVE</div><h3>'+(s.agentLead?"وصلت لمرحلة اختيار الوكيل":"مسيرتك لسه من غير وكيل أعمال")+'</h3><p>'+(s.agentLead?"قابل الوكلاء، اسمع طريقتهم وشروطهم، واختار اللي يخدم خطتك. فتح باب التمثيل مش معناه إنك مضطر توقّع.":"مش لازم توقّع من أول يوم. تقدر تبدأ من غير وكيل، وبعدها تختار شخصًا مناسبًا لما تكون مستعدًا.")+'</p></div><div class="lwa-current-right"><div class="lwa-arc-mark">06</div><strong>ست طرق مختلفة</strong><p>الاستقرار، الشهرة، الانتقالات، التفاوض، السرعة، أو الخطة الطويلة.</p></div>';
       }
+    }
+    var debtBox=document.getElementById("lwa-agent-debt"),debtTotal=outstandingFeeDebt(s),debtPaid=safeWholeAmount(s.agentDebtPaid);
+    if(debtBox){
+      debtBox.hidden=debtTotal<=0;
+      debtBox.innerHTML=debtTotal>0
+        ?'<strong>مديونية الوكلاء المستحقة: '+debtTotal+' جنيه</strong><span>التحصيل بيتم تدريجيًا من المرتبات القادمة، والرصيد يفضل محفوظًا حتى بعد تغيير الوكيل أو إنهاء الاتفاق.'+(debtPaid?' إجمالي ما تم سداده: '+debtPaid+' جنيه.':'')+'</span>'
+        :"";
     }
     if(cards)cards.innerHTML=AGENTS.map(function(a){return renderCard(a,p&&s.agent?p.id:"");}).join("");
     var rows=Array.isArray(s.agentHistory)?s.agentHistory.slice(0,4):[],hist=document.getElementById("lwa-agent-history"),count=document.getElementById("lwa-history-count");
@@ -414,10 +523,11 @@
   }
   function chargeFee(s,reason,gross){
     if(!s||!s.agent||!s.agentProfile)return 0;
+    ensureFeeDebtLedger(s);
     var base=Math.max(0,Number(gross)||0);if(!base)return 0;
     var requested=Math.max(1,Math.round(base*feeRate(s))),available=Math.max(0,Number(s.money)||0),paid=Math.min(available,requested);
     s.money=available-paid;
-    if(paid<requested){s.agentProfile.feeDebt=Math.max(0,Number(s.agentProfile.feeDebt)||0)+requested-paid;addTrust(s,-2);}else addTrust(s,1);
+    if(paid<requested){appendFeeDebt(s,requested-paid,reason);addTrust(s,-2);}else addTrust(s,1);
     var cfg=agentConfig(s)||LEGACY_AGENT;
     record(s,"أتعاب "+cfg.name,"دفع الوكيل مقابل خدمة "+String(reason||"تمثيل")+" أتعابًا قدرها "+paid+" جنيه داخل اللعبة"+(paid<requested?"، والمتبقي المسجل "+(requested-paid)+" جنيه.":"."));
     return paid;
@@ -471,7 +581,8 @@
     var snapshot=[
       s.careerStarted,s.agent,JSON.stringify(lead||null),s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
-      p&&p.contractMultiplierDelta,p&&p.negotiationRaiseBonusDelta,p&&p.feeDebt,perks,
+      p&&p.contractMultiplierDelta,p&&p.negotiationRaiseBonusDelta,p&&p.feeDebt,
+      s.agentFeeDebtLedger&&JSON.stringify(s.agentFeeDebtLedger),s.agentDebtPaid,s.agentDebtLastPayrollDay,perks,
       s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
       history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
     ].join("|");
@@ -555,7 +666,9 @@
   }
   window.LWAgentRuntime={getAgents:currentAgentData,ensureState:ensureState,current:current,contractTerms:contractTerms,
     negotiationChanceBonus:negotiationChanceBonus,transferOfferChance:transferOfferChance,prioritizeTargets:prioritizeTargets,
-    adjustTransferWage:adjustTransferWage,chargeFee:chargeFee,commissionRate:feeRate,afterNegotiation:afterNegotiation,onContractRenewal:onContractRenewal,
+    adjustTransferWage:adjustTransferWage,chargeFee:chargeFee,commissionRate:feeRate,
+    outstandingFeeDebt:outstandingFeeDebt,collectDebtFromPayroll:collectDebtFromPayroll,
+    afterNegotiation:afterNegotiation,onContractRenewal:onContractRenewal,
     sponsorshipMultiplier:sponsorshipMultiplier,matchPayMultiplier:matchPayMultiplier,dailyRecoveryBonus:dailyRecoveryBonus,
     currentChapter:currentChapter,chapterProgress:progress,
     postRetirementOptions:postRetirementOptions,startPostRetirementAgency:startPostRetirementAgency,

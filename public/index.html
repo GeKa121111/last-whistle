@@ -3835,7 +3835,7 @@ const INITIAL = {
  schemaVersion:10,contractType:"professional",randomSeed:1831565813,seasonApps:0,seasonAppsTarget:0,leagueApps:0,leagueRoundIndex:0,lastLeagueMatchCalendarDay:0,leagueSegmentId:"",leagueSegmentIsPartial:false,seasonGoals:0,seasonAssists:0,seasonPoints:0,seasonW:0,seasonD:0,seasonL:0,
  injuryDays:0,injuryName:"",trainedToday:false,playedToday:false,nightToday:false,daysSinceTransfer:99,daysSinceNegotiation:99,
  contractSeasons:2,weeklyWage:250,contractNegotiationWait:0,transferCooldown:0,
- boots:false,privateCoach:false,diet:false,agent:false,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,postCareer:null,
+ boots:false,privateCoach:false,diet:false,agent:false,agentFeeDebtLedger:[],agentFeeDebtSequence:0,agentDebtPaid:0,agentDebtLastPayrollDay:0,speedBoots:false,strengthProgram:false,videoAnalyst:false,homeGym:false,sleepCoach:false,physio:false,recoveryRoom:false,privateChef:false,homeUpgrade:false,sportsPsych:false,mediaTraining:false,creatorStudio:false,stylist:false,charityFoundation:false,sponsorContract:null,loan:null,retired:false,retirementRecord:null,postCareer:null,
  nationalCalled:false,nationalCaps:0,nationalGoals:0,nationalRating:0,nationalCallups:[],nationalSeasonStats:{},totalCareerAppearances:0,nationalTournamentMatches:0,nationalTournamentPoints:0,nationalTournamentQualified:false,nationalTournamentDone:false,nationalTournamentWinner:false,nationalTournamentFinalOutcome:"",
  trophies:0,topScorerAwards:0,achievements:[],diary:[],storyTitle:"الفصل الأول: فرصة العمر",
  storyText:"النهارده أول يوم ليك في مركز شباب النور. الكابتن شريف بصّلك وقال: «الموهبة مهمة، بس الالتزام هو اللي بيخلي اللاعب يكمل». قدامك موسم طويل، وكل يوم ممكن يغيّر مستقبلك.",
@@ -4947,9 +4947,13 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
   const calculatedGrossPay=wages*grossWeeklyWage,grossPay=Number.isFinite(calculatedGrossPay)?Math.min(Number.MAX_SAFE_INTEGER,calculatedGrossPay):Number.MAX_SAFE_INTEGER;
   const rawRate=Number(window.LWAgentRuntime?.commissionRate?.(state)),rate=Number.isFinite(rawRate)?Math.max(0,Math.min(.14,rawRate)):0;
   const commission=Math.min(grossPay,Math.round(grossPay*rate)),netPay=grossPay-commission;
-  state.money=Math.min(Number.MAX_SAFE_INTEGER,balance+netPay);
+  const debtSettlement=window.LWAgentRuntime?.collectDebtFromPayroll?.(state,netPay,state.calendarDay);
+  const debtPaid=Number.isFinite(Number(debtSettlement?.paid))?Math.max(0,Math.min(netPay,Math.floor(Number(debtSettlement.paid)))):0;
+  const takeHome=netPay-debtPaid;
+  state.money=Math.min(Number.MAX_SAFE_INTEGER,balance+takeHome);
   if(commission){const priorValue=Number(state.agentCommissionPaid),prior=Number.isFinite(priorValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,priorValue)):0;state.agentCommissionPaid=Math.min(Number.MAX_SAFE_INTEGER,prior+commission);log(`عمولة الوكيل عن ${wages} مرتب أسبوعي: ${commission} جنيه.`);}
-  log(`استلمت ${wages} مرتب أسبوعي صافي ${netPay} جنيه أثناء ${reason}.`);
+  if(debtPaid)log(`تم تحصيل ${debtPaid} جنيه من المرتب لسداد مديونية الوكيل.`);
+  log(`استلمت ${wages} مرتب أسبوعي صافي ${takeHome} جنيه بعد العمولة وسداد المديونية أثناء ${reason}.`);
  }
  const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
  state.energy=clamp(state.energy+n*dailyRecovery);
@@ -6881,7 +6885,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 </script>
 <script src="./story-mode.js?v=11"></script>
 <script src="./career-experience.js?v=6"></script>
-<script src="./agent-system.js?v=5"></script>
+<script src="./agent-system.js?v=6"></script>
 <script src="./career-hub.js?v=3"></script>
 <script src="./ai-career-engine.js?v=5"></script>
 <script src="./ai-career-ui.js?v=1"></script>

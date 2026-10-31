@@ -196,6 +196,35 @@ assert.equal(signedLowerTier.length, 1, "a free agent should sign when a lower-t
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].clubId, "D2 Keeper Vacancy", "free-agent recruitment must include the lower-tier club when higher-tier clubs have no matching vacancy");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 2, "the free agent must inherit the destination club division");
 
+// A former club cannot immediately re-sign a player it just released, but may
+// bring them back after one complete free-agent season if the role vacancy remains.
+const formerClubReturnWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const formerClubReturn = makeMarketTestClub(formerClubReturnWorld, "D2 Former Club", 2, "goalkeeper");
+formerClubReturnWorld.players["returning-free-agent"] = {
+  id: "returning-free-agent", name: "Returning free-agent keeper",
+  clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+  age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: formerClubReturn.id, freeAgentSince: 2, isGenerated: false
+};
+const immediateFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(formerClubReturnWorld, 2, []);
+assert.equal(immediateFormerClubReturn.length, 0,
+  "a club must not immediately re-sign a player in the same season their contract expires");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgent, true,
+  "the player must remain available to other clubs during the initial free-agent window");
+const delayedFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(formerClubReturnWorld, 3, []);
+assert.equal(delayedFormerClubReturn.length, 1,
+  "the former club must be allowed to re-sign the player after one complete free-agent season");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].clubId, formerClubReturn.id,
+  "a delayed return must attach the player to their former club again");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgent, false,
+  "a completed return must clear free-agent status");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgentSince, 0,
+  "a completed signing must clear the old free-agent start marker");
+
 
 // An expiring defender should receive the squad-need renewal bonus when only four
 // other defenders remain. The deterministic roll sits between the old and corrected

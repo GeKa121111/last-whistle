@@ -1568,11 +1568,17 @@
       const group = player.group || base.groupForPosition(player.position);
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
+      const formerClubSince = Number(player.freeAgentSince);
+      // Do not let a just-expired player bounce straight back to the same club.
+      // After one complete free-agent season, a former club may recruit them again.
+      // Legacy saves without a freeAgentSince marker keep the conservative old guard.
+      const formerClubReturnEligible = Number.isFinite(formerClubSince)
+        && formerClubSince > 0 && Number(season) > formerClubSince;
       const eligible = clubs.filter(club => {
         const counts = roleCountsByClub.get(club.id) || {};
         return !usedClubs.has(club.id)
           && Number(club.roster.length) < 18
-          && (!player.previousClubId || player.previousClubId !== club.id)
+          && (!player.previousClubId || player.previousClubId !== club.id || formerClubReturnEligible)
           && Number(player.ovr) <= Number(club.power || 55) + 10
           && Number(player.ovr) >= Number(club.power || 55) - 23
           && (player.age || 18) < 37
@@ -1590,6 +1596,7 @@
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.freeAgent = false;
+      player.freeAgentSince = 0;
       player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
       buyer.roster.push(player.id);
       const counts = roleCountsByClub.get(buyer.id);

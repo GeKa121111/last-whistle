@@ -27,11 +27,12 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 293;
+  const minimumCacheVersion = 294;
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
     ["career-state-store.js", 2],
     ["data/career-engine.js", 52],
+    ["data/match-engine.js", 70],
     ["football-world-ai.js", 37],
     ["football-world-worker.js", 26],
     ["transfer-awards-engine.js", 10]
@@ -39,7 +40,7 @@ if (require.main === module) {
   requiredAssets.forEach(([asset, minimum]) => {
     const assetSource = asset === "football-world-worker.js"
       ? fs.readFileSync(path.join(root, "football-world-ai.js"), "utf8")
-      : asset === "data/career-engine.js" ? serviceWorker : html;
+      : asset === "data/career-engine.js" || asset === "data/match-engine.js" ? serviceWorker : html;
     module.exports.assertAssetVersionAtLeast(assetSource, asset, minimum);
   });
   console.log("Static cache v" + cacheVersion + " and " + requiredAssets.length + " versioned app assets verified.");

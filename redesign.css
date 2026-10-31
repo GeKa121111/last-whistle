@@ -605,3 +605,22 @@ body.lw-rebuild #page-league .league-table-hint{
   body.lw-rebuild #page-league .muted.small,
   body.lw-rebuild #page-contract .muted.small{font-size:10px}
 }
+
+
+/* Transfer offer actions need comfortable, predictable mobile touch targets. */
+body.lw-rebuild #page-contract .transfer-card-actions .btn{
+  flex:1 1 145px;
+  min-width:0;
+  min-height:46px;
+  padding:10px 12px;
+  font-size:11px;
+  line-height:1.5;
+  white-space:normal;
+  text-align:center;
+}
+@media(max-width:380px){
+  body.lw-rebuild #page-contract .transfer-card-actions .btn{
+    flex-basis:100%;
+    width:100%;
+  }
+}

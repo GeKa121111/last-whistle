@@ -1523,6 +1523,26 @@ async function main() {
     await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
     results.push("readable secondary typography on stats, competition, and contract pages");
 
+    // A rendered transfer offer must keep both decision buttons comfortably tappable.
+    const transferActionTouchTargets = await page.evaluate(() => {
+      const host = document.querySelector("#page-contract .grid");
+      const fixture = document.createElement("article");
+      fixture.className = "card";
+      fixture.innerHTML = '<div class="dataCard transferOfferCard"><div class="transfer-card-actions"><button class="btn primary" type="button">ابدأ المفاوضات</button><button class="btn" type="button">رفض العرض والبقاء</button></div></div>';
+      host.appendChild(fixture);
+      const result = Array.from(fixture.querySelectorAll(".transfer-card-actions .btn")).map(button => {
+        const rect = button.getBoundingClientRect();
+        return { height: Math.round(rect.height), width: Math.round(rect.width) };
+      });
+      fixture.remove();
+      return result;
+    });
+    assert.equal(transferActionTouchTargets.length, 2, "a transfer offer must expose both decision actions");
+    assert.ok(transferActionTouchTargets.every(target => target.height >= 46 && target.width >= 110),
+      "transfer decision actions must remain easy to tap and readable on mobile: " + JSON.stringify(transferActionTouchTargets));
+
+
+
 
 
 

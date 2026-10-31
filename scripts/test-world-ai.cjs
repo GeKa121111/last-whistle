@@ -88,7 +88,7 @@ const retiredLineupWorld = { players: {
 const retiredLineup = sandbox.window.__lwTestMakeLineup(retiredLineupWorld, {
   id: "legacy-retired-roster", roster: ["active", "retired", "free"]
 });
-assert.deepEqual(retiredLineup.map(player => player.id), ["active"],
+assert.equal(retiredLineup.map(player => player.id).join(","), "active",
   "AI match lineups must exclude retired and free-agent players even when stale roster IDs remain");
 
 // Transfer-market competition labels must follow the simulated club's current division.

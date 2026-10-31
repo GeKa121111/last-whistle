@@ -6617,7 +6617,7 @@ function transferTo(){
  if(!canAccessTransferMarket()){toast("انتقالات الفريق الأول متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال؛ لا يمكن الانتقال.");return;}
  if(state.loan){toast("مينفعش تنتقل انتقالًا دائمًا أثناء الإعارة؛ ارجع لناديك الأصلي الأول.");return;}
-  const p=state.pendingTransfer;if(!p||!p.club||!p.country||p.club===state.clubName)return;
+  const p=state.pendingTransfer;if(!p||!p.club||!p.country||(p.club===state.clubName&&p.country===state.leagueCountry))return;
  const currentWindow=transferWindow();
  const offerWindowId=String(p.windowId||state.lastOfferWindow||"");
  // Use the same compatibility-aware validator as the negotiation UI. Legacy winter-season-N IDs

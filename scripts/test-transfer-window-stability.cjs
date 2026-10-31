@@ -172,7 +172,63 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
   "replaying transfer completion without a pending transfer must not duplicate history");
 
 
- // Free-agent offers are valid only in the matching rolling 14-day window.
+ // Clubs with the same name in different countries are distinct destinations.
+const sameNameDifferentCountry = {
+  state: {
+    retired: false, age: 24, loan: null, freeAgent: false, calendarDay: 30, season: 4, day: 30,
+    clubName: "United", leagueCountry: "مصر", leagueDivision: 1, clubPower: 58,
+    pendingTransfer: {
+      club: "United", country: "إنجلترا", league: "Premier League", division: 1,
+      source: "LWWorldDB", season: "2026/27", windowId: "summer-0",
+      power: 72, wage: 900, contractSeasons: 3, role: "أساسي", currency: "£", signingBonus: 200
+    },
+    transferOffers: [], transferHistory: [], money: 500, weeklyWage: 250, contractSeasons: 2,
+    currentReleaseClause: 0, goalBonusPerGoal: 0, cleanSheetBonus: 0, transferCooldown: 0,
+    followers: 100, trust: 55, role: "بديل", daysSinceTransfer: 14,
+    seasonApps: 12, seasonAppsTarget: 30, seasonPhase: "firstHalf", winterBreakPending: false
+  },
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
+  transferTargets: () => [{ club: "United", country: "إنجلترا", league: "Premier League" }],
+  canAccessTransferMarket: () => true,
+  seasonMatchTotal: () => 30,
+  club: () => ({ name: "United" }),
+  archiveCupForTransfer: () => {},
+  archiveLeagueSegment: () => {},
+  clubPowerFor: () => 72,
+  clubTierForPower: () => 2,
+  clamp: (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0)),
+  createLeague: () => ["United", "City"],
+  seedDestinationLeagueProgress: () => 18,
+  buildFixtureSchedule: () => [],
+  setStory: () => {},
+  log: () => {},
+  saveGame: () => {},
+  render: () => {},
+  showPage: () => {},
+  toast: () => {},
+  currencyLabel: () => "£",
+  window: { LWAgentRuntime: null }
+};
+vm.createContext(sameNameDifferentCountry);
+vm.runInContext(
+  transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  sameNameDifferentCountry,
+  { filename: "same-name-cross-country-transfer" }
+);
+sameNameDifferentCountry.transferTo();
+assert.equal(sameNameDifferentCountry.state.clubName, "United",
+  "the destination club name may legitimately match the previous club name");
+assert.equal(sameNameDifferentCountry.state.leagueCountry, "إنجلترا",
+  "a same-named club in another country must not be rejected as the current club");
+assert.equal(sameNameDifferentCountry.state.leagueCompetition, "Premier League");
+assert.equal(sameNameDifferentCountry.state.pendingTransfer, null,
+  "a valid same-name cross-country transfer must complete and clear the pending offer");
+assert.equal(sameNameDifferentCountry.state.money, 700,
+  "the accepted destination signing bonus must still be credited");
+assert.equal(sameNameDifferentCountry.state.transferHistory.length, 1,
+  "the cross-country transfer must be recorded exactly once");
+
+// Free-agent offers are valid only in the matching rolling 14-day window.
  const freeAgentWindowState = {
   state: { freeAgent: true, calendarDay: 30, lastOfferWindow: "", season: 1 },
   transferWindow: () => ({ open: false, id: "closed-0", name: "السوق مغلق", days: 5 })

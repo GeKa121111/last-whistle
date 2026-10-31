@@ -5,7 +5,13 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
-const career = require(path.join(root, "source", "public", "data", "career-engine.js"));
+const careerEngineSource = fs.readFileSync(path.join(root, "source", "public", "data", "career-engine.js"), "utf8");
+const careerEngineSandbox = { window: {} };
+vm.createContext(careerEngineSandbox);
+vm.runInContext(careerEngineSource, careerEngineSandbox, { filename: "career-engine-national-tournament.js" });
+const career = careerEngineSandbox.window.LWCareer;
+assert.ok(career && typeof career.recordNationalTournamentMatch === "function",
+  "the shared career engine must expose the tournament progression helper");
 const app = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const deployedApp = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 assert.equal(app, deployedApp, "root and public app shells must remain synchronized");
@@ -125,7 +131,7 @@ function runRejectedTournamentFixture(overrides, expectedStatus) {
     }
   };
   vm.createContext(invalidSandbox);
-  vm.runInContext(nationalMatchSource + "\\nglobalThis.playNationalFixture = nationalMatch;", invalidSandbox,
+  vm.runInContext(nationalMatchSource + "\nglobalThis.playNationalFixture = nationalMatch;", invalidSandbox,
     { filename: "national-match-transaction-regression.js" });
   invalidSandbox.playNationalFixture();
   assert.equal(rejectedSettlements.length, 0,

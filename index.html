@@ -1643,7 +1643,6 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       || (hasActiveLoan && Number.isFinite(effectiveContractSeasons) && effectiveContractSeasons <= 0)) {
       state.weeklyWage = 0;
     }
-    if(state.freeAgent||state.retired||String(state.contractType||"").toLowerCase()==="free-agent"||Number(state.contractSeasons)<=0)state.weeklyWage=0;
     const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
     state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
     const careerXPValue = Number(state.careerXP);

@@ -487,6 +487,17 @@ assert.equal(contractSnapshot.leagueCountry, "Egypt");
 assert.equal(contractSnapshot.weeklyWage, 400);
 assert.equal(contractSnapshot.contractSeasons, 1);
 assert.equal(contractSnapshot.contractType, "professional");
+const legacyLoanWage = {
+  pos: "مهاجم", age: 24, freeAgent: true, contractType: "professional",
+  weeklyWage: 900, contractSeasons: 0, trainingXP: {}, randomSeed: 1,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: 1, parentFreeAgent: false, parentContractType: "professional" }
+};
+career.ensureState(legacyLoanWage);
+assert.equal(legacyLoanWage.weeklyWage, 900,
+  "a loan with a live parent contract must retain its host wage even if legacy top-level flags are stale");
+assert.equal(career.wageNegotiationStatus(legacyLoanWage), "loaned");
+
 assert.equal(contractSnapshot.loan, null, "the parent-contract snapshot must not carry the active loan state");
 
 const directLoanTransitionState = {

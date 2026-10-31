@@ -190,6 +190,10 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
   "signing a club contract must replace a legacy free-agent contract type");
  assert.equal(legacyWinterCompletion.careerMatchPlayerEligible(legacyWinterCompletion.state, "league"), true,
   "a player signed from a legacy free-agent save must become eligible for club matches");
+ assert.equal(legacyWinterCompletion.careerMatchPlayerEligible({
+  retired: false, freeAgent: false, contractType: "professional", contractSeasons: 0,
+  loan: { parentFreeAgent: false, parentContractSeasons: 1, parentContractType: "free-agent" }
+}, "league"), false, "a loan must still respect the parent contract type when the parent is a free agent");
  assert.equal(legacyWinterCompletion.state.pendingTransfer, null,
   "a completed transfer must clear its pending offer");
  assert.equal(legacyWinterCompletion.state.transferCooldown, 14,

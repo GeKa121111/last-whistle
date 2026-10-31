@@ -14,24 +14,30 @@ const end = rootHtml.indexOf("\nfunction saveGame(", start);
 assert.ok(start >= 0 && end > start, "the asynchronous queued-save flush must exist");
 const flushSource = rootHtml.slice(start, end);
 
-async function runFlush({ flush, queued = true, storageFails = false } = {}) {
+async function runFlush({ flush, queued = true, storageFails = false, initialFallback = null } = {}) {
   const writes = [];
   const removals = [];
   const warnings = [];
+  let storedValue = initialFallback;
   const state = { name: "Save fallback regression", season: 4, money: 1250 };
   const sandbox = {
     state,
     saveQueued: queued,
     STORAGE_KEY: "lastWhistleCareer_v4",
-    FALLBACK_STORAGE_KEY: "lastWhistleCareer_v4_idb_fallback",
+    FALLBACK_STORAGE_PREFIX: "LWIDB1:",
     cancelQueuedSave() {},
     encodeStoredSave(value) { return JSON.stringify(value); },
     localStorage: {
+      getItem(key) { return key === "lastWhistleCareer_v4" ? storedValue : null; },
       setItem(key, value) {
         if (storageFails) throw new Error("localStorage quota");
         writes.push({ key, value });
+        storedValue = value;
       },
-      removeItem(key) { removals.push(key); }
+      removeItem(key) {
+        removals.push(key);
+        if (key === "lastWhistleCareer_v4") storedValue = null;
+      }
     },
     window: { LWStateStore: { flush } },
     console: { warn(...args) { warnings.push(args); } },
@@ -42,7 +48,7 @@ async function runFlush({ flush, queued = true, storageFails = false } = {}) {
     filename: "flushQueuedSave"
   }).runInContext(sandbox);
   const result = await sandbox.runQueuedFlush();
-  return { result, saveQueued: sandbox.saveQueued, writes, removals, warnings, state };
+  return { result, saveQueued: sandbox.saveQueued, writes, removals, warnings, state, storedValue };
 }
 
 function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
@@ -53,13 +59,12 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   const source = prefix + "return { indexedSave, storageKey, raw };\n } catch(error) { return { error: String(error) }; }\n}";
   const sandbox = {
     STORAGE_KEY: "lastWhistleCareer_v4",
-    FALLBACK_STORAGE_KEY: "lastWhistleCareer_v4_idb_fallback",
+    FALLBACK_STORAGE_PREFIX: "LWIDB1:",
     LEGACY_STORAGE_KEYS: ["lastWhistleCareer_v3"],
     window: { LWStateStore: { getStartupSave: () => indexedSave || null } },
     localStorage: {
       getItem(key) {
-        if (key === "lastWhistleCareer_v4_idb_fallback") return fallbackRaw;
-        if (key === "lastWhistleCareer_v4") return null;
+        if (key === "lastWhistleCareer_v4") return fallbackRaw;
         if (key === "lastWhistleCareer_v3") return legacyRaw;
         return null;
       }
@@ -75,13 +80,14 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
 (async () => {
   let successfulFlushCalls = 0;
   const successful = await runFlush({
+    initialFallback: "LWIDB1:{\"name\":\"older fallback\"}",
     flush: async () => { successfulFlushCalls += 1; }
   });
   assert.equal(successful.result, true, "a successful IndexedDB flush should complete");
   assert.equal(successfulFlushCalls, 1, "the queued state must be flushed exactly once");
   assert.equal(successful.writes.length, 0, "a successful IndexedDB flush should not write a fallback copy");
-  assert.deepEqual(successful.removals, ["lastWhistleCareer_v4_idb_fallback"],
-    "a successful IndexedDB flush must clear any older fallback snapshot");
+  assert.deepEqual(successful.removals, ["lastWhistleCareer_v4"],
+    "a successful IndexedDB flush must clear the prefixed fallback snapshot in place");
   assert.equal(successful.saveQueued, false, "a successful flush should clear the queued-save flag");
 
   const failed = await runFlush({
@@ -89,9 +95,11 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   });
   assert.equal(failed.result, true, "a failed IndexedDB flush should succeed through the fallback snapshot");
   assert.equal(failed.writes.length, 1, "a failed IndexedDB flush must persist one fallback snapshot");
-  assert.equal(failed.writes[0].key, "lastWhistleCareer_v4_idb_fallback",
-    "the fallback must use a separate key so it can outrank a stale IndexedDB record");
-  assert.deepEqual(JSON.parse(failed.writes[0].value), failed.state,
+  assert.equal(failed.writes[0].key, "lastWhistleCareer_v4",
+    "the fallback must replace the legacy copy instead of duplicating a large save");
+  assert.ok(failed.writes[0].value.startsWith("LWIDB1:"),
+    "the fallback marker and payload must be written atomically in one localStorage value");
+  assert.deepEqual(JSON.parse(failed.writes[0].value.slice("LWIDB1:".length)), failed.state,
     "the fallback must preserve the latest complete career state");
   assert.equal(failed.saveQueued, false, "a successful fallback should clear the queued-save flag");
 
@@ -112,22 +120,30 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   assert.equal(notQueued.writes.length, 0);
 
   const staleIndexed = { name: "older IndexedDB save", money: 10 };
-  const newerFallback = JSON.stringify({ name: "newer fallback save", money: 999 });
+  const newerFallback = "LWIDB1:" + JSON.stringify({ name: "newer fallback save", money: 999 });
   const selectedFallback = selectLoadSource({ indexedSave: staleIndexed, fallbackRaw: newerFallback });
   assert.equal(selectedFallback.indexedSave, null,
     "a valid fallback snapshot must override an older IndexedDB startup record");
-  assert.equal(selectedFallback.storageKey, "lastWhistleCareer_v4_idb_fallback");
-  assert.equal(selectedFallback.raw, newerFallback,
-    "the newer fallback payload must be the one decoded into the live career");
+  assert.equal(selectedFallback.storageKey, "LWIDB1:");
+  assert.equal(selectedFallback.raw, newerFallback.slice("LWIDB1:".length),
+    "the newest fallback payload must be decoded into the live career");
 
   const selectedIndexed = selectLoadSource({
     indexedSave: staleIndexed,
-    fallbackRaw: "corrupt fallback payload"
+    fallbackRaw: "LWIDB1:corrupt fallback payload"
   });
   assert.deepEqual(selectedIndexed.indexedSave, staleIndexed,
     "an unreadable fallback must not displace a valid IndexedDB save");
 
-  console.log("PASS: queued-save failures preserve and reload the newest career snapshot without trusting stale IndexedDB data.");
+  const selectedLegacy = selectLoadSource({
+    indexedSave: null,
+    fallbackRaw: "LWIDB1:corrupt fallback payload",
+    legacyRaw: JSON.stringify({ name: "legacy backup" })
+  });
+  assert.equal(selectedLegacy.raw, JSON.stringify({ name: "legacy backup" }),
+    "an unreadable fallback must leave the older legacy backup available");
+
+  console.log("PASS: queued-save failures preserve and reload the newest career snapshot without duplicating large localStorage saves.");
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;

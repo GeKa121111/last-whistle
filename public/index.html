@@ -3693,7 +3693,7 @@ function seasonAwards(state, league, teamRank) {
 (function(){
 "use strict";
 const STORAGE_KEY = "lastWhistleCareer_v4";
-const FALLBACK_STORAGE_KEY = STORAGE_KEY + "_idb_fallback";
+const FALLBACK_STORAGE_PREFIX = "LWIDB1:";
 const normalizeSavedBooleanFlag = value => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : false;
@@ -4071,10 +4071,10 @@ function persistGame(silent=false){
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
    window.LWStateStore.publish(state,{source:"save"});
    window.LWStateStore.save(state,{slotId:"career:default",label:String(state.name||"المسيرة الرئيسية")}).then(()=>{
-    try{localStorage.removeItem(FALLBACK_STORAGE_KEY);}catch(_){}
+    try{const raw=localStorage.getItem(STORAGE_KEY);if(typeof raw==="string"&&raw.startsWith(FALLBACK_STORAGE_PREFIX))localStorage.removeItem(STORAGE_KEY);}catch(_){}
     if(!silent)toast("اتحفظت مسيرتك بنجاح في قاعدة بيانات الجهاز.");
    }).catch(err=>{
-    try{localStorage.setItem(FALLBACK_STORAGE_KEY,encodeStoredSave(state));}catch(_){}
+    try{localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(state));}catch(_){}
     console.warn("IndexedDB save failed; fallback snapshot preserved",err);
     if(!silent)toast("تعذر الحفظ في قاعدة البيانات؛ تم استخدام الحفظ الاحتياطي إن أمكن.");
    });
@@ -4095,11 +4095,11 @@ async function flushQueuedSave(){
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
   try{
    await window.LWStateStore.flush(state);
-   try{localStorage.removeItem(FALLBACK_STORAGE_KEY);}catch(_){}
+   try{const raw=localStorage.getItem(STORAGE_KEY);if(typeof raw==="string"&&raw.startsWith(FALLBACK_STORAGE_PREFIX))localStorage.removeItem(STORAGE_KEY);}catch(_){}
    return true;
   }catch(err){
    try{
-    localStorage.setItem(FALLBACK_STORAGE_KEY,encodeStoredSave(state));
+    localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(state));
     console.warn("Final IndexedDB flush failed; fallback snapshot preserved",err);
     return true;
    }catch(fallbackError){
@@ -4271,14 +4271,18 @@ function loadGame(){
  try{
   let indexedSave=window.LWStateStore&&typeof window.LWStateStore.getStartupSave==="function"?window.LWStateStore.getStartupSave():null;
   let storageKey=STORAGE_KEY,raw=localStorage.getItem(STORAGE_KEY);
-  const fallbackRaw=localStorage.getItem(FALLBACK_STORAGE_KEY);
-  if(fallbackRaw){
+  const fallbackRaw=raw;
+  if(typeof fallbackRaw==="string"&&fallbackRaw.startsWith(FALLBACK_STORAGE_PREFIX)){
+   const fallbackPayload=fallbackRaw.slice(FALLBACK_STORAGE_PREFIX.length);
    try{
-    const fallbackSave=JSON.parse(decodeStoredSave(fallbackRaw));
-    if(fallbackSave&&typeof fallbackSave==="object"){
-     indexedSave=null;storageKey=FALLBACK_STORAGE_KEY;raw=fallbackRaw;
+    const fallbackSave=JSON.parse(decodeStoredSave(fallbackPayload));
+    if(fallbackSave&&typeof fallbackSave==="object"&&!Array.isArray(fallbackSave)){
+     indexedSave=null;storageKey=FALLBACK_STORAGE_PREFIX;raw=fallbackPayload;
+    }else{
+     raw=null;
     }
    }catch(fallbackError){
+    raw=null;
     console.warn("IndexedDB fallback save is unreadable; trying the last valid save",fallbackError);
    }
   }

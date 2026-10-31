@@ -7,6 +7,33 @@
   const DB_NAME = "last-whistle-state";
   const DB_VERSION = 1;
   const DEFAULT_SLOT = "career:default";
+  const POSITION_ALIASES = Object.freeze({
+    gk: "حارس مرمى", goalkeeper: "حارس مرمى", keeper: "حارس مرمى", goalie: "حارس مرمى",
+    cb: "قلب دفاع", lcb: "قلب دفاع", rcb: "قلب دفاع", centerback: "قلب دفاع", "center back": "قلب دفاع",
+    centreback: "قلب دفاع", "centre back": "قلب دفاع", centraldefender: "قلب دفاع", "central defender": "قلب دفاع",
+    lb: "ظهير", rb: "ظهير", lwb: "ظهير", rwb: "ظهير", wb: "ظهير", fb: "ظهير",
+    leftback: "ظهير", "left back": "ظهير", rightback: "ظهير", "right back": "ظهير",
+    fullback: "ظهير", "full back": "ظهير", wingback: "ظهير", "wing back": "ظهير",
+    cdm: "وسط دفاعي", dm: "وسط دفاعي", "defensive midfielder": "وسط دفاعي", "defensive mid": "وسط دفاعي",
+    holdingmidfielder: "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    cam: "وسط مهاجم", am: "وسط مهاجم", "attacking midfielder": "وسط مهاجم", "attacking mid": "وسط مهاجم",
+    cm: "وسط", rcm: "وسط", lcm: "وسط", mf: "وسط", midfield: "وسط",
+    "central midfielder": "وسط", "central midfield": "وسط", midfielder: "وسط",
+    lw: "جناح", rw: "جناح", lm: "جناح", rm: "جناح", lwf: "جناح", rwf: "جناح",
+    "left wing": "جناح", "right wing": "جناح", winger: "جناح", "wide midfielder": "جناح",
+    cf: "مهاجم", ss: "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    st: "رأس حربة", fw: "رأس حربة", fwd: "رأس حربة", striker: "رأس حربة", forward: "رأس حربة",
+    "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  });
+  function normalizePosition(position) {
+    const raw = String(position == null ? "" : position).normalize("NFKC").trim();
+    if (!raw) return "";
+    const key = raw.toLocaleLowerCase("en")
+      .replace(/[\u064B-\u065F\u0670]/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
+      .replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    return POSITION_ALIASES[key] || raw;
+  }
   const listeners = new Set();
   let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve();
   function safeClone(value) {
@@ -64,13 +91,20 @@
       });
     });
   }
-  const ready = (async function () {
-    try {
-      const record = await readRecord(DEFAULT_SLOT);
-      if (record && record.state && typeof record.state === "object") { startupSave = record.state; currentState = record.state; }
-      return { available: !!database, hasSave: !!startupSave, slotId: DEFAULT_SLOT };
-    } catch (error) { return { available: false, hasSave: false, error: String(error && error.message || error) }; }
-  })();
+  const ready = !global.document
+    ? Promise.resolve({ available: false, hasSave: false, worker: true, slotId: DEFAULT_SLOT })
+    : (async function () {
+      try {
+        const record = await readRecord(DEFAULT_SLOT);
+        if (record && record.state && typeof record.state === "object") {
+          startupSave = record.state;
+          currentState = record.state;
+        }
+        return { available: !!database, hasSave: !!startupSave, slotId: DEFAULT_SLOT };
+      } catch (error) {
+        return { available: false, hasSave: false, error: String(error && error.message || error) };
+      }
+    })();
   function notify(meta) {
     const event = Object.freeze({ revision, state: currentState, meta: meta || {}, timestamp: Date.now() });
     listeners.forEach(function (listener) {
@@ -134,10 +168,43 @@
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }
   async function flush(state) { if (state && typeof state === "object") await save(state, {slotId:DEFAULT_SLOT}); await lastWrite; return true; }
+  function selectorSignature(value) {
+    if (value === undefined) return "undefined";
+    if (value === null || typeof value !== "object") return typeof value + ":" + String(value);
+    try {
+      const encoded = JSON.stringify(value);
+      return typeof encoded === "string" ? encoded : String(encoded);
+    } catch (_) {
+      return Object.prototype.toString.call(value);
+    }
+  }
+  function subscribeSelector(selector, listener, equals) {
+    if (typeof selector !== "function" || typeof listener !== "function") return function () {};
+    let selected;
+    try { selected = safeClone(selector(currentState)); } catch (_) { selected = undefined; }
+    let signature = selectorSignature(selected);
+    const wrapped = function (event) {
+      let next;
+      try { next = selector(event && event.state); } catch (_) { return; }
+      const nextSignature = selectorSignature(next);
+      let unchanged = nextSignature === signature;
+      if (typeof equals === "function") {
+        try { unchanged = !!equals(selected, next); } catch (_) { unchanged = false; }
+      }
+      if (unchanged) return;
+      const previous = selected;
+      selected = safeClone(next);
+      signature = nextSignature;
+      try { listener(event, next, previous); }
+      catch (error) { if (global.console) global.console.warn("LWStateStore selector listener failed", error); }
+    };
+    listeners.add(wrapped);
+    return function () { listeners.delete(wrapped); };
+  }
   global.LWStateStore = Object.freeze({
-    version: 1, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish,
+    version: 2, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, normalizePosition,
     getState: () => currentState, getStartupSave: () => startupSave, getRevision: () => revision,
     subscribe: function (listener) { if (typeof listener !== "function") return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
-    save, load, listSaves, deleteSave, flush, openDatabase
+    subscribeSelector, save, load, listSaves, deleteSave, flush, openDatabase
   });
 })(window);

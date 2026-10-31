@@ -11,6 +11,27 @@ if (rootHtml !== html) { console.error("Root index.html and public/index.html ar
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
+const worldAiCss = fs.readFileSync(path.join(root, "football-world-ai.css"), "utf8");
+const publicWorldAiCss = fs.readFileSync(path.join(root, "public", "football-world-ai.css"), "utf8");
+if (worldAiCss !== publicWorldAiCss) {
+  console.error("Root football-world-ai.css and public/football-world-ai.css are out of sync.");
+  process.exit(1);
+}
+if (!worldAiCss.includes("body.lw-rebuild #page-europe:not(.active){display:none!important;}")
+  || worldAiCss.includes("body.lw-rebuild #page-europe{")) {
+  console.error("Global directory visibility regression: the Europe page must stay hidden unless its navigation tab is active.");
+  process.exit(1);
+}
+const directoryTitle = "🌍 دليل الدوريات والأندية والبطولات العالمية";
+const directoryTitleCount = html.split(directoryTitle).length - 1;
+const europePageStart = html.indexOf('id="page-europe"');
+const directoryPanelStart = html.indexOf('id="globalDirectoryPanel"');
+const nextPageStart = html.indexOf('id="page-life"', europePageStart);
+if (directoryTitleCount !== 1 || europePageStart < 0 || directoryPanelStart < europePageStart
+  || nextPageStart < 0 || directoryPanelStart > nextPageStart) {
+  console.error("Global directory must exist once and remain inside the dedicated World Football page.");
+  process.exit(1);
+}
 const redesign = fs.readFileSync(path.join(root, "redesign.css"), "utf8");
 const publicRedesign = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 if (redesign !== publicRedesign) { console.error("Root redesign.css and public/redesign.css are out of sync."); process.exit(1); }
@@ -19,14 +40,95 @@ if (directoryOccurrences !== 1 || !html.includes('id="page-europe"') || !html.in
   console.error("Global football directory must exist once on the dedicated World Football page.");
   process.exit(1);
 }
-if (!redesign.includes(".app > .page.active{display:block!important;width:100%;max-width:100%;min-width:0}")
+if (!redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page{display:none!important;width:100%;max-width:100%;min-width:0}")
+  || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page.active{display:block!important;width:100%;max-width:100%;min-width:0}")
+  || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid")
   || !redesign.includes("#page-europe .global-directory-grid")
-  || !redesign.includes("#page-wellness #globalDirectoryPanel,#page-league #globalDirectoryPanel")) {
+  || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid>.world-ai-dashboard-card{grid-column:1/-1!important")) {
   console.error("Global directory must remain isolated and full-width on mobile.");
   process.exit(1);
 }
-if (!html.includes('href="./redesign.css?v=8"') || !serviceWorker.includes("./redesign.css?v=8")) {
-  console.error("The active responsive stylesheet must be version 8 in the HTML and offline app shell.");
+
+const careerHubThemeRules = [
+  "CAREER HUB — dark theme consolidation",
+  "body.lw-rebuild .hub-launch-panel{",
+  "body.lw-rebuild .hub-tile{",
+  "body.lw-rebuild .hub-training-card .trainingControls{",
+  "body.lw-rebuild .hub-training-rules>div{",
+  "body.lw-rebuild .hub-readiness-feature{",
+  "body.lw-rebuild .hub-readiness-score{",
+  "body.lw-rebuild .hub-injury-panel{",
+  "body.lw-rebuild .hub-recovery-action{",
+  "body.lw-rebuild .transferShortlistCard{"
+];
+if (careerHubThemeRules.some(rule => !redesign.includes(rule))) {
+  console.error("Career Hub theme regression: every primary feature surface must use the consolidated dark theme.");
+  process.exit(1);
+}
+if (!redesign.includes("body.lw-rebuild .hub-tile-desc{color:#a2b09d;font-size:10px}")
+  || !redesign.includes("body.lw-rebuild .hub-recovery-action p{color:#a4b19f;font-size:10px}")) {
+  console.error("Career Hub typography regression: mobile helper text must remain readable.");
+  process.exit(1);
+}
+
+
+// Mobile navigation must stay concise while every less-frequent page remains reachable.
+const bottomNavMarkup = html.match(/<nav class="bottomNav"[\s\S]*?<\/nav>/)?.[0] || "";
+const bottomNavPages = Array.from(bottomNavMarkup.matchAll(/data-page="([^"]+)"/g)).map(match => match[1]);
+if (bottomNavPages.join(",") !== "home,training,stats,wellness"
+  || !bottomNavMarkup.includes('id="mobileMore"')
+  || !bottomNavMarkup.includes('aria-controls="drawer"')
+  || !bottomNavMarkup.includes('aria-expanded="false"')) {
+  console.error("Mobile navigation must expose four primary routes and an accessible More entry to the full drawer.");
+  process.exit(1);
+}
+if (!html.includes('$("mobileMore").addEventListener("click",openDrawer)')
+  || !html.includes("let drawerReturnFocus = null;")
+  || !redesign.includes("body.lw-rebuild #menuOpen{display:none!important}")
+  || !redesign.includes("grid-template-columns:repeat(5,minmax(0,1fr))")) {
+  console.error("Mobile More navigation must open the drawer, restore focus, and fit five touch targets.");
+  process.exit(1);
+}
+
+
+const marketToolsStart = html.indexOf('<div class="marketTools">');
+const marketToolsEnd = html.indexOf("</div>", marketToolsStart);
+const transferSearchMarkup = marketToolsStart >= 0 && marketToolsEnd > marketToolsStart
+  ? html.slice(marketToolsStart, marketToolsEnd + "</div>".length)
+  : "";
+if (!transferSearchMarkup.includes('id="transferSearch" type="search"')
+  || !transferSearchMarkup.includes('aria-label="ابحث عن نادٍ أو دوري أو دولة"')
+  || !transferSearchMarkup.includes('aria-controls="transferMarket"')
+  || !transferSearchMarkup.includes('aria-describedby="transferMarketNotice"')
+  || !transferSearchMarkup.includes('id="transferMarketCount" role="status" aria-live="polite"')
+  || !html.includes('id="transferMarket" class="dataGrid" aria-label="نتائج سوق الأندية"')) {
+  console.error("Transfer market search must expose a real accessible name, result status, and controlled results region.");
+  process.exit(1);
+}
+if (!redesign.includes("body.lw-rebuild #page-contract .kpiLabel")
+  || !redesign.includes("body.lw-rebuild #page-contract .dataCard p")) {
+  console.error("Contract and transfer-market helper text must retain the readable shared typography.");
+  process.exit(1);
+}
+
+
+if (!redesign.includes("body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel")
+  || !redesign.includes("body.lw-rebuild #page-league .muted.small")
+  || !redesign.includes("body.lw-rebuild #page-contract .muted.small")) {
+  console.error("Stats, competition, and contract secondary copy must use the shared readable typography scale.");
+  process.exit(1);
+}
+
+
+if (!redesign.includes("body.lw-rebuild #page-contract .transfer-card-actions .btn")
+  || !redesign.includes("min-height:46px")
+  || !redesign.includes("flex-basis:100%")) {
+  console.error("Transfer negotiation actions must retain comfortable touch targets and stack on narrow screens.");
+  process.exit(1);
+}
+
+if (!html.includes('href="./redesign.css?v=17"') || !serviceWorker.includes("./redesign.css?v=17")) {
+  console.error("The active responsive stylesheet must use the same current version in the HTML and offline app shell.");
   process.exit(1);
 }
 if (!redesign.includes("@media(max-width:1200px) and (min-width:1001px)")
@@ -46,6 +148,17 @@ if (!cacheDeclaration || !/last-whistle-static-v\d+/.test(cacheDeclaration)) {
   console.error("Service worker must use a versioned cache name."); process.exit(1);
 }
 const storySource = fs.readFileSync(path.join(root, "public", "story-mode.js"), "utf8");
+if (!storySource.includes('home.insertAdjacentElement("afterbegin",shell)')
+  || !storySource.includes('shell.insertAdjacentElement("afterend",story)')
+  || storySource.includes('header.insertAdjacentElement("afterend",shell)')) {
+  console.error("Career overview and story panel must live inside the home page, not beside the global header.");
+  process.exit(1);
+}
+if (html.includes('const commandCenter=document.getElementById("lw-command-center");if(commandCenter)commandCenter.style.display=valid==="home"?"":"none";')
+  || storySource.includes('if(overview)overview.style.display=activePage==="home"?"":"none";')) {
+  console.error("Home-only panels must rely on page containment rather than duplicated global visibility toggles.");
+  process.exit(1);
+}
 if (!storySource.includes("lastRenderedStoryPanelSignature")
   || !storySource.includes("storyPanelSignature===lastRenderedStoryPanelSignature")) {
   console.error("Story panel must avoid rebuilding unchanged interactive choices on every poll."); process.exit(1);
@@ -121,6 +234,8 @@ const required = [
   "positionDevelopmentPlan",
   "trainingFocusMultiplier",
   "positionDevelopmentCard",
+  'id:"وسط",icon:"🧠",short:"CM"',
+  "loanSquadRole",
   "evaluateSquadRole",
   "roleDecision.role",
   'id="statsPositionContext"',
@@ -161,22 +276,22 @@ const required = [
   "schemaVersion:10",
   "renderPositionDevelopment",
   "story-ui.css?v=1",
-  "story-mode.js?v=11",
+  "story-mode.js?v=12",
   "career-experience.js?v=6",
   "career-experience.css?v=1",
   "career-hub.css?v=1",
   "career-hub.js?v=3",
   "player-store.css?v=2",
   "ai-career-engine.js?v=5",
-  "football-world-ai.css?v=1",
-  "football-world-ai.js?v=30",
+  "football-world-ai.css?v=2",
+  "football-world-ai.js?v=37",
   'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
   "window.LWWorldAI.advanceToSeasonAsync",
   "window.LWWorldAI?.completeSeason",
   "function renderWorldAIDashboard",
   "opponentTacticalIQ:opponentPlan.iq",
-  "agent-system.js?v=5",
+  "agent-system.js?v=6",
   "agent-system.css?v=1",
   'id="shopFilters"',
   'id="storeBalance"',
@@ -224,6 +339,21 @@ for (const page of ["home", "training", "stats", "wellness", "league", "europe",
   if (!html.includes('data-page="' + page + '"') || !html.includes('id="page-' + page + '"')) {
     console.error("Navigation target is missing or unlinked:", page); process.exit(1);
   }
+}
+for (const page of ["league", "contract", "national"]) {
+  const pageStart = html.indexOf('id="page-' + page + '"');
+  const pageEnd = html.indexOf("</section>", pageStart);
+  const pageMarkup = pageStart >= 0 && pageEnd > pageStart ? html.slice(pageStart, pageEnd) : "";
+  if (!pageMarkup.includes('class="hub-page-heading"') || !pageMarkup.includes("<h1>")) {
+    console.error("Feature page is missing its consistent page heading:", page); process.exit(1);
+  }
+}
+if (!html.includes('class="league-table-hint"')
+  || !html.includes('aria-label="جدول ترتيب الدوري الحالي"')
+  || !html.includes('class="league-table-caption"')
+  || !redesign.includes(".league-table-hint")
+  || !redesign.includes(".league-table-caption")) {
+  console.error("League standings must expose an accessible label and visible mobile scroll guidance."); process.exit(1);
 }
 if (!html.includes('Math.floor((Math.max(1,oldDay)-1)/7)') || !html.includes('Math.floor((Math.max(1,newDay)-1)/7)')) {
   console.error("Weekly wage must be paid after seven full elapsed days."); process.exit(1);
@@ -400,11 +530,11 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=11", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=5", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=1", "football-world-ai.js?v=30", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=1", "ai-career-ui.js?v=1", "football-world-worker.js?v=22", "world-roster-audit.json", "data/career-engine.js?v=43", "redesign.css?v=8"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=5", "football-world-ai.css?v=2", "football-world-ai.js?v=37", "football-world-rosters.js?v=6", "football-world-db.js?v=7", "lz-string.min.js?v=1", "career-state-store.js?v=2", "ai-career-ui.js?v=1", "football-world-worker.js?v=26", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 59);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 43);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 55);
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
 try {
   new vm.Script(experienceSource, { filename: "public/career-experience.js" });
@@ -640,7 +770,7 @@ if (!html.includes("function buildSeasonAwardCeremony(place){")
   || !html.includes('id="playmakerLeaderboard"')) {
   console.error("Season awards test failed: ceremony, leaderboards, or trophy cabinet is missing."); process.exit(1);
 }
-if (!html.includes('src="./transfer-awards-engine.js?v=8"')
+if (!html.includes('src="./transfer-awards-engine.js?v=10"')
   || !html.includes("transferOffersWindowId")
   || !html.includes("awardCeremonies")
   || !html.includes("currentCompetitions")) {
@@ -771,11 +901,18 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const transferEligibilitySource = extractTopLevelFunction(html, "transferEligibilityReason");
+const legacyOfferMigrationSource = extractTopLevelFunction(html, "migrateLegacyPendingTransferOffer");
+const duplicateOfferDedupeSource = extractTopLevelFunction(html, "dedupeTransferOffersForWindow");
+const normalizedTargetKeySource = extractTopLevelFunction(html, "normalizedTargetKey");
 const offerWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesWindow");
+const currentFreeAgentWindowSource = extractTopLevelFunction(html, "currentFreeAgentTransferWindowId");
+const offerCurrentWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesCurrentWindow");
 const offerAvailabilitySource = extractTopLevelFunction(html, "offerIsAvailable");
 const offerState = {
   careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
-  calendarDay: 15, season: 1, day: 15, apps: 2, clubName: "نادي أ", leagueCountry: "مصر",
+  calendarDay: 15, season: 1, day: 15, age: 24, apps: 2, daysSinceTransfer: 14, trust: 60,
+  clubName: "نادي أ", leagueCountry: "مصر",
   clubPower: 50, transferOffers: [], transferOffersWindowId: "", transferOffersAttemptKey: "",
   transferHistory: []
 };
@@ -788,6 +925,8 @@ const offerSandbox = {
   activeCupInProgress: () => true,
   transferPlayerProfile: () => ({ ...offerProfile }),
   transferTargets: () => [{ club: "نادي ب", country: "مصر", power: 50, division: 1, players: [] }],
+  transferFactors: () => ({ ageAdjustment: 0, contractAdjustment: 0, currentRoleAdjustment: 0, positionAdjustment: 0, targetRoleAdjustment: 0 }),
+  transferAverageRating: () => 6.1, overall: () => 55, isYouthAcademyPlayer: () => false,
   window: { LWTransferAwards: { generateOffers: ({ windowId }) => {
     offerGenerationCalls++;
     return offerProfile.form >= 6.3
@@ -799,7 +938,9 @@ const offerSandbox = {
   setStory: () => {}
 };
 vm.createContext(offerSandbox);
-vm.runInContext(offerWindowMatchSource, offerSandbox, { filename: "transferOfferMatchesWindow" });
+vm.runInContext(offerWindowMatchSource + "\n" + currentFreeAgentWindowSource + "\n" + offerCurrentWindowMatchSource
+  + "\n" + normalizedTargetKeySource + "\n" + legacyOfferMigrationSource + "\n" + duplicateOfferDedupeSource
+  + "\n" + transferEligibilitySource, offerSandbox, { filename: "transferOfferWindowValidators" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
 vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
 offerSandbox.ensureTransferOffers();
@@ -946,4 +1087,46 @@ if (!winterReview.resumed || !winterReview.simulated) {
   process.exit(1);
 }
 
-console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");
+const gateStart = rootHtml.indexOf("function createSingleFlightGate(){");
+const gateEnd = rootHtml.indexOf("\nconst seasonTransitionGate", gateStart);
+const seasonStart = rootHtml.indexOf("function startNewSeason(showStory=true){", gateEnd);
+const seasonInternalStart = rootHtml.indexOf("\nasync function startNewSeasonInternal(showStory=true){", seasonStart);
+if (gateStart < 0 || gateEnd < 0 || seasonStart < gateEnd || seasonInternalStart < 0
+  || !rootHtml.slice(seasonStart, seasonInternalStart).includes("return seasonTransitionGate(()=>startNewSeasonInternal(showStory));")) {
+  console.error("Season transition concurrency guard is missing or disconnected from startNewSeason.");
+  process.exit(1);
+}
+const gateSource = rootHtml.slice(gateStart, gateEnd);
+const createSingleFlightGate = vm.runInNewContext("(" + gateSource + ")", { Promise });
+const seasonGate = createSingleFlightGate();
+(async () => {
+  let executions = 0;
+  let releaseFirst;
+  const first = seasonGate(() => {
+    executions++;
+    return new Promise(resolve => { releaseFirst = resolve; });
+  });
+  const duplicate = seasonGate(() => {
+    executions++;
+    return Promise.resolve("duplicate");
+  });
+  assert.equal(first, duplicate,
+    "two rapid season-start requests must share the same in-flight transition promise");
+  await Promise.resolve();
+  assert.equal(executions, 1,
+    "the second season-start request must not execute a second transition while the first is pending");
+  releaseFirst("season-ready");
+  assert.deepEqual(await Promise.all([first, duplicate]), ["season-ready", "season-ready"],
+    "duplicate requests must receive the result of the one active season transition");
+  assert.equal(await seasonGate(() => { executions++; return "next-season"; }), "next-season",
+    "the gate must allow the next season after the previous transition settles");
+  await assert.rejects(seasonGate(() => { executions++; throw new Error("transition-failure"); }), /transition-failure/,
+    "a failed transition must reject without leaving the gate permanently locked");
+  assert.equal(await seasonGate(() => { executions++; return "retry"; }), "retry",
+    "the gate must unlock after a rejected transition so a retry can proceed");
+  assert.equal(executions, 4, "only one execution should occur per completed or retried transition");
+  console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, syntax, and single-flight season transitions.");
+})().catch(error => {
+  console.error("Season transition single-flight test failed:", error);
+  process.exitCode = 1;
+});

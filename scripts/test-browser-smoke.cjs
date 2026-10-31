@@ -431,7 +431,7 @@ async function main() {
 
     const sections = ["home", "training", "stats", "wellness", "league", "europe", "contract", "national", "shop", "life", "diary"];
     for (const section of sections) {
-      await page.locator("#menuOpen").click();
+      await page.locator("#mobileMore").click();
       await page.locator('#drawer .navBtn[data-page="' + section + '"]').click();
       await page.waitForFunction(value => {
         const active = document.querySelector(".page.active");
@@ -522,7 +522,7 @@ async function main() {
       if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
       if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
     });
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
     await page.locator('#shopItems [data-buy="xpMultiplier"]').click();
     await page.waitForFunction(() => {
@@ -587,7 +587,7 @@ async function main() {
     results.push("career and store ownership persist after reload");
 
     // Full backup must remain portable with the multi-thousand-player world simulation.
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     const [backupDownload] = await Promise.all([
       page.waitForEvent("download"),
       page.locator("#exportSaveBtn").click()
@@ -680,7 +680,7 @@ async function main() {
     }, null, { timeout: 10000 });
     results.push("compressed backup exports and restores the player career and full world AI database");
 
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     await page.waitForFunction(() => {
       const app = document.querySelector(".app.hasSidebar");
@@ -1040,7 +1040,7 @@ async function main() {
       state.trainingIntensity = "intense";
       window.LWStoryRuntime.save();
     });
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     await page.locator("#lw-cta-season").click();
     await page.waitForFunction(() => {
@@ -1120,6 +1120,12 @@ async function main() {
       state.loan = null;
       state.freeAgent = false;
       state.transferCooldown = 0;
+      state.age = Math.max(18, Number(state.age) || 18);
+      state.apps = Math.max(2, Number(state.apps) || 0);
+      state.trust = Math.max(60, Number(state.trust) || 0);
+      state.daysSinceTransfer = Math.max(14, Number(state.daysSinceTransfer) || 0);
+      state.academyReserve = false;
+      state.academyGraduationPending = false;
       state.winterBreakPending = true;
       state.cupState = null;
       const windowId = "winter-season-" + Number(state.season);
@@ -1136,7 +1142,8 @@ async function main() {
         source: "LWWorldDB",
         sourceUrl: profile.url || "",
         division: Number(target.division) || 1,
-        power: Number(target.ovr) || 60,
+        // The smoke test verifies the negotiation flow, not whether this generated career can join a top-tier club.
+        power: Math.min(Number(target.ovr) || 60, 45),
         prestige: Number(target.prestige) || 60,
         currency: profile.currency || "ج.م",
         stars: Array.isArray(target.stars) ? target.stars.slice(0, 3) : [],
@@ -1210,7 +1217,7 @@ async function main() {
       window.LWStoryRuntime.render();
     }, transferFixture.backup);
 
-    await page.locator("#menuOpen").click();
+    await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();
     // At the winter break, the primary season action correctly reopens the winter-market decision.
     await page.locator("#lw-cta-season").click();
@@ -1279,7 +1286,10 @@ async function main() {
     assert.ok(completedSeason.playmakerRowCount > 0, "the playmaker leaderboard must render player rows");
     results.push("season totals, award ceremony, Ballon d'Or shortlist, trophy cabinet, competitions and leaderboards reconcile");
 
-    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary"];
+    // The end-of-season report is modal; close it before testing the page drawer.
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("#modalShade")?.classList.contains("open"));
+    const mobileRoutes = ["home", "training", "stats", "wellness", "league", "contract", "national", "shop", "europe", "life", "diary", "social"];
     const mobileLayoutAudit = [];
     for (const route of mobileRoutes) {
       const layout = await page.evaluate(async routeName => {
@@ -1312,9 +1322,29 @@ async function main() {
             clientWidth: element.clientWidth
           };
         });
-        return { route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders };
+        const directory = document.querySelector("#globalDirectoryPanel");
+        const directoryPage = directory ? directory.closest(".page") : null;
+        const directoryRect = directory ? directory.getBoundingClientRect() : null;
+        const activePages = Array.from(document.querySelectorAll("main > .page.active")).map(page => page.id);
+        const directoryVisible = Boolean(directory && directoryPage
+          && directoryPage.parentElement === document.querySelector("main")
+          && getComputedStyle(directoryPage).display !== "none"
+          && directoryRect && directoryRect.width > 0 && directoryRect.height > 0);
+        return {
+          route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders,
+          activePages, directoryCount: document.querySelectorAll("#globalDirectoryPanel").length,
+          directoryPage: directoryPage ? directoryPage.id : null, directoryVisible
+        };
       }, route);
       mobileLayoutAudit.push(layout);
+      assert.deepEqual(layout.activePages, ["page-" + route],
+        "only the selected page may be active on mobile: " + JSON.stringify(layout));
+      assert.equal(layout.directoryCount, 1,
+        "the global football directory must exist exactly once: " + JSON.stringify(layout));
+      assert.equal(layout.directoryPage, "page-europe",
+        "the global football directory must remain inside the dedicated World Football page: " + JSON.stringify(layout));
+      assert.equal(layout.directoryVisible, route === "europe",
+        "the global football directory must be visible only on the World Football page: " + JSON.stringify(layout));
       assert.ok(
         layout.documentWidth <= layout.viewport + 1 && layout.bodyWidth <= layout.viewport + 1,
         "mobile page '" + route + "' has horizontal overflow: " + JSON.stringify(layout)
@@ -1332,7 +1362,288 @@ async function main() {
       }
     }
     await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
-    results.push("mobile horizontal-overflow audit across all 11 career/world pages");
+
+    // The Career Hub must not mix the dark app shell with legacy white cards.
+    const careerThemeAudit = await page.evaluate(() => {
+      const surfaces = [
+        [".hub-launch-panel", "rgb(16, 23, 18)"],
+        [".hub-tile", "rgb(18, 29, 22)"],
+        [".hub-training-card .trainingControls", "rgb(17, 26, 20)"],
+        [".hub-training-rules>div", "rgb(17, 26, 20)"],
+        [".hub-readiness-feature", "rgb(16, 24, 19)"],
+        [".hub-readiness-score", "rgb(21, 32, 25)"],
+        [".hub-injury-panel", "rgb(21, 32, 25)"],
+        [".hub-recovery-action", "rgb(17, 26, 20)"],
+        [".hub-definition", "rgb(17, 26, 20)"]
+      ];
+      return surfaces.map(([selector, expected]) => {
+        const element = document.querySelector(selector);
+        return { selector, expected, actual: element ? getComputedStyle(element).backgroundColor : null };
+      });
+    });
+    for (const surface of careerThemeAudit) {
+      assert.ok(surface.actual, "Career Hub surface is missing: " + surface.selector);
+      assert.equal(surface.actual, surface.expected,
+        "Career Hub surface must use the shared dark theme: " + JSON.stringify(surface));
+    }
+    const careerTypeAudit = await page.evaluate(() => [
+      [".hub-tile-desc", "10px"],
+      [".hub-training-card .trainingNote", "10px"],
+      [".hub-recovery-action p", "10px"]
+    ].map(([selector, expected]) => {
+      const element = document.querySelector(selector);
+      return { selector, expected, actual: element ? getComputedStyle(element).fontSize : null };
+    }));
+    for (const type of careerTypeAudit) {
+      assert.equal(type.actual, type.expected,
+        "Career Hub helper text must remain readable on mobile: " + JSON.stringify(type));
+    }
+    results.push("Career Hub dark-theme consistency and readable mobile helper text");
+
+
+    // Mobile navigation uses four primary tabs and a More drawer with focus restoration.
+    const mobileNavShape = await page.evaluate(() => {
+      const nav = document.querySelector(".bottomNav");
+      const more = document.querySelector("#mobileMore");
+      const menu = document.querySelector("#menuOpen");
+      const buttons = Array.from(nav.querySelectorAll("button"));
+      return {
+        buttonCount: buttons.length,
+        routes: buttons.filter(button => button.dataset.page).map(button => button.dataset.page),
+        moreVisible: Boolean(more && getComputedStyle(more).display !== "none"),
+        moreHeight: more ? Math.round(more.getBoundingClientRect().height) : 0,
+        headerMenuHidden: menu ? getComputedStyle(menu).display === "none" : false,
+        navFits: nav.scrollWidth <= nav.clientWidth + 1
+      };
+    });
+    assert.equal(mobileNavShape.buttonCount, 5, "mobile bottom navigation must have five evenly-spaced actions");
+    assert.deepEqual(mobileNavShape.routes, ["home", "training", "stats", "wellness"],
+      "the mobile bottom bar must prioritize the four most-used player destinations");
+    assert.equal(mobileNavShape.moreVisible, true, "the More entry must remain visible on mobile");
+    assert.ok(mobileNavShape.moreHeight >= 44, "the More entry must meet the minimum touch-target height");
+    assert.equal(mobileNavShape.headerMenuHidden, true,
+      "mobile must have one clear entry to the full drawer rather than duplicate hamburger controls");
+    assert.equal(mobileNavShape.navFits, true, "the five-action mobile bar must fit without internal horizontal scrolling");
+    await page.locator("#mobileMore").click();
+    await page.waitForFunction(() => document.querySelector("#drawer")?.classList.contains("open"));
+    const mobileDrawerOpen = await page.evaluate(() => ({
+      moreExpanded: document.querySelector("#mobileMore").getAttribute("aria-expanded"),
+      headerExpanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+      hidden: document.querySelector("#drawer").getAttribute("aria-hidden"),
+      inert: document.querySelector("#drawer").hasAttribute("inert"),
+      focusInside: document.querySelector("#drawer").contains(document.activeElement)
+    }));
+    assert.equal(mobileDrawerOpen.moreExpanded, "true", "More must expose the expanded drawer state");
+    assert.equal(mobileDrawerOpen.headerExpanded, "true", "both drawer triggers must share the expanded state");
+    assert.equal(mobileDrawerOpen.hidden, null, "the open drawer must be exposed to assistive technology");
+    assert.equal(mobileDrawerOpen.inert, false, "the open drawer must be keyboard accessible");
+    assert.equal(mobileDrawerOpen.focusInside, true, "opening More must move focus into the drawer");
+    await page.locator('#drawer .navBtn[data-page="diary"]').click();
+    await page.waitForFunction(() => document.querySelector("#page-diary")?.classList.contains("active")
+      && !document.querySelector("#drawer")?.classList.contains("open"));
+    const mobileDrawerClosed = await page.evaluate(() => ({
+      moreExpanded: document.querySelector("#mobileMore").getAttribute("aria-expanded"),
+      headerExpanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+      moreActive: document.querySelector("#mobileMore").classList.contains("active"),
+      hidden: document.querySelector("#drawer").getAttribute("aria-hidden"),
+      inert: document.querySelector("#drawer").hasAttribute("inert"),
+      focusReturned: document.activeElement === document.querySelector("#mobileMore"),
+      currentPage: document.querySelector('#drawer .navBtn[data-page="diary"]').getAttribute("aria-current")
+    }));
+    assert.equal(mobileDrawerClosed.moreExpanded, "false", "closing More must reset expanded state");
+    assert.equal(mobileDrawerClosed.headerExpanded, "false", "the header trigger state must remain synchronized");
+    assert.equal(mobileDrawerClosed.moreActive, true, "More must indicate when a non-primary section is active");
+    assert.equal(mobileDrawerClosed.hidden, "true", "the closed drawer must be hidden from assistive technology");
+    assert.equal(mobileDrawerClosed.inert, true, "the closed drawer must not remain keyboard-focusable");
+    assert.equal(mobileDrawerClosed.focusReturned, true, "navigation must restore focus to the More trigger");
+    assert.equal(mobileDrawerClosed.currentPage, "page", "the selected drawer route must remain marked current");
+    await page.locator('.bottomNav [data-page="wellness"]').click();
+    const quickTabAfterDrawer = await page.evaluate(() => ({
+      pageActive: document.querySelector("#page-wellness")?.classList.contains("active"),
+      moreActive: document.querySelector("#mobileMore")?.classList.contains("active"),
+      ariaCurrent: document.querySelector('.bottomNav [data-page="wellness"]')?.getAttribute("aria-current")
+    }));
+    assert.equal(quickTabAfterDrawer.pageActive, true, "primary tabs must still navigate after using More");
+    assert.equal(quickTabAfterDrawer.moreActive, false, "More should not look selected on a primary tab");
+    assert.equal(quickTabAfterDrawer.ariaCurrent, "page", "the active primary tab must expose aria-current");
+    results.push("five-item mobile navigation, More drawer, aria state, and focus restoration");
+
+    // The transfer-market search has a programmatic label, and its result count is announced.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
+    const contractMarketAccess = await page.evaluate(() => {
+      const search = document.querySelector("#transferSearch");
+      const count = document.querySelector("#transferMarketCount");
+      const list = document.querySelector("#transferMarket");
+      const kpiLabel = document.querySelector("#page-contract .kpiLabel");
+      return {
+        type: search?.type,
+        label: search?.getAttribute("aria-label"),
+        controls: search?.getAttribute("aria-controls"),
+        description: search?.getAttribute("aria-describedby"),
+        countRole: count?.getAttribute("role"),
+        countLive: count?.getAttribute("aria-live"),
+        countAtomic: count?.getAttribute("aria-atomic"),
+        resultsLabel: list?.getAttribute("aria-label"),
+        searchFits: !!search && search.getBoundingClientRect().right <= window.innerWidth + 1
+          && search.getBoundingClientRect().width > 0,
+        kpiLabelSize: kpiLabel ? getComputedStyle(kpiLabel).fontSize : null
+      };
+    });
+    assert.equal(contractMarketAccess.type, "search", "transfer-market filter must use a search input");
+    assert.equal(contractMarketAccess.label, "ابحث عن نادٍ أو دوري أو دولة",
+      "transfer-market search must have a programmatic Arabic label");
+    assert.equal(contractMarketAccess.controls, "transferMarket",
+      "transfer-market search must identify its results region");
+    assert.equal(contractMarketAccess.description, "transferMarketNotice",
+      "transfer-market search must point to the eligibility and market explanation");
+    assert.equal(contractMarketAccess.countRole, "status", "the result count must be exposed as a status region");
+    assert.equal(contractMarketAccess.countLive, "polite", "result updates must be announced without interrupting");
+    assert.equal(contractMarketAccess.countAtomic, "true", "the entire result count must be announced together");
+    assert.equal(contractMarketAccess.resultsLabel, "نتائج سوق الأندية", "the results region must have an accessible name");
+    assert.equal(contractMarketAccess.searchFits, true, "the contract search field must fit the mobile viewport");
+    assert.equal(contractMarketAccess.kpiLabelSize, "11px", "contract KPI labels must be readable on mobile");
+    results.push("contract market search accessibility, live result count, and readable KPI labels");
+
+    // Secondary labels on the statistics, competition, and contract pages share one readable scale.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("stats"));
+    const statsTypography = await page.evaluate(() => ({
+      kpi: document.querySelector("#page-stats .hub-stats-summary .kpiLabel")
+        ? getComputedStyle(document.querySelector("#page-stats .hub-stats-summary .kpiLabel")).fontSize : null,
+      copy: document.querySelector("#page-stats .muted.small")
+        ? getComputedStyle(document.querySelector("#page-stats .muted.small")).fontSize : null
+    }));
+    assert.equal(statsTypography.kpi, "11px", "statistics KPI labels must use the readable secondary type scale");
+    assert.equal(statsTypography.copy, "11px", "statistics explanatory copy must remain readable on mobile");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("league"));
+    const leagueTypography = await page.evaluate(() => {
+      const element = document.querySelector("#page-league .muted.small");
+      return element ? getComputedStyle(element).fontSize : null;
+    });
+    assert.equal(leagueTypography, "11px", "competition explanatory copy must use the readable secondary type scale");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
+    results.push("readable secondary typography on stats, competition, and contract pages");
+
+    // A rendered transfer offer must keep both decision buttons comfortably tappable.
+    const transferActionTouchTargets = await page.evaluate(() => {
+      const host = document.querySelector("#page-contract .grid");
+      const fixture = document.createElement("article");
+      fixture.className = "card";
+      fixture.innerHTML = '<div class="dataCard transferOfferCard"><div class="transfer-card-actions"><button class="btn primary" type="button">ابدأ المفاوضات</button><button class="btn" type="button">رفض العرض والبقاء</button></div></div>';
+      host.appendChild(fixture);
+      const result = Array.from(fixture.querySelectorAll(".transfer-card-actions .btn")).map(button => {
+        const rect = button.getBoundingClientRect();
+        return { height: Math.round(rect.height), width: Math.round(rect.width) };
+      });
+      fixture.remove();
+      return result;
+    });
+    assert.equal(transferActionTouchTargets.length, 2, "a transfer offer must expose both decision actions");
+    assert.ok(transferActionTouchTargets.every(target => target.height >= 46 && target.width >= 110),
+      "transfer decision actions must remain easy to tap and readable on mobile: " + JSON.stringify(transferActionTouchTargets));
+
+
+
+
+
+
+
+    results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");
+
+    // At tablet widths the redesign hides the bottom bar and moves the drawer off-canvas.
+    // The hamburger must remain visible so every page remains reachable.
+    await page.setViewportSize({ width: 820, height: 900 });
+    await page.evaluate(() => new Promise(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve))
+    ));
+    const tabletNavigationBefore = await page.evaluate(() => {
+      const menu = document.querySelector("#menuOpen");
+      const bottom = document.querySelector(".bottomNav");
+      const drawer = document.querySelector("#drawer");
+      const menuRect = menu.getBoundingClientRect();
+      return {
+        menuVisible: getComputedStyle(menu).display !== "none" && menuRect.width >= 30 && menuRect.height >= 30,
+        bottomNavigationHidden: getComputedStyle(bottom).display === "none",
+        drawerInitiallyClosed: !drawer.classList.contains("open"),
+        drawerAriaHidden: drawer.getAttribute("aria-hidden"),
+        drawerInert: drawer.hasAttribute("inert"),
+        menuExpanded: menu.getAttribute("aria-expanded")
+      };
+    });
+    assert.equal(tabletNavigationBefore.menuVisible, true,
+      "tablet navigation must expose a working hamburger between 761px and 1000px: " + JSON.stringify(tabletNavigationBefore));
+    assert.equal(tabletNavigationBefore.bottomNavigationHidden, true,
+      "tablet layout should use the sidebar drawer rather than the narrow mobile bottom bar");
+    assert.equal(tabletNavigationBefore.drawerInitiallyClosed, true,
+      "tablet drawer should start closed to preserve the content width");
+    assert.equal(tabletNavigationBefore.drawerAriaHidden, "true",
+      "closed tablet drawer must be hidden from assistive technology");
+    assert.equal(tabletNavigationBefore.drawerInert, true,
+      "closed tablet drawer must not contain keyboard-focusable controls");
+    assert.equal(tabletNavigationBefore.menuExpanded, "false",
+      "the menu trigger must expose the collapsed state");
+    await page.locator("#menuOpen").click();
+    await page.waitForFunction(() => {
+      const drawer = document.querySelector("#drawer");
+      const rect = drawer.getBoundingClientRect();
+      return drawer.classList.contains("open") && rect.width > 0
+        && rect.left < window.innerWidth && rect.right <= window.innerWidth + 1;
+    }, null, { timeout: 5000 });
+    const drawerAccessible = await page.evaluate(() => {
+      const drawer = document.querySelector("#drawer");
+      return {
+        expanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+        ariaHidden: drawer.getAttribute("aria-hidden"),
+        inert: drawer.hasAttribute("inert"),
+        focusInsideDrawer: drawer.contains(document.activeElement)
+      };
+    });
+    assert.equal(drawerAccessible.expanded, "true", "opening the tablet drawer must expose aria-expanded=true");
+    assert.equal(drawerAccessible.ariaHidden, null, "open drawer must be exposed to assistive technology");
+    assert.equal(drawerAccessible.inert, false, "open drawer controls must become keyboard accessible");
+    assert.equal(drawerAccessible.focusInsideDrawer, true, "opening the drawer must move focus into it");
+    await page.locator('#drawer .navBtn[data-page="training"]').click();
+    await page.waitForFunction(() => {
+      return document.querySelector("#page-training")?.classList.contains("active")
+        && !document.querySelector("#drawer")?.classList.contains("open");
+    }, null, { timeout: 5000 });
+    const drawerAfterNavigation = await page.evaluate(() => ({
+      expanded: document.querySelector("#menuOpen").getAttribute("aria-expanded"),
+      ariaHidden: document.querySelector("#drawer").getAttribute("aria-hidden"),
+      inert: document.querySelector("#drawer").hasAttribute("inert"),
+      currentPage: document.querySelector('#drawer .navBtn[data-page="training"]').getAttribute("aria-current"),
+      focusReturned: document.activeElement === document.querySelector("#menuOpen")
+    }));
+    assert.equal(drawerAfterNavigation.expanded, "false", "closing the drawer must reset aria-expanded");
+    assert.equal(drawerAfterNavigation.ariaHidden, "true", "closed drawer must return to aria-hidden");
+    assert.equal(drawerAfterNavigation.inert, true, "closed drawer must return to inert");
+    assert.equal(drawerAfterNavigation.currentPage, "page",
+      "active navigation must expose aria-current=page");
+    assert.equal(drawerAfterNavigation.focusReturned, true, "closing the drawer must restore focus to its trigger");
+    results.push("tablet navigation and drawer keyboard/accessibility state at 820px");
+
+    // Modal dialogs must receive focus, keep keyboard focus inside, and return it on close.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
+    await page.locator("#contractDetailsBtn").click();
+    await page.waitForFunction(() => document.querySelector("#modalShade")?.classList.contains("open"));
+    const modalInitialFocus = await page.evaluate(() => ({
+      role: document.querySelector("#modalShade")?.getAttribute("role"),
+      modal: document.querySelector("#modalShade")?.getAttribute("aria-modal"),
+      focusInside: document.querySelector("#modalShade .modal")?.contains(document.activeElement)
+    }));
+    assert.equal(modalInitialFocus.role, "dialog", "modal must expose dialog semantics");
+    assert.equal(modalInitialFocus.modal, "true", "modal must be announced as modal");
+    assert.equal(modalInitialFocus.focusInside, true, "opening a modal must move focus into the dialog");
+    await page.keyboard.press("Shift+Tab");
+    const wrappedBackwards = await page.evaluate(() => document.querySelector("#modalShade .modal")?.contains(document.activeElement));
+    assert.equal(wrappedBackwards, true, "Shift+Tab from the first modal control must wrap within the dialog");
+    await page.keyboard.press("Tab");
+    const wrappedForwards = await page.evaluate(() => document.querySelector("#modalShade .modal")?.contains(document.activeElement));
+    assert.equal(wrappedForwards, true, "Tab from the last modal control must wrap within the dialog");
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("#modalShade")?.classList.contains("open"));
+    const modalFocusRestored = await page.evaluate(() => document.activeElement === document.querySelector("#contractDetailsBtn"));
+    assert.equal(modalFocusRestored, true, "closing a modal must restore focus to the control that opened it");
+    results.push("modal focus entry, keyboard trap, Escape close, and focus restoration");
 
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");

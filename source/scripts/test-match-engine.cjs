@@ -28,7 +28,63 @@ vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
-const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+assert.equal(engine.normalizePosition("CM"), "وسط", "CM must normalize to central midfield");
+assert.equal(engine.normalizePosition("CDM"), "وسط دفاعي", "CDM must normalize to defensive midfield");
+assert.equal(browserEngine.normalizePosition("CM"), "وسط", "the embedded match engine must normalize CM aliases");
+for (const [alias, expected] of [
+  ["left back", "ظهير"], ["right back", "ظهير"], ["left wing back", "ظهير"],
+  ["right wing back", "ظهير"], ["wingback", "ظهير"], ["central midfield", "وسط"],
+  ["left midfielder", "جناح"], ["right midfielder", "جناح"]
+]) {
+  assert.equal(engine.normalizePosition(alias), expected, "source match engine must normalize " + alias);
+  assert.equal(browserEngine.normalizePosition(alias), expected, "embedded match engine must normalize " + alias);
+}
+
+const aliasStart = rootEngineSource.indexOf("const POSITION_ALIASES = {");
+const aliasEnd = rootEngineSource.indexOf("\n  };", aliasStart);
+assert.ok(aliasStart >= 0 && aliasEnd > aliasStart, "the shared match engine must expose its canonical position aliases");
+const canonicalAliases = [...rootEngineSource.slice(aliasStart, aliasEnd).matchAll(/"([^"]+)":\s*"([^"]+)"/g)];
+assert.ok(canonicalAliases.length >= 60, "the canonical match-engine alias set must remain comprehensive");
+for (const [, alias, expected] of canonicalAliases) {
+  assert.equal(engine.normalizePosition(alias), expected, "source match engine must normalize canonical alias " + alias);
+  assert.equal(browserEngine.normalizePosition(alias), expected, "embedded match engine must normalize canonical alias " + alias);
+}
+assert.equal(engine.positionProfile("CM").shooter, 0.10, "central midfield must use its own low-shot profile");
+assert.equal(engine.positionProfile("CM").creator, 0.28, "central midfield must use its own chance-creation profile");
+assert.equal(engine.positionProfile("ST").shooter, 0.21, "English striker aliases must use the calibrated centre-forward profile");
+assert.equal(browserEngine.positionProfile("CM").creator, 0.28, "the embedded match engine must use the central-midfield profile");
+// Every recognized position alias must drive identical match statistics to its canonical role.
+// This catches raw-string checks that previously bypassed striker skill weighting and CM rating impact.
+const aliasParityBase = {
+  seed: 880021, teamPower: 66, opponentPower: 64,
+  player: {
+    name: "اختبار اتساق اختصارات المراكز", role: "أساسي",
+    shooting: 78, passing: 94, vision: 91, composure: 82, fitness: 90,
+    speed: 84, physical: 80, dribbling: 86, trust: 85, energy: 96, fatigue: 2
+  }
+};
+for (const [alias, canonical] of [
+  ["ST", "رأس حربة"], ["CF", "مهاجم"], ["CAM", "وسط مهاجم"], ["CDM", "وسط دفاعي"],
+  ["CM", "وسط"], ["LW", "جناح"], ["CB", "قلب دفاع"], ["LB", "ظهير"], ["GK", "حارس مرمى"]
+]) {
+  const aliasOptions = { ...aliasParityBase, player: { ...aliasParityBase.player, position: alias } };
+  const canonicalOptions = { ...aliasParityBase, player: { ...aliasParityBase.player, position: canonical } };
+  const aliasResult = engine.simulateMatch(aliasOptions);
+  const canonicalResult = engine.simulateMatch(canonicalOptions);
+  assert.equal(JSON.stringify(aliasResult.player), JSON.stringify(canonicalResult.player),
+    alias + " must use the same player skill weighting and rating as " + canonical);
+  assert.equal(JSON.stringify(aliasResult.score), JSON.stringify(canonicalResult.score),
+    alias + " must preserve the canonical position's match outcome");
+  assert.equal(JSON.stringify(aliasResult.events), JSON.stringify(canonicalResult.events),
+    alias + " must preserve the canonical position's event ledger");
+  const deployedAliasResult = browserEngine.simulateMatch(aliasOptions);
+  assert.equal(JSON.stringify(deployedAliasResult.player), JSON.stringify(aliasResult.player),
+    "the embedded engine must apply the same position alias stats for " + alias);
+  assert.equal(JSON.stringify(deployedAliasResult.events), JSON.stringify(aliasResult.events),
+    "the embedded engine must preserve the same event ledger for " + alias);
+}
+
+const positions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const mobileForwardProfile = engine.positionProfile("مهاجم");
 const centreStrikerProfile = engine.positionProfile("رأس حربة");
 assert.ok(centreStrikerProfile.shooter > mobileForwardProfile.shooter,
@@ -38,6 +94,26 @@ assert.ok(centreStrikerProfile.creator < mobileForwardProfile.creator,
 assert.ok(centreStrikerProfile.finishingBonus > mobileForwardProfile.finishingBonus,
   "the centre striker must receive a distinct finishing advantage");
 assert.equal(typeof engine.positionPerformanceImpact, "function", "role-aware match impact must be exposed for regression tests");
+const midfieldImpactStats = { tacklesWon: 2, interceptions: 3, ballRecoveries: 4, keyPasses: 5 };
+const centralMidfieldImpact = engine.positionPerformanceImpact("وسط", midfieldImpactStats);
+assert.ok(Math.abs(centralMidfieldImpact - 1.69) < 1e-9,
+  "central midfield match impact must reward a balanced mix of defensive work and key passes");
+assert.equal(engine.positionPerformanceImpact("CM", midfieldImpactStats), centralMidfieldImpact,
+  "English CM aliases must receive the same role-aware impact as central midfield");
+assert.equal(browserEngine.positionPerformanceImpact("CM", midfieldImpactStats), centralMidfieldImpact,
+  "the embedded browser engine must apply the same central-midfield impact");
+assert.equal(engine.positionPerformanceImpact("CDM", midfieldImpactStats),
+  engine.positionPerformanceImpact("وسط دفاعي", midfieldImpactStats),
+  "English CDM aliases must receive the defensive-midfield impact");
+assert.equal(engine.positionPerformanceImpact("GK", { saves: 2 }),
+  engine.positionPerformanceImpact("حارس مرمى", { saves: 2 }),
+  "English goalkeeper aliases must receive goalkeeper match impact");
+assert.equal(engine.playerEarnsCleanSheet("CB", 90, []), true,
+  "English centre-back aliases must qualify for clean sheets");
+assert.equal(browserEngine.playerEarnsCleanSheet("CDM", 90, []), true,
+  "the embedded engine must normalize defensive-midfield clean-sheet eligibility");
+assert.equal(engine.playerEarnsCleanSheet("CM", 90, []), false,
+  "central midfielders must not receive defender clean-sheet eligibility");
 
 assert.equal(typeof engine.playerEarnsCleanSheet, "function", "clean-sheet eligibility must be testable independently");
 
@@ -184,6 +260,76 @@ assert.equal(engine.playerConcededGoals(extraTimeParticipation.player.minutes, e
 const extraTimeValidation = engine.validateResult(extraTimeParticipation);
 assert.equal(extraTimeValidation.ok, true,
   "extra-time player activity and extended minutes must remain internally consistent");
+const shortenedExtraTimeMinutes = JSON.parse(JSON.stringify(extraTimeParticipation));
+shortenedExtraTimeMinutes.player.minutes = 90;
+assert.equal(engine.validateResult(shortenedExtraTimeMinutes).reason, "invalid-player-minutes-ledger",
+  "a player who completes extra time must not be settled with only 90 recorded minutes");
+assert.equal(browserEngine.validateResult(shortenedExtraTimeMinutes).reason, "invalid-player-minutes-ledger",
+  "the embedded validator must enforce the same 120-minute extra-time participation ledger");
+
+assert.equal(typeof engine.rollExtraTimePlayerExit, "function",
+  "extra-time player exits must be independently testable");
+function findExtraTimeExitSeed(expectedType) {
+  const injuryChance = 0.008 * (30 / 90);
+  const redCardChance = 0.0035 * (30 / 90);
+  for (let seed = 1; seed <= 100000; seed += 1) {
+    const exit = engine.rollExtraTimePlayerExit(engine.seededRandom(seed), true, injuryChance, redCardChance);
+    if (exit && exit.type === expectedType) return seed;
+  }
+  throw new Error("could not find deterministic extra-time " + expectedType + " seed");
+}
+const extraTimeRedSeed = findExtraTimeExitSeed("red-card");
+const extraTimeInjurySeed = findExtraTimeExitSeed("injury");
+const extraTimeRedResult = engine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeRedSeed
+});
+const extraTimeRedEvent = extraTimeRedResult.events.find(event => event.type === "red-card" && event.side === "player");
+assert.ok(extraTimeRedResult.extraTime.played && extraTimeRedEvent && Number(extraTimeRedEvent.minute) > 90,
+  "a player who remains on the pitch must be able to receive a red card during extra time");
+assert.equal(extraTimeRedResult.player.redCards, 1,
+  "an extra-time dismissal must update the player's red-card statistic");
+assert.equal(extraTimeRedResult.player.minutes, Number(extraTimeRedEvent.minute),
+  "an extra-time dismissal must end the player's minutes at the dismissal minute");
+assert.equal(extraTimeRedResult.player.injuryDays, 0,
+  "an extra-time red card must not also create an injury");
+assert.equal(engine.validateResult(extraTimeRedResult).ok, true,
+  "an extra-time dismissal must preserve the event, minute and result ledgers");
+assert.equal(JSON.stringify(browserEngine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeRedSeed
+})), JSON.stringify(extraTimeRedResult),
+  "the embedded engine must reproduce deterministic extra-time dismissals");
+
+const extraTimeInjuryResult = engine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeInjurySeed
+});
+const extraTimeInjuryEvent = extraTimeInjuryResult.events.find(event => event.type === "injury" && event.side === "player");
+assert.ok(extraTimeInjuryResult.extraTime.played && extraTimeInjuryEvent && Number(extraTimeInjuryEvent.minute) > 90,
+  "a player who remains on the pitch must be able to suffer an injury during extra time");
+assert.ok(extraTimeInjuryResult.player.injuryDays > 0,
+  "an extra-time injury must assign a recovery duration");
+assert.equal(extraTimeInjuryResult.player.minutes, Number(extraTimeInjuryEvent.minute),
+  "an extra-time injury must end the player's minutes at the injury minute");
+assert.equal(extraTimeInjuryResult.player.redCards, 0,
+  "an extra-time injury must not also create a dismissal");
+assert.equal(engine.validateResult(extraTimeInjuryResult).ok, true,
+  "an extra-time injury must preserve the event, minute and result ledgers");
+assert.equal(JSON.stringify(browserEngine.simulateMatch({
+  ...extraTimeParticipationOptions, extraTimeEventSeed: extraTimeInjurySeed
+})), JSON.stringify(extraTimeInjuryResult),
+  "the embedded engine must reproduce deterministic extra-time injuries");
+
+assert.equal(extraTimeRedResult.metadata.extraTimeEventSeed, extraTimeRedSeed,
+  "the extra-time event seed must be stored for deterministic replay");
+assert.equal(extraTimeInjuryResult.metadata.extraTimeEventSeed, extraTimeInjurySeed,
+  "the injury event seed must be stored for deterministic replay");
+const invalidExtraTimeSeedResult = JSON.parse(JSON.stringify(extraTimeInjuryResult));
+invalidExtraTimeSeedResult.metadata.extraTimeEventSeed = "not-a-number";
+assert.equal(engine.validateResult(invalidExtraTimeSeedResult).ok, false,
+  "result validation must reject malformed extra-time replay seeds");
+assert.equal(engine.validateResult(invalidExtraTimeSeedResult).reason, "invalid-extra-time-event-seed",
+  "malformed extra-time replay seeds must have a distinct validation reason");
+assert.equal(engine.validateResult(extraTimeRedResult).extraTimeEventSeedConsistent, true);
+assert.equal(browserEngine.validateResult(extraTimeInjuryResult).extraTimeEventSeedConsistent, true);
 
 let extraTimePeriodLedgerProbe = null;
 for (let seed = 151501; seed < 156501 && !extraTimePeriodLedgerProbe; seed += 1) {
@@ -550,6 +696,85 @@ assert.ok(tacticalSignatures.size > 1, "different opponent tactics must change a
 const unavailable = engine.simulateMatch({ seed: 42, playerAvailable: false, player: { position: "مهاجم", energy: 90 } });
 assert.equal(unavailable.player.minutes, 0, "unavailable player cannot play");
 assert.equal(unavailable.player.goals, 0, "unavailable player cannot score");
+const impossibleZeroMinuteGoal = JSON.parse(JSON.stringify(unavailable));
+impossibleZeroMinuteGoal.score = { for: 1, against: 0 };
+impossibleZeroMinuteGoal.regulation = { for: 1, against: 0 };
+impossibleZeroMinuteGoal.outcome = "فوز";
+impossibleZeroMinuteGoal.matchOutcome = "فوز";
+impossibleZeroMinuteGoal.player = {
+  ...impossibleZeroMinuteGoal.player, goals: 1, shots: 1, shotsOnTarget: 1, chances: 1
+};
+impossibleZeroMinuteGoal.events = [
+  { type: "substitution-on", minute: 1, side: "player", reason: "invalid zero-minute entry" },
+  { type: "shot", minute: 1, side: "team", onTarget: true, shooter: "player", creditedToPlayer: true },
+  { type: "goal", minute: 1, side: "team", goalEventId: "zero-minute-goal", scorer: "player", creditedToPlayer: true }
+];
+const impossibleGoalValidation = engine.validateResult(impossibleZeroMinuteGoal);
+assert.equal(impossibleGoalValidation.ok, false,
+  "a player marked unavailable must not receive a goal or any other player event with zero minutes");
+assert.equal(impossibleGoalValidation.reason, "unavailable-player-has-events",
+  "zero-minute player activity must have a distinct ledger validation reason");
+assert.equal(browserEngine.validateResult(impossibleZeroMinuteGoal).reason, "unavailable-player-has-events",
+  "the deployed validator must reject the same impossible zero-minute player goal");
+const legacyZeroMinuteGoal = JSON.parse(JSON.stringify(impossibleZeroMinuteGoal));
+delete legacyZeroMinuteGoal.player.playerAvailable;
+const legacyZeroMinuteGoalValidation = engine.validateResult(legacyZeroMinuteGoal);
+assert.equal(legacyZeroMinuteGoalValidation.ok, false,
+  "a legacy result without playerAvailable must not credit a goal to a player with explicit zero minutes");
+assert.equal(legacyZeroMinuteGoalValidation.reason, "unavailable-player-has-events",
+  "explicit zero minutes must reject player events even when the legacy availability flag is absent");
+assert.equal(browserEngine.validateResult(legacyZeroMinuteGoal).reason, "unavailable-player-has-events",
+  "the embedded engine must reject zero-minute goals in legacy results without playerAvailable");
+
+const legacyZeroMinuteAssist = JSON.parse(JSON.stringify(unavailable));
+delete legacyZeroMinuteAssist.player.playerAvailable;
+legacyZeroMinuteAssist.score = { for: 1, against: 0 };
+legacyZeroMinuteAssist.regulation = { for: 1, against: 0 };
+legacyZeroMinuteAssist.outcome = "فوز";
+legacyZeroMinuteAssist.matchOutcome = "فوز";
+legacyZeroMinuteAssist.player = {
+  ...legacyZeroMinuteAssist.player, goals: 0, assists: 1, shots: 0, shotsOnTarget: 0, chances: 0
+};
+legacyZeroMinuteAssist.events = [
+  { type: "assist", minute: 1, side: "team" },
+  { type: "goal", minute: 1, side: "team" }
+];
+const legacyZeroMinuteAssistValidation = engine.validateResult(legacyZeroMinuteAssist);
+assert.equal(legacyZeroMinuteAssistValidation.ok, false,
+  "legacy team-side assist attribution must not create an assist for a player with zero minutes");
+assert.equal(legacyZeroMinuteAssistValidation.reason, "unavailable-player-has-events",
+  "positive legacy player stats must count as activity when availability metadata is absent");
+assert.equal(browserEngine.validateResult(legacyZeroMinuteAssist).reason, "unavailable-player-has-events",
+  "the embedded engine must reject legacy zero-minute assists too");
+// A modern regulation-time result cannot claim more than 90 player minutes.
+const regulationOnly = engine.simulateMatch({
+  seed: 420042, knockout: false, teamPower: 66, opponentPower: 64,
+  player: { name: "اختبار حد دقائق المباراة", position: "مهاجم", role: "أساسي",
+    shooting: 78, passing: 75, vision: 72, composure: 80, fitness: 100,
+    trust: 85, energy: 100, fatigue: 0, speed: 82, physical: 78, dribbling: 80 }
+});
+assert.equal(regulationOnly.extraTime.played, false,
+  "the regulation-only fixture must not enter extra time");
+assert.ok(regulationOnly.player.minutes > 0,
+  "the regulation-only fixture must include a real player appearance");
+assert.equal(engine.validateResult(regulationOnly).ok, true,
+  "a valid 90-minute appearance must pass the modern minutes ledger");
+const overlongRegulationMatch = JSON.parse(JSON.stringify(regulationOnly));
+overlongRegulationMatch.player.minutes = 120;
+const overlongRegulationValidation = engine.validateResult(overlongRegulationMatch);
+assert.equal(overlongRegulationValidation.ok, false,
+  "a regulation-only match must reject a player credited with 120 minutes");
+assert.equal(overlongRegulationValidation.reason, "invalid-player-minutes-ledger",
+  "overlong regulation appearances must report a dedicated minutes-ledger error");
+assert.equal(browserEngine.validateResult(overlongRegulationMatch).reason, "invalid-player-minutes-ledger",
+  "the deployed validator must reject the same impossible 120-minute regulation appearance");
+const legacyRegulationMatch = JSON.parse(JSON.stringify(regulationOnly));
+delete legacyRegulationMatch.player.playerAvailable;
+delete legacyRegulationMatch.extraTime;
+delete legacyRegulationMatch.metadata.extraTimeEventSeed;
+assert.equal(engine.validateResult(legacyRegulationMatch).ok, true,
+  "legacy match saves without modern participation markers must remain readable");
+
 // Bench-role appearances must begin late, not be simulated as a first-half starter.
 const substituteOptions = {
   seed: 24061028, teamPower: 62, opponentPower: 58,
@@ -558,8 +783,10 @@ const substituteOptions = {
 };
 const substituteResult = engine.simulateMatch(substituteOptions);
 const substituteEntry = substituteResult.events.find(event => event.type === "substitution-on" && event.side === "player");
-assert.ok(substituteEntry && substituteEntry.minute > 0,
-  "a bench-role player must have an explicit late entry event");
+assert.ok(substituteEntry && substituteEntry.minute >= 55,
+  "a regular substitute must enter in the final 35 minutes, not during the first half");
+assert.ok(substituteResult.player.minutes <= 35,
+  "a regular substitute must not receive more than 35 planned minutes even with high fitness and energy");
 const substituteExit = substituteResult.events
   .filter(event => event.side === "player" && ["red-card", "injury", "substitution"].includes(event.type))
   .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
@@ -579,8 +806,10 @@ for (const [benchRole, seed] of [["ناشئ / بديل", 24061029], ["لاعب �
     player: { ...substituteOptions.player, role: benchRole }
   });
   const entry = youthSubstitute.events.find(event => event.type === "substitution-on" && event.side === "player");
-  assert.ok(entry && Number(entry.minute) > 0,
-    benchRole + " must be treated as a real bench role");
+  assert.ok(entry && Number(entry.minute) >= 60,
+    benchRole + " must be treated as a late bench role and enter no earlier than minute 60");
+  assert.ok(youthSubstitute.player.minutes <= 30,
+    benchRole + " must be capped at 30 playing minutes for a prospect cameo");
   assert.equal(engine.validateResult(youthSubstitute).ok, true,
     benchRole + " must keep player events inside the actual playing interval");
 }
@@ -618,8 +847,13 @@ for (let seed = 310000; seed < 310160; seed += 1) {
       trust: 80, fitness: 90, energy: 95, fatigue: 0 }
   });
   const entry = rotated.events.find(event => event.type === "substitution-on" && event.side === "player");
-  if (entry) rotationBenchAppearances += 1;
-  else rotationStarts += 1;
+  if (entry) {
+    rotationBenchAppearances += 1;
+    assert.ok(Number(entry.minute) >= 45,
+      "a rotation player brought on from the bench must enter in the second half");
+    assert.ok(rotated.player.minutes <= 45,
+      "a rotation bench appearance must not exceed 45 playing minutes");
+  } else rotationStarts += 1;
   assert.equal(engine.validateResult(rotated).ok, true,
     "both rotation starts and substitute appearances must pass match validation");
 }
@@ -866,6 +1100,28 @@ assert.equal(engine.validateResult(legacyShootoutPenaltySave).ok, true,
   "legacy shootout ledgers without an explicit player exit must remain readable");
 assert.equal(browserEngine.validateResult(legacyShootoutPenaltySave).ok, true,
   "the embedded validator must preserve legacy shootout saves without explicit exit metadata");
+const fieldPlayerLegacyShootoutSave = {
+  ...legacyShootoutPenaltySave,
+  player: { ...legacyShootoutPenaltySave.player, cleanSheet: false },
+  metadata: { ...legacyShootoutPenaltySave.metadata, position: "CM" }
+};
+const penaltySaveWithoutShootout = {
+  ...legacyShootoutPenaltySave,
+  shootout: { used: false, won: null, scoreFor: 0, scoreAgainst: 0, attempts: [] },
+  events: [{ type: "penalty-save", side: "team", minute: 120, creditedToPlayer: true }]
+};
+for (const targetEngine of [engine, browserEngine]) {
+  const fieldPlayerSaveValidation = targetEngine.validateResult(fieldPlayerLegacyShootoutSave);
+  assert.equal(fieldPlayerSaveValidation.penaltySaveRoleConsistent, false,
+    "a legacy shootout penalty save must not be credited to a recognized outfield position alias");
+  assert.equal(fieldPlayerSaveValidation.ok, false,
+    "a central midfielder must not receive a goalkeeper penalty-save event");
+  const noShootoutSaveValidation = targetEngine.validateResult(penaltySaveWithoutShootout);
+  assert.equal(noShootoutSaveValidation.penaltySaveRoleConsistent, false,
+    "a penalty-save event must be tied to an actual shootout");
+  assert.equal(noShootoutSaveValidation.ok, false,
+    "a penalty-save event without a shootout must be rejected");
+}
 const lateSubstitutedKeeperWithLateSave = {
   ...validLateKeeperShootout,
   player: { ...validLateKeeperShootout.player, minutes: 60 },
@@ -1415,6 +1671,34 @@ function ensureShotTargetMetadataForLedger(match) {
     creditedToPlayer: false, onTarget: false });
   match.events.sort((a, b) => Number(a.minute) - Number(b.minute));
 }
+function makeModernSaveRoleFixture(targetEngine, seed, position) {
+  const match = targetEngine.simulateMatch({
+    seed,
+    player: { name: "Position Save Role Regression", position, role: "أساسي",
+      shooting: 45, passing: 70, vision: 65, composure: 65, fitness: 90,
+      trust: 80, energy: 90, fatigue: 5, goalkeeping: 85 }
+  });
+  assert.ok(match.player.minutes > 0, "save-role fixture must include an appearance");
+  ensureShotTargetMetadataForLedger(match);
+  const entry = match.events.find(event => event.type === "substitution-on" && event.side === "player");
+  const exits = match.events.filter(event => event.side === "player"
+    && ["red-card", "injury", "substitution"].includes(event.type))
+    .sort((a, b) => Number(a.minute) - Number(b.minute));
+  const startMinute = entry ? Math.max(0, Number(entry.minute) || 0) : 0;
+  const endMinute = exits.length ? Number(exits[0].minute) : startMinute + Number(match.player.minutes);
+  const occupiedMinutes = new Set(match.events.map(event => Number(event.minute)));
+  let minute = 0;
+  for (let candidate = Math.max(1, startMinute + 1); candidate <= Math.min(120, endMinute); candidate += 1) {
+    if (!occupiedMinutes.has(candidate)) { minute = candidate; break; }
+  }
+  assert.ok(minute > 0, "save-role fixture must have an unused on-pitch minute");
+  match.events.push({ type: "shot", minute, side: "opponent", shooter: "opponent",
+    creditedToPlayer: false, onTarget: true });
+  match.events.push({ type: "save", minute, side: "team", creditedToPlayer: true });
+  match.events.sort((a, b) => Number(a.minute) - Number(b.minute));
+  match.player.saves = Number(match.player.saves || 0) + 1;
+  return match;
+}
 for (const [targetEngine, seed, label] of [[engine, 8140, "source"], [browserEngine, 8141, "browser"]]) {
   const inconsistentKeyPasses = targetEngine.simulateMatch({
     seed,
@@ -1441,6 +1725,18 @@ for (const [targetEngine, seed, label] of [[engine, 8140, "source"], [browserEng
     label + " validator must reject save totals that disagree with save events");
   assert.equal(saveValidation.reason, "inconsistent-save-ledger",
     label + " validator must return a stable save ledger reason");
+
+  for (const [index, position] of ["وسط", "CM", "CB", "CF", "LW"].entries()) {
+    const invalidSaveRole = makeModernSaveRoleFixture(targetEngine, seed + 30 + index, position);
+    const roleValidation = targetEngine.validateResult(invalidSaveRole);
+    assert.equal(roleValidation.ok, false,
+      label + " validator must reject modern goalkeeper saves credited to outfield position " + position);
+    assert.equal(roleValidation.reason, "invalid-save-player-position",
+      label + " validator must report the outfield save-role violation for " + position);
+  }
+  const validGoalkeeperAliasSave = makeModernSaveRoleFixture(targetEngine, seed + 50, "GK");
+  assert.equal(targetEngine.validateResult(validGoalkeeperAliasSave).ok, true,
+    label + " validator must continue accepting saves credited to the GK alias");
 
   const legacyStatsMatch = targetEngine.simulateMatch({
     seed: seed + 20,
@@ -2133,7 +2429,7 @@ for (const [label, targetEngine] of [["source", engine], ["browser", browserEngi
 console.log("PASS: " + tested + " deterministic position cases and defensive-action profiles, " + exitSweep + " injury/red-card exit regressions, and source/deployed-engine parity.");
 
 // Deterministic scoring calibration: report per-position rates before changing balance values.
-const scoringCalibrationPositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
+const scoringCalibrationPositions = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"];
 const scoringCalibration = [];
 for (const position of scoringCalibrationPositions) {
   let goals = 0, assists = 0, minutes = 0, teamGoals = 0, opponentGoals = 0, shots = 0, appearances = 0;
@@ -2167,7 +2463,7 @@ console.log("POSITION_SCORING_CALIBRATION " + JSON.stringify(scoringCalibration)
 
 const scoringRanges = {
   "حارس مرمى": [0, 0.005], "قلب دفاع": [0.02, 0.08], "ظهير": [0.04, 0.11],
-  "وسط دفاعي": [0.06, 0.15], "وسط مهاجم": [0.09, 0.19],
+  "وسط": [0.07, 0.17], "وسط دفاعي": [0.06, 0.15], "وسط مهاجم": [0.09, 0.19],
   "جناح": [0.18, 0.32], "مهاجم": [0.19, 0.34], "رأس حربة": [0.24, 0.40]
 };
 for (const row of scoringCalibration) {

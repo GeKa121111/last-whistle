@@ -17,16 +17,62 @@
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
+  function rollExtraTimePlayerExit(random, eligible, injuryChance, redCardChance) {
+    if (!eligible) return null;
+    if (typeof random !== "function") throw new TypeError("invalid-extra-time-random");
+    const roll = () => {
+      const value = Number(random());
+      return Number.isFinite(value) ? Math.max(0, Math.min(0.999999999, value)) : 0;
+    };
+    const redCardRolled = roll() < clamp(redCardChance, 0, 1);
+    const injuryRolled = roll() < clamp(injuryChance, 0, 1);
+    if (!redCardRolled && !injuryRolled) return null;
+    const redMinute = redCardRolled ? 91 + Math.floor(roll() * 29) : 121;
+    const injuryMinute = injuryRolled ? 91 + Math.floor(roll() * 29) : 121;
+    if (redCardRolled && (!injuryRolled || redMinute <= injuryMinute)) {
+      return { type: "red-card", minute: redMinute };
+    }
+    return { type: "injury", minute: injuryMinute };
+  }
+  const POSITION_ALIASES = {
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
+    "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
+    "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+    "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
+    "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
+    "fullback": "ظهير", "wing back": "ظهير", "wingback": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+    "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
+    "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
+    "attacking mid": "وسط مهاجم",
+    "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "central midfield": "وسط", "midfielder": "وسط",
+    "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+    "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
+    "winger": "جناح", "wide midfielder": "جناح", "left midfielder": "جناح", "right midfielder": "جناح",
+    "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+    "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  };
+  function normalizePosition(position) {
+    const raw = String(position || "").trim();
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+    const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
+      && window.LWStateStore.normalizePosition;
+    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
+  }
+
   function positionProfile(position) {
+    position = normalizePosition(position);
     return ({
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
       "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
       "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
       "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
+      "وسط": { shooter: 0.10, creator: 0.28, defender: 0.18 },
       "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
       "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
       "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
-      "رأس حربة": { shooter: 0.205, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
+      "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function squadRoleType(value) {
@@ -42,23 +88,28 @@
   }
   function selectedMinutes(player, available, random, roleType, startsOnBench) {
     if (!available) return 0;
-    // A rotation contract means shared starts and substitute appearances; it is not a fixed cameo role.
+    // Substitute appearances are late, shorter spells; rotation players share starts and bench minutes.
     const roleBase = roleType === "star" ? 88
       : roleType === "starter" ? 83
         : roleType === "legacy-rotation-starter" ? 66
-          : roleType === "rotation" ? (startsOnBench ? 36 : 69)
-            : roleType === "prospect" ? 22 : 39;
+          : roleType === "rotation" ? (startsOnBench ? 31 : 69)
+            : roleType === "prospect" ? 20 : 28;
     const trust = clamp(player.trust, 0, 100);
     const fitness = clamp(player.fitness, 0, 100);
     const energy = clamp(player.energy, 0, 100);
     const fatigue = clamp(player.fatigue, 0, 100);
-    let minutes = roleBase + (trust - 50) * 0.20 + (fitness - 50) * 0.11
-      + (energy - 50) * 0.16 - fatigue * 0.20 + (random() * 24 - 12);
+    let minutes = roleBase + (trust - 50) * 0.14 + (fitness - 50) * 0.08
+      + (energy - 50) * 0.10 - fatigue * 0.12 + (random() * 18 - 9);
     if (energy < 25) minutes -= 15;
     if (fatigue > 70) minutes -= 12;
+    if (startsOnBench) {
+      const maximumBenchMinutes = roleType === "rotation" ? 45 : roleType === "prospect" ? 30 : 35;
+      minutes = Math.min(minutes, maximumBenchMinutes);
+    }
     return Math.round(clamp(minutes, 0, 90));
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
+    position = normalizePosition(position);
     const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
     const interceptions = Math.max(0, Number(stats.interceptions) || 0);
     const saves = Math.max(0, Number(stats.saves) || 0);
@@ -72,6 +123,7 @@
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
       return tackles * 0.19 + interceptions * 0.21 + clearances * 0.16 + recoveries * 0.08 + cleanSheetBonus * 0.82;
     }
+    if (position === "وسط") return tackles * 0.12 + interceptions * 0.14 + recoveries * 0.12 + keyPasses * 0.11;
     if (position === "وسط مهاجم") return tackles * 0.10 + interceptions * 0.12 + recoveries * 0.10 + keyPasses * 0.13;
     if (position === "جناح") return tackles * 0.08 + interceptions * 0.09 + recoveries * 0.06;
     return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
@@ -105,6 +157,7 @@
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
+    position = normalizePosition(position);
     const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
     const played = Math.max(0, Number(minutes) || 0);
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;
@@ -145,10 +198,14 @@
     }
     const aggregateOffset = parseAggregateOffset(options.aggregateOffset);
     const simulationSeed = options.seed === undefined ? hash(JSON.stringify(options)) : validateSimulationSeed(options.seed);
+    const extraTimeEventSeed = options.extraTimeEventSeed === undefined
+      ? hash("extra-time-player-events:" + String(simulationSeed))
+      : validateSimulationSeed(options.extraTimeEventSeed);
     const random = seededRandom(simulationSeed);
-    // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
+    // Keep independent event streams from perturbing score/goal RNG.
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
+    const extraTimeEventRandom = seededRandom(extraTimeEventSeed);
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -192,8 +249,8 @@
       if (redMinuteRolled <= injuryMinuteRolled) injured = false;
       else redCard = false;
     }
-    const redMinute = redCard ? redMinuteRolled : 121;
-    const injuryMinute = injured ? injuryMinuteRolled : 121;
+    let redMinute = redCard ? redMinuteRolled : 121;
+    let injuryMinute = injured ? injuryMinuteRolled : 121;
     let minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
     let playerEndMinute = playerStartMinute + minutes;
     const events = [];
@@ -215,6 +272,7 @@
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
     const position = String(player.position || player.pos || "");
+    const matchPosition = normalizePosition(position);
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);
     if (redCard) {
@@ -262,10 +320,10 @@
           const composure = clamp(player.composure, 1, 99);
           // The match timeline already prevents involvement after the player's substitution.
           // Do not multiply the same minutes ratio a second time: doing so undercounts bench appearances.
-          const roleSkill = position === "رأس حربة"
+          const roleSkill = matchPosition === "رأس حربة"
             ? shooting * 0.42 + composure * 0.26 + clamp(player.physical, 0, 100) * 0.16
               + clamp(player.speed, 0, 100) * 0.10 + clamp(player.fitness, 0, 100) * 0.06
-            : position === "مهاجم"
+            : matchPosition === "مهاجم"
               ? clamp(player.dribbling, 0, 100) * 0.30 + clamp(player.speed, 0, 100) * 0.26
                 + clamp(player.vision, 0, 100) * 0.18 + shooting * 0.16 + clamp(player.passing, 0, 100) * 0.10
               : shooting * 0.36 + composure * 0.20 + clamp(player.dribbling, 0, 100) * 0.20
@@ -383,6 +441,32 @@
         playerEndMinute = 120;
         minutes = playerEndMinute - playerStartMinute;
         stats.minutes = minutes;
+        const extraTimeExit = rollExtraTimePlayerExit(
+          extraTimeEventRandom,
+          true,
+          injuryChance * (30 / 90),
+          0.0035 * (30 / 90)
+        );
+        if (extraTimeExit) {
+          playerEndMinute = extraTimeExit.minute;
+          minutes = Math.max(0, playerEndMinute - playerStartMinute);
+          stats.minutes = minutes;
+          if (extraTimeExit.type === "red-card") {
+            redCard = true;
+            redMinute = extraTimeExit.minute;
+            stats.redCards = 1;
+            events.push({ type: "red-card", minute: redMinute, side: "player",
+              actor: String(player.name || "اللاعب"), reason: "طرد مباشر في الوقت الإضافي" });
+          } else {
+            injured = true;
+            injuryMinute = extraTimeExit.minute;
+            stats.injuryDays = extraTimeEventRandom() < 0.50 ? 2
+              : extraTimeEventRandom() < 0.60 ? 5
+                : extraTimeEventRandom() < 0.75 ? 10 : 21;
+            events.push({ type: "injury", minute: injuryMinute, side: "player",
+              actor: String(player.name || "اللاعب"), days: stats.injuryDays });
+          }
+        }
       }
       const firstExtra = createPeriod(90, 15, true);
       const secondExtra = createPeriod(105, 15, true);
@@ -471,7 +555,7 @@
     const resultBonus = matchWin ? 0.30 : matchDraw ? 0.05 : -0.28;
     stats.cleanSheet = playerEarnsCleanSheet(position, minutes, events, redCard ? redMinute : null);
     const playerConceded = playerConcededGoals(minutes, events, redCard ? redMinute : null);
-    const passingImpact = ["وسط مهاجم", "وسط دفاعي"].includes(position)
+    const passingImpact = ["وسط مهاجم", "وسط دفاعي", "وسط"].includes(matchPosition)
       ? Math.min(0.65, Math.max(0, stats.passingAccuracy - 70) * 0.018 + Math.min(5, stats.keyPasses) * 0.08) : 0;
     const impact = stats.goals * 1.55 + stats.assists * 0.95 + stats.keyPasses * 0.16
       - stats.fouls * 0.1 + positionPerformanceImpact(position, stats, playerConceded) + passingImpact;
@@ -490,7 +574,7 @@
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
       officialOutcome, advancementWinner, matchOutcome,
       player: stats, events,
-      metadata: { seed: simulationSeed, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
+      metadata: { seed: simulationSeed, extraTimeEventSeed, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
   }
   function validateResult(result) {
@@ -644,20 +728,40 @@
         && shot.creditedToPlayer === false
         && event.side === "team" && event.creditedToPlayer === true;
     });
-    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
-      .includes(String(result.metadata?.position || ""));
+    const normalizedMatchPosition = normalizePosition(result.metadata?.position || "");
+    const knownMatchPosition = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]
+      .includes(normalizedMatchPosition);
     const saveRoleConsistent = !modernShotMetadataPresent || !knownMatchPosition
-      || positionProfile(result.metadata.position).goalkeeper
+      || positionProfile(normalizedMatchPosition).goalkeeper
       || (saveEvents.length === 0 && (result.player.saves == null || Number(result.player.saves) === 0));
+    const penaltySaveEvents = result.events.filter(event => event.type === "penalty-save");
+    const penaltySaveRoleConsistent = penaltySaveEvents.length === 0
+      || (result.shootout?.used === true
+        && (!knownMatchPosition || positionProfile(normalizedMatchPosition).goalkeeper === true));
     if (!keyPassesLedgerConsistent) return { ok: false, reason: "inconsistent-key-pass-ledger" };
     if (!savesLedgerConsistent) return { ok: false, reason: "inconsistent-save-ledger" };
     if (!saveShotLedgerConsistent) return { ok: false, reason: "invalid-save-shot-link", saveShotLedgerConsistent };
     if (!saveRoleConsistent) return { ok: false, reason: "invalid-save-player-position", saveRoleConsistent };
+    if (!penaltySaveRoleConsistent) return { ok: false, reason: "invalid-penalty-save-attribution", penaltySaveRoleConsistent };
     const playerAvailabilityValid = result.player.playerAvailable == null
       || (typeof result.player.playerAvailable === "boolean"
         && (result.player.minutes == null
           || result.player.playerAvailable === (Number(result.player.minutes) > 0)));
     if (!playerAvailabilityValid) return { ok: false, reason: "invalid-player-availability" };
+    // Legacy results may omit playerAvailable, but an explicit zero-minute record is authoritative.
+    const playerActivityStatFields = ["goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses",
+      "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "tacklesWon", "interceptions",
+      "saves", "penaltiesSaved", "clearances", "ballRecoveries", "passAttempts", "passesCompleted",
+      "passingAccuracy", "rating"];
+    const playerActivityPresent = result.events.some(event =>
+      event.side === "player" || event.creditedToPlayer === true)
+      || playerActivityStatFields.some(field => Number(result.player[field]) > 0);
+    const zeroMinutesRecorded = result.player.minutes != null && Number(result.player.minutes) === 0;
+    const playerUnavailable = result.player.playerAvailable === false || zeroMinutesRecorded;
+    const noPlayerActivityWhenUnavailable = !playerUnavailable || !playerActivityPresent;
+    if (!noPlayerActivityWhenUnavailable) {
+      return { ok: false, reason: "unavailable-player-has-events", noPlayerActivityWhenUnavailable };
+    }
     const teamGoals = result.events.filter(event => event.type === "goal" && event.side === "team").length;
     const opponentGoals = result.events.filter(event => event.type === "goal" && event.side === "opponent").length;
     const playerGoals = result.events.filter(event => event.type === "goal" && event.side === "team" && event.creditedToPlayer).length;
@@ -701,6 +805,28 @@
       .sort((a, b) => Number(a.minute) - Number(b.minute))[0];
     const playerEndMinute = playerExitEvent ? Number(playerExitEvent.minute)
       : playerEntryMinute + Number(result.player.minutes || 0);
+    // Modern results carry an explicit availability flag, substitution-on event, or
+    // extra-time played flag. Use those fields as a strict participation ledger while
+    // leaving older saved match records on the legacy-compatible validation path.
+    const hasModernPlayerMinutesLedger = (result.metadata && typeof result.metadata === "object"
+      && Object.prototype.hasOwnProperty.call(result.metadata, "extraTimeEventSeed"))
+      || result.events.some(event => event.type === "substitution-on" && event.side === "player");
+    const playerMinutesValue = result.player.minutes == null ? null : Number(result.player.minutes);
+    const matchDurationMinutes = result.extraTime?.played === true ? 120 : 90;
+    const expectedPlayerMinutes = playerExitEvent
+      ? Number(playerExitEvent.minute) - playerEntryMinute
+      : matchDurationMinutes - playerEntryMinute;
+    const playerMinutesLedgerConsistent = !hasModernPlayerMinutesLedger || (
+      playerMinutesValue !== null
+      && Number.isInteger(playerMinutesValue)
+      && playerMinutesValue >= 0
+      && playerMinutesValue <= matchDurationMinutes
+      && (playerMinutesValue === 0
+        ? !playerEntryEvent && !playerExitEvent
+        : Number.isFinite(expectedPlayerMinutes)
+          && expectedPlayerMinutes >= 0
+          && playerMinutesValue === expectedPlayerMinutes)
+    );
     const isPlayerActivityEvent = event => event.type === "penalty-save"
       ? event.creditedToPlayer === true
       : (event.creditedToPlayer === true
@@ -833,6 +959,11 @@
       || ((typeof aggregateOffsetValue === "number"
         || (typeof aggregateOffsetValue === "string" && aggregateOffsetValue.trim() !== ""))
         && Number.isSafeInteger(aggregateOffset));
+    const extraTimeEventSeedValue = result.metadata?.extraTimeEventSeed;
+    const extraTimeEventSeedConsistent = extraTimeEventSeedValue == null
+      || ((typeof extraTimeEventSeedValue === "number"
+        || (typeof extraTimeEventSeedValue === "string" && extraTimeEventSeedValue.trim() !== ""))
+        && Number.isFinite(Number(extraTimeEventSeedValue)));
     const shootoutLedgerConsistent = (() => {
       const shootout = result.shootout;
       const shootoutEvents = result.events.filter(event => event.type === "penalty-shootout");
@@ -963,13 +1094,16 @@
       && Number(result.player.passesCompleted || 0) <= Number(result.player.passAttempts || 0)
       && Number(result.player.passingAccuracy || 0) === (Number(result.player.passAttempts) > 0
         ? Math.round(Number(result.player.passesCompleted) / Number(result.player.passAttempts) * 1000) / 10 : 0)
-      && playerEventsInBounds && eventMinutesValid && aggregateOffsetConsistent && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
+      && playerEventsInBounds && playerMinutesLedgerConsistent && eventMinutesValid && aggregateOffsetConsistent && extraTimeEventSeedConsistent && extraTimeLedgerConsistent && shootoutLedgerConsistent && eventsChronological && sameMinuteOrderConsistent && noPlayerActivityAfterExit
       && redCards === Number(result.player.redCards || 0)
       && yellowCards === Number(result.player.yellowCards || 0)
       && injuries === (Number(result.player.injuryDays || 0) > 0 ? 1 : 0);
     const reason = !metadataShapeConsistent ? "invalid-metadata-shape"
-      : !aggregateOffsetConsistent ? "invalid-aggregate-offset" : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+      : !aggregateOffsetConsistent ? "invalid-aggregate-offset"
+        : !extraTimeEventSeedConsistent ? "invalid-extra-time-event-seed"
+          : !playerMinutesLedgerConsistent ? "invalid-player-minutes-ledger"
+            : valid ? "" : "inconsistent-match-ledger";
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, playerMinutesLedgerConsistent, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {
@@ -1030,5 +1164,5 @@
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, rollExtraTimePlayerExit, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();

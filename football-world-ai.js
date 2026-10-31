@@ -13,7 +13,7 @@
   const POSITIONS = Object.freeze({
     goalkeeper: ["حارس مرمى"],
     defender: ["قلب دفاع", "ظهير"],
-    midfielder: ["وسط دفاعي", "وسط مهاجم"],
+    midfielder: ["وسط دفاعي", "وسط مهاجم", "وسط"],
     attacker: ["جناح", "مهاجم", "رأس حربة"]
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
@@ -22,6 +22,12 @@
     return String(value == null ? "" : value).normalize("NFKC").toLocaleLowerCase()
       .replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
       .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
+  }
+  function normalizePosition(value) {
+    const store = global.LWStateStore;
+    const canonical = store && typeof store.normalizePosition === "function"
+      ? store.normalizePosition(value) : value;
+    return normalize(canonical);
   }
   function hash(value) {
     let h = 2166136261;
@@ -43,7 +49,7 @@
     return choices[Math.floor(rng() * choices.length)];
   }
   function groupForPosition(position) {
-    const p = normalize(position);
+    const p = normalizePosition(position);
     if (p.includes("حارس")) return "goalkeeper";
     // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before the role wording.
     if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")) return "midfielder";
@@ -52,7 +58,7 @@
     return "midfielder";
   }
   function positionProductionProfile(position) {
-    const p = normalize(position);
+    const p = normalizePosition(position);
     // Centre strikers should finish moves more often; mobile forwards and wingers
     // should contribute more assists rather than sharing one generic attacker rate.
     if (p === "st" || p === "f" || p === "striker"
@@ -84,11 +90,11 @@
   function sourcePlayerIdentityKey(player) {
     const name = normalize(player && player.name);
     if (!name) return "";
-    return [name, normalize(player && player.position), int(player && player.age, 0)].join("|");
+    return [name, normalizePosition(player && player.position), int(player && player.age, 0)].join("|");
   }
   function rosterIdentityKey(player) {
     const name = normalize(player && player.name);
-    return name ? name + "|" + normalize(player && player.position) : "";
+    return name ? name + "|" + normalizePosition(player && player.position) : "";
   }
   function marketValue(player, seller) {
     const ovr = clamp(player.ovr, 35, 99);
@@ -141,7 +147,7 @@
   function makePlayer(world, row, club, index, generated, forcedGroup) {
     const rng = random(hash(club.id + "|" + (row && row.name || "academy") + "|" + index + "|" + VERSION));
     let position = String(row && row.position || "");
-    if (!position || normalize(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
+    if (!position || normalizePosition(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
     const group = groupForPosition(position);
     const ovr = clamp(row && (row.ovr || row.power) || club.power - 5 + Math.round(rng() * 9 - 5), 38, 96);
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
@@ -165,7 +171,7 @@
   function fillRoster(world, club) {
     club.roster = (club.roster || []).filter(id => {
       const player = world.players[id];
-      return Boolean(player && !player.retired);
+      return Boolean(player && !player.retired && !player.freeAgent);
     });
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
@@ -455,7 +461,7 @@
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 55;
   }
   function rosterPlayers(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired);
+    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired && !player.freeAgent);
   }
   function roleStats(world, club) {
     const output = {};
@@ -546,7 +552,7 @@
     }
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
-      const rows = Object.values(world.players || {}).filter(player => player && !player.retired).map(player =>
+      const rows = Object.values(world.players || {}).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player =>
         generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
@@ -615,7 +621,7 @@
       alreadyCompleted: true, transfers: (world.marketReports.find(row => row.season === year) || {}).moves || 0
     };
     const strengthByLeague = buildLeagueStrengthLookup(world);
-    const rows = Object.values(world.players).filter(player => player && !player.retired).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
+    const rows = Object.values(world.players).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
     const tables = simulateLeagueTables(world, year, 1);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
@@ -932,9 +938,12 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    if (world.lastAdvancedTo >= next) {
-      world.currentSeason = next;
-      return { season: next, moves: [], alreadyAdvanced: true };
+    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const currentSeason = Math.max(1, int(world.currentSeason, 1));
+    if (lastAdvancedTo >= next || currentSeason > next) {
+      const stableSeason = Math.max(currentSeason, lastAdvancedTo);
+      world.currentSeason = stableSeason;
+      return { season: stableSeason, moves: [], alreadyAdvanced: true };
     }
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
@@ -962,9 +971,17 @@
         age: player.age, contractSeasons: player.contractSeasons
       }));
       const stars = players.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 7).map(player => player.name);
+      const division = Math.max(1, int(club.division, 1));
+      // League membership can change after promotion/relegation. Resolve the competition
+      // from the club's current division instead of reusing the seed-time tier-one label.
+      const profile = db && typeof db.leagueFor === "function"
+        ? db.leagueFor(club.country, division) || {}
+        : db && typeof db.leagueById === "function" ? db.leagueById(club.leagueId) || {} : {};
+      const league = profile.name || (division >= 2 ? profile.tier2 : profile.league) || club.leagueName;
+      const leagueEnglish = profile.englishName || (division >= 2 ? profile.tier2English : profile.english) || club.leagueEnglish;
       return {
-        country: club.country, club: club.name, league: club.leagueName, leagueEnglish: club.leagueEnglish,
-        season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: club.division,
+        country: club.country, club: club.name, league: league, leagueEnglish: leagueEnglish,
+        season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: division,
         power: club.power, prestige: club.prestige, confederation: club.confederation,
         currency: club.currency, stars, players, leagueId: club.leagueId, sourceUrl: ""
       };
@@ -1025,7 +1042,7 @@
     };
   }
   global.LWWorldAI = Object.freeze({
-    version: VERSION, normalize, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
+    version: VERSION, normalize, normalizePosition, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
     getLeagueTable, leaderboard, dashboard
   });
@@ -1073,7 +1090,7 @@
     return groups;
   }
   function playersForClub(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.freeAgent);
+    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.freeAgent && !player.retired);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);
@@ -1223,7 +1240,7 @@
       const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + Number(division));
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(world.players).filter(player => player && !player.retired).map(player => {
+    return Object.values(world.players).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player => {
       const acc = accumulators.get(player.id) || playerAccumulator();
       const historicalClub = world.clubs[acc.clubId || player.clubId] || null;
       const apps = Number(acc.appearances) || 0, goals = Number(acc.goals) || 0, assists = Number(acc.assists) || 0;
@@ -1560,11 +1577,17 @@
       const group = player.group || base.groupForPosition(player.position);
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
+      const formerClubSince = Number(player.freeAgentSince);
+      // Do not let a just-expired player bounce straight back to the same club.
+      // After one complete free-agent season, a former club may recruit them again.
+      // Legacy saves without a freeAgentSince marker keep the conservative old guard.
+      const formerClubReturnEligible = Number.isFinite(formerClubSince)
+        && formerClubSince > 0 && Number(season) > formerClubSince;
       const eligible = clubs.filter(club => {
         const counts = roleCountsByClub.get(club.id) || {};
         return !usedClubs.has(club.id)
           && Number(club.roster.length) < 18
-          && (!player.previousClubId || player.previousClubId !== club.id)
+          && (!player.previousClubId || player.previousClubId !== club.id || formerClubReturnEligible)
           && Number(player.ovr) <= Number(club.power || 55) + 10
           && Number(player.ovr) >= Number(club.power || 55) - 23
           && (player.age || 18) < 37
@@ -1582,6 +1605,7 @@
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.freeAgent = false;
+      player.freeAgentSince = 0;
       player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
       buyer.roster.push(player.id);
       const counts = roleCountsByClub.get(buyer.id);
@@ -1620,7 +1644,16 @@
   function completeSeason(save, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
+    const stableCurrentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     const alreadyCompleted = Array.isArray(world.completedSeasons) && world.completedSeasons.includes(year);
+    // Do not fabricate an older season from today's squads when a stale completion request arrives.
+    if (stableCurrentSeason > year && !alreadyCompleted) {
+      const market = (world.marketReports || []).find(row => Number(row.season) === year) || {};
+      return {
+        season: stableCurrentSeason, rows: [], tables: {}, matches: [], competitions: [],
+        alreadyCompleted: true, staleRequest: true, transfers: Number(market.moves) || 0
+      };
+    }
     if (alreadyCompleted) {
       // Preserve the legacy fallback for compact saves whose old match list was pruned.
       if (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))) {
@@ -1683,7 +1716,10 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = base.ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    if (world.lastAdvancedTo >= next) return base.advanceToSeason(save, next, db);
+    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const currentSeason = Math.max(1, int(world.currentSeason, 1));
+    // A stale request must exit before completing an older season or applying promotion/relegation.
+    if (lastAdvancedTo >= next || currentSeason > next) return base.advanceToSeason(save, next, db);
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
     const promotions = applyPromotionRelegation(world, previous);
@@ -1913,7 +1949,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=22");
+    const worker = new global.Worker("./football-world-worker.js?v=26");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

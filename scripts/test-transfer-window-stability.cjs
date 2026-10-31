@@ -74,6 +74,22 @@ assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: true }, "league"), f
   "an unsigned free agent must not be eligible for club matches");
 assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: "true" }, "cup"), false,
   "legacy string booleans must also block club appearances");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: " yes " }, "league"), false,
+  "legacy affirmative strings must not bypass the free-agent match guard");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: "on" }, "league"), false,
+  "legacy on/off flags must use the same parser as career-state migration");
+assert.equal(sandbox.careerMatchPlayerEligible({ retired: "yes" }, "international"), false,
+  "legacy affirmative retirement flags must block national-team appearances");
+assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: false, contractType: " free-agent ", contractSeasons: 2 }, "league"), false,
+  "whitespace around a legacy free-agent contract type must not bypass eligibility");
+assert.equal(sandbox.careerMatchPlayerEligible({
+  freeAgent: false, contractSeasons: 0, loan: { parentFreeAgent: " YES ", parentContractSeasons: 2 }
+}, "league"), false,
+  "a legacy affirmative parent free-agent flag must block an invalid loan appearance");
+assert.equal(sandbox.careerMatchPlayerEligible({
+  freeAgent: true, contractSeasons: 0, loan: { parentFreeAgent: "off", parentContractSeasons: 1 }
+}, "league"), true,
+  "a legacy explicit false parent flag must preserve an active parent contract while on loan");
 assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: false, contractSeasons: 0 }, "league"), false,
   "an expired contract must block club appearances even if an old save missed the free-agent flag");
 assert.equal(sandbox.careerMatchPlayerEligible({ freeAgent: false, contractType: "free-agent", contractSeasons: 2 }, "league"), false,

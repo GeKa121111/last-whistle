@@ -76,6 +76,33 @@ const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
 
+// Transfer-market competition labels must follow the simulated club's current division.
+// AI world clubs keep their dynamic division, while leagueFor supplies the matching
+// first/second-tier competition name after relegation or promotion.
+const transferCompetitionSave = { season: 1 };
+const transferCompetitionWorld = ai.ensureState(transferCompetitionSave, db);
+const transferCompetitionSeed = db.clubs().find(club =>
+  Number(club.division) === 1 && typeof db.leagueFor(club.country, 2) === "object");
+assert.ok(transferCompetitionSeed, "the sourced club database must include a first-division club with a second-tier profile");
+const transferCompetitionWorldClub = transferCompetitionWorld.clubs[
+  ai.clubKey(transferCompetitionSeed.name, transferCompetitionSeed.country)
+];
+assert.ok(transferCompetitionWorldClub, "the sourced club must exist in the simulated football world");
+transferCompetitionWorldClub.division = 2;
+const secondTierProfile = db.leagueFor(transferCompetitionSeed.country, 2);
+const secondTierTarget = ai.transferTargets(transferCompetitionSave, db).find(target =>
+  target.club === transferCompetitionSeed.name && target.country === transferCompetitionSeed.country);
+assert.equal(secondTierTarget.division, 2, "the transfer target must preserve the simulated second-tier division");
+assert.equal(secondTierTarget.league, secondTierProfile.name,
+  "a relegated club must advertise the second-tier competition instead of its seed-time first-tier league");
+assert.equal(secondTierTarget.leagueEnglish, secondTierProfile.englishName,
+  "the English competition label must also follow the current division");
+transferCompetitionWorldClub.division = 1;
+const firstTierTarget = ai.transferTargets(transferCompetitionSave, db).find(target =>
+  target.club === transferCompetitionSeed.name && target.country === transferCompetitionSeed.country);
+assert.equal(firstTierTarget.league, db.leagueFor(transferCompetitionSeed.country, 1).name,
+  "a promoted club must return to the first-tier competition label without rewriting its roster");
+
 // Transfer windows must include lower divisions and schedule buyers fairly by division.
 assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestSignFreeAgents, "function", "the free-agent signing simulator must be available to the regression guard");

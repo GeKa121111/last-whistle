@@ -962,9 +962,17 @@
         age: player.age, contractSeasons: player.contractSeasons
       }));
       const stars = players.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 7).map(player => player.name);
+      const division = Math.max(1, int(club.division, 1));
+      // League membership can change after promotion/relegation. Resolve the competition
+      // from the club's current division instead of reusing the seed-time tier-one label.
+      const profile = db && typeof db.leagueFor === "function"
+        ? db.leagueFor(club.country, division) || {}
+        : db && typeof db.leagueById === "function" ? db.leagueById(club.leagueId) || {} : {};
+      const league = profile.name || (division >= 2 ? profile.tier2 : profile.league) || club.leagueName;
+      const leagueEnglish = profile.englishName || (division >= 2 ? profile.tier2English : profile.english) || club.leagueEnglish;
       return {
-        country: club.country, club: club.name, league: club.leagueName, leagueEnglish: club.leagueEnglish,
-        season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: club.division,
+        country: club.country, club: club.name, league: league, leagueEnglish: leagueEnglish,
+        season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: division,
         power: club.power, prestige: club.prestige, confederation: club.confederation,
         currency: club.currency, stars, players, leagueId: club.leagueId, sourceUrl: ""
       };

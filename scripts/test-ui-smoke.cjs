@@ -1087,4 +1087,46 @@ if (!winterReview.resumed || !winterReview.simulated) {
   process.exit(1);
 }
 
-console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, and JavaScript syntax.");
+const gateStart = rootHtml.indexOf("function createSingleFlightGate(){");
+const gateEnd = rootHtml.indexOf("\\nconst seasonTransitionGate", gateStart);
+const seasonStart = rootHtml.indexOf("function startNewSeason(showStory=true){", gateEnd);
+const seasonInternalStart = rootHtml.indexOf("\\nasync function startNewSeasonInternal(showStory=true){", seasonStart);
+if (gateStart < 0 || gateEnd < 0 || seasonStart < gateEnd || seasonInternalStart < 0
+  || !rootHtml.slice(seasonStart, seasonInternalStart).includes("return seasonTransitionGate(()=>startNewSeasonInternal(showStory));")) {
+  console.error("Season transition concurrency guard is missing or disconnected from startNewSeason.");
+  process.exit(1);
+}
+const gateSource = rootHtml.slice(gateStart, gateEnd);
+const createSingleFlightGate = vm.runInNewContext("(" + gateSource + ")", { Promise });
+const seasonGate = createSingleFlightGate();
+(async () => {
+  let executions = 0;
+  let releaseFirst;
+  const first = seasonGate(() => {
+    executions++;
+    return new Promise(resolve => { releaseFirst = resolve; });
+  });
+  const duplicate = seasonGate(() => {
+    executions++;
+    return Promise.resolve("duplicate");
+  });
+  assert.equal(first, duplicate,
+    "two rapid season-start requests must share the same in-flight transition promise");
+  await Promise.resolve();
+  assert.equal(executions, 1,
+    "the second season-start request must not execute a second transition while the first is pending");
+  releaseFirst("season-ready");
+  assert.deepEqual(await Promise.all([first, duplicate]), ["season-ready", "season-ready"],
+    "duplicate requests must receive the result of the one active season transition");
+  assert.equal(await seasonGate(() => { executions++; return "next-season"; }), "next-season",
+    "the gate must allow the next season after the previous transition settles");
+  await assert.rejects(seasonGate(() => { executions++; throw new Error("transition-failure"); }), /transition-failure/,
+    "a failed transition must reject without leaving the gate permanently locked");
+  assert.equal(await seasonGate(() => { executions++; return "retry"; }), "retry",
+    "the gate must unlock after a rejected transition so a retry can proceed");
+  assert.equal(executions, 4, "only one execution should occur per completed or retried transition");
+  console.log("UI smoke test passed: career setup, redesigned story UI assets, main pages, professional-life and interactive career systems, syntax, and single-flight season transitions.");
+})().catch(error => {
+  console.error("Season transition single-flight test failed:", error);
+  process.exitCode = 1;
+});

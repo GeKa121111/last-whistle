@@ -6875,7 +6875,20 @@ function finishSeason(){
  // be visible immediately when the player opens the league tab.
  renderLeague();renderCareerAwards();render();saveGame(true);
 }
-async function startNewSeason(showStory=true){
+function createSingleFlightGate(){
+ let pending=null;
+ return function run(task){
+  if(pending)return pending;
+  if(typeof task!=="function")return Promise.reject(new TypeError("single-flight task must be a function"));
+  pending=Promise.resolve().then(task).finally(()=>{pending=null;});
+  return pending;
+ };
+}
+const seasonTransitionGate=createSingleFlightGate();
+function startNewSeason(showStory=true){
+ return seasonTransitionGate(()=>startNewSeasonInternal(showStory));
+}
+async function startNewSeasonInternal(showStory=true){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!state.seasonFinished){toast("لا يمكن بدء موسم جديد قبل إكمال الموسم الحالي واعتماد تقرير نهايته.");return;}
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}

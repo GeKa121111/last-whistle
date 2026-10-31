@@ -3945,6 +3945,7 @@ const INITIAL = {
 };
 let state = structuredCloneSafe(INITIAL);
 let modalResolver = null;
+let modalReturnFocus = null;
 let toastTimer = null;
 function structuredCloneSafe(obj){try{return JSON.parse(JSON.stringify(obj));}catch(e){return {...obj};}}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));}
@@ -4404,6 +4405,7 @@ function toast(message){
 }
 function $(id){return document.getElementById(id);}
 function openModal(title,text,choices,options={}){
+ modalReturnFocus=document.activeElement;
  $("modalTitle").textContent=title;$("modalText").textContent=text||"";
  const box=$("modalChoices");box.innerHTML="";
  (choices||[]).forEach((choice,index)=>{
@@ -4413,8 +4415,16 @@ function openModal(title,text,choices,options={}){
  });
  $("modalClose").style.display=options.hideClose?"none":"";
  $("modalShade").classList.add("open");
+ const dialog=$("modalShade").querySelector(".modal");
+ const focusable=dialog?Array.from(dialog.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=="hidden"):[];
+ if(focusable[0])focusable[0].focus({preventScroll:true});
 }
-function closeModal(){$("modalShade").classList.remove("open");}
+function closeModal(){
+ const shade=$("modalShade"),wasOpen=shade.classList.contains("open");
+ shade.classList.remove("open");
+ const target=modalReturnFocus;modalReturnFocus=null;
+ if(wasOpen&&target&&target.isConnected&&target.getClientRects().length)target.focus({preventScroll:true});
+}
 function showPage(page, scrollTop=true){
  const valid=["home","training","stats","wellness","league","europe","contract","national","shop","life","social","diary"].includes(page)?page:"home";
  state.currentPage=valid;
@@ -6972,7 +6982,16 @@ function bind(){
  $("menuOpen").addEventListener("click",openDrawer);$("menuClose").addEventListener("click",closeDrawer);$("drawerShade").addEventListener("click",closeDrawer);
  $("modalClose").addEventListener("click",closeModal);
  $("modalShade").addEventListener("click",e=>{if(e.target===$("modalShade"))closeModal();});
- document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeDrawer();}});
+ document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"){closeModal();closeDrawer();return;}
+ if(e.key!=="Tab"||!$("modalShade").classList.contains("open"))return;
+ const dialog=$("modalShade").querySelector(".modal");
+ const focusable=dialog?Array.from(dialog.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=="hidden"):[];
+ if(!focusable.length){e.preventDefault();return;}
+ const first=focusable[0],last=focusable[focusable.length-1];
+ if(e.shiftKey&&(document.activeElement===first||!dialog.contains(document.activeElement))){e.preventDefault();last.focus();}
+ else if(!e.shiftKey&&(document.activeElement===last||!dialog.contains(document.activeElement))){e.preventDefault();first.focus();}
+});
  document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));syncDrawerAccessibility();document.querySelectorAll("[data-page].navBtn, .bottomNav [data-page]").forEach(b=>{const active=b.dataset.page===(state.currentPage||"home");if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});window.addEventListener("resize",syncDrawerAccessibility,{passive:true});
  $("seasonStageAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonStageAction").dataset.seasonAction||"season-block"));
  $("seasonTransferAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonTransferAction").dataset.seasonAction||"transfer-review"));

@@ -1433,6 +1433,30 @@ async function main() {
     assert.equal(drawerAfterNavigation.focusReturned, true, "closing the drawer must restore focus to its trigger");
     results.push("tablet navigation and drawer keyboard/accessibility state at 820px");
 
+    // Modal dialogs must receive focus, keep keyboard focus inside, and return it on close.
+    await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
+    await page.locator("#contractDetailsBtn").click();
+    await page.waitForFunction(() => document.querySelector("#modalShade")?.classList.contains("open"));
+    const modalInitialFocus = await page.evaluate(() => ({
+      role: document.querySelector("#modalShade .modal")?.getAttribute("role"),
+      modal: document.querySelector("#modalShade .modal")?.getAttribute("aria-modal"),
+      focusInside: document.querySelector("#modalShade .modal")?.contains(document.activeElement)
+    }));
+    assert.equal(modalInitialFocus.role, "dialog", "modal must expose dialog semantics");
+    assert.equal(modalInitialFocus.modal, "true", "modal must be announced as modal");
+    assert.equal(modalInitialFocus.focusInside, true, "opening a modal must move focus into the dialog");
+    await page.keyboard.press("Shift+Tab");
+    const wrappedBackwards = await page.evaluate(() => document.querySelector("#modalShade .modal")?.contains(document.activeElement));
+    assert.equal(wrappedBackwards, true, "Shift+Tab from the first modal control must wrap within the dialog");
+    await page.keyboard.press("Tab");
+    const wrappedForwards = await page.evaluate(() => document.querySelector("#modalShade .modal")?.contains(document.activeElement));
+    assert.equal(wrappedForwards, true, "Tab from the last modal control must wrap within the dialog");
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("#modalShade")?.classList.contains("open"));
+    const modalFocusRestored = await page.evaluate(() => document.activeElement === document.querySelector("#contractDetailsBtn"));
+    assert.equal(modalFocusRestored, true, "closing a modal must restore focus to the control that opened it");
+    results.push("modal focus entry, keyboard trap, Escape close, and focus restoration");
+
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");
     assert.deepEqual(badResponses, [], "all local page assets must return successful responses");

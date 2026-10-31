@@ -39,7 +39,7 @@ store.publish(save, { source: "test" });
 assert.equal(allNotifications, 3, "legacy subscribers must still receive every publish");
 assert.deepEqual(selectedNotifications.map(item => item.next), [100, 125],
   "slice subscribers must ignore unrelated state changes and detect in-place mutations");
-assert.deepEqual(selectedNotifications.map(item => item.previous), [undefined, 100]);
+assert.deepEqual(selectedNotifications.map(item => item.previous), [null, 100]);
 
 vm.runInContext(read("data/career-engine.js"), sandbox, { filename: "data/career-engine.js" });
 vm.runInContext(read("data/match-engine.js"), sandbox, { filename: "data/match-engine.js" });

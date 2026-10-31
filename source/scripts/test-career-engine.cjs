@@ -570,10 +570,12 @@ assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).contractTyp
   "a free-agent parent contract must retain its type when a loan ends");
 assert.ok(rootHtml.includes("parentContractType:state.contractType"),
   "browser loan snapshots must preserve the parent contract type");
-assert.ok(rootHtml.includes('state.contractType=state.freeAgent?"free-agent":String(l.parentContractType||state.contractType||"professional");'),
-  "browser loan return must restore the parent contract type");
-assert.ok(rootHtml.includes('state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent)||String(l.parentContractType||"").toLowerCase()==="free-agent";'),
-  "browser loan return must normalize legacy parentFreeAgent values");
+assert.ok(rootHtml.includes('state.contractType=parentIsFreeAgent?"free-agent":parentContractType;'),
+  "browser loan return must restore the normalized parent contract type");
+assert.ok(rootHtml.includes('const parentFreeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);')
+  && rootHtml.includes('const parentIsFreeAgent=parentFreeAgent||parentContractType.toLowerCase()==="free-agent";')
+  && rootHtml.includes('state.freeAgent=parentIsFreeAgent;'),
+  "browser loan return must normalize legacy parentFreeAgent values and restore the parent contract consistently");
 assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
   "browser loan return must restore the parent club role while preserving legacy saves without it");
 assert.ok(rootHtml.includes('negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";'),

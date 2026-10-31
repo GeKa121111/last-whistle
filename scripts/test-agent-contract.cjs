@@ -109,6 +109,11 @@ const calendarEnd = html.indexOf("\nfunction ", calendarStart + 10);
 assert.ok(calendarStart >= 0 && calendarEnd > calendarStart,
   "the shared calendar function must be available for payroll regression testing");
 const calendarSource = html.slice(calendarStart, calendarEnd);
+const eligibilityStart = html.indexOf("function careerMatchPlayerEligible(");
+const eligibilityEnd = html.indexOf("\nfunction simulateCareerMatch(", eligibilityStart + 10);
+assert.ok(eligibilityStart >= 0 && eligibilityEnd > eligibilityStart,
+  "the shared club-contract eligibility helper must be available for payroll regression testing");
+const eligibilitySource = html.slice(eligibilityStart, eligibilityEnd);
 const payrollLogs = [];
 function payOneWeek() {
   const calendarContext = {
@@ -118,6 +123,7 @@ function payOneWeek() {
     resetDailyActions() {}
   };
   vm.createContext(calendarContext);
+  vm.runInContext(eligibilitySource, calendarContext, { filename: "careerMatchPlayerEligible" });
   vm.runInContext(calendarSource, calendarContext, { filename: "advanceCalendarDays" });
   calendarContext.advanceCalendarDays(7, "اختبار صرف المرتب");
 }

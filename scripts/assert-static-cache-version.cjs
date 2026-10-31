@@ -32,7 +32,7 @@ if (require.main === module) {
   const requiredAssets = [
     ["career-state-store.js", 2],
     ["data/career-engine.js", 55],
-    ["data/match-engine.js", 71],
+    ["data/match-engine.js", 72],
     ["football-world-ai.js", 37],
     ["football-world-worker.js", 26],
     ["transfer-awards-engine.js", 10]

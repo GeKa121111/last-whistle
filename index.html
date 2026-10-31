@@ -4572,6 +4572,8 @@ function ensureTransferOffers(){
   Number(profile.potential)||0,
   Number(state.trust)||0,
   Math.max(0,Number(state.daysSinceTransfer)||0),
+  String(profile.role||state.role||""),
+  Math.max(0,Number(state.contractSeasons)||0),
   String(profile.position||"")
  ]);
  const hasOffersForWindow=state.transferOffers.some(offer=>transferOfferMatchesWindow(offer,windowId,windowInfo));

@@ -29,6 +29,7 @@ const maybeOfferTransferSource = section("function maybeOfferTransfer(){", "\nfu
 const legacyMigrationSource = section("function migrateLegacyPendingTransferOffer(", "\nfunction dedupeTransferOffersForWindow(");
 const dedupeOffersSource = section("function dedupeTransferOffersForWindow(", "\nfunction ensureTransferOffers(){");
 const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfunction transferFactors(");
+const transferFactorsSource = section("function transferFactors(", "\nfunction transferAverageRating(");
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
 
 const state = {
@@ -422,6 +423,49 @@ eligibilityState.trust = 25;eligibilityState.daysSinceTransfer = 3;
 assert.equal(eligibilitySandbox.offerIsAvailable(eligibilityState.transferOffers[0]), false,
   "a previously generated offer must not bypass the post-transfer waiting period");
 
+
+// Role and remaining contract years affect target eligibility, so a change in either must retry an empty offer search.
+const roleContractState = {
+  calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",
+  careerStarted: true, retired: false, age: 24, loan: null, freeAgent: false,
+  transferCooldown: 0, daysSinceTransfer: 14, apps: 12, trust: 60,
+  clubName: "نادي أ", leagueCountry: "مصر", clubPower: 50, pos: "ST",
+  role: "بديل", contractSeasons: 4, transferOffers: [], transferOffersWindowId: "",
+  transferOffersAttemptKey: "", transferHistory: [], seasonGoals: 0, seasonAssists: 0, day: 190
+};
+let roleContractGenerationCalls = 0;
+const roleContractSandbox = {
+  state: roleContractState,
+  window: { LWTransferAwards: { generateOffers: ({ targets, windowId }) => {
+    roleContractGenerationCalls++;
+    return targets.length ? [{ id: "role-contract-offer", windowId, club: "نادي قوي", country: "مصر",
+      league: "الدوري المصري", division: 1, power: 77, wage: 1200, maxWage: 1400, status: "pending" }] : [];
+  } } },
+  canAccessTransferMarket: () => true,
+  transferPlayerProfile: () => ({ name: "لاعب اختبار", age: 24, position: "ST", ovr: 68, potential: 80,
+    role: roleContractState.role, country: "مصر", currentClub: "نادي أ", currentClubPower: 50,
+    form: 7, appearances: 12, goals: 0, assists: 0 }),
+  transferTargets: () => [{ club: "نادي قوي", country: "مصر", league: "الدوري المصري",
+    division: 1, power: 77, prestige: 60, currency: "ج.م" }],
+  stableHash: () => 0, transferAverageRating: () => 7, overall: () => 68, isYouthAcademyPlayer: () => false,
+  saveGame: () => {}, log: () => {}, setStory: () => {}, console
+};
+vm.createContext(roleContractSandbox);
+vm.runInContext(transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
+  + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
+  + transferFactorsSource + "\n" + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+  roleContractSandbox, { filename: "transfer-offer-role-contract-retry" });
+roleContractSandbox.ensureTransferOffers();
+assert.equal(roleContractGenerationCalls, 1, "an unsuitable contract/role profile must be evaluated once in the active window");
+assert.equal(roleContractState.transferOffers.length, 0, "a target beyond the player's current role/contract fit must not receive an offer");
+roleContractState.role = "أساسي";
+roleContractState.contractSeasons = 1;
+roleContractSandbox.ensureTransferOffers();
+assert.equal(roleContractGenerationCalls, 2, "improving squad role and contract leverage must retry target discovery in the same window");
+assert.equal(roleContractState.transferOffers.length, 1, "the improved role/contract fit must allow the previously unsuitable target");
+assert.equal(roleContractSandbox.offerIsAvailable(roleContractState.transferOffers[0]), true,
+  "the newly eligible offer must pass the same final availability validator");
+
 const cupArchiveScenario = {
   state: {
     season: 4, clubName: "نادي أ",
@@ -545,7 +589,7 @@ const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
-assert.ok(sw.includes("last-whistle-static-v252"), "transfer eligibility and unified negotiation rules must invalidate the deployed PWA cache");
+assert.ok(sw.includes("last-whistle-static-v253"), "role/contract offer retries and shared eligibility rules must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=8"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);

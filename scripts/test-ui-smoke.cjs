@@ -774,6 +774,8 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
 const offerWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesWindow");
+const currentFreeAgentWindowSource = extractTopLevelFunction(html, "currentFreeAgentTransferWindowId");
+const offerCurrentWindowMatchSource = extractTopLevelFunction(html, "transferOfferMatchesCurrentWindow");
 const offerAvailabilitySource = extractTopLevelFunction(html, "offerIsAvailable");
 const offerState = {
   careerStarted: true, retired: false, loan: null, transferCooldown: 0, freeAgent: false,
@@ -801,7 +803,7 @@ const offerSandbox = {
   setStory: () => {}
 };
 vm.createContext(offerSandbox);
-vm.runInContext(offerWindowMatchSource, offerSandbox, { filename: "transferOfferMatchesWindow" });
+vm.runInContext(offerWindowMatchSource + "\n" + currentFreeAgentWindowSource + "\n" + offerCurrentWindowMatchSource, offerSandbox, { filename: "transferOfferWindowValidators" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
 vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
 offerSandbox.ensureTransferOffers();

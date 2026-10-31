@@ -710,6 +710,36 @@ assert.equal(impossibleGoalValidation.reason, "unavailable-player-has-events",
   "zero-minute player activity must have a distinct ledger validation reason");
 assert.equal(browserEngine.validateResult(impossibleZeroMinuteGoal).reason, "unavailable-player-has-events",
   "the deployed validator must reject the same impossible zero-minute player goal");
+const legacyZeroMinuteGoal = JSON.parse(JSON.stringify(impossibleZeroMinuteGoal));
+delete legacyZeroMinuteGoal.player.playerAvailable;
+const legacyZeroMinuteGoalValidation = engine.validateResult(legacyZeroMinuteGoal);
+assert.equal(legacyZeroMinuteGoalValidation.ok, false,
+  "a legacy result without playerAvailable must not credit a goal to a player with explicit zero minutes");
+assert.equal(legacyZeroMinuteGoalValidation.reason, "unavailable-player-has-events",
+  "explicit zero minutes must reject player events even when the legacy availability flag is absent");
+assert.equal(browserEngine.validateResult(legacyZeroMinuteGoal).reason, "unavailable-player-has-events",
+  "the embedded engine must reject zero-minute goals in legacy results without playerAvailable");
+
+const legacyZeroMinuteAssist = JSON.parse(JSON.stringify(unavailable));
+delete legacyZeroMinuteAssist.player.playerAvailable;
+legacyZeroMinuteAssist.score = { for: 1, against: 0 };
+legacyZeroMinuteAssist.regulation = { for: 1, against: 0 };
+legacyZeroMinuteAssist.outcome = "فوز";
+legacyZeroMinuteAssist.matchOutcome = "فوز";
+legacyZeroMinuteAssist.player = {
+  ...legacyZeroMinuteAssist.player, goals: 0, assists: 1, shots: 0, shotsOnTarget: 0, chances: 0
+};
+legacyZeroMinuteAssist.events = [
+  { type: "assist", minute: 1, side: "team" },
+  { type: "goal", minute: 1, side: "team" }
+];
+const legacyZeroMinuteAssistValidation = engine.validateResult(legacyZeroMinuteAssist);
+assert.equal(legacyZeroMinuteAssistValidation.ok, false,
+  "legacy team-side assist attribution must not create an assist for a player with zero minutes");
+assert.equal(legacyZeroMinuteAssistValidation.reason, "unavailable-player-has-events",
+  "positive legacy player stats must count as activity when availability metadata is absent");
+assert.equal(browserEngine.validateResult(legacyZeroMinuteAssist).reason, "unavailable-player-has-events",
+  "the embedded engine must reject legacy zero-minute assists too");
 // Bench-role appearances must begin late, not be simulated as a first-half starter.
 const substituteOptions = {
   seed: 24061028, teamPower: 62, opponentPower: 58,

@@ -1441,8 +1441,8 @@ async function main() {
     await page.locator("#contractDetailsBtn").click();
     await page.waitForFunction(() => document.querySelector("#modalShade")?.classList.contains("open"));
     const modalInitialFocus = await page.evaluate(() => ({
-      role: document.querySelector("#modalShade .modal")?.getAttribute("role"),
-      modal: document.querySelector("#modalShade .modal")?.getAttribute("aria-modal"),
+      role: document.querySelector("#modalShade")?.getAttribute("role"),
+      modal: document.querySelector("#modalShade")?.getAttribute("aria-modal"),
       focusInside: document.querySelector("#modalShade .modal")?.contains(document.activeElement)
     }));
     assert.equal(modalInitialFocus.role, "dialog", "modal must expose dialog semantics");

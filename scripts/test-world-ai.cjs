@@ -1101,5 +1101,18 @@ sandbox.window.__lwTestBaseGetSeasonLines(projectionCacheSave, 2, 1, db);
 assert.equal(sandbox.window.__lwSeasonProjectionBuilds, postAdvanceBuilds,
   "the rebuilt projection must also be reused until the world changes");
 
+const staleAdvanceTransferCount = projectionCacheWorld.transfers.length;
+const staleAdvance = ai.advanceToSeason(projectionCacheSave, 1, db);
+assert.equal(staleAdvance.alreadyAdvanced, true,
+  "a stale request for an earlier season must be treated as already advanced");
+assert.equal(staleAdvance.season, 2,
+  "a stale season request must return the stable world season, not the requested old season");
+assert.equal(projectionCacheWorld.currentSeason, 2,
+  "replaying an earlier season must never move the world clock backwards");
+assert.equal(projectionCacheWorld.lastAdvancedTo, 2,
+  "a stale request must preserve the last applied transfer-window marker");
+assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
+  "a stale season request must not create or remove transfer records");
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

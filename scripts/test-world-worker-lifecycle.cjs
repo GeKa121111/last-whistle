@@ -108,8 +108,13 @@ async function main() {
   assert.equal(workerInstances.length, 1, "dashboard and season jobs must reuse a single Worker instance");
   const worker = workerInstances[0];
   const workerSource = fs.readFileSync(path.join(root, "public", "football-world-worker.js"), "utf8");
-  assert.ok(workerSource.includes('"./football-world-ai.js?v=30"'), "worker must load the cache-busted AI engine");
-  assert.equal(worker.url, "./football-world-worker.js?v=22");
+  const pageSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
+  const pageAiVersion = pageSource.match(/football-world-ai\.js\?v=(\d+)/);
+  const workerAiVersion = workerSource.match(/football-world-ai\.js\?v=(\d+)/);
+  assert.ok(pageAiVersion && workerAiVersion, "page and worker must declare their world-AI asset versions");
+  assert.equal(workerAiVersion[1], pageAiVersion[1], "main thread and worker must run the same world-AI engine version");
+  assert.equal(pageAiVersion[1], "34", "the current page must load the expected world-AI asset");
+  assert.equal(worker.url, "./football-world-worker.js?v=23");
   assert.equal(worker.terminateCalls, 0, "successful requests must not terminate the shared worker");
   assert.deepEqual(worker.messages.map(row => row.command), ["dashboard", "advanceToSeason", "completeSeason"]);
   assert.deepEqual(worker.messages.map(row => row.inputCount), [0, 1, 2],

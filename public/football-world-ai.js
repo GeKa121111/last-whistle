@@ -932,9 +932,12 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    if (world.lastAdvancedTo >= next) {
-      world.currentSeason = next;
-      return { season: next, moves: [], alreadyAdvanced: true };
+    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const currentSeason = Math.max(1, int(world.currentSeason, 1));
+    if (lastAdvancedTo >= next || currentSeason > next) {
+      const stableSeason = Math.max(currentSeason, lastAdvancedTo);
+      world.currentSeason = stableSeason;
+      return { season: stableSeason, moves: [], alreadyAdvanced: true };
     }
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
@@ -1928,7 +1931,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=22");
+    const worker = new global.Worker("./football-world-worker.js?v=23");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

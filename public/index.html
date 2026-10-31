@@ -6888,7 +6888,40 @@ const seasonTransitionGate=createSingleFlightGate();
 function startNewSeason(showStory=true){
  return seasonTransitionGate(()=>startNewSeasonInternal(showStory));
 }
+function cloneSeasonTransitionState(source){
+ const serialized=JSON.stringify(source);
+ if(typeof serialized!=="string")throw new Error("تعذر إنشاء نسخة آمنة من بيانات المسيرة.");
+ return JSON.parse(serialized);
+}
+function restoreSeasonTransitionState(snapshot){
+ Object.keys(state).forEach(key=>{if(!Object.prototype.hasOwnProperty.call(snapshot,key))delete state[key];});
+ Object.keys(snapshot).forEach(key=>{state[key]=snapshot[key];});
+}
 async function startNewSeasonInternal(showStory=true){
+ let snapshot;
+ try{snapshot=cloneSeasonTransitionState(state);}
+ catch(error){
+  const reason=String(error&&error.message||error||"unknown");
+  try{log("توقف بدء الموسم قبل أي تعديل لأن نسخة الحماية لم تكتمل: "+reason);}catch(logError){}
+  try{toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تغيير الموسم. حاول حفظ اللعبة ثم أعد المحاولة.");}catch(toastError){}
+  return false;
+ }
+ try{
+  return await startNewSeasonInternalUnsafe(showStory);
+ }catch(error){
+  restoreSeasonTransitionState(snapshot);
+  const reason=String(error&&error.message||error||"unknown");
+  try{log("تعذر تجهيز الموسم الجديد؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
+  try{render();}catch(renderError){console.warn("Season transition rollback render failed",renderError);}
+  try{saveGame(true);}catch(saveError){console.warn("Season transition rollback queue failed",saveError);}
+  try{
+   if(typeof flushQueuedSave==="function")await flushQueuedSave({backupFirst:true});
+  }catch(flushError){console.warn("Season transition rollback flush failed",flushError);}
+  try{toast("حصلت مشكلة أثناء تجهيز الموسم الجديد. تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية.");}catch(toastError){}
+  return false;
+ }
+}
+async function startNewSeasonInternalUnsafe(showStory=true){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!state.seasonFinished){toast("لا يمكن بدء موسم جديد قبل إكمال الموسم الحالي واعتماد تقرير نهايته.");return;}
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}

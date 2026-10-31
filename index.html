@@ -3693,6 +3693,7 @@ function seasonAwards(state, league, teamRank) {
 (function(){
 "use strict";
 const STORAGE_KEY = "lastWhistleCareer_v4";
+const FALLBACK_STORAGE_KEY = STORAGE_KEY + "_idb_fallback";
 const normalizeSavedBooleanFlag = value => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : false;
@@ -4070,10 +4071,11 @@ function persistGame(silent=false){
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
    window.LWStateStore.publish(state,{source:"save"});
    window.LWStateStore.save(state,{slotId:"career:default",label:String(state.name||"المسيرة الرئيسية")}).then(()=>{
+    try{localStorage.removeItem(FALLBACK_STORAGE_KEY);}catch(_){}
     if(!silent)toast("اتحفظت مسيرتك بنجاح في قاعدة بيانات الجهاز.");
    }).catch(err=>{
-    try{localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));}catch(_){}
-    console.warn("IndexedDB save failed; legacy fallback attempted",err);
+    try{localStorage.setItem(FALLBACK_STORAGE_KEY,encodeStoredSave(state));}catch(_){}
+    console.warn("IndexedDB save failed; fallback snapshot preserved",err);
     if(!silent)toast("تعذر الحفظ في قاعدة البيانات؛ تم استخدام الحفظ الاحتياطي إن أمكن.");
    });
    return true;
@@ -4093,11 +4095,12 @@ async function flushQueuedSave(){
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
   try{
    await window.LWStateStore.flush(state);
+   try{localStorage.removeItem(FALLBACK_STORAGE_KEY);}catch(_){}
    return true;
   }catch(err){
    try{
-    localStorage.setItem(STORAGE_KEY,encodeStoredSave(state));
-    console.warn("Final IndexedDB flush failed; legacy fallback saved",err);
+    localStorage.setItem(FALLBACK_STORAGE_KEY,encodeStoredSave(state));
+    console.warn("Final IndexedDB flush failed; fallback snapshot preserved",err);
     return true;
    }catch(fallbackError){
     saveQueued=true;
@@ -4268,6 +4271,17 @@ function loadGame(){
  try{
   let indexedSave=window.LWStateStore&&typeof window.LWStateStore.getStartupSave==="function"?window.LWStateStore.getStartupSave():null;
   let storageKey=STORAGE_KEY,raw=localStorage.getItem(STORAGE_KEY);
+  const fallbackRaw=localStorage.getItem(FALLBACK_STORAGE_KEY);
+  if(fallbackRaw){
+   try{
+    const fallbackSave=JSON.parse(decodeStoredSave(fallbackRaw));
+    if(fallbackSave&&typeof fallbackSave==="object"){
+     indexedSave=null;storageKey=FALLBACK_STORAGE_KEY;raw=fallbackRaw;
+    }
+   }catch(fallbackError){
+    console.warn("IndexedDB fallback save is unreadable; trying the last valid save",fallbackError);
+   }
+  }
   if(indexedSave)raw=null;
   else if(!raw){for(const legacyKey of LEGACY_STORAGE_KEYS){const candidate=localStorage.getItem(legacyKey);if(candidate){storageKey=legacyKey;raw=candidate;break;}}}
   if(!raw&&!indexedSave)return false;

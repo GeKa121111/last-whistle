@@ -48,8 +48,8 @@ if (!redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page{display:none!
   console.error("Global directory must remain isolated and full-width on mobile.");
   process.exit(1);
 }
-if (!html.includes('href="./redesign.css?v=11"') || !serviceWorker.includes("./redesign.css?v=11")) {
-  console.error("The active responsive stylesheet must be version 8 in the HTML and offline app shell.");
+if (!html.includes('href="./redesign.css?v=12"') || !serviceWorker.includes("./redesign.css?v=12")) {
+  console.error("The active responsive stylesheet must use the same current version in the HTML and offline app shell.");
   process.exit(1);
 }
 if (!redesign.includes("@media(max-width:1200px) and (min-width:1001px)")

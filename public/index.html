@@ -2576,47 +2576,64 @@ function seasonAwards(state, league, teamRank) {
     for (const char of String(text)) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
     return value >>> 0;
   }
+  function rollExtraTimePlayerExit(random, eligible, injuryChance, redCardChance) {
+    if (!eligible) return null;
+    if (typeof random !== "function") throw new TypeError("invalid-extra-time-random");
+    const roll = () => {
+      const value = Number(random());
+      return Number.isFinite(value) ? Math.max(0, Math.min(0.999999999, value)) : 0;
+    };
+    const redCardRolled = roll() < clamp(redCardChance, 0, 1);
+    const injuryRolled = roll() < clamp(injuryChance, 0, 1);
+    if (!redCardRolled && !injuryRolled) return null;
+    const redMinute = redCardRolled ? 91 + Math.floor(roll() * 29) : 121;
+    const injuryMinute = injuryRolled ? 91 + Math.floor(roll() * 29) : 121;
+    if (redCardRolled && (!injuryRolled || redMinute <= injuryMinute)) {
+      return { type: "red-card", minute: redMinute };
+    }
+    return { type: "injury", minute: injuryMinute };
+  }
   const POSITION_ALIASES = {
-  "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى",
-  "goalie": "حارس مرمى",
-  "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
-  "centre back": "قلب دفاع", "central defender": "قلب دفاع",
-  "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
-  "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
-  "fullback": "ظهير", "wing back": "ظهير", "wingback": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
-  "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
-  "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
-  "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
-  "attacking mid": "وسط مهاجم",
-  "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "central midfield": "وسط", "midfielder": "وسط",
-  "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
-  "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
-  "winger": "جناح", "wide midfielder": "جناح", "left midfielder": "جناح", "right midfielder": "جناح",
-  "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
-  "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
-  "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
-};
-function normalizePosition(position) {
-  const raw = String(position || "").trim();
-  const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-  const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
+    "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
+    "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+    "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير",
+    "fb": "ظهير", "left back": "ظهير", "right back": "ظهير", "full back": "ظهير",
+    "fullback": "ظهير", "wing back": "ظهير", "wingback": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+    "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
+    "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم",
+    "attacking mid": "وسط مهاجم",
+    "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "central midfield": "وسط", "midfielder": "وسط",
+    "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+    "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح",
+    "winger": "جناح", "wide midfielder": "جناح", "left midfielder": "جناح", "right midfielder": "جناح",
+    "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+    "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  };
+  function normalizePosition(position) {
+    const raw = String(position || "").trim();
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+    const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
       && window.LWStateStore.normalizePosition;
     return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
-}
-function positionProfile(position) {
-  position = normalizePosition(position);
-  return ({
-    "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
-    "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
-    "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
-    "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
-    "وسط": { shooter: 0.10, creator: 0.28, defender: 0.18 },
-    "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
-    "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
-    "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
-    "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
-  })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
-}
+  }
+
+  function positionProfile(position) {
+    position = normalizePosition(position);
+    return ({
+      "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
+      "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
+      "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
+      "وسط دفاعي": { shooter: 0.08, creator: 0.21, defender: 0.30 },
+      "وسط": { shooter: 0.10, creator: 0.28, defender: 0.18 },
+      "وسط مهاجم": { shooter: 0.09, creator: 0.36, defender: 0.14 },
+      "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
+      "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
+      "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
+    })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
+  }
   function squadRoleType(value) {
     const role = String(value || "بديل").trim().toLocaleLowerCase();
     // Keep the historical "بديل أساسي" label as a short-starting rotation role.
@@ -2744,6 +2761,7 @@ function positionProfile(position) {
     // Keep defensive-action sampling independent so it cannot perturb score/goal RNG.
     const defensiveRandom = seededRandom(hash("defensive-actions:" + String(simulationSeed)));
     const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
+    const extraTimeEventRandom = seededRandom(hash("extra-time-player-events:" + String(simulationSeed)));
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -2787,8 +2805,8 @@ function positionProfile(position) {
       if (redMinuteRolled <= injuryMinuteRolled) injured = false;
       else redCard = false;
     }
-    const redMinute = redCard ? redMinuteRolled : 121;
-    const injuryMinute = injured ? injuryMinuteRolled : 121;
+    let redMinute = redCard ? redMinuteRolled : 121;
+    let injuryMinute = injured ? injuryMinuteRolled : 121;
     let minutes = Math.max(0, Math.round(Math.min(plannedEndMinute, redMinute, injuryMinute) - playerStartMinute));
     let playerEndMinute = playerStartMinute + minutes;
     const events = [];
@@ -2979,6 +2997,32 @@ function positionProfile(position) {
         playerEndMinute = 120;
         minutes = playerEndMinute - playerStartMinute;
         stats.minutes = minutes;
+        const extraTimeExit = rollExtraTimePlayerExit(
+          extraTimeEventRandom,
+          true,
+          injuryChance * (30 / 90),
+          0.0035 * (30 / 90)
+        );
+        if (extraTimeExit) {
+          playerEndMinute = extraTimeExit.minute;
+          minutes = Math.max(0, playerEndMinute - playerStartMinute);
+          stats.minutes = minutes;
+          if (extraTimeExit.type === "red-card") {
+            redCard = true;
+            redMinute = extraTimeExit.minute;
+            stats.redCards = 1;
+            events.push({ type: "red-card", minute: redMinute, side: "player",
+              actor: String(player.name || "اللاعب"), reason: "طرد مباشر في الوقت الإضافي" });
+          } else {
+            injured = true;
+            injuryMinute = extraTimeExit.minute;
+            stats.injuryDays = extraTimeEventRandom() < 0.50 ? 2
+              : extraTimeEventRandom() < 0.60 ? 5
+                : extraTimeEventRandom() < 0.75 ? 10 : 21;
+            events.push({ type: "injury", minute: injuryMinute, side: "player",
+              actor: String(player.name || "اللاعب"), days: stats.injuryDays });
+          }
+        }
       }
       const firstExtra = createPeriod(90, 15, true);
       const secondExtra = createPeriod(105, 15, true);
@@ -3626,7 +3670,7 @@ function positionProfile(position) {
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, rollExtraTimePlayerExit, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();</script>
 <script>
 (function(){

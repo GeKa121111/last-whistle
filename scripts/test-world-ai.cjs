@@ -50,6 +50,7 @@ const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves)
 const fillRosterMarker = "  function fillRoster(world, club) {";
 const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
+const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
@@ -59,6 +60,7 @@ assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free
 assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the roster filler for roster-integrity regression coverage");
 assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain projected season lines for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
+assert.ok(aiSourceRaw.includes(matchSeasonMarker), "AI engine must retain the match-based season simulator for division-status regression coverage");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
@@ -76,6 +78,7 @@ const aiSource = aiSourceRaw
   .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker)
   .replace(baseSeasonLinesMarker, "  global.__lwTestBaseGetSeasonLines = getSeasonLines;\n" + baseSeasonLinesMarker)
   .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
+  .replace(matchSeasonMarker, "  global.__lwTestSimulateLeagueSeason = simulateLeagueSeason;\n" + matchSeasonMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
   .replace(projectionCacheMarker, projectionCacheMarker)
   .replace("    if (!cached.rows.has(targetSeason)) {", "    if (!cached.rows.has(targetSeason)) {\n      global.__lwSeasonProjectionBuilds = (global.__lwSeasonProjectionBuilds || 0) + 1;");
@@ -1436,6 +1439,44 @@ const firstTierOnlyResult = ai.completeSeason({ season: 1, worldSimulation: firs
 const firstTierOnlyTable = firstTierOnlyResult.tables[secondTierLeagueId] || [];
 assert.ok(firstTierOnlyTable.slice(-2).every(row => row.status === "مركز الدوري"),
   "first-tier clubs must not be labelled for relegation when no playable second division exists");
+
+// Promotion places must not be advertised when the first tier lacks the six clubs
+// required by the same rule that commits promotion/relegation at season transition.
+const shortFirstTierEntries = Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 1).slice(0, 5);
+const shortSecondTierEntries = Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 2).slice(0, 3);
+assert.equal(shortFirstTierEntries.length, 5, "the incomplete-promotion fixture must contain five real first-tier clubs");
+assert.equal(shortSecondTierEntries.length, 3, "the incomplete-promotion fixture must contain three real second-tier clubs");
+const incompletePromotionClubs = Object.fromEntries(shortFirstTierEntries.concat(shortSecondTierEntries));
+const incompletePromotionWorld = {
+  ...baseFallbackWorld, clubs: incompletePromotionClubs, players: {},
+  completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  competitionsBySeason: {}, currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0
+};
+const incompletePromotionResult = ai.completeSeason({ season: 1, worldSimulation: incompletePromotionWorld }, 1, db);
+const incompletePromotionFirst = incompletePromotionResult.tables[secondTierLeagueId] || [];
+const incompletePromotionSecond = incompletePromotionResult.tables[secondTierLeagueId + ":2"] || [];
+assert.ok(incompletePromotionFirst.every(row => row.status !== "منطقة الهبوط — محاكاة"),
+  "a first tier with only five eligible clubs must not advertise relegation places");
+assert.equal(incompletePromotionSecond[0].status, "بطل الدرجة الثانية",
+  "a second-tier champion must not be labelled as automatically promoted when the first tier is too small");
+assert.ok(incompletePromotionSecond.every(row => row.status !== "منافس على الصعود — محاكاة"),
+  "an incomplete first tier must not advertise any second-tier promotion contenders");
+assert.equal(typeof sandbox.window.__lwTestSimulateLeagueSeason, "function",
+  "the match-based season simulator must be available for identical division-status regression coverage");
+const matchPromotionWorld = JSON.parse(JSON.stringify(incompletePromotionWorld));
+matchPromotionWorld.completedSeasons = [];
+matchPromotionWorld.matchesBySeason = {};
+matchPromotionWorld.leagueTables = {};
+matchPromotionWorld.seasonStats = {};
+matchPromotionWorld.competitionsBySeason = {};
+const incompleteMatchPromotion = sandbox.window.__lwTestSimulateLeagueSeason(
+  { season: 1, worldSimulation: matchPromotionWorld }, 1, db
+);
+const incompleteMatchSecond = incompleteMatchPromotion.tables[secondTierLeagueId + ":2"] || [];
+assert.equal(incompleteMatchSecond[0].status, "بطل الدرجة الثانية",
+  "the match-based simulator must not advertise automatic promotion without six first-tier clubs");
+assert.ok(incompleteMatchSecond.every(row => row.status !== "منافس على الصعود — محاكاة"),
+  "the match-based simulator must apply the same unavailable-promotion status");
 
 
 const oldTransferCount = world.transfers.length;

@@ -733,6 +733,12 @@
         seasonStats: { ...seasonStats }, displayStats: { appearances: apps, goals, assists, averageRating: apps > 0 ? Number(row.averageRating) || 0 : 0 } };
     });
   }
+  function promotionPlaces(firstTierCount, secondTierCount) {
+    const firstCount = Math.max(0, int(firstTierCount, 0));
+    const secondCount = Math.max(0, int(secondTierCount, 0));
+    if (firstCount < 6 || secondCount < 3) return 0;
+    return Math.min(2, Math.max(1, Math.floor(secondCount * 0.15)), Math.max(1, Math.floor(firstCount * 0.1)));
+  }
   function simulateLeagueTables(world, season, progress = 1, db, suppliedMatchesByClub) {
     const byLeague = new Map();
     for (const club of Object.values(world.clubs)) {
@@ -748,6 +754,10 @@
       const leagueId = group.leagueId;
       const division = group.division;
       const sourceClubs = group.clubs;
+      const promotionSlots = division === 2
+        ? promotionPlaces((byLeague.get(leagueId) || {}).clubs?.length || 0, sourceClubs.length) : 0;
+      const relegationSlots = division === 1
+        ? promotionPlaces(sourceClubs.length, (byLeague.get(leagueId + ":2") || {}).clubs?.length || 0) : 0;
       const clubs = sourceClubs.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
       const clubCount = clubs.length;
       const matchesByClub = suppliedMatchesByClub instanceof Map
@@ -847,7 +857,10 @@
       });
       const ranked = rows.sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || b.power - a.power);
       tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
-        status: index === 0 ? "بطل المحاكاة" : division === 1 && byLeague.has(leagueId + ":2") && byLeague.get(leagueId + ":2").clubs.length >= 3 && index >= ranked.length - 2 ? "منطقة الهبوط — محاكاة" : division === 2 && index < 2 ? "منافس على الصعود — محاكاة" : division === 2 ? "مركز الدرجة الثانية" : "مركز الدوري" }));
+        status: division === 1
+          ? index === 0 ? "بطل المحاكاة" : relegationSlots > 0 && index >= ranked.length - relegationSlots ? "منطقة الهبوط — محاكاة" : "مركز الدوري"
+          : index === 0 ? promotionSlots > 0 ? "بطل الدرجة الثانية — صاعد" : "بطل الدرجة الثانية"
+            : index < promotionSlots ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية" }));
     }
     return tables;
   }
@@ -1708,6 +1721,10 @@
       const clubs = clubsRaw.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
       const split = groupKey.lastIndexOf(":");
       const leagueId = groupKey.slice(0, split), division = Number(groupKey.slice(split + 1)) || 1;
+      const firstTierCount = (groups.get(leagueId + ":1") || []).length;
+      const secondTierCount = (groups.get(leagueId + ":2") || []).length;
+      const promotionSlots = division === 2 ? promotionPlaces(firstTierCount, clubs.length) : 0;
+      const relegationSlots = division === 1 ? promotionPlaces(clubs.length, secondTierCount) : 0;
       const leagueTables = new Map(), recent = new Map();
       clubs.forEach(club => { leagueTables.set(club.id, tableRow(club, year, leagueId, division)); recent.set(club.id, ""); });
       const groupMatchStartIndex = allMatches.length;
@@ -1848,8 +1865,10 @@
       }).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || b.power - a.power || a.club.localeCompare(b.club, "ar"));
       const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
       tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
-        status: division > 1 ? (index < 2 ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية")
-          : index === 0 ? "بطل المحاكاة" : groups.has(leagueId + ":2") && groups.get(leagueId + ":2").length >= 3 && index >= Math.max(1, ranked.length - 2) ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
+        status: division === 1
+          ? index === 0 ? "بطل المحاكاة" : relegationSlots > 0 && index >= ranked.length - relegationSlots ? "منطقة الهبوط — محاكاة" : "مركز الدوري"
+          : index === 0 ? promotionSlots > 0 ? "بطل الدرجة الثانية — صاعد" : "بطل الدرجة الثانية"
+            : index < promotionSlots ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية" }));
     }
     const rows = buildPlayerRows(world, year, accumulators);
     // Persist compact match scores and only the most recent complete season of fixtures.
@@ -2004,8 +2023,8 @@
       // that still belong to this league and tier may take part in the current promotion.
       const first = eligibleTableRows(tables[leagueId], leagueId, 1);
       const second = eligibleTableRows(tables[leagueId + ":2"], leagueId, 2);
-      if (first.length < 6 || second.length < 3) continue;
-      const count = Math.min(2, Math.max(1, Math.floor(second.length * 0.15)), Math.max(1, Math.floor(first.length * 0.1)));
+      const count = promotionPlaces(first.length, second.length);
+      if (!count) continue;
       const promoted = second.slice(0, count), relegated = first.slice(-count);
       for (let i = 0; i < count; i++) {
         const up = promoted[i], down = relegated[i];
@@ -2513,7 +2532,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=49");
+    const worker = new global.Worker("./football-world-worker.js?v=50");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

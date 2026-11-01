@@ -827,7 +827,7 @@
       if (moves.length >= maxMoves) break;
       if (alreadyUsedClubs.has(buyer.id)) continue;
       // Avoid squad hoarding: each AI club has a soft roster ceiling before buying.
-      if (activeRosterIdsForClub(world, buyer).length >= 18) continue;
+      if (activeRosterIds(world, buyer).length >= 18) continue;
       const roles = roleAverages(world, buyer);
       const needs = Object.keys(TARGETS).map(group => ({ group, score: needScore(buyer, group, roles) }))
         .sort((a, b) => b.score - a.score);
@@ -869,8 +869,8 @@
       const origin = seller.name;
       // Rebuild both memberships from active ownership before moving the player.
       // This discards stale, duplicate, retired, free-agent, and cross-club IDs.
-      seller.roster = activeRosterIdsForClub(world, seller).filter(id => id !== String(player.id));
-      buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
+      seller.roster = activeRosterIds(world, seller).filter(id => id !== String(player.id));
+      buyer.roster = activeRosterIds(world, buyer).filter(id => id !== String(player.id));
       buyer.roster.push(String(player.id));
       // The recorded fee is a direct buyer-to-seller transaction; never discard part of it.
       seller.budget = Math.max(0, Number(seller.budget) || 0) + fee;

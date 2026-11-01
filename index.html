@@ -19,7 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LAST WHISTLE | مسيرة لاعب</title>
 <script src="./lz-string.min.js?v=1"></script>
-<script src="./career-state-store.js?v=3"></script>
+<script src="./career-state-store.js?v=4"></script>
 <link rel="stylesheet" href="./story-ui.css?v=1">
 <link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=1">
@@ -4423,7 +4423,7 @@ async function importSaveFile(file){
  const previous=localStorage.getItem(STORAGE_KEY);
  try{
   localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(restored));
-  if(!loadGame())throw new Error("restore failed");
+  if(!loadGame({requireLocalFallback:true}))throw new Error("restore failed");
   if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:"import"});
   saveGame(true);render();showPage(state.currentPage||"home");closeDrawer();toast("تمت استعادة المسيرة وعالم الكرة بنجاح.");
  }catch(err){
@@ -4491,11 +4491,13 @@ function normalizeSavedCupHistoryFlags(history) {
     return normalizedRow;
   });
 }
-function loadGame(){
+function loadGame(options = {}){
+ const requireLocalFallback = options && options.requireLocalFallback === true;
  try{
-  let indexedSave=window.LWStateStore&&typeof window.LWStateStore.getStartupSave==="function"?window.LWStateStore.getStartupSave():null;
+  let indexedSave=requireLocalFallback?null:(window.LWStateStore&&typeof window.LWStateStore.getStartupSave==="function"?window.LWStateStore.getStartupSave():null);
   let storageKey=STORAGE_KEY,raw=localStorage.getItem(STORAGE_KEY);
   const fallbackRaw=raw;
+  if(requireLocalFallback&&!(typeof fallbackRaw==="string"&&fallbackRaw.startsWith(FALLBACK_STORAGE_PREFIX)))throw new Error("required import fallback missing");
   if(typeof fallbackRaw==="string"&&fallbackRaw.startsWith(FALLBACK_STORAGE_PREFIX)){
    const fallbackPayload=fallbackRaw.slice(FALLBACK_STORAGE_PREFIX.length);
    try{
@@ -4504,9 +4506,11 @@ function loadGame(){
      indexedSave=null;storageKey=FALLBACK_STORAGE_PREFIX;raw=fallbackPayload;
     }else{
      raw=null;
+     if(requireLocalFallback)throw new Error("required import fallback is invalid");
     }
    }catch(fallbackError){
     raw=null;
+    if(requireLocalFallback)throw fallbackError;
     console.warn("IndexedDB fallback save is unreadable; trying the last valid save",fallbackError);
    }
   }
@@ -4557,7 +4561,7 @@ function loadGame(){
   state.clubIndex=clamp(state.clubIndex,0,CLUBS.length-1);
   if(!state.leagueSegmentId)state.leagueSegmentId=`${state.season}|${state.leagueCountry}|${state.leagueCompetition}|${state.clubName}|${++state.leagueArchiveSequence}`;
   if(!Number(state.seasonAppsTarget))state.seasonAppsTarget=seasonMatchTotal();
-  if(storageKey!==STORAGE_KEY)saveGame(true);
+  if(storageKey!==STORAGE_KEY&&!requireLocalFallback)saveGame(true);
   return true;
  }catch(err){try{const raw=localStorage.getItem(STORAGE_KEY)||LEGACY_STORAGE_KEYS.map(key=>localStorage.getItem(key)).find(Boolean);if(raw)localStorage.setItem("lastWhistleRecovery_v1",raw);}catch(recoveryErr){}state={...structuredCloneSafe(INITIAL),league:createLeague()};toast("تعذر قراءة الحفظ؛ احتُفظ بنسخة خام للاسترداد ولم يُحذف الملف الأصلي.");return false;}
 }

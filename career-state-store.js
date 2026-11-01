@@ -97,9 +97,12 @@
   const ready = !global.document
     ? Promise.resolve({ available: false, hasSave: false, worker: true, slotId: DEFAULT_SLOT })
     : (async function () {
+      const startupRevision = revision;
       try {
         const record = await readRecord(DEFAULT_SLOT);
-        if (record && record.state && typeof record.state === "object") {
+        // An import or new career can publish while IndexedDB is still opening.
+        // Never let that older startup snapshot replace a newer live state.
+        if (record && record.state && typeof record.state === "object" && revision === startupRevision) {
           startupSave = record.state;
           currentState = record.state;
         }

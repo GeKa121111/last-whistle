@@ -33,6 +33,10 @@ function extractFunction(source, signature) {
 }
 
 const importSource = extractFunction(html, "async function importSaveFile(file)");
+assert.match(html, /function loadGame\(options = \{\}\)\s*\{\s*const requireLocalFallback = options && options\.requireLocalFallback === true;/,
+  "loadGame must support strict import-only fallback loading");
+assert.match(importSource, /loadGame\(\{requireLocalFallback:true\}\)/,
+  "imports must require the exact fallback written for the incoming backup");
 const STORAGE_KEY = "lastWhistleCareer_v4";
 const listKeys = [
   "achievements","diary","seasonLog","careerMatchHistory","seasonHistory","leagueArchives",
@@ -46,11 +50,11 @@ const INITIAL = {
   ...Object.fromEntries(listKeys.map(key => [key, []]))
 };
 
-function createHarness({ previousRaw = null, failLoad = false, startupSave = { ...INITIAL, name: "IndexedDB Prior Career", money: 333 } } = {}) {
+function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFallback = false, startupSave = { ...INITIAL, name: "IndexedDB Prior Career", money: 333 } } = {}) {
   const originalState = { ...INITIAL, name: "Current In-Memory Career", money: 777 };
   const storage = new Map(previousRaw === null ? [] : [[STORAGE_KEY, previousRaw]]);
   const published = [];
-  const calls = { saves: 0, saveGame: 0, renders: 0, toasts: [] };
+  const calls = { saves: 0, saveGame: 0, loadGame: [], renders: 0, toasts: [] };
   const shared = {
     current: originalState,
     publish(value, meta) { this.current = value; published.push({ value, source: meta && meta.source }); },
@@ -66,7 +70,7 @@ function createHarness({ previousRaw = null, failLoad = false, startupSave = { .
     legacyPhysicalFallback() { return 55; },
     normalizeSavedBooleanFlag(value) { return value === true || value === 1 || ["true","1","yes","on"].includes(String(value).toLowerCase()); },
     validateBackupValue(value) { return value; },
-    encodeStoredSave(value) { return JSON.stringify(value); },
+    encodeStoredSave(value) { return corruptEncodedFallback ? "not-json" : JSON.stringify(value); },
     decodeStoredSave(value) { return value; },
     FALLBACK_STORAGE_PREFIX: "LWIDB1:",
     localStorage: {
@@ -83,10 +87,13 @@ function createHarness({ previousRaw = null, failLoad = false, startupSave = { .
         deriveLeagueRatingStats() {}
       }
     },
-    loadGame() {
+    loadGame(options = {}) {
+      calls.loadGame.push(options);
       if (failLoad) { sandbox.state = { ...INITIAL, name: "Partially Imported" }; return false; }
-      let indexedSave = sandbox.window.LWStateStore.getStartupSave();
+      const requireLocalFallback = options && options.requireLocalFallback === true;
+      let indexedSave = requireLocalFallback ? null : sandbox.window.LWStateStore.getStartupSave();
       let raw = storage.has(STORAGE_KEY) ? storage.get(STORAGE_KEY) : null;
+      if (requireLocalFallback && !(typeof raw === "string" && raw.startsWith("LWIDB1:"))) return false;
       if (typeof raw === "string" && raw.startsWith("LWIDB1:")) {
         const fallbackPayload = raw.slice("LWIDB1:".length);
         try {
@@ -94,9 +101,16 @@ function createHarness({ previousRaw = null, failLoad = false, startupSave = { .
           if (fallbackSave && typeof fallbackSave === "object" && !Array.isArray(fallbackSave)) {
             indexedSave = null;
             raw = fallbackPayload;
-          } else raw = null;
-        } catch (_) { raw = null; }
+          } else {
+            raw = null;
+            if (requireLocalFallback) return false;
+          }
+        } catch (_) {
+          raw = null;
+          if (requireLocalFallback) return false;
+        }
       }
+      if (requireLocalFallback && !raw) return false;
       if (indexedSave) raw = null;
       if (!raw && !indexedSave) return false;
       const saved = indexedSave ? JSON.parse(JSON.stringify(indexedSave)) : JSON.parse(raw);
@@ -129,6 +143,8 @@ function createHarness({ previousRaw = null, failLoad = false, startupSave = { .
   await success.sandbox.runImport(file);
   assert.equal(success.sandbox.state.name, "Imported Career",
     "a valid import must take precedence over an older IndexedDB startup save");
+  assert.equal(success.calls.loadGame[0].requireLocalFallback, true,
+    "import must explicitly require the temporary fallback instead of accepting a stale startup record");
   assert.ok(String(success.storage.get(STORAGE_KEY)).startsWith("LWIDB1:"),
     "the imported fallback must carry the priority marker consumed by loadGame");
   assert.equal(success.shared.current, success.sandbox.state,
@@ -163,7 +179,25 @@ function createHarness({ previousRaw = null, failLoad = false, startupSave = { .
   assert.equal(failedExistingStorage.calls.saves, 0);
   assert.equal(failedExistingStorage.calls.saveGame, 0);
 
-  console.log("PASS: save import commits only after loading succeeds and restores the prior live state, store binding, and fallback on failure.");
+  const corruptPreviousRaw = JSON.stringify({ ...INITIAL, name: "Persisted Prior Career", money: 900 });
+  const failedCorruptFallback = createHarness({
+    previousRaw: corruptPreviousRaw,
+    corruptEncodedFallback: true,
+    startupSave: { ...INITIAL, name: "Stale IndexedDB Career", money: 333 }
+  });
+  await failedCorruptFallback.sandbox.runImport(file);
+  assert.equal(failedCorruptFallback.sandbox.state, failedCorruptFallback.originalState,
+    "a corrupt import fallback must not silently load the older IndexedDB career");
+  assert.equal(failedCorruptFallback.shared.current, failedCorruptFallback.originalState,
+    "a rejected fallback must republish the exact previous in-memory career");
+  assert.equal(failedCorruptFallback.storage.get(STORAGE_KEY), corruptPreviousRaw,
+    "a rejected fallback must restore the exact prior local backup bytes");
+  assert.equal(failedCorruptFallback.calls.saveGame, 0,
+    "a corrupt fallback must never enter the persistence queue");
+  assert.ok(failedCorruptFallback.calls.toasts.some(message => message.includes("تعذرت الاستعادة")),
+    "a corrupt fallback must report a failed import instead of a false success");
+
+  console.log("PASS: save import requires its own validated fallback and restores the previous career when fallback decoding fails.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

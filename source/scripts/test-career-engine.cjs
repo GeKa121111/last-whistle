@@ -1582,6 +1582,11 @@ const archiveSeasonRecordEnd = rootHtml.indexOf(String.fromCharCode(10) + "funct
 assert.ok(archiveSeasonRecordStart >= 0 && archiveSeasonRecordEnd > archiveSeasonRecordStart,
   "the deployed season-history archive function must remain extractable");
 const archiveSeasonRecordSource = rootHtml.slice(archiveSeasonRecordStart, archiveSeasonRecordEnd);
+const allCareerMatchRowsStart = rootHtml.indexOf("function allCareerMatchRowsForHistory()");
+const allCareerMatchRowsEnd = rootHtml.indexOf(String.fromCharCode(10) + "function ", allCareerMatchRowsStart + 30);
+assert.ok(allCareerMatchRowsStart >= 0 && allCareerMatchRowsEnd > allCareerMatchRowsStart,
+  "the deployed career-history union helper must remain extractable");
+const allCareerMatchRowsSource = rootHtml.slice(allCareerMatchRowsStart, allCareerMatchRowsEnd);
 const seasonArchiveState = {
   season: 4, age: 23, seasonApps: 12, leagueApps: 10, seasonGoals: 4, seasonAssists: 3,
   seasonW: 7, seasonD: 2, seasonL: 1, seasonPoints: 23, seasonSummary: "test",
@@ -1605,7 +1610,8 @@ const archiveSeasonSandbox = {
   archiveLeagueSegment: () => {}, club: () => ({ name: "Host FC" }),
   structuredCloneSafe: value => JSON.parse(JSON.stringify(value))
 };
-vm.runInNewContext(archiveSeasonRecordSource + String.fromCharCode(10) +
+vm.runInNewContext(allCareerMatchRowsSource + String.fromCharCode(10) +
+  archiveSeasonRecordSource + String.fromCharCode(10) +
   "this.archiveSeasonRecord = archiveSeasonRecord;", archiveSeasonSandbox);
 archiveSeasonSandbox.archiveSeasonRecord();
 assert.equal(seasonArchiveState.seasonHistory[0].matchCount, 3,

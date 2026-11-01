@@ -89,96 +89,6 @@ assert.equal(typeof ai.rosterPlayers, "function",
 assert.equal(typeof ai.withTransferMarketTransaction, "function",
   "the transfer transaction helper must be exported across the world-simulation IIFE boundary");
 
-function makeLeagueMatchCountFixture(spec) {
-  const players = {}, clubs = {};
-  const roles = [
-    ["goalkeeper", "حارس مرمى"], ["defender", "قلب دفاع"], ["defender", "ظهير"],
-    ["defender", "قلب دفاع"], ["defender", "ظهير"], ["midfielder", "وسط دفاعي"],
-    ["midfielder", "وسط"], ["midfielder", "وسط مهاجم"], ["midfielder", "وسط"],
-    ["attacker", "جناح"], ["attacker", "مهاجم"]
-  ];
-  for (let clubIndex = 0; clubIndex < spec.clubCount; clubIndex++) {
-    const clubId = spec.leagueId + "-schedule-" + String(clubIndex + 1).padStart(2, "0");
-    const roster = [];
-    roles.forEach(([group, position], playerIndex) => {
-      const playerId = clubId + "-player-" + (playerIndex + 1);
-      roster.push(playerId);
-      players[playerId] = {
-        id: playerId, name: "Schedule Test Player " + playerId, clubId,
-        country: spec.country, leagueId: spec.leagueId, division: spec.division,
-        position, group, ovr: 60 + (playerIndex % 5), potential: 70,
-        age: 24, contractSeasons: 2, freeAgent: false, retired: false
-      };
-    });
-    clubs[clubId] = {
-      id: clubId, name: "Schedule Test Club " + (clubIndex + 1),
-      country: spec.country, leagueId: spec.leagueId, division: spec.division,
-      matchesPerSeason: spec.matchesPerSeason, power: 60 + clubIndex % 7,
-      basePower: 60, prestige: 55, roster, updatedSeason: 1
-    };
-  }
-  const world = {
-    schemaVersion: 1, dbVersion: Number(db.version) || 4,
-    rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 3,
-    currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0,
-    completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
-    competitionsBySeason: {}, transfers: [], marketReports: [], playerHistory: {},
-    nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
-    notes: [], archive: {}, clubs, players
-  };
-  const fixtureDb = {
-    version: world.dbVersion,
-    leagues: () => [{ id: spec.leagueId, country: spec.country }],
-    leagueFor: () => ({
-      name: "Schedule Test League", englishName: "Schedule Test League",
-      teamCount: spec.expectedTeamCount, matchesPerSeason: spec.matchesPerSeason
-    })
-  };
-  return { save: { season: 1, worldSimulation: world }, world, fixtureDb };
-}
-
-function assertLeagueMatchCountCase(spec) {
-  const fixture = makeLeagueMatchCountFixture(spec);
-  const result = ai.completeSeason(fixture.save, 1, fixture.fixtureDb);
-  const tableKey = spec.division === 1 ? spec.leagueId : spec.leagueId + ":" + spec.division;
-  const rows = result.tables[tableKey] || [];
-  const expectedMatches = spec.clubCount === spec.expectedTeamCount
-    ? spec.matchesPerSeason : 2 * (spec.clubCount - 1);
-  assert.equal(rows.length, spec.clubCount, spec.label + " must retain all available clubs");
-  assert.ok(rows.every(row => row.played === expectedMatches),
-    spec.label + " must use the configured season length only when the full league field exists");
-  assert.equal(rows.reduce((sum, row) => sum + row.played, 0), spec.clubCount * expectedMatches,
-    spec.label + " must balance every club's match count");
-  assert.equal(rows.reduce((sum, row) => sum + row.w, 0), rows.reduce((sum, row) => sum + row.l, 0),
-    spec.label + " must balance wins and losses");
-  assert.equal(rows.reduce((sum, row) => sum + row.gf, 0), rows.reduce((sum, row) => sum + row.ga, 0),
-    spec.label + " must balance goals for and against");
-  assert.ok(rows.every(row => row.played === row.w + row.d + row.l),
-    spec.label + " must reconcile played matches with results");
-  assert.equal(result.rows.length, spec.clubCount * 11,
-    spec.label + " must preserve every supplied player record");
-  assert.ok(result.rows.every(row => row.appearances <= expectedMatches),
-    spec.label + " player appearances must not exceed the simulated league season");
-}
-
-assertLeagueMatchCountCase({
-  label: "Scottish Championship", leagueId: "scotland", country: "اسكتلندا",
-  division: 2, clubCount: 10, expectedTeamCount: 10, matchesPerSeason: 36
-});
-assertLeagueMatchCountCase({
-  label: "Argentine Primera División", leagueId: "argentina", country: "الأرجنتين",
-  division: 1, clubCount: 30, expectedTeamCount: 30, matchesPerSeason: 30
-});
-assertLeagueMatchCountCase({
-  label: "Argentine Primera Nacional", leagueId: "argentina", country: "الأرجنتين",
-  division: 2, clubCount: 36, expectedTeamCount: 36, matchesPerSeason: 34
-});
-assertLeagueMatchCountCase({
-  label: "Incomplete league catalogue", leagueId: "incomplete-test", country: "Testland",
-  division: 1, clubCount: 10, expectedTeamCount: 20, matchesPerSeason: 38
-});
-
-
 // Legacy saves can retain a retired player ID in a club roster after an interrupted migration.
 // The matchday lineup must never select that player, even if their old OVR is the highest.
 const retiredLineupWorld = { players: {
@@ -1959,6 +1869,95 @@ assert.equal(ai.getLeagueTable(missingSnapshotSave, "retention-league", 1, reten
   "a completed historical league with no snapshot must not be regenerated from current club divisions");
 assert.equal(ai.getDivisionTable(missingSnapshotSave, "retention-league", 2, 1, retentionDb).length, 0,
   "league and division history getters must agree when a completed snapshot is unavailable");
+
+function makeLeagueMatchCountFixture(spec) {
+  const players = {}, clubs = {};
+  const roles = [
+    ["goalkeeper", "حارس مرمى"], ["defender", "قلب دفاع"], ["defender", "ظهير"],
+    ["defender", "قلب دفاع"], ["defender", "ظهير"], ["midfielder", "وسط دفاعي"],
+    ["midfielder", "وسط"], ["midfielder", "وسط مهاجم"], ["midfielder", "وسط"],
+    ["attacker", "جناح"], ["attacker", "مهاجم"]
+  ];
+  for (let clubIndex = 0; clubIndex < spec.clubCount; clubIndex++) {
+    const clubId = spec.leagueId + "-schedule-" + String(clubIndex + 1).padStart(2, "0");
+    const roster = [];
+    roles.forEach(([group, position], playerIndex) => {
+      const playerId = clubId + "-player-" + (playerIndex + 1);
+      roster.push(playerId);
+      players[playerId] = {
+        id: playerId, name: "Schedule Test Player " + playerId, clubId,
+        country: spec.country, leagueId: spec.leagueId, division: spec.division,
+        position, group, ovr: 60 + (playerIndex % 5), potential: 70,
+        age: 24, contractSeasons: 2, freeAgent: false, retired: false
+      };
+    });
+    clubs[clubId] = {
+      id: clubId, name: "Schedule Test Club " + (clubIndex + 1),
+      country: spec.country, leagueId: spec.leagueId, division: spec.division,
+      matchesPerSeason: spec.matchesPerSeason, power: 60 + clubIndex % 7,
+      basePower: 60, prestige: 55, roster, updatedSeason: 1
+    };
+  }
+  const world = {
+    schemaVersion: 1, dbVersion: Number(db.version) || 4,
+    rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 3,
+    currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0,
+    completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+    competitionsBySeason: {}, transfers: [], marketReports: [], playerHistory: {},
+    nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
+    notes: [], archive: {}, clubs, players
+  };
+  const fixtureDb = {
+    version: world.dbVersion,
+    leagues: () => [{ id: spec.leagueId, country: spec.country }],
+    leagueFor: () => ({
+      name: "Schedule Test League", englishName: "Schedule Test League",
+      teamCount: spec.expectedTeamCount, matchesPerSeason: spec.matchesPerSeason
+    })
+  };
+  return { save: { season: 1, worldSimulation: world }, world, fixtureDb };
+}
+
+function assertLeagueMatchCountCase(spec) {
+  const fixture = makeLeagueMatchCountFixture(spec);
+  const result = ai.completeSeason(fixture.save, 1, fixture.fixtureDb);
+  const tableKey = spec.division === 1 ? spec.leagueId : spec.leagueId + ":" + spec.division;
+  const rows = result.tables[tableKey] || [];
+  const expectedMatches = spec.clubCount === spec.expectedTeamCount
+    ? spec.matchesPerSeason : 2 * (spec.clubCount - 1);
+  assert.equal(rows.length, spec.clubCount, spec.label + " must retain all available clubs");
+  assert.ok(rows.every(row => row.played === expectedMatches),
+    spec.label + " must use the configured season length only when the full league field exists");
+  assert.equal(rows.reduce((sum, row) => sum + row.played, 0), spec.clubCount * expectedMatches,
+    spec.label + " must balance every club's match count");
+  assert.equal(rows.reduce((sum, row) => sum + row.w, 0), rows.reduce((sum, row) => sum + row.l, 0),
+    spec.label + " must balance wins and losses");
+  assert.equal(rows.reduce((sum, row) => sum + row.gf, 0), rows.reduce((sum, row) => sum + row.ga, 0),
+    spec.label + " must balance goals for and against");
+  assert.ok(rows.every(row => row.played === row.w + row.d + row.l),
+    spec.label + " must reconcile played matches with results");
+  assert.equal(result.rows.length, spec.clubCount * 11,
+    spec.label + " must preserve every supplied player record");
+  assert.ok(result.rows.every(row => row.appearances <= expectedMatches),
+    spec.label + " player appearances must not exceed the simulated league season");
+}
+
+assertLeagueMatchCountCase({
+  label: "Scottish Championship", leagueId: "scotland", country: "اسكتلندا",
+  division: 2, clubCount: 10, expectedTeamCount: 10, matchesPerSeason: 36
+});
+assertLeagueMatchCountCase({
+  label: "Argentine Primera División", leagueId: "argentina", country: "الأرجنتين",
+  division: 1, clubCount: 30, expectedTeamCount: 30, matchesPerSeason: 30
+});
+assertLeagueMatchCountCase({
+  label: "Argentine Primera Nacional", leagueId: "argentina", country: "الأرجنتين",
+  division: 2, clubCount: 36, expectedTeamCount: 36, matchesPerSeason: 34
+});
+assertLeagueMatchCountCase({
+  label: "Incomplete league catalogue", leagueId: "incomplete-test", country: "Testland",
+  division: 1, clubCount: 10, expectedTeamCount: 20, matchesPerSeason: 38
+});
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

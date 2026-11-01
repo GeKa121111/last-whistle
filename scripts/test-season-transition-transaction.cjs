@@ -14,7 +14,7 @@ const end = html.indexOf("\nasync function startNewSeasonInternalUnsafe", start)
 assert.ok(start >= 0 && end > start, "the season transition transaction wrapper must exist");
 const transactionSource = html.slice(start, end);
 
-function makeSandbox(initialState) {
+function makeSandbox(initialState, flushResult = true) {
   const events = { logs: [], toasts: [], renders: 0, saves: 0, flushes: 0 };
   const sandbox = {
     state: initialState,
@@ -27,7 +27,7 @@ function makeSandbox(initialState) {
       assert.equal(options.backupFirst, true);
       await Promise.resolve();
       events.flushes++;
-      return true;
+      return flushResult;
     },
     events,
     startNewSeasonInternalUnsafe: async () => undefined
@@ -93,6 +93,22 @@ function makeSandbox(initialState) {
     "the failure must be recorded in the career log");
   assert.ok(sandbox.events.toasts.some(message => message.includes("تم استعادة بيانات المسيرة")),
     "the player must be told that the previous save was restored");
+
+  const persistenceFailure = makeSandbox({ season: 6, age: 24, seasonFinished: true }, false);
+  persistenceFailure.startNewSeasonInternalUnsafe = async () => {
+    persistenceFailure.state.season = 7;
+    throw new Error("simulated season transition failure with unavailable persistence");
+  };
+  const restoredButNotSaved = await persistenceFailure.runSeasonTransition(true);
+  assert.equal(restoredButNotSaved, false, "a failed transition must still report failure when rollback persistence is unavailable");
+  assert.equal(persistenceFailure.state.season, 6, "the previous season must remain restored in memory");
+  assert.equal(persistenceFailure.events.flushes, 1, "the rollback persistence result must be checked");
+  assert.ok(persistenceFailure.events.logs.some(message => message.includes("تعذر تأكيد حفظ النسخة الاحتياطية")),
+    "the career log must distinguish an in-memory rollback from a durable save");
+  assert.ok(persistenceFailure.events.toasts.some(message => message.includes("تعذر حفظ النسخة الاحتياطية")),
+    "the player must be warned not to close the game when rollback persistence fails");
+  assert.ok(!persistenceFailure.events.toasts.some(message => message.includes("تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية")),
+    "the UI must not claim that rollback was durably saved when flushQueuedSave returned false");
 
   const success = makeSandbox({ season: 7, age: 25, seasonFinished: true });
   success.startNewSeasonInternalUnsafe = async () => {

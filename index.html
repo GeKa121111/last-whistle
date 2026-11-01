@@ -7259,10 +7259,16 @@ async function startNewSeasonInternal(showStory=true){
   try{log("تعذر تجهيز الموسم الجديد؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
   try{render();}catch(renderError){console.warn("Season transition rollback render failed",renderError);}
   try{saveGame(true);}catch(saveError){console.warn("Season transition rollback queue failed",saveError);}
+  let rollbackPersisted=false;
   try{
-   if(typeof flushQueuedSave==="function")await flushQueuedSave({backupFirst:true});
+   if(typeof flushQueuedSave==="function")rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;
   }catch(flushError){console.warn("Season transition rollback flush failed",flushError);}
-  try{toast("حصلت مشكلة أثناء تجهيز الموسم الجديد. تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية.");}catch(toastError){}
+  if(rollbackPersisted){
+   try{toast("حصلت مشكلة أثناء تجهيز الموسم الجديد. تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية.");}catch(toastError){}
+  }else{
+   try{log("تمت استعادة حالة المسيرة في الذاكرة، لكن تعذر تأكيد حفظ النسخة الاحتياطية. لا تغلق اللعبة قبل تصدير نسخة احتياطية أو نجاح إعادة الحفظ.");}catch(logError){}
+   try{toast("تمت استعادة المسيرة داخل اللعبة، لكن تعذر حفظ النسخة الاحتياطية. لا تغلق اللعبة قبل تصدير نسخة احتياطية أو نجاح إعادة الحفظ.");}catch(toastError){}
+  }
   return false;
  }
 }

@@ -2191,8 +2191,54 @@ assert.equal(firstTierCup.participants.length, 12,
   "a domestic cup without lower-tier entry must remain limited to the first division");
 assert.ok(firstTierCup.participants.every(id => id.startsWith("cup-first-")),
   "first-tier-only cups must never include second-division clubs");
+
 assert.equal(Object.keys(cupWorld.players).length, 0,
   "cup participant selection must not fabricate player records");
+
+// Domestic and continental supercups must draw from the correct previous-season winners.
+cupDb.simulationCupDefinitions = () => [
+  { id: "test-all-tier-cup", name: "Test All-Tier Cup", kind: "domestic-cup",
+    countries: ["test-cup-league"], lower: true },
+  { id: "test-first-tier-cup", name: "Test First-Tier Cup", kind: "domestic-cup",
+    countries: ["test-cup-league"], lower: false },
+  { id: "test-domestic-supercup", name: "Test Domestic Super Cup", kind: "supercup",
+    confederation: "CAF", countries: ["test-cup-league"] },
+  { id: "test-continental-supercup", name: "Test Continental Super Cup", kind: "supercup",
+    confederation: "CAF" }
+];
+cupWorld.leagueTables["1"]["test-cup-league"] = [
+  { clubId: "cup-first-01", rank: 1 }, { clubId: "cup-first-02", rank: 2 }
+];
+cupWorld.competitionsBySeason["1"] = [
+  { id: "test-continental-winner", kind: "continental", confederation: "CAF",
+    championId: "cup-second-05" },
+  { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-03", runnerUpId: "cup-first-04" }
+];
+const yearTwoCompetitions = ai.seasonCompetitions(cupSave, 2, cupDb);
+const domesticSupercup = yearTwoCompetitions.find(row => row.id === "test-domestic-supercup");
+assert.ok(domesticSupercup, "the domestic supercup must be simulated when prior domestic winners exist");
+assert.deepEqual([...domesticSupercup.participants].sort(), ["cup-first-01", "cup-first-03"],
+  "a domestic supercup must pair the previous league champion with the previous domestic-cup champion");
+assert.ok(!domesticSupercup.participants.includes("cup-second-05"),
+  "a continental champion must never replace a domestic supercup participant");
+assert.ok(!yearTwoCompetitions.some(row => row.id === "test-continental-supercup"),
+  "a continental supercup must not borrow a domestic-cup winner when only one continental champion exists");
+
+// If the same club wins the league and domestic cup, use the cup runner-up as opponent.
+cupWorld.leagueTables["2"]["test-cup-league"] = [
+  { clubId: "cup-first-01", rank: 1 }, { clubId: "cup-first-02", rank: 2 }
+];
+cupWorld.competitionsBySeason["2"] = [
+  { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-01", runnerUpId: "cup-second-05" }
+];
+const yearThreeCompetitions = ai.seasonCompetitions(cupSave, 3, cupDb);
+const doubleWinnerSupercup = yearThreeCompetitions.find(row => row.id === "test-domestic-supercup");
+assert.ok(doubleWinnerSupercup, "a domestic double winner must still produce a two-club supercup");
+assert.deepEqual([...doubleWinnerSupercup.participants].sort(), ["cup-first-01", "cup-second-05"],
+  "a domestic double winner must be paired with the domestic cup runner-up");
+
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

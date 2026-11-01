@@ -1008,6 +1008,9 @@ function seasonAwards(state, league, teamRank) {
     if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent"
       || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
+    // A permanent move already agreed or still being negotiated takes priority over a loan.
+    if (state.pendingTransfer) return "transfer-pending";
+    if (state.transferNegotiation) return "transfer-negotiation";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
     const appearances = Number(state.apps);

@@ -772,7 +772,7 @@ const completedCupScenario = {
   state: {
     season: 4, clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1,
     cupState: { name: "كأس مكتمل", createdSeason: 4, matchesPlayed: 5, champion: true },
-    cupHistory: [{ name: "كأس مكتمل", season: 4, champion: true, matches: 5, club: "نادي أ" }]
+    cupHistory: [{ name: "كأس مكتمل", season: 4, champion: true, matches: 5, club: "نادي أ", country: "مصر" }]
   }
 };
 vm.createContext(completedCupScenario);
@@ -782,7 +782,49 @@ assert.equal(completedCupScenario.archiveCupForTransfer(), true,
 assert.equal(completedCupScenario.state.cupState, null,
   "a won cup must not follow the player to the destination club");
 assert.equal(completedCupScenario.state.cupHistory.length, 1,
-  "an existing trophy record must not be duplicated");
+  "an existing trophy record for the same club and country must not be duplicated");
+
+const otherClubCupScenario = {
+  state: {
+    season: 4, clubName: "نادي ب", leagueCountry: "مصر", leagueDivision: 1,
+    cupState: { name: "كأس مكتمل", createdSeason: 4, matchesPlayed: 5, champion: true },
+    cupHistory: [{ name: "كأس مكتمل", season: 4, champion: true, matches: 5, club: "نادي أ", country: "مصر" }]
+  }
+};
+vm.createContext(otherClubCupScenario);
+vm.runInContext(cupArchiveSource, otherClubCupScenario, { filename: "archiveSameCupOtherClub" });
+assert.equal(otherClubCupScenario.archiveCupForTransfer(), true);
+assert.equal(otherClubCupScenario.state.cupHistory.length, 2,
+  "a same-name cup record from another club must not suppress the current club's history");
+assert.equal(otherClubCupScenario.state.cupHistory[0].club, "نادي ب");
+
+const sameNameCrossCountryCupScenario = {
+  state: {
+    season: 4, clubName: "United", leagueCountry: "Spain", leagueDivision: 1,
+    cupState: { name: "National Cup", createdSeason: 4, matchesPlayed: 3, champion: true },
+    cupHistory: [{ name: "National Cup", season: 4, champion: true, club: "United", country: "England" }]
+  }
+};
+vm.createContext(sameNameCrossCountryCupScenario);
+vm.runInContext(cupArchiveSource, sameNameCrossCountryCupScenario, { filename: "archiveSameNameCrossCountryCup" });
+sameNameCrossCountryCupScenario.archiveCupForTransfer();
+assert.equal(sameNameCrossCountryCupScenario.state.cupHistory.length, 2,
+  "same-name clubs in different countries must keep separate cup records");
+assert.equal(sameNameCrossCountryCupScenario.state.cupHistory[0].country, "Spain");
+
+const activeOtherClubCupScenario = {
+  state: {
+    season: 4, clubName: "نادي ب", leagueCountry: "مصر", leagueDivision: 1,
+    cupState: { name: "كأس انتقال", createdSeason: 4, matchesPlayed: 2, history: [] },
+    cupHistory: [{ name: "كأس انتقال", season: 4, abandoned: true, leftByTransfer: true, club: "نادي أ", country: "مصر" }]
+  }
+};
+vm.createContext(activeOtherClubCupScenario);
+vm.runInContext(cupArchiveSource, activeOtherClubCupScenario, { filename: "archiveActiveSameCupOtherClub" });
+activeOtherClubCupScenario.archiveCupForTransfer();
+assert.equal(activeOtherClubCupScenario.state.cupHistory.length, 2,
+  "a prior club's abandoned cup must not suppress the new club's transfer archive");
+assert.equal(activeOtherClubCupScenario.state.cupHistory[0].club, "نادي ب");
 
 const eliminatedCupScenario = {
   state: {

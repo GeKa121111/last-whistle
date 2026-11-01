@@ -1119,7 +1119,7 @@
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
-    getLeagueTable, leaderboard, dashboard
+    getLeagueTable, leaderboard, dashboard, rosterPlayers
   });
 })(window);
 
@@ -1165,7 +1165,7 @@
     return groups;
   }
   function playersForClub(world, club) {
-    return rosterPlayers(world, club);
+    return base.rosterPlayers(world, club);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);

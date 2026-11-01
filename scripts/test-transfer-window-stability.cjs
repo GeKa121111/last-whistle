@@ -38,6 +38,8 @@ const dedupeOffersSource = section("function dedupeTransferOffersForWindow(", "\
 const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfunction transferFactors(");
 const transferFactorsSource = section("function transferFactors(", "\nfunction transferAverageRating(");
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
+const requestLoanSource = section("function requestLoan(){", "\nfunction loanTo(");
+const loanToSource = section("function loanTo(target){", "\nfunction returnFromLoan()");
 const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
@@ -658,6 +660,119 @@ assert.equal(careerEngine.loanRequestStatus(malformedLegacyMigration.state, { wi
 malformedLegacyMigration.beginTransferNegotiation("valid-after-cleanup");
 assert.equal(malformedLegacyMigration.state.transferNegotiation.offerId, "valid-after-cleanup",
   "a valid new negotiation must be allowed after the malformed legacy transfer is archived");
+
+// Stale negotiations must be reconciled before both the loan request and the final loan confirmation.
+function makeStaleLoanState() {
+  return {
+    careerStarted: true, retired: false, age: 24, freeAgent: false, contractType: "professional",
+    contractSeasons: 2, loan: null, pendingTransfer: null,
+    transferNegotiation: { offerId: "missing-loan-offer", round: 2, patience: 35 },
+    transferOffers: [], transferHistory: [], season: 4, day: 190, apps: 12,
+    clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1,
+    leagueCompetition: "الدوري المصري", leagueSource: "اختبار", clubPower: 50,
+    weeklyWage: 1000, role: "بديل", trust: 55, seasonApps: 5,
+    seasonPhase: "firstHalf", winterBreakPending: false, league: [],
+    leagueApps: 5, leagueRoundIndex: 5, leagueSegmentId: "segment-4-a",
+    leagueRoundHistory: [], fixtureSchedule: [], seasonAppsTarget: 20
+  };
+}
+const staleLoanTarget = {
+  club: "نادي ب", country: "مصر", division: 1, league: "الدوري المصري",
+  power: 55, source: "اختبار", season: "2026/27"
+};
+const loanRequestScenario = {
+  state: makeStaleLoanState(),
+  window: { LWCareer: {
+    loanRequestStatus: careerEngine.loanRequestStatus,
+    loanTargetStatus: careerEngine.loanTargetStatus,
+    loanSquadRole: () => "أساسي"
+  } },
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية" }),
+  canAccessTransferMarket: () => true,
+  activeCupInProgress: () => false,
+  transferTargets: () => [staleLoanTarget],
+  overall: () => 70,
+  openModal: (title, description, actions) => { loanRequestScenario.modal = { title, description, actions }; },
+  toast: message => { loanRequestScenario.toastMessage = message; },
+  saveGame: () => { loanRequestScenario.saveCount = (loanRequestScenario.saveCount || 0) + 1; }
+};
+vm.createContext(loanRequestScenario);
+vm.runInContext(reconciliationSource + "\n" + requestLoanSource, loanRequestScenario,
+  { filename: "reconcile-stale-negotiation-before-loan-request" });
+loanRequestScenario.requestLoan();
+assert.equal(loanRequestScenario.state.transferNegotiation, null,
+  "a stale saved negotiation must not block a new loan request");
+assert.ok(loanRequestScenario.modal && loanRequestScenario.modal.title === "اختار وجهة الإعارة",
+  "loan destinations must be shown after the stale negotiation lock is cleared");
+assert.equal(loanRequestScenario.state.transferHistory.find(row => row && row.legacyTransferNegotiation)
+  ?.legacyTransferNegotiation?.offerId, "missing-loan-offer",
+  "the stale negotiation must remain recoverable in history after the loan request");
+
+const validNegotiationState = makeStaleLoanState();
+validNegotiationState.transferOffers = [{
+  id: "valid-loan-blocker", status: "pending", windowId: "summer-0",
+  club: "نادي ب", country: "مصر", league: "الدوري المصري", division: 1, power: 55
+}];
+validNegotiationState.transferNegotiation = { offerId: "valid-loan-blocker", round: 1, patience: 80 };
+const validNegotiationLoanScenario = {
+  state: validNegotiationState,
+  window: { LWCareer: { loanRequestStatus: careerEngine.loanRequestStatus } },
+  transferWindow: () => ({ open: true, id: "summer-0" }),
+  transferOfferMatchesCurrentWindow: () => true,
+  transferEligibilityReason: () => "",
+  canAccessTransferMarket: () => true,
+  activeCupInProgress: () => false,
+  transferTargets: () => [staleLoanTarget],
+  overall: () => 70,
+  openModal: () => { validNegotiationLoanScenario.modalOpened = true; },
+  toast: message => { validNegotiationLoanScenario.toastMessage = message; },
+  saveGame: () => {}
+};
+vm.createContext(validNegotiationLoanScenario);
+vm.runInContext(reconciliationSource + "\n" + requestLoanSource, validNegotiationLoanScenario,
+  { filename: "preserve-valid-negotiation-loan-block" });
+validNegotiationLoanScenario.requestLoan();
+assert.equal(validNegotiationLoanScenario.state.transferNegotiation.offerId, "valid-loan-blocker",
+  "a valid in-window negotiation must remain active and continue blocking a loan");
+assert.equal(validNegotiationLoanScenario.modalOpened, undefined,
+  "the player must not open a loan request while a valid permanent-transfer negotiation is active");
+assert.match(validNegotiationLoanScenario.toastMessage || "", /مفاوضات انتقال مفتوحة/,
+  "the active negotiation must keep its clear loan-blocking explanation");
+
+const loanToScenario = {
+  state: makeStaleLoanState(),
+  window: { LWCareer: {
+    loanRequestStatus: careerEngine.loanRequestStatus,
+    loanTargetStatus: careerEngine.loanTargetStatus,
+    loanSquadRole: () => "أساسي"
+  } },
+  transferWindow: () => ({ open: true, id: "summer-0" }),
+  activeCupInProgress: () => false,
+  transferTargets: () => [staleLoanTarget],
+  seasonMatchTotal: () => 20,
+  archiveLeagueSegment: () => {},
+  clubPowerFor: () => 55,
+  clubTierForPower: () => 2,
+  transferWage: () => 1000,
+  createLeague: () => [],
+  buildFixtureSchedule: () => [],
+  seedDestinationLeagueProgress: () => 5,
+  clamp: (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0)),
+  log: () => {}, setStory: () => {}, saveGame: () => {}, render: () => {},
+  showPage: () => {}, toast: () => {}
+};
+vm.createContext(loanToScenario);
+vm.runInContext(reconciliationSource + "\n" + loanToSource, loanToScenario,
+  { filename: "reconcile-stale-negotiation-before-loan-confirmation" });
+loanToScenario.loanTo(staleLoanTarget);
+assert.equal(loanToScenario.state.loan?.hostClub, staleLoanTarget.club,
+  "the final loan confirmation must proceed after archiving a stale negotiation");
+assert.equal(loanToScenario.state.transferNegotiation, null,
+  "the final loan confirmation must not retain a stale permanent-transfer lock");
+assert.equal(loanToScenario.state.transferHistory.find(row => row && row.legacyTransferNegotiation)
+  ?.legacyTransferNegotiation?.offerId, "missing-loan-offer",
+  "the final loan confirmation must preserve the stale negotiation in career history");
+
 
 
 // Offers must not be generated for an ineligible player, and must become usable only after eligibility recovers.

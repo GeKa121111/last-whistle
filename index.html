@@ -4419,16 +4419,20 @@ async function importSaveFile(file){
   if(restored.cupState!==null&&(typeof restored.cupState!=="object"||Array.isArray(restored.cupState)))throw new Error("invalid cup state");
  }catch(err){toast("الملف غير صالح أو لا يخص نسخة LAST WHISTLE الحالية.");return;}
  if(!window.confirm("سيتم استبدال المسيرة المحفوظة حاليًا بالنسخة المختارة. هل تريد المتابعة؟"))return;
+ const previousState=state;
  const previous=localStorage.getItem(STORAGE_KEY);
  try{
-  if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(restored,{source:"import"});
   localStorage.setItem(STORAGE_KEY,encodeStoredSave(restored));
-  if(window.LWStateStore&&typeof window.LWStateStore.save==="function")window.LWStateStore.save(restored,{slotId:"career:default"}).catch(err=>console.warn("Imported IndexedDB save pending",err));
   if(!loadGame())throw new Error("restore failed");
+  if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:"import"});
   saveGame(true);render();showPage(state.currentPage||"home");closeDrawer();toast("تمت استعادة المسيرة وعالم الكرة بنجاح.");
  }catch(err){
-  if(previous===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,previous);
-  if(previous!==null)loadGame();render();toast("تعذرت الاستعادة؛ لم يتم الاحتفاظ بالملف الجديد.");
+  try{
+   if(previous===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,previous);
+  }catch(storageRestoreError){console.warn("Could not restore the previous local backup after import failure",storageRestoreError);}
+  state=previousState;
+  if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:"import-rollback"});
+  render();toast("تعذرت الاستعادة؛ تم إرجاع المسيرة السابقة.");
  }
 }
 function seasonMatchTotal(){const target=Math.floor(Number(state.seasonAppsTarget)||0);if(target>0)return target;const n=Array.isArray(state.league)?state.league.length:0;return window.LWCareer?.leagueMatchTarget(n)??(n<2?0:2*(n-1));}

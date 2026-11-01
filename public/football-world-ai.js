@@ -1700,6 +1700,12 @@
     });
     return fixtures;
   }
+  function promotionPlaces(firstTierCount, secondTierCount) {
+    const firstCount = Math.max(0, int(firstTierCount, 0));
+    const secondCount = Math.max(0, int(secondTierCount, 0));
+    if (firstCount < 6 || secondCount < 3) return 0;
+    return Math.min(2, Math.max(1, Math.floor(secondCount * 0.15)), Math.max(1, Math.floor(firstCount * 0.1)));
+  }
   function simulateLeagueSeason(save, season, db) {
     const world = base.ensureState(save, db);
     world.matchesBySeason = world.matchesBySeason && typeof world.matchesBySeason === "object" ? world.matchesBySeason : {};
@@ -2532,7 +2538,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=50");
+    const worker = new global.Worker("./football-world-worker.js?v=51");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

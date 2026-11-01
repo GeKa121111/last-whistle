@@ -1258,21 +1258,33 @@
         retireWorldPlayer(world, player, season, seasonAge);
         return;
       }
-      if (!player.clubId) return;
-      const club = world.clubs[player.clubId];
-      if (!club) {
-        // A player whose saved club was removed from the world must not remain contracted
-        // to a missing team or carry stale league/division metadata forever.
-        const orphanedClubId = String(player.clubId);
-        player.previousClubId = player.previousClubId || orphanedClubId;
-        player.clubId = "";
-        player.leagueId = "";
-        player.division = 0;
-        player.contractSeasons = 0;
-        player.freeAgent = true;
-        player.freeAgentSince = Number(season) + 1;
-        world.notes.unshift({ season: Number(season) + 1, type: "free-agent",
-          text: player.name + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
+      const orphanedClubId = String(player.clubId || "");
+      const club = orphanedClubId ? world.clubs[orphanedClubId] : null;
+      if (player.freeAgent || !orphanedClubId || !club) {
+        const wasFreeAgent = player.freeAgent === true;
+        const hasStaleFreeAgentState = Boolean(orphanedClubId) || !wasFreeAgent
+          || Number(player.contractSeasons) > 0
+          || Boolean(String(player.leagueId || "").trim())
+          || Number(player.division) > 0
+          || player.transferListed === true;
+        if (hasStaleFreeAgentState) {
+          if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
+          player.clubId = "";
+          player.leagueId = "";
+          player.division = 0;
+          player.contractSeasons = 0;
+          player.freeAgent = true;
+          const freeAgentSince = Number(player.freeAgentSince);
+          player.freeAgentSince = Number.isFinite(freeAgentSince) && freeAgentSince > 0
+            ? freeAgentSince : Number(season) + 1;
+          player.transferListed = false;
+          if (!wasFreeAgent) {
+            world.notes = Array.isArray(world.notes) ? world.notes : [];
+            world.notes.unshift({ season: Number(season) + 1, type: "free-agent",
+              text: player.name + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
+            world.notes = world.notes.slice(0, 30);
+          }
+        }
         return;
       }
       if (Number(player.contractSeasons) > 0) return;
@@ -2538,7 +2550,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=51");
+    const worker = new global.Worker("./football-world-worker.js?v=52");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

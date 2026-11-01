@@ -11,6 +11,7 @@ function createHarness() {
   const readRequests = [];
   const writeTransactions = [];
   const writes = [];
+  const committedWrites = [];
   const database = {
     transaction(storeName, mode) {
       assert.equal(storeName, "saves");
@@ -19,6 +20,15 @@ function createHarness() {
         oncomplete: null,
         onerror: null,
         onabort: null,
+        aborted: false,
+        pendingRecord: null,
+        abort() {
+          if (this.aborted) return;
+          this.aborted = true;
+          Promise.resolve().then(() => {
+            if (typeof this.onabort === "function") this.onabort();
+          });
+        },
         objectStore(name) {
           assert.equal(name, "saves");
           return {
@@ -32,6 +42,7 @@ function createHarness() {
             put(record) {
               assert.equal(mode, "readwrite");
               writes.push(record);
+              transaction.pendingRecord = record;
               return {};
             }
           };
@@ -59,7 +70,15 @@ function createHarness() {
   return {
     store: window.LWStateStore,
     writes,
+    committedWrites,
     writeTransactions,
+    completeWrite(index = 0) {
+      const transaction = writeTransactions[index];
+      if (!transaction || transaction.aborted) return false;
+      if (transaction.pendingRecord) committedWrites.push(transaction.pendingRecord);
+      if (typeof transaction.oncomplete === "function") transaction.oncomplete();
+      return true;
+    },
     async resolveStartupRead(record) {
       assert.ok(openRequest && typeof openRequest.onsuccess === "function",
         "the asynchronous IndexedDB open must still be pending");
@@ -120,8 +139,10 @@ function createHarness() {
   const normalWriteTransaction = await normalWrite.waitForWrite();
   assert.equal(normalWrite.writes.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(normalWrite.writes[0].state)), savedCareer);
-  normalWriteTransaction.oncomplete();
+  assert.equal(normalWrite.completeWrite(), true);
   await normalSavePromise;
+  assert.equal(normalWrite.committedWrites.length, 1,
+    "a normal current save must commit its IndexedDB record");
   assert.equal(JSON.stringify(normalWrite.store.getStartupSave()), JSON.stringify(savedCareer),
     "a successful current save must still become the startup save");
 
@@ -132,12 +153,37 @@ function createHarness() {
   const delayedTransaction = await delayedWrite.waitForWrite();
   const newerImportedCareer = { name: "Newer Imported Career", money: 4200 };
   delayedWrite.store.publish(newerImportedCareer, { source: "import" });
-  delayedTransaction.oncomplete();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(delayedTransaction.aborted, true,
+    "a newer import must abort the in-flight default-slot IndexedDB transaction");
   await delayedSavePromise;
+  assert.equal(delayedWrite.committedWrites.length, 0,
+    "a superseded save must never commit its stale IndexedDB snapshot");
   assert.strictEqual(delayedWrite.store.getState(), newerImportedCareer,
     "a late save completion must not replace the newer live imported career");
   assert.strictEqual(delayedWrite.store.getStartupSave(), newerImportedCareer,
     "a late IndexedDB write must not overwrite the newer imported startup save");
+
+  const delayedLoad = createHarness();
+  await delayedLoad.resolveStartupRead(null);
+  const preLoadCareer = { name: "Save In Flight Before Explicit Load", money: 810 };
+  const preLoadSavePromise = delayedLoad.store.save(preLoadCareer);
+  const preLoadTransaction = await delayedLoad.waitForWrite();
+  const selectedCareer = { name: "Career Selected From IndexedDB", money: 5100 };
+  const explicitLoadPromise = delayedLoad.store.load();
+  const explicitLoadRequest = await delayedLoad.waitForRead(1);
+  explicitLoadRequest.result = { id: "career:default", state: selectedCareer };
+  explicitLoadRequest.onsuccess();
+  const explicitLoadResult = await explicitLoadPromise;
+  await preLoadSavePromise;
+  assert.equal(preLoadTransaction.aborted, true,
+    "loading the default slot must abort an older in-flight save before it can overwrite the selected record");
+  assert.equal(delayedLoad.committedWrites.length, 0,
+    "the stale pre-load career must not be committed after the explicit load");
+  assert.strictEqual(delayedLoad.store.getState(), explicitLoadResult,
+    "the explicitly selected IndexedDB career must remain the live state");
+  assert.strictEqual(delayedLoad.store.getStartupSave(), explicitLoadResult,
+    "the explicitly selected IndexedDB career must remain the startup save");
 
   const normalLoad = createHarness();
   await normalLoad.resolveStartupRead(null);
@@ -169,7 +215,7 @@ function createHarness() {
   assert.strictEqual(delayedLoad.store.getStartupSave(), newerImportedDuringLoad,
     "a delayed explicit load must not replace the newer startup save");
 
-  console.log("PASS: delayed hydration, save completion, and explicit load cannot overwrite a newer career; normal startup/save/load remain intact.");
+  console.log("PASS: delayed hydration and superseded IndexedDB writes cannot overwrite a newer import or explicitly loaded career; normal startup/save/load remain intact.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

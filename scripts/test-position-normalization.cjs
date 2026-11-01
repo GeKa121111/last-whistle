@@ -75,7 +75,7 @@ const transferAwards = read("transfer-awards-engine.js");
 const worker = read("football-world-worker.js");
 assert.match(footballAI, /store\.normalizePosition/);
 assert.match(transferAwards, /store\.normalizePosition/);
-assert.match(worker, /career-state-store\.js\?v=5/,
+assert.match(worker, /career-state-store\.js\?v=6/,
   "the worker must load the same normalizer before world simulation starts");
-assert.match(read("index.html"), /career-state-store\.js\?v=5/);
+assert.match(read("index.html"), /career-state-store\.js\?v=6/);
 console.log("PASS: shared position aliases and selector-aware state subscriptions remain consistent across career and match engines.");

@@ -38,7 +38,7 @@
     return POSITION_ALIASES[key] || raw;
   }
   const listeners = new Set();
-  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve();
+  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null;
   function safeClone(value) {
     if (!value || typeof value !== "object") return value;
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
@@ -121,8 +121,21 @@
         global.dispatchEvent(new global.CustomEvent("lw:state-change", { detail: event }));
     } catch (_) {}
   }
+  function abortPendingDefaultWrite() {
+    const pending = pendingDefaultWrite;
+    if (!pending || pending.superseded) return;
+    pending.superseded = true;
+    try { pending.transaction.abort(); }
+    catch (error) {
+      if (global.console) global.console.warn("LWStateStore could not abort a superseded default save", error);
+    }
+  }
   function publish(state, meta) {
     if (!state || typeof state !== "object") return revision;
+    // A load/import/newer publish supersedes any default-slot transaction that has
+    // not committed yet. Protecting startupSave alone is insufficient: the stale
+    // IndexedDB put itself must not be allowed to overwrite the selected career.
+    abortPendingDefaultWrite();
     currentState = state;
     const source = meta && meta.source;
     if (source === "load" || source === "import" || source === "migration") startupSave = state;
@@ -134,7 +147,6 @@
     const snapshot = safeClone(state);
     if (!snapshot || typeof snapshot !== "object") return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
-    // A write that finishes late must not replace a newer imported/loaded startup career.
     const saveRevision = revision;
     const record = {
       id, label: String(options.label || snapshot.name || (id === DEFAULT_SLOT ? "المسيرة الرئيسية" : id)),
@@ -142,9 +154,62 @@
       schemaVersion: Number(snapshot.schemaVersion) || 10, season: Math.max(1, Number(snapshot.season) || 1),
       playerName: String(snapshot.name || "لاعب"), state: snapshot
     };
-    lastWrite = transact("saves", "readwrite", store => store.put(record)).then(function () {
-      if (id === DEFAULT_SLOT && revision === saveRevision) startupSave = snapshot;
-      return { id, updatedAt: record.updatedAt, revision };
+    if (id !== DEFAULT_SLOT) {
+      lastWrite = transact("saves", "readwrite", store => store.put(record));
+      return lastWrite;
+    }
+    // Check the revision after the asynchronous database open, then keep the
+    // transaction abortable until IndexedDB confirms that it has committed.
+    lastWrite = openDatabase().then(function (db) {
+      if (!db) throw new Error("IndexedDB is not available");
+      if (revision !== saveRevision) {
+        return { id, updatedAt: record.updatedAt, revision, superseded: true };
+      }
+      return new Promise(function (resolve, reject) {
+        let tx;
+        try { tx = db.transaction("saves", "readwrite"); }
+        catch (error) { reject(error); return; }
+        const pending = { transaction: tx, superseded: false };
+        pendingDefaultWrite = pending;
+        const clearPending = function () {
+          if (pendingDefaultWrite === pending) pendingDefaultWrite = null;
+        };
+        tx.oncomplete = function () {
+          clearPending();
+          if (revision === saveRevision && !pending.superseded) startupSave = snapshot;
+          const result = { id, updatedAt: record.updatedAt, revision };
+          if (pending.superseded) result.superseded = true;
+          resolve(result);
+        };
+        tx.onerror = function () {
+          if (pending.superseded) return;
+          clearPending();
+          reject(tx.error || new Error("IndexedDB transaction failed"));
+        };
+        tx.onabort = function () {
+          clearPending();
+          if (pending.superseded) {
+            resolve({ id, updatedAt: record.updatedAt, revision, superseded: true });
+          } else {
+            reject(tx.error || new Error("IndexedDB transaction aborted"));
+          }
+        };
+        if (revision !== saveRevision) {
+          pending.superseded = true;
+          try { tx.abort(); }
+          catch (error) {
+            clearPending();
+            resolve({ id, updatedAt: record.updatedAt, revision, superseded: true });
+          }
+          return;
+        }
+        try { tx.objectStore("saves").put(record); }
+        catch (error) {
+          clearPending();
+          try { tx.abort(); } catch (_) {}
+          reject(error);
+        }
+      });
     });
     return lastWrite;
   }

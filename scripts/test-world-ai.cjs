@@ -1958,6 +1958,10 @@ assertLeagueMatchCountCase({
   label: "Incomplete league catalogue", leagueId: "incomplete-test", country: "Testland",
   division: 1, clubCount: 10, expectedTeamCount: 20, matchesPerSeason: 38
 });
+assertLeagueMatchCountCase({
+  label: "Two-club incomplete league", leagueId: "two-club-test", country: "Testland",
+  division: 1, clubCount: 2, expectedTeamCount: 20, matchesPerSeason: 38
+});
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

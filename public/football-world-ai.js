@@ -629,7 +629,7 @@
     const peers = club ? rosterPlayers(world, club).filter(row => row.group === group) : [player];
     const roleStrength = peers.length ? (peers.slice().sort((a, b) => b.ovr - a.ovr).findIndex(row => row.id === player.id)) : 0;
     const expectedApps = matches > 0
-      ? clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), 4, matches)
+      ? clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), Math.min(4, matches), matches)
       : 0;
     const appearances = Math.round(expectedApps * clamp(progress, 0, 1));
     const production = positionProductionProfile(player.position);

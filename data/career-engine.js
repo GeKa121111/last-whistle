@@ -230,6 +230,15 @@
             existing.identity[field] && identity[field] && existing.identity[field] !== identity[field]);
           if (identityConflict) return false;
           if (signature !== null && existing.signature === signature) return true;
+          // A partial legacy row with no competition must not act as a wildcard.
+          // It may be a league fixture while the identified row is a cup fixture
+          // that reused the same ID, opponent and date. Only exact copies can be
+          // collapsed when competition/club/season context is incomplete.
+          const reliableCompetitionContext = ["competition", "club"].every(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] === identity[field]);
+          const reliableSeasonContext = ["season", "segmentId"].some(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] === identity[field]);
+          if (!reliableCompetitionContext || !reliableSeasonContext) return false;
           const sharedIdentityCount = identityFields.reduce((count, field) =>
             count + (existing.identity[field] && identity[field] && existing.identity[field] === identity[field] ? 1 : 0), 0);
           const sharedEventIdentity = eventIdentityFields.some(field =>

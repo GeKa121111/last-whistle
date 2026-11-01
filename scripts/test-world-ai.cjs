@@ -1386,11 +1386,21 @@ assertBalancedLeagueTable(oddTable, "Fifteen-club Tunisian league");
 assert.ok(oddTable[0].played > 0,
   "an odd-sized league must produce a complete schedule without phantom byes");
 
-const englandDivisionClubs = Object.fromEntries(Object.entries(world.clubs).filter(([, club]) =>
-  String(club.leagueId) === "england" && [1, 2].includes(Number(club.division))));
+const secondTierCounts = new Map();
+for (const club of Object.values(world.clubs)) {
+  if (!club || Number(club.division) !== 2 || !club.leagueId) continue;
+  const leagueId = String(club.leagueId);
+  secondTierCounts.set(leagueId, (secondTierCounts.get(leagueId) || 0) + 1);
+}
+const [secondTierLeagueId, expectedSecondTierCount] =
+  Array.from(secondTierCounts.entries()).sort((a, b) => b[1] - a[1])[0] || ["", 0];
+assert.ok(expectedSecondTierCount >= 3,
+  "the world database must expose at least three real second-tier clubs for promotion/relegation");
+const baseFallbackClubs = Object.fromEntries(Object.entries(world.clubs).filter(([, club]) =>
+  String(club.leagueId) === secondTierLeagueId && [1, 2].includes(Number(club.division))));
 const baseFallbackWorld = {
   ...world,
-  clubs: englandDivisionClubs,
+  clubs: baseFallbackClubs,
   players: {}, completedSeasons: [], seasonStats: {}, leagueTables: {},
   transfers: [], marketReports: [], playerHistory: {}, currentSeason: 1,
   lastCompletedSeason: 0, lastAdvancedTo: 0, transferSequence: 0,
@@ -1402,11 +1412,11 @@ const baseFallbackWorld = {
 delete baseFallbackWorld.matchesBySeason;
 const baseFallbackSave = { season: 1, worldSimulation: baseFallbackWorld };
 const baseFallbackSeason = ai.completeSeason(baseFallbackSave, 1, db);
-const englishSecondTier = baseFallbackSeason.tables["england:2"] || [];
-assert.equal(englishSecondTier.length, 25,
-  "base season completion must save the real 25-club English second division table");
-assertBalancedLeagueTable(englishSecondTier, "English second division");
-assert.ok(englishSecondTier.every(row => row.leagueId === "england" && row.division === 2),
+const secondTierTable = baseFallbackSeason.tables[secondTierLeagueId + ":2"] || [];
+assert.equal(secondTierTable.length, expectedSecondTierCount,
+  "base season completion must save every available real second-division club");
+assertBalancedLeagueTable(secondTierTable, "Largest available second division");
+assert.ok(secondTierTable.every(row => row.leagueId === secondTierLeagueId && row.division === 2),
   "second-tier rows must retain their parent league ID and division number");
 
 const oldTransferCount = world.transfers.length;

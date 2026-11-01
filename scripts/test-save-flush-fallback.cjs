@@ -93,7 +93,7 @@ async function runFlush(options = {}) {
 }
 
 function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
-  const loadStart = rootHtml.indexOf("function loadGame(){");
+  const loadStart = rootHtml.indexOf("function loadGame(options = {}){");
   const savedStart = rootHtml.indexOf("const saved=", loadStart);
   assert.ok(loadStart >= 0 && savedStart > loadStart, "loadGame save-source selection must exist");
   const prefix = rootHtml.slice(loadStart, savedStart);

@@ -423,9 +423,13 @@ const simulatedTransfers = sandbox.window.__lwTestRunTransferWindow(transferWorl
 assert.ok(simulatedTransfers.length > 0, "lower-division clubs with a role deficit must have access to the world transfer market");
 assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "the transfer buyer order must not starve second-tier clubs behind first-tier buyers");
 const budgetedTransfer = simulatedTransfers[0];
-const budgetBuyer = Object.values(transferWorld.clubs).find(club => club.name === budgetedTransfer.to);
-const budgetSeller = Object.values(transferWorld.clubs).find(club => club.name === budgetedTransfer.from);
+const budgetBuyer = transferWorld.clubs[String(budgetedTransfer.toClubId || "")];
+const budgetSeller = transferWorld.clubs[String(budgetedTransfer.fromClubId || "")];
 assert.ok(budgetBuyer && budgetSeller, "the transfer must identify its actual buyer and seller");
+assert.equal(String(budgetedTransfer.toClubId), String(budgetBuyer.id),
+  "paid transfer records must preserve the exact destination club ID");
+assert.equal(String(budgetedTransfer.fromClubId), String(budgetSeller.id),
+  "paid transfer records must preserve the exact selling club ID");
 assert.equal(budgetBuyer.budget, Math.max(0, expectedSeasonBudget(budgetBuyer.id) - budgetedTransfer.fee),
   "the buyer must retain the transfer-fee deduction in its persisted cash balance");
 assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].power * 8),
@@ -469,6 +473,8 @@ staleFreeAgentBuyer.roster.push(staleFreeAgentRetiredId, "missing-free-agent-ros
 freeAgentWorld.players["free-agent-test-keeper"] = { id: "free-agent-test-keeper", name: "Free-agent keeper test", clubId: "", country: "Testland", leagueId: "test-market", division: 0, position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65, age: 26, contractSeasons: 0, freeAgent: true, previousClubId: "former-club", isGenerated: false };
 const signedLowerTier = sandbox.window.__lwTestSignFreeAgents(freeAgentWorld, 3, []);
 assert.equal(signedLowerTier.length, 1, "a free agent should sign when a lower-tier club has a compatible vacancy");
+assert.equal(signedLowerTier[0].toClubId, staleFreeAgentBuyer.id,
+  "free-agent transfer records must retain the destination club's stable ID");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].clubId, "D2 Keeper Vacancy", "free-agent recruitment must include the lower-tier club when higher-tier clubs have no matching vacancy");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 2, "the free agent must inherit the destination club division");
 assert.ok(!staleFreeAgentBuyer.roster.includes(staleFreeAgentRetiredId)
@@ -505,6 +511,40 @@ assert.equal(crossMarketSignings[0].to, crossMarketAvailableBuyer.name,
   "the free-agent phase must skip both clubs already involved in a paid deal");
 assert.ok(!crossMarketSignings.some(move => move.to === crossMarketSeller.name || move.to === crossMarketBuyer.name),
   "neither the seller nor buyer from the paid transfer may make a second move in the same window");
+
+// Stable club IDs must disambiguate two clubs that share the same display name and country.
+const duplicateNameMarketWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const duplicateNameSeller = makeMarketTestClub(duplicateNameMarketWorld, "duplicate-name-seller", 1, "goalkeeper");
+const duplicateNameBuyer = makeMarketTestClub(duplicateNameMarketWorld, "duplicate-name-buyer", 2, "goalkeeper");
+const duplicateNameAvailable = makeMarketTestClub(duplicateNameMarketWorld, "duplicate-name-available", 2, "goalkeeper");
+duplicateNameSeller.name = "Shared FC";
+duplicateNameBuyer.name = "Shared FC";
+duplicateNameMarketWorld.players["duplicate-name-free-agent"] = {
+  id: "duplicate-name-free-agent", name: "Duplicate-name free agent", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى",
+  group: "goalkeeper", ovr: 60, potential: 66, age: 26, contractSeasons: 0,
+  freeAgent: true, previousClubId: "former-club", freeAgentSince: 0
+};
+const duplicateNamePaidMove = {
+  from: duplicateNameSeller.name, fromCountry: duplicateNameSeller.country,
+  fromClubId: duplicateNameSeller.id,
+  to: duplicateNameBuyer.name, toCountry: duplicateNameBuyer.country,
+  toClubId: duplicateNameBuyer.id
+};
+const duplicateNameSignings = sandbox.window.__lwTestSignFreeAgents(
+  duplicateNameMarketWorld, 5, [duplicateNamePaidMove]
+);
+assert.equal(duplicateNameSignings.length, 1,
+  "a distinct club must remain eligible after a same-name paid deal");
+assert.equal(duplicateNameSignings[0].toClubId, duplicateNameAvailable.id,
+  "stable paid-move IDs must reserve the exact seller and buyer when names collide");
+assert.equal(duplicateNameMarketWorld.players["duplicate-name-free-agent"].clubId, duplicateNameAvailable.id,
+  "a free agent must not be assigned to either same-name club already involved in the paid deal");
+assert.equal(duplicateNameMarketWorld.playerHistory["duplicate-name-free-agent"][0].clubId, duplicateNameAvailable.id,
+  "player history must retain the exact club ID for a free-agent signing");
 
 // A former club cannot immediately re-sign a player it just released, but may
 // bring them back after one complete free-agent season if the role vacancy remains.

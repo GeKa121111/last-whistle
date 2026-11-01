@@ -899,14 +899,17 @@
       const transfer = {
         id: "world-transfer-" + season + "-" + (++world.transferSequence),
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
-        group, from: origin, fromCountry: seller.country, to: buyer.name, toCountry: buyer.country,
+        group, from: origin, fromCountry: seller.country, fromClubId: String(seller.id),
+        to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id),
         fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (player.age <= 23 ? "استثمار في المستقبل" : player.age >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
         playerOvr: player.ovr, kind: "انتقال — محاكاة"
       };
       moves.push(transfer);
       world.transfers.unshift(transfer);
       world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: Number(season), club: buyer.name, country: buyer.country, type: "transfer-in", from: origin });
+      world.playerHistory[player.id].unshift({ season: Number(season), clubId: String(buyer.id),
+        club: buyer.name, country: buyer.country, fromClubId: String(seller.id),
+        type: "transfer-in", from: origin });
       world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
     }
     world.transfers = world.transfers.slice(0, 300);
@@ -1778,13 +1781,20 @@
     for (const move of Array.isArray(existingMoves) ? existingMoves : []) {
       if (!move) continue;
       for (const side of ["from", "to"]) {
+        const clubId = String(move[side + "ClubId"] || "").trim();
+        if (clubId && world.clubs[clubId]) {
+          usedClubs.add(clubId);
+          continue;
+        }
         const name = String(move[side] || "").trim();
         if (!name) continue;
         const country = String(move[side + "Country"] || "").trim();
         const matches = Object.values(world.clubs).filter(club => club
           && String(club.name || "").trim() === name
           && (!country || String(club.country || "").trim() === country));
-        if (matches.length === 1) usedClubs.add(matches[0].id);
+        // Legacy transfer rows have no stable club IDs. Only resolve their names
+        // when the name/country pair identifies exactly one club.
+        if (matches.length === 1) usedClubs.add(String(matches[0].id || ""));
       }
     }
     const signed = [];
@@ -1833,13 +1843,15 @@
         id: "world-transfer-" + season + "-free-" + hash(player.id + "|" + buyer.id).toString(36),
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
         group, from: oldClubName, fromCountry: previousClub ? previousClub.country : "",
-        to: buyer.name, toCountry: buyer.country, fee: 0, currency: buyer.currency,
+        fromClubId: previousClub ? String(previousClub.id) : "",
+        to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id), fee: 0, currency: buyer.currency,
         reason: "تعاقد مجاني • احتياج في المركز وخبرة/إمكانات مناسبة",
         playerOvr: player.ovr, kind: "تعاقد مع لاعب حر — محاكاة"
       };
       signed.push(move);
       world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: Number(season), club: buyer.name, country: buyer.country,
+      world.playerHistory[player.id].unshift({ season: Number(season), clubId: String(buyer.id),
+        club: buyer.name, country: buyer.country, fromClubId: previousClub ? String(previousClub.id) : "",
         type: "free-agent-signing", from: oldClubName });
       world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
     }
@@ -2171,7 +2183,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=36");
+    const worker = new global.Worker("./football-world-worker.js?v=37");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

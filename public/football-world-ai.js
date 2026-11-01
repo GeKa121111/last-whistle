@@ -5,7 +5,7 @@
 (function (global) {
   "use strict";
   const VERSION = 1;
-  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 3;
+  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 4;
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -19,6 +19,11 @@
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  function isTrueFlag(value) {
+    if (value === true || value === 1) return true;
+    if (typeof value !== "string") return false;
+    return /^(?:true|1|yes|on)$/i.test(value.trim());
+  }
   function normalize(value) {
     return String(value == null ? "" : value).normalize("NFKC").toLocaleLowerCase()
       .replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
@@ -201,7 +206,7 @@
     return (Array.isArray(club && club.roster) ? club.roster : []).filter(id => {
       const key = String(id || "");
       const player = world && world.players && world.players[key];
-      if (!key || seen.has(key) || !player || player.retired || player.freeAgent) return false;
+      if (!key || seen.has(key) || !player || isTrueFlag(player.retired) || isTrueFlag(player.freeAgent)) return false;
       const ownerClubId = String(player.clubId || "").trim();
       if (ownerClubId && ownerClubId !== String(club.id)) return false;
       seen.add(key);
@@ -225,12 +230,15 @@
     const ambiguous = new Set();
     Object.entries(world.players).forEach(([id, player]) => {
       if (!player) return;
+      // Legacy saves may encode boolean flags as strings; normalize before interpreting roster ownership.
+      player.retired = isTrueFlag(player.retired);
+      player.freeAgent = player.retired ? false : isTrueFlag(player.freeAgent);
       const ownerClubId = String(player.clubId || "").trim();
       const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
 
       // Retirement/free agency is authoritative. Old roster references must never
       // resurrect an unattached player or turn a former club into their current club.
-      if (player.retired || player.freeAgent) {
+      if (isTrueFlag(player.retired) || isTrueFlag(player.freeAgent)) {
         const formerClubId = ownerClubId && world.clubs[ownerClubId]
           ? ownerClubId : candidates.length === 1 ? candidates[0] : "";
         if (formerClubId && !String(player.previousClubId || "").trim()) {
@@ -241,7 +249,7 @@
         player.division = 0;
         player.contractSeasons = 0;
         player.transferListed = false;
-        if (player.retired) player.freeAgent = false;
+        if (isTrueFlag(player.retired)) player.freeAgent = false;
         return;
       }
 
@@ -417,7 +425,7 @@
     const retiredIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
     for (const player of Object.values(world.players || {})) {
-      if (!player || !player.retired) continue;
+      if (!player || !isTrueFlag(player.retired)) continue;
       const identityKey = rosterIdentityKey(player);
       if (!identityKey) continue;
       const clubIds = new Set([
@@ -445,7 +453,7 @@
     }
     const knownPlayersByClub = new Map();
     for (const player of Object.values(world.players || {})) {
-      if (!player || player.retired) continue;
+      if (!player || isTrueFlag(player.retired)) continue;
       const clubId = String(player.clubId || "");
       const identityKey = rosterIdentityKey(player);
       if (!clubId || !identityKey) continue;
@@ -702,7 +710,7 @@
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
       const matchesByClub = buildLeagueMatchCountLookup(world, db);
-      const rows = Object.values(world.players || {}).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player =>
+      const rows = Object.values(world.players || {}).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
         generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
@@ -873,7 +881,7 @@
     };
     const strengthByLeague = buildLeagueStrengthLookup(world);
     const matchesByClub = buildLeagueMatchCountLookup(world, db);
-    const rows = Object.values(world.players).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player =>
+    const rows = Object.values(world.players).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
       generatePlayerSeason(world, player, year, 1, strengthByLeague, matchesByClub));
     const tables = simulateLeagueTables(world, year, 1, db, matchesByClub);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
@@ -1229,7 +1237,7 @@
     const byId = new Map(stats.map(row => [row.id, row]));
     const seasonAges = new Map();
     Object.values(world.players).forEach(player => {
-      if (!player || player.retired) return;
+      if (!player || isTrueFlag(player.retired)) return;
       const row = byId.get(player.id);
       // Season statistics describe the season just played, so development thresholds
       // must use the player's age during that season, before advancing their age.
@@ -1251,7 +1259,7 @@
     // Contracts now truly expire. A deterministic renewal decision keeps key players
     // when the club needs them, while the rest enter the free-agent pool.
     Object.values(world.players).forEach(player => {
-      if (!player || player.retired) return;
+      if (!player || isTrueFlag(player.retired)) return;
       const seasonAge = seasonAges.get(player.id);
       const row = byId.get(player.id);
       if (shouldRetirePlayer(player, seasonAge, row, season)) {
@@ -1260,8 +1268,8 @@
       }
       const orphanedClubId = String(player.clubId || "");
       const club = orphanedClubId ? world.clubs[orphanedClubId] : null;
-      if (player.freeAgent || !orphanedClubId || !club) {
-        const wasFreeAgent = player.freeAgent === true;
+      if (isTrueFlag(player.freeAgent) || !orphanedClubId || !club) {
+        const wasFreeAgent = isTrueFlag(player.freeAgent);
         const hasStaleFreeAgentState = Boolean(orphanedClubId) || !wasFreeAgent
           || Number(player.contractSeasons) > 0
           || Boolean(String(player.leagueId || "").trim())
@@ -1426,7 +1434,7 @@
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
-    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction
+    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction, isTrueFlag
   });
 })(window);
 
@@ -1625,7 +1633,7 @@
       const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + Number(division));
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(world.players).filter(player => player && !player.retired && !player.freeAgent && player.clubId && world.clubs[player.clubId]).map(player => {
+    return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && !base.isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player => {
       const acc = accumulators.get(player.id) || playerAccumulator();
       const historicalClub = world.clubs[acc.clubId || player.clubId] || null;
       const apps = Number(acc.appearances) || 0, goals = Number(acc.goals) || 0, assists = Number(acc.assists) || 0;
@@ -2122,7 +2130,7 @@
   }
   function signFreeAgents(world, season, existingMoves) {
     return base.withTransferMarketTransaction(world, function(transaction) {
-    const freeAgents = Object.values(world.players).filter(player => player && !player.retired && player.freeAgent && Number(player.contractSeasons) <= 0)
+    const freeAgents = Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent) && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
     const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division))
       && Number(club.division) >= 1 && activeRosterIdsForClub(world, club).length < 18)
@@ -2390,7 +2398,7 @@
     let output = base.dashboard(dashboardSave, db);
     output.season = season;
     output.progress = Math.round(currentProgress * 100);
-    output.freeAgentCount = Object.values(world.players || {}).filter(player => player && player.freeAgent).length;
+    output.freeAgentCount = Object.values(world.players || {}).filter(player => player && base.isTrueFlag(player.freeAgent)).length;
     output.matchesSimulated = Array.isArray(currentMatches) ? currentMatches.length : 0;
     output.competitionsSimulated = Array.isArray(currentCompetitions) ? currentCompetitions.length : 0;
     output.promotionHistory = world.promotionHistory || [];
@@ -2417,7 +2425,7 @@
     },
     freeAgents: function (save, db) {
       const world = base.ensureState(save, db);
-      return Object.values(world.players).filter(player => player && !player.retired && player.freeAgent).map(player => ({
+      return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent)).map(player => ({
         id: player.id, name: player.name, position: player.position, ovr: player.ovr, age: player.age,
         potential: player.potential, contractSeasons: player.contractSeasons, formerClub: player.previousClubId
       })).sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
@@ -2550,7 +2558,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=52");
+    const worker = new global.Worker("./football-world-worker.js?v=53");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

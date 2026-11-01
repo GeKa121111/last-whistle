@@ -162,7 +162,7 @@ const rosterMigrationSave = { season: 1, worldSimulation: {
   }
 } };
 const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
-assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 3,
+assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 4,
   "legacy saves must run the one-time roster ownership migration");
 assert.deepEqual(rosterMigrationWorld.clubs["membership-origin"].roster,
   ["membership-origin-player", "membership-legacy-unique"],
@@ -190,6 +190,55 @@ assert.ok(sandbox.window.__lwTestMakeLineup(rosterMigrationWorld, rosterMigratio
   .some(player => player.id === "membership-transferred"),
   "the destination club must continue to field the transferred player");
 
+
+// Legacy boolean-like strings must not make active players look retired/free agents.
+const legacyFlagClubId = "legacy-string-flag-club";
+const legacyFlagSave = { season: 1, worldSimulation: {
+  schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, seasonStats: {}, leagueTables: {},
+  completedSeasons: [], transfers: [], marketReports: [], playerHistory: {},
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 3,
+  clubs: {
+    [legacyFlagClubId]: { id: legacyFlagClubId, name: "Legacy Flag Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1, power: 70, basePower: 70,
+      roster: ["legacy-flag-false", "legacy-flag-zero", "legacy-flag-retired", "legacy-flag-free"] }
+  },
+  players: {
+    "legacy-flag-false": { id: "legacy-flag-false", name: "False String", clubId: legacyFlagClubId,
+      group: "attacker", position: "ST", ovr: 70, potential: 75, age: 24, contractSeasons: 2,
+      retired: "false", freeAgent: "false" },
+    "legacy-flag-zero": { id: "legacy-flag-zero", name: "Zero String", clubId: legacyFlagClubId,
+      group: "attacker", position: "ST", ovr: 68, potential: 73, age: 25, contractSeasons: 2,
+      retired: "0", freeAgent: "0" },
+    "legacy-flag-retired": { id: "legacy-flag-retired", name: "Retired String", clubId: legacyFlagClubId,
+      group: "attacker", position: "ST", ovr: 80, potential: 80, age: 40, contractSeasons: 0,
+      retired: "true", freeAgent: "false" },
+    "legacy-flag-free": { id: "legacy-flag-free", name: "Free String", clubId: legacyFlagClubId,
+      group: "midfielder", position: "CM", ovr: 72, potential: 77, age: 26, contractSeasons: 0,
+      retired: "false", freeAgent: "true" }
+  }
+} };
+const legacyFlagWorld = ai.ensureState(legacyFlagSave, db);
+const legacyFlagClub = legacyFlagWorld.clubs[legacyFlagClubId];
+assert.equal(legacyFlagWorld.rosterMembershipSchemaVersion, 4,
+  "v3 saves must normalize legacy string-valued player status flags once");
+assert.deepEqual(ai.rosterPlayers(legacyFlagWorld, legacyFlagClub).map(player => player.id).sort(),
+  ["legacy-flag-false", "legacy-flag-zero"],
+  "string false/zero flags must keep active players while true flags detach retired/free agents");
+assert.equal(legacyFlagWorld.players["legacy-flag-false"].retired, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-false"].freeAgent, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-zero"].retired, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-zero"].freeAgent, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-retired"].retired, true);
+assert.equal(legacyFlagWorld.players["legacy-flag-retired"].freeAgent, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-retired"].previousClubId, legacyFlagClubId);
+assert.equal(legacyFlagWorld.players["legacy-flag-free"].retired, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-free"].freeAgent, true);
+assert.equal(legacyFlagWorld.players["legacy-flag-free"].previousClubId, legacyFlagClubId);
+assert.ok(!legacyFlagClub.roster.includes("legacy-flag-retired")
+  && !legacyFlagClub.roster.includes("legacy-flag-free"),
+  "true retirement/free-agent flags must remove stale squad membership without deleting player records");
 
 const missingMembershipSave = { season: 1, worldSimulation: {
   schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
@@ -226,7 +275,7 @@ const missingMembershipSave = { season: 1, worldSimulation: {
 const missingMembershipPlayerCount = Object.keys(missingMembershipSave.worldSimulation.players).length;
 const missingMembershipNextGenerated = missingMembershipSave.worldSimulation.nextGeneratedPlayer;
 const missingMembershipWorld = ai.ensureState(missingMembershipSave, db);
-assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 3,
+assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 4,
   "version-one saves must receive the missing-membership repair migration");
 assert.deepEqual(missingMembershipWorld.clubs["membership-gap-origin"].roster,
   ["membership-gap-existing", "membership-gap-unlisted"],

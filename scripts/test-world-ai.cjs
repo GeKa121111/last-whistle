@@ -36,9 +36,11 @@ assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p 
 const lineupMarker = "  function makeLineup(world, club) {";
 const rosterPlayersMarker = "  function rosterPlayers(world, club) {";
 const playersForClubMarker = "  function playersForClub(world, club) {";
+const normalizeRosterMembershipMarker = "  function normalizeRosterMembership(world) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
 assert.ok(aiSourceRaw.includes(rosterPlayersMarker), "AI engine must retain the active-roster helper for free-agent regression coverage");
 assert.ok(aiSourceRaw.includes(playersForClubMarker), "AI engine must retain the club-player filter for retired-roster regression coverage");
+assert.ok(aiSourceRaw.includes(normalizeRosterMembershipMarker), "AI engine must retain the legacy roster-membership migration");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season, db) {";
@@ -61,6 +63,8 @@ assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain th
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
   .replace(rosterPlayersMarker, "  global.__lwTestRosterPlayers = rosterPlayers;\n" + rosterPlayersMarker)
+  .replace(playersForClubMarker, "  global.__lwTestPlayersForClub = playersForClub;\n" + playersForClubMarker)
+  .replace(normalizeRosterMembershipMarker, "  global.__lwTestNormalizeRosterMembership = normalizeRosterMembership;\n" + normalizeRosterMembershipMarker)
   .replace(lineupMarker, "  global.__lwTestMakeLineup = makeLineup;\n" + lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
@@ -115,6 +119,84 @@ assert.ok(!staleFreeAgentRosterClub.roster.includes("retired"),
   "roster repair must keep retired players out of active squads");
 assert.equal(staleFreeAgentRosterClub.roster.length, 16,
   "roster repair must refill the squad after removing unattached players");
+
+// Legacy transfers can leave the same player ID in both the old and new club rosters.
+// The player's current clubId is authoritative; ambiguous legacy rows remain stored as
+// player records but are removed from both squads rather than being counted twice.
+const rosterMigrationLeague = db.leagues().find(row => row && row.id) || {};
+const rosterMigrationLeagueId = String(rosterMigrationLeague.id || "legacy-roster-test");
+const rosterMigrationSave = { season: 1, worldSimulation: {
+  schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 0, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1,
+  transferSequence: 0, projectionRevision: 0,
+  clubs: {
+    "membership-origin": { id: "membership-origin", name: "Origin Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1,
+      roster: ["membership-transferred", "membership-origin-player", "membership-origin-player",
+        "membership-legacy-unique", "membership-legacy-ambiguous"] },
+    "membership-destination": { id: "membership-destination", name: "Destination Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1,
+      roster: ["membership-transferred", "membership-destination-player", "membership-transferred",
+        "membership-legacy-ambiguous"] }
+  },
+  players: {
+    "membership-transferred": { id: "membership-transferred", name: "Transferred", clubId: "membership-destination",
+      group: "midfielder", ovr: 90, retired: false, freeAgent: false },
+    "membership-origin-player": { id: "membership-origin-player", name: "Origin Player", clubId: "membership-origin",
+      group: "defender", ovr: 70, retired: false, freeAgent: false },
+    "membership-destination-player": { id: "membership-destination-player", name: "Destination Player",
+      clubId: "membership-destination", group: "attacker", ovr: 72, retired: false, freeAgent: false },
+    "membership-legacy-unique": { id: "membership-legacy-unique", name: "Legacy Unique",
+      clubId: "", group: "goalkeeper", ovr: 68, retired: false, freeAgent: false },
+    "membership-legacy-ambiguous": { id: "membership-legacy-ambiguous", name: "Legacy Ambiguous",
+      clubId: "", group: "midfielder", ovr: 85, retired: false, freeAgent: false }
+  }
+} };
+const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
+assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 1,
+  "legacy saves must run the one-time roster ownership migration");
+assert.deepEqual(rosterMigrationWorld.clubs["membership-origin"].roster,
+  ["membership-origin-player", "membership-legacy-unique"],
+  "the former club must drop transferred and duplicate IDs while retaining its unique legacy player");
+assert.deepEqual(rosterMigrationWorld.clubs["membership-destination"].roster,
+  ["membership-transferred", "membership-destination-player"],
+  "the destination club must retain the transferred player exactly once");
+assert.equal(rosterMigrationWorld.players["membership-legacy-unique"].clubId, "membership-origin",
+  "a legacy player with exactly one roster membership can safely recover the owning club");
+assert.ok(rosterMigrationWorld.players["membership-legacy-ambiguous"],
+  "ambiguous legacy player data must be preserved even when no safe club can be inferred");
+assert.ok(!rosterMigrationWorld.clubs["membership-origin"].roster.includes("membership-legacy-ambiguous")
+  && !rosterMigrationWorld.clubs["membership-destination"].roster.includes("membership-legacy-ambiguous"),
+  "an ambiguous legacy player must not be counted in two clubs");
+assert.ok(!sandbox.window.__lwTestRosterPlayers(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-origin"])
+  .some(player => player.id === "membership-transferred"),
+  "old-club squad calculations must ignore a player whose canonical clubId points elsewhere");
+assert.ok(!sandbox.window.__lwTestPlayersForClub(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-origin"])
+  .some(player => player.id === "membership-transferred"),
+  "matchday player selection must not include a stale cross-club roster reference");
+assert.ok(sandbox.window.__lwTestMakeLineup(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-origin"])
+  .every(player => player.id !== "membership-transferred"),
+  "the former club must never field a transferred player from a stale roster ID");
+assert.ok(sandbox.window.__lwTestMakeLineup(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-destination"])
+  .some(player => player.id === "membership-transferred"),
+  "the destination club must continue to field the transferred player");
+
+const duplicateFillWorld = { players: {
+  "fill-transferred": { id: "fill-transferred", clubId: "fill-destination", group: "attacker", ovr: 95 },
+  "fill-active": { id: "fill-active", clubId: "fill-origin", group: "midfielder", ovr: 70 }
+}, nextGeneratedPlayer: 1, dbVersion: 1 };
+const duplicateFillClub = { id: "fill-origin", name: "Fill Origin", country: "Testland",
+  basePower: 60, power: 60, roster: ["fill-transferred", "fill-active", "fill-active"] };
+sandbox.window.__lwTestFillRoster(duplicateFillWorld, duplicateFillClub);
+assert.deepEqual(duplicateFillClub.roster.filter(id => id === "fill-active"), ["fill-active"],
+  "roster refill must collapse duplicate IDs without deleting the player record");
+assert.ok(!duplicateFillClub.roster.includes("fill-transferred"),
+  "roster refill must remove a player who now belongs to another club");
+assert.ok(duplicateFillWorld.players["fill-transferred"],
+  "cross-club cleanup must preserve the transferred player's career record");
+
 
 // Transfer-market competition labels must follow the simulated club's current division.
 // AI world clubs keep their dynamic division, while leagueFor supplies the matching

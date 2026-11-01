@@ -150,7 +150,7 @@
       lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
       nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive(),
-      rosterMembershipSchemaVersion: 1
+      rosterMembershipSchemaVersion: 2
     };
   }
   function addClub(world, row, db) {
@@ -225,7 +225,18 @@
     Object.entries(world.players).forEach(([id, player]) => {
       if (!player) return;
       const ownerClubId = String(player.clubId || "").trim();
-      if (ownerClubId && world.clubs[ownerClubId]) return;
+      if (ownerClubId && world.clubs[ownerClubId]) {
+        // The canonical owner is authoritative even when an interrupted save lost
+        // the roster reference. Restore membership before any squad refill runs.
+        if (!player.retired && !player.freeAgent) {
+          const owner = world.clubs[ownerClubId];
+          if (!Array.isArray(owner.roster)) owner.roster = [];
+          if (!owner.roster.some(rosterId => String(rosterId) === String(id))) {
+            owner.roster.push(String(id));
+          }
+        }
+        return;
+      }
       const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
       if (candidates.length === 1) {
         const clubId = candidates[0], club = world.clubs[clubId];
@@ -285,7 +296,7 @@
     }
     world.currentSeason = 1;
     world.rosterSchemaVersion = 3;
-    world.rosterMembershipSchemaVersion = 1;
+    world.rosterMembershipSchemaVersion = 2;
     return world;
   }
   function reconcileDatabase(world, db) {
@@ -382,6 +393,9 @@
         ));
       });
     }
+    // Restore authoritative player-to-club links before database reconciliation can
+    // refill a missing squad slot with a generated placeholder.
+    normalizeRosterMembership(world);
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const retiredIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
@@ -481,10 +495,10 @@
     Object.values(world.players).forEach(player => {
       player.group = groupForPosition(player.position);
     });
-    Object.values(world.clubs).forEach(club => fillRoster(world, club));
     normalizeRosterMembership(world);
+    Object.values(world.clubs).forEach(club => fillRoster(world, club));
     world.rosterSchemaVersion = 3;
-    world.rosterMembershipSchemaVersion = 1;
+    world.rosterMembershipSchemaVersion = 2;
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return world;
   }
@@ -519,9 +533,10 @@
       || Number(world.rosterSchemaVersion) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
-    if (Number(world.rosterMembershipSchemaVersion) !== 1) {
+    if (Number(world.rosterMembershipSchemaVersion) !== 2) {
       normalizeRosterMembership(world);
-      world.rosterMembershipSchemaVersion = 1;
+      world.rosterMembershipSchemaVersion = 2;
+      world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     }
     // The world-simulation season is independent of the player's career season.
     // Never rewind completed global seasons just because save.season has not caught up.
@@ -2117,7 +2132,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=32");
+    const worker = new global.Worker("./football-world-worker.js?v=33");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

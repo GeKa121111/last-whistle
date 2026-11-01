@@ -564,6 +564,122 @@ assert.equal(promotionWorld.clubs["promotion-first-6"].leagueName, "Test Premier
   "a later promotion must refresh the club's division metadata again");
 assert.equal(promotionWorld.players["promotion-relegated-player"].division, 1,
   "a later promotion must synchronize every attached player again");
+ 
+// Promotion/relegation must ignore stale standings rows after a club changes tier,
+// moves to another league, or appears more than once in a legacy table.
+const staleDivisionClubs = [];
+for (let index = 1; index <= 6; index++) staleDivisionClubs.push({
+  id: "stale-first-" + index, name: "Stale First " + index, leagueId: "stale-league",
+  country: "Testland", division: 1, leagueName: "Stale Premier", leagueEnglish: "Stale Premier League",
+  matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 4; index++) staleDivisionClubs.push({
+  id: "stale-second-" + index, name: "Stale Second " + index, leagueId: "stale-league",
+  country: "Testland", division: 2, leagueName: "Stale Second Division", leagueEnglish: "Stale Championship",
+  matchesPerSeason: 22, roster: []
+});
+staleDivisionClubs.push({
+  id: "stale-foreign-1", name: "Foreign Club", leagueId: "foreign-league",
+  country: "Elsewhere", division: 1, leagueName: "Foreign Premier", matchesPerSeason: 30, roster: []
+});
+const staleDivisionWorld = {
+  players: {
+    "stale-promoted-player": { id: "stale-promoted-player", clubId: "stale-second-1", division: 2 },
+    "stale-relegated-player": { id: "stale-relegated-player", clubId: "stale-first-6", division: 1 }
+  },
+  clubs: Object.fromEntries(staleDivisionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "5": {
+      "stale-league": [
+        ...Array.from({ length: 5 }, (_, index) => ({ clubId: "stale-first-" + (index + 1), leagueId: "stale-league", division: 1 })),
+        { clubId: "stale-second-3", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-first-6", leagueId: "stale-league", division: 1 }
+      ],
+      "stale-league:2": [
+        { clubId: "stale-foreign-1", leagueId: "foreign-league", division: 2 },
+        { clubId: "stale-first-1", leagueId: "stale-league", division: 1 },
+        { clubId: "stale-second-1", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-second-1", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-second-2", leagueId: "foreign-league", division: 2 },
+        { clubId: "stale-second-3", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-second-4", leagueId: "stale-league", division: 2 }
+      ]
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const staleDivisionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Stale Second Division", englishName: "Stale Championship", matchesPerSeason: 22 }
+    : { name: "Stale Premier", englishName: "Stale Premier League", matchesPerSeason: 34 }
+};
+const staleDivisionMoves = sandbox.window.__lwTestApplyPromotionRelegation(staleDivisionWorld, 5, staleDivisionDb);
+assert.equal(staleDivisionMoves.length, 1,
+  "stale, duplicate and cross-league rows must not inflate promotion or relegation places");
+assert.equal(staleDivisionMoves[0].promoted, "Stale Second 1",
+  "the highest eligible second-tier club must be promoted after invalid rows are removed");
+assert.equal(staleDivisionMoves[0].relegated, "Stale First 6",
+  "the lowest eligible first-tier club must be relegated after stale rows are removed");
+assert.equal(staleDivisionWorld.clubs["stale-first-1"].division, 1,
+  "a first-tier club duplicated into the second-tier table must not be promoted");
+assert.equal(staleDivisionWorld.clubs["stale-second-3"].division, 2,
+  "a second-tier club duplicated into the first-tier table must not be relegated");
+assert.equal(staleDivisionWorld.clubs["stale-second-2"].division, 2,
+  "a row with a conflicting league ID must not move a club");
+assert.equal(staleDivisionWorld.clubs["stale-foreign-1"].division, 1,
+  "a club from another league must never be promoted by this league's table");
+assert.equal(staleDivisionWorld.players["stale-promoted-player"].division, 1);
+assert.equal(staleDivisionWorld.players["stale-relegated-player"].division, 2);
+
+// A metadata failure midway through a promotion batch must roll back every club and player tier.
+const atomicPromotionClubs = [];
+for (let index = 1; index <= 6; index++) atomicPromotionClubs.push({
+  id: "atomic-first-" + index, name: "Atomic First " + index, leagueId: "atomic-league",
+  country: "Testland", division: 1, leagueName: "Atomic Premier", leagueEnglish: "Atomic Premier League",
+  matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 3; index++) atomicPromotionClubs.push({
+  id: "atomic-second-" + index, name: "Atomic Second " + index, leagueId: "atomic-league",
+  country: "Testland", division: 2, leagueName: "Atomic Second Division", leagueEnglish: "Atomic Championship",
+  matchesPerSeason: 22, roster: []
+});
+const atomicPromotionWorld = {
+  players: {
+    "atomic-promoted-player": { id: "atomic-promoted-player", clubId: "atomic-second-1", division: 2 },
+    "atomic-relegated-player": { id: "atomic-relegated-player", clubId: "atomic-first-6", division: 1 }
+  },
+  clubs: Object.fromEntries(atomicPromotionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "8": {
+      "atomic-league": Array.from({ length: 6 }, (_, index) => ({
+        clubId: "atomic-first-" + (index + 1), leagueId: "atomic-league", division: 1
+      })),
+      "atomic-league:2": Array.from({ length: 3 }, (_, index) => ({
+        clubId: "atomic-second-" + (index + 1), leagueId: "atomic-league", division: 2
+      }))
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const atomicPromotionBefore = JSON.stringify(atomicPromotionWorld);
+let atomicPromotionLookups = 0;
+const failingPromotionDb = {
+  leagueFor: (_country, division) => {
+    atomicPromotionLookups++;
+    if (atomicPromotionLookups === 2) throw new Error("forced promotion metadata failure");
+    return Number(division) >= 2
+      ? { name: "Atomic Second Division", englishName: "Atomic Championship", matchesPerSeason: 22 }
+      : { name: "Atomic Premier", englishName: "Atomic Premier League", matchesPerSeason: 34 };
+  }
+};
+assert.throws(() => sandbox.window.__lwTestApplyPromotionRelegation(atomicPromotionWorld, 8, failingPromotionDb),
+  /forced promotion metadata failure/,
+  "a failed division metadata lookup must abort the complete promotion batch");
+assert.equal(JSON.stringify(atomicPromotionWorld), atomicPromotionBefore,
+  "failed promotion/relegation must restore club metadata, attached player divisions, history and notes");
+
 
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");

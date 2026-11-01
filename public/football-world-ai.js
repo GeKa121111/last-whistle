@@ -1552,30 +1552,111 @@
     if (world.promotionHistory.some(row => Number(row.season) === destinationSeason)) return [];
     const tables = world.leagueTables && world.leagueTables[String(season)] || {};
     const leagueIds = new Set(Object.values(world.clubs || {}).map(club => String(club && club.leagueId || "")).filter(Boolean));
-    const moves = [];
+    const eligibleTableRows = (rows, leagueId, expectedDivision) => {
+      const seen = new Set();
+      const eligible = [];
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const clubId = String(row && row.clubId || "");
+        if (!clubId || seen.has(clubId)) continue;
+        const club = world.clubs && world.clubs[clubId];
+        if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
+        const clubDivision = Number(club.division);
+        if (!Number.isInteger(clubDivision) || clubDivision !== expectedDivision) continue;
+        const rowLeagueId = String(row.leagueId || "").trim();
+        if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
+        if (row.division !== undefined && row.division !== null && String(row.division).trim() !== "") {
+          const rowDivision = Number(row.division);
+          if (!Number.isInteger(rowDivision) || rowDivision !== expectedDivision) continue;
+        }
+        seen.add(clubId);
+        eligible.push(club);
+      }
+      return eligible;
+    };
+    const plannedMoves = [];
+    const scheduledClubIds = new Set();
     for (const leagueId of leagueIds) {
-      const first = Array.isArray(tables[leagueId]) ? tables[leagueId] : [];
-      const secondKey = leagueId + ":2";
-      const second = Array.isArray(tables[secondKey]) ? tables[secondKey] : [];
+      // Standings can outlive a transfer or a division change in legacy saves. Only clubs
+      // that still belong to this league and tier may take part in the current promotion.
+      const first = eligibleTableRows(tables[leagueId], leagueId, 1);
+      const second = eligibleTableRows(tables[leagueId + ":2"], leagueId, 2);
       if (first.length < 6 || second.length < 3) continue;
       const count = Math.min(2, Math.max(1, Math.floor(second.length * 0.15)), Math.max(1, Math.floor(first.length * 0.1)));
       const promoted = second.slice(0, count), relegated = first.slice(-count);
       for (let i = 0; i < count; i++) {
-        const up = world.clubs[promoted[i] && promoted[i].clubId];
-        const down = world.clubs[relegated[i] && relegated[i].clubId];
-        if (!up || !down || up.id === down.id) continue;
-        base.syncClubDivisionMetadata(world, up, 1, db);
-        base.syncClubDivisionMetadata(world, down, 2, db);
-        moves.push({ leagueId, promoted: up.name, relegated: down.name, season: destinationSeason });
+        const up = promoted[i], down = relegated[i];
+        if (!up || !down || up.id === down.id
+          || scheduledClubIds.has(String(up.id)) || scheduledClubIds.has(String(down.id))) continue;
+        scheduledClubIds.add(String(up.id));
+        scheduledClubIds.add(String(down.id));
+        plannedMoves.push({ leagueId, up, down });
       }
     }
-    if (moves.length) {
-      world.promotionHistory.unshift({ season: destinationSeason, moves });
-      world.promotionHistory = world.promotionHistory.slice(0, 30);
-      world.notes = Array.isArray(world.notes) ? world.notes : [];
-      world.notes.unshift({ season: destinationSeason, type: "promotion", text: "اكتملت حركة الصعود والهبوط بين الدرجات في " + moves.length + " دوريًا." });
-      world.notes = world.notes.slice(0, 30);
+    if (!plannedMoves.length) return [];
+
+    // Apply the complete promotion batch atomically. A metadata lookup can fail after the
+    // division field changes, so retain both club metadata and every attached player's tier.
+    const affectedClubIds = new Set();
+    const clubSnapshots = new Map();
+    const clubFields = ["division", "leagueName", "leagueEnglish", "matchesPerSeason"];
+    for (const plan of plannedMoves) {
+      for (const club of [plan.up, plan.down]) {
+        const id = String(club.id || "");
+        affectedClubIds.add(id);
+        if (!clubSnapshots.has(club)) {
+          const snapshot = {};
+          clubFields.forEach(field => {
+            snapshot[field] = {
+              present: Object.prototype.hasOwnProperty.call(club, field),
+              value: club[field]
+            };
+          });
+          clubSnapshots.set(club, snapshot);
+        }
+      }
     }
+    const playerSnapshots = [];
+    Object.values(world.players || {}).forEach(player => {
+      if (player && affectedClubIds.has(String(player.clubId || ""))) {
+        playerSnapshots.push({
+          player,
+          present: Object.prototype.hasOwnProperty.call(player, "division"),
+          value: player.division
+        });
+      }
+    });
+
+    const moves = [];
+    try {
+      for (const plan of plannedMoves) {
+        base.syncClubDivisionMetadata(world, plan.up, 1, db);
+        base.syncClubDivisionMetadata(world, plan.down, 2, db);
+        moves.push({
+          leagueId: plan.leagueId,
+          promoted: plan.up.name,
+          relegated: plan.down.name,
+          season: destinationSeason
+        });
+      }
+    } catch (error) {
+      for (const [club, snapshot] of clubSnapshots) {
+        for (const [field, saved] of Object.entries(snapshot)) {
+          if (saved.present) club[field] = saved.value;
+          else delete club[field];
+        }
+      }
+      playerSnapshots.forEach(snapshot => {
+        if (snapshot.present) snapshot.player.division = snapshot.value;
+        else delete snapshot.player.division;
+      });
+      throw error;
+    }
+
+    world.promotionHistory.unshift({ season: destinationSeason, moves });
+    world.promotionHistory = world.promotionHistory.slice(0, 30);
+    world.notes = Array.isArray(world.notes) ? world.notes : [];
+    world.notes.unshift({ season: destinationSeason, type: "promotion", text: "اكتملت حركة الصعود والهبوط بين الدرجات في " + moves.length + " دوريًا." });
+    world.notes = world.notes.slice(0, 30);
     return moves;
   }
   function signFreeAgents(world, season, existingMoves) {
@@ -1973,7 +2054,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=27");
+    const worker = new global.Worker("./football-world-worker.js?v=28");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

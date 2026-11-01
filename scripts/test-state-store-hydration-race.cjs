@@ -164,25 +164,25 @@ function createHarness() {
   assert.strictEqual(delayedWrite.store.getStartupSave(), newerImportedCareer,
     "a late IndexedDB write must not overwrite the newer imported startup save");
 
-  const delayedLoad = createHarness();
-  await delayedLoad.resolveStartupRead(null);
+  const loadAfterSave = createHarness();
+  await loadAfterSave.resolveStartupRead(null);
   const preLoadCareer = { name: "Save In Flight Before Explicit Load", money: 810 };
-  const preLoadSavePromise = delayedLoad.store.save(preLoadCareer);
-  const preLoadTransaction = await delayedLoad.waitForWrite();
+  const preLoadSavePromise = loadAfterSave.store.save(preLoadCareer);
+  const preLoadTransaction = await loadAfterSave.waitForWrite();
   const selectedCareer = { name: "Career Selected From IndexedDB", money: 5100 };
-  const explicitLoadPromise = delayedLoad.store.load();
-  const explicitLoadRequest = await delayedLoad.waitForRead(1);
+  const explicitLoadPromise = loadAfterSave.store.load();
+  const explicitLoadRequest = await loadAfterSave.waitForRead(1);
   explicitLoadRequest.result = { id: "career:default", state: selectedCareer };
   explicitLoadRequest.onsuccess();
   const explicitLoadResult = await explicitLoadPromise;
   await preLoadSavePromise;
   assert.equal(preLoadTransaction.aborted, true,
     "loading the default slot must abort an older in-flight save before it can overwrite the selected record");
-  assert.equal(delayedLoad.committedWrites.length, 0,
+  assert.equal(loadAfterSave.committedWrites.length, 0,
     "the stale pre-load career must not be committed after the explicit load");
-  assert.strictEqual(delayedLoad.store.getState(), explicitLoadResult,
+  assert.strictEqual(loadAfterSave.store.getState(), explicitLoadResult,
     "the explicitly selected IndexedDB career must remain the live state");
-  assert.strictEqual(delayedLoad.store.getStartupSave(), explicitLoadResult,
+  assert.strictEqual(loadAfterSave.store.getStartupSave(), explicitLoadResult,
     "the explicitly selected IndexedDB career must remain the startup save");
 
   const normalLoad = createHarness();

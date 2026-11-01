@@ -635,6 +635,7 @@ const malformedLegacyMigration = {
   saveGame: () => { malformedLegacyMigration.saved = true; },
   ensureTransferOffers: () => {},
   offerIsAvailable: () => true,
+  clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
   toast: message => { malformedLegacyMigration.toastMessage = message; },
   renderTransferMarket: () => {}
 };

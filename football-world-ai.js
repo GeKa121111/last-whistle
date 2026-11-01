@@ -87,6 +87,32 @@
   function clubKey(name, country) {
     return normalize(country) + "|" + normalize(name);
   }
+  function syncClubDivisionMetadata(world, club, division, db, sourceRow) {
+    if (!club) return null;
+    const tier = Math.max(1, int(division, int(club.division, 1)));
+    club.division = tier;
+    const profile = db && typeof db.leagueFor === "function"
+      ? db.leagueFor(club.country, tier) || {}
+      : db && typeof db.leagueById === "function" ? db.leagueById(club.leagueId) || {} : {};
+    const profileName = profile.name || (tier >= 2 ? profile.tier2 : profile.league);
+    const profileEnglish = profile.englishName || (tier >= 2 ? profile.tier2English : profile.english);
+    const sourceTier = Math.max(1, int(sourceRow && sourceRow.division, 1));
+    if (profileName) club.leagueName = String(profileName);
+    else if (sourceTier === tier && sourceRow && sourceRow.leagueName) club.leagueName = String(sourceRow.leagueName);
+    if (profileEnglish) club.leagueEnglish = String(profileEnglish);
+    else if (sourceTier === tier && sourceRow && sourceRow.leagueEnglish) club.leagueEnglish = String(sourceRow.leagueEnglish);
+    const profileMatches = profile.matchesPerSeason || (tier >= 2 ? profile.tier2MatchesPerSeason : profile.matches);
+    const sourceMatches = sourceTier === tier && sourceRow ? sourceRow.matchesPerSeason : 0;
+    const matches = Number(profileMatches || sourceMatches);
+    if (Number.isFinite(matches) && matches > 0) club.matchesPerSeason = Math.max(20, Math.round(matches));
+    const clubId = String(club.id || "");
+    if (clubId) {
+      Object.values(world && world.players || {}).forEach(player => {
+        if (player && String(player.clubId || "") === clubId) player.division = tier;
+      });
+    }
+    return profile;
+  }
   function sourcePlayerIdentityKey(player) {
     const name = normalize(player && player.name);
     if (!name) return "";
@@ -368,18 +394,13 @@
         fillRoster(world, club);
       } else {
         const club = world.clubs[id];
-        const profile = db && typeof db.leagueFor === "function"
-          ? db.leagueFor(row.country, row.division) || {}
-          : db && typeof db.leagueById === "function" ? db.leagueById(row.leagueId) || {} : {};
-        club.leagueName = String(row.leagueName || profile.name || profile.league || club.leagueName || "");
-        club.leagueEnglish = String(row.leagueEnglish || profile.englishName || profile.english || club.leagueEnglish || "");
         const sourceDivision = Math.max(1, int(row.division, 1));
         const savedDivision = Number(club.division);
-        // Reconcile roster metadata without undoing in-game promotion/relegation.
-        // A valid saved division belongs to this simulation, even if the source catalogue refreshes.
-        club.division = Number.isFinite(savedDivision) && savedDivision >= 1
+        // A saved in-game tier is authoritative after promotion/relegation. Resolve all
+        // division-dependent metadata from that tier, not from the source roster's seed tier.
+        const activeDivision = Number.isFinite(savedDivision) && savedDivision >= 1
           ? Math.max(1, int(savedDivision, sourceDivision)) : sourceDivision;
-        club.matchesPerSeason = Math.max(20, int(row.matchesPerSeason || profile.matchesPerSeason || profile.matches, club.matchesPerSeason || 34));
+        syncClubDivisionMetadata(world, club, activeDivision, db, row);
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.
         const knownForClub = knownPlayersByClub.get(id) || new Set();
@@ -1042,7 +1063,7 @@
     };
   }
   global.LWWorldAI = Object.freeze({
-    version: VERSION, normalize, normalizePosition, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
+    version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
     getLeagueTable, leaderboard, dashboard
   });
@@ -1525,31 +1546,34 @@
     });
     return results;
   }
-  function applyPromotionRelegation(world, season) {
+  function applyPromotionRelegation(world, season, db) {
     world.promotionHistory = Array.isArray(world.promotionHistory) ? world.promotionHistory : [];
     const destinationSeason = Number(season) + 1;
     if (world.promotionHistory.some(row => Number(row.season) === destinationSeason)) return [];
-    const tables = world.leagueTables[String(season)] || {};
-    const leagueIds = new Set(Object.values(world.clubs).map(club => String(club.leagueId || "")).filter(Boolean));
+    const tables = world.leagueTables && world.leagueTables[String(season)] || {};
+    const leagueIds = new Set(Object.values(world.clubs || {}).map(club => String(club && club.leagueId || "")).filter(Boolean));
     const moves = [];
     for (const leagueId of leagueIds) {
-      const first = tables[leagueId] || [], second = tables[leagueId + ":2"] || [];
+      const first = Array.isArray(tables[leagueId]) ? tables[leagueId] : [];
+      const secondKey = leagueId + ":2";
+      const second = Array.isArray(tables[secondKey]) ? tables[secondKey] : [];
       if (first.length < 6 || second.length < 3) continue;
       const count = Math.min(2, Math.max(1, Math.floor(second.length * 0.15)), Math.max(1, Math.floor(first.length * 0.1)));
       const promoted = second.slice(0, count), relegated = first.slice(-count);
       for (let i = 0; i < count; i++) {
-        const up = world.clubs[promoted[i].clubId], down = world.clubs[relegated[i].clubId];
-        if (!up || !down) continue;
-        up.division = 1; down.division = 2;
-        up.roster.forEach(id => { if (world.players[id]) world.players[id].division = 1; });
-        down.roster.forEach(id => { if (world.players[id]) world.players[id].division = 2; });
-        moves.push({ leagueId, promoted: up.name, relegated: down.name, season: Number(season) + 1 });
+        const up = world.clubs[promoted[i] && promoted[i].clubId];
+        const down = world.clubs[relegated[i] && relegated[i].clubId];
+        if (!up || !down || up.id === down.id) continue;
+        base.syncClubDivisionMetadata(world, up, 1, db);
+        base.syncClubDivisionMetadata(world, down, 2, db);
+        moves.push({ leagueId, promoted: up.name, relegated: down.name, season: destinationSeason });
       }
     }
     if (moves.length) {
-      world.promotionHistory.unshift({ season: Number(season) + 1, moves });
+      world.promotionHistory.unshift({ season: destinationSeason, moves });
       world.promotionHistory = world.promotionHistory.slice(0, 30);
-      world.notes.unshift({ season: Number(season) + 1, type: "promotion", text: "اكتملت حركة الصعود والهبوط بين الدرجات في " + moves.length + " دوريًا." });
+      world.notes = Array.isArray(world.notes) ? world.notes : [];
+      world.notes.unshift({ season: destinationSeason, type: "promotion", text: "اكتملت حركة الصعود والهبوط بين الدرجات في " + moves.length + " دوريًا." });
       world.notes = world.notes.slice(0, 30);
     }
     return moves;
@@ -1722,7 +1746,7 @@
     if (lastAdvancedTo >= next || currentSeason > next) return base.advanceToSeason(save, next, db);
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
-    const promotions = applyPromotionRelegation(world, previous);
+    const promotions = applyPromotionRelegation(world, previous, db);
     const transition = base.advanceToSeason(save, next, db);
     if (!transition.alreadyAdvanced) {
       const freeAgentMoves = signFreeAgents(world, next, transition.moves || []);
@@ -1949,7 +1973,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=26");
+    const worker = new global.Worker("./football-world-worker.js?v=27");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

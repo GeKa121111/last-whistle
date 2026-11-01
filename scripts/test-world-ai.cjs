@@ -41,7 +41,7 @@ assert.ok(aiSourceRaw.includes(rosterPlayersMarker), "AI engine must retain the 
 assert.ok(aiSourceRaw.includes(playersForClubMarker), "AI engine must retain the club-player filter for retired-roster regression coverage");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
-const promotionMarker = "  function applyPromotionRelegation(world, season) {";
+const promotionMarker = "  function applyPromotionRelegation(world, season, db) {";
 const reconcileMarker = "  function reconcileDatabase(world, db) {";
 const transferMarker = "  function runTransferWindow(world, season) {";
 const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
@@ -130,6 +130,21 @@ const transferCompetitionWorldClub = transferCompetitionWorld.clubs[
 assert.ok(transferCompetitionWorldClub, "the sourced club must exist in the simulated football world");
 transferCompetitionWorldClub.division = 2;
 const secondTierProfile = db.leagueFor(transferCompetitionSeed.country, 2);
+const unlistedDivisionPlayer = {
+  id: "division-reconcile-unlisted-player", name: "Division Reconcile Unlisted Player",
+  clubId: transferCompetitionWorldClub.id, division: 1, position: "وسط", group: "midfielder"
+};
+transferCompetitionWorld.players[unlistedDivisionPlayer.id] = unlistedDivisionPlayer;
+sandbox.window.__lwTestReconcileDatabase(transferCompetitionWorld, db);
+assert.equal(transferCompetitionWorldClub.leagueName, secondTierProfile.name,
+  "database reconciliation must retain the simulated second-tier local competition label");
+assert.equal(transferCompetitionWorldClub.leagueEnglish, secondTierProfile.englishName,
+  "database reconciliation must retain the simulated second-tier English competition label");
+assert.equal(transferCompetitionWorldClub.matchesPerSeason, secondTierProfile.matchesPerSeason,
+  "database reconciliation must retain the current division's season length");
+assert.ok(Object.values(transferCompetitionWorld.players).filter(player => player.clubId === transferCompetitionWorldClub.id)
+  .every(player => Number(player.division) === 2),
+  "database reconciliation must synchronize every attached player's dynamic division");
 const secondTierTarget = ai.transferTargets(transferCompetitionSave, db).find(target =>
   target.club === transferCompetitionSeed.name && target.country === transferCompetitionSeed.country);
 assert.equal(secondTierTarget.division, 2, "the transfer target must preserve the simulated second-tier division");
@@ -138,6 +153,15 @@ assert.equal(secondTierTarget.league, secondTierProfile.name,
 assert.equal(secondTierTarget.leagueEnglish, secondTierProfile.englishName,
   "the English competition label must also follow the current division");
 transferCompetitionWorldClub.division = 1;
+sandbox.window.__lwTestReconcileDatabase(transferCompetitionWorld, db);
+const firstTierProfile = db.leagueFor(transferCompetitionSeed.country, 1);
+assert.equal(transferCompetitionWorldClub.leagueName, firstTierProfile.name,
+  "database reconciliation must restore first-tier labels after promotion");
+assert.equal(transferCompetitionWorldClub.matchesPerSeason, firstTierProfile.matchesPerSeason,
+  "database reconciliation must restore first-tier season length after promotion");
+assert.ok(Object.values(transferCompetitionWorld.players).filter(player => player.clubId === transferCompetitionWorldClub.id)
+  .every(player => Number(player.division) === 1),
+  "database reconciliation must synchronize attached players after promotion");
 const firstTierTarget = ai.transferTargets(transferCompetitionSave, db).find(target =>
   target.club === transferCompetitionSeed.name && target.country === transferCompetitionSeed.country);
 assert.equal(firstTierTarget.league, db.leagueFor(transferCompetitionSeed.country, 1).name,
@@ -461,14 +485,20 @@ assert.equal(retiredReconcileWorld.playerHistory[retiredReconcilePlayerId][0].ty
 const promotionClubs = [];
 for (let index = 1; index <= 6; index++) promotionClubs.push({
   id: "promotion-first-" + index, name: "Promotion First " + index,
-  leagueId: "promotion-test", division: 1, roster: []
+  leagueId: "promotion-test", country: "Testland", division: 1,
+  leagueName: "Test Premier", leagueEnglish: "Test Premier League", matchesPerSeason: 34, roster: []
 });
 for (let index = 1; index <= 3; index++) promotionClubs.push({
   id: "promotion-second-" + index, name: "Promotion Second " + index,
-  leagueId: "promotion-test", division: 2, roster: []
+  leagueId: "promotion-test", country: "Testland", division: 2,
+  leagueName: "Test Second Division", leagueEnglish: "Test Championship", matchesPerSeason: 22, roster: []
 });
 const promotionWorld = {
-  players: {},
+  players: {
+    "promotion-listed-player": { id: "promotion-listed-player", clubId: "promotion-second-1", division: 2 },
+    "promotion-unlisted-player": { id: "promotion-unlisted-player", clubId: "promotion-second-1", division: 2 },
+    "promotion-relegated-player": { id: "promotion-relegated-player", clubId: "promotion-first-6", division: 1 }
+  },
   clubs: Object.fromEntries(promotionClubs.map(club => [club.id, club])),
   leagueTables: {
     "1": {
@@ -491,14 +521,37 @@ const promotionWorld = {
 };
 assert.equal(typeof sandbox.window.__lwTestApplyPromotionRelegation, "function",
   "the promotion/relegation function must be exposed to the isolated regression test");
-const seasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1);
+const promotionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Test Second Division", englishName: "Test Championship", matchesPerSeason: 22 }
+    : { name: "Test Premier", englishName: "Test Premier League", matchesPerSeason: 34 }
+};
+promotionWorld.clubs["promotion-second-1"].roster = ["promotion-listed-player"];
+promotionWorld.clubs["promotion-first-6"].roster = ["promotion-relegated-player"];
+const seasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1, promotionDb);
 assert.equal(seasonOneMoves.length, 1, "season 1 should promote and relegate one club in the fixture league");
 assert.equal(promotionWorld.promotionHistory[0].season, 2,
   "promotion history should label the destination season");
-const repeatedSeasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1);
+assert.equal(promotionWorld.clubs["promotion-second-1"].leagueName, "Test Premier",
+  "promotion must refresh the club's persisted local competition name immediately");
+assert.equal(promotionWorld.clubs["promotion-second-1"].leagueEnglish, "Test Premier League",
+  "promotion must refresh the club's persisted English competition name immediately");
+assert.equal(promotionWorld.clubs["promotion-second-1"].matchesPerSeason, 34,
+  "promotion must refresh division-dependent season length metadata");
+assert.equal(promotionWorld.clubs["promotion-first-6"].leagueName, "Test Second Division",
+  "relegation must refresh the club's persisted local competition name immediately");
+assert.equal(promotionWorld.clubs["promotion-first-6"].matchesPerSeason, 22,
+  "relegation must refresh division-dependent season length metadata");
+assert.equal(promotionWorld.players["promotion-listed-player"].division, 1,
+  "promotion must update listed players' division");
+assert.equal(promotionWorld.players["promotion-unlisted-player"].division, 1,
+  "promotion must update every player attached to the club, even if missing from its roster array");
+assert.equal(promotionWorld.players["promotion-relegated-player"].division, 2,
+  "relegation must update attached players' division");
+const repeatedSeasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1, promotionDb);
 assert.equal(repeatedSeasonOneMoves.length, 0,
   "replaying the same source season must not duplicate its promotion/relegation");
-const seasonTwoMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 2);
+const seasonTwoMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 2, promotionDb);
 assert.equal(seasonTwoMoves.length, 1,
   "a season 2 promotion/relegation must not be blocked by the prior season's destination-season history row");
 assert.equal(promotionWorld.promotionHistory[0].season, 3,
@@ -507,6 +560,10 @@ assert.equal(promotionWorld.clubs["promotion-first-6"].division, 1,
   "the season 2 second-tier winner must be promoted");
 assert.equal(promotionWorld.clubs["promotion-first-5"].division, 2,
   "the season 2 first-tier bottom club must be relegated");
+assert.equal(promotionWorld.clubs["promotion-first-6"].leagueName, "Test Premier",
+  "a later promotion must refresh the club's division metadata again");
+assert.equal(promotionWorld.players["promotion-relegated-player"].division, 1,
+  "a later promotion must synchronize every attached player again");
 
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");

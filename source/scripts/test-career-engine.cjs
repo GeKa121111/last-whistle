@@ -98,13 +98,23 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 312);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 61);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 315);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 62);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
 assert.ok(engineCopies[0].includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
   "the shared career engine must clamp saved player attributes to the 0-100 range");
+const inlineDedupStart = rootHtml.indexOf("  function uniqueMatchRows(rows) {");
+const inlineDedupEnd = rootHtml.indexOf("\n  function uniqueCareerHistory(state)", inlineDedupStart);
+const sharedDedupStart = engineCopies[0].indexOf("  function uniqueMatchRows(rows) {");
+const sharedDedupEnd = engineCopies[0].indexOf("\n  function uniqueCareerHistory(state)", sharedDedupStart);
+assert.ok(inlineDedupStart >= 0 && inlineDedupEnd > inlineDedupStart
+  && sharedDedupStart >= 0 && sharedDedupEnd > sharedDedupStart,
+  "inline and shared match-history deduplication functions must remain extractable");
+assert.equal(rootHtml.slice(inlineDedupStart, inlineDedupEnd),
+  engineCopies[0].slice(sharedDedupStart, sharedDedupEnd),
+  "inline browser and shared career engines must use identical match-history deduplication");
 assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "career award dates must start on the in-game season date, not the machine clock");
 assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z",
@@ -443,6 +453,30 @@ delete partialLegacyDuplicate.day;
 delete partialLegacyDuplicate.matchday;
 assert.equal(career.uniqueMatchRows([legacyLeagueFixture, partialLegacyDuplicate]).length, 1,
   "a partially enriched copy with matching opponent and competition identity must still be deduplicated");
+const unidentifiedLegacyRepeat = {
+  scope: "league", competition: "Premier League", season: 4, club: "Test FC",
+  opponent: "Repeat Opponent", teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0
+};
+const unidentifiedLegacyRows = [unidentifiedLegacyRepeat, { ...unidentifiedLegacyRepeat }];
+const identifiedLegacyRepeat = { ...unidentifiedLegacyRepeat, day: 24, matchday: 12 };
+const identifiedLegacyRows = [identifiedLegacyRepeat, { ...identifiedLegacyRepeat }];
+for (const engine of [career, deployedCareer]) {
+  assert.equal(engine.uniqueMatchRows(unidentifiedLegacyRows).length, 2,
+    "two no-ID legacy fixtures with identical stats but no date/round must not collapse into one appearance");
+  assert.equal(engine.uniqueMatchRows(identifiedLegacyRows).length, 1,
+    "no-ID legacy copies with matching competition context and a temporal key must still deduplicate");
+  const sparseHistory = {
+    apps: 2,
+    seasonLog: [unidentifiedLegacyRepeat],
+    careerMatchHistory: [{ ...unidentifiedLegacyRepeat }]
+  };
+  engine.rebuildLegacyCareerStats(sparseHistory);
+  assert.equal(sparseHistory.careerMinutes, 180,
+    "legacy stat rebuilding must preserve both no-ID appearances when no temporal identity exists");
+  assert.equal(sparseHistory.qualifyingAppearances, 2,
+    "legacy stat rebuilding must not erase a qualifying appearance from a sparse no-ID history");
+}
+
 
 const whitespaceCompetitionLeagueFixture = {
   id: "legacy-whitespace-competition-id", scope: "league", competition: "   ",

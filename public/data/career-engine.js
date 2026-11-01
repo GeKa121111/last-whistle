@@ -200,6 +200,8 @@
     const seenFallback = new Set();
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
+    const fallbackContextFields = ["scope", "competition", "season", "segmentId", "club"];
+    const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
     const identityValue = (row, field) => {
       const value = field === "competition"
         ? [row.competition, row.leagueCompetition].find(candidate =>
@@ -239,6 +241,12 @@
         seenById.set(id, candidates);
         return true;
       }
+      // Without a saved match ID, identical score lines and player stats are not
+      // enough to prove that two fixtures are the same (e.g. home and away legs).
+      // Require both a stable competition/season/club context and a temporal key.
+      const hasFallbackContext = fallbackContextFields.some(field => identityValue(row, field) !== "");
+      const hasFallbackTime = fallbackTemporalFields.some(field => identityValue(row, field) !== "");
+      if (!hasFallbackContext || !hasFallbackTime) return true;
       const fallback = [
         identityValue(row, "scope"), identityValue(row, "competition"),
         identityValue(row, "season"), identityValue(row, "segmentId"),
@@ -253,7 +261,6 @@
       return true;
     });
   }
-
   function uniqueCareerHistory(state) {
     const leagueRows = (Array.isArray(state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object")

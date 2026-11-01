@@ -18,6 +18,11 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
   const writes = [];
   const removals = [];
   const warnings = [];
+  const flushCalls = [];
+  const saveCalls = [];
+  const publishCalls = [];
+  const flushImpl = flush || (async () => {});
+  const saveImpl = save || (async () => {});
   let storedValue = initialFallback;
   const sandbox = {
     state: state || { name: "Save fallback regression", season: 4, money: 1250 },
@@ -45,9 +50,9 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
     },
     window: {
       LWStateStore: {
-        flush: flush || (async () => {}),
-        save: save || (async () => {}),
-        publish() {}
+        flush(value) { flushCalls.push(value); return flushImpl(value); },
+        save(value) { saveCalls.push(value); return saveImpl(value); },
+        publish(value, meta) { publishCalls.push({ value, meta }); }
       }
     },
     console: { warn(...args) { warnings.push(args); } },
@@ -62,6 +67,9 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
     writes,
     removals,
     warnings,
+    flushCalls,
+    saveCalls,
+    publishCalls,
     get storedValue() { return storedValue; },
     set storedValue(value) { storedValue = value; }
   };
@@ -76,6 +84,9 @@ async function runFlush(options = {}) {
     writes: harness.writes,
     removals: harness.removals,
     warnings: harness.warnings,
+    flushCalls: harness.flushCalls,
+    saveCalls: harness.saveCalls,
+    publishCalls: harness.publishCalls,
     state: harness.sandbox.state,
     storedValue: harness.storedValue
   };
@@ -115,6 +126,8 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   });
   assert.equal(successful.result, true, "a successful IndexedDB flush should complete");
   assert.equal(successfulFlushCalls, 1, "the queued state must be flushed exactly once");
+  assert.equal(successful.flushCalls[0], successful.state,
+    "queued IndexedDB flush must receive the live career object so store subscribers never retain a detached snapshot");
   assert.equal(successful.writes.length, 0, "a successful IndexedDB flush should not write a fallback copy");
   assert.deepEqual(successful.removals, ["lastWhistleCareer_v4"],
     "a successful IndexedDB flush must clear the prefixed fallback snapshot in place");
@@ -125,6 +138,8 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
     flush: async () => { throw new Error("IndexedDB quota"); }
   });
   assert.equal(failed.result, true, "a failed IndexedDB flush should succeed through the fallback snapshot");
+  assert.equal(failed.flushCalls[0], failed.state,
+    "failed IndexedDB flush must still publish the live career object before using the backup snapshot");
   assert.equal(failed.writes.length, 1, "a failed IndexedDB flush must persist one fallback snapshot");
   assert.equal(failed.writes[0].key, "lastWhistleCareer_v4");
   assert.ok(failed.writes[0].value.startsWith("LWIDB1:"),
@@ -157,6 +172,7 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   });
   assert.equal(notQueued.result, true, "an empty queue should be a no-op");
   assert.equal(notQueued.writes.length, 0);
+  assert.equal(notQueued.flushCalls.length, 0, "an empty queue must not publish a save operation");
 
   const staleIndexed = { name: "older IndexedDB save", money: 10 };
   const newerFallback = "LWIDB1:" + JSON.stringify({ name: "newer fallback save", money: 999 });
@@ -210,6 +226,8 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   assert.equal(flushSnapshots[0].money, 1250);
   assert.equal(flushSnapshots[1].money, 999, "the follow-up flush must persist the newer state, not the stale snapshot");
   assert.equal(concurrent.sandbox.saveQueued, false);
+  assert.ok(concurrent.flushCalls.every(value => value === concurrent.sandbox.state),
+    "each serialized flush must retain the same live career object reference");
   assert.equal(concurrent.storedValue, null, "the fallback may be removed only after the newer snapshot is committed");
 
   let releaseDirectSave;
@@ -221,6 +239,10 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   });
   assert.equal(direct.sandbox.runPersistGame(true), true, "direct IndexedDB save should start");
   assert.equal(direct.sandbox.saveWriteInFlight, 1);
+  assert.equal(direct.saveCalls[0], direct.sandbox.state,
+    "direct saves must pass the live state to LWStateStore, which snapshots it internally");
+  assert.equal(direct.publishCalls.length, 0,
+    "the app must not publish once explicitly and then publish a detached snapshot again inside LWStateStore.save");
   direct.sandbox.state.money = 777;
   direct.sandbox.saveRevision += 1;
   direct.storedValue = "LWIDB1:" + JSON.stringify(direct.sandbox.state);
@@ -234,6 +256,12 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
     "pagehide must request a synchronous fallback snapshot before awaiting IndexedDB");
   assert.ok(rootHtml.includes('document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushQueuedSave({backupFirst:true});});'),
     "backgrounding the app must also preserve the latest state before an asynchronous flush");
+  assert.ok(rootHtml.includes('window.LWStateStore.save(state,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")})'),
+    "direct saves must give the state store the live career object, not the detached persistence snapshot");
+  assert.ok(rootHtml.includes("await window.LWStateStore.flush(state);"),
+    "queued flushes must publish the live career object to state subscribers");
+  assert.ok(!rootHtml.includes('window.LWStateStore.publish(state,{source:"save"});'),
+    "direct persistence must not double-publish a live state followed by a detached clone");
 
   console.log("PASS: save flushes are ordered, page-hide backups are synchronous, and stale fallbacks cannot overwrite newer career data.");
 })().catch(error => {

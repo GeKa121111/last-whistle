@@ -4259,8 +4259,7 @@ function persistGame(silent=false,revision=saveRevision){
   state.schemaVersion=10;
   const snapshot=structuredCloneSafe(state);
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
-   window.LWStateStore.publish(state,{source:"save"});
-   const writePromise=window.LWStateStore.save(snapshot,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")});
+   const writePromise=window.LWStateStore.save(state,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")});
    saveWriteInFlight++;
    Promise.resolve(writePromise).then(()=>{
     clearFallbackAfterIndexedDBSave(snapshot,revision);
@@ -4310,7 +4309,7 @@ async function flushQueuedSave(options={}){
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
   const pending=(async()=>{
    try{
-    await window.LWStateStore.flush(snapshot);
+    await window.LWStateStore.flush(state);
     clearFallbackAfterIndexedDBSave(snapshot,revision);
     return true;
    }catch(err){

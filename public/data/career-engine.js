@@ -166,7 +166,7 @@
     };
   }
 
-    const APPEARANCE_MILESTONES = [5, 10, 20, 30];
+      const APPEARANCE_MILESTONES = [5, 10, 20, 30];
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
 
@@ -781,7 +781,7 @@
       + pad(reference.getUTCDate()) + "T00:00:00.000Z";
   }
 
-  function seasonAwards(state, league, teamRank) {
+function seasonAwards(state, league, teamRank) {
     ensureState(state);
     const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);
     const competition = String(state.leagueCompetition || "");
@@ -822,6 +822,31 @@
         score: 0
       };
     });
+    const database = window.LWWorldDB;
+    const leagueProfile = database?.leagueFor?.(country, state.leagueDivision) || {};
+    const currentDivision = Math.max(1, Number(state.leagueDivision) || 1);
+    const realLeagueClubs = (database?.clubs?.() || []).filter(club =>
+      club.country === country && Math.max(1, Number(club.division) || 1) === currentDivision
+    );
+    for (const club of realLeagueClubs) {
+      const profile = database?.leagueById?.(club.leagueId) || {};
+      for (const player of club.players || []) {
+        const simulated = window.LWTransferAwards?.simulatePlayerSeason({
+          ...player, clubName: club.name, country: club.country,
+          prestige: club.prestige, leagueStrength: Number(leagueProfile.strength) || 60,
+          confederation: profile.confederation || "",
+          originConfederation: profile.confederation || "",
+          realPlayer: true
+        }, state.season, 1);
+        if (!simulated) continue;
+        opponents.push({
+          name: simulated.name, club: club.name, age: simulated.age,
+          goals: simulated.goals, assists: simulated.assists,
+          rating: simulated.averageRating,
+          score: simulated.averageRating * 10 + simulated.goals * 0.34 + simulated.assists * 0.28
+        });
+      }
+    }
     for (const player of opponents) player.score = player.rating * 10 + player.goals * 0.34 + player.assists * 0.28;
     const eligible = Number(state.age) <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
@@ -1177,7 +1202,6 @@
     state.nationalTournamentFinalOutcome = outcome;
     return { ok: true, status: state.nationalTournamentWinner ? "champion" : "final-lost", points: state.nationalTournamentPoints };
   }
-
   function applySeasonAging(state) {
     if (!state || typeof state !== "object") return "";
     const age = Math.max(0, Number(state.age) || 0), position = String(state.pos || "");

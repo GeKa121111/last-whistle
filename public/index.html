@@ -2511,7 +2511,6 @@ function seasonAwards(state, league, teamRank) {
     resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();
-
 </script>
 <script>
 /* Static data bridge: FIFA competition directory + sourced club names + award references. */
@@ -2689,7 +2688,8 @@ function seasonAwards(state, league, teamRank) {
   };
 })();
 </script>
-<script>/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */
+<script>
+/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */
 (() => {
   "use strict";
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
@@ -3856,7 +3856,8 @@ function seasonAwards(state, league, teamRank) {
     };
   }
   window.LWMatch = { simulateMatch, seededRandom, hash, rollExtraTimePlayerExit, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
-})();</script>
+})();
+</script>
 <script>
 (function(){
 "use strict";

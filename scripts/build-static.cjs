@@ -25,6 +25,31 @@ for (const required of requiredSourceData) {
     throw new Error("Canonical source data is missing: source/public/data/" + required);
   }
 }
+
+function synchronizeInlineEngine(html, marker, sourceName) {
+  const first = html.indexOf(marker);
+  if (first < 0 || html.indexOf(marker, first + marker.length) >= 0) {
+    throw new Error("Expected exactly one inline engine block: " + sourceName);
+  }
+  const openingEnd = html.indexOf(">", first) + 1;
+  const closingStart = html.indexOf("</script>", openingEnd);
+  if (openingEnd <= first || closingStart < 0) {
+    throw new Error("Malformed inline engine block: " + sourceName);
+  }
+  const canonical = fs.readFileSync(path.join(sourceData, sourceName), "utf8").trimEnd();
+  return html.slice(0, openingEnd) + "\n" + canonical + "\n" + html.slice(closingStart);
+}
+
+const rootIndexPath = path.join(root, "index.html");
+let rootIndex = fs.readFileSync(rootIndexPath, "utf8");
+rootIndex = synchronizeInlineEngine(rootIndex,
+  "<script>\n/* Shared career progression and award engine for LAST WHISTLE. */",
+  "career-engine.js");
+rootIndex = synchronizeInlineEngine(rootIndex,
+  "<script>/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */",
+  "match-engine.js");
+fs.writeFileSync(rootIndexPath, rootIndex);
+
 const publicData = path.join(publicDir, "data");
 
 // Root-level files are the canonical app entry points. Sync them into public before

@@ -241,7 +241,7 @@ assert.ok(sandbox.window.__lwTestMakeLineup(missingMembershipWorld, missingMembe
   .some(player => player.id === "membership-gap-unlisted"),
   "restored players must be eligible for their club's matchday lineup");
 
-const duplicateFillWorld = {
+const duplicateFillWorld = { players: {
   "fill-transferred": { id: "fill-transferred", clubId: "fill-destination", group: "attacker", ovr: 95 },
   "fill-active": { id: "fill-active", clubId: "fill-origin", group: "midfielder", ovr: 70 }
 }, nextGeneratedPlayer: 1, dbVersion: 1 };

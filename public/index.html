@@ -2207,6 +2207,20 @@ function seasonAwards(state, league, teamRank) {
   function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
+    const hasParentClub = typeof loan.parentClub === "string" && loan.parentClub.trim() !== "";
+    const hasParentCountry = typeof loan.parentCountry === "string" && loan.parentCountry.trim() !== "";
+    if (!hasParentClub || !hasParentCountry) {
+      // An incomplete legacy loan cannot prove who owns the contract. Do not
+      // mistake the temporary host wage/term for a valid parent-club contract.
+      return {
+        ...state,
+        loan: null,
+        weeklyWage: 0,
+        contractSeasons: 0,
+        contractType: "free-agent",
+        freeAgent: true
+      };
+    }
     const parentWageValue = Number(loan.parentWage);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     const savedParentContractType = loan.parentContractType;
@@ -5262,9 +5276,20 @@ function loanTo(target){
 }
 function returnFromLoan(){
  const l=state.loan;if(!l)return false;
- if(typeof l.parentClub!=="string"||!l.parentClub||typeof l.parentCountry!=="string"||!l.parentCountry){
-  // Even malformed legacy loans get an archive before their un-restorable state is cleared.
-  archiveLeagueSegment("loan-return-invalid");state.loan=null;log("تعذر استعادة وجهة الإعارة من الحفظ القديم؛ أُغلقت حالة الإعارة غير المكتملة بأمان.");return false;
+ if(typeof l.parentClub!=="string"||!l.parentClub.trim()||typeof l.parentCountry!=="string"||!l.parentCountry.trim()){
+  // There is no reliable parent contract to restore. Preserve the host-stage
+  // archive, then clear the temporary loan wage/term instead of inventing a host deal.
+  const hostClub=String(state.clubName||"النادي المضيف");
+  archiveLeagueSegment("loan-return-invalid");
+  state.loan=null;state.weeklyWage=0;state.contractSeasons=0;state.freeAgent=true;state.contractType="free-agent";
+  state.contractOffer=null;state.pendingTransfer=null;state.transferNegotiation=null;
+  state.daysSinceNegotiation=7;state.contractNegotiationWait=0;
+  state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);
+  state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
+  state.transferHistory.unshift({season:state.season,day:state.day,
+   text:"تعذر استعادة النادي الأصلي بعد الإعارة من "+hostClub+"؛ تم إنهاء الإعارة والتحويل إلى سوق اللاعبين الأحرار دون الاحتفاظ بعقد أو مرتب مؤقت."});
+  log("تعذر استعادة النادي الأصلي بعد الإعارة من "+hostClub+"؛ تم إنهاء الإعارة والتحويل إلى سوق اللاعبين الأحرار.");
+  return false;
  }
  // Archive the temporary club's stage before restoring the parent club. Without
  // this, league results earned during the loan vanish when the next season is built.

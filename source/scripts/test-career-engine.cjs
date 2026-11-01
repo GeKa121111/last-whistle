@@ -665,6 +665,96 @@ assert.ok(rootHtml.includes('state.loan?"العقد الأصلي مع "+String(s
 assert.ok(!rootHtml.includes("state.freeAgent=!!l.parentFreeAgent;"),
   "browser loan return must not coerce string false to true");
 
+const loanReturnMatch = rootHtml.match(/function returnFromLoan\(\)\{[\s\S]*?\n\}\n\nfunction renderContract/);
+assert.ok(loanReturnMatch, "the deployed loan-return action must remain available for behavioral testing");
+const loanReturnSource = loanReturnMatch[0].slice(0, loanReturnMatch[0].lastIndexOf("\n\nfunction renderContract"));
+function runBrowserLoanReturnCase(loanOverrides, stateOverrides = {}) {
+  const current = {
+    clubName: "Host Club", leagueCountry: "Hostland", leagueDivision: 1,
+    leagueCompetition: "Host League", leagueSource: "Host source", clubPower: 68,
+    clubTier: 2, clubIndex: 2, weeklyWage: 900, contractSeasons: 3,
+    freeAgent: false, contractType: "professional", role: "بديل",
+    season: 4, day: 90, transferHistory: [], daysSinceNegotiation: 0,
+    contractNegotiationWait: 4, transferCooldown: 0,
+    loan: {
+      parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 2,
+      parentCompetition: "Parent League", parentSource: "Parent source",
+      parentPower: 73, parentTier: 2, parentIndex: 2, parentWage: 450,
+      parentContractSeasons: 2, parentFreeAgent: false,
+      parentContractType: "professional", parentRole: "أساسي",
+      ...loanOverrides
+    },
+    ...stateOverrides
+  };
+  const archiveReasons = [], messages = [];
+  const sandbox = {
+    state: current,
+    archiveLeagueSegment: reason => archiveReasons.push(reason),
+    normalizeSavedBooleanFlag: value => value === true || value === 1
+      || String(value).trim().toLowerCase() === "true" || String(value).trim() === "1",
+    clubPowerFor: () => 55,
+    clubTierForPower: () => 1,
+    log: message => messages.push(String(message))
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(loanReturnSource + "\nthis.returnLoanForTest = returnFromLoan;", sandbox,
+    { filename: "browser loan-return integration" });
+  const result = sandbox.returnLoanForTest();
+  return { state: current, result, archiveReasons, messages };
+}
+
+const restoredLoan = runBrowserLoanReturnCase({});
+assert.equal(restoredLoan.result, true);
+assert.equal(restoredLoan.state.loan, null);
+assert.equal(restoredLoan.state.clubName, "Parent Club");
+assert.equal(restoredLoan.state.leagueCountry, "Egypt");
+assert.equal(restoredLoan.state.leagueDivision, 2);
+assert.equal(restoredLoan.state.weeklyWage, 450);
+assert.equal(restoredLoan.state.contractSeasons, 2);
+assert.equal(restoredLoan.state.contractType, "professional");
+assert.equal(restoredLoan.state.freeAgent, false);
+assert.equal(restoredLoan.state.role, "أساسي");
+assert.deepEqual(restoredLoan.archiveReasons, ["loan-return"]);
+
+const expiredParentLoan = runBrowserLoanReturnCase({ parentContractSeasons: 0 });
+assert.equal(expiredParentLoan.result, true);
+assert.equal(expiredParentLoan.state.loan, null);
+assert.equal(expiredParentLoan.state.weeklyWage, 0,
+  "an expired parent contract must not restore the temporary host-club wage");
+assert.equal(expiredParentLoan.state.contractSeasons, 0);
+assert.equal(expiredParentLoan.state.contractType, "free-agent");
+assert.equal(expiredParentLoan.state.freeAgent, true,
+  "a player whose parent contract expired during a loan must return as a free agent");
+
+const malformedParentLoan = runBrowserLoanReturnCase({
+  parentClub: "", parentCountry: "", parentWage: 450,
+  parentContractSeasons: 2, parentFreeAgent: false, parentContractType: "professional"
+});
+assert.equal(malformedParentLoan.result, false);
+assert.equal(malformedParentLoan.state.loan, null);
+assert.equal(malformedParentLoan.state.weeklyWage, 0,
+  "an un-restorable legacy loan must never leave the temporary host wage active");
+assert.equal(malformedParentLoan.state.contractSeasons, 0,
+  "an un-restorable legacy loan must not leave a phantom host contract");
+assert.equal(malformedParentLoan.state.contractType, "free-agent");
+assert.equal(malformedParentLoan.state.freeAgent, true);
+assert.deepEqual(malformedParentLoan.archiveReasons, ["loan-return-invalid"]);
+assert.ok(malformedParentLoan.state.transferHistory[0].text.includes("سوق اللاعبين الأحرار"),
+  "the fallback must explain that the player was safely moved to the free-agent market");
+
+const malformedContractSnapshot = career.contractStateForSeasonTransition({
+  clubName: "Host Club", leagueCountry: "Hostland", weeklyWage: 900,
+  contractSeasons: 3, freeAgent: false, contractType: "professional",
+  loan: { parentClub: "", parentCountry: "", parentWage: 900,
+    parentContractSeasons: 3, parentFreeAgent: false, parentContractType: "professional" }
+});
+assert.equal(malformedContractSnapshot.loan, null);
+assert.equal(malformedContractSnapshot.weeklyWage, 0);
+assert.equal(malformedContractSnapshot.contractSeasons, 0);
+assert.equal(malformedContractSnapshot.contractType, "free-agent");
+assert.equal(malformedContractSnapshot.freeAgent, true,
+  "season transition checks must not offer a fake host-club renewal for a malformed legacy loan");
+
 const player = {
   pos: "مهاجم", age: 24, season: 2, apps: 0, money: 1000, weeklyWage: 500,
   contractSeasons: 3, freeAgent: false, daysSinceNegotiation: 7,

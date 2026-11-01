@@ -929,6 +929,20 @@ function seasonAwards(state, league, teamRank) {
   function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
+    const hasParentClub = typeof loan.parentClub === "string" && loan.parentClub.trim() !== "";
+    const hasParentCountry = typeof loan.parentCountry === "string" && loan.parentCountry.trim() !== "";
+    if (!hasParentClub || !hasParentCountry) {
+      // An incomplete legacy loan cannot prove who owns the contract. Do not
+      // mistake the temporary host wage/term for a valid parent-club contract.
+      return {
+        ...state,
+        loan: null,
+        weeklyWage: 0,
+        contractSeasons: 0,
+        contractType: "free-agent",
+        freeAgent: true
+      };
+    }
     const parentWageValue = Number(loan.parentWage);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
     const savedParentContractType = loan.parentContractType;

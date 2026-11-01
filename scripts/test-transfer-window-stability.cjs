@@ -666,6 +666,7 @@ function makeStaleLoanState() {
   return {
     careerStarted: true, retired: false, age: 24, freeAgent: false, contractType: "professional",
     contractSeasons: 2, loan: null, pendingTransfer: null,
+    pendingTransfer: { club: "نادي قديم", windowId: "summer-0", wage: 1700 },
     transferNegotiation: { offerId: "missing-loan-offer", round: 2, patience: 35 },
     transferOffers: [], transferHistory: [], season: 4, day: 190, apps: 12,
     clubName: "نادي أ", leagueCountry: "مصر", leagueDivision: 1,
@@ -697,9 +698,14 @@ const loanRequestScenario = {
   saveGame: () => { loanRequestScenario.saveCount = (loanRequestScenario.saveCount || 0) + 1; }
 };
 vm.createContext(loanRequestScenario);
-vm.runInContext(reconciliationSource + "\n" + requestLoanSource, loanRequestScenario,
+vm.runInContext(legacyMigrationSource + "\n" + reconciliationSource + "\n" + requestLoanSource, loanRequestScenario,
   { filename: "reconcile-stale-negotiation-before-loan-request" });
 loanRequestScenario.requestLoan();
+assert.equal(loanRequestScenario.state.pendingTransfer, null,
+  "a malformed legacy direct offer must be archived before checking loan eligibility");
+assert.equal(loanRequestScenario.state.transferHistory.find(row => row && row.legacyPendingTransfer)
+  ?.legacyPendingTransfer?.club, "نادي قديم",
+  "the malformed legacy direct offer must remain recoverable in career history");
 assert.equal(loanRequestScenario.state.transferNegotiation, null,
   "a stale saved negotiation must not block a new loan request");
 assert.ok(loanRequestScenario.modal && loanRequestScenario.modal.title === "اختار وجهة الإعارة",
@@ -729,7 +735,7 @@ const validNegotiationLoanScenario = {
   saveGame: () => {}
 };
 vm.createContext(validNegotiationLoanScenario);
-vm.runInContext(reconciliationSource + "\n" + requestLoanSource, validNegotiationLoanScenario,
+vm.runInContext(legacyMigrationSource + "\n" + reconciliationSource + "\n" + requestLoanSource, validNegotiationLoanScenario,
   { filename: "preserve-valid-negotiation-loan-block" });
 validNegotiationLoanScenario.requestLoan();
 assert.equal(validNegotiationLoanScenario.state.transferNegotiation.offerId, "valid-loan-blocker",
@@ -747,6 +753,7 @@ const loanToScenario = {
     loanSquadRole: () => "أساسي"
   } },
   transferWindow: () => ({ open: true, id: "summer-0" }),
+  canAccessTransferMarket: () => true,
   activeCupInProgress: () => false,
   transferTargets: () => [staleLoanTarget],
   seasonMatchTotal: () => 20,
@@ -762,11 +769,16 @@ const loanToScenario = {
   showPage: () => {}, toast: () => {}
 };
 vm.createContext(loanToScenario);
-vm.runInContext(reconciliationSource + "\n" + loanToSource, loanToScenario,
+vm.runInContext(legacyMigrationSource + "\n" + reconciliationSource + "\n" + loanToSource, loanToScenario,
   { filename: "reconcile-stale-negotiation-before-loan-confirmation" });
 loanToScenario.loanTo(staleLoanTarget);
+assert.equal(loanToScenario.state.pendingTransfer, null,
+  "the final loan confirmation must archive malformed legacy direct offers before validation");
+assert.equal(loanToScenario.state.transferHistory.find(row => row && row.legacyPendingTransfer)
+  ?.legacyPendingTransfer?.club, "نادي قديم",
+  "the final loan confirmation must preserve the malformed legacy offer in history");
 assert.equal(loanToScenario.state.loan?.hostClub, staleLoanTarget.club,
-  "the final loan confirmation must proceed after archiving a stale negotiation");
+  "the final loan confirmation must proceed after archiving stale transfer locks");
 assert.equal(loanToScenario.state.transferNegotiation, null,
   "the final loan confirmation must not retain a stale permanent-transfer lock");
 assert.equal(loanToScenario.state.transferHistory.find(row => row && row.legacyTransferNegotiation)

@@ -5288,6 +5288,7 @@ function seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed){
 function requestLoan(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!canAccessTransferMarket()){toast("الإعارة متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}
+ migrateLegacyPendingTransferOffer();
  reconcileTransferNegotiation(transferWindow());
  const status=window.LWCareer?.loanRequestStatus(state,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open})||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"الإعارة تتطلب عقدًا ساريًا مع نادٍ. ابحث عن عقد دائم أولًا.","already-loaned":"عندك إعارة نشطة بالفعل؛ هترجع لناديك الأصلي بعد نهاية الموسم.","transfer-pending":"عندك انتقال متفق عليه ولسه ما اكتملش؛ احسمه الأول قبل الإعارة.","transfer-negotiation":"عندك مفاوضات انتقال مفتوحة؛ أنهِها أو ارفض العرض قبل طلب الإعارة.","cup-active":"كمّل بطولة الكأس الحالية قبل تغيير النادي حتى ما يضيعش سجل البطولة.","window-closed":"طلبات الإعارة متاحة في فترات الانتقالات الصيفية والشتوية.","appearances-required":"لازم تلعب مباراتين على الأقل قبل ما الأندية تطلب إعارتك."};
@@ -5300,6 +5301,7 @@ function requestLoan(){
  ]);
 }
 function loanTo(target){
+ migrateLegacyPendingTransferOffer();
  reconcileTransferNegotiation(transferWindow());
  const isListed=!!target&&transferTargets().some(t=>t.club===target.club&&t.country===target.country&&(!target.league||t.league===target.league));
  const status=window.LWCareer?.loanTargetStatus(state,target,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open,isListed})||"invalid-state";

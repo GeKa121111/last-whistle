@@ -5,6 +5,11 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
+global.window = global;
+require(path.join(root, "public", "data", "career-engine.js"));
+const careerEngine = global.LWCareer;
+assert.ok(careerEngine && typeof careerEngine.uniqueMatchRows === "function",
+  "legacy archive tests must use the deployed career-history deduplicator");
 const app = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const deployedApp = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 assert.equal(app, deployedApp, "root and public app shells must remain synchronized");
@@ -37,19 +42,25 @@ const freeAgentEligibilitySource = section("function careerMatchPlayerEligible("
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
 const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
 
-function runLegacyLeagueArchive(rows) {
+function runLegacyLeagueArchive(rows, seasonRows = []) {
   const archiveState = { season: 4, day: 20, leagueCountry: "مصر", leagueCompetition: "الدوري الممتاز",
     leagueSource: "اختبار", leagueDivision: 1, leagueSegmentId: "segment-4-old-fc", leagueApps: 2,
     league: [{ name: "Old FC", pts: 4, gf: 2, ga: 1 }], fixtureSchedule: [], leagueRoundHistory: [],
-    leagueArchives: [], careerMatchHistory: rows };
-  const sandbox = { state: archiveState, club: () => ({ name: "Old FC" }),
+    leagueArchives: [], seasonLog: seasonRows, careerMatchHistory: rows };
+  const sandbox = { state: archiveState, window: { LWCareer: careerEngine }, club: () => ({ name: "Old FC" }),
     clubNameForLeague: () => "Old FC", structuredCloneSafe: value => JSON.parse(JSON.stringify(value)) };
   vm.createContext(sandbox);
   vm.runInContext(leagueArchiveSource + String.fromCharCode(10) + "this.archiveLeagueSegment = archiveLeagueSegment;", sandbox,
     { filename: "legacy-league-archive" });
   return sandbox.archiveLeagueSegment("transfer");
 }
+const legacySeasonLogRow = {
+  id: "legacy-season-log", season: 4, segmentId: "segment-4-old-fc",
+  club: "Old FC", country: "مصر", competition: "الدوري الممتاز",
+  opponent: "Season Log Opponent", day: 19, minutes: 90, goals: 0, assists: 1
+};
 const legacyArchive = runLegacyLeagueArchive([
+  { ...legacySeasonLogRow },
   { id: "legacy-no-scope", season: 4, leagueCountry: "مصر", leagueCompetition: "الدوري الممتاز", club: "Old FC", day: 14, minutes: 90, goals: 1, assists: 0 },
   { id: "legacy-whitespace-alias", scope: " ", season: 4, country: "مصر", competition: "  ", leagueCompetition: "الدوري الممتاز", club: "Old FC", day: 15, minutes: 60, goals: 0, assists: 1 },
   { id: "segment-only", segmentId: "segment-4-old-fc", scope: "league", minutes: 0, goals: 0, assists: 0 },
@@ -57,14 +68,14 @@ const legacyArchive = runLegacyLeagueArchive([
   { id: "other-club-excluded", scope: "league", season: 4, country: "مصر", competition: "الدوري الممتاز", club: "Other FC", day: 16, minutes: 90, goals: 1, assists: 0 },
   { id: "other-season-excluded", scope: "league", season: 3, country: "مصر", competition: "الدوري الممتاز", club: "Old FC", day: 17, minutes: 90, goals: 1, assists: 0 },
   { id: "other-segment-excluded", scope: "league", season: 4, country: "مصر", competition: "الدوري الممتاز", club: "Old FC", segmentId: "different-segment", day: 18, minutes: 90, goals: 1, assists: 0 }
-]);
+], [legacySeasonLogRow]);
 assert.deepEqual(Array.from(legacyArchive.matches, row => row.id),
-  ["legacy-no-scope", "legacy-whitespace-alias", "segment-only"],
+  ["legacy-season-log", "legacy-no-scope", "legacy-whitespace-alias", "segment-only"],
   "transfer archives must recover legacy league rows while excluding cups, other clubs, seasons, and segments");
-assert.equal(legacyArchive.stats.played, 3);
-assert.equal(legacyArchive.stats.minutes, 150);
+assert.equal(legacyArchive.stats.played, 4);
+assert.equal(legacyArchive.stats.minutes, 240);
 assert.equal(legacyArchive.stats.goals, 1);
-assert.equal(legacyArchive.stats.assists, 1);
+assert.equal(legacyArchive.stats.assists, 2);
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",

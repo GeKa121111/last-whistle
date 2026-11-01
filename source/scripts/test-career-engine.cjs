@@ -98,8 +98,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 316);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 63);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 317);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 64);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1410,6 +1410,34 @@ assert.equal(deployedCareer.uniqueMatchRows(whitespaceCompetitionParityRows).len
 assert.equal(JSON.stringify(deployedCareer.uniqueMatchRows(whitespaceCompetitionParityRows)),
   JSON.stringify(career.uniqueMatchRows(whitespaceCompetitionParityRows)),
   "source and embedded history deduplication must stay identical for whitespace competition values");
+
+const incompleteCompetitionReuseRows = [
+  {
+    id: "legacy-incomplete-competition-reused-id", scope: "league", season: 4,
+    segmentId: "season-4", club: "Test FC", opponent: "Shared Opponent",
+    day: 13, matchday: 9, minutes: 90, rating: 7, goals: 0, assists: 0
+  },
+  {
+    id: "legacy-incomplete-competition-reused-id", competition: "National Cup",
+    leagueCompetition: "National Cup", season: 4, segmentId: "season-4",
+    club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+    minutes: 90, rating: 8, goals: 1, assists: 0
+  }
+];
+for (const engine of [career, deployedCareer]) {
+  assert.equal(engine.uniqueMatchRows(incompleteCompetitionReuseRows).length, 2,
+    "a row missing competition metadata must not swallow a same-ID cup fixture on the same date");
+  const incompleteCompetitionHistory = {
+    apps: 2,
+    seasonLog: [incompleteCompetitionReuseRows[0]],
+    careerMatchHistory: [incompleteCompetitionReuseRows[1]]
+  };
+  engine.rebuildLegacyCareerStats(incompleteCompetitionHistory);
+  assert.equal(incompleteCompetitionHistory.careerMinutes, 180,
+    "legacy career-stat rebuilding must preserve both same-day fixtures when one competition is missing");
+  assert.equal(incompleteCompetitionHistory.qualifyingAppearances, 2,
+    "both fixtures with incomplete competition identity must remain qualifying appearances");
+}
 
 const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
   role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"

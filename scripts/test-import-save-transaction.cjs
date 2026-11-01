@@ -46,7 +46,7 @@ const INITIAL = {
   ...Object.fromEntries(listKeys.map(key => [key, []]))
 };
 
-function createHarness({ previousRaw = null, failLoad = false } = {}) {
+function createHarness({ previousRaw = null, failLoad = false, startupSave = { ...INITIAL, name: "IndexedDB Prior Career", money: 333 } } = {}) {
   const originalState = { ...INITIAL, name: "Current In-Memory Career", money: 777 };
   const storage = new Map(previousRaw === null ? [] : [[STORAGE_KEY, previousRaw]]);
   const published = [];
@@ -55,7 +55,8 @@ function createHarness({ previousRaw = null, failLoad = false } = {}) {
     current: originalState,
     publish(value, meta) { this.current = value; published.push({ value, source: meta && meta.source }); },
     save() { calls.saves++; return Promise.resolve(); },
-    getState() { return this.current; }
+    getState() { return this.current; },
+    getStartupSave() { return startupSave; }
   };
   const sandbox = {
     state: originalState,
@@ -67,6 +68,7 @@ function createHarness({ previousRaw = null, failLoad = false } = {}) {
     validateBackupValue(value) { return value; },
     encodeStoredSave(value) { return JSON.stringify(value); },
     decodeStoredSave(value) { return value; },
+    FALLBACK_STORAGE_PREFIX: "LWIDB1:",
     localStorage: {
       getItem(key) { return storage.has(key) ? storage.get(key) : null; },
       setItem(key, value) { storage.set(key, value); },
@@ -83,9 +85,22 @@ function createHarness({ previousRaw = null, failLoad = false } = {}) {
     },
     loadGame() {
       if (failLoad) { sandbox.state = { ...INITIAL, name: "Partially Imported" }; return false; }
-      const raw = storage.get(STORAGE_KEY);
-      if (!raw) return false;
-      sandbox.state = { ...INITIAL, ...JSON.parse(raw) };
+      let indexedSave = sandbox.window.LWStateStore.getStartupSave();
+      let raw = storage.has(STORAGE_KEY) ? storage.get(STORAGE_KEY) : null;
+      if (typeof raw === "string" && raw.startsWith("LWIDB1:")) {
+        const fallbackPayload = raw.slice("LWIDB1:".length);
+        try {
+          const fallbackSave = JSON.parse(fallbackPayload);
+          if (fallbackSave && typeof fallbackSave === "object" && !Array.isArray(fallbackSave)) {
+            indexedSave = null;
+            raw = fallbackPayload;
+          } else raw = null;
+        } catch (_) { raw = null; }
+      }
+      if (indexedSave) raw = null;
+      if (!raw && !indexedSave) return false;
+      const saved = indexedSave ? JSON.parse(JSON.stringify(indexedSave)) : JSON.parse(raw);
+      sandbox.state = { ...INITIAL, ...saved };
       return true;
     },
     saveGame(silent) { calls.saveGame++; assert.equal(silent, true); return true; },
@@ -112,7 +127,10 @@ function createHarness({ previousRaw = null, failLoad = false } = {}) {
 
   const success = createHarness();
   await success.sandbox.runImport(file);
-  assert.equal(success.sandbox.state.name, "Imported Career");
+  assert.equal(success.sandbox.state.name, "Imported Career",
+    "a valid import must take precedence over an older IndexedDB startup save");
+  assert.ok(String(success.storage.get(STORAGE_KEY)).startsWith("LWIDB1:"),
+    "the imported fallback must carry the priority marker consumed by loadGame");
   assert.equal(success.shared.current, success.sandbox.state,
     "successful import must publish the exact live state object loaded by the game");
   assert.equal(success.published.at(-1).source, "import");

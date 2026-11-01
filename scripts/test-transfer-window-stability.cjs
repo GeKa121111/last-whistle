@@ -639,7 +639,7 @@ const malformedLegacyMigration = {
   renderTransferMarket: () => {}
 };
 vm.createContext(malformedLegacyMigration);
-vm.runInContext(legacyMigrationSource + "\\n" + beginNegotiationSource,
+vm.runInContext(legacyMigrationSource + "\n" + beginNegotiationSource,
   malformedLegacyMigration, { filename: "malformed-legacy-pending-transfer" });
 assert.equal(malformedLegacyMigration.migrateLegacyPendingTransferOffer(), null,
   "a legacy pending transfer without a destination country must not be migrated as an active offer");

@@ -1423,12 +1423,23 @@ assert.ok(secondTierTable.every(row => row.leagueId === secondTierLeagueId && ro
   "second-tier rows must retain their parent league ID and division number");
 const firstTierTable = baseFallbackSeason.tables[secondTierLeagueId] || [];
 assert.ok(firstTierTable.length >= 6, "promotion fixture must include a complete first-tier table");
-assert.ok(firstTierTable.slice(-2).every(row => row.status === "منطقة الهبوط — محاكاة"),
-  "only the bottom two first-tier clubs should be labelled for relegation when a playable second tier exists");
-assert.ok(secondTierTable.slice(-2).every(row => row.status !== "منطقة الهبوط — محاكاة"),
+const expectedRelegationSlots = firstTierTable.length < 6 || secondTierTable.length < 3
+  ? 0
+  : Math.min(2, Math.max(1, Math.floor(secondTierTable.length * 0.15)),
+    Math.max(1, Math.floor(firstTierTable.length * 0.1)));
+const relegatedFirstTierRows = firstTierTable.filter(row => row.status === "منطقة الهبوط — محاكاة");
+const expectedRelegatedClubIds = expectedRelegationSlots > 0
+  ? firstTierTable.slice(-expectedRelegationSlots).map(row => row.clubId).sort()
+  : [];
+assert.equal(relegatedFirstTierRows.length, expectedRelegationSlots,
+  "first-tier relegation labels must match the shared promotion/relegation eligibility rule");
+assert.deepEqual(relegatedFirstTierRows.map(row => row.clubId).sort(), expectedRelegatedClubIds,
+  "only the eligible bottom first-tier clubs should be labelled for relegation");
+assert.ok(secondTierTable.every(row => row.status !== "منطقة الهبوط — محاكاة"),
   "second-tier clubs must never be labelled as relegated when no third tier is simulated");
-assert.ok(secondTierTable[1].status === "منافس على الصعود — محاكاة",
-  "the second-tier runner-up should be labelled as a promotion contender");
+assert.equal(secondTierTable[1].status,
+  expectedRelegationSlots > 1 ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية",
+  "the second-tier runner-up should be a promotion contender only when a second promotion slot is eligible");
 const firstTierOnlyClubs = Object.fromEntries(Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 1));
 const firstTierOnlyWorld = {
   ...baseFallbackWorld, clubs: firstTierOnlyClubs, players: {},

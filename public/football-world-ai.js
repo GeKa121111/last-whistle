@@ -1792,7 +1792,11 @@
     const year = Math.max(1, int(season, int(save.season, 1)));
     if (world.completedSeasons && world.completedSeasons.includes(year)
       && (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year)))) {
-      return base.getLeagueTable(save, leagueId, year, db);
+      // Once detailed fixtures are pruned, only a saved standings snapshot is authoritative.
+      // Never rebuild a completed historical table from clubs' current divisions.
+      const storedTables = world.leagueTables && world.leagueTables[String(year)] || {};
+      const snapshot = storedTables[String(leagueId)];
+      return Array.isArray(snapshot) ? snapshot.slice() : [];
     }
     const sim = simulateLeagueSeason(save, year, db);
     return (sim.tables[String(leagueId)] || []).slice();

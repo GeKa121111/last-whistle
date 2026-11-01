@@ -2008,7 +2008,7 @@
           addParticipant(domesticCup && world.clubs[domesticCup.championId]);
           if (participants.length < 2) {
             addParticipant(domesticCup && world.clubs[domesticCup.runnerUpId]);
-            addParticipant(leagueRunnerUpRow && world.clubs[leagueRunnerUpRow.clubId]);
+            if (participants.length < 2) addParticipant(leagueRunnerUpRow && world.clubs[leagueRunnerUpRow.clubId]);
           }
         } else {
           // Continental supercups may only use winners of continental competitions.
@@ -2570,7 +2570,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=55");
+    const worker = new global.Worker("./football-world-worker.js?v=56");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

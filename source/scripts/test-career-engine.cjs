@@ -2458,6 +2458,36 @@ assert.equal(career.loanRequestStatus(validLoanContract, { windowOpen: true }), 
   "a player with a valid active contract must retain normal loan eligibility");
 assert.equal(deployedCareer.loanRequestStatus({ ...validLoanContract }, { windowOpen: true }), "ready",
   "the deployed browser engine must preserve valid loan eligibility");
+const loanEligibilityTarget = { club: "Loan Target FC", country: "Egypt" };
+const transferBlockedLoanCases = [
+  ["pending permanent transfer", { pendingTransfer: { club: "Next FC", country: "Spain" } }, "transfer-pending"],
+  ["open transfer negotiation", { transferNegotiation: { offerId: "offer-1" } }, "transfer-negotiation"]
+];
+for (const [label, overrides, expected] of transferBlockedLoanCases) {
+  const sharedLoanState = { ...validLoanContract, ...overrides };
+  const browserLoanState = { ...validLoanContract, ...overrides };
+  assert.equal(career.loanRequestStatus(sharedLoanState, { windowOpen: true }), expected,
+    label + " must block a new loan request");
+  assert.equal(deployedCareer.loanRequestStatus(browserLoanState, { windowOpen: true }), expected,
+    "the deployed browser engine must apply the same " + label + " guard");
+  assert.equal(career.loanTargetStatus(sharedLoanState, loanEligibilityTarget,
+    { windowOpen: true, isListed: true }), expected,
+    label + " must block the final loan-target confirmation");
+  assert.equal(deployedCareer.loanTargetStatus({ ...validLoanContract, ...overrides }, loanEligibilityTarget,
+    { windowOpen: true, isListed: true }), expected,
+    "the deployed browser engine must reject " + label + " at final loan confirmation");
+}
+const pendingOfferWithoutNegotiation = {
+  ...validLoanContract,
+  transferOffers: [{ id: "offer-2", status: "pending" }]
+};
+assert.equal(career.loanRequestStatus(pendingOfferWithoutNegotiation, { windowOpen: true }), "ready",
+  "an unaccepted transfer offer alone must not block a player from requesting a loan");
+assert.equal(deployedCareer.loanRequestStatus({ ...pendingOfferWithoutNegotiation }, { windowOpen: true }), "ready",
+  "the browser engine must preserve loan eligibility when no permanent transfer is agreed or negotiated");
+assert.ok(rootHtml.includes('"transfer-pending":"عندك انتقال متفق عليه ولسه ما اكتملش؛ احسمه الأول قبل الإعارة."')
+  && rootHtml.includes('"transfer-negotiation":"عندك مفاوضات انتقال مفتوحة؛ أنهِها أو ارفض العرض قبل طلب الإعارة."'),
+  "loan request and confirmation UI must explain why an active permanent transfer blocks the loan");
 
 const invalidLoanAppearances = [undefined, NaN, Infinity, -Infinity, "Infinity", "-Infinity", "not-a-number", null, ""];
 for (const invalidApps of invalidLoanAppearances) {

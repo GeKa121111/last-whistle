@@ -200,7 +200,7 @@
     const seenFallback = new Set();
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
-    const fallbackContextFields = ["scope", "competition", "season", "segmentId", "club"];
+    const fallbackContextFields = ["competition", "season", "segmentId", "club"];
     const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
     const identityValue = (row, field) => {
       const value = field === "competition"

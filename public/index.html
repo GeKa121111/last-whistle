@@ -1478,7 +1478,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const seenFallback = new Set();
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
-    const fallbackContextFields = ["scope", "competition", "season", "segmentId", "club"];
+    const fallbackContextFields = ["competition", "season", "segmentId", "club"];
     const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
     const identityValue = (row, field) => {
       const value = field === "competition"
@@ -4553,7 +4553,19 @@ function archiveLeagueSegment(reason="season-end",rankOverride=0){
  const segmentId=ensureLeagueSegmentId(),archiveId=`${segmentId}|${reason}`;state.leagueArchives=Array.isArray(state.leagueArchives)?state.leagueArchives:[];
  if(state.leagueArchives.some(row=>row.archiveId===archiveId))return state.leagueArchives.find(row=>row.archiveId===archiveId);
  const sorted=[...(state.league||[])].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf),rank=Number(rankOverride)||Math.max(0,sorted.findIndex(team=>team.name===clubNameForLeague())+1);
- const matches=(state.careerMatchHistory||[]).filter(row=>row&&row.scope==="league"&&Number(row.season)===Number(state.season)&&row.club===club().name&&row.country===state.leagueCountry&&row.competition===state.leagueCompetition&&(row.segmentId===segmentId||!row.segmentId)),rated=matches.filter(row=>Number(row.minutes)>0);
+ const firstText=(...values)=>{const value=values.find(candidate=>candidate!==undefined&&candidate!==null&&String(candidate).trim()!=="");return value===undefined?"":String(value).trim();};
+ const currentClub=firstText(club()?.name,state.clubName),currentCountry=firstText(state.leagueCountry),currentCompetition=firstText(state.leagueCompetition),currentSeason=Number(state.season)||1;
+ const matches=(Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[]).filter(row=>{
+  if(!row||typeof row!=="object"||Array.isArray(row))return false;
+  const rowScope=firstText(row.scope).toLowerCase()||"league";if(rowScope!=="league")return false;
+  const rowSegment=firstText(row.segmentId),sameSegment=!!rowSegment&&rowSegment===segmentId;if(rowSegment&&!sameSegment)return false;
+  const seasonText=firstText(row.season),hasSeason=seasonText!==""&&Number.isFinite(Number(seasonText));
+  const rowClub=firstText(row.club,row.clubName),rowCountry=firstText(row.country,row.leagueCountry),rowCompetition=firstText(row.competition,row.leagueCompetition);
+  return (hasSeason?Number(seasonText)===currentSeason:sameSegment)
+   &&(rowClub?rowClub===currentClub:sameSegment)&&(rowCountry?rowCountry===currentCountry:sameSegment)
+   &&(rowCompetition?rowCompetition===currentCompetition:sameSegment);
+ });
+ const rated=matches.filter(row=>Number(row.minutes)>0);
  const archive={archiveId,segmentId,reason,season:Number(state.season)||1,club:club().name,country:state.leagueCountry||"",competition:state.leagueCompetition||"",source:state.leagueSource||"",division:Number(state.leagueDivision)||1,closedAtDay:Number(state.day)||1,matchdays:Number(state.leagueApps)||0,standings:structuredCloneSafe(state.league||[]),fixtures:structuredCloneSafe(state.fixtureSchedule||[]),roundHistory:structuredCloneSafe(state.leagueRoundHistory||[]),matches:structuredCloneSafe(matches),rank,stats:{played:matches.length,minutes:matches.reduce((n,row)=>n+(Number(row.minutes)||0),0),goals:matches.reduce((n,row)=>n+(Number(row.goals)||0),0),assists:matches.reduce((n,row)=>n+(Number(row.assists)||0),0),averageRating:rated.length?matches.reduce((n,row)=>n+(Number(row.rating)||0),0)/rated.length:0}};
  state.leagueArchives.unshift(archive);state.leagueArchives=state.leagueArchives.slice(0,100);return archive;
 }

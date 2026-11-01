@@ -98,8 +98,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 315);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 62);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 316);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 63);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1376,6 +1376,9 @@ for (const engine of [career, deployedCareer]) {
     "two no-ID legacy fixtures with identical stats but no date/round must not collapse into one appearance");
   assert.equal(engine.uniqueMatchRows(identifiedLegacyRows).length, 1,
     "no-ID legacy copies with matching competition context and a temporal key must still deduplicate");
+  const scopeOnlyLegacyRepeat = { scope: "league", day: 24, minutes: 90, goals: 0, assists: 0 };
+  assert.equal(engine.uniqueMatchRows([scopeOnlyLegacyRepeat, { ...scopeOnlyLegacyRepeat }]).length, 2,
+    "a scope and date alone are not enough identity to collapse two legacy fixtures");
   const sparseHistory = {
     apps: 2,
     seasonLog: [unidentifiedLegacyRepeat],

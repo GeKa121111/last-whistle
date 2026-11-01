@@ -24,6 +24,7 @@ const ensureOffersSource = section("function ensureTransferOffers(){", "\nfuncti
 const offerAvailabilitySource = section("function offerIsAvailable(", "\nfunction beginTransferNegotiation(");
 const transferEligibilitySource = section("function transferEligibilityReason(target){", "\nfunction transferEligible(");
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
+const leagueArchiveSource = section("function ensureLeagueSegmentId(){", "\nfunction archiveSeasonRecord()");
 const transferToSource = section("function transferTo(){", "\nfunction ");
 const maybeOfferTransferSource = section("function maybeOfferTransfer(){", "\nfunction transferTo(){");
 const legacyMigrationSource = section("function migrateLegacyPendingTransferOffer(", "\nfunction dedupeTransferOffersForWindow(");
@@ -35,6 +36,35 @@ const submitNegotiationSource = section("function submitTransferNegotiation(){",
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
 const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
+
+function runLegacyLeagueArchive(rows) {
+  const archiveState = { season: 4, day: 20, leagueCountry: "مصر", leagueCompetition: "الدوري الممتاز",
+    leagueSource: "اختبار", leagueDivision: 1, leagueSegmentId: "segment-4-old-fc", leagueApps: 2,
+    league: [{ name: "Old FC", pts: 4, gf: 2, ga: 1 }], fixtureSchedule: [], leagueRoundHistory: [],
+    leagueArchives: [], careerMatchHistory: rows };
+  const sandbox = { state: archiveState, club: () => ({ name: "Old FC" }),
+    clubNameForLeague: () => "Old FC", structuredCloneSafe: value => JSON.parse(JSON.stringify(value)) };
+  vm.createContext(sandbox);
+  vm.runInContext(leagueArchiveSource + String.fromCharCode(10) + "this.archiveLeagueSegment = archiveLeagueSegment;", sandbox,
+    { filename: "legacy-league-archive" });
+  return sandbox.archiveLeagueSegment("transfer");
+}
+const legacyArchive = runLegacyLeagueArchive([
+  { id: "legacy-no-scope", season: 4, leagueCountry: "مصر", leagueCompetition: "الدوري الممتاز", club: "Old FC", day: 14, minutes: 90, goals: 1, assists: 0 },
+  { id: "legacy-whitespace-alias", scope: " ", season: 4, country: "مصر", competition: "  ", leagueCompetition: "الدوري الممتاز", club: "Old FC", day: 15, minutes: 60, goals: 0, assists: 1 },
+  { id: "segment-only", segmentId: "segment-4-old-fc", scope: "league", minutes: 0, goals: 0, assists: 0 },
+  { id: "cup-excluded", scope: "cup", season: 4, country: "مصر", competition: "الدوري الممتاز", club: "Old FC", day: 15, minutes: 90, goals: 2, assists: 0 },
+  { id: "other-club-excluded", scope: "league", season: 4, country: "مصر", competition: "الدوري الممتاز", club: "Other FC", day: 16, minutes: 90, goals: 1, assists: 0 },
+  { id: "other-season-excluded", scope: "league", season: 3, country: "مصر", competition: "الدوري الممتاز", club: "Old FC", day: 17, minutes: 90, goals: 1, assists: 0 },
+  { id: "other-segment-excluded", scope: "league", season: 4, country: "مصر", competition: "الدوري الممتاز", club: "Old FC", segmentId: "different-segment", day: 18, minutes: 90, goals: 1, assists: 0 }
+]);
+assert.deepEqual(Array.from(legacyArchive.matches, row => row.id),
+  ["legacy-no-scope", "legacy-whitespace-alias", "segment-only"],
+  "transfer archives must recover legacy league rows while excluding cups, other clubs, seasons, and segments");
+assert.equal(legacyArchive.stats.played, 3);
+assert.equal(legacyArchive.stats.minutes, 150);
+assert.equal(legacyArchive.stats.goals, 1);
+assert.equal(legacyArchive.stats.assists, 1);
 
 const state = {
   calendarDay: 190, season: 4, winterBreakPending: true, seasonPhase: "winterBreak",

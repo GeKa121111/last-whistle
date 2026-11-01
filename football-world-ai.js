@@ -702,7 +702,7 @@
       const clubCount = clubs.length;
       const mid = average(clubs.map(club => Number(club.power) || 55));
       let matchesPerClub = clubCount > 1
-        ? Math.max(0, Math.min(60, Math.round(average(clubs.map(club => Math.max(0, int(club.matchesPerSeason, 34))))))
+        ? Math.max(0, Math.min(60, Math.round(average(clubs.map(club => Math.max(0, int(club.matchesPerSeason, 34)))))))
         : 0;
       // An odd-sized league must have an even number of matches per club so the
       // total number of fixture appearances can be paired without phantom byes.

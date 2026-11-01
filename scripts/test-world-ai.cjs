@@ -1982,5 +1982,31 @@ assertLeagueMatchCountCase({
   division: 1, clubCount: 2, expectedTeamCount: 20, matchesPerSeason: 38
 });
 
+// Players whose saved club was removed must not remain contracted to a missing club.
+const orphanedContractPlayerId = "orphaned-contract-player";
+const orphanedContractWorld = {
+  players: {
+    [orphanedContractPlayerId]: {
+      id: orphanedContractPlayerId, name: "Orphaned Contract Player",
+      clubId: "missing-club-record", leagueId: "stale-league", division: 2,
+      age: 24, position: "وسط", group: "midfielder", contractSeasons: 3,
+      ovr: 65, potential: 80, freeAgent: false
+    }
+  },
+  clubs: {}, seasonStats: { "1": [] }, notes: [], playerHistory: {}
+};
+sandbox.window.__lwTestDevelopPlayers(orphanedContractWorld, 1);
+const orphanedContractPlayer = orphanedContractWorld.players[orphanedContractPlayerId];
+assert.equal(orphanedContractPlayer.clubId, "", "a missing club reference must be detached");
+assert.equal(orphanedContractPlayer.previousClubId, "missing-club-record",
+  "orphan recovery must retain the last club identifier for provenance");
+assert.equal(orphanedContractPlayer.leagueId, "", "orphan recovery must clear stale league membership");
+assert.equal(orphanedContractPlayer.division, 0, "orphan recovery must clear stale division membership");
+assert.equal(orphanedContractPlayer.contractSeasons, 0,
+  "a player cannot retain an active contract with a club that no longer exists");
+assert.equal(orphanedContractPlayer.freeAgent, true, "orphaned players must enter the free-agent pool");
+assert.equal(orphanedContractPlayer.freeAgentSince, 2,
+  "orphaned players must receive a deterministic free-agent start season");
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

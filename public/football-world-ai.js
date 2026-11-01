@@ -1245,9 +1245,24 @@
         retireWorldPlayer(world, player, season, seasonAge);
         return;
       }
-      if (Number(player.contractSeasons) > 0 || !player.clubId) return;
+      if (!player.clubId) return;
       const club = world.clubs[player.clubId];
-      if (!club) { player.clubId = ""; player.freeAgent = true; return; }
+      if (!club) {
+        // A player whose saved club was removed from the world must not remain contracted
+        // to a missing team or carry stale league/division metadata forever.
+        const orphanedClubId = String(player.clubId);
+        player.previousClubId = player.previousClubId || orphanedClubId;
+        player.clubId = "";
+        player.leagueId = "";
+        player.division = 0;
+        player.contractSeasons = 0;
+        player.freeAgent = true;
+        player.freeAgentSince = Number(season) + 1;
+        world.notes.unshift({ season: Number(season) + 1, type: "free-agent",
+          text: player.name + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
+        return;
+      }
+      if (Number(player.contractSeasons) > 0) return;
       const roster = rosterPlayers(world, club);
       const sameRole = roster.filter(row => row.group === player.group && row.id !== player.id);
       const roleTarget = Math.max(1, Number(TARGETS[player.group]) || 1);
@@ -2498,7 +2513,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=48");
+    const worker = new global.Worker("./football-world-worker.js?v=49");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

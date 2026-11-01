@@ -165,6 +165,6 @@ for (const phase of ["league", "groups"]) {
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 313);
+require("./assert-static-cache-version.cjs")(sw, 314);
 
 console.log("PASS: cup matches commit atomically; failed settlement and post-settlement errors restore the full career.");

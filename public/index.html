@@ -6747,6 +6747,88 @@ function simulateSeasonBlock(targetApps){
   {label:state.winterBreakPending?"كمّل النصف التاني":"تمام",className:"primary",action:()=>{if(state.winterBreakPending)simulateSeasonBlock(seasonMatchTotal());else closeModal();}}
  ]);
 }
+function withManualLeagueTransaction(label,operation){
+ let snapshot;
+ try{snapshot=cloneSeasonTransitionState(state);}
+ catch(error){
+  console.error("Manual league transaction could not create a safe snapshot",error);
+  try{toast("تعذر تأمين بيانات المسيرة قبل المباراة. لم يتم تغيير النتيجة.");}catch(toastError){}
+  return false;
+ }
+ try{
+  const result=operation();
+  if(result===false){
+   restoreSeasonTransitionState(snapshot);
+   try{render();}catch(renderError){console.warn("Manual league rollback render failed",renderError);}
+   try{saveGame(true);}catch(saveError){console.warn("Manual league rollback save failed",saveError);}
+   return false;
+  }
+  return true;
+ }catch(error){
+  try{restoreSeasonTransitionState(snapshot);}
+  catch(restoreError){
+   console.error("Manual league transaction rollback failed",restoreError);
+   try{toast("تعذر اعتماد المباراة وتعذرت استعادة المسيرة تلقائيًا. أوقف اللعب واحفظ نسخة احتياطية.");}catch(toastError){}
+   return false;
+  }
+  const reason=String(error&&error.message||error||"unknown");
+  try{log("تعذر اعتماد المباراة اليدوية؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
+  try{render();}catch(renderError){console.warn("Manual league rollback render failed",renderError);}
+  try{saveGame(true);}catch(saveError){console.warn("Manual league rollback save failed",saveError);}
+  try{toast("تعذر اعتماد المباراة اليدوية. تمت استعادة بيانات المسيرة؛ يمكنك المحاولة مرة أخرى.");}catch(toastError){}
+  return false;
+ }
+}
+function processManualLeagueBye(roundIndex){
+ return withManualLeagueTransaction("جولة الراحة",function(){
+  simulateOtherFixtures(roundIndex,null);
+  recordLeagueByeRound(roundIndex);
+  state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;
+  state.leagueRoundIndex=roundIndex+1;
+  advanceCalendarDays(5,"فاصل 5 أيام في جدول الدوري");
+  state.playedToday=false;
+  setStory("أسبوع راحة","مفيش مباراة ليك في الجولة دي بسبب عدد الأندية الفردي، لكن باقي مباريات الدوري اتلعبت. الجولة الجاية بعد أسبوع.");
+  log("جولة راحة للاعب؛ تم تحديث بقية نتائج الدوري وتقدم التقويم أسبوعًا.");
+  saveGame(true);render();toast("أسبوع راحة في جدول الدوري. الجولة التالية جاهزة.");
+  return true;
+ });
+}
+function commitManualLeagueMatch(tactic,roundIndex,fixture,opponent,opponentTeam){
+ return withManualLeagueTransaction("المباراة اليدوية",function(){
+  const id=buildMatchId("league",state.leagueCompetition,roundIndex+1,clubNameForLeague());
+  const dKey=disciplineKey("league",state.leagueCountry,state.leagueCompetition),suspended=Number(state.suspensions?.[dKey])>0;
+  state.lastTactic=tactic;
+  const result=simulateCareerMatch({opponent,opponentTeam,scope:"league",competition:state.leagueCompetition,tactic,matchId:id,home:fixture[0]===clubNameForLeague(),mode:"manual",playerAvailable:!suspended});
+  if(!result){toast("تعذر تشغيل محرك المباراة.");return false;}
+  const settled=applyMatchResult(result,{id,scope:"league",country:state.leagueCountry,competition:state.leagueCompetition,opponent,tactic,home:fixture[0]===clubNameForLeague(),matchday:roundIndex+1,suspendedAtKickoff:suspended});
+  if(!settled){toast("تم منع تسجيل نتيجة مباراة مكررة.");return false;}
+  state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;
+  state.seasonApps++;state.leagueApps++;state.leagueRoundIndex=roundIndex+1;
+  updateLeague(opponent,result.score.for,result.score.against,roundIndex);
+  simulateOtherFixtures(roundIndex,fixture);
+  recordLeagueRound(roundIndex,fixture,opponent,result.score.for,result.score.against,settled);
+  activateMidSeasonBreakIfDue();
+  const tactics={balanced:"متوازن",attack:"ضغط هجومي",defend:"دفاع منظم",counter:"مرتدات"};
+  const m=result.player,events=formatMatchEvents(result.events);
+  const participation=m.minutes>0
+   ?"دقائق لعبك "+m.minutes+" • تقييمك "+m.rating.toFixed(1)+"/10 • تسديداتك "+m.shots+(m.goals?" • أهدافك "+m.goals:"")+(m.assists?" • صناعة "+m.assists:"")
+   :suspended?"لم تشارك؛ إيقاف متبقٍ: "+(state.suspensions[dKey]||0)+" مباراة.":"لم تشارك في المباراة.";
+  const reward=settled.matchPay?" مكافأة المشاركة "+settled.matchPay+" "+currencyLabel()+".":" لا توجد مكافأة مشاركة لأنك لم تلعب.";
+  const incidentText=events?"\nأحداث موثقة: "+events:"";
+  const injuryText=m.injuryDays?"\nإصابة بعد المباراة: "+state.injuryName+" ("+m.injuryDays+" يوم).":"";
+  const midSeasonNotice=state.winterBreakPending?" وصلت لنقطة منتصف الموسم؛ راجع عروض انتقالات الشتاء قبل تكملة النصف الثاني.":"";
+  const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{};
+  const story=club().name+" "+score.for+"-"+score.against+" "+opponent+" ("+result.outcome+"). خطتك: "+(tactics[tactic]||tactic)+". تكتيك الخصم: "+(opponentTactics[result.metadata?.opponentTactic]||"متوازن")+". "+participation+"."+reward+incidentText+injuryText+midSeasonNotice;
+  setStory(state.winterBreakPending?"وصلنا لنص الموسم — راجع انتقالات الشتاء":"صافرة النهاية: "+result.outcome,story);
+  saveGame(true);render();
+  openModal("صافرة النهاية — "+result.outcome,story,[
+   {label:"راجع الأداء",className:"primary",action:()=>{render();showPage("home");}},
+   {label:"افتح جدول الدوري",action:()=>showPage("league")}
+  ]);
+  if(state.seasonApps>=seasonMatchTotal())setTimeout(()=>finishSeason(),50);
+  return true;
+ });
+}
 function match(tactic=""){
  if(state.academyGraduationPending){openAcademyGraduationDecision();return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
@@ -6784,52 +6866,77 @@ function match(tactic=""){
  const roundIndex=Math.max(0,Number(state.leagueRoundIndex)||0),round=state.fixtureSchedule[roundIndex]||[],ours=clubNameForLeague();
  if(roundIndex>=state.fixtureSchedule.length){toast("مفيش جولات دوري متبقية؛ راجع نهاية الموسم.");finishSeason();return;}
  let fixture=round.find(pair=>Array.isArray(pair)&&pair.includes(ours));
- if(!fixture){simulateOtherFixtures(roundIndex,null);recordLeagueByeRound(roundIndex);state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;state.leagueRoundIndex=roundIndex+1;advanceCalendarDays(5,"فاصل 5 أيام في جدول الدوري");state.playedToday=false;setStory("أسبوع راحة","مفيش مباراة ليك في الجولة دي بسبب عدد الأندية الفردي، لكن باقي مباريات الدوري اتلعبت. الجولة الجاية بعد أسبوع.");log("جولة راحة للاعب؛ تم تحديث بقية نتائج الدوري وتقدم التقويم أسبوعًا.");saveGame(true);render();toast("أسبوع راحة في جدول الدوري. الجولة التالية جاهزة.");return;}
+ if(!fixture)return processManualLeagueBye(roundIndex);
  const opponent=fixture.find(name=>name!==ours),opponentTeam=state.league.find(team=>team.name===opponent);if(!opponent||!opponentTeam){ensureFixtureSchedule();toast("تم إصلاح جدول الدوري. جرّب المباراة مرة تانية.");saveGame(true);render();return;}
- const id=buildMatchId("league",state.leagueCompetition,roundIndex+1,ours),dKey=disciplineKey("league",state.leagueCountry,state.leagueCompetition),suspended=Number(state.suspensions?.[dKey])>0;
- state.lastTactic=tactic;
- const result=simulateCareerMatch({opponent,opponentTeam,scope:"league",competition:state.leagueCompetition,tactic,matchId:id,home:fixture[0]===ours,mode:"manual",playerAvailable:!suspended});
- if(!result){toast("تعذر تشغيل محرك المباراة.");return;}
- const settled=applyMatchResult(result,{id,scope:"league",country:state.leagueCountry,competition:state.leagueCompetition,opponent,tactic,home:fixture[0]===ours,matchday:roundIndex+1,suspendedAtKickoff:suspended});if(!settled){toast("تم منع تسجيل نتيجة مباراة مكررة.");return;}
- state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;state.seasonApps++;state.leagueApps++;state.leagueRoundIndex=roundIndex+1;updateLeague(opponent,result.score.for,result.score.against,roundIndex);simulateOtherFixtures(roundIndex,fixture);recordLeagueRound(roundIndex,fixture,opponent,result.score.for,result.score.against,settled);
- activateMidSeasonBreakIfDue();
- const tactics={balanced:"متوازن",attack:"ضغط هجومي",defend:"دفاع منظم",counter:"مرتدات"};
- const m=result.player,events=formatMatchEvents(result.events),participation=m.minutes>0?`دقائق لعبك ${m.minutes} • تقييمك ${m.rating.toFixed(1)}/10 • تسديداتك ${m.shots}${m.goals?` • أهدافك ${m.goals}`:""}${m.assists?` • صناعة ${m.assists}`:""}`:suspended?`لم تشارك؛ إيقاف متبقٍ: ${state.suspensions[dKey]||0} مباراة.`:"لم تشارك في المباراة.";
- const reward=settled.matchPay?` مكافأة المشاركة ${settled.matchPay} ${currencyLabel()}.`:" لا توجد مكافأة مشاركة لأنك لم تلعب.";
- const incidentText=events?`\nأحداث موثقة: ${events}`:"";
- const injuryText=m.injuryDays?`\nإصابة بعد المباراة: ${state.injuryName} (${m.injuryDays} يوم).`:"";
- const midSeasonNotice=state.winterBreakPending?" وصلت لنقطة منتصف الموسم؛ راجع عروض انتقالات الشتاء قبل تكملة النصف الثاني.":"";
- const score=result.score,opponentTactics=window.LWCareerAI?.opponentTacticLabels||{},story=`${club().name} ${score.for}-${score.against} ${opponent} (${result.outcome}). خطتك: ${tactics[tactic]||tactic}. تكتيك الخصم: ${opponentTactics[result.metadata?.opponentTactic]||"متوازن"}. ${participation}.${reward}${incidentText}${injuryText}${midSeasonNotice}`;
- setStory(state.winterBreakPending?"وصلنا لنص الموسم — راجع انتقالات الشتاء":"صافرة النهاية: "+result.outcome,story);saveGame(true);render();
- openModal("صافرة النهاية — "+result.outcome,story,[{label:"راجع الأداء",className:"primary",action:()=>{render();showPage("home");}},{label:"افتح جدول الدوري",action:()=>showPage("league")}]);
- if(state.seasonApps>=seasonMatchTotal())setTimeout(()=>finishSeason(),50);
+ return commitManualLeagueMatch(tactic,roundIndex,fixture,opponent,opponentTeam);
 }
 function applyLeagueResult(homeName,awayName,homeGoals,awayGoals){
- const home=state.league.find(t=>t.name===homeName),away=state.league.find(t=>t.name===awayName);
- if(!home||!away)return;
- home.played++;away.played++;home.gf+=homeGoals;home.ga+=awayGoals;away.gf+=awayGoals;away.ga+=homeGoals;
- if(homeGoals>awayGoals){home.w++;home.pts+=3;away.l++;}
- else if(homeGoals<awayGoals){home.l++;away.w++;away.pts+=3;}
- else{home.d++;away.d++;home.pts++;away.pts++;}
+ const homeKey=String(homeName||""),awayKey=String(awayName||"");
+ if(!homeKey||!awayKey||homeKey===awayKey)throw new Error("Invalid league fixture team names.");
+ if(!Array.isArray(state.league))throw new Error("League standings are unavailable.");
+ const homeRows=state.league.filter(team=>team&&team.name===homeKey);
+ const awayRows=state.league.filter(team=>team&&team.name===awayKey);
+ if(homeRows.length!==1||awayRows.length!==1||homeRows[0]===awayRows[0])throw new Error("League fixture must resolve to exactly two distinct club rows.");
+ const hg=Number(homeGoals),ag=Number(awayGoals);
+ if(!Number.isSafeInteger(hg)||hg<0||!Number.isSafeInteger(ag)||ag<0)throw new Error("League fixture score must contain non-negative integer goals.");
+ const fields=["played","gf","ga","w","d","l","pts"];
+ const readStats=team=>{
+  const values={};
+  for(const field of fields){
+   const raw=team[field],value=raw===undefined||raw===null||raw===""?0:Number(raw);
+   if(!Number.isSafeInteger(value)||value<0)throw new Error("Invalid league standing counter: "+field+" for "+team.name);
+   values[field]=value;
+  }
+  return values;
+ };
+ const home=homeRows[0],away=awayRows[0],nextHome=readStats(home),nextAway=readStats(away);
+ nextHome.played++;nextAway.played++;
+ nextHome.gf+=hg;nextHome.ga+=ag;nextAway.gf+=ag;nextAway.ga+=hg;
+ if(hg>ag){nextHome.w++;nextHome.pts+=3;nextAway.l++;}
+ else if(hg<ag){nextHome.l++;nextAway.w++;nextAway.pts+=3;}
+ else{nextHome.d++;nextAway.d++;nextHome.pts++;nextAway.pts++;}
+ Object.assign(home,nextHome);Object.assign(away,nextAway);
+ return true;
 }
 function updateLeague(opponent,forGoals,againstGoals,roundIndex=Math.max(0,(Number(state.leagueRoundIndex)||1)-1)){
- const ours=clubNameForLeague();
- const fixture=(state.fixtureSchedule[Math.max(0,Number(roundIndex)||0)]||[]).find(pair=>Array.isArray(pair)&&pair.includes(ours)&&pair.includes(opponent));
- if(!fixture){ensureFixtureSchedule();return;}
- const homeName=fixture[0],awayName=fixture[1];
- if(homeName===ours)applyLeagueResult(homeName,awayName,forGoals,againstGoals);
- else applyLeagueResult(homeName,awayName,againstGoals,forGoals);
+ const ours=clubNameForLeague(),index=Number(roundIndex);
+ if(!Number.isSafeInteger(index)||index<0)throw new Error("Invalid league round index.");
+ const round=Array.isArray(state.fixtureSchedule)?state.fixtureSchedule[index]:null;
+ if(!Array.isArray(round))throw new Error("Current league fixture round is missing.");
+ const matches=round.filter(pair=>Array.isArray(pair)&&pair.length===2&&pair.includes(ours)&&pair.includes(opponent));
+ if(matches.length!==1)throw new Error("Current player fixture must exist exactly once in the league schedule.");
+ const fixture=matches[0],homeName=fixture[0],awayName=fixture[1];
+ return homeName===ours
+  ?applyLeagueResult(homeName,awayName,forGoals,againstGoals)
+  :applyLeagueResult(homeName,awayName,againstGoals,forGoals);
 }
 function simulateOtherFixtures(roundIndex,userFixture){
- const fixtures=state.fixtureSchedule[roundIndex]||[];
- fixtures.forEach(pair=>{
-  if(pair.includes(clubNameForLeague()))return;
-  const home=state.league.find(t=>t.name===pair[0]),away=state.league.find(t=>t.name===pair[1]);if(!home||!away)return;
-  const gap=(home.power||50)-(away.power||50);
+ const index=Number(roundIndex);
+ if(!Number.isSafeInteger(index)||index<0)throw new Error("Invalid league round index for fixture simulation.");
+ const fixtures=Array.isArray(state.fixtureSchedule)?state.fixtureSchedule[index]:null;
+ if(!Array.isArray(fixtures))throw new Error("League round fixtures are unavailable.");
+ const ours=clubNameForLeague();
+ const userFixtures=fixtures.filter(pair=>Array.isArray(pair)&&pair.length===2&&pair.includes(ours));
+ if(userFixture){
+  if(userFixtures.length!==1||userFixtures[0][0]!==userFixture[0]||userFixtures[0][1]!==userFixture[1])throw new Error("Player fixture does not match the current league round.");
+ }else if(userFixtures.length!==0)throw new Error("A player fixture exists but the round was marked as a bye.");
+ const seenPairs=new Set(),seenTeams=new Set();
+ for(const pair of fixtures){
+  if(!Array.isArray(pair)||pair.length!==2||!pair[0]||!pair[1]||pair[0]===pair[1])throw new Error("Malformed league fixture in current round.");
+  const pairKey=[String(pair[0]),String(pair[1])].sort().join("\u0000");
+  if(seenPairs.has(pairKey))throw new Error("Duplicate fixture found in the current league round.");
+  seenPairs.add(pairKey);
+  if(seenTeams.has(pair[0])||seenTeams.has(pair[1]))throw new Error("A club appears in more than one fixture in the same league round.");
+  seenTeams.add(pair[0]);seenTeams.add(pair[1]);
+  if(pair.includes(ours))continue;
+  const home=state.league.find(team=>team&&team.name===pair[0]),away=state.league.find(team=>team&&team.name===pair[1]);
+  if(!home||!away)throw new Error("A scheduled league fixture references a club missing from the standings.");
+  const gap=(Number(home.power)||50)-(Number(away.power)||50);
   const hg=Math.max(0,Math.min(5,Math.round(1.25+gap/22+(randomUnit()*2-1))));
   const ag=Math.max(0,Math.min(5,Math.round(1.05-gap/24+(randomUnit()*2-1))));
   applyLeagueResult(home.name,away.name,hg,ag);
- });
+ }
+ return true;
 }
 function seedLeagueHistory(throughRounds){
  // When a winter transfer changes leagues, simulate that club's already-played rounds so the table and fixture index stay aligned.

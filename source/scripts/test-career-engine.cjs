@@ -453,31 +453,6 @@ delete partialLegacyDuplicate.day;
 delete partialLegacyDuplicate.matchday;
 assert.equal(career.uniqueMatchRows([legacyLeagueFixture, partialLegacyDuplicate]).length, 1,
   "a partially enriched copy with matching opponent and competition identity must still be deduplicated");
-const unidentifiedLegacyRepeat = {
-  scope: "league", competition: "Premier League", season: 4, club: "Test FC",
-  opponent: "Repeat Opponent", teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0
-};
-const unidentifiedLegacyRows = [unidentifiedLegacyRepeat, { ...unidentifiedLegacyRepeat }];
-const identifiedLegacyRepeat = { ...unidentifiedLegacyRepeat, day: 24, matchday: 12 };
-const identifiedLegacyRows = [identifiedLegacyRepeat, { ...identifiedLegacyRepeat }];
-for (const engine of [career, deployedCareer]) {
-  assert.equal(engine.uniqueMatchRows(unidentifiedLegacyRows).length, 2,
-    "two no-ID legacy fixtures with identical stats but no date/round must not collapse into one appearance");
-  assert.equal(engine.uniqueMatchRows(identifiedLegacyRows).length, 1,
-    "no-ID legacy copies with matching competition context and a temporal key must still deduplicate");
-  const sparseHistory = {
-    apps: 2,
-    seasonLog: [unidentifiedLegacyRepeat],
-    careerMatchHistory: [{ ...unidentifiedLegacyRepeat }]
-  };
-  engine.rebuildLegacyCareerStats(sparseHistory);
-  assert.equal(sparseHistory.careerMinutes, 180,
-    "legacy stat rebuilding must preserve both no-ID appearances when no temporal identity exists");
-  assert.equal(sparseHistory.qualifyingAppearances, 2,
-    "legacy stat rebuilding must not erase a qualifying appearance from a sparse no-ID history");
-}
-
-
 const whitespaceCompetitionLeagueFixture = {
   id: "legacy-whitespace-competition-id", scope: "league", competition: "   ",
   leagueCompetition: "Premier League", season: 4, segmentId: "season-4",
@@ -1388,6 +1363,30 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+const unidentifiedLegacyRepeat = {
+  scope: "league", competition: "Premier League", season: 4, club: "Test FC",
+  opponent: "Repeat Opponent", teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0
+};
+const unidentifiedLegacyRows = [unidentifiedLegacyRepeat, { ...unidentifiedLegacyRepeat }];
+const identifiedLegacyRepeat = { ...unidentifiedLegacyRepeat, day: 24, matchday: 12 };
+const identifiedLegacyRows = [identifiedLegacyRepeat, { ...identifiedLegacyRepeat }];
+for (const engine of [career, deployedCareer]) {
+  assert.equal(engine.uniqueMatchRows(unidentifiedLegacyRows).length, 2,
+    "two no-ID legacy fixtures with identical stats but no date/round must not collapse into one appearance");
+  assert.equal(engine.uniqueMatchRows(identifiedLegacyRows).length, 1,
+    "no-ID legacy copies with matching competition context and a temporal key must still deduplicate");
+  const sparseHistory = {
+    apps: 2,
+    seasonLog: [unidentifiedLegacyRepeat],
+    careerMatchHistory: [{ ...unidentifiedLegacyRepeat }]
+  };
+  engine.rebuildLegacyCareerStats(sparseHistory);
+  assert.equal(sparseHistory.careerMinutes, 180,
+    "legacy stat rebuilding must preserve both no-ID appearances when no temporal identity exists");
+  assert.equal(sparseHistory.qualifyingAppearances, 2,
+    "legacy stat rebuilding must not erase a qualifying appearance from a sparse no-ID history");
+}
 
 const whitespaceCompetitionParityRows = [
   {

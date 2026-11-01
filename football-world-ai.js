@@ -149,7 +149,8 @@
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
       lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
-      nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive()
+      nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive(),
+      rosterMembershipSchemaVersion: 1
     };
   }
   function addClub(world, row, db) {
@@ -194,11 +195,57 @@
     club.roster.push(id);
     return player;
   }
-  function fillRoster(world, club) {
-    club.roster = (club.roster || []).filter(id => {
-      const player = world.players[id];
-      return Boolean(player && !player.retired && !player.freeAgent);
+  function activeRosterIds(world, club) {
+    const seen = new Set();
+    return (Array.isArray(club && club.roster) ? club.roster : []).filter(id => {
+      const key = String(id || "");
+      const player = world && world.players && world.players[key];
+      if (!key || seen.has(key) || !player || player.retired || player.freeAgent) return false;
+      const ownerClubId = String(player.clubId || "").trim();
+      if (ownerClubId && ownerClubId !== String(club.id)) return false;
+      seen.add(key);
+      return true;
     });
+  }
+  function normalizeRosterMembership(world) {
+    if (!world || !world.clubs || !world.players) return world;
+    const memberships = new Map();
+    Object.values(world.clubs).forEach(club => {
+      if (!club) return;
+      const localSeen = new Set();
+      (Array.isArray(club.roster) ? club.roster : []).forEach(id => {
+        const key = String(id || "");
+        if (!key || localSeen.has(key)) return;
+        localSeen.add(key);
+        if (!memberships.has(key)) memberships.set(key, []);
+        memberships.get(key).push(String(club.id || ""));
+      });
+    });
+    const ambiguous = new Set();
+    Object.entries(world.players).forEach(([id, player]) => {
+      if (!player) return;
+      const ownerClubId = String(player.clubId || "").trim();
+      if (ownerClubId && world.clubs[ownerClubId]) return;
+      const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
+      if (candidates.length === 1) {
+        const clubId = candidates[0], club = world.clubs[clubId];
+        player.clubId = clubId;
+        if (!String(player.country || "").trim()) player.country = String(club.country || "");
+        if (!String(player.leagueId || "").trim()) player.leagueId = String(club.leagueId || "");
+        if (!(Number(player.division) > 0)) player.division = Number(club.division) || 1;
+      } else if (candidates.length > 1) {
+        // Keep the player record, but do not assign an ambiguous legacy player to two clubs.
+        ambiguous.add(String(id));
+      }
+    });
+    Object.values(world.clubs).forEach(club => {
+      if (!club) return;
+      club.roster = activeRosterIds(world, club).filter(id => !ambiguous.has(String(id)));
+    });
+    return world;
+  }
+  function fillRoster(world, club) {
+    club.roster = activeRosterIds(world, club);
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
     club.roster.forEach(id => {
@@ -238,6 +285,7 @@
     }
     world.currentSeason = 1;
     world.rosterSchemaVersion = 3;
+    world.rosterMembershipSchemaVersion = 1;
     return world;
   }
   function reconcileDatabase(world, db) {
@@ -434,7 +482,9 @@
       player.group = groupForPosition(player.position);
     });
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
+    normalizeRosterMembership(world);
     world.rosterSchemaVersion = 3;
+    world.rosterMembershipSchemaVersion = 1;
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return world;
   }
@@ -469,6 +519,10 @@
       || Number(world.rosterSchemaVersion) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
+    if (Number(world.rosterMembershipSchemaVersion) !== 1) {
+      normalizeRosterMembership(world);
+      world.rosterMembershipSchemaVersion = 1;
+    }
     // The world-simulation season is independent of the player's career season.
     // Never rewind completed global seasons just because save.season has not caught up.
     if (Number(world.lastAdvancedTo) > 0) {
@@ -482,7 +536,7 @@
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 55;
   }
   function rosterPlayers(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired && !player.freeAgent);
+    return activeRosterIds(world, club).map(id => world.players[id]);
   }
   function roleStats(world, club) {
     const output = {};
@@ -1111,7 +1165,7 @@
     return groups;
   }
   function playersForClub(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.freeAgent && !player.retired);
+    return rosterPlayers(world, club);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);

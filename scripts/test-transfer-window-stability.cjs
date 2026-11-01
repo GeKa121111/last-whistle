@@ -754,9 +754,12 @@ roleContractState.transferHistory = [];
 roleContractSandbox.ensureTransferOffers();
 assert.equal(roleContractState.transferNegotiation, null,
   "a saved negotiation whose offer no longer exists must not keep the transfer market locked");
-assert.equal(roleContractState.transferHistory[0].legacyTransferNegotiation.offerId, "deleted-negotiation-offer",
+const staleNegotiationHistory = roleContractState.transferHistory.find(row => row && row.legacyTransferNegotiation);
+assert.ok(staleNegotiationHistory,
   "a stale negotiation must be preserved in career history before its lock is cleared");
-assert.match(roleContractState.transferHistory[0].text, /مفاوضات انتقال محفوظة/,
+assert.equal(staleNegotiationHistory.legacyTransferNegotiation.offerId, "deleted-negotiation-offer",
+  "the original stale negotiation terms must remain recoverable from career history");
+assert.match(staleNegotiationHistory.text, /مفاوضات انتقال محفوظة/,
   "the career history must explain why the stale negotiation was closed");
 assert.equal(roleContractGenerationCalls, 3,
   "offer discovery must resume in the same transfer window after a stale negotiation is reconciled");

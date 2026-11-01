@@ -1421,5 +1421,58 @@ assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
  assert.deepEqual(staleWrapperWorld.transfers, [], "a stale wrapper request must not create transfer records");
  assert.deepEqual(staleWrapperWorld.marketReports, [], "a stale wrapper request must not create market reports");
 
+
+ 
+// Historical league and division tables must survive the shorter fixture/stat retention window.
+const retentionClubs = [];
+for (let index = 1; index <= 6; index++) retentionClubs.push({
+  id: "retention-first-" + index, name: "Retention First " + index, country: "Testland",
+  leagueId: "retention-league", division: 1, power: 58 + index, basePower: 58 + index,
+  prestige: 60, matchesPerSeason: 10, roster: []
+});
+for (let index = 1; index <= 3; index++) retentionClubs.push({
+  id: "retention-second-" + index, name: "Retention Second " + index, country: "Testland",
+  leagueId: "retention-league", division: 2, power: 48 + index, basePower: 48 + index,
+  prestige: 45, matchesPerSeason: 4, roster: []
+});
+const retentionWorld = {
+  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, currentSeason: 1,
+  lastAdvancedTo: 0, lastCompletedSeason: 0, completedSeasons: [],
+  players: {}, clubs: Object.fromEntries(retentionClubs.map(club => [club.id, club])),
+  playerHistory: {}, seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  competitionsBySeason: {}, transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+};
+const retentionSave = { season: 1, worldSimulation: retentionWorld };
+const retentionDb = {
+  version: 0,
+  clubs: () => [],
+  leagues: () => [],
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Retention Second Division", englishName: "Retention Championship", matchesPerSeason: 4 }
+    : { name: "Retention Premier", englishName: "Retention Premier League", matchesPerSeason: 10 },
+  simulationCupDefinitions: () => []
+};
+const retentionSeasonOne = ai.completeSeason(retentionSave, 1, retentionDb);
+const retainedFirstTierIds = retentionSeasonOne.tables["retention-league"].map(row => String(row.clubId));
+const retainedSecondTierIds = retentionSeasonOne.tables["retention-league:2"].map(row => String(row.clubId));
+assert.equal(retainedFirstTierIds.length, 6, "the retention fixture must generate a complete first-tier table");
+assert.equal(retainedSecondTierIds.length, 3, "the retention fixture must generate a complete second-tier table");
+ai.completeSeason(retentionSave, 2, retentionDb);
+ai.completeSeason(retentionSave, 3, retentionDb);
+assert.equal(Object.prototype.hasOwnProperty.call(retentionWorld.matchesBySeason, "1"), false,
+  "detailed fixtures should remain limited to the latest season");
+assert.equal(Object.prototype.hasOwnProperty.call(retentionWorld.seasonStats, "1"), false,
+  "player-season rows should retain their existing compact two-season window");
+assert.equal(Object.prototype.hasOwnProperty.call(retentionWorld.leagueTables, "1"), true,
+  "completed league tables must remain available across the 20-season history window");
+retentionWorld.clubs["retention-second-1"].division = 1;
+retentionWorld.clubs["retention-first-6"].division = 2;
+assert.equal(JSON.stringify(ai.getLeagueTable(retentionSave, "retention-league", 1, retentionDb)
+  .map(row => String(row.clubId))), JSON.stringify(retainedFirstTierIds),
+  "historical first-tier standings must use the saved season snapshot, not today's club divisions");
+assert.equal(JSON.stringify(ai.getDivisionTable(retentionSave, "retention-league", 2, 1, retentionDb)
+  .map(row => String(row.clubId))), JSON.stringify(retainedSecondTierIds),
+  "historical second-tier standings must survive fixture pruning and later promotion/relegation");
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

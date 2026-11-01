@@ -1445,7 +1445,12 @@
     const seasonKeep = Object.keys(world.seasonStats).map(Number).sort((a,b)=>a-b).slice(-2);
     const seasonKeepSet = new Set(seasonKeep.map(String));
     Object.keys(world.seasonStats).forEach(key => { if (!seasonKeepSet.has(key)) delete world.seasonStats[key]; });
-    Object.keys(world.leagueTables).forEach(key => { if (!seasonKeepSet.has(key)) delete world.leagueTables[key]; });
+    // Standings are compact snapshots needed for promotion history and historical tables.
+    // Keep the same 20-season window as completedSeasons; only detailed fixtures and
+    // player-season rows are aggressively pruned to control save size.
+    const tableKeep = Object.keys(world.leagueTables).map(Number).sort((a,b)=>a-b).slice(-20);
+    const tableKeepSet = new Set(tableKeep.map(String));
+    Object.keys(world.leagueTables).forEach(key => { if (!tableKeepSet.has(key)) delete world.leagueTables[key]; });
     Object.keys(world.competitionsBySeason).forEach(key => { if (!seasonKeepSet.has(key)) delete world.competitionsBySeason[key]; });
     return { season: year, rows, tables, matches: allMatches, competitions: world.competitionsBySeason[String(year)] };
   }
@@ -2054,7 +2059,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=28");
+    const worker = new global.Worker("./football-world-worker.js?v=29");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

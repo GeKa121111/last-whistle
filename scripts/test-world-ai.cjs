@@ -44,6 +44,7 @@ assert.ok(aiSourceRaw.includes(normalizeRosterMembershipMarker), "AI engine must
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season, db) {";
+const simulateSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
 const reconcileMarker = "  function reconcileDatabase(world, db) {";
 const transferMarker = "  function runTransferWindow(world, season) {";
 const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
@@ -70,6 +71,7 @@ const aiSource = aiSourceRaw
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
+  .replace(simulateSeasonMarker, "  global.__lwTestSimulateLeagueSeason = simulateLeagueSeason;\n" + simulateSeasonMarker)
   .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
   .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
@@ -88,6 +90,44 @@ assert.equal(typeof ai.rosterPlayers, "function",
   "the shared active-roster reader must be available to the world-simulation extension");
 assert.equal(typeof ai.withTransferMarketTransaction, "function",
   "the transfer transaction helper must be exported across the world-simulation IIFE boundary");
+
+function makeScheduleFixture(spec) {
+  const players={},clubs={};
+  const groups=[["goalkeeper","حارس مرمى"],["defender","قلب دفاع"],["defender","ظهير"],["defender","قلب دفاع"],["defender","ظهير"],["midfielder","وسط دفاعي"],["midfielder","وسط"],["midfielder","وسط مهاجم"],["midfielder","وسط"],["attacker","جناح"],["attacker","مهاجم"]];
+  for(let clubIndex=0;clubIndex<spec.clubCount;clubIndex++){
+    const clubId=spec.leagueId+"-schedule-"+String(clubIndex+1).padStart(2,"0"),roster=[];
+    groups.forEach(([group,position],playerIndex)=>{
+      const playerId=clubId+"-player-"+(playerIndex+1);roster.push(playerId);
+      players[playerId]={id:playerId,name:"Schedule Test Player "+playerId,clubId,country:spec.country,leagueId:spec.leagueId,division:spec.division,position,group,ovr:60+(playerIndex%5),potential:70,age:24,contractSeasons:2,freeAgent:false,retired:false};
+    });
+    clubs[clubId]={id:clubId,name:"Schedule Test Club "+(clubIndex+1),country:spec.country,leagueId:spec.leagueId,division:spec.division,leagueName:"Schedule Test League",leagueEnglish:"Schedule Test League",matchesPerSeason:spec.matchesPerSeason,power:60+clubIndex%7,basePower:60,prestige:55,roster,updatedSeason:1};
+  }
+  const world={schemaVersion:1,dbVersion:Number(db.version)||4,rosterSchemaVersion:3,rosterMembershipSchemaVersion:3,currentSeason:1,lastCompletedSeason:0,lastAdvancedTo:0,completedSeasons:[],seasonStats:{},leagueTables:{},matchesBySeason:{},competitionsBySeason:{},transfers:[],marketReports:[],playerHistory:{},nextGeneratedPlayer:1,transferSequence:0,projectionRevision:0,notes:[],clubs,players};
+  const scheduleDb={version:world.dbVersion,leagues:()=>[{id:spec.leagueId,country:spec.country}],leagueFor:()=>({name:"Schedule Test League",englishName:"Schedule Test League",teamCount:spec.expectedTeamCount,matchesPerSeason:spec.matchesPerSeason}),simulationCupDefinitions:()=>[]};
+  return {save:{season:1,worldSimulation:world},world,scheduleDb};
+}
+function assertScheduleCase(spec){
+  const fixture=makeScheduleFixture(spec),result=sandbox.window.__lwTestSimulateLeagueSeason(fixture.save,1,fixture.scheduleDb);
+  const tableKey=spec.division===1?spec.leagueId:spec.leagueId+":"+spec.division,rows=result.tables[tableKey]||[];
+  assert.equal(rows.length,spec.clubCount,spec.label+" must keep every supplied club in its standings");
+  const expectedMatches=spec.clubCount===spec.expectedTeamCount?spec.matchesPerSeason:2*(spec.clubCount-1);
+  assert.ok(rows.every(row=>row.played===expectedMatches),spec.label+" must use the configured match count only for a complete league field");
+  assert.equal(result.matches.length,spec.clubCount*expectedMatches/2,spec.label+" must create one fixture for every two player appearances");
+  const appearancesByRound=new Map(),homeCounts=new Map(Object.keys(fixture.world.clubs).map(id=>[id,0])),awayCounts=new Map(Object.keys(fixture.world.clubs).map(id=>[id,0]));
+  result.matches.forEach(match=>{
+    const round=String(match.matchday),used=appearancesByRound.get(round)||new Set();
+    assert.ok(!used.has(match.homeClubId)&&!used.has(match.awayClubId),spec.label+" must never schedule a club twice on the same matchday");
+    used.add(match.homeClubId);used.add(match.awayClubId);appearancesByRound.set(round,used);
+    homeCounts.set(match.homeClubId,homeCounts.get(match.homeClubId)+1);awayCounts.set(match.awayClubId,awayCounts.get(match.awayClubId)+1);
+  });
+  const homeValues=Array.from(homeCounts.values());
+  assert.ok(Math.max(...homeValues)-Math.min(...homeValues)<=2,spec.label+" must keep home fixtures balanced across clubs");
+  assert.ok(Array.from(homeCounts.keys()).every(id=>homeCounts.get(id)+awayCounts.get(id)===expectedMatches),spec.label+" must give every club the same total fixtures");
+}
+assert.equal(typeof sandbox.window.__lwTestSimulateLeagueSeason,"function","the real league-season simulator must be exposed to schedule regression tests");
+assertScheduleCase({label:"Scottish Championship",leagueId:"scotland",country:"اسكتلندا",division:2,clubCount:10,expectedTeamCount:10,matchesPerSeason:36});
+assertScheduleCase({label:"Argentine Primera División",leagueId:"argentina",country:"الأرجنتين",division:1,clubCount:30,expectedTeamCount:30,matchesPerSeason:30});
+assertScheduleCase({label:"Incomplete league catalogue",leagueId:"incomplete-test",country:"Testland",division:1,clubCount:10,expectedTeamCount:20,matchesPerSeason:38});
 
 // Legacy saves can retain a retired player ID in a club roster after an interrupted migration.
 // The matchday lineup must never select that player, even if their old OVR is the highest.

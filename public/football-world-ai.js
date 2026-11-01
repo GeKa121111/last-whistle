@@ -1571,6 +1571,63 @@
       return row;
     });
   }
+  function buildBalancedLeagueSchedule(clubs, matchesPerClub, seed) {
+    const teams = Array.isArray(clubs) ? clubs.slice() : [];
+    const teamCount = teams.length;
+    if (teamCount < 2) return [];
+    let target = Math.max(0, Math.min(60, int(matchesPerClub, 2 * (teamCount - 1))));
+    if (teamCount % 2 === 1 && target % 2 === 1) target--;
+    if (!target) return [];
+    const fixtures = [], homeCounts = new Map(teams.map(club => [String(club.id), 0]));
+    let matchday = 0;
+    const addFixture = (first, second, day, cycle) => {
+      if (!first || !second || String(first.id) === String(second.id)) return;
+      const firstId=String(first.id), secondId=String(second.id);
+      const firstHomes=homeCounts.get(firstId)||0, secondHomes=homeCounts.get(secondId)||0;
+      let home,away;
+      if(firstHomes<secondHomes){home=first;away=second;}
+      else if(secondHomes<firstHomes){home=second;away=first;}
+      else if(hash([seed,cycle,day,firstId,secondId,"balanced-home"].join("|"))%2===0){home=first;away=second;}
+      else{home=second;away=first;}
+      homeCounts.set(String(home.id),(homeCounts.get(String(home.id))||0)+1);
+      fixtures.push({home,away,round:day});
+    };
+    const cycleSize=teamCount-1, fullCycles=Math.floor(target/cycleSize), remainder=target%cycleSize;
+    for(let cycle=0;cycle<fullCycles;cycle++){
+      let rotation=teams.slice(); if(rotation.length%2) rotation.push(null);
+      const roundCount=rotation.length-1;
+      for(let round=0;round<roundCount;round++){
+        matchday++;
+        for(let index=0;index<rotation.length/2;index++){
+          const first=rotation[index],second=rotation[rotation.length-1-index];
+          if(first&&second)addFixture(first,second,matchday,cycle);
+        }
+        const fixed=rotation[0],rest=rotation.slice(1);rest.unshift(rest.pop());rotation=[fixed].concat(rest);
+      }
+    }
+    const remainderPairs=[],usedPairs=new Set();
+    const addRemainderPair=(left,right)=>{
+      if(left===right)return;
+      const low=Math.min(left,right),high=Math.max(left,right),key=low+"|"+high;
+      if(usedPairs.has(key))return;
+      usedPairs.add(key);remainderPairs.push([teams[left],teams[right]]);
+    };
+    for(let distance=1;distance<=Math.floor(remainder/2);distance++)
+      for(let index=0;index<teamCount;index++)addRemainderPair(index,(index+distance)%teamCount);
+    if(remainder%2===1&&teamCount%2===0)
+      for(let index=0;index<teamCount/2;index++)addRemainderPair(index,index+teamCount/2);
+    const remainderMatchdays=[];
+    remainderPairs.forEach(pair=>{
+      let dayIndex=0;
+      while(dayIndex<remainderMatchdays.length&&remainderMatchdays[dayIndex].some(row=>row.includes(pair[0])||row.includes(pair[1])))dayIndex++;
+      if(!remainderMatchdays[dayIndex])remainderMatchdays[dayIndex]=[];
+      remainderMatchdays[dayIndex].push(pair);
+    });
+    remainderMatchdays.forEach(dayPairs=>{
+      matchday++;dayPairs.forEach(([home,away])=>addFixture(home,away,matchday,fullCycles));
+    });
+    return fixtures;
+  }
   function simulateLeagueSeason(save, season, db) {
     const world = base.ensureState(save, db);
     world.matchesBySeason = world.matchesBySeason && typeof world.matchesBySeason === "object" ? world.matchesBySeason : {};
@@ -1595,7 +1652,20 @@
       const leagueTables = new Map(), recent = new Map();
       clubs.forEach(club => { leagueTables.set(club.id, tableRow(club, year, leagueId, division)); recent.set(club.id, ""); });
       const groupMatchStartIndex = allMatches.length;
+      const standardMatchesPerClub = Math.max(0, 2 * (clubs.length - 1));
+      const leagueProfile = db && typeof db.leagueFor === "function"
+        ? db.leagueFor(clubs[0] && clubs[0].country, division) || {} : {};
+      const expectedTeamCount = Math.max(0, int(leagueProfile.teamCount, 0));
+      // Only use the official season length when every registered club is present.
+      // An incomplete catalogue must not create a long league between a few known clubs.
+      const hasCompleteLeagueField = expectedTeamCount > 1 && clubs.length === expectedTeamCount;
+      const configuredMatches = Number(leagueProfile.matchesPerSeason);
+      let targetMatchesPerClub = hasCompleteLeagueField && Number.isFinite(configuredMatches) && configuredMatches > 0
+        ? Math.max(0, Math.min(60, Math.round(configuredMatches))) : standardMatchesPerClub;
+      if (clubs.length % 2 === 1 && targetMatchesPerClub % 2 === 1) targetMatchesPerClub--;
+      const isScottishPremiership = leagueId === "scotland" && division === 1 && clubs.length === 12;
       if (clubs.length >= 2) {
+        if (isScottishPremiership || targetMatchesPerClub === standardMatchesPerClub) {
         let rotation = clubs.slice();
         if (rotation.length % 2) rotation.push(null);
         const n = rotation.length, rounds = n - 1;
@@ -1698,6 +1768,16 @@
               rest.unshift(rest.pop());
               splitRotation = [fixed].concat(rest);
             }
+          });
+        }
+        } else {
+          const fixtures = buildBalancedLeagueSchedule(clubs, targetMatchesPerClub,
+            [leagueId, division, year, "configured-league-schedule-v1"].join("|"));
+          fixtures.forEach(fixture => {
+            const match = playMatch(world, fixture.home, fixture.away, year, division,
+              fixture.round, ++sequence, accumulators, "league", lineupCache);
+            allMatches.push(match);
+            applyResult(leagueTables, match);
           });
         }
       }
@@ -2374,7 +2454,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=45");
+    const worker = new global.Worker("./football-world-worker.js?v=46");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

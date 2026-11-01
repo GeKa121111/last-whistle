@@ -697,22 +697,105 @@
       byLeague.get(club.leagueId).push(club);
     }
     const tables = {};
-    for (const [leagueId, clubs] of byLeague.entries()) {
-      const mid = average(clubs.map(club => club.power));
+    for (const [leagueId, sourceClubs] of byLeague.entries()) {
+      const clubs = sourceClubs.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const clubCount = clubs.length;
+      const mid = average(clubs.map(club => Number(club.power) || 55));
+      let matchesPerClub = clubCount > 1
+        ? Math.max(0, Math.min(60, Math.round(average(clubs.map(club => Math.max(0, int(club.matchesPerSeason, 34))))))
+        : 0;
+      // An odd-sized league must have an even number of matches per club so the
+      // total number of fixture appearances can be paired without phantom byes.
+      if (clubCount % 2 === 1 && matchesPerClub % 2 === 1) matchesPerClub = Math.max(0, matchesPerClub - 1);
+      const statsByClub = new Map(clubs.map(club => [String(club.id), {
+        played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, home: 0, away: 0
+      }]));
+      let fixtureNumber = 0;
+      function playFixture(first, second, cycle) {
+        const firstStats = statsByClub.get(String(first.id));
+        const secondStats = statsByClub.get(String(second.id));
+        const firstHomeCost = Math.abs((firstStats.home + 1) - firstStats.away)
+          + Math.abs(secondStats.home - (secondStats.away + 1));
+        const secondHomeCost = Math.abs((secondStats.home + 1) - secondStats.away)
+          + Math.abs(firstStats.home - (firstStats.away + 1));
+        let homeClub, awayClub;
+        if (firstHomeCost < secondHomeCost) {
+          homeClub = first; awayClub = second;
+        } else if (secondHomeCost < firstHomeCost) {
+          homeClub = second; awayClub = first;
+        } else if (hash([leagueId, season, cycle, first.id, second.id, "home-choice-v2"].join("|")) % 2 === 0) {
+          homeClub = first; awayClub = second;
+        } else {
+          homeClub = second; awayClub = first;
+        }
+        const relativePower = clamp(((Number(homeClub.power) || 55) - (Number(awayClub.power) || 55)) / 100, -0.55, 0.55);
+        const rng = random(hash([leagueId, season, cycle, fixtureNumber++, homeClub.id, awayClub.id, "league-fixture-v2"].join("|")));
+        function sampleGoals(rate) {
+          const threshold = Math.exp(-rate);
+          let product = 1, goals = 0;
+          do {
+            goals++;
+            product *= rng();
+          } while (product > threshold && goals < 8);
+          return goals - 1;
+        }
+        const homeGoals = sampleGoals(clamp(1.30 + relativePower * 1.65, 0.25, 2.85));
+        const awayGoals = sampleGoals(clamp(1.20 - relativePower * 1.65, 0.20, 2.75));
+        const home = statsByClub.get(String(homeClub.id));
+        const away = statsByClub.get(String(awayClub.id));
+        home.played++; away.played++;
+        home.home++; away.away++;
+        home.gf += homeGoals; home.ga += awayGoals;
+        away.gf += awayGoals; away.ga += homeGoals;
+        if (homeGoals > awayGoals) {
+          home.w++; away.l++;
+        } else if (homeGoals < awayGoals) {
+          home.l++; away.w++;
+        } else {
+          home.d++; away.d++;
+        }
+      }
+      if (clubCount > 1 && matchesPerClub > 0) {
+        // A full cycle gives every club one match against every other club.
+        // A balanced circulant remainder graph handles leagues whose configured
+        // match count is not an exact multiple of (clubs - 1).
+        const matchesPerFullCycle = clubCount - 1;
+        const fullCycles = Math.floor(matchesPerClub / matchesPerFullCycle);
+        const remainder = matchesPerClub % matchesPerFullCycle;
+        for (let cycle = 0; cycle < fullCycles; cycle++) {
+          for (let i = 0; i < clubCount; i++) {
+            for (let j = i + 1; j < clubCount; j++) playFixture(clubs[i], clubs[j], cycle);
+          }
+        }
+        const usedPairs = new Set();
+        const addRemainderPair = (left, right) => {
+          if (left === right) return;
+          const low = Math.min(left, right), high = Math.max(left, right);
+          const key = low + "|" + high;
+          if (usedPairs.has(key)) return;
+          usedPairs.add(key);
+          playFixture(clubs[low], clubs[high], fullCycles);
+        };
+        for (let distance = 1; distance <= Math.floor(remainder / 2); distance++) {
+          for (let index = 0; index < clubCount; index++) addRemainderPair(index, (index + distance) % clubCount);
+        }
+        if (remainder % 2 === 1 && clubCount % 2 === 0) {
+          for (let index = 0; index < clubCount / 2; index++) addRemainderPair(index, index + clubCount / 2);
+        }
+      }
       const rows = clubs.map(club => {
-        const rng = random(hash(leagueId + "|" + club.id + "|" + season + "|table-v" + VERSION));
-        const matches = club.matchesPerSeason || 34;
-        const quality = Number(club.power || 55) - mid;
-        const draws = Math.round(matches * clamp(0.23 + rng() * 0.05, 0.18, 0.30));
-        const expectedWins = clamp(0.40 + quality * 0.017 + rng() * 0.12 - 0.06, 0.10, 0.76);
-        const wins = clamp(Math.round(matches * expectedWins), 0, matches - draws);
-        const losses = matches - wins - draws;
-        const goalsFor = Math.max(0, Math.round(matches * clamp(1.18 + quality * 0.022 + rng() * 0.38, 0.55, 2.55)));
-        const goalsAgainst = Math.max(0, Math.round(matches * clamp(1.24 - quality * 0.018 + rng() * 0.38, 0.50, 2.65)));
-        return { season: Number(season), leagueId, country: club.country, clubId: club.id,
-          club: club.name, power: Math.round(club.power), played: matches, w: wins, d: draws, l: losses,
-          gf: goalsFor, ga: goalsAgainst, pts: wins * 3 + draws,
-          form: Number((6.0 + quality * 0.025 + rng() * 0.6).toFixed(2)) };
+        const stats = statsByClub.get(String(club.id));
+        const points = stats.w * 3 + stats.d;
+        const goalDifference = stats.gf - stats.ga;
+        const form = stats.played > 0
+          ? clamp(5.7 + points / stats.played * 0.55 + goalDifference / stats.played * 0.12, 5.1, 8.8)
+          : 0;
+        return {
+          season: Number(season), leagueId, country: club.country, clubId: club.id,
+          club: club.name, power: Math.round(Number(club.power) || 55), played: stats.played,
+          w: stats.w, d: stats.d, l: stats.l, gf: stats.gf, ga: stats.ga,
+          pts: points, form: Number(form.toFixed(2))
+        };
       });
       const ranked = rows.sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || b.power - a.power);
       tables[leagueId] = ranked.map((row, index) => ({ ...row, rank: index + 1,
@@ -2285,7 +2368,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=43");
+    const worker = new global.Worker("./football-world-worker.js?v=44");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

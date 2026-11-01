@@ -62,9 +62,11 @@ function runLoanDivisionCase(division) {
     clubTier: 1, clubIndex: 1, weeklyWage: 500, contractSeasons: 2, freeAgent: false,
     role: "بديل", season: 1, day: 1, calendarDay: 120, seasonApps: 10,
     seasonPhase: "firstHalf", winterBreakPending: false, trust: 50, transferHistory: [] };
+  let reconciliationCalls = 0;
   const sandbox = {
     state: loanState,
     window: { LWCareer: { loanTargetStatus: () => "ready", loanSquadRole: () => "بديل" } },
+    reconcileTransferNegotiation: windowInfo => { reconciliationCalls++; assert.equal(windowInfo.open, true); return false; },
     transferTargets: () => [target],
     activeCupInProgress: () => false,
     transferWindow: () => ({ open: true }),
@@ -82,6 +84,8 @@ function runLoanDivisionCase(division) {
   };
   vm.runInNewContext(loanToSource + "\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo division regression" });
   sandbox.loanTo(target);
+  assert.equal(reconciliationCalls, 1,
+    "the final loan action must reconcile stale permanent-transfer negotiations before validating the loan");
   return { division: loanState.leagueDivision, source: loanState.leagueSource };
 }
 const secondDivisionLoan = runLoanDivisionCase(2);

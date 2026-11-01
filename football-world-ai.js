@@ -1253,7 +1253,7 @@
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
-    getLeagueTable, leaderboard, dashboard, rosterPlayers
+    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction
   });
 })(window);
 
@@ -1856,7 +1856,7 @@
     return moves;
   }
   function signFreeAgents(world, season, existingMoves) {
-    return withTransferMarketTransaction(world, function(transaction) {
+    return base.withTransferMarketTransaction(world, function(transaction) {
     const freeAgents = Object.values(world.players).filter(player => player && !player.retired && player.freeAgent && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
     const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division))
@@ -2285,7 +2285,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=38");
+    const worker = new global.Worker("./football-world-worker.js?v=39");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -804,8 +804,101 @@
     });
     return candidates[0] || null;
   }
+  // A transfer window touches several linked records. Keep each market phase atomic:
+  // if any roster/history/report update fails, restore the exact pre-window state.
+  function captureTransferValue(value) {
+    return Array.isArray(value)
+      ? { isArray: true, reference: value, items: value.slice() }
+      : { isArray: false, value };
+  }
+  function restoreTransferValue(snapshot) {
+    if (!snapshot || !snapshot.isArray) return snapshot && snapshot.value;
+    snapshot.reference.splice(0, snapshot.reference.length, ...snapshot.items);
+    return snapshot.reference;
+  }
+  function captureTransferFields(target, fields) {
+    return fields.map(key => ({
+      key,
+      present: Object.prototype.hasOwnProperty.call(target, key),
+      value: captureTransferValue(target[key])
+    }));
+  }
+  function restoreTransferFields(target, snapshots) {
+    snapshots.forEach(snapshot => {
+      if (snapshot.present) target[snapshot.key] = restoreTransferValue(snapshot.value);
+      else delete target[snapshot.key];
+    });
+  }
+  function withTransferMarketTransaction(world, operation) {
+    const playerMap = world && world.players && typeof world.players === "object" ? world.players : null;
+    const originalPlayers = new Map(playerMap ? Object.entries(playerMap) : []);
+    const originalPlayerIds = new Set(originalPlayers.keys());
+    const clubSnapshots = new Map();
+    const playerSnapshots = new Map();
+    const historySnapshots = new Map();
+    const historyMap = world && world.playerHistory && typeof world.playerHistory === "object"
+      ? world.playerHistory : null;
+    const worldSnapshots = captureTransferFields(world, [
+      "transferSequence", "nextGeneratedPlayer", "transfers", "marketReports"
+    ]);
+    const reportSnapshots = (Array.isArray(world.marketReports) ? world.marketReports : [])
+      .filter(report => report && typeof report === "object")
+      .map(report => ({
+        report,
+        fields: captureTransferFields(report, ["moves", "transferIds", "summary"])
+      }));
+    const transaction = {
+      captureClub(club) {
+        if (club && !clubSnapshots.has(club)) {
+          clubSnapshots.set(club, captureTransferFields(club, ["budget", "roster", "power", "updatedSeason"]));
+        }
+      },
+      capturePlayer(player) {
+        if (player && !playerSnapshots.has(player)) {
+          playerSnapshots.set(player, captureTransferFields(player, [
+            "clubId", "country", "leagueId", "division", "contractSeasons",
+            "transferListed", "freeAgent", "freeAgentSince", "previousClubId"
+          ]));
+        }
+      },
+      captureHistory(playerId) {
+        const key = String(playerId || "");
+        if (!key || historySnapshots.has(key) || !historyMap) return;
+        const present = Object.prototype.hasOwnProperty.call(historyMap, key);
+        historySnapshots.set(key, {
+          present,
+          value: present ? captureTransferValue(historyMap[key]) : null
+        });
+      }
+    };
+    try {
+      return operation(transaction);
+    } catch (error) {
+      clubSnapshots.forEach((snapshot, club) => restoreTransferFields(club, snapshot));
+      playerSnapshots.forEach((snapshot, player) => restoreTransferFields(player, snapshot));
+      if (playerMap && world.players === playerMap) {
+        Object.keys(playerMap).forEach(id => {
+          if (!originalPlayerIds.has(id)) delete playerMap[id];
+        });
+        originalPlayers.forEach((player, id) => {
+          if (!Object.prototype.hasOwnProperty.call(playerMap, id)) playerMap[id] = player;
+        });
+      }
+      reportSnapshots.forEach(snapshot => restoreTransferFields(snapshot.report, snapshot.fields));
+      restoreTransferFields(world, worldSnapshots);
+      if (historyMap && world.playerHistory === historyMap) {
+        historySnapshots.forEach((snapshot, key) => {
+          if (snapshot.present) historyMap[key] = restoreTransferValue(snapshot.value);
+          else delete historyMap[key];
+        });
+      }
+      throw error;
+    }
+  }
   function runTransferWindow(world, season) {
-    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
+    return withTransferMarketTransaction(world, function(transaction) {
+      const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
+      Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     // Apply the new-season operating allocation before deals, while retaining leftover transfer cash.
     // The cap prevents balances from growing without bound over long simulated careers.
     for (const club of clubs) {
@@ -883,6 +976,8 @@
       const candidate = candidates[0];
       if (!candidate || candidate.score < 37) continue;
       const { player, seller, fee, group } = candidate;
+      transaction.capturePlayer(player);
+      transaction.captureHistory(player.id);
       const origin = seller.name;
       // Rebuild both memberships from active ownership before moving the player.
       // This discards stale, duplicate, retired, free-agent, and cross-club IDs.
@@ -929,6 +1024,7 @@
     });
     world.marketReports = world.marketReports.slice(0, 12);
     return moves;
+    });
   }
   function roleNeedsLabel(group) {
     return ({ goalkeeper: "تدعيم حراسة المرمى", defender: "تدعيم الدفاع", midfielder: "تدعيم الوسط", attacker: "تدعيم الهجوم" })[group] || "تدعيم الفريق";
@@ -1760,11 +1856,13 @@
     return moves;
   }
   function signFreeAgents(world, season, existingMoves) {
+    return withTransferMarketTransaction(world, function(transaction) {
     const freeAgents = Object.values(world.players).filter(player => player && !player.retired && player.freeAgent && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
     const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division))
       && Number(club.division) >= 1 && activeRosterIdsForClub(world, club).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
+    Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     const roleCountsByClub = new Map();
     for (const club of clubs) {
       const counts = Object.create(null);
@@ -1828,6 +1926,9 @@
         return aCount - bCount || Number(b.power || 50) - Number(a.power || 50) || String(a.id).localeCompare(String(b.id));
       });
       const buyer = eligible[0];
+      transaction.captureClub(buyer);
+      transaction.capturePlayer(player);
+      transaction.captureHistory(player.id);
       buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
       const previousClub = player.previousClubId && world.clubs[player.previousClubId];
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
@@ -1870,6 +1971,7 @@
       }
     }
     return signed;
+    });
   }
   function completeSeason(save, season, db) {
     const world = base.ensureState(save, db);
@@ -2183,7 +2285,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=37");
+    const worker = new global.Worker("./football-world-worker.js?v=38");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

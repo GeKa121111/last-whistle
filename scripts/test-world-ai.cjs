@@ -437,6 +437,76 @@ assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].
 assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budgetedTransfer.fee,
   "the seller must receive the full recorded transfer fee after the market refreshes squad strength");
 
+// Transfer-market phases are atomic: a late roster/history failure must not leave
+// half-applied fees, ownership changes, generated players, or history rows behind.
+const rollbackWorld = {
+  clubs: {}, players: {}, transfers: [],
+  marketReports: [{ season: 6, moves: 0, transferIds: [], summary: "existing report" }],
+  playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const rollbackSeller = makeMarketTestClub(rollbackWorld, "Rollback Seller", 1, null);
+makeMarketTestClub(rollbackWorld, "Rollback Buyer", 2, "defender");
+rollbackSeller.power = rollbackSeller.basePower = 50;
+const rollbackGeneratedClub = makeMarketTestClub(rollbackWorld, "Rollback Generated Fill", 0, null);
+rollbackGeneratedClub.roster.pop();
+const rollbackFaultClub = makeMarketTestClub(rollbackWorld, "Rollback Fault Club", 0, null);
+let rollbackFaultRoster = rollbackFaultClub.roster.slice();
+let throwOnRollbackRosterWrite = true;
+Object.defineProperty(rollbackFaultClub, "roster", {
+  configurable: true,
+  enumerable: true,
+  get() { return rollbackFaultRoster; },
+  set(value) {
+    if (throwOnRollbackRosterWrite) {
+      throwOnRollbackRosterWrite = false;
+      throw new Error("forced transfer window failure");
+    }
+    rollbackFaultRoster = value;
+  }
+});
+const rollbackControl = JSON.parse(JSON.stringify(rollbackWorld));
+assert.ok(sandbox.window.__lwTestRunTransferWindow(rollbackControl, 6).length > 0,
+  "the rollback fixture must complete a paid transfer when no injected failure occurs");
+const rollbackBefore = JSON.stringify(rollbackWorld);
+assert.throws(() => sandbox.window.__lwTestRunTransferWindow(rollbackWorld, 6),
+  /forced transfer window failure/,
+  "a late roster failure must abort the paid transfer window");
+assert.equal(JSON.stringify(rollbackWorld), rollbackBefore,
+  "a failed paid window must restore club budgets, player ownership, rosters, history, reports, transfer IDs, and generated-player counters");
+
+// The free-agent phase has a separate mutation path and must roll back its player and roster
+// changes if writing the player's history fails after the signing has been prepared.
+const freeAgentRollbackWorld = {
+  clubs: {}, players: {}, transfers: [],
+  marketReports: [{ season: 7, moves: 0, transferIds: [], summary: "existing free-agent report" }],
+  playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+makeMarketTestClub(freeAgentRollbackWorld, "Free Agent Rollback Buyer", 2, "goalkeeper");
+freeAgentRollbackWorld.players["free-agent-rollback-player"] = {
+  id: "free-agent-rollback-player", name: "Free Agent Rollback Player", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى", group: "goalkeeper",
+  ovr: 60, potential: 66, age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: "", freeAgentSince: 0, transferListed: false
+};
+let failFreeAgentHistoryWrite = true;
+const freeAgentHistoryBacking = {};
+freeAgentRollbackWorld.playerHistory = new Proxy(freeAgentHistoryBacking, {
+  set(target, key, value) {
+    if (failFreeAgentHistoryWrite) {
+      failFreeAgentHistoryWrite = false;
+      throw new Error("forced free-agent history failure");
+    }
+    target[key] = value;
+    return true;
+  }
+});
+const freeAgentRollbackBefore = JSON.stringify(freeAgentRollbackWorld);
+assert.throws(() => sandbox.window.__lwTestSignFreeAgents(freeAgentRollbackWorld, 8, []),
+  /forced free-agent history failure/,
+  "a free-agent history write failure must abort the signing");
+assert.equal(JSON.stringify(freeAgentRollbackWorld), freeAgentRollbackBefore,
+  "a failed free-agent signing must restore the player, roster, history, market report, and transfer ledger");
+
 // Stale roster references must not make an otherwise eligible club look full to the transfer market.
 const staleTransferWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
 makeMarketTestClub(staleTransferWorld, "Stale Transfer Seller", 1, null);

@@ -32,7 +32,8 @@ const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunctio
 const leagueArchiveSource = section("function ensureLeagueSegmentId(){", "\nfunction archiveSeasonRecord()");
 const transferToSource = section("function transferTo(){", "\nfunction ");
 const maybeOfferTransferSource = section("function maybeOfferTransfer(){", "\nfunction transferTo(){");
-const legacyMigrationSource = section("function migrateLegacyPendingTransferOffer(", "\nfunction dedupeTransferOffersForWindow(");
+const legacyMigrationSource = section("function migrateLegacyPendingTransferOffer(", "\nfunction reconcileTransferNegotiation(");
+const reconciliationSource = section("function reconcileTransferNegotiation(", "\nfunction dedupeTransferOffersForWindow(");
 const dedupeOffersSource = section("function dedupeTransferOffersForWindow(", "\nfunction ensureTransferOffers(){");
 const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfunction transferFactors(");
 const transferFactorsSource = section("function transferFactors(", "\nfunction transferAverageRating(");
@@ -149,7 +150,7 @@ assert.match(app, /if\(wages&&grossWeeklyWage>0&&careerMatchPlayerEligible\(stat
   "weekly payroll must be gated by an active club contract");
 vm.runInContext(
   transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
-    + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
+    + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + dedupeOffersSource + "\n"
     + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   sandbox,
   { filename: "transfer-window-regression" }
@@ -685,7 +686,7 @@ const eligibilitySandbox = {
 };
 vm.createContext(eligibilitySandbox);
 vm.runInContext(transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
-  + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
+  + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + dedupeOffersSource + "\n"
   + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   eligibilitySandbox, { filename: "transfer-offer-eligibility-guard" });
 eligibilitySandbox.ensureTransferOffers();
@@ -731,7 +732,7 @@ const roleContractSandbox = {
 };
 vm.createContext(roleContractSandbox);
 vm.runInContext(transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
-  + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + dedupeOffersSource + "\n"
+  + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + dedupeOffersSource + "\n"
   + transferFactorsSource + "\n" + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   roleContractSandbox, { filename: "transfer-offer-role-contract-retry" });
 roleContractSandbox.ensureTransferOffers();
@@ -744,6 +745,23 @@ assert.equal(roleContractGenerationCalls, 2, "improving squad role and contract 
 assert.equal(roleContractState.transferOffers.length, 1, "the improved role/contract fit must allow the previously unsuitable target");
 assert.equal(roleContractSandbox.offerIsAvailable(roleContractState.transferOffers[0]), true,
   "the newly eligible offer must pass the same final availability validator");
+
+roleContractState.transferNegotiation = { offerId: "deleted-negotiation-offer", round: 2, patience: 40 };
+roleContractState.transferOffers = [];
+roleContractState.transferOffersWindowId = "";
+roleContractState.transferOffersAttemptKey = "";
+roleContractState.transferHistory = [];
+roleContractSandbox.ensureTransferOffers();
+assert.equal(roleContractState.transferNegotiation, null,
+  "a saved negotiation whose offer no longer exists must not keep the transfer market locked");
+assert.equal(roleContractState.transferHistory[0].legacyTransferNegotiation.offerId, "deleted-negotiation-offer",
+  "a stale negotiation must be preserved in career history before its lock is cleared");
+assert.match(roleContractState.transferHistory[0].text, /مفاوضات انتقال محفوظة/,
+  "the career history must explain why the stale negotiation was closed");
+assert.equal(roleContractGenerationCalls, 3,
+  "offer discovery must resume in the same transfer window after a stale negotiation is reconciled");
+assert.equal(roleContractState.transferOffers.length, 1,
+  "the transfer market must repopulate with a fresh offer after the stale negotiation is cleared");
 
 
 // A successful contract negotiation must not be recorded as a completed transfer if the destination disappeared before commit.

@@ -4986,6 +4986,25 @@ function migrateLegacyPendingTransferOffer(){
  state.transferOffers.push(offer);state.transferOffers=state.transferOffers.slice(-40);
  state.transferOffersWindowId=windowId;state.pendingTransfer=null;saveGame(true);return offer;
 }
+function reconcileTransferNegotiation(windowInfo=transferWindow()){
+ const negotiation=state.transferNegotiation;
+ if(!negotiation)return false;
+ const validRecord=typeof negotiation==="object"&&!Array.isArray(negotiation);
+ const offerId=validRecord?String(negotiation.offerId||"").trim():"";
+ const offer=offerId&&Array.isArray(state.transferOffers)
+  ?state.transferOffers.find(item=>item&&String(item.id||"")===offerId):null;
+ const stillAvailable=!!offer&&offer.status==="pending"&&!state.pendingTransfer
+  &&!state.retired&&!state.loan&&transferOfferMatchesCurrentWindow(offer,windowInfo);
+ if(stillAvailable)return false;
+ const snapshot=validRecord?{...negotiation}:{value:negotiation};
+ const club=String(offer?.club||snapshot.club||"نادي غير معروف");
+ state.transferNegotiation=null;
+ state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
+ state.transferHistory.unshift({season:state.season,day:state.day,
+  text:"تم إغلاق مفاوضات انتقال محفوظة مع "+club+" لأن العرض لم يعد متاحًا؛ تقدر تبدأ مفاوضات جديدة.",
+  legacyTransferNegotiation:snapshot});
+ saveGame(true);return true;
+}
 function dedupeTransferOffersForWindow(windowId,windowInfo=transferWindow()){
  if(!Array.isArray(state.transferOffers))return false;
  const seen=new Map(),activeId=String(state.transferNegotiation?.offerId||"");
@@ -5011,6 +5030,7 @@ function ensureTransferOffers(){
  const windowInfo=transferWindow();
  if(!canAccessTransferMarket())return;
  migrateLegacyPendingTransferOffer();
+ reconcileTransferNegotiation(windowInfo);
  if(state.pendingTransfer||state.transferNegotiation)return;
  if(!state.careerStarted||state.retired||state.loan||Number(state.transferCooldown||0)>0)return;
  if(!windowInfo.open&&!state.freeAgent)return;

@@ -4558,13 +4558,22 @@ function loadGame(){
  }catch(err){try{const raw=localStorage.getItem(STORAGE_KEY)||LEGACY_STORAGE_KEYS.map(key=>localStorage.getItem(key)).find(Boolean);if(raw)localStorage.setItem("lastWhistleRecovery_v1",raw);}catch(recoveryErr){}state={...structuredCloneSafe(INITIAL),league:createLeague()};toast("تعذر قراءة الحفظ؛ احتُفظ بنسخة خام للاسترداد ولم يُحذف الملف الأصلي.");return false;}
 }
 function ensureLeagueSegmentId(){if(!state.leagueSegmentId)state.leagueSegmentId=`${state.season}|${state.leagueCountry}|${state.leagueCompetition}|${club().name}|${++state.leagueArchiveSequence}`;return state.leagueSegmentId;}
+function allCareerMatchRowsForHistory(){
+ const legacyLeagueRows=(Array.isArray(state.seasonLog)?state.seasonLog:[])
+  .filter(row=>row&&typeof row==="object"&&!Array.isArray(row))
+  .map(row=>({...row,scope:row.scope||"league"}));
+ const careerRows=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[];
+ const rows=[...legacyLeagueRows,...careerRows];
+ const dedupe=window.LWCareer?.uniqueMatchRows;
+ return typeof dedupe==="function"?dedupe.call(window.LWCareer,rows):rows;
+}
 function archiveLeagueSegment(reason="season-end",rankOverride=0){
  const segmentId=ensureLeagueSegmentId(),archiveId=`${segmentId}|${reason}`;state.leagueArchives=Array.isArray(state.leagueArchives)?state.leagueArchives:[];
  if(state.leagueArchives.some(row=>row.archiveId===archiveId))return state.leagueArchives.find(row=>row.archiveId===archiveId);
  const sorted=[...(state.league||[])].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf),rank=Number(rankOverride)||Math.max(0,sorted.findIndex(team=>team.name===clubNameForLeague())+1);
  const firstText=(...values)=>{const value=values.find(candidate=>candidate!==undefined&&candidate!==null&&String(candidate).trim()!=="");return value===undefined?"":String(value).trim();};
  const currentClub=firstText(club()?.name,state.clubName),currentCountry=firstText(state.leagueCountry),currentCompetition=firstText(state.leagueCompetition),currentSeason=Number(state.season)||1;
- const matches=(Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[]).filter(row=>{
+ const matches=allCareerMatchRowsForHistory().filter(row=>{
   if(!row||typeof row!=="object"||Array.isArray(row))return false;
   const rowScope=firstText(row.scope).toLowerCase()||"league";if(rowScope!=="league")return false;
   const rowSegment=firstText(row.segmentId),sameSegment=!!rowSegment&&rowSegment===segmentId;if(rowSegment&&!sameSegment)return false;
@@ -4584,15 +4593,14 @@ function archiveSeasonRecord(){
  const seasonSegments=new Set((Array.isArray(state.leagueArchives)?state.leagueArchives:[])
   .filter(row=>row&&Number(row.season)===season)
   .map(row=>String(row.segmentId||"").trim()).filter(Boolean));
- const rawMatches=(Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[]).filter(row=>{
+ const rawMatches=allCareerMatchRowsForHistory().filter(row=>{
   if(!row||typeof row!=="object"||Array.isArray(row))return false;
   const value=row.season,hasNumericSeason=(typeof value==="number"&&Number.isFinite(value))
    ||(typeof value==="string"&&value.trim()!==""&&Number.isFinite(Number(value)));
   if(hasNumericSeason)return Number(value)===season;
   const segmentId=String(row.segmentId||"").trim();return !!segmentId&&seasonSegments.has(segmentId);
  });
- const dedupe=window.LWCareer?.uniqueMatchRows;
- const matches=typeof dedupe==="function"?dedupe.call(window.LWCareer,rawMatches):rawMatches;
+ const matches=rawMatches;
  state.seasonHistory.unshift({season,age:Number(state.age)||0,club:club().name,country:state.leagueCountry||"",competition:state.leagueCompetition||"",apps:Number(state.seasonApps)||0,leagueApps:Number(state.leagueApps)||0,goals:Number(state.seasonGoals)||0,assists:Number(state.seasonAssists)||0,wins:Number(state.seasonW)||0,draws:Number(state.seasonD)||0,losses:Number(state.seasonL)||0,points:Number(state.seasonPoints)||0,summary:String(state.seasonSummary||""),awards:structuredCloneSafe((state.careerAwards||[]).filter(row=>Number(row.season)===season)),matchCount:matches.length,segments:state.leagueArchives.filter(row=>Number(row.season)===season).map(row=>row.archiveId)});state.seasonHistory=state.seasonHistory.slice(0,50);
 }
 function leaguePeerNames(){

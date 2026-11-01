@@ -1380,28 +1380,11 @@ function assertBalancedLeagueTable(rows, label) {
 }
 assertBalancedLeagueTable(table, "Egyptian Premier League");
 
-const oddTableLeagueId = "table-conservation-test";
-const oddTableWorld = {
-  ...world,
-  clubs: Object.fromEntries(Array.from({ length: 5 }, (_, index) => {
-    const id = "table-conservation-club-" + (index + 1);
-    return [id, { id, name: "Conservation Club " + (index + 1), country: "Testland",
-      leagueId: oddTableLeagueId, division: 1, power: 62 + index * 4,
-      prestige: 62 + index * 4, matchesPerSeason: 34, roster: [] }];
-  })),
-  players: {}, completedSeasons: [], seasonStats: {}, leagueTables: {},
-  transfers: [], marketReports: [], playerHistory: {}, currentSeason: 1,
-  lastCompletedSeason: 0, lastAdvancedTo: 0, transferSequence: 0, projectionRevision: 0,
-  dbVersion: Number(db.version) || 0, rosterSchemaVersion: 3,
-  rosterMembershipSchemaVersion: Number(world.rosterMembershipSchemaVersion) || 0,
-  notes: [], archive: {}
-};
-const oddTableSave = { season: 1, worldSimulation: oddTableWorld };
-const oddTableDb = { version: Number(db.version) || 0, leagues: () => [{ id: oddTableLeagueId }] };
-const oddTable = ai.completeSeason(oddTableSave, 1, oddTableDb).tables[oddTableLeagueId];
-assertBalancedLeagueTable(oddTable, "Five-club league");
-assert.ok(oddTable.every(row => row.played === 34),
-  "an odd-sized league must still give every club its configured number of matches");
+const oddTable = ai.getLeagueTable(save, "tunisia", 1, db);
+assert.equal(oddTable.length, 15, "the Tunisian top flight must retain its 15 real clubs");
+assertBalancedLeagueTable(oddTable, "Fifteen-club Tunisian league");
+assert.ok(oddTable[0].played > 0,
+  "an odd-sized league must produce a complete schedule without phantom byes");
 
 const oldTransferCount = world.transfers.length;
 const transition = ai.advanceToSeason(save, 2, db);

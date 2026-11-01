@@ -1418,6 +1418,25 @@ assert.equal(secondTierTable.length, expectedSecondTierCount,
 assertBalancedLeagueTable(secondTierTable, "Largest available second division");
 assert.ok(secondTierTable.every(row => row.leagueId === secondTierLeagueId && row.division === 2),
   "second-tier rows must retain their parent league ID and division number");
+const firstTierTable = baseFallbackSeason.tables[secondTierLeagueId] || [];
+assert.ok(firstTierTable.length >= 6, "promotion fixture must include a complete first-tier table");
+assert.ok(firstTierTable.slice(-2).every(row => row.status === "منطقة الهبوط — محاكاة"),
+  "only the bottom two first-tier clubs should be labelled for relegation when a playable second tier exists");
+assert.ok(secondTierTable.slice(-2).every(row => row.status !== "منطقة الهبوط — محاكاة"),
+  "second-tier clubs must never be labelled as relegated when no third tier is simulated");
+assert.ok(secondTierTable[1].status === "منافسة الصعود — محاكاة",
+  "the second-tier runner-up should be labelled as a promotion contender");
+const firstTierOnlyClubs = Object.fromEntries(Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 1));
+const firstTierOnlyWorld = {
+  ...baseFallbackWorld, clubs: firstTierOnlyClubs, players: {},
+  completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0
+};
+const firstTierOnlyResult = ai.completeSeason({ season: 1, worldSimulation: firstTierOnlyWorld }, 1, db);
+const firstTierOnlyTable = firstTierOnlyResult.tables[secondTierLeagueId] || [];
+assert.ok(firstTierOnlyTable.slice(-2).every(row => row.status === "مركز الدوري"),
+  "first-tier clubs must not be labelled for relegation when no playable second division exists");
+
 
 const oldTransferCount = world.transfers.length;
 const transition = ai.advanceToSeason(save, 2, db);

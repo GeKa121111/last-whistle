@@ -847,7 +847,7 @@
       });
       const ranked = rows.sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || b.power - a.power);
       tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
-        status: index === 0 ? "بطل المحاكاة" : index >= ranked.length - 2 ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
+        status: index === 0 ? "بطل المحاكاة" : division === 1 && byLeague.has(leagueId + ":2") && byLeague.get(leagueId + ":2").clubs.length >= 3 && index >= ranked.length - 2 ? "منطقة الهبوط — محاكاة" : division === 2 && index < 2 ? "منافسة الصعود — محاكاة" : "مركز الدوري" }));
     }
     return tables;
   }
@@ -2498,7 +2498,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=47");
+    const worker = new global.Worker("./football-world-worker.js?v=48");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

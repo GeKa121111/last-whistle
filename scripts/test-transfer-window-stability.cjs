@@ -624,6 +624,40 @@ assert.match(expiredLegacyMigration.state.transferHistory[0].text, /انتهت �
   "an expired legacy offer must leave an audit entry in the career history");
 
 
+const malformedLegacyMigration = {
+  state: {
+    pendingTransfer: { club: "نادي قديم", windowId: "summer-0", wage: 1700 },
+    transferOffers: [{ id: "valid-after-cleanup", status: "pending", club: "نادي جديد", country: "مصر" }],
+    transferHistory: [], lastOfferWindow: "summer-0", freeAgent: false, season: 4, day: 30,
+    contractSeasons: 2, apps: 12, retired: false, loan: null, transferNegotiation: null
+  },
+  canAccessTransferMarket: () => true,
+  saveGame: () => { malformedLegacyMigration.saved = true; },
+  ensureTransferOffers: () => {},
+  offerIsAvailable: () => true,
+  toast: message => { malformedLegacyMigration.toastMessage = message; },
+  renderTransferMarket: () => {}
+};
+vm.createContext(malformedLegacyMigration);
+vm.runInContext(legacyMigrationSource + "\\n" + beginNegotiationSource,
+  malformedLegacyMigration, { filename: "malformed-legacy-pending-transfer" });
+assert.equal(malformedLegacyMigration.migrateLegacyPendingTransferOffer(), null,
+  "a legacy pending transfer without a destination country must not be migrated as an active offer");
+assert.equal(malformedLegacyMigration.state.pendingTransfer, null,
+  "an incomplete legacy pending transfer must not keep the career transfer lock active");
+assert.equal(malformedLegacyMigration.state.transferHistory[0].legacyPendingTransfer.club, "نادي قديم",
+  "the incomplete legacy offer must be preserved in the career history instead of being discarded");
+assert.match(malformedLegacyMigration.state.transferHistory[0].text, /غير مكتمل/,
+  "the history must explain why the malformed legacy offer was retired");
+assert.equal(malformedLegacyMigration.saved, true,
+  "cleaning an incomplete legacy offer must be persisted immediately");
+assert.equal(careerEngine.loanRequestStatus(malformedLegacyMigration.state, { windowOpen: true }), "ready",
+  "cleaning an invalid legacy transfer must restore valid loan eligibility");
+malformedLegacyMigration.beginTransferNegotiation("valid-after-cleanup");
+assert.equal(malformedLegacyMigration.state.transferNegotiation.offerId, "valid-after-cleanup",
+  "a valid new negotiation must be allowed after the malformed legacy transfer is archived");
+
+
 // Offers must not be generated for an ineligible player, and must become usable only after eligibility recovers.
 const eligibilityState = {
   calendarDay: 190, season: 4, careerStarted: true, retired: false, age: 24, loan: null,

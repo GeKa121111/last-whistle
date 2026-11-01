@@ -4941,7 +4941,21 @@ function transferPlayerProfile(){
 }
 function migrateLegacyPendingTransferOffer(){
  const pending=state.pendingTransfer;
- if(!pending||!pending.club||!pending.country||!canAccessTransferMarket()||state.retired||state.loan)return null;
+ if(!pending)return null;
+ const validPending=typeof pending==="object"&&!Array.isArray(pending)
+  &&typeof pending.club==="string"&&!!pending.club.trim()
+  &&typeof pending.country==="string"&&!!pending.country.trim();
+ if(!validPending){
+  state.pendingTransfer=null;
+  state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
+  const legacySnapshot=typeof pending==="object"&&!Array.isArray(pending)
+   ?{...pending}:{value:pending};
+  state.transferHistory.unshift({season:state.season,day:state.day,
+   text:"تم استبعاد عرض انتقال محفوظ غير مكتمل لغياب اسم النادي أو الدولة؛ لم يتم تنفيذ أي انتقال.",
+   legacyPendingTransfer:legacySnapshot});
+  saveGame(true);return null;
+ }
+ if(!canAccessTransferMarket()||state.retired||state.loan)return null;
  state.transferOffers=Array.isArray(state.transferOffers)?state.transferOffers:[];
  const windowInfo=transferWindow();
  const inferredWindowId=windowInfo.open?windowInfo.id:(state.freeAgent?currentFreeAgentTransferWindowId():"");

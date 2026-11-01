@@ -785,6 +785,24 @@ assert.equal(loanToScenario.state.transferHistory.find(row => row && row.legacyT
   ?.legacyTransferNegotiation?.offerId, "missing-loan-offer",
   "the final loan confirmation must preserve the stale negotiation in career history");
 
+const underageLoanState = makeStaleLoanState();
+underageLoanState.age = 17;
+underageLoanState.pendingTransfer = null;
+underageLoanState.transferNegotiation = null;
+const underageLoanScenario = {
+  state: underageLoanState,
+  canAccessTransferMarket: () => false,
+  toast: message => { underageLoanScenario.toastMessage = message; }
+};
+vm.createContext(underageLoanScenario);
+vm.runInContext(loanToSource, underageLoanScenario, { filename: "reject-loan-after-access-is-lost" });
+underageLoanScenario.loanTo(staleLoanTarget);
+assert.equal(underageLoanScenario.state.loan, null,
+  "the final loan action must not bypass the age/academy access gate after the modal was opened");
+assert.match(underageLoanScenario.toastMessage || "", /سن 18/,
+  "a blocked final loan confirmation must explain the professional-market eligibility requirement");
+
+
 
 
 // Offers must not be generated for an ineligible player, and must become usable only after eligibility recovers.

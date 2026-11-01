@@ -5301,6 +5301,7 @@ function requestLoan(){
  ]);
 }
 function loanTo(target){
+ if(!canAccessTransferMarket()){toast("الإعارة متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}
  migrateLegacyPendingTransferOffer();
  reconcileTransferNegotiation(transferWindow());
  const isListed=!!target&&transferTargets().some(t=>t.club===target.club&&t.country===target.country&&(!target.league||t.league===target.league));

@@ -67,6 +67,7 @@ function runLoanDivisionCase(division) {
   const sandbox = {
     state: loanState,
     window: { LWCareer: { loanTargetStatus: () => "ready", loanSquadRole: () => "بديل" } },
+    canAccessTransferMarket: () => true,
     migrateLegacyPendingTransferOffer: () => { migrationCalls++; return null; },
     reconcileTransferNegotiation: windowInfo => { reconciliationCalls++; assert.equal(windowInfo.open, true); return false; },
     transferTargets: () => [target],

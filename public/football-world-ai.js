@@ -5,6 +5,7 @@
 (function (global) {
   "use strict";
   const VERSION = 1;
+  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 3;
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -150,7 +151,7 @@
       lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
       nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive(),
-      rosterMembershipSchemaVersion: 2
+      rosterMembershipSchemaVersion: ROSTER_MEMBERSHIP_SCHEMA_VERSION
     };
   }
   function addClub(world, row, db) {
@@ -225,19 +226,35 @@
     Object.entries(world.players).forEach(([id, player]) => {
       if (!player) return;
       const ownerClubId = String(player.clubId || "").trim();
+      const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
+
+      // Retirement/free agency is authoritative. Old roster references must never
+      // resurrect an unattached player or turn a former club into their current club.
+      if (player.retired || player.freeAgent) {
+        const formerClubId = ownerClubId && world.clubs[ownerClubId]
+          ? ownerClubId : candidates.length === 1 ? candidates[0] : "";
+        if (formerClubId && !String(player.previousClubId || "").trim()) {
+          player.previousClubId = formerClubId;
+        }
+        player.clubId = "";
+        player.leagueId = "";
+        player.division = 0;
+        player.contractSeasons = 0;
+        player.transferListed = false;
+        if (player.retired) player.freeAgent = false;
+        return;
+      }
+
       if (ownerClubId && world.clubs[ownerClubId]) {
         // The canonical owner is authoritative even when an interrupted save lost
         // the roster reference. Restore membership before any squad refill runs.
-        if (!player.retired && !player.freeAgent) {
-          const owner = world.clubs[ownerClubId];
-          if (!Array.isArray(owner.roster)) owner.roster = [];
-          if (!owner.roster.some(rosterId => String(rosterId) === String(id))) {
-            owner.roster.push(String(id));
-          }
+        const owner = world.clubs[ownerClubId];
+        if (!Array.isArray(owner.roster)) owner.roster = [];
+        if (!owner.roster.some(rosterId => String(rosterId) === String(id))) {
+          owner.roster.push(String(id));
         }
         return;
       }
-      const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
       if (candidates.length === 1) {
         const clubId = candidates[0], club = world.clubs[clubId];
         player.clubId = clubId;
@@ -296,7 +313,7 @@
     }
     world.currentSeason = 1;
     world.rosterSchemaVersion = 3;
-    world.rosterMembershipSchemaVersion = 2;
+    world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
     return world;
   }
   function reconcileDatabase(world, db) {
@@ -498,7 +515,7 @@
     normalizeRosterMembership(world);
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
     world.rosterSchemaVersion = 3;
-    world.rosterMembershipSchemaVersion = 2;
+    world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return world;
   }
@@ -533,9 +550,9 @@
       || Number(world.rosterSchemaVersion) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
-    if (Number(world.rosterMembershipSchemaVersion) !== 2) {
+    if (Number(world.rosterMembershipSchemaVersion) !== ROSTER_MEMBERSHIP_SCHEMA_VERSION) {
       normalizeRosterMembership(world);
-      world.rosterMembershipSchemaVersion = 2;
+      world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     }
     // The world-simulation season is independent of the player's career season.
@@ -2139,7 +2156,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=34");
+    const worker = new global.Worker("./football-world-worker.js?v=35");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

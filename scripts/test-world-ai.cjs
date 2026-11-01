@@ -157,7 +157,7 @@ const rosterMigrationSave = { season: 1, worldSimulation: {
   }
 } };
 const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
-assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 2,
+assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 3,
   "legacy saves must run the one-time roster ownership migration");
 assert.deepEqual(rosterMigrationWorld.clubs["membership-origin"].roster,
   ["membership-origin-player", "membership-legacy-unique"],
@@ -189,13 +189,13 @@ assert.ok(sandbox.window.__lwTestMakeLineup(rosterMigrationWorld, rosterMigratio
 const missingMembershipSave = { season: 1, worldSimulation: {
   schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
   lastCompletedSeason: 0, lastAdvancedTo: 0, rosterSchemaVersion: 3,
-  rosterMembershipSchemaVersion: 1, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  rosterMembershipSchemaVersion: 2, completedSeasons: [], seasonStats: {}, leagueTables: {},
   transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 77,
   transferSequence: 0, projectionRevision: 4,
   clubs: {
     "membership-gap-origin": { id: "membership-gap-origin", name: "Membership Gap Origin", country: "Testland",
       leagueId: rosterMigrationLeagueId, division: 1,
-      roster: ["membership-gap-existing", "membership-gap-existing", "membership-gap-transferred"] },
+      roster: ["membership-gap-existing", "membership-gap-existing", "membership-gap-transferred", "membership-gap-retired", "membership-gap-free", "membership-gap-retired-unowned", "membership-gap-free-unowned"] },
     "membership-gap-destination": { id: "membership-gap-destination", name: "Membership Gap Destination", country: "Testland",
       leagueId: rosterMigrationLeagueId, division: 1, roster: ["membership-gap-transferred"] }
   },
@@ -207,15 +207,21 @@ const missingMembershipSave = { season: 1, worldSimulation: {
     "membership-gap-transferred": { id: "membership-gap-transferred", name: "Transferred Member",
       clubId: "membership-gap-destination", group: "midfielder", ovr: 79, retired: false, freeAgent: false },
     "membership-gap-retired": { id: "membership-gap-retired", name: "Retired Member",
-      clubId: "membership-gap-origin", group: "goalkeeper", ovr: 66, retired: true, freeAgent: false },
+      clubId: "membership-gap-origin", leagueId: rosterMigrationLeagueId, division: 1,
+      group: "goalkeeper", ovr: 66, retired: true, freeAgent: false },
     "membership-gap-free": { id: "membership-gap-free", name: "Free Member",
-      clubId: "membership-gap-origin", group: "midfielder", ovr: 69, retired: false, freeAgent: true }
+      clubId: "membership-gap-origin", leagueId: rosterMigrationLeagueId, division: 1,
+      group: "midfielder", ovr: 69, retired: false, freeAgent: true },
+    "membership-gap-retired-unowned": { id: "membership-gap-retired-unowned", name: "Retired Unowned",
+      clubId: "", leagueId: "", division: 0, group: "defender", ovr: 64, retired: true, freeAgent: false },
+    "membership-gap-free-unowned": { id: "membership-gap-free-unowned", name: "Free Unowned",
+      clubId: "", leagueId: "", division: 0, group: "midfielder", ovr: 67, retired: false, freeAgent: true }
   }
 } };
 const missingMembershipPlayerCount = Object.keys(missingMembershipSave.worldSimulation.players).length;
 const missingMembershipNextGenerated = missingMembershipSave.worldSimulation.nextGeneratedPlayer;
 const missingMembershipWorld = ai.ensureState(missingMembershipSave, db);
-assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 2,
+assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 3,
   "version-one saves must receive the missing-membership repair migration");
 assert.deepEqual(missingMembershipWorld.clubs["membership-gap-origin"].roster,
   ["membership-gap-existing", "membership-gap-unlisted"],
@@ -225,9 +231,23 @@ assert.deepEqual(missingMembershipWorld.clubs["membership-gap-destination"].rost
   "the transferred player must remain attached only to the canonical destination club");
 assert.ok(missingMembershipWorld.clubs["membership-gap-origin"].roster.includes("membership-gap-unlisted"),
   "a player with a valid clubId but no roster reference must be restored to that club");
-assert.ok(!missingMembershipWorld.clubs["membership-gap-origin"].roster.includes("membership-gap-retired")
-  && !missingMembershipWorld.clubs["membership-gap-origin"].roster.includes("membership-gap-free"),
-  "retired players and free agents must not be re-added to active squads");
+assert.ok(["membership-gap-retired", "membership-gap-free", "membership-gap-retired-unowned", "membership-gap-free-unowned"]
+  .every(id => !missingMembershipWorld.clubs["membership-gap-origin"].roster.includes(id)),
+  "retired players and free agents must be detached from every active squad");
+for (const id of ["membership-gap-retired", "membership-gap-free", "membership-gap-retired-unowned", "membership-gap-free-unowned"]) {
+  const player = missingMembershipWorld.players[id];
+  assert.ok(player, "inactive player records must be preserved during roster migration");
+  assert.equal(player.clubId, "", "retired players and free agents must not regain a current club");
+  assert.equal(player.leagueId, "", "unattached players must not retain an active league");
+  assert.equal(player.division, 0, "unattached players must not retain an active division");
+  assert.equal(player.contractSeasons, 0, "unattached players must not retain an active contract");
+  assert.equal(player.previousClubId, "membership-gap-origin",
+    "the former club must be preserved separately from current club ownership");
+}
+assert.equal(missingMembershipWorld.players["membership-gap-retired"].freeAgent, false,
+  "retired players must not be reclassified as free agents");
+assert.equal(missingMembershipWorld.players["membership-gap-free"].freeAgent, true,
+  "free-agent status must remain authoritative after migration");
 assert.equal(Object.keys(missingMembershipWorld.players).length, missingMembershipPlayerCount,
   "roster repair must preserve every existing player record without generating replacements");
 assert.equal(missingMembershipWorld.nextGeneratedPlayer, missingMembershipNextGenerated,

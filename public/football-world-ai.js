@@ -1974,17 +1974,71 @@
         const leagueId = Array.isArray(def.countries) ? def.countries[0] : "";
         participants = clubs.filter(club => club.leagueId === leagueId && (def.lower || Number(club.division) === 1));
       } else if (def.kind === "continental") {
-        const pool = clubs.filter(club => club.confederation === def.confederation && Number(club.division) === 1)
-          .sort((a, b) => Number(b.power || 50) - Number(a.power || 50));
-        const maxTeams = Math.min(12, pool.length);
-        const usedCountries = new Set();
-        for (const club of pool) {
-          if (participants.length >= maxTeams) break;
-          if (!usedCountries.has(normalize(club.country))) {
-            participants.push(club); usedCountries.add(normalize(club.country));
+        // Continental places come from domestic standings, not raw squad power. A
+        // season uses the previous completed table; the current table is only the
+        // bootstrap source when no historical table exists for that league.
+        const previousSeason = Math.max(0, int(season, 1) - 1);
+        const previousTables = world.leagueTables && world.leagueTables[String(previousSeason)] || {};
+        const currentTables = tables && typeof tables === "object" ? tables : {};
+        const qualificationPlaces = Array.from(new Set((Array.isArray(def.qualificationPlaces) ? def.qualificationPlaces : [])
+          .map(value => Number(value)).filter(value => Number.isInteger(value) && value > 0))).sort((a, b) => a - b);
+        if (!qualificationPlaces.length) continue;
+        const slotStart = qualificationPlaces[0];
+        const slotCount = qualificationPlaces.length;
+        const leagueIds = Array.from(new Set(clubs
+          .filter(club => club.confederation === def.confederation && Number(club.division) === 1 && club.leagueId)
+          .map(club => String(club.leagueId)))).sort();
+        const candidates = [];
+        for (const leagueId of leagueIds) {
+          const historicalRows = previousTables[leagueId];
+          const rows = Array.isArray(historicalRows) && historicalRows.length ? historicalRows : currentTables[leagueId];
+          if (!Array.isArray(rows)) continue;
+          const sampleClub = clubs.find(club => String(club.leagueId) === leagueId);
+          let profile = null;
+          try {
+            if (db && typeof db.leagueById === "function") profile = db.leagueById(leagueId) || null;
+            if (!profile && db && typeof db.leagueFor === "function" && sampleClub) {
+              profile = db.leagueFor(sampleClub.country, 1) || null;
+            }
+          } catch (_) { profile = null; }
+          const rankedRows = rows.map((row, index) => {
+            const savedRank = Number(row && row.rank);
+            return { row, rank: Number.isInteger(savedRank) && savedRank > 0 ? savedRank : index + 1 };
+          }).filter(entry => entry.rank >= slotStart)
+            .sort((a, b) => a.rank - b.rank
+              || Number(b.row && b.row.pts || 0) - Number(a.row && a.row.pts || 0)
+              || (Number(b.row && b.row.gf || 0) - Number(b.row && b.row.ga || 0))
+                - (Number(a.row && a.row.gf || 0) - Number(a.row && a.row.ga || 0))
+              || String(a.row && a.row.clubId || "").localeCompare(String(b.row && b.row.clubId || "")));
+          const seenLeagueClubIds = new Set();
+          let filledSlots = 0;
+          for (const entry of rankedRows) {
+            if (filledSlots >= slotCount) break;
+            const row = entry.row || {};
+            const clubId = String(row.clubId || "");
+            if (!clubId || seenLeagueClubIds.has(clubId)) continue;
+            const club = world.clubs && world.clubs[clubId];
+            if (!club || String(club.leagueId || "") !== leagueId || Number(club.division) !== 1
+              || String(club.confederation || "") !== String(def.confederation || "")) continue;
+            if (row.leagueId != null && String(row.leagueId).trim() && String(row.leagueId).trim() !== leagueId) continue;
+            if (row.division != null && String(row.division).trim() && Number(row.division) !== 1) continue;
+            seenLeagueClubIds.add(clubId);
+            filledSlots++;
+            candidates.push({
+              club, rank: entry.rank,
+              globalTier: Number(profile && profile.globalTier) || 99,
+              leagueStrength: Number(profile && profile.strength) || 0,
+              points: Number(row.pts) || 0,
+              goalDifference: Number(row.gd) || (Number(row.gf || 0) - Number(row.ga || 0))
+            });
           }
         }
-        for (const club of pool) if (participants.length < maxTeams && !participants.some(row => row.id === club.id)) participants.push(club);
+        candidates.sort((a, b) => a.rank - b.rank || a.globalTier - b.globalTier
+          || b.leagueStrength - a.leagueStrength || b.points - a.points
+          || b.goalDifference - a.goalDifference
+          || Number(b.club.power || 50) - Number(a.club.power || 50)
+          || String(a.club.id).localeCompare(String(b.club.id)));
+        participants = candidates.slice(0, 12).map(entry => entry.club);
       } else if (def.kind === "world") {
         participants = clubs.filter(club => Number(club.division) === 1)
           .sort((a, b) => Number(b.power || 50) - Number(a.power || 50)).slice(0, 16);
@@ -2570,7 +2624,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=56");
+    const worker = new global.Worker("./football-world-worker.js?v=57");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

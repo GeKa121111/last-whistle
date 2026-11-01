@@ -44,6 +44,7 @@ assert.ok(aiSourceRaw.includes(normalizeRosterMembershipMarker), "AI engine must
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season, db) {";
+const competitionsMarker = "  function simulateCompetitions(world, season, db, tables) {";
 const reconcileMarker = "  function reconcileDatabase(world, db) {";
 const transferMarker = "  function runTransferWindow(world, season) {";
 const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
@@ -54,6 +55,7 @@ const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
+assert.ok(aiSourceRaw.includes(competitionsMarker), "AI engine must retain the continental competition selector for qualification regression coverage");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
 assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free-agent entry point for all-division market coverage");
@@ -72,6 +74,7 @@ const aiSource = aiSourceRaw
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
+  .replace(competitionsMarker, "  global.__lwTestSimulateCompetitions = simulateCompetitions;\n" + competitionsMarker)
   .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
   .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
@@ -2239,6 +2242,121 @@ assert.ok(doubleWinnerSupercup, "a domestic double winner must still produce a t
 assert.deepEqual([...doubleWinnerSupercup.participants].sort(), ["cup-first-01", "cup-second-05"],
   "a domestic double winner must be paired with the domestic cup runner-up");
 
+
+
+// Continental tournaments must use the previous completed domestic standings and the
+// tournament's configured places, never the highest raw club power.
+const qualificationClubs = [];
+const qualificationStandings = {};
+const currentQualificationStandings = {};
+const expectedContinentalIds = [];
+const expectedBootstrapIds = [];
+for (let leagueIndex = 1; leagueIndex <= 4; leagueIndex++) {
+  const leagueId = "qualification-league-" + leagueIndex;
+  const standings = [];
+  for (const rank of [4, 2, 1, 3]) {
+    const id = "qualification-" + leagueIndex + "-" + rank;
+    qualificationClubs.push({
+      id, name: "Qualification Club " + leagueIndex + "-" + rank,
+      leagueId, country: "Qualification Country " + leagueIndex,
+      confederation: "CAF", division: 1,
+      power: rank === 4 ? 120 : 60 - rank * 5, roster: []
+    });
+    standings.push({
+      clubId: id, leagueId, division: 1, rank,
+      pts: 100 - rank * 10, gf: 30 - rank, ga: rank
+    });
+    if (rank <= 3) expectedContinentalIds.push(id);
+  }
+  qualificationStandings[leagueId] = standings;
+  currentQualificationStandings[leagueId] = standings.map(row => ({
+    ...row, rank: 5 - row.rank, pts: 200 - row.pts
+  }));
+  currentQualificationStandings[leagueId].forEach(row => {
+    if (row.rank <= 3) expectedBootstrapIds.push(row.clubId);
+  });
+}
+qualificationClubs.push({
+  id: "qualification-second-tier", name: "Qualification Second Tier",
+  leagueId: "qualification-league-1", country: "Qualification Country 1",
+  confederation: "CAF", division: 2, power: 999, roster: []
+});
+qualificationStandings["qualification-league-1"].unshift({
+  clubId: "qualification-second-tier", leagueId: "qualification-league-1",
+  division: 1, rank: 1, pts: 999
+});
+qualificationClubs.push({
+  id: "qualification-foreign", name: "Foreign Qualification Club",
+  leagueId: "foreign-qualification-league", country: "Foreign Country",
+  confederation: "UEFA", division: 1, power: 999, roster: []
+});
+qualificationStandings["qualification-league-2"].unshift({
+  clubId: "qualification-foreign", leagueId: "qualification-league-2",
+  division: 1, rank: 1, pts: 999
+});
+const qualificationWorld = {
+  players: {},
+  clubs: Object.fromEntries(qualificationClubs.map(club => [club.id, club])),
+  leagueTables: { "4": qualificationStandings },
+  competitionsBySeason: {}
+};
+const qualificationDb = {
+  leagueById: leagueId => ({
+    globalTier: Number(String(leagueId).split("-").pop()),
+    strength: 100 - Number(String(leagueId).split("-").pop()) * 5
+  }),
+  simulationCupDefinitions: () => [{
+    id: "test-caf-qualification", name: "Test CAF Qualification",
+    kind: "continental", confederation: "CAF", qualificationPlaces: [1, 2, 3, 4]
+  }]
+};
+assert.equal(typeof sandbox.window.__lwTestSimulateCompetitions, "function",
+  "the real continental selector must be exposed to the isolated regression test");
+const qualifiedCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  qualificationWorld, 5, qualificationDb, currentQualificationStandings
+);
+const qualifiedTournament = qualifiedCompetitions.find(row => row.id === "test-caf-qualification");
+assert.ok(qualifiedTournament, "a continental tournament must be simulated when eligible standings exist");
+assert.equal(qualifiedTournament.participants.length, 12,
+  "the continental simulator must preserve its 12-club knockout limit");
+assert.deepEqual([...qualifiedTournament.participants].sort(), expectedContinentalIds.sort(),
+  "previous-season league positions must select the 12 highest eligible domestic places, not the strongest squads");
+assert.ok(!qualifiedTournament.participants.includes("qualification-second-tier"),
+  "a second-tier club must not take a first-tier continental place");
+assert.ok(!qualifiedTournament.participants.includes("qualification-foreign"),
+  "a club from another confederation or league must not enter this qualification pool");
+assert.equal(Object.keys(qualificationWorld.players).length, 0,
+  "continental qualification must not fabricate player records");
+
+// On the first simulated season only, use the just-completed table as the bootstrap source.
+const bootstrapWorld = {
+  players: {},
+  clubs: qualificationWorld.clubs,
+  leagueTables: {},
+  competitionsBySeason: {}
+};
+const bootstrapCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  bootstrapWorld, 1, qualificationDb, currentQualificationStandings
+);
+const bootstrapTournament = bootstrapCompetitions.find(row => row.id === "test-caf-qualification");
+assert.ok(bootstrapTournament, "the first season must bootstrap continental entry from its completed domestic tables");
+assert.deepEqual([...bootstrapTournament.participants].sort(), expectedBootstrapIds.sort(),
+  "first-season continental entry must follow the current table when no previous season exists");
+
+const noStandingsCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  { players: {}, clubs: qualificationWorld.clubs, leagueTables: {}, competitionsBySeason: {} },
+  5, qualificationDb, {}
+);
+assert.equal(noStandingsCompetitions.length, 0,
+  "continental entrants must not be invented from club power when no qualifying standings exist");
+
+const configuredContinentalPlaces = new Map(db.simulationCupDefinitions()
+  .filter(def => def.kind === "continental")
+  .map(def => [def.id, Array.from(def.qualificationPlaces || [])]));
+assert.deepEqual(configuredContinentalPlaces.get("caf-cl"), [1, 2]);
+assert.deepEqual(configuredContinentalPlaces.get("caf-confed"), [3, 4]);
+assert.deepEqual(configuredContinentalPlaces.get("libertadores"), [1, 2, 3, 4]);
+assert.deepEqual(configuredContinentalPlaces.get("sudamericana"), [5, 6, 7, 8, 9, 10]);
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

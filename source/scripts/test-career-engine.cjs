@@ -98,7 +98,7 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 317);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 318);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 64);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
@@ -1576,6 +1576,43 @@ assert.equal(legacyTrueBrowserReturn.state.freeAgent, true);
 assert.equal(legacyTrueBrowserReturn.state.contractType, "free-agent");
 assert.equal(legacyTrueBrowserReturn.state.contractSeasons, 0);
 assert.equal(legacyTrueBrowserReturn.state.weeklyWage, 0);
+
+const archiveSeasonRecordStart = rootHtml.indexOf("function archiveSeasonRecord()");
+const archiveSeasonRecordEnd = rootHtml.indexOf(String.fromCharCode(10) + "function ", archiveSeasonRecordStart + 30);
+assert.ok(archiveSeasonRecordStart >= 0 && archiveSeasonRecordEnd > archiveSeasonRecordStart,
+  "the deployed season-history archive function must remain extractable");
+const archiveSeasonRecordSource = rootHtml.slice(archiveSeasonRecordStart, archiveSeasonRecordEnd);
+const seasonArchiveState = {
+  season: 4, age: 23, seasonApps: 12, leagueApps: 10, seasonGoals: 4, seasonAssists: 3,
+  seasonW: 7, seasonD: 2, seasonL: 1, seasonPoints: 23, seasonSummary: "test",
+  careerAwards: [], seasonHistory: [],
+  leagueArchives: [
+    { archiveId: "parent-segment|loan", segmentId: "parent-segment", season: 4 },
+    { archiveId: "host-segment|loan-return", segmentId: "host-segment", season: 4 },
+    { archiveId: "old-segment|season-end", segmentId: "old-segment", season: 3 }
+  ],
+  careerMatchHistory: [
+    { id: "season-explicit", season: 4, segmentId: "parent-segment", competition: "Premier League", club: "Parent FC", opponent: "A", day: 1, minutes: 90 },
+    { id: "season-string", season: "2026/27", segmentId: "host-segment", competition: "Second Division", club: "Host FC", opponent: "B", day: 2, minutes: 90 },
+    { id: "season-missing", segmentId: "host-segment", competition: "Second Division", club: "Host FC", opponent: "C", day: 3, minutes: 90 },
+    { id: "season-string", season: "2026/27", segmentId: "host-segment", competition: "Second Division", club: "Host FC", opponent: "B", day: 2, minutes: 90 },
+    { id: "prior-season", season: 3, segmentId: "old-segment", competition: "Premier League", club: "Old FC", opponent: "D", day: 4, minutes: 90 },
+    { id: "unknown-season", minutes: 90 }
+  ]
+};
+const archiveSeasonSandbox = {
+  state: seasonArchiveState, window: { LWCareer: career },
+  archiveLeagueSegment: () => {}, club: () => ({ name: "Host FC" }),
+  structuredCloneSafe: value => JSON.parse(JSON.stringify(value))
+};
+vm.runInNewContext(archiveSeasonRecordSource + String.fromCharCode(10) +
+  "this.archiveSeasonRecord = archiveSeasonRecord;", archiveSeasonSandbox);
+archiveSeasonSandbox.archiveSeasonRecord();
+assert.equal(seasonArchiveState.seasonHistory[0].matchCount, 3,
+  "season history must include explicit, string-season and segment-linked loan fixtures exactly once");
+assert.deepEqual(seasonArchiveState.seasonHistory[0].segments,
+  ["parent-segment|loan", "host-segment|loan-return"],
+  "season history must list every archived club segment from the current season");
 
 const legacyLoanWithoutParentTerm = {
   ...onLoan,

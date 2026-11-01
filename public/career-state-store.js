@@ -134,6 +134,8 @@
     const snapshot = safeClone(state);
     if (!snapshot || typeof snapshot !== "object") return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
+    // A write that finishes late must not replace a newer imported/loaded startup career.
+    const saveRevision = revision;
     const record = {
       id, label: String(options.label || snapshot.name || (id === DEFAULT_SLOT ? "المسيرة الرئيسية" : id)),
       updatedAt: new Date().toISOString(), game: "LAST WHISTLE",
@@ -141,7 +143,7 @@
       playerName: String(snapshot.name || "لاعب"), state: snapshot
     };
     lastWrite = transact("saves", "readwrite", store => store.put(record)).then(function () {
-      if (id === DEFAULT_SLOT) startupSave = snapshot;
+      if (id === DEFAULT_SLOT && revision === saveRevision) startupSave = snapshot;
       return { id, updatedAt: record.updatedAt, revision };
     });
     return lastWrite;

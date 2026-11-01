@@ -2010,7 +2010,8 @@
       }
       const unique = [];
       participants.forEach(club => { if (club && !unique.some(row => row.id === club.id)) unique.push(club); });
-      const tournament = knockout(world, season, def, unique.slice(0, 16));
+      // Domestic cups with lower-tier entry must retain every eligible club; knockout() handles byes.
+      const tournament = knockout(world, season, def, unique);
       if (tournament) results.push(tournament);
     });
     return results;
@@ -2558,7 +2559,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=53");
+    const worker = new global.Worker("./football-world-worker.js?v=54");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

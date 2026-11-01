@@ -2138,5 +2138,61 @@ sandbox.window.__lwTestDevelopPlayers(orphanedContractWorld, 2);
 assert.equal(orphanedContractWorld.notes.length, orphanReleaseNoticeCount,
   "orphan-release notes must not be duplicated after players have been detached");
 
+
+// Domestic cups marked for lower-tier entry must include every eligible club,
+// rather than silently truncating the field to the first 16 clubs in catalogue order.
+const cupFixtureClubs = [];
+for (let index = 1; index <= 12; index++) cupFixtureClubs.push({
+  id: "cup-first-" + String(index).padStart(2, "0"),
+  name: "Cup First Tier " + index, country: "Testland", leagueId: "test-cup-league",
+  division: 1, power: 60 + index, basePower: 60 + index, prestige: 55, roster: []
+});
+for (let index = 1; index <= 5; index++) cupFixtureClubs.push({
+  id: "cup-second-" + String(index).padStart(2, "0"),
+  name: "Cup Second Tier " + index, country: "Testland", leagueId: "test-cup-league",
+  division: 2, power: 45 + index, basePower: 45 + index, prestige: 40, roster: []
+});
+const cupWorld = {
+  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 4,
+  currentSeason: 1, lastAdvancedTo: 0, lastCompletedSeason: 0, completedSeasons: [],
+  players: {}, clubs: Object.fromEntries(cupFixtureClubs.map(club => [club.id, club])),
+  playerHistory: {}, seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  competitionsBySeason: {}, transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+};
+const cupSave = { season: 1, worldSimulation: cupWorld };
+const cupDb = {
+  version: 0, clubs: () => [], leagues: () => [],
+  leagueFor: (_country, division) => ({
+    teamCount: Number(division) >= 2 ? 5 : 12, matchesPerSeason: 2
+  }),
+  simulationCupDefinitions: () => [
+    { id: "test-all-tier-cup", name: "Test All-Tier Cup", kind: "domestic-cup",
+      countries: ["test-cup-league"], lower: true },
+    { id: "test-first-tier-cup", name: "Test First-Tier Cup", kind: "domestic-cup",
+      countries: ["test-cup-league"], lower: false }
+  ]
+};
+const simulatedCups = ai.seasonCompetitions(cupSave, 1, cupDb);
+const allTierCup = simulatedCups.find(row => row.id === "test-all-tier-cup");
+const firstTierCup = simulatedCups.find(row => row.id === "test-first-tier-cup");
+assert.ok(allTierCup, "the all-tier domestic cup must be simulated");
+assert.equal(allTierCup.participants.length, 17,
+  "a lower-tier domestic cup must include all 12 first-tier and 5 second-tier clubs");
+assert.ok(allTierCup.participants.includes("cup-second-05"),
+  "the last lower-tier club must not be dropped by catalogue ordering");
+assert.equal(allTierCup.matches.length, 16,
+  "a 17-team knockout cup must advance every participant through byes to one champion");
+assert.ok(allTierCup.matches.every(match =>
+  allTierCup.participants.includes(match.homeClubId) && allTierCup.participants.includes(match.awayClubId)),
+  "every cup fixture must belong to the saved participant field");
+assert.ok(firstTierCup, "the first-tier-only cup must be simulated");
+assert.equal(firstTierCup.participants.length, 12,
+  "a domestic cup without lower-tier entry must remain limited to the first division");
+assert.ok(firstTierCup.participants.every(id => id.startsWith("cup-first-")),
+  "first-tier-only cups must never include second-division clubs");
+assert.equal(Object.keys(cupWorld.players).length, 0,
+  "cup participant selection must not fabricate player records");
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

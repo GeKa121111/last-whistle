@@ -1479,9 +1479,9 @@ assert.equal(JSON.stringify(ai.getDivisionTable(retentionSave, "retention-league
 // reconstructed accurately from today's club divisions. Return no fabricated table.
 const missingSnapshotSave = JSON.parse(JSON.stringify(retentionSave));
 delete missingSnapshotSave.worldSimulation.leagueTables["1"];
-assert.deepEqual(ai.getLeagueTable(missingSnapshotSave, "retention-league", 1, retentionDb), [],
+assert.equal(ai.getLeagueTable(missingSnapshotSave, "retention-league", 1, retentionDb).length, 0,
   "a completed historical league with no snapshot must not be regenerated from current club divisions");
-assert.deepEqual(ai.getDivisionTable(missingSnapshotSave, "retention-league", 2, 1, retentionDb), [],
+assert.equal(ai.getDivisionTable(missingSnapshotSave, "retention-league", 2, 1, retentionDb).length, 0,
   "league and division history getters must agree when a completed snapshot is unavailable");
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount

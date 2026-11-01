@@ -1424,7 +1424,7 @@ assert.ok(firstTierTable.slice(-2).every(row => row.status === "منطقة ال�
   "only the bottom two first-tier clubs should be labelled for relegation when a playable second tier exists");
 assert.ok(secondTierTable.slice(-2).every(row => row.status !== "منطقة الهبوط — محاكاة"),
   "second-tier clubs must never be labelled as relegated when no third tier is simulated");
-assert.ok(secondTierTable[1].status === "منافسة الصعود — محاكاة",
+assert.ok(secondTierTable[1].status === "منافس على الصعود — محاكاة",
   "the second-tier runner-up should be labelled as a promotion contender");
 const firstTierOnlyClubs = Object.fromEntries(Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 1));
 const firstTierOnlyWorld = {

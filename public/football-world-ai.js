@@ -1772,7 +1772,22 @@
       }
       roleCountsByClub.set(club.id, counts);
     }
-    const usedClubs = new Set(), signed = [];
+    const usedClubs = new Set();
+    // The paid market runs first. Carry both sides of its completed deals into
+    // this phase so one club cannot make a second move in the same window.
+    for (const move of Array.isArray(existingMoves) ? existingMoves : []) {
+      if (!move) continue;
+      for (const side of ["from", "to"]) {
+        const name = String(move[side] || "").trim();
+        if (!name) continue;
+        const country = String(move[side + "Country"] || "").trim();
+        const matches = Object.values(world.clubs).filter(club => club
+          && String(club.name || "").trim() === name
+          && (!country || String(club.country || "").trim() === country));
+        if (matches.length === 1) usedClubs.add(matches[0].id);
+      }
+    }
+    const signed = [];
     const maxSignings = Math.min(12, Math.max(2, Math.round(clubs.length * 0.10)));
     for (const player of freeAgents) {
       if (signed.length >= maxSignings) break;
@@ -2156,7 +2171,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=35");
+    const worker = new global.Worker("./football-world-worker.js?v=36");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

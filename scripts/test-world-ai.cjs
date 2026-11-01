@@ -479,6 +479,33 @@ assert.equal(staleFreeAgentBuyer.roster.filter(id => id === "free-agent-test-kee
 assert.equal(new Set(staleFreeAgentBuyer.roster).size, staleFreeAgentBuyer.roster.length,
   "free-agent signing must preserve unique roster membership");
 
+// The paid transfer phase reserves both clubs in a deal. The free-agent phase
+// must honor that same per-window participation guard instead of signing again.
+const crossMarketWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const crossMarketSeller = makeMarketTestClub(crossMarketWorld, "D1 Already Moved Seller", 1, "goalkeeper");
+const crossMarketBuyer = makeMarketTestClub(crossMarketWorld, "D2 A Already Moved Buyer", 2, "goalkeeper");
+const crossMarketAvailableBuyer = makeMarketTestClub(crossMarketWorld, "D2 B Remaining Buyer", 2, "goalkeeper");
+crossMarketWorld.players["cross-market-free-agent"] = {
+  id: "cross-market-free-agent", name: "Cross-market free agent", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى",
+  group: "goalkeeper", ovr: 60, potential: 66, age: 26, contractSeasons: 0,
+  freeAgent: true, previousClubId: "former-club", freeAgentSince: 0
+};
+const paidWindowMove = {
+  from: crossMarketSeller.name, fromCountry: crossMarketSeller.country,
+  to: crossMarketBuyer.name, toCountry: crossMarketBuyer.country
+};
+const crossMarketSignings = sandbox.window.__lwTestSignFreeAgents(crossMarketWorld, 5, [paidWindowMove]);
+assert.equal(crossMarketSignings.length, 1,
+  "an unused club should still be allowed to sign a free agent after the paid phase");
+assert.equal(crossMarketSignings[0].to, crossMarketAvailableBuyer.name,
+  "the free-agent phase must skip both clubs already involved in a paid deal");
+assert.ok(!crossMarketSignings.some(move => move.to === crossMarketSeller.name || move.to === crossMarketBuyer.name),
+  "neither the seller nor buyer from the paid transfer may make a second move in the same window");
+
 // A former club cannot immediately re-sign a player it just released, but may
 // bring them back after one complete free-agent season if the role vacancy remains.
 const formerClubReturnWorld = {

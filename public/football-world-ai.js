@@ -692,15 +692,21 @@
   }
   function simulateLeagueTables(world, season, progress = 1) {
     const byLeague = new Map();
-    for (const club of Object.values(world.clubs).filter(row => row.division === 1)) {
-      if (!byLeague.has(club.leagueId)) byLeague.set(club.leagueId, []);
-      byLeague.get(club.leagueId).push(club);
+    for (const club of Object.values(world.clubs)) {
+      if (!club || !club.leagueId) continue;
+      const leagueId = String(club.leagueId);
+      const division = Math.max(1, int(club.division, 1));
+      const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
+      if (!byLeague.has(tableKey)) byLeague.set(tableKey, { leagueId, division, clubs: [] });
+      byLeague.get(tableKey).clubs.push(club);
     }
     const tables = {};
-    for (const [leagueId, sourceClubs] of byLeague.entries()) {
+    for (const [tableKey, group] of byLeague.entries()) {
+      const leagueId = group.leagueId;
+      const division = group.division;
+      const sourceClubs = group.clubs;
       const clubs = sourceClubs.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
       const clubCount = clubs.length;
-      const mid = average(clubs.map(club => Number(club.power) || 55));
       let matchesPerClub = clubCount > 1
         ? Math.max(0, Math.min(60, Math.round(average(clubs.map(club => Math.max(0, int(club.matchesPerSeason, 34)))))))
         : 0;
@@ -791,14 +797,14 @@
           ? clamp(5.7 + points / stats.played * 0.55 + goalDifference / stats.played * 0.12, 5.1, 8.8)
           : 0;
         return {
-          season: Number(season), leagueId, country: club.country, clubId: club.id,
+          season: Number(season), leagueId, division, country: club.country, clubId: club.id,
           club: club.name, power: Math.round(Number(club.power) || 55), played: stats.played,
           w: stats.w, d: stats.d, l: stats.l, gf: stats.gf, ga: stats.ga,
           pts: points, form: Number(form.toFixed(2))
         };
       });
       const ranked = rows.sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || b.power - a.power);
-      tables[leagueId] = ranked.map((row, index) => ({ ...row, rank: index + 1,
+      tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
         status: index === 0 ? "بطل المحاكاة" : index >= ranked.length - 2 ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
     }
     return tables;
@@ -2368,7 +2374,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=44");
+    const worker = new global.Worker("./football-world-worker.js?v=45");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

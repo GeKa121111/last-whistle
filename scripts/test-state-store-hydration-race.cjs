@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, "..", "career-state-store.js
 
 function createHarness() {
   let openRequest = null;
-  let readRequest = null;
+  const readRequests = [];
   const writeTransactions = [];
   const writes = [];
   const database = {
@@ -25,8 +25,9 @@ function createHarness() {
             get(id) {
               assert.equal(mode, "readonly");
               assert.equal(id, "career:default");
-              readRequest = {};
-              return readRequest;
+              const request = {};
+              readRequests.push(request);
+              return request;
             },
             put(record) {
               assert.equal(mode, "readwrite");
@@ -65,11 +66,19 @@ function createHarness() {
       openRequest.result = database;
       openRequest.onsuccess();
       await new Promise(resolve => setImmediate(resolve));
-      assert.ok(readRequest && typeof readRequest.onsuccess === "function",
+      const startupRead = readRequests[0];
+      assert.ok(startupRead && typeof startupRead.onsuccess === "function",
         "the startup save read must be pending after the database opens");
-      readRequest.result = record;
-      readRequest.onsuccess();
+      startupRead.result = record;
+      startupRead.onsuccess();
       return window.LWStateStore.ready();
+    },
+    async waitForRead(index) {
+      await new Promise(resolve => setImmediate(resolve));
+      const request = readRequests[index];
+      assert.ok(request && typeof request.onsuccess === "function",
+        "the requested IndexedDB read transaction must be pending");
+      return request;
     },
     async waitForWrite(index = 0) {
       await new Promise(resolve => setImmediate(resolve));
@@ -130,7 +139,37 @@ function createHarness() {
   assert.strictEqual(delayedWrite.store.getStartupSave(), newerImportedCareer,
     "a late IndexedDB write must not overwrite the newer imported startup save");
 
-  console.log("PASS: delayed hydration and delayed save completion cannot overwrite a newer imported career; normal startup and save remain intact.");
+  const normalLoad = createHarness();
+  await normalLoad.resolveStartupRead(null);
+  const loadedCareer = { name: "Explicitly Loaded Career", money: 1300 };
+  const normalLoadPromise = normalLoad.store.load();
+  const normalLoadRequest = await normalLoad.waitForRead(1);
+  normalLoadRequest.result = { id: "career:default", state: loadedCareer };
+  normalLoadRequest.onsuccess();
+  const normalLoadResult = await normalLoadPromise;
+  assert.equal(JSON.stringify(normalLoadResult), JSON.stringify(loadedCareer));
+  assert.strictEqual(normalLoad.store.getState(), normalLoadResult,
+    "a current explicit default-slot load must still publish its loaded career");
+  assert.strictEqual(normalLoad.store.getStartupSave(), normalLoadResult);
+
+  const delayedLoad = createHarness();
+  await delayedLoad.resolveStartupRead(null);
+  const staleLoadedCareer = { name: "Older Saved Career", money: 900 };
+  const delayedLoadPromise = delayedLoad.store.load();
+  const delayedLoadRequest = await delayedLoad.waitForRead(1);
+  const newerImportedDuringLoad = { name: "Imported During Explicit Load", money: 4600 };
+  delayedLoad.store.publish(newerImportedDuringLoad, { source: "import" });
+  delayedLoadRequest.result = { id: "career:default", state: staleLoadedCareer };
+  delayedLoadRequest.onsuccess();
+  const delayedLoadResult = await delayedLoadPromise;
+  assert.equal(JSON.stringify(delayedLoadResult), JSON.stringify(staleLoadedCareer),
+    "load must still return the requested saved-slot payload to its caller");
+  assert.strictEqual(delayedLoad.store.getState(), newerImportedDuringLoad,
+    "a delayed explicit load must not replace a newer imported live career");
+  assert.strictEqual(delayedLoad.store.getStartupSave(), newerImportedDuringLoad,
+    "a delayed explicit load must not replace the newer startup save");
+
+  console.log("PASS: delayed hydration, save completion, and explicit load cannot overwrite a newer career; normal startup/save/load remain intact.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

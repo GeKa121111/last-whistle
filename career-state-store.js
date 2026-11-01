@@ -149,10 +149,16 @@
     return lastWrite;
   }
   async function load(slotId) {
-    const id = String(slotId || DEFAULT_SLOT), record = await readRecord(id);
+    const id = String(slotId || DEFAULT_SLOT);
+    const loadRevision = revision;
+    const record = await readRecord(id);
     if (!record || !record.state) return null;
     const result = safeClone(record.state);
-    if (id === DEFAULT_SLOT) { startupSave = result; publish(result, { source: "load", slotId: id }); }
+    // A delayed explicit load must not replace a newer import, save, or live publish.
+    if (id === DEFAULT_SLOT && revision === loadRevision) {
+      startupSave = result;
+      publish(result, { source: "load", slotId: id });
+    }
     return result;
   }
   async function listSaves() {

@@ -13,6 +13,7 @@ vm.runInContext(read("career-state-store.js"), sandbox, { filename: "career-stat
 
 const store = window.LWStateStore;
 assert.equal(typeof store.normalizePosition, "function", "the state store must export the canonical position normalizer");
+assert.equal(store.version, 3, "the shared state-store API version must identify the expanded canonical alias map");
 for (const [alias, expected] of [
   ["CM", "وسط"], ["RCM", "وسط"], ["LCM", "وسط"], ["MF", "وسط"], ["CDM", "وسط دفاعي"],
   ["DM", "وسط دفاعي"], ["CAM", "وسط مهاجم"], ["AM", "وسط مهاجم"], ["GK", "حارس مرمى"],
@@ -23,6 +24,16 @@ for (const [alias, expected] of [
 assert.equal(store.normalizePosition("central_midfielder"), "وسط");
 assert.equal(store.normalizePosition("مركز غير معروف"), "مركز غير معروف");
 assert.equal(store.normalizePosition(""), "");
+
+const extendedPositionAliases = [
+  ["left wing back", "ظهير"], ["right wing back", "ظهير"],
+  ["left winger", "جناح"], ["right winger", "جناح"],
+  ["left midfielder", "جناح"], ["right midfielder", "جناح"]
+];
+for (const [alias, expected] of extendedPositionAliases) {
+  assert.equal(store.normalizePosition(alias), expected,
+    "the shared normalizer must cover every alias supported by the career/match engines: " + alias);
+}
 
 let allNotifications = 0;
 const selectedNotifications = [];
@@ -47,6 +58,17 @@ assert.equal(window.LWCareer.normalizeCareerPosition("CM"), "وسط");
 assert.equal(window.LWCareer.normalizeCareerPosition("CDM"), "وسط دفاعي");
 assert.equal(window.LWMatch.normalizePosition("CAM"), "وسط مهاجم");
 assert.equal(window.LWMatch.normalizePosition("MF"), "وسط");
+for (const [alias, expected] of extendedPositionAliases) {
+  assert.equal(window.LWCareer.normalizeCareerPosition(alias), expected,
+    "career engine must receive the canonical shared alias: " + alias);
+  assert.equal(window.LWCareer.positionDevelopmentPlan(alias).position, expected,
+    "career development plan must use the canonical shared role: " + alias);
+  assert.equal(window.LWMatch.normalizePosition(alias), expected,
+    "match engine must receive the canonical shared alias: " + alias);
+  assert.equal(JSON.stringify(window.LWMatch.positionProfile(alias)),
+    JSON.stringify(window.LWMatch.positionProfile(expected)),
+    "match profile must stay identical between alias and canonical role: " + alias);
+}
 
 const footballAI = read("football-world-ai.js");
 const transferAwards = read("transfer-awards-engine.js");

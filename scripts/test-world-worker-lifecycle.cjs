@@ -113,8 +113,11 @@ async function main() {
   const serviceWorkerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   const pageAiVersion = pageSource.match(/football-world-ai\.js\?v=(\d+)/);
   const workerAiVersion = workerSource.match(/football-world-ai\.js\?v=(\d+)/);
+  const pageStoreVersion = pageSource.match(/career-state-store\.js\?v=(\d+)/);
+  const workerStoreVersion = workerSource.match(/career-state-store\.js\?v=(\d+)/);
   const pageDbVersion = pageSource.match(/football-world-db\.js\?v=(\d+)/);
   const workerDbVersion = workerSource.match(/football-world-db\.js\?v=(\d+)/);
+  const shellStoreVersion = serviceWorkerSource.match(/\.\/career-state-store\.js\?v=(\d+)/);
   const shellDbVersion = serviceWorkerSource.match(/\.\/football-world-db\.js\?v=(\d+)/);
   const appWorkerVersion = worldAiSource.match(/football-world-worker\.js\?v=(\d+)/);
   const shellWorkerVersion = serviceWorkerSource.match(/\.\/football-world-worker\.js\?v=(\d+)/);
@@ -124,6 +127,12 @@ async function main() {
   assert.ok(pageDbVersion && workerDbVersion && shellDbVersion, "page, worker, and offline shell must declare database asset versions");
   assert.equal(workerDbVersion[1], pageDbVersion[1], "main thread and worker must load the same world database version");
   assert.equal(shellDbVersion[1], pageDbVersion[1], "offline shell must precache the database version used by the page");
+  assert.ok(pageStoreVersion && workerStoreVersion && shellStoreVersion,
+    "page, worker, and offline shell must declare the shared state-store version");
+  assert.equal(workerStoreVersion[1], pageStoreVersion[1],
+    "main thread and worker must use the same canonical position normalizer version");
+  assert.equal(shellStoreVersion[1], pageStoreVersion[1],
+    "offline shell must precache the same state-store version used by page and worker");
   assert.ok(appWorkerVersion && shellWorkerVersion, "app and offline shell must declare the worker asset version");
   assert.equal(shellWorkerVersion[1], appWorkerVersion[1], "offline shell must precache the exact worker asset used by the app");
   assert.equal(worker.url, "./football-world-worker.js?v=" + appWorkerVersion[1]);

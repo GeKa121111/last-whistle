@@ -14,13 +14,16 @@
     lb: "ظهير", rb: "ظهير", lwb: "ظهير", rwb: "ظهير", wb: "ظهير", fb: "ظهير",
     leftback: "ظهير", "left back": "ظهير", rightback: "ظهير", "right back": "ظهير",
     fullback: "ظهير", "full back": "ظهير", wingback: "ظهير", "wing back": "ظهير",
+    "left wing back": "ظهير", "right wing back": "ظهير",
     cdm: "وسط دفاعي", dm: "وسط دفاعي", "defensive midfielder": "وسط دفاعي", "defensive mid": "وسط دفاعي",
     holdingmidfielder: "وسط دفاعي", "holding midfielder": "وسط دفاعي",
     cam: "وسط مهاجم", am: "وسط مهاجم", "attacking midfielder": "وسط مهاجم", "attacking mid": "وسط مهاجم",
     cm: "وسط", rcm: "وسط", lcm: "وسط", mf: "وسط", midfield: "وسط",
     "central midfielder": "وسط", "central midfield": "وسط", midfielder: "وسط",
     lw: "جناح", rw: "جناح", lm: "جناح", rm: "جناح", lwf: "جناح", rwf: "جناح",
-    "left wing": "جناح", "right wing": "جناح", winger: "جناح", "wide midfielder": "جناح",
+    "left wing": "جناح", "right wing": "جناح", winger: "جناح",
+    "left winger": "جناح", "right winger": "جناح",
+    "left midfielder": "جناح", "right midfielder": "جناح", "wide midfielder": "جناح",
     cf: "مهاجم", ss: "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
     st: "رأس حربة", fw: "رأس حربة", fwd: "رأس حربة", striker: "رأس حربة", forward: "رأس حربة",
     "centre forward": "رأس حربة", "center forward": "رأس حربة"
@@ -202,7 +205,7 @@
     return function () { listeners.delete(wrapped); };
   }
   global.LWStateStore = Object.freeze({
-    version: 2, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, normalizePosition,
+    version: 3, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, normalizePosition,
     getState: () => currentState, getStartupSave: () => startupSave, getRevision: () => revision,
     subscribe: function (listener) { if (typeof listener !== "function") return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
     subscribeSelector, save, load, listSaves, deleteSave, flush, openDatabase

@@ -412,15 +412,52 @@ assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].
   "the fixture must exercise a transfer fee above the old seller-income cap");
 assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budgetedTransfer.fee,
   "the seller must receive the full recorded transfer fee after the market refreshes squad strength");
+
+// Stale roster references must not make an otherwise eligible club look full to the transfer market.
+const staleTransferWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
+makeMarketTestClub(staleTransferWorld, "Stale Transfer Seller", 1, null);
+const staleTransferBuyer = makeMarketTestClub(staleTransferWorld, "Stale Transfer Buyer", 2, "defender");
+const staleTransferRetiredId = "stale-transfer-retired";
+staleTransferWorld.players[staleTransferRetiredId] = {
+  id: staleTransferRetiredId, name: "Retired stale defender", clubId: staleTransferBuyer.id,
+  group: "defender", position: "قلب دفاع", ovr: 99, retired: true, freeAgent: false
+};
+staleTransferBuyer.roster.push(staleTransferRetiredId, "missing-transfer-roster-id");
+const staleTransferMoves = sandbox.window.__lwTestRunTransferWindow(staleTransferWorld, 4);
+assert.ok(staleTransferMoves.some(move => move.to === staleTransferBuyer.name),
+  "a club with 16 active players must remain eligible to buy when stale IDs inflate its raw roster array");
+assert.ok(!staleTransferBuyer.roster.includes(staleTransferRetiredId)
+  && !staleTransferBuyer.roster.includes("missing-transfer-roster-id"),
+  "transfer completion must remove stale and retired references from the buyer roster");
+assert.equal(new Set(staleTransferBuyer.roster).size, staleTransferBuyer.roster.length,
+  "transfer completion must not introduce duplicate roster IDs");
+assert.ok(staleTransferBuyer.roster.every(id => staleTransferWorld.players[id]
+  && staleTransferWorld.players[id].clubId === staleTransferBuyer.id
+  && !staleTransferWorld.players[id].retired && !staleTransferWorld.players[id].freeAgent),
+  "the receiving club roster must contain only active players owned by that club");
+
 // Free agents must also be able to fill an eligible lower-tier vacancy when top-tier clubs have no need.
 const freeAgentWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
 makeMarketTestClub(freeAgentWorld, "D1 Full Club", 1, null);
-makeMarketTestClub(freeAgentWorld, "D2 Keeper Vacancy", 2, "goalkeeper");
+const staleFreeAgentBuyer = makeMarketTestClub(freeAgentWorld, "D2 Keeper Vacancy", 2, "goalkeeper");
+const staleFreeAgentRetiredId = "stale-free-agent-retired-keeper";
+freeAgentWorld.players[staleFreeAgentRetiredId] = {
+  id: staleFreeAgentRetiredId, name: "Retired stale keeper", clubId: staleFreeAgentBuyer.id,
+  group: "goalkeeper", position: "حارس مرمى", ovr: 99, retired: true, freeAgent: false
+};
+staleFreeAgentBuyer.roster.push(staleFreeAgentRetiredId, "missing-free-agent-roster-id");
 freeAgentWorld.players["free-agent-test-keeper"] = { id: "free-agent-test-keeper", name: "Free-agent keeper test", clubId: "", country: "Testland", leagueId: "test-market", division: 0, position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65, age: 26, contractSeasons: 0, freeAgent: true, previousClubId: "former-club", isGenerated: false };
 const signedLowerTier = sandbox.window.__lwTestSignFreeAgents(freeAgentWorld, 3, []);
 assert.equal(signedLowerTier.length, 1, "a free agent should sign when a lower-tier club has a compatible vacancy");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].clubId, "D2 Keeper Vacancy", "free-agent recruitment must include the lower-tier club when higher-tier clubs have no matching vacancy");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 2, "the free agent must inherit the destination club division");
+assert.ok(!staleFreeAgentBuyer.roster.includes(staleFreeAgentRetiredId)
+  && !staleFreeAgentBuyer.roster.includes("missing-free-agent-roster-id"),
+  "free-agent signing must rebuild the buyer roster from active players and remove stale references");
+assert.equal(staleFreeAgentBuyer.roster.filter(id => id === "free-agent-test-keeper").length, 1,
+  "the signed free agent must be added exactly once even if a stale reference already existed");
+assert.equal(new Set(staleFreeAgentBuyer.roster).size, staleFreeAgentBuyer.roster.length,
+  "free-agent signing must preserve unique roster membership");
 
 // A former club cannot immediately re-sign a player it just released, but may
 // bring them back after one complete free-agent season if the role vacancy remains.

@@ -1989,21 +1989,32 @@
         participants = clubs.filter(club => Number(club.division) === 1)
           .sort((a, b) => Number(b.power || 50) - Number(a.power || 50)).slice(0, 16);
       } else if (def.kind === "supercup" && season > 1) {
-        const previous = world.competitionsBySeason[String(season - 1)] || [];
-        const eligible = previous.filter(row => row && row.championId
-          && (!def.confederation || row.confederation === def.confederation));
-        eligible.sort((a,b)=>a.kind==="continental" ? -1 : b.kind==="continental" ? 1 : 0);
-        eligible.slice(0, 2).forEach(row => {
-          const club = world.clubs[row.championId];
+        const previous = Array.isArray(world.competitionsBySeason[String(season - 1)])
+          ? world.competitionsBySeason[String(season - 1)] : [];
+        const addParticipant = club => {
           if (club && !participants.some(team => team.id === club.id)) participants.push(club);
-        });
-        if (participants.length < 2 && def.countries && def.countries.length) {
-          const leagueId = def.countries[0];
-          const leagueChampion = (tables[leagueId] || [])[0];
-          const cupChampion = previous.find(row => row.kind === "domestic-cup" && row.id && row.championId
-            && (world.clubs[row.championId] || {}).leagueId === leagueId);
-          [leagueChampion && world.clubs[leagueChampion.clubId], cupChampion && world.clubs[cupChampion.championId]]
-            .forEach(club => { if (club && !participants.some(team => team.id === club.id)) participants.push(club); });
+        };
+        if (Array.isArray(def.countries) && def.countries.length) {
+          // Domestic supercups use the previous season's league and domestic-cup winners.
+          // Never substitute continental champions or this season's still-unfinished table.
+          const leagueId = String(def.countries[0]);
+          const previousTables = world.leagueTables && world.leagueTables[String(season - 1)] || {};
+          const leagueRows = Array.isArray(previousTables[leagueId]) ? previousTables[leagueId] : [];
+          const leagueChampionRow = leagueRows.find(row => Number(row && row.rank) === 1) || leagueRows[0];
+          const leagueRunnerUpRow = leagueRows.find(row => Number(row && row.rank) === 2) || leagueRows[1];
+          const domesticCup = previous.find(row => row && row.kind === "domestic-cup" && row.championId
+            && world.clubs[row.championId] && String(world.clubs[row.championId].leagueId) === leagueId);
+          addParticipant(leagueChampionRow && world.clubs[leagueChampionRow.clubId]);
+          addParticipant(domesticCup && world.clubs[domesticCup.championId]);
+          if (participants.length < 2) {
+            addParticipant(domesticCup && world.clubs[domesticCup.runnerUpId]);
+            addParticipant(leagueRunnerUpRow && world.clubs[leagueRunnerUpRow.clubId]);
+          }
+        } else {
+          // Continental supercups may only use winners of continental competitions.
+          const eligible = previous.filter(row => row && row.kind === "continental" && row.championId
+            && (!def.confederation || row.confederation === def.confederation));
+          eligible.slice(0, 2).forEach(row => addParticipant(world.clubs[row.championId]));
         }
       } else {
         return;
@@ -2559,7 +2570,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=54");
+    const worker = new global.Worker("./football-world-worker.js?v=55");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

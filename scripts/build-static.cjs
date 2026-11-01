@@ -46,7 +46,7 @@ rootIndex = synchronizeInlineEngine(rootIndex,
   "<script>\n/* Shared career progression and award engine for LAST WHISTLE. */",
   "career-engine.js");
 rootIndex = synchronizeInlineEngine(rootIndex,
-  "<script>/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */",
+  "<script>\n/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */",
   "match-engine.js");
 fs.writeFileSync(rootIndexPath, rootIndex);
 

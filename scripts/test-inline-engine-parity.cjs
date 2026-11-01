@@ -28,7 +28,7 @@ const engines = [
   },
   {
     file: "match-engine.js",
-    marker: "<script>/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */",
+    marker: "<script>\n/* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */",
     label: "match"
   }
 ];

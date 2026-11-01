@@ -49,7 +49,7 @@ function createHarness() {
         "the asynchronous IndexedDB open must still be pending");
       openRequest.result = database;
       openRequest.onsuccess();
-      await Promise.resolve();
+      await new Promise(resolve => setImmediate(resolve));
       assert.ok(readRequest && typeof readRequest.onsuccess === "function",
         "the startup save read must be pending after the database opens");
       readRequest.result = record;

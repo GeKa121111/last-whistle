@@ -1474,5 +1474,15 @@ assert.equal(JSON.stringify(ai.getLeagueTable(retentionSave, "retention-league",
 assert.equal(JSON.stringify(ai.getDivisionTable(retentionSave, "retention-league", 2, 1, retentionDb)
   .map(row => String(row.clubId))), JSON.stringify(retainedSecondTierIds),
   "historical second-tier standings must survive fixture pruning and later promotion/relegation");
+
+// A completed legacy season with pruned fixtures but no saved standings cannot be
+// reconstructed accurately from today's club divisions. Return no fabricated table.
+const missingSnapshotSave = JSON.parse(JSON.stringify(retentionSave));
+delete missingSnapshotSave.worldSimulation.leagueTables["1"];
+assert.deepEqual(ai.getLeagueTable(missingSnapshotSave, "retention-league", 1, retentionDb), [],
+  "a completed historical league with no snapshot must not be regenerated from current club divisions");
+assert.deepEqual(ai.getDivisionTable(missingSnapshotSave, "retention-league", 2, 1, retentionDb), [],
+  "league and division history getters must agree when a completed snapshot is unavailable");
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

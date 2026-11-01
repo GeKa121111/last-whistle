@@ -2286,6 +2286,9 @@ function seasonAwards(state, league, teamRank) {
     if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent"
       || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
+    // A permanent move already agreed or still being negotiated takes priority over a loan.
+    if (state.pendingTransfer) return "transfer-pending";
+    if (state.transferNegotiation) return "transfer-negotiation";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
     const appearances = Number(state.apps);
@@ -5251,7 +5254,7 @@ function requestLoan(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  if(!canAccessTransferMarket()){toast("الإعارة متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}
  const status=window.LWCareer?.loanRequestStatus(state,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open})||"invalid-state";
- const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"الإعارة تتطلب عقدًا ساريًا مع نادٍ. ابحث عن عقد دائم أولًا.","already-loaned":"عندك إعارة نشطة بالفعل؛ هترجع لناديك الأصلي بعد نهاية الموسم.","cup-active":"كمّل بطولة الكأس الحالية قبل تغيير النادي حتى ما يضيعش سجل البطولة.","window-closed":"طلبات الإعارة متاحة في فترات الانتقالات الصيفية والشتوية.","appearances-required":"لازم تلعب مباراتين على الأقل قبل ما الأندية تطلب إعارتك."};
+ const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"الإعارة تتطلب عقدًا ساريًا مع نادٍ. ابحث عن عقد دائم أولًا.","already-loaned":"عندك إعارة نشطة بالفعل؛ هترجع لناديك الأصلي بعد نهاية الموسم.","transfer-pending":"عندك انتقال متفق عليه ولسه ما اكتملش؛ احسمه الأول قبل الإعارة.","transfer-negotiation":"عندك مفاوضات انتقال مفتوحة؛ أنهِها أو ارفض العرض قبل طلب الإعارة.","cup-active":"كمّل بطولة الكأس الحالية قبل تغيير النادي حتى ما يضيعش سجل البطولة.","window-closed":"طلبات الإعارة متاحة في فترات الانتقالات الصيفية والشتوية.","appearances-required":"لازم تلعب مباراتين على الأقل قبل ما الأندية تطلب إعارتك."};
  if(status!=="ready"){toast(messages[status]||"تعذر بدء طلب الإعارة في الحالة الحالية.");return;}
  const targets=transferTargets().filter(t=>(t.club!==state.clubName||t.country!==state.leagueCountry)&&t.power<=overall()+24).sort((a,b)=>Math.abs(a.power-overall())-Math.abs(b.power-overall())).slice(0,3);
  if(!targets.length){toast("مش لاقيين نادي مناسب للإعارة في القوائم المتاحة حاليًا.");return;}
@@ -5263,7 +5266,7 @@ function requestLoan(){
 function loanTo(target){
  const isListed=!!target&&transferTargets().some(t=>t.club===target.club&&t.country===target.country&&(!target.league||t.league===target.league));
  const status=window.LWCareer?.loanTargetStatus(state,target,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open,isListed})||"invalid-state";
- const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يمكن إعارة لاعب حر؛ وقّع عقدًا دائمًا أولًا.","already-loaned":"عندك إعارة نشطة بالفعل.","cup-active":"تعذر تنفيذ الإعارة قبل إنهاء بطولة الكأس الحالية.","window-closed":"انتهت نافذة الإعارة؛ جرّب في فترة انتقالات جديدة.","appearances-required":"لازم تلعب مباراتين على الأقل قبل الإعارة.","invalid-target":"وجهة الإعارة غير صالحة.","same-club":"اختار ناديًا مختلفًا عن ناديك الحالي.","unlisted-target":"وجهة الإعارة لم تعد موجودة في الكتالوج الحالي."};
+ const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يمكن إعارة لاعب حر؛ وقّع عقدًا دائمًا أولًا.","already-loaned":"عندك إعارة نشطة بالفعل.","transfer-pending":"عندك انتقال متفق عليه ولسه ما اكتملش؛ احسمه الأول قبل الإعارة.","transfer-negotiation":"عندك مفاوضات انتقال مفتوحة؛ أنهِها أو ارفض العرض قبل طلب الإعارة.","cup-active":"تعذر تنفيذ الإعارة قبل إنهاء بطولة الكأس الحالية.","window-closed":"انتهت نافذة الإعارة؛ جرّب في فترة انتقالات جديدة.","appearances-required":"لازم تلعب مباراتين على الأقل قبل الإعارة.","invalid-target":"وجهة الإعارة غير صالحة.","same-club":"اختار ناديًا مختلفًا عن ناديك الحالي.","unlisted-target":"وجهة الإعارة لم تعد موجودة في الكتالوج الحالي."};
  if(status!=="ready"){toast(messages[status]||"تعذر تنفيذ الإعارة في الحالة الحالية.");return;}
  const hostRole=window.LWCareer?.loanSquadRole?.(state,target)||"بديل أساسي";
  const previousTarget=seasonMatchTotal(),matchesAlreadyPlayed=Number(state.seasonApps)||0;

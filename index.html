@@ -5187,20 +5187,27 @@ function archiveCupForTransfer(){
  const c=state.cupState;if(!c)return false;
  const cupSeason=Math.max(1,Number(c.createdSeason)||Number(state.season)||1);
  state.cupHistory=Array.isArray(state.cupHistory)?state.cupHistory:[];
- const clubName=String(state.clubName||"");
- const alreadyRecorded=state.cupHistory.some(row=>row&&row.name===c.name&&Number(row.season)===cupSeason);
+ const clubName=String(state.clubName||"").trim(),country=String(state.leagueCountry||"").trim();
+ // A cup name/season is not a unique identity across clubs or countries.
+ // Missing legacy club/country metadata is treated as unknown, not as a wildcard.
+ const sameCupIdentity=row=>!!row&&row.name===c.name&&Number(row.season)===cupSeason
+  &&!!clubName&&!!country&&String(row.club||"").trim()===clubName
+  &&String(row.country||"").trim()===country;
+ const alreadyRecorded=state.cupHistory.some(row=>sameCupIdentity(row)
+  &&!!row.champion===!!c.champion&&!!row.eliminated===!!c.eliminated
+  &&!!row.abandoned===!!c.abandoned);
  // Completed cups must not follow a player to a new club either. Keep a missing
- // elimination record, but do not duplicate a trophy already written to cupHistory.
+ // elimination record, but do not duplicate the same club's existing cup outcome.
  if(c.champion||c.eliminated||c.abandoned){
-  if(!alreadyRecorded)state.cupHistory.unshift({name:c.name,season:cupSeason,champion:!!c.champion,eliminated:!!c.eliminated,abandoned:!!c.abandoned,matches:Number(c.matchesPlayed)||0,club:clubName,country:String(state.leagueCountry||""),division:Number(state.leagueDivision)||1,reason:c.champion?"اكتمال البطولة قبل الانتقال":c.abandoned?"إغلاق البطولة قبل الانتقال":"الخروج من البطولة قبل الانتقال"});
+  if(!alreadyRecorded)state.cupHistory.unshift({name:c.name,season:cupSeason,champion:!!c.champion,eliminated:!!c.eliminated,abandoned:!!c.abandoned,matches:Number(c.matchesPlayed)||0,club:clubName,country,division:Number(state.leagueDivision)||1,reason:c.champion?"اكتمال البطولة قبل الانتقال":c.abandoned?"إغلاق البطولة قبل الانتقال":"الخروج من البطولة قبل الانتقال"});
   state.cupHistory=state.cupHistory.slice(0,100);
   state.cupState=null;return true;
  }
  c.abandoned=true;c.leftByTransfer=true;c.closedReason="player-transfer";
  c.history=Array.isArray(c.history)?c.history:[];
  c.history.push("تم إنهاء متابعة اللاعب للبطولة عند انتقاله إلى نادٍ جديد؛ لا ينتقل سجل البطولة بين الأندية.");
- if(!state.cupHistory.some(row=>row&&row.name===c.name&&Number(row.season)===cupSeason&&row.leftByTransfer===true)){
-  state.cupHistory.unshift({name:c.name,season:cupSeason,champion:false,eliminated:false,abandoned:true,leftByTransfer:true,matches:Number(c.matchesPlayed)||0,club:clubName,reason:"انتقال اللاعب إلى نادٍ جديد أثناء البطولة"});
+ if(!state.cupHistory.some(row=>sameCupIdentity(row)&&row.leftByTransfer===true)){
+  state.cupHistory.unshift({name:c.name,season:cupSeason,champion:false,eliminated:false,abandoned:true,leftByTransfer:true,matches:Number(c.matchesPlayed)||0,club:clubName,country,division:Number(state.leagueDivision)||1,reason:"انتقال اللاعب إلى نادٍ جديد أثناء البطولة"});
  }
  state.cupHistory=state.cupHistory.slice(0,100);
  state.cupState=null;return true;

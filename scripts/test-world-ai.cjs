@@ -84,6 +84,8 @@ new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContex
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+assert.equal(typeof ai.rosterPlayers, "function",
+  "the shared active-roster reader must be available to the world-simulation extension");
 
 // Legacy saves can retain a retired player ID in a club roster after an interrupted migration.
 // The matchday lineup must never select that player, even if their old OVR is the highest.

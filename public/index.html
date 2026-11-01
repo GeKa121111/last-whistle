@@ -4994,7 +4994,8 @@ function reconcileTransferNegotiation(windowInfo=transferWindow()){
  const offer=offerId&&Array.isArray(state.transferOffers)
   ?state.transferOffers.find(item=>item&&String(item.id||"")===offerId):null;
  const stillAvailable=!!offer&&offer.status==="pending"&&!state.pendingTransfer
-  &&!state.retired&&!state.loan&&transferOfferMatchesCurrentWindow(offer,windowInfo);
+  &&!state.retired&&!state.loan&&transferOfferMatchesCurrentWindow(offer,windowInfo)
+  &&transferEligibilityReason(offer)==="";
  if(stillAvailable)return false;
  const snapshot=validRecord?{...negotiation}:{value:negotiation};
  const club=String(offer?.club||snapshot.club||"نادي غير معروف");

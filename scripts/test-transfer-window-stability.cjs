@@ -766,6 +766,35 @@ assert.equal(roleContractGenerationCalls, 3,
 assert.equal(roleContractState.transferOffers.length, 1,
   "the transfer market must repopulate with a fresh offer after the stale negotiation is cleared");
 
+// An existing pending offer must not keep its negotiation lock after the player's eligibility changes.
+const activeOfferId = roleContractState.transferOffers[0].id;
+roleContractState.transferNegotiation = { offerId: activeOfferId, round: 1, patience: 55, requestedWage: 1200 };
+roleContractState.trust = 10;
+roleContractState.transferHistory = [];
+roleContractSandbox.ensureTransferOffers();
+assert.equal(roleContractState.transferNegotiation, null,
+  "a negotiation must close when the player falls below the minimum coach-trust threshold");
+const trustClosedNegotiation = roleContractState.transferHistory.find(row => row && row.legacyTransferNegotiation);
+assert.equal(trustClosedNegotiation?.legacyTransferNegotiation?.offerId, activeOfferId,
+  "the closed negotiation must retain its original offer ID in career history");
+assert.match(trustClosedNegotiation?.text || "", /مفاوضات انتقال محفوظة/,
+  "the history must explain why an ineligible negotiation was closed");
+assert.equal(roleContractGenerationCalls, 3,
+  "closing an ineligible negotiation must not trigger another offer-generation attempt");
+
+roleContractState.trust = 60;
+roleContractSandbox.transferAverageRating = () => 5.2;
+roleContractState.transferNegotiation = { offerId: activeOfferId, round: 2, patience: 40 };
+roleContractState.transferHistory = [];
+roleContractSandbox.ensureTransferOffers();
+assert.equal(roleContractState.transferNegotiation, null,
+  "a negotiation must close when the player's average rating falls below the market threshold");
+const formClosedNegotiation = roleContractState.transferHistory.find(row => row && row.legacyTransferNegotiation);
+assert.equal(formClosedNegotiation?.legacyTransferNegotiation?.offerId, activeOfferId,
+  "a form-ineligible negotiation must preserve its original terms in career history");
+assert.equal(roleContractGenerationCalls, 3,
+  "closing a form-ineligible negotiation must not regenerate offers in the same window");
+
 
 // A successful contract negotiation must not be recorded as a completed transfer if the destination disappeared before commit.
 function makeNegotiationCompletionScenario(completeTransfer) {

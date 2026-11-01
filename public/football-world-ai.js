@@ -827,7 +827,7 @@
       if (moves.length >= maxMoves) break;
       if (alreadyUsedClubs.has(buyer.id)) continue;
       // Avoid squad hoarding: each AI club has a soft roster ceiling before buying.
-      if (buyer.roster.length >= 18) continue;
+      if (activeRosterIdsForClub(world, buyer).length >= 18) continue;
       const roles = roleAverages(world, buyer);
       const needs = Object.keys(TARGETS).map(group => ({ group, score: needScore(buyer, group, roles) }))
         .sort((a, b) => b.score - a.score);
@@ -867,8 +867,11 @@
       if (!candidate || candidate.score < 37) continue;
       const { player, seller, fee, group } = candidate;
       const origin = seller.name;
-      seller.roster = seller.roster.filter(id => id !== player.id);
-      buyer.roster.push(player.id);
+      // Rebuild both memberships from active ownership before moving the player.
+      // This discards stale, duplicate, retired, free-agent, and cross-club IDs.
+      seller.roster = activeRosterIdsForClub(world, seller).filter(id => id !== String(player.id));
+      buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
+      buyer.roster.push(String(player.id));
       // The recorded fee is a direct buyer-to-seller transaction; never discard part of it.
       seller.budget = Math.max(0, Number(seller.budget) || 0) + fee;
       buyer.budget = Math.max(0, buyer.budget - fee);
@@ -1181,6 +1184,9 @@
   }
   function playersForClub(world, club) {
     return base.rosterPlayers(world, club);
+  }
+  function activeRosterIdsForClub(world, club) {
+    return playersForClub(world, club).map(player => String(player && player.id || "")).filter(Boolean);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);
@@ -1736,14 +1742,14 @@
   function signFreeAgents(world, season, existingMoves) {
     const freeAgents = Object.values(world.players).filter(player => player && !player.retired && player.freeAgent && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
-    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1 && (club.roster || []).length < 18)
+    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division))
+      && Number(club.division) >= 1 && activeRosterIdsForClub(world, club).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
     const roleCountsByClub = new Map();
     for (const club of clubs) {
       const counts = Object.create(null);
-      for (const id of club.roster || []) {
-        const player = world.players[id];
-        if (!player || player.freeAgent) continue;
+      for (const player of playersForClub(world, club)) {
+        if (!player) continue;
         const group = player.group || base.groupForPosition(player.position);
         counts[group] = (counts[group] || 0) + 1;
       }
@@ -1765,7 +1771,7 @@
       const eligible = clubs.filter(club => {
         const counts = roleCountsByClub.get(club.id) || {};
         return !usedClubs.has(club.id)
-          && Number(club.roster.length) < 18
+          && activeRosterIdsForClub(world, club).length < 18
           && (!player.previousClubId || player.previousClubId !== club.id || formerClubReturnEligible)
           && Number(player.ovr) <= Number(club.power || 55) + 10
           && Number(player.ovr) >= Number(club.power || 55) - 23
@@ -1780,13 +1786,14 @@
         return aCount - bCount || Number(b.power || 50) - Number(a.power || 50) || String(a.id).localeCompare(String(b.id));
       });
       const buyer = eligible[0];
+      buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
       const previousClub = player.previousClubId && world.clubs[player.previousClubId];
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.freeAgent = false;
       player.freeAgentSince = 0;
       player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
-      buyer.roster.push(player.id);
+      buyer.roster.push(String(player.id));
       const counts = roleCountsByClub.get(buyer.id);
       counts[group] = (counts[group] || 0) + 1;
       usedClubs.add(buyer.id);

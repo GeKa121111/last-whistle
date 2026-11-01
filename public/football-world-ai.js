@@ -1977,12 +1977,12 @@
         // Continental places come from domestic standings, not raw squad power. A
         // season uses the previous completed table; the current table is only the
         // bootstrap source when no historical table exists for that league.
-        const previousSeason = Math.max(0, int(season, 1) - 1);
+        const previousSeason = Math.max(0, Math.floor(Number(season) || 1) - 1);
         const previousTables = world.leagueTables && world.leagueTables[String(previousSeason)] || {};
         const currentTables = tables && typeof tables === "object" ? tables : {};
         const qualificationPlaces = Array.from(new Set((Array.isArray(def.qualificationPlaces) ? def.qualificationPlaces : [])
           .map(value => Number(value)).filter(value => Number.isInteger(value) && value > 0))).sort((a, b) => a - b);
-        if (!qualificationPlaces.length) continue;
+        if (!qualificationPlaces.length) return;
         const slotStart = qualificationPlaces[0];
         const slotCount = qualificationPlaces.length;
         const leagueIds = Array.from(new Set(clubs

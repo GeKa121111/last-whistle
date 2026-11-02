@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 11);
+assert.equal(engine.version, 12);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -391,12 +391,38 @@ const malformedCeremony = engine.buildSeasonAwardCeremony({
       season: 8, appearances: 12, goals: "Infinity", assists: "NaN", averageRating: "Infinity",
       cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
     }
+  }, {
+    name: "لامين يامال", clubName: "نادي موهبة", country: "إسبانيا", position: "جناح",
+    age: "Infinity", ovr: 90, prestige: 90, leagueStrength: 80,
+    confederation: "UEFA", originConfederation: "UEFA",
+    seasonStats: { season: 8, appearances: 25, goals: 10, assists: 8, averageRating: 8.1 }
+  }, {
+    name: "موهبة بلا عمر موثق", clubName: "نادي ناشئين", country: "مصر", position: "مهاجم",
+    ovr: 80, prestige: 75, leagueStrength: 65,
+    seasonStats: { season: 8, appearances: 20, goals: 7, assists: 4, averageRating: 7.4 }
+    age: 25, ovr: 80, prestige: "Infinity", leagueStrength: "Infinity",
+    confederation: "CAF", originConfederation: "CAF",
+    seasonStats: {
+      season: 8, appearances: 12, goals: "Infinity", assists: "NaN", averageRating: "Infinity",
+      cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
+    }
+  }, {
+    name: "لامين يامال", clubName: "نادي موهبة", country: "إسبانيا", position: "جناح",
+    age: "Infinity", ovr: 90, prestige: 90, leagueStrength: 80,
+    confederation: "UEFA", originConfederation: "UEFA",
+    seasonStats: { season: 8, appearances: 25, goals: 10, assists: 8, averageRating: 8.1 }
+  }, {
+    name: "موهبة بلا عمر موثق", clubName: "نادي ناشئين", country: "مصر", position: "مهاجم",
+    ovr: 80, prestige: 75, leagueStrength: 65,
+    seasonStats: { season: 8, appearances: 20, goals: 7, assists: 4, averageRating: 7.4 }
   }]
 });
 assert.ok(malformedCeremony.ballonDor.topFive.length > 0,
   "finite appearance counts must remain eligible even when malformed performance fields are sanitized");
 assert.equal(malformedCeremony.awards.some(award => award.id === "golden-boy"), false,
   "an invalid age must not be converted into an under-21 Golden Boy candidate");
+assert.ok(!malformedCeremony.awards.some(award => award.id === "golden-boy"),
+  "a known young player with a malformed saved age must not qualify through a name-based fallback");
 assert.ok(malformedCeremony.ballonDor.topFive.every(row =>
   Number.isFinite(row.score) && Number.isFinite(row.goals) && Number.isFinite(row.assists)
     && Number.isFinite(row.averageRating)),

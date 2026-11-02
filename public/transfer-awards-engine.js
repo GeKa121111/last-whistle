@@ -28,6 +28,12 @@
     return Number.isFinite(number) && number > 0 ? clamp(number, 1, 100) : fallback;
   }
 
+  function isYouthAwardEligible(value) {
+    if (value === undefined || value === null || value === "") return false;
+    const age = Number(value);
+    return Number.isFinite(age) && age >= 16 && age <= 21;
+  }
+
   function safeAge(value, fallback = 18) {
     if (value === undefined || value === null || value === "") return fallback;
     const number = Number(value);
@@ -514,6 +520,7 @@
       if (seen.has(key)) continue;
       seen.add(key);
       const row = applyDefensiveSeasonStats(simulatePlayerSeason(realPlayer, season, 1), realPlayer, season);
+      row.youthAwardEligible = isYouthAwardEligible(realPlayer.age);
       row.trophyBonus = stableHash(season + "|" + row.club + "|trophy") % 8;
       row.ballonScore = row.averageRating * 8.8 + row.goals * 0.94 + row.assists * 0.64
         + row.ovr * 0.08 + row.trophyBonus + row.leagueStrength * 0.04
@@ -534,6 +541,7 @@
       country: String(player.country || ""),
       position: String(player.position || "غير محدد"),
       age: safeAge(player.age),
+      youthAwardEligible: isYouthAwardEligible(player.age),
       ovr: clamp(player.ovr || 50, 35, 99),
       appearances: userAppearances,
       goals: userGoals,
@@ -574,7 +582,7 @@
       { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: eligibleCandidates },
       { id: "golden-glove", title: "القفاز الذهبي (Golden Glove)", metric: "goldenGloveScore",
         pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
-      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => Number(row.age) <= 21) },
+      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.youthAwardEligible === true) },
       { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.originConfederation === "CAF") },
       { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "UEFA") },
       { id: "conmebol-player", title: "أفضل لاعب في أمريكا الجنوبية", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "CONMEBOL") }
@@ -717,7 +725,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 11,
+    version: 12,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

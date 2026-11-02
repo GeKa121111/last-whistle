@@ -27,7 +27,7 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 394
+  const minimumCacheVersion = 395
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
     ["career-state-store.js", 6],
@@ -37,7 +37,7 @@ if (require.main === module) {
     ["football-world-ai.js", 72],
     ["football-world-db.js", 9],
     ["football-world-worker.js", 61],
-    ["transfer-awards-engine.js", 16]
+    ["transfer-awards-engine.js", 17]
   ];
   requiredAssets.forEach(([asset, minimum]) => {
     const assetSource = asset === "football-world-worker.js"

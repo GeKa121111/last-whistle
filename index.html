@@ -7414,7 +7414,23 @@ function prepareContractDecisionAfterLoanReturn(viewLeague){
  }
  return true;
 }
-function advanceAfterContractDecision(viewLeague){if(state.loan&&!returnFromLoan())return false;startNewSeason(false);if(viewLeague)showPage("league");return true;}
+function advanceAfterContractDecision(viewLeague){
+ if(state.loan&&!returnFromLoan())return false;
+ const finish=started=>{
+  if(started!==true)return false;
+  if(viewLeague)showPage("league");
+  return true;
+ };
+ const transition=startNewSeason(false);
+ if(transition&&typeof transition.then==="function"){
+  return transition.then(finish).catch(error=>{
+   try{console.error("Contract season transition failed",error);}catch(logError){}
+   try{toast("تعذر تأكيد بدء الموسم الجديد؛ لم يتم تغيير صفحة الدوري.");}catch(toastError){}
+   return false;
+  });
+ }
+ return finish(transition);
+}
 
 function settleTrailingByeRounds(){
  const ours=clubNameForLeague();
@@ -7654,11 +7670,11 @@ async function startNewSeasonInternal(showStory=true){
  }
 }
 async function startNewSeasonInternalUnsafe(showStory=true){
- if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
- if(!state.seasonFinished){toast("لا يمكن بدء موسم جديد قبل إكمال الموسم الحالي واعتماد تقرير نهايته.");return;}
- if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}
+ if(state.retired){toast("المسيرة انتهت بالاعتزال.");return false;}
+ if(!state.seasonFinished){toast("لا يمكن بدء موسم جديد قبل إكمال الموسم الحالي واعتماد تقرير نهايته.");return false;}
+ if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return false;}
  const contractState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
- if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!contractState.freeAgent&&Number(contractState.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return;}
+ if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!contractState.freeAgent&&Number(contractState.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return false;}
  if(state.loan&&!returnFromLoan())return false;
  // Every career season starts in the summer window. The previous season's fixtures
  // can finish before July, so advance through the off-season instead of letting
@@ -7705,6 +7721,7 @@ async function startNewSeasonInternalUnsafe(showStory=true){
  if(showStory&&promotedFromReserve)setStory("موسمك الأول مع الكبار","بدأ الموسم في سن "+state.age+" بعد التصعيد من فريق الرديف. أثبت نفسك مع الفريق الأول.");
  log("انطلاق الموسم "+state.season+".");render();saveGame(true);
  if(academyTransition.graduated)openAcademyGraduationDecision();
+ return true;
 }
 function nextDay(){
  if(state.retired){toast("المسيرة انتهت بالاعتزال. ابدأ مسيرة جديدة للعب مرة أخرى.");return;}

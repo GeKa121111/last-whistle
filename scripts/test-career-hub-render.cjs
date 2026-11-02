@@ -57,7 +57,13 @@ const vm = require("node:vm");
     setInterval(callback, ms) { intervalCallback = callback; intervalMs = ms; return 1; },
     addEventListener(name, callback) { (listeners["window:" + name] ||= []).push(callback); }
   };
-  vm.runInNewContext(source, { window, document, console, Math, Number, String, JSON, Array }, { filename: "career-hub.js" });
+  const context = { window, document, console, Math, Number, String, JSON, Array };
+  vm.createContext(context);
+  const careerEngine = fs.readFileSync(path.join(root, "public", "data", "career-engine.js"), "utf8");
+  vm.runInContext(careerEngine, context, { filename: "career-engine.js" });
+  assert.equal(typeof window.LWCareer.uniqueMatchRows, "function",
+    "career hub must have the shared career-history deduplication helper available");
+  vm.runInContext(source, context, { filename: "career-hub.js" });
 
   assert.equal(intervalMs, 5000, "state-store mode should use only a low-frequency safety poll");
   assert.equal(queryCalls, 1, "initial render should mount wellness controls once");
@@ -88,13 +94,24 @@ const vm = require("node:vm");
   assert.equal(nodes.get("wellnessEnergyValue").textContent, "80/100");
 
   state.careerMatchHistory.push({ minutes: 120, scope: "cup", goals: 1, assists: 1 });
+  const duplicateLeagueRow = {
+    id: "league|segment-1|season-1|premier-league|test-fc|2",
+    scope: "league", competition: "Premier League", season: 1, segmentId: "segment-1",
+    club: "Test FC", opponent: "Opponent FC", day: 10, calendarDay: 10, matchday: 2,
+    minutes: 90, goals: 1, assists: 0
+  };
+  state.careerMatchHistory.push(duplicateLeagueRow, { ...duplicateLeagueRow });
   state.apps = 2; state.totalCareerAppearances = 2; state.goals = 2; state.assists = 1;
   revision++;
   stateChangeListener({ revision });
   await Promise.resolve();
   assert.equal(queryCalls, 4, "new career history must invalidate the cached history signature");
-  assert.equal(nodes.get("statsGoalsPer90").textContent, "0.86");
-  assert.equal(nodes.get("statsAssistsPer90").textContent, "0.43");
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "0.90",
+    "duplicate legacy match rows must not inflate goals per 90 minutes");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "0.30",
+    "duplicate legacy match rows must not dilute assists per 90 minutes");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "100",
+    "minutes per appearance must use the deduplicated career match count");
 
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");

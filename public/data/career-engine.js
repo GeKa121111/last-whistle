@@ -200,7 +200,6 @@
     const seenFallback = new Set();
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
-    const fallbackContextFields = ["competition", "season", "segmentId", "club"];
     const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
     const identityValue = (row, field) => {
       const value = field === "competition"
@@ -253,7 +252,10 @@
       // Without a saved match ID, identical score lines and player stats are not
       // enough to prove that two fixtures are the same (e.g. home and away legs).
       // Require both a stable competition/season/club context and a temporal key.
-      const hasFallbackContext = fallbackContextFields.some(field => identityValue(row, field) !== "");
+      const hasCompetitionContext = identityValue(row, "competition") !== "";
+      const hasClubContext = identityValue(row, "club") !== "";
+      const hasSeasonContext = identityValue(row, "season") !== "" || identityValue(row, "segmentId") !== "";
+      const hasFallbackContext = hasCompetitionContext && hasClubContext && hasSeasonContext;
       const hasFallbackTime = fallbackTemporalFields.some(field => identityValue(row, field) !== "");
       if (!hasFallbackContext || !hasFallbackTime) return true;
       const fallback = [

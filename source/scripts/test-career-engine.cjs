@@ -1634,6 +1634,7 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "Ø
   };
   const sandbox = {
     state,
+    withCareerStateTransaction: (_label, operation) => operation(),
     archiveLeagueSegment: () => {},
     clubPowerFor: () => 52,
     clubTierForPower: () => 1,

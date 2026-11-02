@@ -38,7 +38,8 @@ const extracted = [
   extractFunction(html, "cloneSeasonTransitionState"),
   extractFunction(html, "restoreSeasonTransitionState"),
   extractFunction(html, "applyMatchResultUnsafe"),
-  extractFunction(html, "applyMatchResult")
+  extractFunction(html, "applyMatchResult"),
+  extractFunction(html, "playerCurrentSeasonStats")
 ];
 assert.ok(extracted[2].includes("recordedMatchIds.push(id)"),
   "the real settlement implementation must retain its idempotency guard");
@@ -92,17 +93,18 @@ sandbox = {
   SKILL_AR: {}
 };
 
-const harness = extracted.join(String.fromCharCode(10)) + String.fromCharCode(10) + "globalThis.settleMatch = applyMatchResult;";
+const harness = extracted.join(String.fromCharCode(10)) + String.fromCharCode(10)
+  + "globalThis.settleMatch = applyMatchResult; globalThis.playerCurrentSeasonStats = playerCurrentSeasonStats;";
 vm.createContext(sandbox);
 vm.runInContext(harness, sandbox, { filename: "match-result-transaction-harness.js" });
 
 const result = {
   player: {
     minutes: 90, goals: 1, assists: 0, rating: 8, shots: 3, shotsOnTarget: 2,
-    chances: 2, keyPasses: 1, tackles: 1, tacklesWon: 1, interceptions: 0,
-    saves: 0, cleanSheet: false, yellowCards: 0, redCards: 0, injuryDays: 0,
-    penaltiesSaved: 0, clearances: 0, ballRecoveries: 0, passAttempts: 20,
-    passesCompleted: 17, passingAccuracy: 85
+    chances: 2, keyPasses: 2, tackles: 5, tacklesWon: 4, interceptions: 3,
+    saves: 6, cleanSheet: false, yellowCards: 1, redCards: 0, injuryDays: 0,
+    penaltiesSaved: 1, clearances: 7, ballRecoveries: 8, passAttempts: 31,
+    passesCompleted: 27, passingAccuracy: 87, fouls: 2
   },
   score: { for: 2, against: 1 }, events: [], extraTime: false, shootout: null,
   outcome: "فوز", tactic: "balanced", home: true, opponentName: "خصم الاختبار"
@@ -134,6 +136,36 @@ assert.equal(sandbox.state.seasonPoints, 3);
 assert.equal(sandbox.state.careerMatchHistory.length, 1);
 assert.equal(sandbox.state.seasonLog.length, 1);
 assert.equal(sandbox.state.calendarEvents.length, 1);
+assert.deepEqual({
+  tackles: committed.record.stats.tackles,
+  tacklesWon: committed.record.stats.tacklesWon,
+  interceptions: committed.record.stats.interceptions,
+  saves: committed.record.stats.saves,
+  penaltiesSaved: committed.record.stats.penaltiesSaved,
+  clearances: committed.record.stats.clearances,
+  ballRecoveries: committed.record.stats.ballRecoveries,
+  keyPasses: committed.record.stats.keyPasses,
+  passAttempts: committed.record.stats.passAttempts,
+  passesCompleted: committed.record.stats.passesCompleted,
+  passingAccuracy: committed.record.stats.passingAccuracy,
+  fouls: committed.record.stats.fouls
+}, {
+  tackles: 5, tacklesWon: 4, interceptions: 3, saves: 6, penaltiesSaved: 1,
+  clearances: 7, ballRecoveries: 8, keyPasses: 2, passAttempts: 31,
+  passesCompleted: 27, passingAccuracy: 87, fouls: 2
+}, "match settlement must persist the complete player-stat ledger needed by season awards");
+const seasonStats = sandbox.playerCurrentSeasonStats([committed.record]);
+assert.deepEqual({
+  appearances: seasonStats.appearances, goals: seasonStats.goals, assists: seasonStats.assists,
+  averageRating: seasonStats.averageRating, saves: seasonStats.saves,
+  penaltiesSaved: seasonStats.penaltiesSaved, tacklesWon: seasonStats.tacklesWon,
+  interceptions: seasonStats.interceptions, clearances: seasonStats.clearances,
+  ballRecoveries: seasonStats.ballRecoveries, keyPasses: seasonStats.keyPasses
+}, {
+  appearances: 1, goals: 1, assists: 0, averageRating: 8, saves: 6,
+  penaltiesSaved: 1, tacklesWon: 4, interceptions: 3, clearances: 7,
+  ballRecoveries: 8, keyPasses: 2
+}, "season award aggregation must recover defensive and goalkeeper actions from persisted match history");
 
 const afterCommit = JSON.stringify(sandbox.state);
 assert.equal(sandbox.settleMatch(result, meta), false, "the same match id must remain idempotent");

@@ -701,6 +701,7 @@ function runBrowserLoanReturnCase(loanOverrides, stateOverrides = {}) {
   const archiveReasons = [], messages = [];
   const sandbox = {
     state: current,
+    withCareerStateTransaction: (_label, operation) => operation(),
     archiveLeagueSegment: reason => archiveReasons.push(reason),
     normalizeSavedBooleanFlag: value => value === true || value === 1
       || String(value).trim().toLowerCase() === "true" || String(value).trim() === "1",
@@ -1633,6 +1634,7 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "Ø
   };
   const sandbox = {
     state,
+    withCareerStateTransaction: (_label, operation) => operation(),
     archiveLeagueSegment: () => {},
     clubPowerFor: () => 52,
     clubTierForPower: () => 1,

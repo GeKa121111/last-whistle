@@ -175,6 +175,6 @@ function makeHarness(options = {}) {
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 413);
+require("./assert-static-cache-version.cjs")(sw, 414);
 
 console.log("PASS: loan and permanent club transitions roll back partial archives, destination setup and rejected saves without losing the live career object.");

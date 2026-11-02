@@ -78,7 +78,7 @@ async function runStartup({ loaded, hasIndexedSave, careerStarted = true }) {
       state.pageRendered = true;
     },
     $(selector) {
-      assert.equal(selector, "#startScreen");
+      assert.equal(selector, "startScreen");
       return { classList: { add() { calls.push("show-start-screen"); } } };
     },
     saveGame(silent) {

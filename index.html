@@ -7803,7 +7803,7 @@ async function init(){
  state.schemaVersion=10;
  const initialPage=state.currentPage||"home";state.currentPage=initialPage;
  if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:loaded?"load":"new-career"});
- bind();showPage(initialPage,false);if(!state.careerStarted)$("#startScreen").classList.add("show");
+ bind();showPage(initialPage,false);if(!state.careerStarted)$("startScreen").classList.add("show");
  // Route the first save through the same queue/fallback pipeline as every later save.
  // This also persists legacy IndexedDB records after in-memory migrations.
  saveGame(true);

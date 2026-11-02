@@ -6571,18 +6571,26 @@ function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="
  const clubPowerForMatch=Number(dynamicOwnPower)||55;
  const normalizedPlayerPosition=typeof window.LWMatch.normalizePosition==="function"?window.LWMatch.normalizePosition(state.pos):String(state.pos||"");
  const playerIsGoalkeeper=normalizedPlayerPosition==="حارس مرمى";
- // Goalkeeper skill is applied by the match engine only while the keeper is on the pitch.
- // Do not let a benched goalkeeper's overall rating inflate the team's strength for the whole match.
- const calculatedTeamPower=(playerIsGoalkeeper?clubPowerForMatch:overall())
-  +Number(state.trust||0)*.08+Number(state.morale||0)*.04
-  +(playerIsGoalkeeper?0:(clubPowerForMatch-55)*.16);
- const teamPower=clamp(Number(teamPowerOverride)||calculatedTeamPower,30,94);
- const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
- const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
- const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  const key=disciplineKey(scope,state.leagueCountry,competition);
  const suspended=(Number(state.suspensions?.[key])||0)>0;
  const available=!!playerAvailable&&state.injuryDays<=0&&!suspended&&state.energy>0&&careerMatchPlayerEligible(state,scope);
+ const normalizedRole=String(state.role||"بديل").trim().toLocaleLowerCase();
+ const expectedMinutes=normalizedRole==="بديل أساسي"?66
+  :normalizedRole.includes("نجم الفريق")||normalizedRole.includes("star player")?88
+   :normalizedRole==="أساسي"||normalizedRole.includes("لاعب أساسي")||normalizedRole.includes("regular starter")?83
+    :normalizedRole.includes("تناوب")||normalizedRole.includes("rotation")||normalizedRole.includes("squad player")?43
+     :normalizedRole.includes("ناشئ")||normalizedRole.includes("صاعد")||normalizedRole.includes("prospect")||normalizedRole.includes("youngster")?20:28;
+ const expectedParticipation=available?expectedMinutes/90:0;
+ const baselineTeamPower=clubPowerForMatch+Number(state.trust||0)*.08+Number(state.morale||0)*.04;
+ // A player's contribution is weighted by expected minutes; unavailable and bench players must not carry a full-match rating.
+ // Goalkeepers are handled separately by the match engine only during their actual on-pitch minutes.
+ const playerPowerImpact=playerIsGoalkeeper?0:overall()+(clubPowerForMatch-55)*.16-clubPowerForMatch;
+ const calculatedTeamPower=baselineTeamPower+playerPowerImpact*expectedParticipation;
+ const teamPower=clamp(Number(teamPowerOverride)||calculatedTeamPower,30,94);
+ const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
+ const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
+ const effectiveOverallForAI=playerIsGoalkeeper?clubPowerForMatch:55+(overall()-55)*expectedParticipation;
+ const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:effectiveOverallForAI,ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};
  return window.LWMatch.simulateMatch({
   seed:window.LWMatch.hash(`${matchId}|${state.energy}|${state.fatigue}|${state.trust}|${state.morale}`),
   teamName:teamName||club().name,opponentName:opponent||"منافس",competition,mode,tactic,home,knockout,aggregateOffset,

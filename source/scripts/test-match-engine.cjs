@@ -102,6 +102,25 @@ adapterSandbox.state.overall = 25;
 const lowRatedOutfieldOptions = adapterSandbox.runCareerMatch(adapterMatchMeta);
 assert.ok(highRatedOutfieldOptions.teamPower > lowRatedOutfieldOptions.teamPower,
   "outfield-player overall must continue to influence team strength");
+const substitutePowerDelta=highRatedOutfieldOptions.teamPower-lowRatedOutfieldOptions.teamPower;
+adapterSandbox.state.role="أساسي";
+adapterSandbox.state.overall=95;
+const highRatedStarterOptions=adapterSandbox.runCareerMatch(adapterMatchMeta);
+adapterSandbox.state.overall=25;
+const lowRatedStarterOptions=adapterSandbox.runCareerMatch(adapterMatchMeta);
+const starterPowerDelta=highRatedStarterOptions.teamPower-lowRatedStarterOptions.teamPower;
+assert.ok(starterPowerDelta>substitutePowerDelta,
+  "a starter's overall must influence expected team strength more than a substitute's shorter expected minutes");
+adapterSandbox.state.injuryDays=5;
+adapterSandbox.state.overall=95;
+const highRatedUnavailableOptions=adapterSandbox.runCareerMatch(adapterMatchMeta);
+adapterSandbox.state.overall=25;
+const lowRatedUnavailableOptions=adapterSandbox.runCareerMatch(adapterMatchMeta);
+assert.equal(highRatedUnavailableOptions.playerAvailable,false,
+  "an injured player must be unavailable to the match engine");
+assert.equal(highRatedUnavailableOptions.teamPower,lowRatedUnavailableOptions.teamPower,
+  "an injured outfield player's overall must not improve team strength while unavailable");
+adapterSandbox.state.injuryDays=0;
 assert.equal(adapterSandbox.runCareerMatch({ ...adapterMatchMeta, teamPowerOverride: 77 }).teamPower, 77,
   "explicit team-power overrides must remain authoritative");
 

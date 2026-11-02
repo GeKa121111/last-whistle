@@ -6568,7 +6568,15 @@ function careerMatchPlayerEligible(state,scope="league"){
 function simulateCareerMatch({opponent,opponentTeam,scope="league",competition="",tactic="balanced",matchId,home=false,mode="manual",knockout=false,aggregateOffset=0,playerAvailable=true,teamName="",teamPowerOverride=0}){
  if(!window.LWMatch){toast("محرك المباراة غير متاح.");return null;}
  const dynamicOwnPower=window.LWWorldAI?.getClubPower(state,club().name,state.leagueCountry,window.LWWorldDB)||Number(state.clubPower)||52;
- const teamPower=clamp(Number(teamPowerOverride)||overall()+Number(state.trust||0)*.08+Number(state.morale||0)*.04+((Number(dynamicOwnPower)||55)-55)*.16,30,94);
+ const clubPowerForMatch=Number(dynamicOwnPower)||55;
+ const normalizedPlayerPosition=typeof window.LWMatch.normalizePosition==="function"?window.LWMatch.normalizePosition(state.pos):String(state.pos||"");
+ const playerIsGoalkeeper=normalizedPlayerPosition==="حارس مرمى";
+ // Goalkeeper skill is applied by the match engine only while the keeper is on the pitch.
+ // Do not let a benched goalkeeper's overall rating inflate the team's strength for the whole match.
+ const calculatedTeamPower=(playerIsGoalkeeper?clubPowerForMatch:overall())
+  +Number(state.trust||0)*.08+Number(state.morale||0)*.04
+  +(playerIsGoalkeeper?0:(clubPowerForMatch-55)*.16);
+ const teamPower=clamp(Number(teamPowerOverride)||calculatedTeamPower,30,94);
  const opponentPower=clamp(Number(window.LWWorldAI?.getClubPower(state,opponent,state.leagueCountry,window.LWWorldDB))||Number(opponentTeam?.power)||55,30,94);
  const opponentIQ=clamp(opponentPower*.82+Number(opponentTeam?.prestige||opponentPower)*.18,25,98);
  const opponentPlan=window.LWCareerAI?.chooseOpponentTactic({state,overall:overall(),ourTactic:tactic,teamPower,opponentPower,managerIQ:opponentIQ,opponentPrestige:Number(opponentTeam?.prestige||opponentPower)})||{tactic:"balanced",label:"متوازن",iq:opponentIQ};

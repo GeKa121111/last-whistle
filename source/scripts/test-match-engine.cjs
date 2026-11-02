@@ -30,6 +30,79 @@ vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
+
+function extractNamedFunctionForAdapterTest(source, name) {
+  const marker = "function " + name + "(";
+  const start = source.indexOf(marker);
+  assert.ok(start >= 0, "missing adapter function: " + name);
+  const brace = source.indexOf("{", start);
+  let depth = 0, quote = null, escaped = false, lineComment = false, blockComment = false;
+  for (let i = brace; i < source.length; i++) {
+    const c = source[i], n = source[i + 1];
+    if (lineComment) { if (c.charCodeAt(0) === 10) lineComment = false; continue; }
+    if (blockComment) { if (c === "*" && n === "/") { blockComment = false; i++; } continue; }
+    if (quote) {
+      if (escaped) { escaped = false; continue; }
+      if (c.charCodeAt(0) === 92) { escaped = true; continue; }
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "/" && n === "/") { lineComment = true; i++; continue; }
+    if (c === "/" && n === "*") { blockComment = true; i++; continue; }
+    if (c === "'" || c === '"' || c === "`") { quote = c; continue; }
+    if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return source.slice(start, i + 1);
+  }
+  throw new Error("unterminated adapter function: " + name);
+}
+const careerMatchAdapter = extractNamedFunctionForAdapterTest(html, "simulateCareerMatch");
+const adapterSandbox = {
+  window: {
+    LWMatch: {
+      hash: () => 12345,
+      normalizePosition: position => engine.normalizePosition(position),
+      simulateMatch: options => options
+    },
+    LWWorldAI: { getClubPower: () => 60 },
+    LWCareerAI: { chooseOpponentTactic: () => ({ tactic: "balanced", iq: 60 }) }
+  },
+  state: {
+    pos: "GK", role: "بديل", name: "اختبار الحارس", goalkeeping: 95, overall: 95,
+    shooting: 25, dribbling: 40, passing: 50, vision: 50, composure: 70,
+    fitness: 75, speed: 50, physical: 50, trust: 60, morale: 55,
+    energy: 90, fatigue: 5, injuryDays: 0, suspensions: {}, leagueCountry: "مصر"
+  },
+  clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
+  overall: () => adapterSandbox.state.overall,
+  club: () => ({ name: "نادي الاختبار" }),
+  disciplineKey: () => "league|مصر|الدوري",
+  careerMatchPlayerEligible: () => true,
+  toast: () => {}
+};
+vm.createContext(adapterSandbox);
+vm.runInContext(careerMatchAdapter + "\nglobalThis.runCareerMatch = simulateCareerMatch;", adapterSandbox,
+  { filename: "career-match-adapter-regression.js" });
+const adapterMatchMeta = { opponent: "المنافس", matchId: "goalkeeper-bench-adapter", scope: "league", competition: "الدوري" };
+const highRatedGoalkeeperOptions = adapterSandbox.runCareerMatch(adapterMatchMeta);
+adapterSandbox.state.overall = 25;
+adapterSandbox.state.goalkeeping = 25;
+const lowRatedGoalkeeperOptions = adapterSandbox.runCareerMatch(adapterMatchMeta);
+assert.equal(highRatedGoalkeeperOptions.teamPower, lowRatedGoalkeeperOptions.teamPower,
+  "a goalkeeper's personal overall must not strengthen the team while the goalkeeper is benched");
+assert.equal(highRatedGoalkeeperOptions.player.goalkeeping, 95);
+assert.equal(lowRatedGoalkeeperOptions.player.goalkeeping, 25);
+assert.equal(highRatedGoalkeeperOptions.teamGoalkeeping, 55,
+  "the replacement keeper must retain the neutral fallback before the user goalkeeper enters");
+adapterSandbox.state.pos = "CM";
+adapterSandbox.state.overall = 95;
+const highRatedOutfieldOptions = adapterSandbox.runCareerMatch(adapterMatchMeta);
+adapterSandbox.state.overall = 25;
+const lowRatedOutfieldOptions = adapterSandbox.runCareerMatch(adapterMatchMeta);
+assert.ok(highRatedOutfieldOptions.teamPower > lowRatedOutfieldOptions.teamPower,
+  "outfield-player overall must continue to influence team strength");
+assert.equal(adapterSandbox.runCareerMatch({ ...adapterMatchMeta, teamPowerOverride: 77 }).teamPower, 77,
+  "explicit team-power overrides must remain authoritative");
+
 assert.equal(engine.normalizePosition("CM"), "وسط", "CM must normalize to central midfield");
 assert.equal(engine.normalizePosition("CDM"), "وسط دفاعي", "CDM must normalize to defensive midfield");
 assert.equal(browserEngine.normalizePosition("CM"), "وسط", "the embedded match engine must normalize CM aliases");

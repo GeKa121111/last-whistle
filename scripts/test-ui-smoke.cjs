@@ -10,7 +10,7 @@ const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
 
 const careerMatchStart = html.indexOf("function simulateCareerMatch(");
-const careerMatchEnd = html.indexOf("\\nfunction matchCleanSheetContractBonus", careerMatchStart);
+const careerMatchEnd = html.indexOf("\nfunction matchCleanSheetContractBonus", careerMatchStart);
 const careerMatchSource = careerMatchStart >= 0 && careerMatchEnd > careerMatchStart
   ? html.slice(careerMatchStart, careerMatchEnd) : "";
 if (!careerMatchSource.includes("getClubMatchProfile")

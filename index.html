@@ -7794,13 +7794,19 @@ function bind(){
 }
 async function init(){
  try{await window.LWStateStore?.ready();}catch(err){console.warn("IndexedDB save store unavailable; legacy storage will be used",err);}
- const hasIndexedSave=!!(window.LWStateStore&&window.LWStateStore.getStartupSave&&window.LWStateStore.getStartupSave());
  try{await window.LWCatalog?.load();}catch(err){console.warn("Global football reference data unavailable",err);}
  const loaded=loadGame();if(!loaded){state.league=createLeague();log("وصلت مركز شباب النور لأول مرة. قدامك طريق طويل.");}
- if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:loaded?"load":"new-career"});
- if(window.LWStateStore&&typeof window.LWStateStore.save==="function"&&(!loaded||!hasIndexedSave))window.LWStateStore.save(state,{slotId:"career:default"}).catch(err=>console.warn("Initial IndexedDB migration failed",err));
+ // Normalize the career and finish rebuilding league state before any save snapshot
+ // or state-bus subscriber can observe the initial session.
  if(window.LWCareer)window.LWCareer.ensureState(state);
- ensureLeague();bind();showPage(state.currentPage||"home",false);if(!state.careerStarted)$("startScreen").classList.add("show");
+ ensureLeague();
+ state.schemaVersion=10;
+ const initialPage=state.currentPage||"home";state.currentPage=initialPage;
+ if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:loaded?"load":"new-career"});
+ bind();showPage(initialPage,false);if(!state.careerStarted)$("#startScreen").classList.add("show");
+ // Route the first save through the same queue/fallback pipeline as every later save.
+ // This also persists legacy IndexedDB records after in-memory migrations.
+ saveGame(true);
 }
 init();
 window.LWStoryRuntime = {

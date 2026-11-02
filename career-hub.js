@@ -102,7 +102,9 @@
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
     document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});
-    var careerRows=(Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[]).filter(function(row){return row&&Number(row.minutes)>0&&row.scope!=="international";});
+    var historyRows=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
+    var uniqueHistoryRows=window.LWCareer&&typeof window.LWCareer.uniqueMatchRows==="function"?window.LWCareer.uniqueMatchRows(historyRows):historyRows;
+    var careerRows=uniqueHistoryRows.filter(function(row){return row&&Number(row.minutes)>0&&row.scope!=="international";});
     var careerMinutes=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.minutes)||0);},0);
     var loggedGoals=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.goals)||0);},0);
     var loggedAssists=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.assists)||0);},0);

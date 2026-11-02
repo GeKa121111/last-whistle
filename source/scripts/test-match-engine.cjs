@@ -764,6 +764,7 @@ const roleAliasPairs = [
   ["تناوب", "squad player"], ["تناوب", "squadplayer"], ["تناوب", "rotation"],
   ["بديل أساسي", "core substitute"], ["بديل أساسي", "بديل   اساسي"],
   ["ناشئ", "prospect"], ["ناشئ", "youngster"], ["ناشئ", "ناشي"], ["ناشئ", "صاعد"],
+  ["ناشئ", "فريق الرديف / لاعب تحت التقييم"], ["ناشئ", "reserve player"], ["ناشئ", "academy reserve"],
   ["بديل", "impact sub"], ["بديل", "impactsub"], ["بديل", "fringe player"], ["بديل", "fringeplayer"]
 ];
 for (const [canonicalRole, aliasRole] of roleAliasPairs) {

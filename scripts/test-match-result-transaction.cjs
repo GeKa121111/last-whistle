@@ -34,21 +34,23 @@ function extractFunction(source, name) {
   throw new Error("unterminated function: " + name);
 }
 
+const applyMatchResultUnsafeSource = extractFunction(html, "applyMatchResultUnsafe");
+const applyMatchResultSource = extractFunction(html, "applyMatchResult");
 const extracted = [
   extractFunction(html, "cloneSeasonTransitionState"),
   extractFunction(html, "restoreSeasonTransitionState"),
   extractFunction(html, "ensureLeagueSegmentId"),
-  extractFunction(html, "applyMatchResultUnsafe"),
-  extractFunction(html, "applyMatchResult"),
+  applyMatchResultUnsafeSource,
+  applyMatchResultSource,
   extractFunction(html, "allCareerMatchRowsForHistory"),
   extractFunction(html, "currentSeasonMatchRows"),
   extractFunction(html, "playerCurrentSeasonStats")
 ];
-assert.ok(extracted[2].includes("recordedMatchIds.push(id)"),
+assert.ok(applyMatchResultUnsafeSource.includes("recordedMatchIds.push(id)"),
   "the real settlement implementation must retain its idempotency guard");
-assert.ok(extracted[3].includes("cloneSeasonTransitionState(state)"),
+assert.ok(applyMatchResultSource.includes("cloneSeasonTransitionState(state)"),
   "the public settlement path must snapshot the career before applying a result");
-assert.ok(extracted[3].includes("restoreSeasonTransitionState(snapshot)"),
+assert.ok(applyMatchResultSource.includes("restoreSeasonTransitionState(snapshot)"),
   "the public settlement path must roll back a partial settlement");
 
 const initialState = {

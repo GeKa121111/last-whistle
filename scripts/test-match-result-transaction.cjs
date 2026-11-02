@@ -212,7 +212,7 @@ const legacyReplayStats = () => JSON.stringify({
   seasonPoints: sandbox.state.seasonPoints, money: sandbox.state.money,
   careerRows: sandbox.state.careerMatchHistory.length, seasonRows: sandbox.state.seasonLog.length
 });
-sandbox.state.recordedMatchIds = [];
+delete sandbox.state.recordedMatchIds;
 const beforeLegacyHistoryReplay = legacyReplayStats();
 assert.equal(sandbox.settleMatch(result, meta), false,
   "a match already present in legacy career history must not be settled again when recordedMatchIds is missing");
@@ -230,6 +230,17 @@ assert.equal(sandbox.settleMatch(result, meta), false,
 assert.deepEqual(Array.from(sandbox.state.recordedMatchIds), [meta.id]);
 assert.equal(legacyReplayStats(), beforeSeasonLogReplay,
   "seasonLog fallback detection must not change any match statistics");
+
+sandbox.state = JSON.parse(JSON.stringify(initialState));
+delete sandbox.state.recordedMatchIds;
+const firstLegacySaveMeta = { ...meta, id: "legacy-save-first-match" };
+const firstLegacySaveSettlement = sandbox.settleMatch(result, firstLegacySaveMeta);
+assert.ok(firstLegacySaveSettlement && firstLegacySaveSettlement.record,
+  "a legacy save without recordedMatchIds must still accept its first valid match");
+assert.deepEqual(Array.from(sandbox.state.recordedMatchIds), [firstLegacySaveMeta.id],
+  "the first legacy-save settlement must initialize and populate the idempotency ledger");
+assert.equal(sandbox.state.apps, 1,
+  "the first match in a legacy save must not be rejected solely because its ledger was absent");
 
 sandbox.state.seasonLog = [
   { id: "legacy-only-3", season: 3, day: 4, minutes: 90, goals: 1, assists: 0, rating: 8, club: "نادي الاختبار", opponent: "خصم قديم" },

@@ -6762,7 +6762,7 @@ function matchOutcomeForCareerRecord(result,meta={}){
 }
 function applyMatchResultUnsafe(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
- const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
+ const id=String(meta.id||"");if(!id)return false;if(!Array.isArray(state.recordedMatchIds))state.recordedMatchIds=[];
  const incomingScope=meta.scope||"league";
  if(!careerMatchPlayerEligible(state,incomingScope)&&Number(result.player?.minutes)>0){
   console.error("Rejected club appearance for an unsigned free agent",result);

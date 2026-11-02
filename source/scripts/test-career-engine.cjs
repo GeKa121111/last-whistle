@@ -23,6 +23,8 @@ assert.ok(centralMidfieldStats.passing >= 56 && centralMidfieldStats.passing <= 
   "central midfielders must receive the dedicated passing range");
 const legacyCentralMidfielder = { pos: "CM", goalkeeping: 90, age: 20 };
 career.ensureState(legacyCentralMidfielder);
+assert.deepEqual(legacyCentralMidfielder.recordedMatchIds, [],
+  "legacy career normalization must initialize the match id ledger before the next fixture");
 assert.equal(legacyCentralMidfielder.pos, "وسط", "legacy CM saves must be normalized without dropping the player");
 assert.equal(legacyCentralMidfielder.goalkeeping, 0, "legacy outfield CM saves must not retain goalkeeper skill");
 const loanRolePlayer = { pos: "CM", age: 22, shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70,

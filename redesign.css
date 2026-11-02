@@ -365,36 +365,16 @@ body.lw-rebuild .league-table-hint{display:none;margin:8px 0 9px;padding:8px 10p
 /* CAREER HUB — dark theme consolidation.
    The shared Career Hub stylesheet originally shipped light cards inside the dark app.
    Keep the feature layouts; normalize only their surfaces, text, and compact labels. */
-body.lw-rebuild .hub-launch-panel{
-  border-color:#2b3a2e;
-  background-color:#101712;
-  background-image:radial-gradient(ellipse at 92% 0%,#1b3020 0,transparent 46%),linear-gradient(145deg,#101712,#0c120e);
-  box-shadow:0 12px 30px rgba(0,0,0,.24);
-}
-body.lw-rebuild .hub-launch-header h2,
+
 body.lw-rebuild .hub-readiness-main h2{color:#eef5e8}
 body.lw-rebuild .hub-overline{color:#9eaf91}
-body.lw-rebuild .hub-launch-header p,
 body.lw-rebuild .hub-readiness-main p{color:#a4b1a0}
-body.lw-rebuild .hub-tile{
-  border-color:#2b3a2e;
-  background:#121d16;
-  color:#e7f0e2;
-}
-body.lw-rebuild .hub-tile:hover,
-body.lw-rebuild .hub-tile.active{
-  border-color:#799d48;
-  background:#1a2919;
-  box-shadow:inset 0 0 0 1px rgba(216,255,98,.12),0 8px 18px rgba(0,0,0,.16);
-}
-body.lw-rebuild .hub-tile-icon{
-  border-color:#344535;
-  background:#1b291d;
-}
-body.lw-rebuild .hub-tile-title{color:#e7f0e2}
-body.lw-rebuild .hub-tile-desc{color:#a2b09d;font-size:10px}
-body.lw-rebuild .hub-tile-arrow{color:#a8bc91}
-body.lw-rebuild .hub-readiness-hint,
+
+
+
+
+
+
 body.lw-rebuild .hub-readiness-note{
   border-color:#3a4c2f;
   background:#172216;
@@ -487,10 +467,10 @@ body.lw-rebuild .transferShortlistRow small{color:#a4b19f}
 body.lw-rebuild .transferShortlistRow{border-color:#2a392d}
 body.lw-rebuild .transferShortlistNumbers{color:#d9ff62}
 @media(max-width:760px){
-  body.lw-rebuild .hub-launch-panel{padding:14px}
-  body.lw-rebuild .hub-launch-header p{font-size:10px}
+  
+  
   body.lw-rebuild .hub-page-heading p{font-size:11px}
-  body.lw-rebuild .hub-tile-desc{font-size:10px}
+  
   body.lw-rebuild .hub-recovery-action p,
   body.lw-rebuild .hub-training-card .trainingNote,
   body.lw-rebuild .hub-training-rules p{font-size:10px}

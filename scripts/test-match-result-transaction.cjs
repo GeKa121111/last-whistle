@@ -44,6 +44,7 @@ const extracted = [
   applyMatchResultSource,
   extractFunction(html, "allCareerMatchRowsForHistory"),
   extractFunction(html, "currentSeasonMatchRows"),
+  extractFunction(html, "archiveLeagueSegment"),
   extractFunction(html, "playerCurrentSeasonStats")
 ];
 assert.ok(applyMatchResultUnsafeSource.includes("recordedMatchIds.push(id)"),
@@ -107,11 +108,13 @@ sandbox = {
     sandbox.state.calendarEvents.push("match-calendar-event");
   },
   club: () => ({ name: "نادي الاختبار" }),
+  clubNameForLeague: () => "نادي الاختبار",
+  structuredCloneSafe: value => JSON.parse(JSON.stringify(value)),
   SKILL_AR: {}
 };
 
 const harness = extracted.join(String.fromCharCode(10)) + String.fromCharCode(10)
-  + "globalThis.settleMatch = applyMatchResult; globalThis.playerCurrentSeasonStats = playerCurrentSeasonStats; globalThis.currentSeasonMatchRows = currentSeasonMatchRows;";
+  + "globalThis.settleMatch = applyMatchResult; globalThis.playerCurrentSeasonStats = playerCurrentSeasonStats; globalThis.currentSeasonMatchRows = currentSeasonMatchRows; globalThis.archiveLeagueSegment = archiveLeagueSegment;";
 vm.createContext(sandbox);
 vm.runInContext(harness, sandbox, { filename: "match-result-transaction-harness.js" });
 
@@ -271,4 +274,39 @@ assert.equal(sandbox.state.leagueArchiveSequence, 2,
 assert.equal(sandbox.state.careerMatchHistory[0].segmentId, secondSegmentId);
 assert.equal(sandbox.state.careerMatchHistory[1].segmentId, firstSegmentId);
 
-console.log("PASS: match settlement is atomic, season stats preserve legacy history, and league segments remain distinct after a return transfer.");
+const archiveStatsState = JSON.parse(JSON.stringify(initialState));
+archiveStatsState.season = 3;
+archiveStatsState.day = 120;
+archiveStatsState.leagueSegmentId = "archive-stats-segment";
+archiveStatsState.leagueArchiveSequence = 0;
+archiveStatsState.leagueArchives = [];
+archiveStatsState.league = [{ name: "نادي الاختبار", pts: 40, gf: 30, ga: 10 }];
+archiveStatsState.leagueCountry = "مصر";
+archiveStatsState.leagueCompetition = "الدوري الممتاز";
+archiveStatsState.leagueSource = "بيانات اختبار";
+archiveStatsState.leagueDivision = 1;
+archiveStatsState.leagueApps = 18;
+archiveStatsState.fixtureSchedule = [];
+archiveStatsState.leagueRoundHistory = [];
+archiveStatsState.seasonLog = [];
+archiveStatsState.careerMatchHistory = [
+  { id: "archive-played-1", segmentId: "archive-stats-segment", season: 3, scope: "league", club: "نادي الاختبار", country: "مصر", competition: "الدوري الممتاز", minutes: 90, goals: 1, assists: 0, rating: 8 },
+  { id: "archive-bench-only", segmentId: "archive-stats-segment", season: 3, scope: "league", club: "نادي الاختبار", country: "مصر", competition: "الدوري الممتاز", minutes: 0, goals: 2, assists: 1, rating: 9 },
+  { id: "archive-played-2", segmentId: "archive-stats-segment", season: 3, scope: "league", club: "نادي الاختبار", country: "مصر", competition: "الدوري الممتاز", minutes: 45, goals: 0, assists: 1, rating: 6 },
+  { id: "archive-malformed-no-play", segmentId: "archive-stats-segment", season: 3, scope: "league", club: "نادي الاختبار", country: "مصر", competition: "الدوري الممتاز", minutes: Infinity, goals: Infinity, assists: Infinity, rating: Infinity }
+];
+sandbox.state = archiveStatsState;
+const archivedSegment = sandbox.archiveLeagueSegment("transfer");
+assert.equal(archivedSegment.matches.length, 4,
+  "the archive must retain every fixture row, including non-appearance rows, for audit history");
+assert.deepEqual({
+  played: archivedSegment.stats.played,
+  minutes: archivedSegment.stats.minutes,
+  goals: archivedSegment.stats.goals,
+  assists: archivedSegment.stats.assists,
+  averageRating: archivedSegment.stats.averageRating
+}, {
+  played: 2, minutes: 135, goals: 1, assists: 1, averageRating: 7
+}, "archived player participation stats must count only valid appearances and average only played-match ratings");
+
+console.log("PASS: match settlement is atomic, segment IDs stay distinct, and archived participation stats exclude non-appearances.");

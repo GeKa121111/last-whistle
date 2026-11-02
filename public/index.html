@@ -4662,8 +4662,11 @@ function archiveLeagueSegment(reason="season-end",rankOverride=0){
    &&(rowClub?rowClub===currentClub:sameSegment)&&(rowCountry?rowCountry===currentCountry:sameSegment)
    &&(rowCompetition?rowCompetition===currentCompetition:sameSegment);
  });
- const rated=matches.filter(row=>Number(row.minutes)>0);
- const archive={archiveId,segmentId,reason,season:Number(state.season)||1,club:club().name,country:state.leagueCountry||"",competition:state.leagueCompetition||"",source:state.leagueSource||"",division:Number(state.leagueDivision)||1,closedAtDay:Number(state.day)||1,matchdays:Number(state.leagueApps)||0,standings:structuredCloneSafe(state.league||[]),fixtures:structuredCloneSafe(state.fixtureSchedule||[]),roundHistory:structuredCloneSafe(state.leagueRoundHistory||[]),matches:structuredCloneSafe(matches),rank,stats:{played:matches.length,minutes:matches.reduce((n,row)=>n+(Number(row.minutes)||0),0),goals:matches.reduce((n,row)=>n+(Number(row.goals)||0),0),assists:matches.reduce((n,row)=>n+(Number(row.assists)||0),0),averageRating:rated.length?matches.reduce((n,row)=>n+(Number(row.rating)||0),0)/rated.length:0}};
+ const safeMinutes=value=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(0,Math.min(120,numeric)):0;};
+ const safeCount=value=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(0,Math.floor(numeric)):0;};
+ const safeRating=value=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(0,Math.min(10,numeric)):0;};
+ const played=matches.filter(row=>safeMinutes(row.minutes)>0);
+ const archive={archiveId,segmentId,reason,season:Number(state.season)||1,club:club().name,country:state.leagueCountry||"",competition:state.leagueCompetition||"",source:state.leagueSource||"",division:Number(state.leagueDivision)||1,closedAtDay:Number(state.day)||1,matchdays:Number(state.leagueApps)||0,standings:structuredCloneSafe(state.league||[]),fixtures:structuredCloneSafe(state.fixtureSchedule||[]),roundHistory:structuredCloneSafe(state.leagueRoundHistory||[]),matches:structuredCloneSafe(matches),rank,stats:{played:played.length,minutes:played.reduce((n,row)=>n+safeMinutes(row.minutes),0),goals:played.reduce((n,row)=>n+safeCount(row.goals),0),assists:played.reduce((n,row)=>n+safeCount(row.assists),0),averageRating:played.length?played.reduce((n,row)=>n+safeRating(row.rating),0)/played.length:0}};
  state.leagueArchives.unshift(archive);state.leagueArchives=state.leagueArchives.slice(0,100);return archive;
 }
 function archiveSeasonRecord(){

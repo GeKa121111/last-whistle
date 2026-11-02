@@ -60,3 +60,82 @@ body.lw-rebuild #page-europe .world-ai-dashboard-grid{margin-top:0}
   body.lw-rebuild .hub-page-heading{margin-bottom:11px;padding-bottom:10px}
   body.lw-rebuild .hub-page-heading p{font-size:10px}
 }
+/* Keep the competition rules available without letting the reference card
+   dominate the season dashboard on every visit. */
+body.lw-rebuild #page-league .match-rules-card{
+  padding:0;
+  overflow:hidden;
+}
+body.lw-rebuild #page-league .match-rules-card>summary{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:58px;
+  padding:12px 14px;
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+}
+body.lw-rebuild #page-league .match-rules-card>summary::-webkit-details-marker{
+  display:none;
+}
+body.lw-rebuild #page-league .match-rules-summary>div:first-child{
+  flex:1 1 auto;
+  min-width:0;
+}
+body.lw-rebuild #page-league .match-rules-summary h2{
+  margin:0;
+  color:#edf4e8;
+  font-size:13px;
+  font-weight:950;
+}
+body.lw-rebuild #page-league .match-rules-summary .subline{
+  display:block;
+  margin-top:3px;
+  color:#839383;
+  font-size:9px;
+  line-height:1.6;
+}
+body.lw-rebuild #page-league .match-rules-chevron{
+  display:grid;
+  place-items:center;
+  flex:0 0 28px;
+  width:28px;
+  height:28px;
+  border:1px solid #344536;
+  border-radius:8px;
+  background:#17221a;
+  color:var(--lw-lime);
+}
+body.lw-rebuild #page-league .match-rules-chevron:before{
+  content:"+";
+  font-size:17px;
+  font-weight:800;
+  line-height:1;
+}
+body.lw-rebuild #page-league .match-rules-card[open] .match-rules-chevron:before{
+  content:"−";
+}
+body.lw-rebuild #page-league .match-rules-card>summary:focus-visible{
+  outline:2px solid var(--lw-lime);
+  outline-offset:-3px;
+}
+body.lw-rebuild #page-league .match-rules-card[open]>summary{
+  border-bottom:1px solid #263429;
+}
+body.lw-rebuild #page-league .match-rules-content{
+  padding:12px 14px 15px;
+}
+body.lw-rebuild #page-league .match-rules-content>p:first-child{
+  margin:0 0 9px;
+  line-height:1.8;
+}
+@media(max-width:760px){
+  body.lw-rebuild #page-league .match-rules-summary{
+    min-height:56px;
+    padding:11px 12px;
+  }
+  body.lw-rebuild #page-league .match-rules-content{
+    padding:10px 12px 13px;
+  }
+}

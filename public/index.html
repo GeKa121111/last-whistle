@@ -5454,7 +5454,7 @@ function returnFromLoan(){
  const parentHasNoContract=parentIsFreeAgent||restoredParentContractSeasons<=0;
  state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;state.leagueDivision=Math.max(1,Number(l.parentDivision)||1);state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");state.clubPower=Math.max(1,Number(l.parentPower)||clubPowerFor(l.parentClub,l.parentCountry));state.clubTier=Number.isFinite(Number(l.parentTier))?Number(l.parentTier):clubTierForPower(state.clubPower);state.clubIndex=Number.isFinite(Number(l.parentIndex))?Number(l.parentIndex):state.clubTier;
  const parentWageValue=Number(l.parentWage);const restoredParentWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;
- state.weeklyWage=parentHasNoContract?0:restoredParentWage;state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;state.freeAgent=parentHasNoContract;state.contractType=parentHasNoContract?"free-agent":parentContractType;state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;
+ state.weeklyWage=parentHasNoContract?0:restoredParentWage;state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;state.freeAgent=parentHasNoContract;state.contractType=parentHasNoContract?"free-agent":parentContractType;state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;if(parentHasNoContract)state.contractOffer=null;
  const returnMessage=parentHasNoContract
   ?`انتهت الإعارة من ${hostClub} وعدت إلى سوق اللاعبين الأحرار بعد انتهاء عقدك مع ${state.clubName}.`
   :`انتهت الإعارة من ${hostClub} وعدت إلى ${state.clubName}.`;
@@ -5462,7 +5462,7 @@ function returnFromLoan(){
   ?`انتهت الإعارة وأصبحت لاعبًا حرًا بعد انتهاء عقدك مع ${state.clubName}.`
   :`انتهت الإعارة والعودة إلى ${state.clubName} (${state.leagueCountry}).`});return true;
  });
- return hasRestorableParent ? transactionResult : false;
+ return transactionResult;
 }
 
 function renderContract(){
@@ -7398,13 +7398,23 @@ function proceedSeasonTransition(viewLeague=false){
   const agentTerms=state.agent?(window.LWAgentRuntime?.contractTerms(state)||state.agentProfile||true):false;const offer=window.LWCareer?.makeContractOffer(contractState,agentTerms)||{club:contractState.clubName||club().name,wage:Math.max(Number(contractState.weeklyWage)||250,Math.round((Number(contractState.weeklyWage)||250)*(agentTerms&&typeof agentTerms==="object"?Number(agentTerms.contractMultiplier)||1.08:agentTerms?1.1:1))),seasons:3,season:Number(state.season)||1};
   state.contractOffer={...offer,club:String(contractState.clubName||offer.club||club().name),season:Number(state.season)||1};const offerWage=state.contractOffer.wage;
   openModal("عرض تجديد العقد",`عقدك مع ${state.contractOffer.club} هينتهي. النادي بيعرض ${offerWage} ${currencyLabel()} أسبوعيًا لمدة 3 مواسم. تقدر تقبل أو ترفض وتدخل سوق اللاعبين الأحرار.`,[
-   {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;const agentRenewalFee=window.LWAgentRuntime?.onContractRenewal(state,o)||0;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} ${currencyLabel()} أسبوعيًا${agentRenewalFee?`، وأتعاب الوكيل ${agentRenewalFee} ${currencyLabel()}`:""}.`);advanceAfterContractDecision(viewLeague);}},
-   {label:"أرفض وأصبح لاعب حر",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(state.loan)returnFromLoan();const decision=window.LWCareer?.resolveContractDecision(state,"decline",o);if(!decision?.ok)return;state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهى عقدك مع ${club().name} واخترت دخول سوق اللاعبين الأحرار.`});log(`انتهى عقدك مع ${club().name} وبدأت المسيرة كلاعب حر.`);advanceAfterContractDecision(viewLeague);}}
+   {label:"أقبل التجديد",className:"primary",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(!prepareContractDecisionAfterLoanReturn(viewLeague))return;const decision=window.LWCareer?.resolveContractDecision(state,"accept",o);if(!decision?.ok)return;const agentRenewalFee=window.LWAgentRuntime?.onContractRenewal(state,o)||0;state.contractDecisionSeason=state.season;log(`قبلت تجديد عقد ${club().name} لمدة 3 مواسم بمرتب ${state.weeklyWage} ${currencyLabel()} أسبوعيًا${agentRenewalFee?`، وأتعاب الوكيل ${agentRenewalFee} ${currencyLabel()}`:""}.`);advanceAfterContractDecision(viewLeague);}},
+   {label:"أرفض وأصبح لاعب حر",action:()=>{const o=state.contractOffer;if(!o||Number(o.season)!==Number(state.season))return;if(!prepareContractDecisionAfterLoanReturn(viewLeague))return;const decision=window.LWCareer?.resolveContractDecision(state,"decline",o);if(!decision?.ok)return;state.transferHistory.unshift({season:state.season,day:state.day,text:`انتهى عقدك مع ${club().name} واخترت دخول سوق اللاعبين الأحرار.`});log(`انتهى عقدك مع ${club().name} وبدأت المسيرة كلاعب حر.`);advanceAfterContractDecision(viewLeague);}}
   ]);return;
  }
  advanceAfterContractDecision(viewLeague);
 }
-function advanceAfterContractDecision(viewLeague){if(state.loan&&returnFromLoan()===false&&state.loan)return false;startNewSeason(false);if(viewLeague)showPage("league");return true;}
+function prepareContractDecisionAfterLoanReturn(viewLeague){
+ if(!state.loan)return true;
+ if(!returnFromLoan())return false;
+ if(state.freeAgent){
+  toast("انتهت الإعارة دون عقد أصلي ساري؛ تم تحويلك إلى سوق اللاعبين الأحرار، ولم يتم تطبيق عرض التجديد القديم.");
+  advanceAfterContractDecision(viewLeague);
+  return false;
+ }
+ return true;
+}
+function advanceAfterContractDecision(viewLeague){if(state.loan&&!returnFromLoan())return false;startNewSeason(false);if(viewLeague)showPage("league");return true;}
 
 function settleTrailingByeRounds(){
  const ours=clubNameForLeague();
@@ -7649,7 +7659,7 @@ async function startNewSeasonInternalUnsafe(showStory=true){
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}
  const contractState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
  if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!contractState.freeAgent&&Number(contractState.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return;}
- if(state.loan&&returnFromLoan()===false&&state.loan)return false;
+ if(state.loan&&!returnFromLoan())return false;
  // Every career season starts in the summer window. The previous season's fixtures
  // can finish before July, so advance through the off-season instead of letting
  // later seasons drift between the summer and winter windows.

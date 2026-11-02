@@ -39,10 +39,19 @@ const transactionSource = [
   extractByMarker(html, "function returnFromLoan(")
 ].join("\n") + "\nglobalThis.runReturnFromLoan = returnFromLoan;";
 const advanceSource = extractByMarker(html, "function advanceAfterContractDecision(");
+const contractPreparationSource = extractByMarker(html, "function prepareContractDecisionAfterLoanReturn(");
 const newSeasonSource = extractByMarker(html, "async function startNewSeasonInternalUnsafe(");
-const loanGuard = "if(state.loan&&returnFromLoan()===false&&state.loan)return false;";
+const loanGuard = "if(state.loan&&!returnFromLoan())return false;";
 assert.ok(newSeasonSource.includes(loanGuard),
   "a failed loan return must stop the new season from starting at the temporary host club");
+assert.ok(advanceSource.includes(loanGuard),
+  "contract decisions must stop on any failed loan-return transaction, even if rollback could not restore the loan marker");
+assert.ok(html.includes("if(!prepareContractDecisionAfterLoanReturn(viewLeague))return;"),
+  "both renewal choices must pass through the loan-return decision guard");
+assert.equal(html.split("if(!prepareContractDecisionAfterLoanReturn(viewLeague))return;").length - 1, 2,
+  "accept and decline actions must both use the same guarded loan-return flow");
+assert.ok(!html.includes("if(state.loan)returnFromLoan();"),
+  "contract offer actions must not ignore the loan-return result");
 assert.ok(newSeasonSource.indexOf(loanGuard) < newSeasonSource.indexOf("daysUntilNextSummerWindow"),
   "the loan return must be confirmed before off-season calendar and season mutations");
 
@@ -56,13 +65,15 @@ function makeHarness(options = {}) {
     contractType: "professional", role: "بديل",
     transferCooldown: 0, pendingTransfer: { club: "Next FC" },
     transferHistory: [], leagueArchives: [],
+    contractOffer: { club: "Parent FC", season: 4, wage: 900, seasons: 3 },
     loan: {
       parentClub: options.invalidParent ? "" : "Parent FC",
       parentCountry: options.invalidParent ? "" : "Egypt",
       parentDivision: 2, parentCompetition: "Parent League",
       parentSource: "verified parent roster", parentPower: 0,
       parentTier: 2, parentIndex: 2, parentWage: 450,
-      parentContractSeasons: 2, parentFreeAgent: false,
+      parentContractSeasons: options.parentContractSeasons === undefined ? 2 : options.parentContractSeasons,
+      parentFreeAgent: options.parentFreeAgent === undefined ? false : options.parentFreeAgent,
       parentContractType: "professional", parentRole: "أساسي"
     }
   };
@@ -109,22 +120,33 @@ function makeHarness(options = {}) {
   assert.equal(h.state.freeAgent, false);
   assert.equal(h.state.role, "أساسي");
   assert.equal(h.state.loan, null);
+  assert.equal(h.state.contractOffer.club, "Parent FC", "a valid parent renewal offer must survive a return to an active parent contract");
   assert.deepEqual(h.events.archives, ["loan-return"]);
   assert.equal(h.events.persisted.length, 0, "a successful return must not run rollback persistence");
 }
 
 {
   const h = makeHarness({ invalidParent: true });
-  assert.equal(h.sandbox.runReturnFromLoan(), false,
-    "legacy loans without a verifiable parent must retain the existing recovery return value");
+  assert.equal(h.sandbox.runReturnFromLoan(), true,
+    "legacy loans without a verifiable parent must report a committed recovery, not a failed transaction");
   assert.equal(h.state.loan, null, "an invalid legacy loan must still be cleared");
   assert.equal(h.state.weeklyWage, 0, "a malformed parent must not preserve the temporary host wage");
   assert.equal(h.state.contractSeasons, 0);
   assert.equal(h.state.contractType, "free-agent");
   assert.equal(h.state.freeAgent, true);
   assert.deepEqual(h.events.archives, ["loan-return-invalid"]);
+  assert.equal(h.state.contractOffer, null, "legacy recovery must clear any stale renewal offer");
   assert.equal(h.events.persisted.length, 0,
     "intentional legacy recovery must commit rather than be mistaken for a failed transaction");
+}
+
+{
+  const h = makeHarness({ parentContractSeasons: 0, parentFreeAgent: true });
+  assert.equal(h.sandbox.runReturnFromLoan(), true, "a valid parent record with an expired contract must still commit the return");
+  assert.equal(h.state.clubName, "Parent FC", "the verified parent club should be restored even when its contract has expired");
+  assert.equal(h.state.freeAgent, true, "an expired parent contract must return the player to free agency");
+  assert.equal(h.state.contractOffer, null, "an expired parent contract must not retain an old renewal offer");
+  assert.equal(h.state.loan, null);
 }
 
 {
@@ -168,7 +190,14 @@ function runAdvanceCase(returnResult, clearLoan) {
   assert.ok(failed.loan);
 }
 {
-  const legacyRecovery = runAdvanceCase(false, true);
+  const failedAfterLoanMarkerClear = runAdvanceCase(false, true);
+  assert.equal(failedAfterLoanMarkerClear.result, false,
+    "a failed return must stop season advancement even if the loan marker was cleared during an unsuccessful rollback");
+  assert.equal(failedAfterLoanMarkerClear.starts, 0);
+  assert.equal(failedAfterLoanMarkerClear.pages, 0);
+}
+{
+  const legacyRecovery = runAdvanceCase(true, true);
   assert.equal(legacyRecovery.starts, 1,
     "a legacy recovery that clears the loan must still allow season progression");
   assert.equal(legacyRecovery.pages, 1);
@@ -179,8 +208,58 @@ function runAdvanceCase(returnResult, clearLoan) {
   assert.equal(success.pages, 1);
 }
 
+function makeContractPreparationHarness(options = {}) {
+  const state = { loan: options.hasLoan === false ? null : { parentClub: "Parent FC" }, freeAgent: false };
+  const events = { returns: 0, advances: [], toasts: [] };
+  const sandbox = {
+    state,
+    returnFromLoan() {
+      events.returns++;
+      if (options.clearLoan) state.loan = null;
+      if (options.freeAgentAfterReturn !== undefined) state.freeAgent = options.freeAgentAfterReturn;
+      return options.returnResult !== false;
+    },
+    advanceAfterContractDecision(viewLeague) { events.advances.push(viewLeague); return true; },
+    toast(message) { events.toasts.push(String(message)); }
+  };
+  vm.createContext(sandbox);
+  new vm.Script(contractPreparationSource + "\nglobalThis.prepareContractDecision = prepareContractDecisionAfterLoanReturn;", {
+    filename: "loan-contract-decision-guard.js"
+  }).runInContext(sandbox);
+  return { result: sandbox.prepareContractDecision(true), state, events };
+}
+{
+  const noLoan = makeContractPreparationHarness({ hasLoan: false });
+  assert.equal(noLoan.result, true, "a normal contract decision should not be blocked when there is no active loan");
+  assert.equal(noLoan.events.returns, 0);
+  assert.equal(noLoan.events.advances.length, 0);
+}
+{
+  const validReturn = makeContractPreparationHarness({ clearLoan: true, freeAgentAfterReturn: false });
+  assert.equal(validReturn.result, true, "a verified parent contract should continue to the renewal decision");
+  assert.equal(validReturn.events.returns, 1);
+  assert.equal(validReturn.events.advances.length, 0);
+}
+{
+  const expiredParent = makeContractPreparationHarness({ clearLoan: true, freeAgentAfterReturn: true });
+  assert.equal(expiredParent.result, false, "an expired parent contract must bypass the stale renewal decision");
+  assert.deepEqual(expiredParent.events.advances, [true], "the season should continue after committed free-agent recovery");
+  assert.equal(expiredParent.events.toasts.length, 1, "the player must be told why the old renewal offer was ignored");
+}
+{
+  const failedReturn = makeContractPreparationHarness({ returnResult: false, clearLoan: false });
+  assert.equal(failedReturn.result, false, "a failed loan-return transaction must stop the contract decision");
+  assert.equal(failedReturn.events.advances.length, 0);
+  assert.ok(failedReturn.state.loan);
+}
+{
+  const failedRollback = makeContractPreparationHarness({ returnResult: false, clearLoan: true, freeAgentAfterReturn: true });
+  assert.equal(failedRollback.result, false, "a failed rollback must stop even if the loan marker is no longer present");
+  assert.equal(failedRollback.events.advances.length, 0);
+}
+
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 414);
+require("./assert-static-cache-version.cjs")(sw, 415);
 console.log("PASS: loan returns are atomic, malformed legacy loans recover safely, and failed returns cannot advance the season.");

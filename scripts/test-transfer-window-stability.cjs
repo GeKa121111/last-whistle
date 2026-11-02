@@ -1034,7 +1034,7 @@ assert.equal(rolledBackNegotiatedTransfer.state.pendingTransfer.signingBonus, 50
   "the exact negotiated signing bonus must survive rollback");
 assert.equal(rolledBackNegotiatedTransfer.rendered, true,
   "the transfer market must refresh to expose the retained accepted contract");
-assert.match(rolledBackNegotiatedTransfer.toastMessage, /إعادة المحاولة/,
+assert.match(rolledBackNegotiatedTransfer.toastMessage, /أعد المحاولة/,
   "the player must be told that the accepted transfer can be retried");
 assert.equal(rolledBackNegotiatedTransfer.state.transferHistory.some(row => /تعذر إتمام الانتقال/.test(row.text)), false,
   "a transaction failure must not be falsely recorded as a destination disappearing");

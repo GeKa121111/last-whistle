@@ -5824,8 +5824,8 @@ function playCupMatch(){
   try{restoreSeasonTransitionState(snapshot);}catch(restoreError){console.error("Cup-match rollback failed",restoreError);try{toast("تعذر اعتماد مباراة الكأس وتعذر استعادة نسخة المسيرة تلقائيًا. أوقف اللعب واحفظ نسخة احتياطية.");}catch(toastError){}return false;}
   console.error("Cup-match settlement rolled back",error);
   try{render();}catch(renderError){console.warn("Cup-match rollback render failed",renderError);}
-  persistRollbackSnapshot("cup-match rollback");
   try{toast("تعذر اعتماد مباراة الكأس. تمت استعادة بيانات المسيرة داخل اللعبة؛ جاري تأكيد حفظ النسخة.");}catch(toastError){}
+  persistRollbackSnapshot("cup-match rollback");
   return false;
  }
 }
@@ -6853,8 +6853,8 @@ function applyMatchResult(result,meta){
   }
   console.error("Match settlement rolled back",error);
   try{render();}catch(renderError){console.warn("Match settlement rollback render failed",renderError);}
-  persistRollbackSnapshot("match settlement rollback");
   try{toast("تعذر اعتماد نتيجة المباراة. تمت استعادة بيانات المسيرة داخل اللعبة؛ جاري تأكيد حفظ النسخة.");}catch(toastError){}
+  persistRollbackSnapshot("match settlement rollback");
   return false;
  }
 }
@@ -7092,8 +7092,8 @@ function withManualLeagueTransaction(label,operation){
   const reason=String(error&&error.message||error||"unknown");
   try{log("تعذر اعتماد المباراة اليدوية؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
   try{render();}catch(renderError){console.warn("Manual league rollback render failed",renderError);}
-  persistRollbackSnapshot("manual league rollback");
   try{toast("تعذر اعتماد المباراة اليدوية. تمت استعادة بيانات المسيرة داخل اللعبة؛ جاري تأكيد حفظ النسخة.");}catch(toastError){}
+  persistRollbackSnapshot("manual league rollback");
   return false;
  }
 }

@@ -69,19 +69,19 @@ function makeHarness(saveGame, flushQueuedSave) {
   {
     const h = makeHarness(() => true, () => Promise.resolve(false));
     assert.equal(h.sandbox.persist("async-flush-false"), true);
-    await Promise.resolve();
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(h.events.toasts.length, 1);
   }
   {
     const h = makeHarness(() => true, () => Promise.reject(new Error("async flush failed")));
     assert.equal(h.sandbox.persist("async-flush-rejected"), true);
-    await Promise.resolve();
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(h.events.toasts.length, 1);
   }
   {
     const h = makeHarness(() => true, () => Promise.resolve(true));
     assert.equal(h.sandbox.persist("async-flush-success"), true);
-    await Promise.resolve();
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(h.events.toasts.length, 0);
   }
   console.log("PASS: manual, cup, and generic match rollbacks verify queued saves and warn when durable fallback cannot be confirmed.");

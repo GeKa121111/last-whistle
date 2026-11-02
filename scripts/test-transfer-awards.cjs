@@ -400,21 +400,6 @@ const malformedCeremony = engine.buildSeasonAwardCeremony({
     name: "موهبة بلا عمر موثق", clubName: "نادي ناشئين", country: "مصر", position: "مهاجم",
     ovr: 80, prestige: 75, leagueStrength: 65,
     seasonStats: { season: 8, appearances: 20, goals: 7, assists: 4, averageRating: 7.4 }
-    age: 25, ovr: 80, prestige: "Infinity", leagueStrength: "Infinity",
-    confederation: "CAF", originConfederation: "CAF",
-    seasonStats: {
-      season: 8, appearances: 12, goals: "Infinity", assists: "NaN", averageRating: "Infinity",
-      cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
-    }
-  }, {
-    name: "لامين يامال", clubName: "نادي موهبة", country: "إسبانيا", position: "جناح",
-    age: "Infinity", ovr: 90, prestige: 90, leagueStrength: 80,
-    confederation: "UEFA", originConfederation: "UEFA",
-    seasonStats: { season: 8, appearances: 25, goals: 10, assists: 8, averageRating: 8.1 }
-  }, {
-    name: "موهبة بلا عمر موثق", clubName: "نادي ناشئين", country: "مصر", position: "مهاجم",
-    ovr: 80, prestige: 75, leagueStrength: 65,
-    seasonStats: { season: 8, appearances: 20, goals: 7, assists: 4, averageRating: 7.4 }
   }]
 });
 assert.ok(malformedCeremony.ballonDor.topFive.length > 0,

@@ -134,9 +134,20 @@ if (!redesign.includes("body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel
 
 if (!html.includes('id="seasonApps">0/38</div><div class="kpiLabel">مباريات الدوري</div>')
   || !html.includes('id="seasonPoints">0</div><div class="kpiLabel">نقاط الدوري</div>')
-  || !html.includes('id="seasonGoals">0</div><div class="kpiLabel">أهداف الموسم</div>')
-  || !html.includes('id="statsSeasonApps">0</div><div class="kpiLabel">مشاركات الموسم</div>')) {
+  || !html.includes('id="seasonGoals">0</div><div class="kpiLabel">أهداف الدوري</div>')
+  || !html.includes('id="statsSeasonApps">0</div><div class="kpiLabel">مشاركات الموسم</div>')
+  || !html.includes('id="statsSeasonGoals">0</div><div class="kpiLabel">أهداف الموسم</div>')
+  || !html.includes('id="statsSeasonAssists">0</div><div class="kpiLabel">صناعات الموسم</div>')) {
   console.error("League-only fixtures/points and all-competition season appearances must be labeled by their actual scope.");
+  process.exit(1);
+}
+if (!html.includes("function renderStatsSummary(){")
+  || !html.includes("playerCurrentSeasonStats(currentSeasonMatchRows())")
+  || !html.includes('setText("statsCareerApps"')
+  || !html.includes('setText("statsSeasonGoals"')
+  || !html.includes('setText("statsGoalsPer90"')
+  || !html.includes('case "stats":\\n   renderStatsSummary();\\n   renderPerformanceInsights();')) {
+  console.error("Player statistics summary must be populated from reconciled career and current-season match ledgers.");
   process.exit(1);
 }
 const leagueRulesCardStart = html.indexOf('<details class="card span12 match-rules-card">');

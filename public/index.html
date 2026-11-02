@@ -795,6 +795,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 }
 </style>
 <link rel="stylesheet" href="./redesign.css?v=17">
+<link rel="stylesheet" href="./ui-organization.css?v=1">
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
@@ -830,19 +831,28 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 <div class="app hasSidebar">
 <aside class="drawer" id="drawer" aria-label="قائمة الصفحات">
   <div class="drawerHead"><div><div class="brand">LAST <span>WHISTLE</span></div><div class="muted tiny">قائمة المسيرة</div></div><button class="iconBtn" id="menuClose" aria-label="إغلاق القائمة">×</button></div>
-  <nav class="navList">
-    <button class="navBtn active" data-page="home"><span class="ico">⌂</span> الرئيسية</button>
-    <button class="navBtn" data-page="training"><span class="ico">🏋️</span> التدريب</button>
-    <button class="navBtn" data-page="stats"><span class="ico">📊</span> الإحصائيات</button>
-    <button class="navBtn" data-page="wellness"><span class="ico">🩺</span> الجاهزية والراحة</button>
-    <button class="navBtn" data-page="league"><span class="ico">🏆</span> الدوري المحلي</button>
-    <button class="navBtn" data-page="europe"><span class="ico">🌍</span> عالم الكرة</button>
-    <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقد والانتقالات والوكلاء</button>
-    <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> المنتخب</button>
-    <button class="navBtn" data-page="life"><span class="ico">🎙️</span> الحياة والسمعة</button>
-    <button class="navBtn" data-page="social"><span class="ico">📱</span> دوشة الملاعب</button>
-    <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
-    <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
+  <nav class="navList" aria-label="أقسام اللعبة">
+    <div class="navGroup" role="group" aria-labelledby="navGroupCareer">
+      <div class="navGroupLabel" id="navGroupCareer">المسيرة اليومية</div>
+      <button class="navBtn active" data-page="home"><span class="ico">⌂</span> الرئيسية</button>
+      <button class="navBtn" data-page="training"><span class="ico">🏋️</span> التدريب</button>
+      <button class="navBtn" data-page="stats"><span class="ico">📊</span> الإحصائيات</button>
+      <button class="navBtn" data-page="wellness"><span class="ico">🩺</span> الجاهزية والراحة</button>
+    </div>
+    <div class="navGroup" role="group" aria-labelledby="navGroupCompetition">
+      <div class="navGroupLabel" id="navGroupCompetition">المنافسات والانتقالات</div>
+      <button class="navBtn" data-page="league"><span class="ico">🏆</span> الدوري المحلي</button>
+      <button class="navBtn" data-page="contract"><span class="ico">📄</span> العقود والانتقالات</button>
+      <button class="navBtn" data-page="national"><span class="ico">🇪🇬</span> المنتخب</button>
+      <button class="navBtn" data-page="europe"><span class="ico">🌍</span> عالم الكرة</button>
+    </div>
+    <div class="navGroup" role="group" aria-labelledby="navGroupOffPitch">
+      <div class="navGroupLabel" id="navGroupOffPitch">خارج الملعب</div>
+      <button class="navBtn" data-page="life"><span class="ico">🎙️</span> الحياة والسمعة</button>
+      <button class="navBtn" data-page="social"><span class="ico">📱</span> دوشة الملاعب</button>
+      <button class="navBtn" data-page="shop"><span class="ico">🛍️</span> المتجر</button>
+      <button class="navBtn" data-page="diary"><span class="ico">📔</span> المذكرات</button>
+    </div>
   </nav>
   <button class="btn primary block" id="drawerSave">حفظ التقدم</button>
   <button class="btn block" id="exportSaveBtn" style="margin-top:8px">تنزيل نسخة احتياطية للحفظ</button>
@@ -943,7 +953,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           <div class="btnRow" style="margin-top:12px"><button class="btn block" data-page="diary">افتح مذكراتي ←</button></div>
         </article>
         <article class="card span12 seasonJourneyCard">
-          <div class="cardHead"><div><h2>خريطة الموسم</h2><div class="subline">خمس محطات مترابطة — تقدمك وقراراتك بيتسجلوا في مسيرتك</div></div><span class="pill gold" id="seasonStageBadge">المحطة 1 من 5</span></div>
+          <div class="cardHead"><div><h2>مسار تقدم الموسم</h2><div class="subline">خمس محطات مترابطة — تقدمك وقراراتك بيتسجلوا في مسيرتك</div></div><span class="pill gold" id="seasonStageBadge">المحطة 1 من 5</span></div>
           <div class="seasonJourney" id="seasonJourney"></div>
           <div class="seasonJourneyFoot"><div><strong id="seasonStageTitle">المباريات والأداء</strong><p id="seasonStageDesc" class="muted small">العب مبارياتك وسجّل أهدافك وصناعاتك وارفع تقييمك.</p></div></div>
         </article>
@@ -1084,7 +1094,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         <article class="card span6"><h2>📊 سجل موسمك</h2><div class="kpiGrid" style="margin-top:12px"><div class="kpi"><div class="kpiNum" id="seasonApps">0/38</div><div class="kpiLabel">مباريات الموسم</div></div><div class="kpi"><div class="kpiNum" id="seasonPoints">0</div><div class="kpiLabel">نقاط فريقك</div></div><div class="kpi"><div class="kpiNum" id="seasonGoals">0</div><div class="kpiLabel">أهدافك</div></div></div></article>
         <article class="card span6"><h2>🎖️ سجل البطولات</h2><div id="trophyCabinet" class="muted small" style="margin-top:10px">لسه مفيش بطولات. خلي أول لقب هو بداية الحكاية.</div></article>
         <article class="card span12"><div class="cardHead"><h2>🏅 الجوائز الفردية في مسيرتك</h2><span class="pill gold" id="careerAwardCount">0 جائزة</span></div><p class="dataDisclaimer">جوائز المسيرة هنا نتائج محاكاة مستقلة داخل اللعبة، وليست تصويتًا أو اعتمادًا من FIFA أو أي اتحاد.</p><div id="careerAwards" class="eventFeed"></div></article>
-        <article class="card span12"><div class="cardHead"><h2>🗺️ خريطة الموسم والبطولات</h2><span class="pill" id="currentCompetitionCount">0 بطولة</span></div><p class="muted small">حالة الدوري والكؤوس والبطولات القارية في مسيرتك الحالية؛ البطولات المشروطة لا تُفتح إلا بعد التأهل.</p><div class="dataGrid" id="currentCompetitions"></div></article>
+        <article class="card span12"><div class="cardHead"><h2>🗺️ البطولات الجارية</h2><span class="pill" id="currentCompetitionCount">0 بطولة</span></div><p class="muted small">حالة الدوري والكؤوس والبطولات القارية في مسيرتك الحالية؛ البطولات المشروطة لا تُفتح إلا بعد التأهل.</p><div class="dataGrid" id="currentCompetitions"></div></article>
         <article class="card span6"><div class="cardHead"><h2>👟 ترتيب الهدافين</h2><span class="pill">الدوري الحالي</span></div><div id="goldenBootLeaderboard"></div></article>
         <article class="card span6"><div class="cardHead"><h2>🎯 ترتيب صناع اللعب</h2><span class="pill">الدوري الحالي</span></div><div id="playmakerLeaderboard"></div></article>
         <article class="card span12"><h2>🌍 حفل الجوائز العالمية</h2><p class="muted small" id="leaderboardNote">الجوائز تعتمد على الأهداف والصناعة ومتوسط التقييم وقوة الدوري والألقاب. بيانات اللاعبين المنافسين تقديرية للمحاكاة.</p><div id="ballonDOrCeremony" class="dataGrid"></div></article>
@@ -1133,9 +1143,10 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 
 
     <section class="page" id="page-europe">
+      <div class="hub-page-heading"><span class="hub-overline">WORLD FOOTBALL / SIMULATION</span><h1>عالم الكرة</h1><p>تابع حركة الأندية واللاعبين، ثم ارجع للدليل العالمي لما تحتاج تبحث عن دوري أو نادٍ أو بطولة.</p></div>
       <div class="grid world-ai-dashboard-grid">
         <article class="card world-ai-dashboard-card" id="worldAISimulationDashboard">
-          <div class="cardHead"><div><h2>محرك عالم الكرة — انتقالات وإحصائيات متطورة</h2><div class="subline">الأندية تختار احتياجات المراكز واللاعبين حسب القوة والسن والإمكانات والميزانية.</div></div><span class="pill green" id="worldAISeasonTag">الموسم</span></div>
+          <div class="cardHead"><div><h2>لوحة المحاكاة العالمية</h2><div class="subline">الأندية تختار احتياجات المراكز واللاعبين حسب القوة والسن والإمكانات والميزانية.</div></div><span class="pill green" id="worldAISeasonTag">الموسم</span></div>
           <div class="sectionNote" id="worldAIOverallSummary">بيتم تجهيز محاكاة العالم.</div>
           <div class="world-ai-kpis">
             <div class="world-ai-kpi"><b id="worldAIMarketMoves">0</b><span>انتقالات في آخر نافذة</span></div>
@@ -1171,6 +1182,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     </section>
 
     <section class="page" id="page-life">
+      <div class="hub-page-heading"><span class="hub-overline">OFF-PITCH / REPUTATION</span><h1>الحياة والسمعة</h1><p>قراراتك خارج الملعب بتأثر على سمعتك وعلاقاتك داخل النادي، وكل نشاط له تكلفة ونتيجة.</p></div>
       <div class="grid">
         <article class="card span12 seasonJourneyCard">
           <div class="cardHead"><div><h2>الحياة الاحترافية</h2><div class="subline">قراراتك خارج الملعب بتأثر على سمعتك وعلاقتك بالفريق، وكل قرار له تكلفة ونتيجة.</div></div><span class="pill gold">الحياة والسمعة</span></div>
@@ -1202,6 +1214,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     </section>
 
     <section class="page" id="page-diary">
+      <div class="hub-page-heading"><span class="hub-overline">CAREER LOG / SEASON ARCHIVE</span><h1>المذكرات والأرشيف</h1><p>مكان واحد لأحداثك اليومية، ملخصات المواسم، وسجلات الأندية والدوريات اللي لعبت فيها.</p></div>
       <div class="grid">
         <article class="card span12"><div class="cardHead"><h2>📔 مذكرات اللاعب</h2><span class="pill" id="diaryCount">0 حدث</span></div><p class="muted small">آخر 40 حدث في مسيرتك. كل تدريب، مباراة، قرار أو انتقال بيتسجل هنا.</p><div class="eventFeed" id="diaryList"></div><div class="btnRow" style="margin-top:12px"><button class="btn primary" id="saveBtn">💾 حفظ التقدم</button><button class="btn danger" id="newCareerBtn">↻ بداية جديدة</button></div><div class="muted tiny" style="margin-top:9px">الحفظ بيكون على نفس المتصفح والجهاز، لو المتصفح بيسمح بالتخزين المحلي.</div></article>
         <article class="card span12"><div class="cardHead"><h2>📚 سجل المواسم</h2><span class="pill" id="seasonArchiveCount">0 موسم</span></div><p class="muted small">ملخص مواسمك وإحصاءاتك وجوائزك؛ يتحدّث تلقائيًا عند إقفال كل موسم.</p><div id="seasonArchiveList" class="eventFeed"></div></article>
@@ -1210,6 +1223,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     </section>
 
     <section class="page" id="page-social">
+      <div class="hub-page-heading"><span class="hub-overline">FANS / MEDIA / COMMUNITY</span><h1>دوشة الملاعب</h1><p>اكتب بوستاتك، تابع ردود الجمهور والإعلام، وشوف تأثير حضورك خارج الملعب.</p></div>
       <div class="grid">
         <article class="card span12">
           <div class="lwsocial-hero">
@@ -1217,7 +1231,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
               <div class="lwsocial-logo">📱</div>
               <div>
                 <span class="lwsocial-kicker">LAST WHISTLE SOCIAL</span>
-                <h2>دوشة الملاعب</h2>
+                <h2>المجتمع الكروي</h2>
                 <p id="lw-social-status">الملعب بيتكلم حتى بعد صافرة النهاية.</p>
               </div>
             </div>

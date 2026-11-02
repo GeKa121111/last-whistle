@@ -114,7 +114,7 @@ const vm = require("node:vm");
   subscriber({ source: "publish" });
   await Promise.resolve();
   assert.equal(panelRefreshes, 2, "duplicate state notifications should coalesce into one render");
-  assert.match(nodes["lwcx-status"].textContent, /1250 جنيه/, "wallet changes should refresh the life panel immediately");
+  assert.equal(nodes["lwcx-status"].textContent, "إنجازاتك واستثماراتك محفوظة مع بيانات مسيرتك على نفس الجهاز.", "wallet changes should not duplicate the header balance in the life panel");
   assert.equal(reduceCalls, initialReduceCalls, "a visible-value update should reuse the existing world summary");
 
   document.hidden = true;
@@ -125,7 +125,7 @@ const vm = require("node:vm");
   document.hidden = false;
   documentListeners.visibilitychange[0]();
   assert.equal(panelRefreshes, 3, "returning to the foreground should refresh the panel immediately");
-  assert.match(nodes["lwcx-status"].textContent, /الطاقة 22%/, "foreground refresh should show the latest energy");
+  assert.doesNotMatch(nodes["lwcx-status"].textContent, /الطاقة|الرصيد|1250 جنيه/, "the life panel must not repeat energy or wallet metrics owned by the header");
   assert.equal(nodes["lwcx-investments"].textContent, "2", "both investments should be counted before their due dates");
 
   const beforeFirstSettlementScans = reduceCalls;

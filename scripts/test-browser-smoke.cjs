@@ -269,16 +269,26 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "يلا نبدأ" }).click();
     results.push("career creation");
 
+    await page.locator("#lw-command-center").waitFor({ state: "visible", timeout: 10000 });
+    assert.equal(await page.locator("#lw-hub-energy").count(), 0,
+      "energy must remain in the persistent header, not be duplicated in the home command center");
+    assert.equal(await page.locator("#lw-hub-money").count(), 0,
+      "wallet balance must remain in the persistent header, not be duplicated in the home command center");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    assert.equal(await page.locator("#worldAIHomePanel").evaluate(el => getComputedStyle(el).display), "none",
+      "the home page must not duplicate the full world AI dashboard");
+
+
+    await page.evaluate(() => window.LWStoryRuntime.showPage("europe"));
     await page.waitForFunction(() => Boolean(window.LWWorldAI
-      && document.querySelector("#worldAIHomePanel")
-      && Number(document.querySelector("#worldAIHomePlayers")?.textContent || 0) > 100), null, { timeout: 20000 });
+      && document.querySelector("#worldAISimulationDashboard")
+      && Number(document.querySelector("#worldAITotalPlayers")?.textContent || 0) > 100), null, { timeout: 20000 });
     assert.equal(await page.locator("#careerAIPanel").count(), 0,
       "the game should use autonomous world simulation rather than a conversational AI panel");
-    assert.ok(await page.locator("#worldAIHomeTeams").textContent().then(text => Number(text) > 40),
-      "the persistent world AI must initialize multiple clubs");
-    assert.ok(await page.locator("#worldAIHomePlayers").textContent().then(text => Number(text) > 100),
-      "the persistent world AI must initialize player squads");
-    await page.evaluate(() => window.LWStoryRuntime.showPage("europe"));
+    assert.ok(await page.locator("#worldAITotalClubs").textContent().then(text => Number(text) > 40),
+      "the dedicated world dashboard must initialize multiple clubs");
+    assert.ok(await page.locator("#worldAITotalPlayers").textContent().then(text => Number(text) > 100),
+      "the dedicated world dashboard must initialize player squads without a duplicate home panel");
     await page.waitForFunction(() => Boolean(document.querySelector("#worldAISimulationDashboard")
       && document.querySelector("#worldAITopScorers")?.textContent.trim()
       && document.querySelector("#worldAITransferLog")?.textContent.trim()), null, { timeout: 20000 });
@@ -292,7 +302,7 @@ async function main() {
     results.push("persistent AI football world, squad initialization and transfers/statistics dashboard");
 
 
-    await page.waitForFunction(() => Boolean(document.querySelector("#lw-hub-money")?.textContent.trim()), null, { timeout: 5000 });
+    await page.waitForFunction(() => Boolean(document.querySelector("#headMoney")?.textContent.trim()), null, { timeout: 5000 });
     const startingContext = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
       const text = id => document.querySelector("#" + id)?.textContent.trim() || "";
@@ -304,7 +314,7 @@ async function main() {
         developmentSnapshotShooting: Number(state.seasonDevelopmentSnapshot?.attributes?.shooting) || 0,
         speed: Number(state.speed), defending: Number(state.defending), goalkeeping: Number(state.goalkeeping), physical: Number(state.physical),
         headerCurrency: text("headCurrency"), summaryCurrency: text("kpiCurrency"), storeCurrency: text("storeCurrency"),
-        commandBalance: text("lw-hub-money"), nextMatchCountdown: text("lw-console-round"), nextMatchMeta: text("lw-next-match-meta")
+        headerBalance: text("headMoney"), nextMatchCountdown: text("lw-console-round"), nextMatchMeta: text("lw-next-match-meta")
       };
     });
     assert.equal(startingContext.age, 17, "the default career starts at age 17");
@@ -323,7 +333,7 @@ async function main() {
     assert.ok(startingContext.physical >= 45 && startingContext.physical <= 58, "physical skill is initialized by position");
     assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
       "header, player summary, and store must use the Egyptian currency for an Egyptian league");
-    assert.ok(startingContext.commandBalance.includes("ج.م"), "the main career command center shows the wallet currency");
+    assert.ok(startingContext.headerBalance.length > 0, "the header is the single source for the wallet balance");
     const countryCurrencyChecks = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
       const originalCountry = state.leagueCountry;

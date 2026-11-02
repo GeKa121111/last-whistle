@@ -306,5 +306,5 @@ function makeContractPreparationHarness(options = {}) {
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 416);
+require("./assert-static-cache-version.cjs")(sw, 417);
 console.log("PASS: loan returns are atomic, malformed legacy loans recover safely, and failed returns cannot advance the season.");

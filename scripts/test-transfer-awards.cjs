@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 8);
+assert.equal(engine.version, 9);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -157,6 +157,8 @@ const sameStrikerStarEnglish = engine.simulatePlayerSeason({ ...sameForward, pos
 const sameStrikerRotationEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "squad player" }, 5, 1);
 const sameStrikerProspectEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "youngster" }, 5, 1);
 const sameStrikerSubEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "impact sub" }, 5, 1);
+const sameStrikerReserveArabic = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "فريق الرديف / لاعب تحت التقييم" }, 5, 1);
+const sameStrikerReserveEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "reserve player" }, 5, 1);
 assert.equal(sameStrikerStarter.minutes, sameStrikerStarter.appearances * 83,
   "starter projections must use the same 83-minute participation baseline as match simulation");
 assert.equal(sameStrikerCoreSub.minutes, sameStrikerCoreSub.appearances * 66,
@@ -179,6 +181,10 @@ assert.equal(sameStrikerProspectEnglish.minutes, sameStrikerProspectEnglish.appe
   "English youngster aliases must keep the same 20-minute match baseline");
 assert.equal(sameStrikerSubEnglish.minutes, sameStrikerSubEnglish.appearances * 28,
   "English impact-sub aliases must keep the same 28-minute match baseline");
+assert.equal(sameStrikerReserveArabic.minutes, sameStrikerReserveArabic.appearances * 20,
+  "academy reserve / under-evaluation roles must use the prospect 20-minute baseline");
+assert.equal(sameStrikerReserveEnglish.minutes, sameStrikerReserveEnglish.appearances * 20,
+  "English reserve roles must use the prospect 20-minute baseline");
 assert.equal(sameStrikerSubstitute.minutes, sameStrikerSubstitute.appearances * 28,
   "substitute projections must use the same 28-minute baseline as match simulation");
 assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);

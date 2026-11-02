@@ -153,6 +153,16 @@ const underdogPlan = ai.recommendPlayerTactic({
   pos: "جناح", energy: 80, fatigue: 15, trust: 55, morale: 55, clubPower: 48
 }, 58, { name: "منافس قوي", power: 83 });
 assert.equal(underdogPlan.tactic, "counter", "an underdog should be advised to use counter attacks");
+const englishKeeperPlan = ai.recommendPlayerTactic({
+  pos: "GK", energy: 90, fatigue: 15, trust: 50, morale: 50, clubPower: 55
+}, 55, { name: "منافس متكافئ", power: 60 });
+assert.equal(englishKeeperPlan.tactic, "defend",
+  "an English GK alias must receive the same conservative tactical recommendation as its Arabic position");
+const englishCentreBackPlan = ai.recommendPlayerTactic({
+  pos: "CB", energy: 90, fatigue: 15, trust: 50, morale: 50, clubPower: 55
+}, 55, { name: "منافس متكافئ", power: 60 });
+assert.equal(englishCentreBackPlan.tactic, "defend",
+  "an English CB alias must receive the same defensive tactical recommendation as its Arabic position");
 
 assert.equal(ai.chooseOpponentTactic({
   state: { pos: "مهاجم", energy: 80, fatigue: 15, trust: 70, morale: 70, seasonGoals: 2, lastRating: 7 },

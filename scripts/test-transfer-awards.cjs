@@ -141,6 +141,9 @@ const codeCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "
 const arabicCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "قلب دفاع" }, 3, 1);
 assert.equal(codeCentreBack.goals, arabicCentreBack.goals);
 assert.equal(codeCentreBack.assists, arabicCentreBack.assists);
+assert.equal(engine.roleType("جناح"), "winger");
+assert.equal(engine.roleType("LW"), "winger");
+assert.equal(engine.roleType("مهاجم"), "attacker");
 
 const sameStrikerStarter = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 1);
 const sameStrikerSubstitute = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "لاعب بديل" }, 5, 1);

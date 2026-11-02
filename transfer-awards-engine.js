@@ -44,9 +44,9 @@
     cm: "midfielder", rcm: "midfielder", lcm: "midfielder",
     centralmidfielder: "midfielder", centralmidfield: "midfielder", midfielder: "midfielder",
     cam: "midfielder", am: "midfielder", attackingmidfielder: "midfielder", attackingmid: "midfielder",
-    lw: "attacker", rw: "attacker", lm: "attacker", rm: "attacker", lwf: "attacker", rwf: "attacker",
-    leftwing: "attacker", rightwing: "attacker", leftwinger: "attacker", rightwinger: "attacker",
-    winger: "attacker", widemidfielder: "attacker", leftmidfielder: "attacker", rightmidfielder: "attacker",
+    lw: "winger", rw: "winger", lm: "winger", rm: "winger", lwf: "winger", rwf: "winger",
+    leftwing: "winger", rightwing: "winger", leftwinger: "winger", rightwinger: "winger",
+    winger: "winger", widemidfielder: "winger", leftmidfielder: "winger", rightmidfielder: "winger",
     cf: "attacker", ss: "attacker", secondstriker: "attacker", mobileforward: "attacker",
     st: "striker", fw: "striker", fwd: "striker", striker: "striker", forward: "striker",
     centreforward: "striker", centerforward: "striker"
@@ -63,7 +63,8 @@
     if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")) return "midfielder";
     if (value.includes("دفاع") || value.includes("ظهير")) return "defender";
     if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")) return "striker";
-    if (value.includes("جناح") || value.includes("مهاجم")) return "attacker";
+    if (value.includes("جناح")) return "winger";
+    if (value.includes("مهاجم")) return "attacker";
     return "midfielder";
   }
 
@@ -672,7 +673,8 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 5,
+    version: 6,
+    roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,
     evaluateNegotiation: evaluateNegotiation,

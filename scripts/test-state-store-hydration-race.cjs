@@ -146,6 +146,26 @@ function createHarness() {
   assert.equal(JSON.stringify(normalWrite.store.getStartupSave()), JSON.stringify(savedCareer),
     "a successful current save must still become the startup save");
 
+  const flushRace = createHarness();
+  const staleFlushCareer = { name: "Career queued before import", money: 700 };
+  const flushRacePromise = flushRace.store.flush(staleFlushCareer);
+  const latestImportedCareer = { name: "Career imported while IndexedDB opens", money: 4700 };
+  flushRace.store.publish(latestImportedCareer, { source: "import" });
+  await flushRace.resolveStartupRead(null);
+  const retryFlushTransaction = await flushRace.waitForWrite();
+  assert.equal(flushRace.writes.length, 1,
+    "a superseded flush must retry once instead of persisting the stale pre-import snapshot");
+  assert.deepEqual(JSON.parse(JSON.stringify(flushRace.writes[0].state)), latestImportedCareer,
+    "a flush superseded during IndexedDB startup must persist the newest published career");
+  assert.equal(flushRace.completeWrite(), true);
+  assert.equal(await flushRacePromise, true,
+    "a superseded flush should report success only after the latest career is committed");
+  assert.equal(flushRace.committedWrites.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(flushRace.committedWrites[0].state)), latestImportedCareer,
+    "the committed default-slot record must be the imported career, never the stale queued state");
+  assert.strictEqual(flushRace.store.getStartupSave(), latestImportedCareer,
+    "the successful retry must become the startup save");
+
   const delayedWrite = createHarness();
   await delayedWrite.resolveStartupRead(null);
   const olderCareer = { name: "Older Save In Flight", money: 700 };

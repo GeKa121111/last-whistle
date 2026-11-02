@@ -70,7 +70,7 @@
 
   function projectedMinutesPerAppearance(player) {
     const role = normalized(player && (player.role || player.squadRole || player.playingTime) || "");
-    if (role.includes("بديل") && role.includes("اساسي")) return 66;
+    if ((role.includes("بديل") && role.includes("اساسي")) || role === "coresubstitute") return 66;
     if (role.includes("نجمالفريق") || role.includes("starplayer")) return 88;
     if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return 83;
     if (role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return 43;
@@ -675,7 +675,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 7,
+    version: 8,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

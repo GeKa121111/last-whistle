@@ -269,6 +269,16 @@ async function main() {
     await page.locator("#modalChoices button").filter({ hasText: "يلا نبدأ" }).click();
     results.push("career creation");
 
+    await page.locator("#lw-command-center").waitFor({ state: "visible", timeout: 10000 });
+    assert.equal(await page.locator("#lw-hub-energy").count(), 0,
+      "energy must remain in the persistent header, not be duplicated in the home command center");
+    assert.equal(await page.locator("#lw-hub-money").count(), 0,
+      "wallet balance must remain in the persistent header, not be duplicated in the home command center");
+    await page.evaluate(() => window.LWStoryRuntime.showPage("home"));
+    assert.equal(await page.locator("#worldAIHomePanel").evaluate(el => getComputedStyle(el).display), "none",
+      "the home page must not duplicate the full world AI dashboard");
+
+
     await page.evaluate(() => window.LWStoryRuntime.showPage("europe"));
     await page.waitForFunction(() => Boolean(window.LWWorldAI
       && document.querySelector("#worldAISimulationDashboard")

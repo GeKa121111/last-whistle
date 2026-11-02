@@ -182,7 +182,7 @@ assert.equal(flaky.state.seasonTrainingReport.sessions, retried.plannedSessions,
 assert.equal(flaky.state.trainingSessions, retried.plannedSessions,
   "the career training-session count must match the once-applied annual plan");
 
-const finishStart = html.indexOf("function finishSeason(skipAnnualTraining=false){");
+const finishStart = html.indexOf("function finishSeasonInternal(skipAnnualTraining=false){");
 const finishEnd = html.indexOf("\nfunction ", finishStart + 10);
 assert.ok(finishStart >= 0 && finishEnd > finishStart, "season completion handler must be present");
 const finishSource = html.slice(finishStart, finishEnd);
@@ -196,7 +196,7 @@ assert.ok(finishSource.includes("action:()=>finishSeason()") && finishSource.inc
   "the recovery modal must expose retry and explicit skip actions");
 
 const skipStart = html.indexOf("function skipSeasonTrainingAndFinish(){");
-const skipEnd = html.indexOf("\nfunction finishSeason(", skipStart);
+const skipEnd = html.indexOf("\nfunction finishSeasonInternal(", skipStart);
 assert.ok(skipStart >= 0 && skipEnd > skipStart, "an explicit annual-training skip path must exist");
 const skipSource = html.slice(skipStart, skipEnd);
 const skipState = { season: 6, seasonApps: 22, seasonTrainingReport: {

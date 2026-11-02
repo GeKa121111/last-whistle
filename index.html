@@ -1805,6 +1805,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);
     state.progressionMatchIds = Array.isArray(state.progressionMatchIds) ? state.progressionMatchIds : [];
+    state.recordedMatchIds = Array.isArray(state.recordedMatchIds) ? state.recordedMatchIds : [];
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
     state.competitionStats = state.competitionStats && typeof state.competitionStats === "object"
       && !Array.isArray(state.competitionStats) ? state.competitionStats : {};
@@ -6762,7 +6763,7 @@ function matchOutcomeForCareerRecord(result,meta={}){
 }
 function applyMatchResultUnsafe(result,meta){
  if(!result||!window.LWMatch?.validateResult(result).ok){console.error("Rejected inconsistent match result",result);toast("تعذر اعتماد نتيجة غير متسقة. لم تُضف إحصاءات أو مكافآت.");return false;}
- const id=String(meta.id||"");if(!id||!Array.isArray(state.recordedMatchIds))return false;
+ const id=String(meta.id||"");if(!id)return false;if(!Array.isArray(state.recordedMatchIds))state.recordedMatchIds=[];
  const incomingScope=meta.scope||"league";
  if(!careerMatchPlayerEligible(state,incomingScope)&&Number(result.player?.minutes)>0){
   console.error("Rejected club appearance for an unsigned free agent",result);

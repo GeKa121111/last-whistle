@@ -511,6 +511,7 @@
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);
     state.progressionMatchIds = Array.isArray(state.progressionMatchIds) ? state.progressionMatchIds : [];
+    state.recordedMatchIds = Array.isArray(state.recordedMatchIds) ? state.recordedMatchIds : [];
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
     state.competitionStats = state.competitionStats && typeof state.competitionStats === "object"
       && !Array.isArray(state.competitionStats) ? state.competitionStats : {};

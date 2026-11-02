@@ -26,7 +26,6 @@ body.lw-rebuild .navGroupLabel{
   letter-spacing:.06em;
 }
 body.lw-rebuild .navGroup .navBtn{min-height:40px}
-body.lw-rebuild #page-home .world-ai-home{display:none!important}
 body.lw-rebuild .lw-overview-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
 body.lw-rebuild .lw-overview-stat{min-width:0}
 body.lw-rebuild .hub-page-heading{
@@ -59,4 +58,26 @@ body.lw-rebuild #page-europe .world-ai-dashboard-grid{margin-top:0}
   body.lw-rebuild .navList{gap:10px;padding:3px 1px}
   body.lw-rebuild .hub-page-heading{margin-bottom:11px;padding-bottom:10px}
   body.lw-rebuild .hub-page-heading p{font-size:10px}
+}
+
+/* Daily readiness appears once inside the career command center. */
+body.lw-rebuild .lw-readiness-brief{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:0 0 15px;padding:10px 12px;border:1px solid #2a392d;
+  border-radius:11px;background:#101812;color:#a7b5a3;
+}
+body.lw-rebuild .lw-readiness-brief>div{min-width:0}
+body.lw-rebuild .lw-readiness-label{
+  display:block;margin-bottom:3px;color:#d5e2ce;font-size:9px;font-weight:950;
+}
+body.lw-rebuild .lw-readiness-brief p{
+  margin:0;color:#a5b4a1;font-size:10px;line-height:1.7;
+}
+body.lw-rebuild .lw-readiness-link{
+  flex:0 0 auto;padding:7px 9px;border:1px solid #3a4d35;border-radius:8px;
+  background:#182518;color:var(--lw-lime);font-size:9px;font-weight:900;
+}
+@media(max-width:520px){
+  body.lw-rebuild .lw-readiness-brief{align-items:flex-start;gap:8px;padding:9px 10px}
+  body.lw-rebuild .lw-readiness-link{padding:7px 8px;white-space:nowrap}
 }

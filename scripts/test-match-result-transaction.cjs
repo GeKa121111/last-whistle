@@ -37,6 +37,7 @@ function extractFunction(source, name) {
 const extracted = [
   extractFunction(html, "cloneSeasonTransitionState"),
   extractFunction(html, "restoreSeasonTransitionState"),
+  extractFunction(html, "ensureLeagueSegmentId"),
   extractFunction(html, "applyMatchResultUnsafe"),
   extractFunction(html, "applyMatchResult"),
   extractFunction(html, "allCareerMatchRowsForHistory"),
@@ -236,4 +237,36 @@ assert.deepEqual(Array.from(sandbox.currentSeasonMatchRows(row => row.scope === 
   ["legacy-only-3", "legacy-duplicate-3", "legacy-no-season-3", "archived-career-3", "active-career-3"],
   "competition filters must work over the unified legacy/current match history");
 
-console.log("PASS: match settlement is atomic, season stats preserve legacy history, and duplicate settlement remains idempotent.");
+events.failCalendar = false;
+const segmentStartState = JSON.parse(JSON.stringify(initialState));
+segmentStartState.leagueSegmentId = "";
+segmentStartState.leagueArchiveSequence = 0;
+segmentStartState.recordedMatchIds = [];
+segmentStartState.careerMatchHistory = [];
+segmentStartState.seasonLog = [];
+sandbox.state = segmentStartState;
+
+const firstSegmentCommit = sandbox.settleMatch(result, { ...meta, id: "first-match-after-segment-reset" });
+assert.ok(firstSegmentCommit && firstSegmentCommit.record,
+  "the first league match after a season/club transition must still commit");
+const firstSegmentId = sandbox.state.leagueSegmentId;
+assert.ok(firstSegmentId && firstSegmentCommit.record.segmentId === firstSegmentId,
+  "league settlement must create and persist a segment ID before writing the match row");
+assert.equal(sandbox.state.leagueArchiveSequence, 1,
+  "the first match must allocate exactly one league segment sequence");
+
+sandbox.state.leagueSegmentId = "";
+const secondSegmentCommit = sandbox.settleMatch(result, { ...meta, id: "first-match-after-return-to-club" });
+assert.ok(secondSegmentCommit && secondSegmentCommit.record,
+  "a later league phase at the same club must still commit");
+const secondSegmentId = sandbox.state.leagueSegmentId;
+assert.notEqual(secondSegmentId, firstSegmentId,
+  "returning to the same club in the same season must start a distinct archived segment");
+assert.equal(secondSegmentCommit.record.segmentId, secondSegmentId,
+  "the returned club's match must be tagged with the new segment, not the earlier one");
+assert.equal(sandbox.state.leagueArchiveSequence, 2,
+  "a second phase must advance the segment sequence exactly once");
+assert.equal(sandbox.state.careerMatchHistory[0].segmentId, secondSegmentId);
+assert.equal(sandbox.state.careerMatchHistory[1].segmentId, firstSegmentId);
+
+console.log("PASS: match settlement is atomic, season stats preserve legacy history, and league segments remain distinct after a return transfer.");

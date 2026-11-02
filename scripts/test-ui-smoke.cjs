@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const htmlPath = path.join(root, "public", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
+const organizationSource = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
 

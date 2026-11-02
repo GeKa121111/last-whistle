@@ -150,6 +150,14 @@ if (!html.includes("function renderStatsSummary(){")
   console.error("Player statistics summary must be populated from reconciled career and current-season match ledgers.");
   process.exit(1);
 }
+const statsPageBranchStart = html.indexOf('case "stats":');
+const statsPageBranchEnd = html.indexOf('case "league":', statsPageBranchStart);
+const statsPageBranch = statsPageBranchStart >= 0 && statsPageBranchEnd > statsPageBranchStart
+  ? html.slice(statsPageBranchStart, statsPageBranchEnd) : "";
+if (!statsPageBranch.includes("renderAchievements();")) {
+  console.error("The statistics page must refresh achievements without requiring a visit to Home.");
+  process.exit(1);
+}
 const leagueRulesCardStart = html.indexOf('<details class="card span12 match-rules-card">');
 const leagueRulesCardEnd = html.indexOf("</details></div></details>", leagueRulesCardStart);
 const organizationUi = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");

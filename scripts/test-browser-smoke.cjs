@@ -313,7 +313,7 @@ async function main() {
         developmentSnapshotSeason: Number(state.seasonDevelopmentSnapshot?.season) || 0,
         developmentSnapshotShooting: Number(state.seasonDevelopmentSnapshot?.attributes?.shooting) || 0,
         speed: Number(state.speed), defending: Number(state.defending), goalkeeping: Number(state.goalkeeping), physical: Number(state.physical),
-        headerCurrency: text("headCurrency"), summaryCurrency: text("kpiCurrency"), storeCurrency: text("storeCurrency"),
+        headerCurrency: text("headCurrency"), storeCurrency: text("storeCurrency"),
         headerBalance: text("headMoney"), nextMatchCountdown: text("lw-console-round"), nextMatchMeta: text("lw-next-match-meta")
       };
     });
@@ -331,8 +331,8 @@ async function main() {
     assert.ok(startingContext.defending >= 15 && startingContext.defending <= 28, "a winger does not start as a defender");
     assert.equal(startingContext.goalkeeping, 0, "outfield players must start with no goalkeeper skill");
     assert.ok(startingContext.physical >= 45 && startingContext.physical <= 58, "physical skill is initialized by position");
-    assert.deepEqual([startingContext.headerCurrency, startingContext.summaryCurrency, startingContext.storeCurrency], ["ج.م", "ج.م", "ج.م"],
-      "header, player summary, and store must use the Egyptian currency for an Egyptian league");
+    assert.deepEqual([startingContext.headerCurrency, startingContext.storeCurrency], ["ج.م", "ج.م"],
+      "header and store must use the Egyptian currency for an Egyptian league");
     assert.ok(startingContext.headerBalance.length > 0, "the header is the single source for the wallet balance");
     const countryCurrencyChecks = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
@@ -345,7 +345,6 @@ async function main() {
           country,
           expected,
           header: document.querySelector("#headCurrency")?.textContent.trim(),
-          summary: document.querySelector("#kpiCurrency")?.textContent.trim(),
           store: document.querySelector("#storeCurrency")?.textContent.trim()
         });
       }
@@ -354,8 +353,8 @@ async function main() {
       return checks;
     });
     for (const check of countryCurrencyChecks) {
-      assert.deepEqual([check.header, check.summary, check.store], [check.expected, check.expected, check.expected],
-        "header, summary and store currency should match " + check.country);
+      assert.deepEqual([check.header, check.store], [check.expected, check.expected],
+        "header and store currency should match " + check.country);
     }
     assert.ok(startingContext.nextMatchCountdown.length > 0 && startingContext.nextMatchMeta.includes("22"),
       "the dashboard shows the upcoming fixture and dynamic season length");

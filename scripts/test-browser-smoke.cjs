@@ -1574,17 +1574,22 @@ async function main() {
         { id: "browser-stats-international", season, scope: "international", minutes: 90, goals: 7, assists: 2, rating: 8.0 }
       ];
       state.season = season;
-      state.apps = 3;
-      state.goals = 11;
-      state.assists = 5;
+      state.apps = 0;
+      state.goals = 0;
+      state.assists = 0;
       state.seasonLog = [];
-      state.careerMatchHistory = records;
+      state.careerMatchHistory = [];
       state.achievements = [];
       state.diary = [];
       state.followers = 0;
       state.trust = 0;
       state.trophies = 0;
       runtime.showPage("stats");
+      runtime.render();
+      state.apps = 3;
+      state.goals = 11;
+      state.assists = 5;
+      state.careerMatchHistory = records;
       runtime.render();
       const read = id => document.querySelector("#" + id)?.textContent.trim() || null;
       const complete = {

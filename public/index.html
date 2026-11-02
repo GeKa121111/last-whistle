@@ -5257,7 +5257,14 @@ function submitTransferNegotiation(){
    releaseClause:result.terms.releaseClause,role:offer.role};
   state.transferNegotiation=null;
   state.transferHistory.unshift({season:state.season,day:state.day,text:"نجحت مفاوضات عقد "+offer.club+": راتب "+result.terms.weeklyWage+" "+offer.currency+" أسبوعيًا ومكافأة توقيع "+result.terms.signingBonus+" ومدة "+result.terms.contractSeasons+" مواسم."});
-  saveGame(true);transferTo();
+  saveGame(true);
+  const transferResult=transferTo();
+  // A transaction failure is different from a vanished destination: rollback preserves the accepted contract.
+  if(transferResult===false){
+   renderTransferMarket();
+   toast("المفاوضات نجحت، لكن تعذر حفظ الانتقال. تم الاحتفاظ بالعقد المقبول؛ أعد المحاولة من بطاقة الانتقال.");
+   return;
+  }
   // Negotiation acceptance is not a completed move until the destination club is actually applied.
   if(state.clubName!==offer.club||state.leagueCountry!==offer.country||state.pendingTransfer){
    state.pendingTransfer=null;offer.status="expired";offer.expiredReason="destination-unavailable";
@@ -5313,8 +5320,15 @@ function renderTransferMarket(){
    +'<p class="muted small">مكافأة توقيع '+Number(o.signingBonus).toLocaleString("en-US")+' • الهدف '+Number(o.goalBonus).toLocaleString("en-US")+' • كلين شيت '+Number(o.cleanSheetBonus).toLocaleString("en-US")+' • مدة مقترحة 3 مواسم</p>'
    +'<div class="transfer-card-actions"><button class="btn primary" type="button" data-negotiate-offer="'+safeHTML(o.id)+'">ابدأ المفاوضات</button><button class="btn" type="button" data-reject-offer="'+safeHTML(o.id)+'">رفض العرض والبقاء</button></div></div>';
  }).join("");
+ const pending=state.pendingTransfer;
+ const pendingTransferCard=pending&&pending.club&&pending.country
+  ? '<div class="dataCard transferOfferCard pendingTransferCard"><div class="cardHead"><h3>عقد مقبول — انتقال لم يكتمل</h3><span class="pill gold">بانتظار إعادة المحاولة</span></div>'
+   +'<p><b>'+safeHTML(pending.club)+'</b> • '+safeHTML(pending.country)+'</p>'
+   +'<p>راتب '+Number(pending.wage||0).toLocaleString("en-US")+' '+safeHTML(pending.currency||currencyLabel(pending.country))+' / أسبوع • مكافأة توقيع '+Number(pending.signingBonus||0).toLocaleString("en-US")+'</p>'
+   +'<p class="muted small">تم قبول شروط العقد، لكن عملية الانتقال لم تكتمل بسبب تعذر تأكيد الحفظ. احتفظنا بالعرض والشروط؛ يمكنك إعادة المحاولة دون إعادة التفاوض.</p>'
+   +'<div class="transfer-card-actions"><button class="btn primary" type="button" data-retry-pending-transfer>إعادة محاولة إتمام الانتقال</button></div></div>' : "";
  const empty='<div class="empty">لا توجد عروض رسمية مطابقة للبحث حاليًا. احذف البحث أو انتظر نافذة الانتقالات التالية، وواصل تحسين تقييمك وأدائك.</div>';
- box.innerHTML=renderNegotiationPanel()+(cards||empty);
+ box.innerHTML=pendingTransferCard+renderNegotiationPanel()+(cards||empty);
  updateNegotiationPreview();
 }
 function renderSquadCompetition(){
@@ -8007,7 +8021,7 @@ function bind(){
  $("trainingIntensity").addEventListener("change",e=>{state.trainingIntensity=e.target.value;saveGame(true);toast("اتحفظت شدة التدريب للمسيرة.");});
  const favoriteHandler=e=>{const b=e.target.closest("[data-favorite-league]");if(!b)return;state.favoriteLeague=b.dataset.favoriteLeague;saveGame(true);toast("اتسجل "+state.favoriteLeague+" كدوري مفضل.");};
  $("leagueCatalog").addEventListener("click",favoriteHandler);$("playableLeagueCatalog").addEventListener("click",favoriteHandler);
- $("transferMarket").addEventListener("click",e=>{const negotiate=e.target.closest("[data-negotiate-offer]");if(negotiate){beginTransferNegotiation(negotiate.dataset.negotiateOffer);return;}const reject=e.target.closest("[data-reject-offer]");if(reject){rejectTransferOffer(reject.dataset.rejectOffer);return;}if(e.target.closest("[data-submit-negotiation]")){submitTransferNegotiation();return;}if(e.target.closest("[data-cancel-negotiation]")){state.transferNegotiation=null;saveGame(true);renderTransferMarket();return;}});$("transferMarket").addEventListener("input",e=>{if(e.target.matches("[data-negotiation-field]"))updateNegotiationPreview();});$("transferMarket").addEventListener("change",e=>{if(!e.target.matches("[data-negotiation-field]"))return;if(e.target.dataset.negotiationField==="salaryPeriod"){const wage=$("transferNegotiationPanel")?.querySelector('[data-negotiation-field="wage"]');if(wage){const next=e.target.value==="monthly"?Math.round((Number(wage.value)||0)*52/12):Math.round((Number(wage.value)||0)*12/52);wage.value=String(next);}if(state.transferNegotiation)state.transferNegotiation.salaryPeriod=e.target.value;updateNegotiationPreview();}});$("requestLoanBtn").addEventListener("click",requestLoan);
+ $("transferMarket").addEventListener("click",e=>{const retryPendingTransfer=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransfer){transferTo();renderTransferMarket();return;}const negotiate=e.target.closest("[data-negotiate-offer]");if(negotiate){beginTransferNegotiation(negotiate.dataset.negotiateOffer);return;}const reject=e.target.closest("[data-reject-offer]");if(reject){rejectTransferOffer(reject.dataset.rejectOffer);return;}if(e.target.closest("[data-submit-negotiation]")){submitTransferNegotiation();return;}if(e.target.closest("[data-cancel-negotiation]")){state.transferNegotiation=null;saveGame(true);renderTransferMarket();return;}});$("transferMarket").addEventListener("input",e=>{if(e.target.matches("[data-negotiation-field]"))updateNegotiationPreview();});$("transferMarket").addEventListener("change",e=>{if(!e.target.matches("[data-negotiation-field]"))return;if(e.target.dataset.negotiationField==="salaryPeriod"){const wage=$("transferNegotiationPanel")?.querySelector('[data-negotiation-field="wage"]');if(wage){const next=e.target.value==="monthly"?Math.round((Number(wage.value)||0)*52/12):Math.round((Number(wage.value)||0)*12/52);wage.value=String(next);}if(state.transferNegotiation)state.transferNegotiation.salaryPeriod=e.target.value;updateNegotiationPreview();}});$("requestLoanBtn").addEventListener("click",requestLoan);
  $("cupCatalog").addEventListener("click",e=>{const b=e.target.closest("[data-enter-cup]");if(b)enterCup(b.dataset.enterCup);});
  $("cupActive").addEventListener("click",e=>{if(e.target.closest("[data-play-cup]"))playCupMatch();});
  

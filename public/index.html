@@ -7492,7 +7492,7 @@ function finishSeason(skipAnnualTraining=false){
  return finishSeasonInFlight;
 }
 function completeTrailingLeagueByes(){
- if(Number(state.seasonApps)||0<seasonMatchTotal())throw new Error("Cannot close league rounds before all player fixtures are complete.");
+ if((Number(state.seasonApps)||0)<seasonMatchTotal())throw new Error("Cannot close league rounds before all player fixtures are complete.");
  ensureFixtureSchedule();
  const rounds=Array.isArray(state.fixtureSchedule)?state.fixtureSchedule:[];
  const ours=clubNameForLeague();

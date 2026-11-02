@@ -537,7 +537,6 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW"]', '["LW", "
   if (!squadRefreshSource.includes(marker)) { console.error("Sourced squad position normalization collapsed striker roles:", marker); process.exit(1); }
 }
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
-const organizationSource = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");
 if (!redesignSource.includes("body.lw-rebuild #seasonActionBridge{display:none!important}")
   || !organizationSource.includes("body.lw-rebuild .lw-readiness-brief")
   || !/<div id="seasonActionBridge"[^>]*\shidden(?:\s|>)/.test(html)

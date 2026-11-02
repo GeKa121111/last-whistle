@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 9);
+assert.equal(engine.version, 10);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -122,10 +122,10 @@ const sameForward = {
   ovr: 95, prestige: 90, leagueStrength: 70, age: 24
 };
 const mobileForwardLine = engine.simulatePlayerSeason({
-  ...sameForward, position: "مهاجم"
+  ...sameForward, position: "مهاجم", role: "أساسي"
 }, 3, 1);
 const centreStrikerLine = engine.simulatePlayerSeason({
-  ...sameForward, position: "رأس حربة"
+  ...sameForward, position: "رأس حربة", role: "أساسي"
 }, 3, 1);
 assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
   "a high-rated centre striker should produce more goals than an otherwise identical mobile forward");
@@ -159,6 +159,9 @@ const sameStrikerProspectEnglish = engine.simulatePlayerSeason({ ...sameForward,
 const sameStrikerSubEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "impact sub" }, 5, 1);
 const sameStrikerReserveArabic = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "فريق الرديف / لاعب تحت التقييم" }, 5, 1);
 const sameStrikerReserveEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "reserve player" }, 5, 1);
+const sameStrikerMissingRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة" }, 5, 1);
+const sameStrikerUnknownRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "unclassified squad tier" }, 5, 1);
+const sameStrikerUnknownSquadRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", squadRole: "unclassified squad tier" }, 5, 1);
 assert.equal(sameStrikerStarter.minutes, sameStrikerStarter.appearances * 83,
   "starter projections must use the same 83-minute participation baseline as match simulation");
 assert.equal(sameStrikerCoreSub.minutes, sameStrikerCoreSub.appearances * 66,
@@ -185,6 +188,12 @@ assert.equal(sameStrikerReserveArabic.minutes, sameStrikerReserveArabic.appearan
   "academy reserve / under-evaluation roles must use the prospect 20-minute baseline");
 assert.equal(sameStrikerReserveEnglish.minutes, sameStrikerReserveEnglish.appearances * 20,
   "English reserve roles must use the prospect 20-minute baseline");
+assert.equal(sameStrikerMissingRole.minutes, sameStrikerMissingRole.appearances * 28,
+  "missing squad roles must use the same 28-minute substitute fallback as match simulation");
+assert.equal(sameStrikerUnknownRole.minutes, sameStrikerUnknownRole.appearances * 28,
+  "unrecognized squad roles must not inflate award projections above the match-engine substitute fallback");
+assert.equal(sameStrikerUnknownSquadRole.minutes, sameStrikerUnknownSquadRole.appearances * 28,
+  "unrecognized alternate squad-role fields must use the match-engine substitute fallback");
 assert.equal(sameStrikerSubstitute.minutes, sameStrikerSubstitute.appearances * 28,
   "substitute projections must use the same 28-minute baseline as match simulation");
 assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);

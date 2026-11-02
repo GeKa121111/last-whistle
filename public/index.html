@@ -7373,7 +7373,7 @@ function skipSeasonTrainingAndFinish(){
  log("اختار اللاعب تجاوز بقية خطة التطوير السنوية بعد تعذر إكمالها؛ تم حفظ الجلسات التي نجحت بالفعل.");
  finishSeason(true);
 }
-function finishSeason(skipAnnualTraining=false){
+function finishSeasonInternal(skipAnnualTraining=false){
  if(state.retired){toast("المسيرة انتهت بالاعتزال؛ ابدأ مسيرة جديدة لو حابب.");return;}
  if(state.seasonApps<seasonMatchTotal()||state.seasonFinished)return;
  settleTrailingByeRounds();
@@ -7464,6 +7464,40 @@ function finishSeason(skipAnnualTraining=false){
  // be visible immediately when the player opens the league tab.
  renderLeague();renderCareerAwards();render();saveGame(true);
 }
+
+async function finishSeason(skipAnnualTraining=false){
+ if(state.retired||state.seasonFinished||state.seasonApps<seasonMatchTotal())return false;
+ let snapshot;
+ try{snapshot=cloneSeasonTransitionState(state);}
+ catch(error){
+  const reason=String(error&&error.message||error||"unknown");
+  try{log("توقف اعتماد نهاية الموسم قبل أي تعديل لأن نسخة الحماية لم تكتمل: "+reason);}catch(logError){}
+  try{toast("تعذر تأمين نسخة من المسيرة؛ لم يتم اعتماد نهاية الموسم. حاول حفظ اللعبة ثم أعد المحاولة.");}catch(toastError){}
+  return false;
+ }
+ try{
+  return await finishSeasonInternal(skipAnnualTraining);
+ }catch(error){
+  restoreSeasonTransitionState(snapshot);
+  const reason=String(error&&error.message||error||"unknown");
+  try{log("تعذر اعتماد نهاية الموسم؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
+  try{if(typeof closeModal==="function")closeModal();}catch(modalError){}
+  try{render();}catch(renderError){console.warn("Season finalization rollback render failed",renderError);}
+  try{saveGame(true);}catch(saveError){console.warn("Season finalization rollback queue failed",saveError);}
+  let rollbackPersisted=false;
+  try{
+   if(typeof flushQueuedSave==="function")rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;
+  }catch(flushError){console.warn("Season finalization rollback flush failed",flushError);}
+  if(rollbackPersisted){
+   try{toast("حصلت مشكلة أثناء اعتماد نهاية الموسم. تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية.");}catch(toastError){}
+  }else{
+   try{log("تمت استعادة حالة المسيرة في الذاكرة، لكن تعذر تأكيد حفظ النسخة الاحتياطية. لا تغلق اللعبة قبل تصدير نسخة احتياطية أو نجاح إعادة الحفظ.");}catch(logError){}
+   try{toast("تمت استعادة المسيرة داخل اللعبة، لكن تعذر حفظ النسخة الاحتياطية. لا تغلق اللعبة قبل تصدير نسخة احتياطية أو نجاح إعادة الحفظ.");}catch(toastError){}
+  }
+  return false;
+ }
+}
+
 function createSingleFlightGate(){
  let pending=null;
  return function run(task){

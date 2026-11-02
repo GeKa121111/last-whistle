@@ -47,6 +47,55 @@ const centreStrikerAdvice = ai.coachAdvice({
 assert.equal(centreStrikerAdvice.focus, "shooting",
   "a centre striker should be coached first on finishing/shooting");
 
+for (const [alias, canonical] of [
+  ["GK", "حارس مرمى"], ["CB", "قلب دفاع"], ["CDM", "وسط دفاعي"],
+  ["CAM", "وسط مهاجم"], ["CM", "وسط"], ["LW", "جناح"], ["CF", "مهاجم"], ["ST", "رأس حربة"]
+]) {
+  assert.equal(ai.normalizePosition(alias), canonical,
+    "career AI must normalize the shared English position alias " + alias);
+}
+const centralMidfielderAdvice = ai.coachAdvice({
+  pos: "CM", energy: 85, fatigue: 15, trust: 65, morale: 70,
+  passing: 62, vision: 61, lastRating: 7.2
+}, 70);
+assert.equal(centralMidfielderAdvice.focus, "passing",
+  "a CM must receive central-midfield passing guidance instead of the default winger plan");
+assert.equal(centralMidfielderAdvice.context.position, "وسط",
+  "coach advice context should use the normalized central-midfield role");
+
+const englishKeeper = ai.utilityScores({
+  pos: "GK", age: 29, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  careerMatchHistory: [{
+    scope: "league", minutes: 90, rating: 7.1, goals: 0, assists: 0, teamGoals: 1, oppGoals: 0,
+    stats: { saves: 3, cleanSheet: true }
+  }]
+}, 70);
+assert.equal(englishKeeper.context.position, "حارس مرمى");
+assert.equal(englishKeeper.context.cleanSheetsLastFive, 1,
+  "English goalkeeper aliases must retain clean-sheet eligibility in career AI");
+assert.equal(englishKeeper.context.roleContributionLastFive, true);
+
+const englishDefender = ai.utilityScores({
+  pos: "CB", age: 26, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  careerMatchHistory: [{
+    scope: "league", minutes: 90, rating: 6.4, goals: 0, assists: 0, teamGoals: 1, oppGoals: 1,
+    stats: { tackles: 4, interceptions: 2, saves: 0, keyPasses: 0, shotsOnTarget: 0 }
+  }]
+}, 70);
+assert.equal(englishDefender.context.roleContributionLastFive, true,
+  "English centre-back aliases must receive credit for real defensive contributions");
+
+const englishCentralMidfielder = ai.utilityScores({
+  pos: "CM", age: 25, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  careerMatchHistory: [{
+    scope: "league", minutes: 90, rating: 6.5, goals: 0, assists: 0, teamGoals: 1, oppGoals: 1,
+    stats: { tackles: 2, interceptions: 1, keyPasses: 2, shotsOnTarget: 0 }
+  }]
+}, 70);
+assert.equal(englishCentralMidfielder.context.position, "وسط");
+assert.equal(englishCentralMidfielder.context.roleContributionLastFive, true,
+  "central-midfield key passes must count as an individual contribution for AI role assessment");
+
 const newestForm = ai.formRating({
   careerMatchHistory: [
     ...Array.from({ length: 5 }, (_, i) => ({ scope: "league", rating: 8.8 - i * 0.1, matchId: "new-" + i })),
@@ -104,6 +153,16 @@ const underdogPlan = ai.recommendPlayerTactic({
   pos: "جناح", energy: 80, fatigue: 15, trust: 55, morale: 55, clubPower: 48
 }, 58, { name: "منافس قوي", power: 83 });
 assert.equal(underdogPlan.tactic, "counter", "an underdog should be advised to use counter attacks");
+const englishKeeperPlan = ai.recommendPlayerTactic({
+  pos: "GK", energy: 90, fatigue: 15, trust: 50, morale: 50, clubPower: 55
+}, 55, { name: "منافس متكافئ", power: 60 });
+assert.equal(englishKeeperPlan.tactic, "defend",
+  "an English GK alias must receive the same conservative tactical recommendation as its Arabic position");
+const englishCentreBackPlan = ai.recommendPlayerTactic({
+  pos: "CB", energy: 90, fatigue: 15, trust: 50, morale: 50, clubPower: 55
+}, 55, { name: "منافس متكافئ", power: 60 });
+assert.equal(englishCentreBackPlan.tactic, "defend",
+  "an English CB alias must receive the same defensive tactical recommendation as its Arabic position");
 
 assert.equal(ai.chooseOpponentTactic({
   state: { pos: "مهاجم", energy: 80, fatigue: 15, trust: 70, morale: 70, seasonGoals: 2, lastRating: 7 },

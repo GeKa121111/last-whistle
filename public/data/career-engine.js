@@ -14,15 +14,42 @@
     speed: { cost: 20, xp: 24, secondary: { fitness: 7 } },
     physical: { cost: 20, xp: 26, secondary: { defending: 5, fitness: 4 } }
   };
+  const POSITION_ALIASES = {
+    "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
+    "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع", "centre back": "قلب دفاع", "central defender": "قلب دفاع",
+    "lb": "ظهير", "rb": "ظهير", "lwb": "ظهير", "rwb": "ظهير", "wb": "ظهير", "fb": "ظهير",
+    "left back": "ظهير", "right back": "ظهير", "left wing back": "ظهير", "right wing back": "ظهير",
+    "full back": "ظهير", "fullback": "ظهير", "wing back": "ظهير", "wingback": "ظهير",
+    "cdm": "وسط دفاعي", "dm": "وسط دفاعي", "defensive midfielder": "وسط دفاعي", "defensive mid": "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    "cam": "وسط مهاجم", "am": "وسط مهاجم", "attacking midfielder": "وسط مهاجم", "attacking mid": "وسط مهاجم",
+    "cm": "وسط", "rcm": "وسط", "lcm": "وسط", "central midfielder": "وسط", "central midfield": "وسط", "midfielder": "وسط",
+    "lw": "جناح", "rw": "جناح", "lm": "جناح", "rm": "جناح", "lwf": "جناح", "rwf": "جناح",
+    "left wing": "جناح", "right wing": "جناح", "left winger": "جناح", "right winger": "جناح", "winger": "جناح",
+    "wide midfielder": "جناح", "left midfielder": "جناح", "right midfielder": "جناح",
+    "cf": "مهاجم", "ss": "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
+    "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  };
+  function normalizeCareerPosition(position) {
+    const raw = String(position || "").trim();
+    if (!raw) return "";
+    const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+    const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
+      && window.LWStateStore.normalizePosition;
+    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
+  }
+
   const CAREER_ATTRIBUTE = {
     "حارس مرمى": "goalkeeping", "قلب دفاع": "physical", "ظهير": "speed",
-    "وسط دفاعي": "physical", "وسط مهاجم": "vision", "جناح": "dribbling", "مهاجم": "dribbling", "رأس حربة": "shooting"
+    "وسط": "passing", "وسط دفاعي": "physical", "وسط مهاجم": "vision",
+    "جناح": "dribbling", "مهاجم": "dribbling", "رأس حربة": "shooting"
   };
 
   const DEVELOPMENT_PLANS = {
     "حارس مرمى": { title: "حارس متكامل", summary: "رد الفعل والتمركز والهدوء بالكرة. ارفع الحراسة أولًا، وادعمها بالاتزان والتمرير واللياقة.", primary: ["goalkeeping"], secondary: ["composure", "passing", "fitness"], matchSkill: "goalkeeping" },
     "قلب دفاع": { title: "قلب دفاع قوي وقارئ للعب", summary: "اكسب الالتحامات والكرات الهوائية، وادعم قوتك بالتمركز والهدوء وبداية الهجمة بالتمرير.", primary: ["defending", "physical"], secondary: ["composure", "fitness", "passing"], matchSkill: "defending" },
     "ظهير": { title: "ظهير عصري", summary: "وازن بين السرعة واللياقة والقوة في الالتحامات، مع تمرير يساعدك على بناء الهجمة من الطرف.", primary: ["speed", "fitness"], secondary: ["passing", "defending", "physical"], matchSkill: "speed" },
+    "وسط": { title: "لاعب وسط متكامل", summary: "اربط الدفاع بالهجوم، ووزّع اللعب بالتمرير والرؤية مع الحفاظ على اللياقة والقدرة على افتكاك الكرة.", primary: ["passing", "vision"], secondary: ["fitness", "composure", "defending", "dribbling"], matchSkill: "passing" },
     "وسط دفاعي": { title: "محور ارتكاز", summary: "اكسب الالتحامات واقطع الهجمات وابدأ البناء من الخلف. ركّز على الدفاع والتمرير والرؤية.", primary: ["defending", "physical"], secondary: ["vision", "fitness", "composure", "passing"], matchSkill: "defending" },
     "وسط مهاجم": { title: "صانع ألعاب", summary: "سرعة القرار والتمريرة الحاسمة أهم من الجري فقط. طوّر الرؤية والتمرير والهدوء تحت الضغط.", primary: ["vision", "passing"], secondary: ["composure", "dribbling", "shooting"], matchSkill: "vision" },
     "جناح": { title: "جناح اختراق", summary: "اكسب المواجهة واحد ضد واحد بالسرعة والمراوغة، ووازن ده بالقوة وقت الالتحام ثم حسّن الإنهاء وصناعة الفرص.", primary: ["dribbling", "speed"], secondary: ["shooting", "vision", "fitness", "physical"], matchSkill: "dribbling" },
@@ -30,7 +57,8 @@
     "رأس حربة": { title: "رأس حربة هدّاف", summary: "مهمتك الأساسية إنهاء الهجمة داخل المنطقة، استغلال العرضيات والكرات البينية، وحماية الكرة تحت ضغط المدافعين. ركّز على التسديد والهدوء والقوة البدنية.", primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
-    const position = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const rawPosition = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const position = normalizeCareerPosition(rawPosition) || "جناح";
     const plan = DEVELOPMENT_PLANS[position] || DEVELOPMENT_PLANS["جناح"];
     return { position, title: plan.title, summary: plan.summary, primary: plan.primary.slice(), secondary: plan.secondary.slice(), matchSkill: plan.matchSkill };
   }
@@ -49,6 +77,7 @@
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
+
     const safeMetric = (value, maximum = 1000000) => {
       const numeric = Number(value);
       return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, numeric)) : 0;
@@ -62,6 +91,7 @@
       return { role: originalRole, changed: false, reason: "no-appearances", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
     }
+
     const sum = (rows, key) => {
       const maximum = key === "minutes" ? 120 : key === "rating" ? 10 : 20;
       return rows.reduce((total, row) => total + safeMetric(row[key], maximum), 0);
@@ -70,8 +100,12 @@
     const recentContributions = sum(recent, "goals") + sum(recent, "assists");
     const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
     const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
-    const recentAverageRating = ratedRows.length
-      ? ratedRows.reduce((total, row) => total + safeMetric(row.rating, 10), 0) / ratedRows.length : 0;
+    const ratedMinutes = ratedRows.reduce((total, row) => total + safeMetric(row.minutes, 120), 0);
+    // A five-minute cameo must not carry the same weight as a full match when judging squad form.
+    const recentAverageRating = ratedMinutes > 0
+      ? ratedRows.reduce((total, row) => total
+        + safeMetric(row.rating, 10) * safeMetric(row.minutes, 120), 0) / ratedMinutes : 0;
+
     const appearances = Math.floor(safeMetric(state.apps, 1000000));
     const averageCareerMinutes = allRows.length ? sum(allRows, "minutes") / allRows.length : 60;
     // Saves compact long careers, so estimate missing historical minutes from the observed mean.
@@ -79,14 +113,15 @@
     const careerContributions = safeMetric(state.goals, Math.max(0, appearances * 20)) + safeMetric(state.assists, Math.max(0, appearances * 20));
     const careerContributionsPer90 = careerContributions / Math.max(1, careerMinutes / 90);
     const trust = safeMetric(state.trust, 100);
-    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(String(state.pos || ""));
-    const veteranOutput = roleIsForward && appearances >= 35
+    const roleIsForward = ["رأس حربة", "مهاجم", "جناح", "وسط مهاجم"].includes(normalizeCareerPosition(state.pos));
+    const veteranOutput = roleIsForward && appearances >= 35 && ratedMinutes >= 240
       && careerContributionsPer90 >= 0.32 && recentAverageRating >= 5.9;
-    const recentReady = recentAverageRating >= 6.25
+    const recentReady = ratedMinutes >= 240 && recentAverageRating >= 6.25
       && (trust >= 22 || recentContributionsPer90 >= 0.25);
-    const starterReady = (recentAverageRating >= 6.35
+    const starterReady = (ratedMinutes >= 360 && recentAverageRating >= 6.35
       && (trust >= 30 || recentContributionsPer90 >= 0.30))
-      || (appearances >= 35 && roleIsForward && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
+      || (appearances >= 35 && roleIsForward && ratedMinutes >= 240
+        && careerContributionsPer90 >= 0.35 && recentAverageRating >= 5.9);
     let role = originalRole;
     const roleKey = role.trim().toLocaleLowerCase();
     const roleIsYouth = roleKey.includes("ناشئ") || roleKey.includes("صاعد")
@@ -95,21 +130,43 @@
       || roleKey.includes("squad player");
     const roleIsBench = roleKey === "بديل" || roleKey.includes("لاعب بديل")
       || roleKey.includes("احتياطي") || roleKey.includes("impact sub") || roleKey.includes("fringe player");
-    if (roleIsYouth && appearances >= 3) role = "بديل";
-    if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
-    // Rotation players move to a regular starting role only after sustained performance.
-    if (roleIsRotation && appearances >= 16 && starterReady) role = "أساسي";
-    if (role === "بديل أساسي" && appearances >= 16 && starterReady) role = "أساسي";
+    const roleIsStar = roleKey.includes("نجم الفريق") || roleKey.includes("star player");
+    const roleIsStarter = roleKey === "أساسي" || roleKey.includes("لاعب أساسي")
+      || roleKey.includes("regular starter");
+    // Demotions require a sustained sample: one or two bad matches must never change a contract role.
+    const poorFormEvidence = ratedRows.length >= 6 && ratedMinutes >= 360;
+    const poorStarterForm = poorFormEvidence && recentAverageRating <= 5.75 && trust < 35;
+    const poorRotationForm = poorFormEvidence && recentAverageRating <= 5.45 && trust < 25;
+    const poorStarForm = ratedRows.length >= 7 && ratedMinutes >= 420 && recentAverageRating <= 5.35 && trust < 20;
+    let demoted = false;
+    if (roleIsStar && appearances >= 16 && poorStarForm) {
+      role = "أساسي";
+      demoted = true;
+    } else if (roleIsStarter && appearances >= 16 && poorStarterForm) {
+      role = "بديل أساسي";
+      demoted = true;
+    } else if ((roleIsRotation || roleKey === "بديل أساسي") && appearances >= 16 && poorRotationForm) {
+      role = "بديل";
+      demoted = true;
+    }
+    // Keep the established promotion ladder: one strong match may advance a player through two earned tiers.
+    if (!demoted) {
+      if (roleIsYouth && appearances >= 3) role = "بديل";
+      if ((role === "بديل" || roleIsBench) && appearances >= 8 && (recentReady || veteranOutput)) role = "بديل أساسي";
+      if ((roleIsRotation || role === "بديل أساسي") && appearances >= 16 && starterReady) role = "أساسي";
+    }
+
     return {
       role, changed: role !== originalRole,
-      reason: role === originalRole ? "keep-role" : role === "أساسي" ? "starter-ready" : "rotation-ready",
+      reason: role === originalRole ? "keep-role" : demoted ? "form-demotion"
+        : role === "أساسي" ? "starter-ready" : "rotation-ready",
       recentAverageRating: Math.round(recentAverageRating * 100) / 100,
       recentContributionsPer90: Math.round(recentContributionsPer90 * 100) / 100,
       careerContributionsPer90: Math.round(careerContributionsPer90 * 100) / 100
     };
   }
 
-    const APPEARANCE_MILESTONES = [5, 10, 20, 30];
+      const APPEARANCE_MILESTONES = [5, 10, 20, 30];
   const clamp = (value, min = 0, max = 100) =>
     Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
 
@@ -117,6 +174,7 @@
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
     "قلب دفاع": { shooting:[25,40], dribbling:[40,50], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[0,0], vision:[40,50], physical:[55,66] },
     "ظهير": { shooting:[25,40], dribbling:[48,60], passing:[45,55], speed:[55,66], fitness:[55,66], composure:[45,55], defending:[55,66], goalkeeping:[0,0], vision:[45,55], physical:[52,62] },
+    "وسط": { shooting:[42,55], dribbling:[48,60], passing:[56,68], speed:[48,60], fitness:[54,66], composure:[52,64], defending:[42,56], goalkeeping:[0,0], vision:[56,68], physical:[45,58] },
     "وسط دفاعي": { shooting:[40,52], dribbling:[45,58], passing:[55,65], speed:[50,60], fitness:[55,65], composure:[55,65], defending:[52,62], goalkeeping:[0,0], vision:[55,65], physical:[52,62] },
     "وسط مهاجم": { shooting:[50,62], dribbling:[50,62], passing:[55,65], speed:[50,62], fitness:[55,65], composure:[55,65], defending:[35,45], goalkeeping:[0,0], vision:[55,65], physical:[40,55] },
     "جناح": { shooting:[55,68], dribbling:[55,68], passing:[50,60], speed:[55,68], fitness:[50,60], composure:[50,60], defending:[15,28], goalkeeping:[0,0], vision:[50,60], physical:[45,58] },
@@ -124,40 +182,143 @@
     "رأس حربة": { shooting:[60,72], dribbling:[44,57], passing:[42,54], speed:[48,61], fitness:[49,61], composure:[54,65], defending:[15,28], goalkeeping:[0,0], vision:[42,54], physical:[53,65] }
   };
   function startingStatsForPosition(position, random = Math.random) {
-    const ranges = STARTING_RANGES[String(position || "جناح")] || STARTING_RANGES["جناح"];
+    const normalizedPosition = normalizeCareerPosition(position || "جناح") || "جناح";
+    const ranges = STARTING_RANGES[normalizedPosition] || STARTING_RANGES["جناح"];
     const stats = {};
     for (const [key, range] of Object.entries(ranges)) {
       const roll = Math.max(0, Math.min(0.999999999, Number(random()) || 0));
       stats[key] = range[0] + Math.floor(roll * (range[1] - range[0] + 1));
     }
-    if (String(position || "جناح") !== "حارس مرمى") stats.goalkeeping = 0;
+    if (normalizedPosition !== "حارس مرمى") stats.goalkeeping = 0;
     return stats;
   }
 
 
+
   function uniqueMatchRows(rows) {
-    const seen = new Set();
+    const seenById = new Map();
+    const seenFallback = new Set();
+    const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
+    const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
+    const fallbackContextFields = ["competition", "season", "segmentId", "club"];
+    const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
+    const identityValue = (row, field) => {
+      const value = field === "competition"
+        ? [row.competition, row.leagueCompetition].find(candidate =>
+          candidate !== undefined && candidate !== null && String(candidate).trim() !== "")
+        : row[field];
+      return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
+    };
+    const rowSignature = row => {
+      try {
+        return JSON.stringify(Object.keys(row).sort().map(key => [key, row[key]]));
+      } catch (error) {
+        return null;
+      }
+    };
     return (Array.isArray(rows) ? rows : []).filter(row => {
-      if (!row || typeof row !== "object") return false;
-      const id = String(row.id || row.matchId || "").trim();
-      const fallback = [row.scope || "", row.competition || row.leagueCompetition || "",
-        row.season || "", row.segmentId || "", row.club || "", row.opponent || "",
-        row.day || "", row.calendarDay || "", row.matchday || "",
+      if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+      const rawId = row.id !== undefined && row.id !== null && String(row.id).trim() !== ""
+        ? row.id : row.matchId;
+      const id = String(rawId ?? "").trim();
+      if (id) {
+        const identity = Object.fromEntries(identityFields.map(field => [field, identityValue(row, field)]));
+        const signature = rowSignature(row);
+        const candidates = seenById.get(id) || [];
+        const duplicate = candidates.some(existing => {
+          const identityConflict = identityFields.some(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] !== identity[field]);
+          if (identityConflict) return false;
+          if (signature !== null && existing.signature === signature) return true;
+          // A partial legacy row with no competition must not act as a wildcard.
+          // It may be a league fixture while the identified row is a cup fixture
+          // that reused the same ID, opponent and date. Only exact copies can be
+          // collapsed when competition/club/season context is incomplete.
+          const reliableCompetitionContext = ["competition", "club"].every(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] === identity[field]);
+          const reliableSeasonContext = ["season", "segmentId"].some(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] === identity[field]);
+          if (!reliableCompetitionContext || !reliableSeasonContext) return false;
+          const sharedIdentityCount = identityFields.reduce((count, field) =>
+            count + (existing.identity[field] && identity[field] && existing.identity[field] === identity[field] ? 1 : 0), 0);
+          const sharedEventIdentity = eventIdentityFields.some(field =>
+            existing.identity[field] && identity[field] && existing.identity[field] === identity[field]);
+          return sharedIdentityCount >= 2 && sharedEventIdentity;
+        });
+        if (duplicate) return false;
+        candidates.push({ identity, signature });
+        seenById.set(id, candidates);
+        return true;
+      }
+      // Without a saved match ID, identical score lines and player stats are not
+      // enough to prove that two fixtures are the same (e.g. home and away legs).
+      // Require both a stable competition/season/club context and a temporal key.
+      const hasFallbackContext = fallbackContextFields.some(field => identityValue(row, field) !== "");
+      const hasFallbackTime = fallbackTemporalFields.some(field => identityValue(row, field) !== "");
+      if (!hasFallbackContext || !hasFallbackTime) return true;
+      const fallback = [
+        identityValue(row, "scope"), identityValue(row, "competition"),
+        identityValue(row, "season"), identityValue(row, "segmentId"),
+        identityValue(row, "club"), identityValue(row, "opponent"),
+        identityValue(row, "day"), identityValue(row, "calendarDay"), identityValue(row, "matchday"),
         row.teamGoals ?? row.scoreFor ?? "", row.oppGoals ?? row.scoreAgainst ?? "",
-        row.minutes ?? "", row.goals ?? "", row.assists ?? ""].join("|");
-      const key = id ? "id:" + id : "row:" + fallback;
-      if (seen.has(key)) return false;
-      seen.add(key);
+        row.minutes ?? "", row.goals ?? "", row.assists ?? ""
+      ].join("|");
+      const key = "row:" + fallback;
+      if (seenFallback.has(key)) return false;
+      seenFallback.add(key);
       return true;
     });
   }
-
   function uniqueCareerHistory(state) {
     const leagueRows = (Array.isArray(state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object")
       .map(row => ({ ...row, scope: row.scope || "league" }));
     const careerRows = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [];
     return uniqueMatchRows([...leagueRows, ...careerRows]);
+  }
+
+  // Awards are season-scoped: merge legacy seasonLog rows with current-season
+  // career rows, but never let older seasons or cup/international matches leak in.
+  function currentSeasonLeagueMatchRows(state) {
+    const seasonValue = Number(state && state.season);
+    const currentSeason = Number.isFinite(seasonValue) && seasonValue > 0 ? seasonValue : 1;
+    const isLeagueRow = row => !row.scope || String(row.scope) === "league";
+    const currentSeasonSegments = new Set(
+      (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
+        .filter(archive => archive && typeof archive === "object"
+          && Number(archive.season) === currentSeason)
+        .map(archive => String(archive.segmentId || "").trim())
+        .filter(Boolean)
+    );
+    const activeSegmentId = String(state && state.leagueSegmentId || "").trim();
+    if (activeSegmentId) currentSeasonSegments.add(activeSegmentId);
+    const legacySeasonRows = (Array.isArray(state && state.seasonLog) ? state.seasonLog : [])
+      .filter(row => row && typeof row === "object" && !Array.isArray(row)
+        && isLeagueRow(row)
+        && (row.season === undefined || row.season === null || String(row.season).trim() === ""
+          || Number(row.season) === currentSeason))
+      .map(row => ({
+        ...row,
+        scope: row.scope || "league",
+        season: row.season === undefined || row.season === null || String(row.season).trim() === ""
+          ? currentSeason : row.season
+      }));
+    const careerRows = (Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [])
+      .filter(row => {
+        if (!row || typeof row !== "object" || Array.isArray(row) || !isLeagueRow(row)) return false;
+        const rawSeason = row.season;
+        const hasSeason = rawSeason !== undefined && rawSeason !== null && String(rawSeason).trim() !== "";
+        if (hasSeason) {
+          const savedSeason = Number(rawSeason);
+          return Number.isFinite(savedSeason) && savedSeason === currentSeason;
+        }
+        const segmentId = String(row.segmentId || "").trim();
+        return !!segmentId && currentSeasonSegments.has(segmentId);
+      })
+      .map(row => row.season === undefined || row.season === null || String(row.season).trim() === ""
+        ? { ...row, season: currentSeason } : row);
+    return uniqueMatchRows([...legacySeasonRows, ...careerRows]);
   }
 
   const normalizeLegacyBoolean = (value, fallback = false) => {
@@ -197,15 +358,50 @@
   }
 
   function deriveLeagueRatingStats(state) {
+    const hasUsableRating = value => (typeof value === "number"
+      || (typeof value === "string" && value.trim() !== ""))
+      && Number.isFinite(Number(value));
     const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
-      && safeLegacyMinutes(row.minutes) > 0 && Number.isFinite(Number(row.rating)));
+      && safeLegacyMinutes(row.minutes) > 0 && hasUsableRating(row.rating));
     state.leagueRatingSum = rows.reduce((sum, row) => sum + safeLegacyRating(row.rating), 0);
     state.leagueRatingCount = rows.length;
     return { sum: state.leagueRatingSum, count: state.leagueRatingCount };
   }
 
   function ensureState(state) {
+    if (state.pos && String(state.pos).trim()) state.pos = normalizeCareerPosition(state.pos);
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
+    const hasActiveLoan = !!(state.loan && typeof state.loan === "object" && !Array.isArray(state.loan));
+    const savedParentContractType = hasActiveLoan ? state.loan.parentContractType : undefined;
+    const hasSavedParentContractType = savedParentContractType !== undefined
+      && savedParentContractType !== null
+      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
+    const effectiveContractType = String(hasActiveLoan && hasSavedParentContractType
+      ? savedParentContractType : state.contractType || "").trim().toLowerCase();
+    const savedParentFreeAgent = hasActiveLoan ? state.loan.parentFreeAgent : undefined;
+    const hasSavedParentFreeAgent = savedParentFreeAgent !== undefined
+      && savedParentFreeAgent !== null
+      && !(typeof savedParentFreeAgent === "string" && savedParentFreeAgent.trim() === "");
+    const effectiveFreeAgent = hasActiveLoan
+      ? hasSavedParentFreeAgent ? normalizeLegacyBoolean(savedParentFreeAgent)
+        : effectiveContractType === "free-agent" ? true
+          : effectiveContractType ? false : state.freeAgent
+      : state.freeAgent;
+    const savedParentContractSeasons = hasActiveLoan ? state.loan.parentContractSeasons : undefined;
+    const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
+      && savedParentContractSeasons !== null
+      && !(typeof savedParentContractSeasons === "string" && savedParentContractSeasons.trim() === "");
+    const savedStateContractSeasons = state.contractSeasons;
+    const stateContractSeasonsMissing = savedStateContractSeasons === undefined || savedStateContractSeasons === null
+      || (typeof savedStateContractSeasons === "string" && savedStateContractSeasons.trim() === "");
+    const fallbackParentContractSeasons = stateContractSeasonsMissing
+      ? (effectiveFreeAgent || effectiveContractType === "free-agent" ? 0 : 2)
+      : Number(savedStateContractSeasons);
+    const effectiveContractSeasons = hasActiveLoan
+      ? hasSavedParentContractSeasons ? Number(savedParentContractSeasons) : fallbackParentContractSeasons
+      : Number(state.contractSeasons);
+    if (!hasActiveLoan && effectiveContractType === "free-agent") state.freeAgent = true;
+    if (!hasActiveLoan && state.freeAgent && !normalizeLegacyBoolean(state.academyGraduationPending)) state.contractType = "free-agent";
     state.retired = normalizeLegacyBoolean(state.retired);
     state.playedToday = normalizeLegacyBoolean(state.playedToday);
     state.trainedToday = normalizeLegacyBoolean(state.trainedToday);
@@ -279,13 +475,23 @@
         ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(weeklyWageValue))) : 0;
     }
     state.agentCommissionPaid = finiteCount(state.agentCommissionPaid);
-    const contractSeasonsMissing = state.contractSeasons === undefined || state.contractSeasons === null || state.contractSeasons === "";
-    if (contractSeasonsMissing) state.contractSeasons = state.freeAgent || state.retired ? 0 : 2;
+    const defaultContractIsFreeAgent = hasActiveLoan
+      ? (effectiveFreeAgent || effectiveContractType === "free-agent") : state.freeAgent;
+    const defaultContractSeasons = defaultContractIsFreeAgent || state.retired ? 0 : 2;
+    const contractSeasonsMissing = state.contractSeasons === undefined || state.contractSeasons === null
+      || (typeof state.contractSeasons === "string" && state.contractSeasons.trim() === "");
+    if (contractSeasonsMissing) state.contractSeasons = defaultContractSeasons;
     else {
       const contractSeasonsValue = Number(state.contractSeasons);
       state.contractSeasons = Number.isFinite(contractSeasonsValue)
         ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
-        : (state.freeAgent || state.retired ? 0 : 2);
+        : defaultContractSeasons;
+    }
+    if (!hasActiveLoan && state.freeAgent) state.contractSeasons = 0;
+    if (effectiveFreeAgent || state.retired || effectiveContractType === "free-agent"
+      || (!hasActiveLoan && Number(state.contractSeasons) <= 0)
+      || (hasActiveLoan && (!Number.isFinite(effectiveContractSeasons) || effectiveContractSeasons <= 0))) {
+      state.weeklyWage = 0;
     }
     const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
     state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
@@ -364,6 +570,7 @@
     "حارس مرمى": { goalkeeping:.52,composure:.14,vision:.12,fitness:.08,passing:.06,physical:.04,speed:.02,defending:.02 },
     "قلب دفاع": { defending:.25,physical:.20,fitness:.15,speed:.12,composure:.10,passing:.08,vision:.05,dribbling:.03,shooting:.02 },
     "ظهير": { speed:.20,defending:.18,fitness:.15,physical:.12,passing:.12,dribbling:.08,vision:.05,composure:.05,shooting:.05 },
+    "وسط": { passing:.18,vision:.16,fitness:.13,dribbling:.12,defending:.12,composure:.10,physical:.08,speed:.06,shooting:.05 },
     "وسط دفاعي": { defending:.20,passing:.18,vision:.16,physical:.12,fitness:.12,composure:.10,speed:.06,dribbling:.03,shooting:.03 },
     "وسط مهاجم": { vision:.22,passing:.22,composure:.14,dribbling:.12,shooting:.10,speed:.07,fitness:.07,physical:.03,defending:.03 },
     "جناح": { shooting:.18,dribbling:.20,speed:.19,passing:.13,vision:.10,fitness:.08,composure:.07,physical:.03,defending:.02 },
@@ -546,12 +753,15 @@
     const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
     const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
+    const creativeMidfieldPosition = ["وسط", "وسط مهاجم"].includes(String(state.pos || ""));
     const positionActionXP = state.pos === "حارس مرمى"
       ? Math.min(18, saves * 2 + penaltiesSaved * 5 + (cleanSheet ? 5 : 0))
       : defensivePosition
         ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
-        : state.pos === "وسط مهاجم"
-          ? Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
+        : creativeMidfieldPosition
+          ? state.pos === "وسط"
+            ? Math.min(12, keyPasses * 1.1 + recoveries * 0.8 + tackles * 0.3)
+            : Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
           : Math.min(12, goals * 4 + assists * 2);
     const xp = Math.max(1, Math.round(((played / 90) * rating * 1.8 * ageFactor * performanceFactor * potentialFactor * fatigueFactor
       + positionActionXP * Math.min(1, played / 75)) * storeXPMultiplier));
@@ -614,9 +824,9 @@
       + pad(reference.getUTCDate()) + "T00:00:00.000Z";
   }
 
-  function seasonAwards(state, league, teamRank) {
+function seasonAwards(state, league, teamRank) {
     ensureState(state);
-    const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);
+    const log = currentSeasonLeagueMatchRows(state);
     const competition = String(state.leagueCompetition || "");
     const country = String(state.leagueCountry || "");
     const awardCount = value => {
@@ -655,6 +865,31 @@
         score: 0
       };
     });
+    const database = window.LWWorldDB;
+    const leagueProfile = database?.leagueFor?.(country, state.leagueDivision) || {};
+    const currentDivision = Math.max(1, Number(state.leagueDivision) || 1);
+    const realLeagueClubs = (database?.clubs?.() || []).filter(club =>
+      club.country === country && Math.max(1, Number(club.division) || 1) === currentDivision
+    );
+    for (const club of realLeagueClubs) {
+      const profile = database?.leagueById?.(club.leagueId) || {};
+      for (const player of club.players || []) {
+        const simulated = window.LWTransferAwards?.simulatePlayerSeason({
+          ...player, clubName: club.name, country: club.country,
+          prestige: club.prestige, leagueStrength: Number(leagueProfile.strength) || 60,
+          confederation: profile.confederation || "",
+          originConfederation: profile.confederation || "",
+          realPlayer: true
+        }, state.season, 1);
+        if (!simulated) continue;
+        opponents.push({
+          name: simulated.name, club: club.name, age: simulated.age,
+          goals: simulated.goals, assists: simulated.assists,
+          rating: simulated.averageRating,
+          score: simulated.averageRating * 10 + simulated.goals * 0.34 + simulated.assists * 0.28
+        });
+      }
+    }
     for (const player of opponents) player.score = player.rating * 10 + player.goals * 0.34 + player.assists * 0.28;
     const eligible = Number(state.age) <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
@@ -737,25 +972,68 @@
   function contractStateForSeasonTransition(state) {
     if (!state || !state.loan) return state;
     const loan = state.loan;
+    const hasParentClub = typeof loan.parentClub === "string" && loan.parentClub.trim() !== "";
+    const hasParentCountry = typeof loan.parentCountry === "string" && loan.parentCountry.trim() !== "";
+    if (!hasParentClub || !hasParentCountry) {
+      // An incomplete legacy loan cannot prove who owns the contract. Do not
+      // mistake the temporary host wage/term for a valid parent-club contract.
+      return {
+        ...state,
+        loan: null,
+        weeklyWage: 0,
+        contractSeasons: 0,
+        contractType: "free-agent",
+        freeAgent: true
+      };
+    }
     const parentWageValue = Number(loan.parentWage);
-    const parentContractSeasonsValue = Number(loan.parentContractSeasons);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
+    const savedParentContractType = loan.parentContractType;
+    const hasSavedParentContractType = savedParentContractType !== undefined
+      && savedParentContractType !== null
+      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
+    const savedStateContractType = state.contractType;
+    const hasSavedStateContractType = savedStateContractType !== undefined
+      && savedStateContractType !== null
+      && !(typeof savedStateContractType === "string" && savedStateContractType.trim() === "");
+    const parentContractType = String(hasSavedParentContractType ? savedParentContractType
+      : hasSavedStateContractType ? savedStateContractType
+        : parentFreeAgent ? "free-agent" : "professional").trim();
+    const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
+    // Older loan saves may omit this snapshot or serialize it as null/blank; fall back to the parent term on state.
+    const savedParentContractSeasons = loan.parentContractSeasons;
+    const hasSavedParentContractSeasons = savedParentContractSeasons !== undefined
+      && savedParentContractSeasons !== null
+      && !(typeof savedParentContractSeasons === "string" && savedParentContractSeasons.trim() === "");
+    const savedStateContractSeasons = state.contractSeasons;
+    const stateContractSeasonsMissing = savedStateContractSeasons === undefined || savedStateContractSeasons === null
+      || (typeof savedStateContractSeasons === "string" && savedStateContractSeasons.trim() === "");
+    const fallbackParentContractSeasons = stateContractSeasonsMissing
+      ? (parentIsFreeAgent ? 0 : 2) : Number(savedStateContractSeasons);
+    const parentContractSeasonsValue = hasSavedParentContractSeasons
+      ? Number(savedParentContractSeasons) : fallbackParentContractSeasons;
+    const restoredParentContractSeasons = Number.isFinite(parentContractSeasonsValue)
+      ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0;
+    const parentHasNoContract = parentIsFreeAgent || restoredParentContractSeasons <= 0;
+    const restoredParentWage = Number.isFinite(parentWageValue)
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0;
     return {
       ...state,
+      loan: null,
       clubName: String(loan.parentClub || state.clubName || ""),
       leagueCountry: String(loan.parentCountry || state.leagueCountry || ""),
-      weeklyWage: Number.isFinite(parentWageValue)
-        ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0,
-      contractSeasons: Number.isFinite(parentContractSeasonsValue)
-        ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0,
-      freeAgent: parentFreeAgent
+      weeklyWage: parentHasNoContract ? 0 : restoredParentWage,
+      contractSeasons: parentHasNoContract ? 0 : restoredParentContractSeasons,
+      contractType: parentHasNoContract ? "free-agent" : parentContractType,
+      freeAgent: parentHasNoContract
     };
   }
 
   function wageNegotiationStatus(state) {
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
-    if (normalizeLegacyBoolean(state.freeAgent)) return "free-agent";
+    if (state.loan) return "loaned";
+    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") return "free-agent";
     const contractSeasons = Number(state.contractSeasons);
     if (!Number.isFinite(contractSeasons)) return "contract-expiring";
     if (contractSeasons <= 0) return "free-agent";
@@ -770,8 +1048,12 @@
     if (!state) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
     const contractSeasons = Number(state.contractSeasons);
-    if (normalizeLegacyBoolean(state.freeAgent) || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
+    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent"
+      || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
+    // A permanent move already agreed or still being negotiated takes priority over a loan.
+    if (state.pendingTransfer) return "transfer-pending";
+    if (state.transferNegotiation) return "transfer-negotiation";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
     const appearances = Number(state.apps);
@@ -787,6 +1069,16 @@
     if (target.club === state.clubName && target.country === state.leagueCountry) return "same-club";
     if (!options.isListed) return "unlisted-target";
     return "ready";
+  }
+
+  function loanSquadRole(state, target) {
+    if (!state || typeof state !== "object") return "بديل أساسي";
+    const playerOverall = overall(state);
+    const rawTargetPower = Number(target && target.power);
+    const targetPower = Number.isFinite(rawTargetPower) && rawTargetPower > 0
+      ? clamp(rawTargetPower, 25, 95) : 50;
+    const powerGap = playerOverall - targetPower;
+    return powerGap >= 5 ? "أساسي" : powerGap >= -2 ? "بديل أساسي" : "بديل";
   }
 
   function purchaseItem(state, item) {
@@ -870,18 +1162,57 @@
   function resolveContractDecision(state, decision, offer) {
     if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
     if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
+    if (state.loan) return { ok: false, status: "loaned" };
+    if (!offer || typeof offer !== "object" || Array.isArray(offer)) return { ok: false, status: "invalid-offer" };
+    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") {
+      return { ok: false, status: "free-agent" };
+    }
+    const contractSeasonsValue = Number(state.contractSeasons);
+    if (!Number.isFinite(contractSeasonsValue) || contractSeasonsValue < 0) return { ok: false, status: "invalid-contract" };
+    if (contractSeasonsValue > 1) return { ok: false, status: "not-expiring" };
+
+    const currentClub = String(state.clubName || "").trim();
+    const offeredClub = String(offer.club || "").trim();
+    if (currentClub && offeredClub && currentClub !== offeredClub) return { ok: false, status: "club-mismatch" };
+    const hasOfferSeason = offer.season !== undefined && offer.season !== null && offer.season !== "";
+    if (hasOfferSeason) {
+      const offerSeason = Number(offer.season);
+      const currentSeason = Number(state.season);
+      if (!Number.isFinite(offerSeason) || !Number.isFinite(currentSeason) || offerSeason !== currentSeason) {
+        return { ok: false, status: "stale-offer" };
+      }
+    }
+
+    const pendingOffer = state.contractOffer;
+    if (pendingOffer && typeof pendingOffer === "object" && pendingOffer !== offer) {
+      const keys = ["club", "season", "wage", "seasons"];
+      const matchesPending = keys.every(key => {
+        const pendingValue = pendingOffer[key], suppliedValue = offer[key];
+        if (pendingValue === undefined || pendingValue === null || pendingValue === ""
+          || suppliedValue === undefined || suppliedValue === null || suppliedValue === "") return true;
+        return key === "club"
+          ? String(pendingValue).trim() === String(suppliedValue).trim()
+          : Number(pendingValue) === Number(suppliedValue);
+      });
+      if (!matchesPending) return { ok: false, status: "stale-offer" };
+    }
+
     if (decision === "accept") {
-      if (!offer || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) return { ok: false, status: "invalid-offer" };
+      if (offer.wage === undefined || offer.wage === null || offer.wage === ""
+        || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) {
+        return { ok: false, status: "invalid-offer" };
+      }
       state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
       const offerSeasonsValue = Number(offer.seasons);
       const offerSeasons = Number.isFinite(offerSeasonsValue) && offerSeasonsValue > 0
         ? Math.max(1, Math.min(5, Math.floor(offerSeasonsValue))) : 3;
       state.contractSeasons = offerSeasons + 1;
       state.freeAgent = false;
+      state.contractType = "professional";
       state.contractOffer = null;
       return { ok: true, status: "renewed", wage: state.weeklyWage, seasonsBeforeNewSeason: state.contractSeasons };
     }
-    state.contractSeasons = 0; state.weeklyWage = 0; state.freeAgent = true; state.contractOffer = null;
+    state.contractSeasons = 0; state.weeklyWage = 0; state.freeAgent = true; state.contractType = "free-agent"; state.contractOffer = null;
     return { ok: true, status: "free-agent", wage: 0, seasonsBeforeNewSeason: 0 };
   }
 
@@ -931,7 +1262,6 @@
     state.nationalTournamentFinalOutcome = outcome;
     return { ok: true, status: state.nationalTournamentWinner ? "champion" : "final-lost", points: state.nationalTournamentPoints };
   }
-
   function applySeasonAging(state) {
     if (!state || typeof state !== "object") return "";
     const age = Math.max(0, Number(state.age) || 0), position = String(state.pos || "");
@@ -959,7 +1289,7 @@
     calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,
     appearanceMilestones: APPEARANCE_MILESTONES, seasonAwards, applySeasonAging, leagueMatchTarget, leagueMatchDaysRemaining,
     normalizeLeagueRoundIndex, contractStateForSeasonTransition, wageNegotiationStatus, canNegotiateInSeason,
-    loanRequestStatus, loanTargetStatus, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
+    loanRequestStatus, loanTargetStatus, loanSquadRole, normalizeCareerPosition, purchaseItem, resolveWageNegotiation, shouldRetire, makeContractOffer,
     resolveContractDecision, recordNationalTournamentMatch, positionDevelopmentPlan, startingStatsForPosition, trainingFocusMultiplier, evaluateSquadRole, trainingTypes: Object.keys(CONFIG)
   };
 })();

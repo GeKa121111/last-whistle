@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 4);
+assert.equal(engine.version, 12);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -93,20 +93,154 @@ assert.equal(defensiveMidfieldLine.goals, attackingMidfieldLine.goals,
 assert.equal(defensiveMidfieldLine.assists, attackingMidfieldLine.assists,
   "an attacking midfielder must not be assigned striker assist rates");
 
+// English roster aliases must use the same statistical role as their canonical
+// Arabic position. Otherwise GK/ST/CB/LW records are incorrectly projected as midfielders.
+const aliasSeasonBase = {
+  name: "اختبار توحيد مركز اللاعب", clubName: "نادي اختبار", country: "مصر",
+  ovr: 76, prestige: 72, leagueStrength: 68, age: 24
+};
+for (const [alias, canonical] of [
+  ["GK", "حارس مرمى"], ["GOALIE", "حارس مرمى"],
+  ["CB", "قلب دفاع"], ["LCB", "قلب دفاع"], ["RCB", "قلب دفاع"],
+  ["LB", "ظهير"], ["RB", "ظهير"], ["LWB", "ظهير"], ["RWB", "ظهير"],
+  ["CDM", "وسط دفاعي"], ["DM", "وسط دفاعي"],
+  ["CM", "وسط"], ["RCM", "وسط"], ["LCM", "وسط"],
+  ["CAM", "وسط مهاجم"], ["AM", "وسط مهاجم"],
+  ["LW", "جناح"], ["RW", "جناح"], ["LM", "جناح"], ["RM", "جناح"],
+  ["CF", "مهاجم"], ["SS", "مهاجم"], ["ST", "رأس حربة"], ["FW", "رأس حربة"]
+]) {
+  const aliasRow = engine.simulatePlayerSeason({ ...aliasSeasonBase, position: alias }, 3, 1);
+  const canonicalRow = engine.simulatePlayerSeason({ ...aliasSeasonBase, position: canonical }, 3, 1);
+  for (const field of ["appearances", "goals", "assists", "averageRating", "score", "weightedGoals"]) {
+    assert.equal(aliasRow[field], canonicalRow[field],
+      alias + " must use the same projected " + field + " as " + canonical);
+  }
+}
+
 const sameForward = {
   name: "مهاجم اختبار متطابق", clubName: "نادي اختبار", country: "مصر",
   ovr: 95, prestige: 90, leagueStrength: 70, age: 24
 };
 const mobileForwardLine = engine.simulatePlayerSeason({
-  ...sameForward, position: "مهاجم"
+  ...sameForward, position: "مهاجم", role: "أساسي"
 }, 3, 1);
 const centreStrikerLine = engine.simulatePlayerSeason({
-  ...sameForward, position: "رأس حربة"
+  ...sameForward, position: "رأس حربة", role: "أساسي"
 }, 3, 1);
 assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
   "a high-rated centre striker should produce more goals than an otherwise identical mobile forward");
 assert.ok(centreStrikerLine.assists < mobileForwardLine.assists,
   "a mobile forward should produce more assists than an otherwise identical centre striker");
+
+// Imported English position codes must use the same production profile as Arabic positions.
+const codeKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "GK" }, 3, 1);
+const arabicKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "حارس مرمى" }, 3, 1);
+assert.equal(codeKeeper.goals, arabicKeeper.goals);
+assert.equal(codeKeeper.assists, arabicKeeper.assists);
+const codeCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "CB" }, 3, 1);
+const arabicCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "قلب دفاع" }, 3, 1);
+assert.equal(codeCentreBack.goals, arabicCentreBack.goals);
+assert.equal(codeCentreBack.assists, arabicCentreBack.assists);
+assert.equal(engine.roleType("جناح"), "winger");
+assert.equal(engine.roleType("LW"), "winger");
+assert.equal(engine.roleType("مهاجم"), "attacker");
+
+const sameStrikerStarter = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 1);
+const sameStrikerSubstitute = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "لاعب بديل" }, 5, 1);
+const sameStrikerRotation = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "تناوب" }, 5, 1);
+const sameStrikerCoreSub = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "بديل أساسي" }, 5, 1);
+const sameStrikerStar = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "نجم الفريق" }, 5, 1);
+const sameStrikerProspect = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "ناشئ" }, 5, 1);
+const sameStrikerCoreSubEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "core substitute" }, 5, 1);
+const sameStrikerStarterEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "regularstarter" }, 5, 1);
+const sameStrikerStarEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "star player" }, 5, 1);
+const sameStrikerRotationEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "squad player" }, 5, 1);
+const sameStrikerProspectEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "youngster" }, 5, 1);
+const sameStrikerSubEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "impact sub" }, 5, 1);
+const sameStrikerReserveArabic = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "فريق الرديف / لاعب تحت التقييم" }, 5, 1);
+const sameStrikerReserveEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "reserve player" }, 5, 1);
+const sameStrikerMissingRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة" }, 5, 1);
+const sameStrikerUnknownRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "unclassified squad tier" }, 5, 1);
+const sameStrikerUnknownSquadRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", squadRole: "unclassified squad tier" }, 5, 1);
+assert.equal(sameStrikerStarter.minutes, sameStrikerStarter.appearances * 83,
+  "starter projections must use the same 83-minute participation baseline as match simulation");
+assert.equal(sameStrikerCoreSub.minutes, sameStrikerCoreSub.appearances * 66,
+  "core-substitute projections must use the same 66-minute baseline as match simulation");
+assert.equal(sameStrikerStar.minutes, sameStrikerStar.appearances * 88,
+  "star-player projections must use the same 88-minute baseline as match simulation");
+assert.equal(sameStrikerRotation.minutes, sameStrikerRotation.appearances * 43,
+  "rotation projections must use the same 43-minute baseline as match simulation");
+assert.equal(sameStrikerProspect.minutes, sameStrikerProspect.appearances * 20,
+  "prospect projections must use the same 20-minute baseline as match simulation");
+assert.equal(sameStrikerCoreSubEnglish.minutes, sameStrikerCoreSubEnglish.appearances * 66,
+  "English core-substitute aliases must keep the same 66-minute match baseline");
+assert.equal(sameStrikerStarterEnglish.minutes, sameStrikerStarterEnglish.appearances * 83,
+  "English regular-starter aliases must keep the same 83-minute match baseline");
+assert.equal(sameStrikerStarEnglish.minutes, sameStrikerStarEnglish.appearances * 88,
+  "English star-player aliases must keep the same 88-minute match baseline");
+assert.equal(sameStrikerRotationEnglish.minutes, sameStrikerRotationEnglish.appearances * 43,
+  "English squad-player aliases must keep the same 43-minute match baseline");
+assert.equal(sameStrikerProspectEnglish.minutes, sameStrikerProspectEnglish.appearances * 20,
+  "English youngster aliases must keep the same 20-minute match baseline");
+assert.equal(sameStrikerSubEnglish.minutes, sameStrikerSubEnglish.appearances * 28,
+  "English impact-sub aliases must keep the same 28-minute match baseline");
+assert.equal(sameStrikerReserveArabic.minutes, sameStrikerReserveArabic.appearances * 20,
+  "academy reserve / under-evaluation roles must use the prospect 20-minute baseline");
+assert.equal(sameStrikerReserveEnglish.minutes, sameStrikerReserveEnglish.appearances * 20,
+  "English reserve roles must use the prospect 20-minute baseline");
+assert.equal(sameStrikerMissingRole.minutes, sameStrikerMissingRole.appearances * 28,
+  "missing squad roles must use the same 28-minute substitute fallback as match simulation");
+assert.equal(sameStrikerUnknownRole.minutes, sameStrikerUnknownRole.appearances * 28,
+  "unrecognized squad roles must not inflate award projections above the match-engine substitute fallback");
+assert.equal(sameStrikerUnknownSquadRole.minutes, sameStrikerUnknownSquadRole.appearances * 28,
+  "unrecognized alternate squad-role fields must use the match-engine substitute fallback");
+assert.equal(sameStrikerSubstitute.minutes, sameStrikerSubstitute.appearances * 28,
+  "substitute projections must use the same 28-minute baseline as match simulation");
+assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);
+assert.ok(sameStrikerStarter.minutes > sameStrikerRotation.minutes && sameStrikerRotation.minutes > sameStrikerSubstitute.minutes);
+assert.ok(sameStrikerStarter.goals > sameStrikerSubstitute.goals);
+assert.ok(sameStrikerStarter.assists > sameStrikerSubstitute.assists);
+assert.ok(sameStrikerStarter.goals * 90 / Math.max(1, sameStrikerStarter.minutes) <= 0.55);
+assert.equal(engine.simulatePlayerSeason({ ...sameForward, position: "حارس مرمى" }, 5, 1).goals, 0);
+const noProjectionProgress = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 0);
+assert.equal(noProjectionProgress.minutes, 0);
+assert.equal(noProjectionProgress.goals, 0);
+assert.equal(noProjectionProgress.assists, 0);
+const sameStrikerHalfSeason = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 0.5);
+assert.equal(sameStrikerHalfSeason.minutes, Math.round(sameStrikerStarter.minutes * 0.5));
+assert.equal(sameStrikerHalfSeason.goals, Math.round(sameStrikerStarter.goals * 0.5));
+assert.equal(sameStrikerHalfSeason.assists, Math.round(sameStrikerStarter.assists * 0.5));
+const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 1);
+assert.equal(savedSeasonStatsRemainAuthoritative.goals, 8);
+assert.equal(savedSeasonStatsRemainAuthoritative.assists, 3);
+
+const malformedSavedSeason = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", leagueStrength: "Infinity",
+  seasonStats: { season: 6, appearances: "Infinity", goals: "Infinity", assists: "NaN", averageRating: "Infinity" }
+}, 6, 1);
+assert.equal(malformedSavedSeason.appearances, 0,
+  "non-finite saved appearances must not enter award eligibility or ranking");
+assert.equal(malformedSavedSeason.goals, 0);
+assert.equal(malformedSavedSeason.assists, 0);
+assert.equal(malformedSavedSeason.averageRating, 0);
+assert.equal(malformedSavedSeason.score, 0);
+assert.equal(malformedSavedSeason.weightedGoals, 0,
+  "malformed league strength must not turn a zero-goal row into NaN weighted goals");
+
+const malformedEligibleSeason = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", leagueStrength: "Infinity",
+  seasonStats: { season: 6, appearances: 12, goals: "Infinity", assists: -4, averageRating: 12 }
+}, 6, 1);
+assert.equal(malformedEligibleSeason.appearances, 12);
+assert.equal(malformedEligibleSeason.goals, 0);
+assert.equal(malformedEligibleSeason.assists, 0);
+assert.equal(malformedEligibleSeason.averageRating, 10);
+assert.equal(malformedEligibleSeason.leagueStrength, 60);
+assert.ok(Number.isFinite(malformedEligibleSeason.score));
+assert.ok(Number.isFinite(malformedEligibleSeason.weightedGoals));
 
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
@@ -220,6 +354,46 @@ assert.equal(zeroAppearanceUserRow.score, 0);
 assert.equal(zeroAppearanceUserRow.weightedGoals, 0,
   "leaderboard rows with no appearances must not retain stale season contributions");
 
+const malformedCareerLeaderboard = engine.buildLeagueLeaderboard({
+  season: 5,
+  progress: 1,
+  players: [],
+  userLine: {
+    name: "مسيرة بإحصائيات تالفة", club: "فريق الاختبار", position: "مهاجم",
+    ovr: 88, appearances: "Infinity", apps: 25, goals: "Infinity",
+    assists: "NaN", averageRating: "Infinity", leagueStrength: "Infinity"
+  }
+});
+const malformedCareerRow = malformedCareerLeaderboard.find(row => row.isUser);
+assert.ok(malformedCareerRow, "the career player must remain present in the leaderboard");
+assert.equal(malformedCareerRow.appearances, 0,
+  "an explicit invalid appearance value must not fall through to a stale apps alias");
+assert.equal(malformedCareerRow.goals, 0);
+assert.equal(malformedCareerRow.assists, 0);
+assert.equal(malformedCareerRow.averageRating, 0);
+assert.equal(malformedCareerRow.score, 0);
+assert.equal(malformedCareerRow.weightedGoals, 0);
+assert.equal(malformedCareerRow.leagueStrength, 60);
+
+const boundedCareerLeaderboard = engine.buildLeagueLeaderboard({
+  season: 5,
+  progress: 1,
+  players: [],
+  userLine: {
+    name: "مسيرة بقيم خارج النطاق", club: "فريق الاختبار", position: "مهاجم",
+    ovr: 88, appearances: 12, goals: "Infinity", assists: -3,
+    averageRating: 12, leagueStrength: "Infinity"
+  }
+});
+const boundedCareerRow = boundedCareerLeaderboard.find(row => row.isUser);
+assert.equal(boundedCareerRow.appearances, 12);
+assert.equal(boundedCareerRow.goals, 0);
+assert.equal(boundedCareerRow.assists, 0);
+assert.equal(boundedCareerRow.averageRating, 10);
+assert.equal(boundedCareerRow.leagueStrength, 60);
+assert.ok(Number.isFinite(boundedCareerRow.score) && Number.isFinite(boundedCareerRow.weightedGoals),
+  "malformed career leaderboard values must never produce non-finite ranking scores");
+
 const realPlayers = [
   { name: "كيليان مبابي", clubName: "ريال مدريد", country: "إسبانيا", position: "مهاجم", ovr: 93, prestige: 100, leagueStrength: 96, age: 27, confederation: "UEFA", originConfederation: "UEFA" },
   { name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح", ovr: 91, prestige: 99, leagueStrength: 96, age: 19, confederation: "UEFA", originConfederation: "UEFA" },
@@ -240,6 +414,86 @@ const ceremony = engine.buildSeasonAwardCeremony({
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+const malformedCeremony = engine.buildSeasonAwardCeremony({
+  season: 8,
+  currentDate: "2032-02-14T00:00:00.000Z",
+  player: {
+    name: "لاعب بيانات تالفة", club: "نادي الاختبار", country: "مصر", position: "حارس مرمى",
+    age: "Infinity", ovr: 80, appearances: 12, goals: "Infinity", assists: "NaN",
+    averageRating: "Infinity", trophies: "Infinity", professionalism: "Infinity",
+    leagueStrength: "Infinity", cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
+  },
+  realPlayers: [{
+    name: "حارس بيانات تالفة", clubName: "نادي اختبار آخر", country: "مصر", position: "حارس مرمى",
+    age: 25, ovr: 80, prestige: "Infinity", leagueStrength: "Infinity",
+    confederation: "CAF", originConfederation: "CAF",
+    seasonStats: {
+      season: 8, appearances: 12, goals: "Infinity", assists: "NaN", averageRating: "Infinity",
+      cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
+    }
+  }, {
+    name: "لامين يامال", clubName: "نادي موهبة", country: "إسبانيا", position: "جناح",
+    age: "Infinity", ovr: 90, prestige: 90, leagueStrength: 80,
+    confederation: "UEFA", originConfederation: "UEFA",
+    seasonStats: { season: 8, appearances: 25, goals: 10, assists: 8, averageRating: 8.1 }
+  }, {
+    name: "موهبة بلا عمر موثق", clubName: "نادي ناشئين", country: "مصر", position: "مهاجم",
+    ovr: 80, prestige: 75, leagueStrength: 65,
+    seasonStats: { season: 8, appearances: 20, goals: 7, assists: 4, averageRating: 7.4 }
+  }]
+});
+assert.ok(malformedCeremony.ballonDor.topFive.length > 0,
+  "finite appearance counts must remain eligible even when malformed performance fields are sanitized");
+assert.equal(malformedCeremony.awards.some(award => award.id === "golden-boy"), false,
+  "an invalid age must not be converted into an under-21 Golden Boy candidate");
+assert.ok(!malformedCeremony.awards.some(award => award.id === "golden-boy"),
+  "a known young player with a malformed saved age must not qualify through a name-based fallback");
+assert.ok(malformedCeremony.ballonDor.topFive.every(row =>
+  Number.isFinite(row.score) && Number.isFinite(row.goals) && Number.isFinite(row.assists)
+    && Number.isFinite(row.averageRating)),
+  "Ballon d'Or ranking must never expose non-finite player scores or statistics");
+assert.ok(malformedCeremony.awards.every(award =>
+  Number.isFinite(award.winner.goals) && Number.isFinite(award.winner.assists)
+    && Number.isFinite(award.winner.averageRating) && Number.isFinite(award.winner.cleanSheets)
+    && Number.isFinite(award.winner.saves) && Number.isFinite(award.winner.penaltiesSaved)
+    && award.topThree.every(row => Number.isFinite(row.score))),
+  "all award winners and shortlists must remain finite when saved player stats are malformed");
+
+const estimatedYouthCeremony = engine.buildSeasonAwardCeremony({
+  season: 2,
+  currentDate: "2026-07-31T00:00:00.000Z",
+  player: {
+    name: "لاعب مخضرم", club: "فريقه", country: "مصر", position: "وسط",
+    age: 30, appearances: 0, goals: 0, assists: 0, averageRating: 0
+  },
+  realPlayers: [{
+    name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح",
+    ovr: 90, prestige: 90, leagueStrength: 90, confederation: "UEFA",
+    originConfederation: "UEFA",
+    seasonStats: { season: 2, appearances: 15, goals: 4, assists: 3, averageRating: 8.1 }
+  }]
+});
+const estimatedYouthAward = estimatedYouthCeremony.awards.find(row => row.id === "golden-boy");
+assert.ok(estimatedYouthAward,
+  "a player with no sourced age must retain the simulator's existing estimated-age youth eligibility");
+assert.equal(estimatedYouthAward.winner.name, "لامين يامال");
+assert.equal(estimatedYouthAward.winner.age, 20);
+
+const defaultAgeCareerCeremony = engine.buildSeasonAwardCeremony({
+  season: 1,
+  currentDate: "2026-07-31T00:00:00.000Z",
+  player: {
+    name: "لاعب مسيرة جديد", club: "فريقه", country: "مصر", position: "مهاجم",
+    appearances: 12, goals: 5, assists: 3, averageRating: 7.2
+  },
+  realPlayers: []
+});
+const defaultAgeGoldenBoy = defaultAgeCareerCeremony.awards.find(row => row.id === "golden-boy");
+assert.ok(defaultAgeGoldenBoy,
+  "a career player whose age uses the engine's existing 18-year default must remain Golden Boy eligible");
+assert.equal(defaultAgeGoldenBoy.winner.name, "لاعب مسيرة جديد");
+assert.equal(defaultAgeGoldenBoy.winner.age, 18);
+
 const noYouthCeremony = engine.buildSeasonAwardCeremony({
   season: 4,
   currentDate: "2028-02-14T00:00:00.000Z",
@@ -286,6 +540,20 @@ assert.equal(userGoldenGlove.winner.name, "حارس مسيرتي",
   "a goalkeeper's actual career clean sheets and saves must be considered for Golden Glove");
 assert.ok(keeperCareer.playerAwards.some(row => row.id === "golden-glove"),
   "winning Golden Glove should be recorded in the player's end-of-season awards");
+const keeperAliasCareer = engine.buildSeasonAwardCeremony({
+  season: 4,
+  player: { name: "حارس باختصار إنجليزي", club: "فريقي", country: "مصر", position: "GK",
+    ovr: 88, age: 25, appearances: 38, goals: 0, assists: 0, averageRating: 8.2,
+    professionalism: 85, leagueStrength: 78 },
+  realPlayers: []
+});
+const keeperAliasGlove = keeperAliasCareer.awards.find(row => row.id === "golden-glove");
+assert.ok(keeperAliasGlove,
+  "an English GK alias must receive goalkeeper defensive projections and qualify for Golden Glove");
+assert.equal(keeperAliasGlove.winner.name, "حارس باختصار إنجليزي",
+  "the GK alias must be ranked as a goalkeeper rather than an outfield midfielder");
+assert.ok(keeperAliasCareer.playerAwards.some(row => row.id === "golden-glove"),
+  "a GK alias Golden Glove win must be recorded in the career awards");
 const outfieldOnlyCeremony = engine.buildSeasonAwardCeremony({
   season: 4,
   player: { name: "لاعب ميداني", club: "فريقي", country: "مصر", position: "جناح", ovr: 80,

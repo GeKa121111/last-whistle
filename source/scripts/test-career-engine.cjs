@@ -9,10 +9,97 @@ require(path.join(__dirname, "..", "public", "data", "career-engine.js"));
 const career = global.LWCareer;
 assert.ok(career, "career engine must export LWCareer");
 
+assert.equal(career.normalizeCareerPosition("CM"), "وسط", "CM must normalize to the central-midfield role");
+assert.equal(career.normalizeCareerPosition("central midfielder"), "وسط", "long-form English midfield positions must normalize");
+assert.equal(career.normalizeCareerPosition("CDM"), "وسط دفاعي", "CDM must retain its defensive-midfield role");
+assert.equal(career.normalizeCareerPosition("CAM"), "وسط مهاجم", "CAM must retain its attacking-midfield role");
+const centralMidfieldPlan = career.positionDevelopmentPlan("CM");
+assert.equal(centralMidfieldPlan.position, "وسط");
+assert.ok(centralMidfieldPlan.primary.includes("passing") && centralMidfieldPlan.primary.includes("vision"),
+  "central midfield development must prioritize passing and vision");
+const centralMidfieldStats = career.startingStatsForPosition("CM", () => 0.5);
+assert.equal(centralMidfieldStats.goalkeeping, 0, "central midfielders must never receive goalkeeper skill");
+assert.ok(centralMidfieldStats.passing >= 56 && centralMidfieldStats.passing <= 68,
+  "central midfielders must receive the dedicated passing range");
+const legacyCentralMidfielder = { pos: "CM", goalkeeping: 90, age: 20 };
+career.ensureState(legacyCentralMidfielder);
+assert.equal(legacyCentralMidfielder.pos, "وسط", "legacy CM saves must be normalized without dropping the player");
+assert.equal(legacyCentralMidfielder.goalkeeping, 0, "legacy outfield CM saves must not retain goalkeeper skill");
+const loanRolePlayer = { pos: "CM", age: 22, shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70,
+  composure: 70, defending: 70, goalkeeping: 99, vision: 70, physical: 70 };
+assert.equal(career.loanSquadRole({ ...loanRolePlayer }, { power: 60 }), "أساسي",
+  "a player clearly stronger than the host club should be projected as a starter");
+assert.equal(career.loanSquadRole({ ...loanRolePlayer }, { power: 70 }), "بديل أساسي",
+  "a player near host-club level should be projected as a rotation starter");
+assert.equal(career.loanSquadRole({ ...loanRolePlayer }, { power: 80 }), "بديل",
+  "a player clearly below host-club level should be projected as a substitute");
+
 const repositoryRoot = path.resolve(__dirname, "..", "..");
 const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
 const publicHtml = fs.readFileSync(path.join(repositoryRoot, "public", "index.html"), "utf8");
 assert.equal(rootHtml, publicHtml, "root and public app shells must stay synchronized");
+
+assert.ok(rootHtml.includes('if(roleDecision?.reason === "form-demotion"){'),
+  "the match flow must distinguish a form-based role demotion from a promotion");
+assert.ok(rootHtml.includes("الجهاز الفني خفّض دورك إلى لاعب أساسي بعد تراجع الأداء المتكرر."),
+  "a star-role demotion must be described as a reduction to starter");
+assert.ok(rootHtml.includes("الجهاز الفني خفّض دورك إلى بديل أساسي بعد تراجع الأداء المتكرر."),
+  "a starter demotion must be described as a reduction to rotation");
+assert.ok(rootHtml.includes("الجهاز الفني خفّض دورك إلى بديل بعد تراجع الأداء المتكرر."),
+  "a rotation demotion must be described as a reduction to substitute");
+assert.ok(rootHtml.includes("الجهاز الفني زوّد دورك في التشكيل بناءً على الأداء والإنتاج الهجومي."),
+  "promotion messaging must remain available for earned role upgrades");
+
+
+const loanToMatch = rootHtml.match(/function loanTo\(target\)\{[\s\S]*?\n\}\nfunction returnFromLoan/);
+assert.ok(loanToMatch, "the deployed loan action must remain available for behavioral testing");
+const loanToSource = loanToMatch[0].slice(0, loanToMatch[0].lastIndexOf("\nfunction returnFromLoan"));
+function runLoanDivisionCase(division) {
+  const target = { club: "نادي اختبار الإعارة", country: "مصر", league: division === 2 ? "الدرجة الثانية" : "الدوري الممتاز",
+    division, power: 55, season: "2026/27", source: "محاكاة عالم الكرة" };
+  const loanState = { clubName: "النادي الأصلي", leagueCountry: "مصر", leagueDivision: 1,
+    leagueCompetition: "الدوري الممتاز", leagueSource: "بيانات الاختبار", clubPower: 62,
+    clubTier: 1, clubIndex: 1, weeklyWage: 500, contractSeasons: 2, freeAgent: false,
+    role: "بديل", season: 1, day: 1, calendarDay: 120, seasonApps: 10,
+    seasonPhase: "firstHalf", winterBreakPending: false, trust: 50, transferHistory: [] };
+  let reconciliationCalls = 0;
+  let migrationCalls = 0;
+  const sandbox = {
+    state: loanState,
+    window: { LWCareer: { loanTargetStatus: () => "ready", loanSquadRole: () => "بديل" } },
+    canAccessTransferMarket: () => true,
+    migrateLegacyPendingTransferOffer: () => { migrationCalls++; return null; },
+    reconcileTransferNegotiation: windowInfo => { reconciliationCalls++; assert.equal(windowInfo.open, true); return false; },
+    transferTargets: () => [target],
+    activeCupInProgress: () => false,
+    transferWindow: () => ({ open: true }),
+    seasonMatchTotal: () => 30,
+    archiveLeagueSegment: () => {},
+    clamp: value => Math.max(0, Math.min(100, Number(value) || 0)),
+    clubPowerFor: () => 55,
+    clubTierForPower: () => 1,
+    transferWage: () => 700,
+    createLeague: () => [],
+    buildFixtureSchedule: () => [],
+    seedDestinationLeagueProgress: () => 20,
+    log: () => {}, setStory: () => {}, saveGame: () => {},
+    render: () => {}, showPage: () => {}, toast: () => {}
+  };
+  vm.runInNewContext(loanToSource + "\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo division regression" });
+  sandbox.loanTo(target);
+  assert.equal(migrationCalls, 1,
+    "the final loan action must migrate legacy direct offers before validating the loan");
+  assert.equal(reconciliationCalls, 1,
+    "the final loan action must reconcile stale permanent-transfer negotiations before validating the loan");
+  return { division: loanState.leagueDivision, source: loanState.leagueSource };
+}
+const secondDivisionLoan = runLoanDivisionCase(2);
+assert.equal(secondDivisionLoan.division, 2,
+  "a loan to a second-division club must keep the host club's actual division");
+assert.equal(secondDivisionLoan.source, "محاكاة عالم الكرة • 2026/27",
+  "a loan destination must preserve its actual roster/league data source instead of being mislabeled as OpenFootball");
+assert.equal(runLoanDivisionCase(undefined).division, 1,
+  "legacy loan destinations without a division must retain the first-division fallback");
 assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
@@ -20,13 +107,23 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 178);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 40);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 320);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 64);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
 assert.ok(engineCopies[0].includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
   "the shared career engine must clamp saved player attributes to the 0-100 range");
+const inlineDedupStart = rootHtml.indexOf("  function uniqueMatchRows(rows) {");
+const inlineDedupEnd = rootHtml.indexOf("\n  function uniqueCareerHistory(state)", inlineDedupStart);
+const sharedDedupStart = engineCopies[0].indexOf("  function uniqueMatchRows(rows) {");
+const sharedDedupEnd = engineCopies[0].indexOf("\n  function uniqueCareerHistory(state)", sharedDedupStart);
+assert.ok(inlineDedupStart >= 0 && inlineDedupEnd > inlineDedupStart
+  && sharedDedupStart >= 0 && sharedDedupEnd > sharedDedupStart,
+  "inline and shared match-history deduplication functions must remain extractable");
+assert.equal(rootHtml.slice(inlineDedupStart, inlineDedupEnd),
+  engineCopies[0].slice(sharedDedupStart, sharedDedupEnd),
+  "inline browser and shared career engines must use identical match-history deduplication");
 assert.equal(career.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "career award dates must start on the in-game season date, not the machine clock");
 assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00:00.000Z",
@@ -118,8 +215,10 @@ vm.runInContext(rootHtml.slice(inlineDateStart, inlineDateEnd)
   + "\nthis.calendarGameDateISO = calendarGameDateISO;", inlineDateContext);
 assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "the browser career engine must use the same game-calendar date");
-assert.ok(rootHtml.includes('const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);'),
-  "the inline browser award engine must deduplicate repeated match rows");
+assert.ok(rootHtml.includes("const log = currentSeasonLeagueMatchRows(state);"),
+  "the inline browser award engine must use the unified current-season league history");
+assert.ok(rootHtml.includes("function currentSeasonLeagueMatchRows(state)"),
+  "the inline browser award engine must keep the current-season history filter deployed");
 assert.ok(rootHtml.includes("const awardCount = value => {"),
   "the inline browser award engine must normalize malformed goals and assists");
 assert.ok(rootHtml.includes("const awardMinutes = value => {") && rootHtml.includes("const awardRating = value => {"),
@@ -167,7 +266,7 @@ assert.ok(Number.isFinite(malformedAwardState.money),
   "award processing must leave a finite balance after malformed match stats");
 
 
-const inlineRangesStart = rootHtml.indexOf("  const STARTING_RANGES = {");
+const inlineRangesStart = rootHtml.indexOf("  const POSITION_ALIASES = {");
 const inlineStatsStart = rootHtml.indexOf("  function startingStatsForPosition(position", inlineRangesStart);
 const inlineStatsEnd = rootHtml.indexOf("\n\n  function uniqueMatchRows", inlineStatsStart);
 assert.ok(inlineRangesStart >= 0 && inlineStatsStart > inlineRangesStart && inlineStatsEnd > inlineStatsStart,
@@ -176,7 +275,7 @@ const inlineContext = { Math };
 vm.createContext(inlineContext);
 vm.runInContext(rootHtml.slice(inlineRangesStart, inlineStatsEnd) +
   "\nthis.startingStatsForPosition = startingStatsForPosition;", inlineContext);
-for (const position of ["قلب دفاع", "ظهير", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة"]) {
+for (const position of ["قلب دفاع", "ظهير", "وسط", "وسط دفاعي", "وسط مهاجم", "جناح", "مهاجم", "رأس حربة", "CM"]) {
   assert.equal(inlineContext.startingStatsForPosition(position, () => 0.5).goalkeeping, 0,
     "inline app must give zero goalkeeper skill to " + position);
 }
@@ -333,6 +432,69 @@ const deduped = career.uniqueMatchRows([
   { id: "match-2", minutes: 30 }
 ]);
 assert.equal(deduped.length, 2, "match history must deduplicate explicit match IDs");
+const legacyLeagueFixture = {
+  id: "legacy-reused-fixture-id", scope: "league", competition: "Premier League",
+  season: 4, segmentId: "season-4", club: "Test FC", opponent: "League Opponent",
+  day: 12, matchday: 8, minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const legacyCupFixture = {
+  ...legacyLeagueFixture, scope: "cup", competition: "National Cup",
+  opponent: "Cup Opponent", matchday: 2, goals: 1, rating: 8
+};
+const reusedLegacyIdRows = [legacyLeagueFixture, legacyCupFixture];
+assert.equal(career.uniqueMatchRows(reusedLegacyIdRows).length, 2,
+  "legacy IDs reused across league and cup scopes must not collapse distinct fixtures");
+assert.equal(career.uniqueMatchRows([legacyLeagueFixture, { ...legacyLeagueFixture }]).length, 1,
+  "the same fixture copied into multiple history arrays must still be counted once");
+const sparseLegacyLeagueFixture = {
+  id: "legacy-sparse-reused-id", scope: "league", season: 4,
+  segmentId: "season-4", club: "Test FC", minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const sparseLegacyCupFixture = {
+  id: "legacy-sparse-reused-id", competition: "National Cup", season: 4,
+  segmentId: "season-4", club: "Test FC", opponent: "Cup Opponent",
+  day: 12, matchday: 2, minutes: 90, rating: 8, goals: 1, assists: 0
+};
+assert.equal(career.uniqueMatchRows([sparseLegacyLeagueFixture, sparseLegacyCupFixture]).length, 2,
+  "a sparse legacy row must not swallow a distinct fixture with the same reused ID");
+assert.equal(career.uniqueMatchRows([sparseLegacyLeagueFixture, { ...sparseLegacyLeagueFixture }]).length, 1,
+  "exactly repeated sparse legacy rows must still be deduplicated");
+const partialLegacyDuplicate = { ...legacyLeagueFixture };
+delete partialLegacyDuplicate.day;
+delete partialLegacyDuplicate.matchday;
+assert.equal(career.uniqueMatchRows([legacyLeagueFixture, partialLegacyDuplicate]).length, 1,
+  "a partially enriched copy with matching opponent and competition identity must still be deduplicated");
+const whitespaceCompetitionLeagueFixture = {
+  id: "legacy-whitespace-competition-id", scope: "league", competition: "   ",
+  leagueCompetition: "Premier League", season: 4, segmentId: "season-4",
+  club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+  minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const whitespaceCompetitionCupFixture = {
+  ...whitespaceCompetitionLeagueFixture,
+  competition: "National Cup", leagueCompetition: "National Cup", goals: 1, rating: 8
+};
+assert.equal(career.uniqueMatchRows([
+  whitespaceCompetitionLeagueFixture, whitespaceCompetitionCupFixture
+]).length, 2,
+  "a whitespace competition field must not hide the legacy leagueCompetition and collapse another competition");
+const normalizedCompetitionCopy = {
+  ...whitespaceCompetitionLeagueFixture, competition: "Premier League"
+};
+assert.equal(career.uniqueMatchRows([
+  whitespaceCompetitionLeagueFixture, normalizedCompetitionCopy
+]).length, 1,
+  "a whitespace competition field with a matching legacy leagueCompetition must still deduplicate its copied fixture");
+
+
+const crossCompetitionHistory = {
+  apps: 2, seasonLog: [legacyLeagueFixture], careerMatchHistory: [legacyCupFixture]
+};
+career.rebuildLegacyCareerStats(crossCompetitionHistory);
+assert.equal(crossCompetitionHistory.careerMinutes, 180,
+  "legacy career-stat rebuilding must preserve minutes from distinct competitions that reused an ID");
+assert.equal(crossCompetitionHistory.qualifyingAppearances, 2,
+  "legacy career-stat rebuilding must retain both real fixtures across competition scopes");
 assert.equal(career.leagueMatchTarget(16), 30, "a 16-team league must schedule 30 matches");
 assert.equal(career.leagueMatchTarget(18), 34, "an 18-team league must schedule 34 matches");
 assert.equal(career.leagueMatchTarget(20), 38, "a 20-team league must schedule 38 matches");
@@ -401,13 +563,78 @@ assert.ok(rootHtml.includes("Number.isFinite(minutesValue)")
 const onLoan = {
   name: "Test Player", clubName: "Loan Club", leagueCountry: "Hostland",
   weeklyWage: 900, contractSeasons: 3, freeAgent: false,
-  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400, parentContractSeasons: 1, parentFreeAgent: false }
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400, parentContractSeasons: 1, parentFreeAgent: false, parentContractType: "professional" }
 };
 const contractSnapshot = career.contractStateForSeasonTransition(onLoan);
 assert.equal(contractSnapshot.clubName, "Parent Club");
 assert.equal(contractSnapshot.leagueCountry, "Egypt");
 assert.equal(contractSnapshot.weeklyWage, 400);
 assert.equal(contractSnapshot.contractSeasons, 1);
+assert.equal(contractSnapshot.contractType, "professional");
+const legacyLoanWage = {
+  pos: "مهاجم", age: 24, freeAgent: true, contractType: "professional",
+  weeklyWage: 900, contractSeasons: 0, trainingXP: {}, randomSeed: 1,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: 1, parentFreeAgent: false, parentContractType: "professional" }
+};
+career.ensureState(legacyLoanWage);
+assert.equal(legacyLoanWage.weeklyWage, 900,
+  "a loan with a live parent contract must retain its host wage even if legacy top-level flags are stale");
+assert.equal(career.wageNegotiationStatus(legacyLoanWage), "loaned");
+
+assert.equal(contractSnapshot.loan, null, "the parent-contract snapshot must not carry the active loan state");
+
+const directLoanTransitionState = {
+  retired: false, seasonFinished: true, season: 4, contractDecisionSeason: 3,
+  freeAgent: false, contractSeasons: 3, age: 24,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: 1, parentFreeAgent: false }
+};
+let directLoanTransitionCalls = 0;
+let directLoanReturnCalls = 0;
+const directLoanTransitionContext = {
+  state: directLoanTransitionState,
+  window: { LWCareer: {
+    shouldRetire: () => false,
+    contractStateForSeasonTransition: current => ({
+      ...current, loan: null, clubName: current.loan.parentClub,
+      contractSeasons: current.loan.parentContractSeasons,
+      freeAgent: current.loan.parentFreeAgent
+    })
+  } },
+  isYouthAcademyPlayer: () => false,
+  proceedSeasonTransition: () => { directLoanTransitionCalls++; },
+  returnFromLoan: () => { directLoanReturnCalls++; },
+  toast: () => {}
+};
+const startNewSeasonStart = rootHtml.indexOf("function createSingleFlightGate(){");
+const startNewSeasonEnd = rootHtml.indexOf("\nfunction nextDay()", startNewSeasonStart);
+assert.ok(startNewSeasonStart >= 0 && startNewSeasonEnd > startNewSeasonStart,
+  "the deployed season-start function must be available for loan-contract regression coverage");
+vm.createContext(directLoanTransitionContext);
+vm.runInContext(rootHtml.slice(startNewSeasonStart, startNewSeasonEnd)
+  + "\nthis.startNewSeasonForTest = startNewSeason;", directLoanTransitionContext);
+directLoanTransitionContext.startNewSeasonForTest(false).then(() => {
+  assert.equal(directLoanTransitionCalls, 1,
+    "starting a new season directly during a loan must still prompt for an expiring parent-club contract");
+  assert.equal(directLoanReturnCalls, 0,
+    "a loan must not be returned before the parent-club renewal decision is presented");
+}).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+assert.equal(career.wageNegotiationStatus(onLoan), "loaned", "active loan must block parent-contract wage negotiations");
+assert.equal(career.canNegotiateInSeason(onLoan), false, "an on-loan player cannot negotiate the parent contract from the host club");
+const loanWageBeforeNegotiation = onLoan.weeklyWage;
+assert.deepEqual(career.resolveWageNegotiation(onLoan, 95, 1), { ok: false, status: "loaned" });
+assert.equal(onLoan.weeklyWage, loanWageBeforeNegotiation, "a blocked loan negotiation must not change the temporary wage");
+for (const decision of ["accept", "decline"]) {
+  const beforeDecision = { weeklyWage: onLoan.weeklyWage, contractSeasons: onLoan.contractSeasons, freeAgent: onLoan.freeAgent };
+  assert.deepEqual(career.resolveContractDecision(onLoan, decision, { wage: 1500, seasons: 3 }),
+    { ok: false, status: "loaned" }, "contract decisions must be rejected while the parent contract is on loan");
+  assert.deepEqual({ weeklyWage: onLoan.weeklyWage, contractSeasons: onLoan.contractSeasons, freeAgent: onLoan.freeAgent },
+    beforeDecision, "a blocked loan contract decision must not mutate the temporary or parent contract");
+}
 assert.equal(onLoan.clubName, "Loan Club", "contract snapshot must not mutate the active loan state");
 assert.equal(career.wageNegotiationStatus(contractSnapshot), "contract-expiring");
 
@@ -423,10 +650,121 @@ const legacyTrueLoan = {
 };
 assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).freeAgent, true,
   "a legacy string true parentFreeAgent must preserve a parent's free-agent state");
-assert.ok(rootHtml.includes("state.freeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);"),
-  "browser loan return must normalize legacy parentFreeAgent values");
+assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).contractType, "free-agent",
+  "a free-agent parent contract must retain its type when a loan ends");
+assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).contractSeasons, 0,
+  "a legacy free-agent parent must not retain a positive professional contract term");
+assert.equal(career.contractStateForSeasonTransition(legacyTrueLoan).weeklyWage, 0,
+  "a legacy free-agent parent must not regain a professional wage on loan return");
+assert.ok(rootHtml.includes("parentContractType:state.contractType"),
+  "browser loan snapshots must preserve the parent contract type");
+assert.ok(rootHtml.includes('state.contractType=parentHasNoContract?"free-agent":parentContractType;'),
+  "browser loan return must restore the normalized parent contract type");
+assert.ok(rootHtml.includes('const parentFreeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);')
+  && rootHtml.includes('const parentIsFreeAgent=parentFreeAgent||parentContractType.toLowerCase()==="free-agent";')
+  && rootHtml.includes('const parentHasNoContract=parentIsFreeAgent||restoredParentContractSeasons<=0;')
+  && rootHtml.includes('state.weeklyWage=parentHasNoContract?0:restoredParentWage;')
+  && rootHtml.includes('state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;')
+  && rootHtml.includes('state.freeAgent=parentHasNoContract;'),
+  "browser loan return must normalize legacy parentFreeAgent values and restore the parent contract consistently");
+assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
+  "browser loan return must restore the parent club role while preserving legacy saves without it");
+assert.ok(rootHtml.includes('negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";'),
+  "the contract screen must disable wage negotiation while the player is on loan");
+assert.ok(rootHtml.includes('state.loan?"العقد الأصلي مع "+String(state.loan.parentClub||"النادي الأصلي")'),
+  "the contract screen must identify the parent club as the contract owner during a loan");
 assert.ok(!rootHtml.includes("state.freeAgent=!!l.parentFreeAgent;"),
   "browser loan return must not coerce string false to true");
+
+const loanReturnMatch = rootHtml.match(/function returnFromLoan\(\)\{[\s\S]*?\n\}\n\nfunction renderContract/);
+assert.ok(loanReturnMatch, "the deployed loan-return action must remain available for behavioral testing");
+const loanReturnSource = loanReturnMatch[0].slice(0, loanReturnMatch[0].lastIndexOf("\n\nfunction renderContract"));
+function runBrowserLoanReturnCase(loanOverrides, stateOverrides = {}) {
+  const current = {
+    clubName: "Host Club", leagueCountry: "Hostland", leagueDivision: 1,
+    leagueCompetition: "Host League", leagueSource: "Host source", clubPower: 68,
+    clubTier: 2, clubIndex: 2, weeklyWage: 900, contractSeasons: 3,
+    freeAgent: false, contractType: "professional", role: "بديل",
+    season: 4, day: 90, transferHistory: [], daysSinceNegotiation: 0,
+    contractNegotiationWait: 4, transferCooldown: 0,
+    loan: {
+      parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 2,
+      parentCompetition: "Parent League", parentSource: "Parent source",
+      parentPower: 73, parentTier: 2, parentIndex: 2, parentWage: 450,
+      parentContractSeasons: 2, parentFreeAgent: false,
+      parentContractType: "professional", parentRole: "أساسي",
+      ...loanOverrides
+    },
+    ...stateOverrides
+  };
+  const archiveReasons = [], messages = [];
+  const sandbox = {
+    state: current,
+    archiveLeagueSegment: reason => archiveReasons.push(reason),
+    normalizeSavedBooleanFlag: value => value === true || value === 1
+      || String(value).trim().toLowerCase() === "true" || String(value).trim() === "1",
+    clubPowerFor: () => 55,
+    clubTierForPower: () => 1,
+    log: message => messages.push(String(message))
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(loanReturnSource + "\nthis.returnLoanForTest = returnFromLoan;", sandbox,
+    { filename: "browser loan-return integration" });
+  const result = sandbox.returnLoanForTest();
+  return { state: current, result, archiveReasons, messages };
+}
+
+const restoredLoan = runBrowserLoanReturnCase({});
+assert.equal(restoredLoan.result, true);
+assert.equal(restoredLoan.state.loan, null);
+assert.equal(restoredLoan.state.clubName, "Parent Club");
+assert.equal(restoredLoan.state.leagueCountry, "Egypt");
+assert.equal(restoredLoan.state.leagueDivision, 2);
+assert.equal(restoredLoan.state.weeklyWage, 450);
+assert.equal(restoredLoan.state.contractSeasons, 2);
+assert.equal(restoredLoan.state.contractType, "professional");
+assert.equal(restoredLoan.state.freeAgent, false);
+assert.equal(restoredLoan.state.role, "أساسي");
+assert.deepEqual(restoredLoan.archiveReasons, ["loan-return"]);
+
+const expiredParentLoan = runBrowserLoanReturnCase({ parentContractSeasons: 0 });
+assert.equal(expiredParentLoan.result, true);
+assert.equal(expiredParentLoan.state.loan, null);
+assert.equal(expiredParentLoan.state.weeklyWage, 0,
+  "an expired parent contract must not restore the temporary host-club wage");
+assert.equal(expiredParentLoan.state.contractSeasons, 0);
+assert.equal(expiredParentLoan.state.contractType, "free-agent");
+assert.equal(expiredParentLoan.state.freeAgent, true,
+  "a player whose parent contract expired during a loan must return as a free agent");
+
+const malformedParentLoan = runBrowserLoanReturnCase({
+  parentClub: "", parentCountry: "", parentWage: 450,
+  parentContractSeasons: 2, parentFreeAgent: false, parentContractType: "professional"
+});
+assert.equal(malformedParentLoan.result, false);
+assert.equal(malformedParentLoan.state.loan, null);
+assert.equal(malformedParentLoan.state.weeklyWage, 0,
+  "an un-restorable legacy loan must never leave the temporary host wage active");
+assert.equal(malformedParentLoan.state.contractSeasons, 0,
+  "an un-restorable legacy loan must not leave a phantom host contract");
+assert.equal(malformedParentLoan.state.contractType, "free-agent");
+assert.equal(malformedParentLoan.state.freeAgent, true);
+assert.deepEqual(malformedParentLoan.archiveReasons, ["loan-return-invalid"]);
+assert.ok(malformedParentLoan.state.transferHistory[0].text.includes("سوق اللاعبين الأحرار"),
+  "the fallback must explain that the player was safely moved to the free-agent market");
+
+const malformedContractSnapshot = career.contractStateForSeasonTransition({
+  clubName: "Host Club", leagueCountry: "Hostland", weeklyWage: 900,
+  contractSeasons: 3, freeAgent: false, contractType: "professional",
+  loan: { parentClub: "", parentCountry: "", parentWage: 900,
+    parentContractSeasons: 3, parentFreeAgent: false, parentContractType: "professional" }
+});
+assert.equal(malformedContractSnapshot.loan, null);
+assert.equal(malformedContractSnapshot.weeklyWage, 0);
+assert.equal(malformedContractSnapshot.contractSeasons, 0);
+assert.equal(malformedContractSnapshot.contractType, "free-agent");
+assert.equal(malformedContractSnapshot.freeAgent, true,
+  "season transition checks must not offer a fake host-club renewal for a malformed legacy loan");
 
 const player = {
   pos: "مهاجم", age: 24, season: 2, apps: 0, money: 1000, weeklyWage: 500,
@@ -475,6 +813,7 @@ assert.equal(career.makeContractOffer(renewalBase, { contractMultiplier: 4 }).wa
 assert.equal(career.resolveContractDecision(renewal, "accept", { wage: 650, seasons: 3 }).status, "renewed");
 assert.equal(renewal.weeklyWage, 650);
 assert.equal(renewal.contractSeasons, 4);
+assert.equal(renewal.contractType, "professional", "renewing a contract must keep the player professionally signed");
 
 const malformedWageCases = [
   [Infinity, 0], ["Infinity", 0], [NaN, 0], [-250, 0], [3.9, 3], [700, 700],
@@ -592,6 +931,22 @@ const missingFreeAgentContract = { pos: "مهاجم", age: 24, freeAgent: true, 
 career.ensureState(missingFreeAgentContract);
 assert.equal(missingFreeAgentContract.contractSeasons, 0, "legacy free agents must not receive a phantom contract");
 
+for (const engine of [career]) {
+  const staleFreeAgentType = {
+    pos: "مهاجم", age: 24, freeAgent: false, contractType: "free-agent",
+    weeklyWage: 900, contractSeasons: 3, apps: 12, trainingXP: {}, randomSeed: 1
+  };
+  engine.ensureState(staleFreeAgentType);
+  assert.equal(staleFreeAgentType.freeAgent, true, "a saved free-agent contract type must normalize the legacy boolean flag");
+  assert.equal(staleFreeAgentType.contractSeasons, 0, "a legacy free-agent type must not retain a phantom contract term");
+  assert.equal(staleFreeAgentType.weeklyWage, 0, "a legacy free-agent type must not retain a club salary");
+  assert.equal(engine.wageNegotiationStatus(staleFreeAgentType), "free-agent");
+  assert.equal(engine.loanRequestStatus({ ...staleFreeAgentType, apps: 12 }, { windowOpen: true }), "free-agent");
+  assert.equal(engine.resolveContractDecision(staleFreeAgentType, "accept",
+    { club: "Test FC", wage: 1200, seasons: 3 }).status, "free-agent",
+    "a legacy free-agent must not renew a contract it no longer owns");
+}
+
 const infiniteTerm = { weeklyWage: 500, contractSeasons: 1, freeAgent: false };
 career.resolveContractDecision(infiniteTerm, "accept", { wage: 650, seasons: Infinity });
 assert.equal(infiniteTerm.contractSeasons, 4, "an infinite offered term must fall back to the standard three-season offer");
@@ -621,6 +976,99 @@ const prospectPromotion = career.evaluateSquadRole({
 }, rotationHistory.slice(0, 2));
 assert.equal(prospectPromotion.role, "بديل",
   "a prospect label should become a normal substitute role after recording real appearances");
+
+const poorFormHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "poor-form-" + index, scope: "league", minutes: 70, rating: 5.2,
+  goals: 0, assists: 0
+}));
+const poorStarterDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, poorFormHistory);
+assert.equal(poorStarterDecision.role, "بديل أساسي",
+  "a starter with sustained poor ratings and low trust must lose the automatic starter role");
+assert.equal(poorStarterDecision.reason, "form-demotion",
+  "role demotions must be identifiable separately from promotions");
+const shortCameoHistory = Array.from({ length: 6 }, (_, index) => ({
+  id: "short-cameo-" + index, scope: "league", minutes: 5, rating: 4.4, goals: 0, assists: 0
+}));
+const cameoOnlyDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, shortCameoHistory);
+assert.equal(cameoOnlyDecision.role, "أساسي",
+  "six five-minute cameos are not enough evidence to demote a starter");
+const mixedMinuteHistory = [
+  ...Array.from({ length: 2 }, (_, index) => ({
+    id: "full-start-" + index, scope: "league", minutes: 90, rating: 7.5, goals: 0, assists: 0
+  })),
+  ...Array.from({ length: 6 }, (_, index) => ({
+    id: "short-poor-cameo-" + index, scope: "league", minutes: 5, rating: 4.5, goals: 0, assists: 0
+  }))
+];
+const mixedMinuteDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, mixedMinuteHistory);
+assert.equal(mixedMinuteDecision.role, "أساسي",
+  "short poor cameos must not outweigh two strong full-match performances");
+assert.ok(mixedMinuteDecision.recentAverageRating > 7,
+  "recent squad-form rating must be weighted by minutes played");
+const strongCameoHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "strong-cameo-" + index, scope: "league", minutes: 5, rating: 8.5, goals: 1, assists: 1
+}));
+const cameoRotationPromotion = career.evaluateSquadRole({
+  role: "بديل", apps: 16, goals: 8, assists: 8, trust: 55, pos: "وسط"
+}, strongCameoHistory);
+assert.equal(cameoRotationPromotion.role, "بديل",
+  "high ratings and contributions in five-minute cameos must not trigger a rotation promotion");
+const cameoStarterPromotion = career.evaluateSquadRole({
+  role: "تناوب", apps: 16, goals: 8, assists: 8, trust: 55, pos: "وسط"
+}, strongCameoHistory);
+assert.equal(cameoStarterPromotion.role, "تناوب",
+  "short cameos alone must not promote a rotation player to the starting eleven");
+
+
+const poorRotationDecision = career.evaluateSquadRole({
+  role: "تناوب", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
+}, poorFormHistory);
+assert.equal(poorRotationDecision.role, "بديل",
+  "a rotation player with sustained poor form must move to a substitute role");
+const poorStarDecision = career.evaluateSquadRole({
+  role: "نجم الفريق", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
+}, poorFormHistory);
+assert.equal(poorStarDecision.role, "أساسي",
+  "a star-player role must step down to starter after a long poor run, not remain protected forever");
+const shortPoorRunDecision = career.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 10, pos: "وسط"
+}, poorFormHistory.slice(0, 3));
+assert.equal(shortPoorRunDecision.role, "أساسي",
+  "a small poor-form sample must not demote a player after only three rated matches");
+assert.equal(career.normalizeCareerPosition("ST"), "رأس حربة",
+  "legacy English striker positions must normalize to the centre-forward career role");
+for (const [alias, expected] of [
+  ["left back", "ظهير"], ["right back", "ظهير"], ["left wing back", "ظهير"],
+  ["right wing back", "ظهير"], ["wingback", "ظهير"], ["central midfield", "وسط"],
+  ["left midfielder", "جناح"], ["right midfielder", "جناح"]
+]) {
+  assert.equal(career.normalizeCareerPosition(alias), expected,
+    "career engine must normalize the same English position alias: " + alias);
+}
+const forwardAliasHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "forward-alias-" + index, scope: "league", minutes: 60, rating: 6.0, goals: 1, assists: 0
+}));
+const englishForwardPromotion = career.evaluateSquadRole({
+  role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "ST"
+}, forwardAliasHistory);
+const arabicForwardPromotion = career.evaluateSquadRole({
+  role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "رأس حربة"
+}, forwardAliasHistory);
+assert.equal(englishForwardPromotion.role, arabicForwardPromotion.role,
+  "a legacy ST save must receive the same evidence-based forward promotion as an Arabic position");
+assert.equal(englishForwardPromotion.role, "أساسي",
+  "the high-output forward fixture should complete both promotion thresholds in one evaluation");
+const englishMidfieldControl = career.evaluateSquadRole({
+  role: "بديل", apps: 35, goals: 20, assists: 0, trust: 0, pos: "CM"
+}, forwardAliasHistory);
+assert.equal(englishMidfieldControl.role, "بديل",
+  "central midfield aliases must not accidentally use the forward-only promotion shortcut");
 
 const trainingState = { ...player, playedToday: true, trainedToday: false, injuryDays: 0 };
 assert.equal(career.train(trainingState, "shooting").ok, false, "training must be blocked on match day");
@@ -1017,6 +1465,147 @@ vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bu
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
 
+function makeSegmentScopedAwardState() {
+  const makeRow = (matchId, segmentId, goals, extra = {}) => ({
+    matchId, segmentId, scope: "league", leagueCountry: "England",
+    leagueCompetition: "Test League", minutes: 90, rating: 8, goals, assists: 0, ...extra
+  });
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", season: 1, calendarDay: 120, money: 0,
+    topScorerAwards: 0, careerAwards: [], seasonLog: [],
+    leagueSegmentId: "active-segment-1",
+    leagueArchives: [
+      { season: 1, segmentId: "archived-segment-1" },
+      { season: 2, segmentId: "archived-segment-2" }
+    ],
+    careerMatchHistory: [
+      makeRow("archived-segment-match-1", "archived-segment-1", 1),
+      makeRow("archived-segment-match-2", "archived-segment-1", 1),
+      makeRow("active-segment-match-3", "active-segment-1", 1),
+      makeRow("unknown-season-match", "", 20),
+      makeRow("prior-season-segment-match", "archived-segment-2", 20),
+      makeRow("explicit-prior-season-match", "archived-segment-1", 20, { season: 2 })
+    ]
+  };
+}
+
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const segmentScopedState = makeSegmentScopedAwardState();
+  engine.seasonAwards(segmentScopedState, [{ name: "Test FC", power: 50 }], 1);
+  const segmentScopedBoot = segmentScopedState.careerAwards.find(award => award.id === "golden-boot");
+  assert.ok(segmentScopedBoot,
+    engineName + " awards must recover season-less career rows whose segment is archived in the current season");
+  assert.equal(segmentScopedBoot.note, "3 هدف في 3 مشاركة",
+    engineName + " awards must include current archived/active segments but exclude unknown and prior-season rows");
+}
+
+const unidentifiedLegacyRepeat = {
+  scope: "league", competition: "Premier League", season: 4, club: "Test FC",
+  opponent: "Repeat Opponent", teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0
+};
+const unidentifiedLegacyRows = [unidentifiedLegacyRepeat, { ...unidentifiedLegacyRepeat }];
+const identifiedLegacyRepeat = { ...unidentifiedLegacyRepeat, day: 24, matchday: 12 };
+const identifiedLegacyRows = [identifiedLegacyRepeat, { ...identifiedLegacyRepeat }];
+for (const engine of [career, deployedCareer]) {
+  assert.equal(engine.uniqueMatchRows(unidentifiedLegacyRows).length, 2,
+    "two no-ID legacy fixtures with identical stats but no date/round must not collapse into one appearance");
+  assert.equal(engine.uniqueMatchRows(identifiedLegacyRows).length, 1,
+    "no-ID legacy copies with matching competition context and a temporal key must still deduplicate");
+  const scopeOnlyLegacyRepeat = { scope: "league", day: 24, minutes: 90, goals: 0, assists: 0 };
+  assert.equal(engine.uniqueMatchRows([scopeOnlyLegacyRepeat, { ...scopeOnlyLegacyRepeat }]).length, 2,
+    "a scope and date alone are not enough identity to collapse two legacy fixtures");
+  const sparseHistory = {
+    apps: 2,
+    seasonLog: [unidentifiedLegacyRepeat],
+    careerMatchHistory: [{ ...unidentifiedLegacyRepeat }]
+  };
+  engine.rebuildLegacyCareerStats(sparseHistory);
+  assert.equal(sparseHistory.careerMinutes, 180,
+    "legacy stat rebuilding must preserve both no-ID appearances when no temporal identity exists");
+  assert.equal(sparseHistory.qualifyingAppearances, 2,
+    "legacy stat rebuilding must not erase a qualifying appearance from a sparse no-ID history");
+}
+
+const whitespaceCompetitionParityRows = [
+  {
+    id: "legacy-whitespace-competition-id", scope: "league", competition: "   ",
+    leagueCompetition: "Premier League", season: 4, segmentId: "season-4",
+    club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+    minutes: 90, rating: 7, goals: 0, assists: 0
+  },
+  {
+    id: "legacy-whitespace-competition-id", scope: "league", competition: "National Cup",
+    leagueCompetition: "National Cup", season: 4, segmentId: "season-4",
+    club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+    minutes: 90, rating: 8, goals: 1, assists: 0
+  }
+];
+assert.equal(deployedCareer.uniqueMatchRows(whitespaceCompetitionParityRows).length, 2,
+  "the deployed browser engine must preserve competition identity when the primary legacy field is whitespace");
+assert.equal(JSON.stringify(deployedCareer.uniqueMatchRows(whitespaceCompetitionParityRows)),
+  JSON.stringify(career.uniqueMatchRows(whitespaceCompetitionParityRows)),
+  "source and embedded history deduplication must stay identical for whitespace competition values");
+
+const incompleteCompetitionReuseRows = [
+  {
+    id: "legacy-incomplete-competition-reused-id", scope: "league", season: 4,
+    segmentId: "season-4", club: "Test FC", opponent: "Shared Opponent",
+    day: 13, matchday: 9, minutes: 90, rating: 7, goals: 0, assists: 0
+  },
+  {
+    id: "legacy-incomplete-competition-reused-id", competition: "National Cup",
+    leagueCompetition: "National Cup", season: 4, segmentId: "season-4",
+    club: "Test FC", opponent: "Shared Opponent", day: 13, matchday: 9,
+    minutes: 90, rating: 8, goals: 1, assists: 0
+  }
+];
+for (const engine of [career, deployedCareer]) {
+  assert.equal(engine.uniqueMatchRows(incompleteCompetitionReuseRows).length, 2,
+    "a row missing competition metadata must not swallow a same-ID cup fixture on the same date");
+  const incompleteCompetitionHistory = {
+    apps: 2,
+    seasonLog: [incompleteCompetitionReuseRows[0]],
+    careerMatchHistory: [incompleteCompetitionReuseRows[1]]
+  };
+  engine.rebuildLegacyCareerStats(incompleteCompetitionHistory);
+  assert.equal(incompleteCompetitionHistory.careerMinutes, 180,
+    "legacy career-stat rebuilding must preserve both same-day fixtures when one competition is missing");
+  assert.equal(incompleteCompetitionHistory.qualifyingAppearances, 2,
+    "both fixtures with incomplete competition identity must remain qualifying appearances");
+}
+
+const browserPoorStarterDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, poorFormHistory);
+assert.equal(JSON.stringify(browserPoorStarterDecision), JSON.stringify(poorStarterDecision),
+  "the embedded browser career engine must apply the same evidence-based starter demotion");
+const browserCameoOnlyDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, shortCameoHistory);
+assert.equal(JSON.stringify(browserCameoOnlyDecision), JSON.stringify(cameoOnlyDecision),
+  "the embedded browser career engine must use the same minimum-minute demotion evidence");
+const browserMixedMinuteDecision = deployedCareer.evaluateSquadRole({
+  role: "أساسي", apps: 20, goals: 0, assists: 0, trust: 20, pos: "وسط"
+}, mixedMinuteHistory);
+assert.equal(JSON.stringify(browserMixedMinuteDecision), JSON.stringify(mixedMinuteDecision),
+  "the embedded browser career engine must use the same minute-weighted recent rating");
+const browserCameoRotationPromotion = deployedCareer.evaluateSquadRole({
+  role: "بديل", apps: 16, goals: 8, assists: 8, trust: 55, pos: "وسط"
+}, strongCameoHistory);
+assert.equal(JSON.stringify(browserCameoRotationPromotion), JSON.stringify(cameoRotationPromotion),
+  "the embedded engine must require sufficient minutes before a rotation promotion");
+
+
+const browserPoorStarDecision = deployedCareer.evaluateSquadRole({
+  role: "نجم الفريق", apps: 20, goals: 0, assists: 0, trust: 15, pos: "وسط"
+}, poorFormHistory);
+assert.equal(JSON.stringify(browserPoorStarDecision), JSON.stringify(poorStarDecision),
+  "the embedded browser career engine must apply the same evidence-based star demotion");
+assert.equal(deployedCareer.normalizeCareerPosition("CM"), "وسط", "the embedded career engine must normalize CM aliases");
+assert.equal(deployedCareer.positionDevelopmentPlan("CM").position, "وسط", "the embedded career engine must expose the CM development plan");
+assert.equal(deployedCareer.loanSquadRole({ pos: "CM", age: 22, shooting: 70, dribbling: 70, passing: 70, speed: 70, fitness: 70, composure: 70, defending: 70, goalkeeping: 90, vision: 70, physical: 70 }, { power: 60 }), "أساسي", "the embedded career engine must calculate a realistic loan role");
+
 const browserLoanReturnFunction = deployedHtml.match(/function returnFromLoan\(\)\s*\{[\s\S]*?\n\}/);
 assert.ok(browserLoanReturnFunction, "the deployed browser loan-return function must exist for runtime regression coverage");
 const parseSavedBooleanForLoanReturn = (value, fallback = false) => {
@@ -1029,15 +1618,16 @@ const parseSavedBooleanForLoanReturn = (value, fallback = false) => {
   }
   return fallback;
 };
-function runBrowserLoanReturn(parentWage, parentContractSeasons) {
+function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "أساسي", fallbackContractSeasons = 3, parentFreeAgent = false, parentContractType = "professional") {
   const state = {
     clubName: "Loan Club", leagueCountry: "Spain", season: 4, day: 12,
-    transferCooldown: 0, transferHistory: [],
+    role: "بديل أساسي", transferCooldown: 0, transferHistory: [], contractSeasons: fallbackContractSeasons,
     loan: {
       parentClub: "Parent Club", parentCountry: "Egypt", parentDivision: 1,
       parentCompetition: "Parent League", parentSource: "test fixture",
       parentPower: 52, parentTier: 1, parentIndex: 1,
-      parentWage, parentContractSeasons, parentFreeAgent: false
+      parentWage, parentContractSeasons, parentFreeAgent, parentContractType,
+      ...(parentRole ? { parentRole } : {})
     }
   };
   const sandbox = {
@@ -1053,6 +1643,10 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons) {
 }
 const parentLoanContractCases = [
   [Infinity, 1, 0, 1],
+  [400, 0, 0, 0],
+  [400, null, 400, 3],
+  [400, "", 400, 3],
+  [400, "   ", 400, 3],
   ["Infinity", "Infinity", 0, 0],
   [NaN, NaN, 0, 0],
   [-400, -2, 0, 0],
@@ -1078,10 +1672,19 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
     "parent-club wages restored after a loan must be finite, non-negative, integral, and safe");
   assert.equal(sharedSnapshot.contractSeasons, expectedSeasons,
     "parent-club contract duration restored after a loan must be finite and bounded");
+  const expectedFreeAgent = expectedSeasons <= 0;
+  assert.equal(sharedSnapshot.freeAgent, expectedFreeAgent,
+    "an expired parent contract must restore as a free agent, not as a renewable contract");
+  assert.equal(sharedSnapshot.contractType, expectedFreeAgent ? "free-agent" : "professional",
+    "the restored contract type must agree with the remaining parent-contract term");
   assert.equal(browserSnapshot.weeklyWage, expectedWage,
     "embedded browser engine must sanitize parent-club wages like the shared engine");
   assert.equal(browserSnapshot.contractSeasons, expectedSeasons,
     "embedded browser engine must sanitize parent-club contract duration like the shared engine");
+  assert.equal(browserSnapshot.freeAgent, expectedFreeAgent,
+    "embedded browser engine must mark an expired parent contract as free agency");
+  assert.equal(browserSnapshot.contractType, expectedFreeAgent ? "free-agent" : "professional",
+    "embedded browser contract type must agree with the parent-contract term");
   assert.equal(JSON.stringify(browserSnapshot), JSON.stringify(sharedSnapshot),
     "embedded and shared loan-contract restoration must stay behaviorally identical");
   assert.equal(loanState.weeklyWage, 900, "restoring the parent contract must not mutate active loan wages");
@@ -1093,9 +1696,313 @@ for (const [savedParentWage, savedParentSeasons, expectedWage, expectedSeasons] 
     "browser loan return must restore only a finite, bounded, integral parent wage");
   assert.equal(browserReturn.state.contractSeasons, expectedSeasons,
     "browser loan return must restore only a finite, bounded parent contract duration");
+  assert.equal(browserReturn.state.freeAgent, expectedFreeAgent,
+    "browser loan return must mark an expired parent contract as free agency");
+  assert.equal(browserReturn.state.contractType, expectedFreeAgent ? "free-agent" : "professional",
+    "browser loan return must not leave an expired professional contract active");
   assert.equal(browserReturn.state.loan, null, "a successful loan return must clear the active loan");
   assert.equal(browserReturn.state.clubName, "Parent Club", "a successful loan return must restore the parent club");
+  assert.equal(browserReturn.state.role, "أساسي", "a successful loan return must restore the parent club squad role");
 }
+const legacyLoanRoleReturn = runBrowserLoanReturn(400, 2, null);
+assert.equal(legacyLoanRoleReturn.result, true, "legacy loan records without a parent role must still return safely");
+assert.equal(legacyLoanRoleReturn.state.role, "بديل أساسي", "legacy loan records without a parent role must preserve the current role");
+const legacyTrueBrowserReturn = runBrowserLoanReturn(400, 1, "أساسي", 3, true, "professional");
+assert.equal(legacyTrueBrowserReturn.state.freeAgent, true);
+assert.equal(legacyTrueBrowserReturn.state.contractType, "free-agent");
+assert.equal(legacyTrueBrowserReturn.state.contractSeasons, 0);
+assert.equal(legacyTrueBrowserReturn.state.weeklyWage, 0);
+
+const archiveSeasonRecordStart = rootHtml.indexOf("function archiveSeasonRecord()");
+const archiveSeasonRecordEnd = rootHtml.indexOf(String.fromCharCode(10) + "function ", archiveSeasonRecordStart + 30);
+assert.ok(archiveSeasonRecordStart >= 0 && archiveSeasonRecordEnd > archiveSeasonRecordStart,
+  "the deployed season-history archive function must remain extractable");
+const archiveSeasonRecordSource = rootHtml.slice(archiveSeasonRecordStart, archiveSeasonRecordEnd);
+const allCareerMatchRowsStart = rootHtml.indexOf("function allCareerMatchRowsForHistory()");
+const allCareerMatchRowsEnd = rootHtml.indexOf(String.fromCharCode(10) + "function ", allCareerMatchRowsStart + 30);
+assert.ok(allCareerMatchRowsStart >= 0 && allCareerMatchRowsEnd > allCareerMatchRowsStart,
+  "the deployed career-history union helper must remain extractable");
+const allCareerMatchRowsSource = rootHtml.slice(allCareerMatchRowsStart, allCareerMatchRowsEnd);
+const seasonArchiveState = {
+  season: 4, age: 23, seasonApps: 12, leagueApps: 10, seasonGoals: 4, seasonAssists: 3,
+  seasonW: 7, seasonD: 2, seasonL: 1, seasonPoints: 23, seasonSummary: "test",
+  careerAwards: [], seasonHistory: [],
+  leagueArchives: [
+    { archiveId: "parent-segment|loan", segmentId: "parent-segment", season: 4 },
+    { archiveId: "host-segment|loan-return", segmentId: "host-segment", season: 4 },
+    { archiveId: "old-segment|season-end", segmentId: "old-segment", season: 3 }
+  ],
+  careerMatchHistory: [
+    { id: "season-explicit", season: 4, segmentId: "parent-segment", competition: "Premier League", club: "Parent FC", opponent: "A", day: 1, minutes: 90 },
+    { id: "season-string", season: "2026/27", segmentId: "host-segment", competition: "Second Division", club: "Host FC", opponent: "B", day: 2, minutes: 90 },
+    { id: "season-missing", segmentId: "host-segment", competition: "Second Division", club: "Host FC", opponent: "C", day: 3, minutes: 90 },
+    { id: "season-string", season: "2026/27", segmentId: "host-segment", competition: "Second Division", club: "Host FC", opponent: "B", day: 2, minutes: 90 },
+    { id: "prior-season", season: 3, segmentId: "old-segment", competition: "Premier League", club: "Old FC", opponent: "D", day: 4, minutes: 90 },
+    { id: "unknown-season", minutes: 90 }
+  ]
+};
+const archiveSeasonSandbox = {
+  state: seasonArchiveState, window: { LWCareer: career },
+  archiveLeagueSegment: () => {}, club: () => ({ name: "Host FC" }),
+  structuredCloneSafe: value => JSON.parse(JSON.stringify(value))
+};
+vm.runInNewContext(allCareerMatchRowsSource + String.fromCharCode(10) +
+  archiveSeasonRecordSource + String.fromCharCode(10) +
+  "this.archiveSeasonRecord = archiveSeasonRecord;", archiveSeasonSandbox);
+archiveSeasonSandbox.archiveSeasonRecord();
+assert.equal(seasonArchiveState.seasonHistory[0].matchCount, 3,
+  "season history must include explicit, string-season and segment-linked loan fixtures exactly once");
+assert.deepEqual(seasonArchiveState.seasonHistory[0].segments,
+  ["parent-segment|loan", "host-segment|loan-return"],
+  "season history must list every archived club segment from the current season");
+
+const extractArchiveBrowserFunction = name => {
+  const start = rootHtml.indexOf("function " + name + "(");
+  const end = rootHtml.indexOf(String.fromCharCode(10) + "function ", start + 20);
+  assert.ok(start >= 0 && end > start, "the deployed " + name + " function must remain extractable");
+  return rootHtml.slice(start, end);
+};
+const legacySeasonRow = {
+  id: "legacy-season-log-1", season: 4, segmentId: "host-segment",
+  club: "Host FC", country: "Egypt", competition: "Premier League",
+  opponent: "League A", day: 1, minutes: 90, rating: 8, goals: 1, assists: 0
+};
+const legacyNoSeasonRow = {
+  id: "legacy-season-log-2", segmentId: "host-segment",
+  club: "Host FC", country: "Egypt", competition: "Premier League",
+  opponent: "League B", day: 2, minutes: 90, rating: 7, goals: 0, assists: 0
+};
+const legacyArchiveState = {
+  season: 4, age: 23, day: 30, clubName: "Host FC", leagueSegmentId: "host-segment",
+  leagueArchiveSequence: 0, leagueCountry: "Egypt", leagueCompetition: "Premier League",
+  leagueSource: "legacy fixture", leagueDivision: 1, leagueApps: 2,
+  league: [{ name: "Host FC", pts: 30, gf: 20, ga: 10 }],
+  fixtureSchedule: [], leagueRoundHistory: [], leagueArchives: [],
+  seasonHistory: [], careerAwards: [], seasonApps: 2, seasonGoals: 1,
+  seasonAssists: 0, seasonW: 1, seasonD: 0, seasonL: 1, seasonPoints: 3,
+  seasonSummary: "legacy archive",
+  seasonLog: [legacySeasonRow, legacyNoSeasonRow],
+  careerMatchHistory: [{ ...legacySeasonRow }]
+};
+const legacyArchiveSandbox = {
+  state: legacyArchiveState, window: { LWCareer: career },
+  club: () => ({ name: "Host FC" }), clubNameForLeague: () => "Host FC",
+  structuredCloneSafe: value => JSON.parse(JSON.stringify(value))
+};
+const archiveFunctions = [
+  "ensureLeagueSegmentId", "allCareerMatchRowsForHistory",
+  "archiveLeagueSegment", "archiveSeasonRecord"
+].map(extractArchiveBrowserFunction).join(String.fromCharCode(10));
+vm.runInNewContext(archiveFunctions + String.fromCharCode(10) +
+  "this.archiveLeagueSegment = archiveLeagueSegment; this.archiveSeasonRecord = archiveSeasonRecord;",
+  legacyArchiveSandbox);
+const legacyLeagueArchive = legacyArchiveSandbox.archiveLeagueSegment("season-end");
+assert.equal(legacyLeagueArchive.matches.length, 2,
+  "league archives must include legacy seasonLog rows and deduplicate their career-history copies");
+assert.equal(legacyLeagueArchive.stats.minutes, 180,
+  "legacy seasonLog minutes must remain in the archived league segment");
+assert.equal(legacyLeagueArchive.stats.goals, 1,
+  "legacy seasonLog goals must remain in the archived league segment");
+legacyArchiveSandbox.archiveSeasonRecord();
+assert.equal(legacyArchiveState.seasonHistory[0].matchCount, 2,
+  "season history must include legacy seasonLog-only rows and segment-linked rows exactly once");
+
+const legacyLoanWithoutParentTerm = {
+  ...onLoan,
+  contractSeasons: 2,
+  loan: { ...onLoan.loan }
+};
+delete legacyLoanWithoutParentTerm.loan.parentContractSeasons;
+const sharedLegacyLoanTerm = career.contractStateForSeasonTransition(legacyLoanWithoutParentTerm);
+const browserLegacyLoanTerm = deployedCareer.contractStateForSeasonTransition({
+  ...legacyLoanWithoutParentTerm,
+  loan: { ...legacyLoanWithoutParentTerm.loan }
+});
+assert.equal(sharedLegacyLoanTerm.contractSeasons, 2,
+  "a legacy loan without a parent-term snapshot must preserve the unchanged top-level parent contract duration");
+assert.equal(browserLegacyLoanTerm.contractSeasons, 2,
+  "the embedded career engine must restore the top-level parent term when old loan metadata omitted it");
+assert.equal(JSON.stringify(browserLegacyLoanTerm), JSON.stringify(sharedLegacyLoanTerm),
+  "shared and embedded legacy loan-term fallback must remain identical");
+const browserLegacyLoanTermReturn = runBrowserLoanReturn(400, undefined, "أساسي", 2);
+assert.equal(browserLegacyLoanTermReturn.result, true, "a legacy loan without parentContractSeasons must still return");
+assert.equal(browserLegacyLoanTermReturn.state.contractSeasons, 2,
+  "browser loan return must retain the top-level parent contract duration when the legacy snapshot is missing");
+for (const missingParentTerm of [null, "", "   "]) {
+  const legacyLoanWithBlankTerm = {
+    ...onLoan,
+    contractSeasons: 2,
+    loan: { ...onLoan.loan, parentContractSeasons: missingParentTerm }
+  };
+  const sharedBlankTerm = career.contractStateForSeasonTransition(legacyLoanWithBlankTerm);
+  const browserBlankTerm = deployedCareer.contractStateForSeasonTransition({
+    ...legacyLoanWithBlankTerm,
+    loan: { ...legacyLoanWithBlankTerm.loan }
+  });
+  assert.equal(sharedBlankTerm.contractSeasons, 2,
+    "null or blank parent-term snapshots must fall back to the unchanged top-level parent contract");
+  assert.equal(browserBlankTerm.contractSeasons, 2,
+    "the embedded browser engine must treat null or blank parent terms as missing legacy metadata");
+  assert.equal(JSON.stringify(browserBlankTerm), JSON.stringify(sharedBlankTerm),
+    "shared and embedded null/blank parent-term fallback must stay identical");
+
+  const browserBlankTermReturn = runBrowserLoanReturn(400, missingParentTerm, "أساسي", 2);
+  assert.equal(browserBlankTermReturn.result, true);
+  assert.equal(browserBlankTermReturn.state.contractSeasons, 2,
+    "browser loan return must preserve the parent term when the legacy snapshot is null or blank");
+
+  const staleFlagsLoan = {
+    ...legacyLoanWage,
+    freeAgent: true,
+    contractType: "professional",
+    weeklyWage: 900,
+    contractSeasons: 2,
+    loan: { ...legacyLoanWage.loan, parentContractSeasons: missingParentTerm }
+  };
+  const browserStaleFlagsLoan = { ...staleFlagsLoan, loan: { ...staleFlagsLoan.loan } };
+  career.ensureState(staleFlagsLoan);
+  deployedCareer.ensureState(browserStaleFlagsLoan);
+  assert.equal(staleFlagsLoan.weeklyWage, 900,
+    "a null/blank parent term must not zero a live loan wage when the unchanged parent term is still active");
+  assert.equal(browserStaleFlagsLoan.weeklyWage, 900,
+    "embedded state normalization must preserve the live host wage for a null/blank legacy parent term");
+  assert.equal(staleFlagsLoan.contractSeasons, 2);
+  assert.equal(browserStaleFlagsLoan.contractSeasons, 2);
+}
+const eligibilityFunction = rootHtml.match(/function careerMatchPlayerEligible\(state,scope="league"\)\s*\{[\s\S]*?\n\}/);
+assert.ok(eligibilityFunction, "career match eligibility must be available for parent-contract regression tests");
+const eligibilityContext = {};
+vm.runInNewContext(eligibilityFunction[0] + "\nglobalThis.isCareerMatchEligible = careerMatchPlayerEligible;", eligibilityContext);
+for (const savedParentTerm of [null, "", "   "]) {
+  const expiredLoan = {
+    retired: false, freeAgent: false, contractType: "professional", contractSeasons: 0,
+    loan: { parentFreeAgent: false, parentContractType: "professional", parentContractSeasons: savedParentTerm }
+  };
+  assert.equal(eligibilityContext.isCareerMatchEligible(expiredLoan, "league"), false,
+    "blank parent-term snapshots must fall back to an expired top-level contract and block club appearances");
+  const activeLoan = { ...expiredLoan, contractSeasons: 2 };
+  assert.equal(eligibilityContext.isCareerMatchEligible(activeLoan, "league"), true,
+    "blank parent-term snapshots must preserve a still-active top-level parent contract");
+}
+const staleFreeAgentLoan = {
+  retired: false, freeAgent: true, contractType: "professional", contractSeasons: 2,
+  loan: { parentContractType: "professional", parentContractSeasons: 2 }
+};
+assert.equal(eligibilityContext.isCareerMatchEligible(staleFreeAgentLoan, "league"), true,
+  "a legacy top-level free-agent flag must not override an explicit professional parent contract");
+for (const malformedParentTerm of ["Infinity", "not-a-number", Infinity, NaN]) {
+  const malformedParentLoan = {
+    ...legacyLoanWage,
+    freeAgent: false, contractType: "professional", weeklyWage: 900, contractSeasons: 2,
+    loan: {
+      ...legacyLoanWage.loan,
+      parentFreeAgent: false, parentContractType: "professional",
+      parentContractSeasons: malformedParentTerm
+    }
+  };
+  const browserMalformedParentLoan = {
+    ...malformedParentLoan, loan: { ...malformedParentLoan.loan }
+  };
+  career.ensureState(malformedParentLoan);
+  deployedCareer.ensureState(browserMalformedParentLoan);
+  assert.equal(malformedParentLoan.weeklyWage, 0,
+    "a malformed saved parent term must not keep a loan wage active in the shared engine");
+  assert.equal(browserMalformedParentLoan.weeklyWage, 0,
+    "the embedded engine must also stop payroll for a malformed parent contract term");
+  const sharedMalformedSnapshot = career.contractStateForSeasonTransition(malformedParentLoan);
+  const browserMalformedSnapshot = deployedCareer.contractStateForSeasonTransition(browserMalformedParentLoan);
+  assert.equal(sharedMalformedSnapshot.freeAgent, true,
+    "a non-finite parent contract term must restore as free agency");
+  assert.equal(browserMalformedSnapshot.freeAgent, true,
+    "the embedded engine must restore a non-finite parent term as free agency");
+  assert.equal(JSON.stringify(browserMalformedSnapshot), JSON.stringify(sharedMalformedSnapshot),
+    "shared and embedded malformed parent-term recovery must remain identical");
+  assert.equal(eligibilityContext.isCareerMatchEligible(malformedParentLoan, "league"), false,
+    "a malformed parent term must block club appearances before the loan is returned");
+}
+
+for (const blankParentContractType of [null, "", "   "]) {
+  const blankTypeLoan = {
+    ...legacyLoanWage,
+    freeAgent: true, contractType: "professional", weeklyWage: 900, contractSeasons: 2,
+    loan: {
+      ...legacyLoanWage.loan,
+      parentContractSeasons: 2,
+      parentContractType: blankParentContractType
+    }
+  };
+  delete blankTypeLoan.loan.parentFreeAgent;
+  const browserBlankTypeLoan = { ...blankTypeLoan, loan: { ...blankTypeLoan.loan } };
+  career.ensureState(blankTypeLoan);
+  deployedCareer.ensureState(browserBlankTypeLoan);
+  assert.equal(blankTypeLoan.weeklyWage, 900,
+    "a blank legacy parent contract type must fall back to the saved professional contract, not a stale free-agent flag");
+  assert.equal(browserBlankTypeLoan.weeklyWage, 900,
+    "embedded loan normalization must fall back from a blank parent contract type");
+  const sharedBlankTypeSnapshot = career.contractStateForSeasonTransition(blankTypeLoan);
+  const browserBlankTypeSnapshot = deployedCareer.contractStateForSeasonTransition(browserBlankTypeLoan);
+  assert.equal(sharedBlankTypeSnapshot.freeAgent, false);
+  assert.equal(sharedBlankTypeSnapshot.contractType, "professional");
+  assert.equal(eligibilityContext.isCareerMatchEligible(blankTypeLoan, "league"), true,
+    "a blank parent contract type must not override a valid professional parent contract");
+  assert.equal(JSON.stringify(browserBlankTypeSnapshot), JSON.stringify(sharedBlankTypeSnapshot),
+    "shared and embedded blank parent contract type fallback must remain identical");
+  const browserBlankTypeReturn = runBrowserLoanReturn(400, 2, "أساسي", 2, false, blankParentContractType);
+  assert.equal(browserBlankTypeReturn.result, true);
+  assert.equal(browserBlankTypeReturn.state.contractType, "professional",
+    "loan return must restore a professional contract when the saved parent type is blank or whitespace");
+  assert.equal(browserBlankTypeReturn.state.freeAgent, false);
+
+}
+
+
+const missingTopLevelLoanTerm = {
+  pos: "مهاجم", age: 24, freeAgent: true, contractType: "professional", weeklyWage: 900,
+  trainingXP: {}, randomSeed: 1,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: null, parentContractType: "professional" }
+};
+const browserMissingTopLevelLoanTerm = {
+  ...missingTopLevelLoanTerm, loan: { ...missingTopLevelLoanTerm.loan }
+};
+const rawMissingTopLevelSnapshot = career.contractStateForSeasonTransition({
+  ...missingTopLevelLoanTerm, loan: { ...missingTopLevelLoanTerm.loan }
+});
+assert.equal(rawMissingTopLevelSnapshot.contractSeasons, 2,
+  "a legacy professional loan with no usable term snapshot or top-level term must receive the safe active-contract default");
+career.ensureState(missingTopLevelLoanTerm);
+deployedCareer.ensureState(browserMissingTopLevelLoanTerm);
+assert.equal(missingTopLevelLoanTerm.contractSeasons, 2,
+  "loan migration must infer the default parent term from the saved professional parent contract, not a stale free-agent flag");
+assert.equal(browserMissingTopLevelLoanTerm.contractSeasons, 2,
+  "embedded loan migration must use the same parent-contract default");
+assert.equal(missingTopLevelLoanTerm.weeklyWage, 900);
+assert.equal(browserMissingTopLevelLoanTerm.weeklyWage, 900);
+const browserMissingTopLevelReturn = runBrowserLoanReturn(400, null, "أساسي", null, false, "professional");
+assert.equal(browserMissingTopLevelReturn.result, true);
+assert.equal(browserMissingTopLevelReturn.state.contractSeasons, 2,
+  "loan return must restore the safe active-contract default when both legacy term fields are missing");
+
+const freeAgentParentWithoutTerm = {
+  pos: "مهاجم", age: 24, freeAgent: false, contractType: "professional", weeklyWage: 900,
+  trainingXP: {}, randomSeed: 1,
+  loan: { parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+    parentContractSeasons: null, parentFreeAgent: true, parentContractType: "free-agent" }
+};
+career.ensureState(freeAgentParentWithoutTerm);
+assert.equal(freeAgentParentWithoutTerm.contractSeasons, 0);
+assert.equal(freeAgentParentWithoutTerm.weeklyWage, 0);
+const browserFreeAgentParentReturn = runBrowserLoanReturn(0, null, "أساسي", null, true, "free-agent");
+assert.equal(browserFreeAgentParentReturn.state.contractSeasons, 0);
+assert.equal(browserFreeAgentParentReturn.state.freeAgent, true);
+
+assert.ok(rootHtml.includes('const contractDisplayState=window.LWCareer?.contractStateForSeasonTransition(state)||state;'),
+  "the contract panel must read the parent-club contract while a legacy save is on loan");
+assert.ok(rootHtml.includes('setText("contractYears",contractDisplayState.freeAgent?0:contractDisplayState.contractSeasons);'),
+  "the contract panel must not display a stale top-level free-agent flag during a loan");
+assert.ok(rootHtml.includes('setText("contractPill",state.retired?"معتزل":contractDisplayState.freeAgent?'),
+  "the contract pill must reflect the parent contract snapshot while on loan");
+
 const parentFreeAgentCases = [
   [true, true], [false, false],
   ["true", true], ["TRUE", true], ["1", true], ["yes", true], ["on", true],
@@ -1214,6 +2121,38 @@ assert.equal(JSON.stringify(browserMalformedLegacyStats), JSON.stringify(malform
   "embedded browser legacy-stat migration must match the shared career engine");
 assert.equal(JSON.stringify(browserLegacyRatings), JSON.stringify(rebuiltLeagueRatings),
   "embedded browser rating reconstruction must match the shared career engine");
+assert.equal(JSON.stringify(deployedCareer.uniqueMatchRows(reusedLegacyIdRows)),
+  JSON.stringify(career.uniqueMatchRows(reusedLegacyIdRows)),
+  "embedded and shared match-history deduplication must preserve the same cross-competition fixtures");
+const browserCrossCompetitionHistory = {
+  apps: 2, seasonLog: [legacyLeagueFixture], careerMatchHistory: [legacyCupFixture]
+};
+deployedCareer.rebuildLegacyCareerStats(browserCrossCompetitionHistory);
+assert.equal(JSON.stringify(browserCrossCompetitionHistory), JSON.stringify(crossCompetitionHistory),
+  "embedded legacy career-stat rebuilding must preserve cross-competition fixtures identically");
+
+const incompleteLegacyRatings = {
+  seasonLog: [
+    { id: "rating-number", scope: "league", minutes: 90, rating: 8 },
+    { id: "rating-string", scope: "league", minutes: 75, rating: "7.5" },
+    { id: "rating-zero", scope: "league", minutes: 90, rating: 0 },
+    { id: "rating-null", scope: "league", minutes: 90, rating: null },
+    { id: "rating-empty", scope: "league", minutes: 90, rating: "" },
+    { id: "rating-whitespace", scope: "league", minutes: 90, rating: "   " },
+    { id: "rating-boolean", scope: "league", minutes: 90, rating: true },
+    { id: "rating-missing", scope: "league", minutes: 90 }
+  ],
+  careerMatchHistory: []
+};
+const expectedIncompleteRatingStats = { sum: 15.5, count: 3 };
+assert.deepEqual(career.deriveLeagueRatingStats(incompleteLegacyRatings), expectedIncompleteRatingStats,
+  "legacy rating migration must exclude null, blank, and boolean ratings while preserving numeric zero and numeric strings");
+const browserIncompleteLegacyRatings = JSON.parse(JSON.stringify(incompleteLegacyRatings));
+const browserIncompleteRatingStats = deployedCareer.deriveLeagueRatingStats(browserIncompleteLegacyRatings);
+assert.equal(browserIncompleteRatingStats.sum, expectedIncompleteRatingStats.sum,
+  "the embedded career engine must reconstruct the same legacy rating sum");
+assert.equal(browserIncompleteRatingStats.count, expectedIncompleteRatingStats.count,
+  "the embedded career engine must exclude invalid legacy ratings from its count");
 
 const malformedQualificationState = {
   pos: "جناح", age: 24, apps: 0,
@@ -1300,8 +2239,8 @@ assert.equal(JSON.stringify(deployedPurchaseState), JSON.stringify(sourcePurchas
 
 // Career role selection must react to sustained output without bypassing academy graduation.
 const roleHistory = Array.from({ length: 8 }, (_, index) => ({
-  scope: "league", minutes: 39, rating: 6.35, goals: index % 3 === 0 ? 1 : 0,
-  assists: index % 5 === 0 ? 1 : 0
+  id: "role-history-" + index, scope: "league", minutes: 39, rating: 6.35,
+  goals: index % 3 === 0 ? 1 : 0, assists: index % 5 === 0 ? 1 : 0
 }));
 const roleSnapshot = {
   pos: "رأس حربة", role: "بديل", age: 25, apps: 304, goals: 39, assists: 15, trust: 25,
@@ -1432,6 +2371,50 @@ assert.equal(JSON.stringify(stringTrueAwardState.careerAwards), JSON.stringify(b
 assert.equal(stringTrueAwardState.money, booleanTrueAwardState.money,
   "legacy string-true availability must preserve valid award rewards");
 
+// Current-season awards must merge current career history with legacy seasonLog,
+// deduplicate the overlap, and exclude older seasons and non-league competitions.
+function makeUnifiedAwardHistoryState() {
+  const common = {
+    leagueCountry: "England", leagueCompetition: "Test League", competition: "Test League",
+    club: "Test FC", minutes: 90, rating: 8, goals: 1, assists: 0, playerAvailable: true
+  };
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", leagueDivision: 1, season: 4, calendarDay: 120,
+    money: 0, topScorerAwards: 0, careerAwards: [],
+    seasonLog: [
+      { ...common, matchId: "unified-award-1", opponent: "Opponent 1", day: 1 }
+    ],
+    careerMatchHistory: [
+      { ...common, matchId: "unified-award-1", season: 4, scope: "league", opponent: "Opponent 1", day: 1 },
+      { ...common, matchId: "unified-award-2", season: 4, scope: "league", opponent: "Opponent 2", day: 2 },
+      { ...common, matchId: "unified-award-3", season: 4, scope: "league", opponent: "Opponent 3", day: 3, assists: 1 },
+      { ...common, matchId: "unified-award-old", season: 3, scope: "league", opponent: "Old Opponent", day: 4, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-cup", season: 4, scope: "cup", competition: "Test Cup", leagueCompetition: "Test Cup", opponent: "Cup Opponent", day: 5, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-international", season: 4, scope: "international", competition: "International", leagueCompetition: "International", club: "Egypt", opponent: "Other Country", day: 6, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-unknown-season", scope: "league", opponent: "Unknown Season", day: 7, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-other-country", season: 4, scope: "league", leagueCountry: "Spain", opponent: "Spain Opponent", day: 8, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-other-competition", season: 4, scope: "league", leagueCompetition: "Other League", competition: "Other League", opponent: "Other Competition", day: 9, goals: 99, assists: 99, rating: 10 }
+    ]
+  };
+}
+const sourceUnifiedAwardState = makeUnifiedAwardHistoryState();
+const browserUnifiedAwardState = makeUnifiedAwardHistoryState();
+career.seasonAwards(sourceUnifiedAwardState, [{ name: "Test FC", power: 50 }], 1);
+deployedCareer.seasonAwards(browserUnifiedAwardState, [{ name: "Test FC", power: 50 }], 1);
+const sourceUnifiedBoot = sourceUnifiedAwardState.careerAwards.find(award => award.id === "golden-boot");
+const browserUnifiedBoot = browserUnifiedAwardState.careerAwards.find(award => award.id === "golden-boot");
+assert.ok(sourceUnifiedBoot, "three current-season league goals from careerMatchHistory must qualify for the simulated golden boot");
+assert.ok(browserUnifiedBoot, "the deployed browser engine must include current-season career history in awards");
+assert.equal(sourceUnifiedBoot.note, "3 هدف في 3 مشاركة",
+  "award totals must deduplicate seasonLog overlap and exclude older/cup/international/unknown-season rows");
+assert.equal(browserUnifiedBoot.note, sourceUnifiedBoot.note,
+  "deployed and shared award calculations must use identical current-season rows");
+assert.equal(sourceUnifiedAwardState.money, 1100,
+  "only the current-season league player and golden-boot awards may pay out");
+assert.equal(browserUnifiedAwardState.money, sourceUnifiedAwardState.money,
+  "deployed and shared award payouts must remain identical");
+
 
 // Contract dialogs can become stale if retirement happens after they were opened.
 // Neither accepting nor declining may mutate a retired career.
@@ -1466,6 +2449,82 @@ assert.equal(career.resolveContractDecision(legacyRetiredContractState, "accept"
 assert.equal(legacyRetiredContractState.weeklyWage, 900,
   "legacy retired saves must keep their existing wage when renewal is rejected");
 
+// Contract decisions must be bound to the active expiring contract and its current offer.
+const contractDecisionCases = [
+  {
+    name: "decline without an offer",
+    expected: "invalid-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5 },
+    decision: "decline",
+    offer: null
+  },
+  {
+    name: "early renewal",
+    expected: "not-expiring",
+    state: { freeAgent: false, retired: false, contractSeasons: 2, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: 650, seasons: 3 }
+  },
+  {
+    name: "offer from a previous club",
+    expected: "club-mismatch",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Current FC", season: 5,
+      contractOffer: { club: "Previous FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Previous FC", season: 5, wage: 650, seasons: 3 }
+  },
+  {
+    name: "offer from a previous season",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 4, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 4, wage: 650, seasons: 3 }
+  },
+  {
+    name: "superseded offer",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 700, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: 650, seasons: 3 }
+  },
+  {
+    name: "missing accepted wage",
+    expected: "invalid-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5 },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: null, seasons: 3 }
+  }
+];
+for (const engine of [career, deployedCareer]) {
+  for (const testCase of contractDecisionCases) {
+    const state = JSON.parse(JSON.stringify(testCase.state));
+    const offer = testCase.offer === null ? null : JSON.parse(JSON.stringify(testCase.offer));
+    const before = JSON.stringify(state);
+    const result = engine.resolveContractDecision(state, testCase.decision, offer);
+    assert.equal(result.status, testCase.expected, testCase.name + " must be rejected by both engines");
+    assert.equal(result.ok, false, testCase.name + " must not be accepted");
+    assert.equal(JSON.stringify(state), before, testCase.name + " must not mutate the saved contract");
+  }
+}
+for (const engine of [career, deployedCareer]) {
+  const zeroTermRenewal = { weeklyWage: 500, contractSeasons: 0, freeAgent: false, clubName: "Test FC" };
+  const zeroTermDecision = engine.resolveContractDecision(zeroTermRenewal, "accept",
+    { club: "Test FC", wage: 650, seasons: 3 });
+  assert.equal(zeroTermDecision.status, "renewed",
+    "an active contract at zero remaining seasons must still be renewable before free-agent status is committed");
+  assert.equal(zeroTermRenewal.contractSeasons, 4);
+  const validDecline = { weeklyWage: 500, contractSeasons: 1, freeAgent: false, clubName: "Test FC" };
+  const declineDecision = engine.resolveContractDecision(validDecline, "decline",
+    { club: "Test FC", wage: 650, seasons: 3 });
+  assert.equal(declineDecision.status, "free-agent", "a valid current offer must still be rejectable");
+  assert.equal(validDecline.freeAgent, true);
+  assert.equal(validDecline.contractType, "free-agent", "declining a renewal must set the canonical free-agent contract type");
+}
+
+
 
 // A loan requires a finite, positive active contract. NaN/Infinity used to pass
 // the <= 0 check because comparisons against NaN and positive Infinity are false.
@@ -1489,6 +2548,36 @@ assert.equal(career.loanRequestStatus(validLoanContract, { windowOpen: true }), 
   "a player with a valid active contract must retain normal loan eligibility");
 assert.equal(deployedCareer.loanRequestStatus({ ...validLoanContract }, { windowOpen: true }), "ready",
   "the deployed browser engine must preserve valid loan eligibility");
+const loanEligibilityTarget = { club: "Loan Target FC", country: "Egypt" };
+const transferBlockedLoanCases = [
+  ["pending permanent transfer", { pendingTransfer: { club: "Next FC", country: "Spain" } }, "transfer-pending"],
+  ["open transfer negotiation", { transferNegotiation: { offerId: "offer-1" } }, "transfer-negotiation"]
+];
+for (const [label, overrides, expected] of transferBlockedLoanCases) {
+  const sharedLoanState = { ...validLoanContract, ...overrides };
+  const browserLoanState = { ...validLoanContract, ...overrides };
+  assert.equal(career.loanRequestStatus(sharedLoanState, { windowOpen: true }), expected,
+    label + " must block a new loan request");
+  assert.equal(deployedCareer.loanRequestStatus(browserLoanState, { windowOpen: true }), expected,
+    "the deployed browser engine must apply the same " + label + " guard");
+  assert.equal(career.loanTargetStatus(sharedLoanState, loanEligibilityTarget,
+    { windowOpen: true, isListed: true }), expected,
+    label + " must block the final loan-target confirmation");
+  assert.equal(deployedCareer.loanTargetStatus({ ...validLoanContract, ...overrides }, loanEligibilityTarget,
+    { windowOpen: true, isListed: true }), expected,
+    "the deployed browser engine must reject " + label + " at final loan confirmation");
+}
+const pendingOfferWithoutNegotiation = {
+  ...validLoanContract,
+  transferOffers: [{ id: "offer-2", status: "pending" }]
+};
+assert.equal(career.loanRequestStatus(pendingOfferWithoutNegotiation, { windowOpen: true }), "ready",
+  "an unaccepted transfer offer alone must not block a player from requesting a loan");
+assert.equal(deployedCareer.loanRequestStatus({ ...pendingOfferWithoutNegotiation }, { windowOpen: true }), "ready",
+  "the browser engine must preserve loan eligibility when no permanent transfer is agreed or negotiated");
+assert.ok(rootHtml.includes('"transfer-pending":"عندك انتقال متفق عليه ولسه ما اكتملش؛ احسمه الأول قبل الإعارة."')
+  && rootHtml.includes('"transfer-negotiation":"عندك مفاوضات انتقال مفتوحة؛ أنهِها أو ارفض العرض قبل طلب الإعارة."'),
+  "loan request and confirmation UI must explain why an active permanent transfer blocks the loan");
 
 const invalidLoanAppearances = [undefined, NaN, Infinity, -Infinity, "Infinity", "-Infinity", "not-a-number", null, ""];
 for (const invalidApps of invalidLoanAppearances) {

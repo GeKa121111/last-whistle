@@ -34,39 +34,57 @@ assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p 
   "CF must use the mobile-forward production profile");
 
 const lineupMarker = "  function makeLineup(world, club) {";
+const rosterPlayersMarker = "  function rosterPlayers(world, club) {";
+const playersForClubMarker = "  function playersForClub(world, club) {";
+const normalizeRosterMembershipMarker = "  function normalizeRosterMembership(world) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
+assert.ok(aiSourceRaw.includes(rosterPlayersMarker), "AI engine must retain the active-roster helper for free-agent regression coverage");
+assert.ok(aiSourceRaw.includes(playersForClubMarker), "AI engine must retain the club-player filter for retired-roster regression coverage");
+assert.ok(aiSourceRaw.includes(normalizeRosterMembershipMarker), "AI engine must retain the legacy roster-membership migration");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
-const promotionMarker = "  function applyPromotionRelegation(world, season) {";
+const promotionMarker = "  function applyPromotionRelegation(world, season, db) {";
+const competitionsMarker = "  function simulateCompetitions(world, season, db, tables) {";
 const reconcileMarker = "  function reconcileDatabase(world, db) {";
 const transferMarker = "  function runTransferWindow(world, season) {";
 const freeAgentMarker = "  function signFreeAgents(world, season, existingMoves) {";
 const fillRosterMarker = "  function fillRoster(world, club) {";
 const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
+const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
+const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
-const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason) {";
+const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
+assert.ok(aiSourceRaw.includes(competitionsMarker), "AI engine must retain the continental competition selector for qualification regression coverage");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
 assert.ok(aiSourceRaw.includes(transferMarker), "AI engine must retain the transfer-window entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(freeAgentMarker), "AI engine must retain the free-agent entry point for all-division market coverage");
 assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the roster filler for roster-integrity regression coverage");
 assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain projected season lines for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
+assert.ok(aiSourceRaw.includes(matchSeasonMarker), "AI engine must retain the match-based season simulator for division-status regression coverage");
+assert.ok(aiSourceRaw.includes(competitionHistoryMarker), "AI engine must retain four seasons of continental qualification history");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
-  .replace(lineupMarker, lineupMarker + `
+  .replace(rosterPlayersMarker, "  global.__lwTestRosterPlayers = rosterPlayers;\n" + rosterPlayersMarker)
+  .replace(playersForClubMarker, "  global.__lwTestPlayersForClub = playersForClub;\n" + playersForClubMarker)
+  .replace(normalizeRosterMembershipMarker, "  global.__lwTestNormalizeRosterMembership = normalizeRosterMembership;\n" + normalizeRosterMembershipMarker)
+  .replace(lineupMarker, "  global.__lwTestMakeLineup = makeLineup;\n" + lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
+  .replace(competitionsMarker, "  global.__lwTestSimulateCompetitions = simulateCompetitions;\n" + competitionsMarker)
   .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
   .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
   .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker)
   .replace(baseSeasonLinesMarker, "  global.__lwTestBaseGetSeasonLines = getSeasonLines;\n" + baseSeasonLinesMarker)
   .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
+  .replace(matchSeasonMarker, "  global.__lwTestSimulateLeagueSeason = simulateLeagueSeason;\n" + matchSeasonMarker)
+  .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
   .replace(projectionCacheMarker, projectionCacheMarker)
   .replace("    if (!cached.rows.has(targetSeason)) {", "    if (!cached.rows.has(targetSeason)) {\n      global.__lwSeasonProjectionBuilds = (global.__lwSeasonProjectionBuilds || 0) + 1;");
@@ -75,11 +93,305 @@ new vm.Script(aiSource, { filename: "public/football-world-ai.js" }).runInContex
 const db = sandbox.window.LWWorldDB;
 const ai = sandbox.window.LWWorldAI;
 assert.ok(db && ai, "world database and autonomous AI engine must initialize");
+assert.equal(typeof ai.rosterPlayers, "function",
+  "the shared active-roster reader must be available to the world-simulation extension");
+assert.equal(typeof ai.withTransferMarketTransaction, "function",
+  "the transfer transaction helper must be exported across the world-simulation IIFE boundary");
+
+// Legacy saves can retain a retired player ID in a club roster after an interrupted migration.
+// The matchday lineup must never select that player, even if their old OVR is the highest.
+const retiredLineupWorld = { players: {
+  active: { id: "active", name: "Active player", group: "attacker", ovr: 70, freeAgent: false, retired: false },
+  retired: { id: "retired", name: "Retired player", group: "attacker", ovr: 99, freeAgent: false, retired: true },
+  free: { id: "free", name: "Free agent", group: "attacker", ovr: 95, freeAgent: true, retired: false }
+} };
+const retiredLineup = sandbox.window.__lwTestMakeLineup(retiredLineupWorld, {
+  id: "legacy-retired-roster", roster: ["active", "retired", "free"]
+});
+assert.equal(retiredLineup.map(player => player.id).join(","), "active",
+  "AI match lineups must exclude retired and free-agent players even when stale roster IDs remain");
+
+// A stale free-agent ID must not occupy a squad slot or count toward recruitment needs.
+const staleFreeAgentRosterWorld = { players: {
+  active: { id: "active", group: "attacker", ovr: 70, freeAgent: false, retired: false },
+  free: { id: "free", group: "attacker", ovr: 99, freeAgent: true, retired: false },
+  retired: { id: "retired", group: "attacker", ovr: 98, freeAgent: false, retired: true }
+}, nextGeneratedPlayer: 1, dbVersion: 0 };
+const staleFreeAgentRosterClub = {
+  id: "stale-free-agent-club", name: "Stale Free Agent Club", country: "Testland",
+  leagueId: "test", division: 1, power: 60, basePower: 60, prestige: 50,
+  roster: ["active", "free", "retired"]
+};
+assert.equal(sandbox.window.__lwTestRosterPlayers(staleFreeAgentRosterWorld, staleFreeAgentRosterClub)
+  .map(player => player.id).join(","), "active",
+  "free agents and retired players must not count toward an active club's roster needs");
+sandbox.window.__lwTestFillRoster(staleFreeAgentRosterWorld, staleFreeAgentRosterClub);
+assert.ok(!staleFreeAgentRosterClub.roster.includes("free"),
+  "roster repair must remove stale free-agent IDs before filling vacancies");
+assert.ok(!staleFreeAgentRosterClub.roster.includes("retired"),
+  "roster repair must keep retired players out of active squads");
+assert.equal(staleFreeAgentRosterClub.roster.length, 16,
+  "roster repair must refill the squad after removing unattached players");
+
+// Legacy transfers can leave the same player ID in both the old and new club rosters.
+// The player's current clubId is authoritative; ambiguous legacy rows remain stored as
+// player records but are removed from both squads rather than being counted twice.
+const rosterMigrationLeague = db.leagues().find(row => row && row.id) || {};
+const rosterMigrationLeagueId = String(rosterMigrationLeague.id || "legacy-roster-test");
+const rosterMigrationSave = { season: 1, worldSimulation: {
+  schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 0, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1,
+  transferSequence: 0, projectionRevision: 0,
+  clubs: {
+    "membership-origin": { id: "membership-origin", name: "Origin Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1,
+      roster: ["membership-transferred", "membership-origin-player", "membership-origin-player",
+        "membership-legacy-unique", "membership-legacy-ambiguous"] },
+    "membership-destination": { id: "membership-destination", name: "Destination Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1,
+      roster: ["membership-transferred", "membership-destination-player", "membership-transferred",
+        "membership-legacy-ambiguous"] }
+  },
+  players: {
+    "membership-transferred": { id: "membership-transferred", name: "Transferred", clubId: "membership-destination",
+      group: "midfielder", ovr: 90, retired: false, freeAgent: false },
+    "membership-origin-player": { id: "membership-origin-player", name: "Origin Player", clubId: "membership-origin",
+      group: "defender", ovr: 70, retired: false, freeAgent: false },
+    "membership-destination-player": { id: "membership-destination-player", name: "Destination Player",
+      clubId: "membership-destination", group: "attacker", ovr: 72, retired: false, freeAgent: false },
+    "membership-legacy-unique": { id: "membership-legacy-unique", name: "Legacy Unique",
+      clubId: "", group: "goalkeeper", ovr: 68, retired: false, freeAgent: false },
+    "membership-legacy-ambiguous": { id: "membership-legacy-ambiguous", name: "Legacy Ambiguous",
+      clubId: "", group: "midfielder", ovr: 85, retired: false, freeAgent: false }
+  }
+} };
+const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
+assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 4,
+  "legacy saves must run the one-time roster ownership migration");
+assert.deepEqual(rosterMigrationWorld.clubs["membership-origin"].roster,
+  ["membership-origin-player", "membership-legacy-unique"],
+  "the former club must drop transferred and duplicate IDs while retaining its unique legacy player");
+assert.deepEqual(rosterMigrationWorld.clubs["membership-destination"].roster,
+  ["membership-transferred", "membership-destination-player"],
+  "the destination club must retain the transferred player exactly once");
+assert.equal(rosterMigrationWorld.players["membership-legacy-unique"].clubId, "membership-origin",
+  "a legacy player with exactly one roster membership can safely recover the owning club");
+assert.ok(rosterMigrationWorld.players["membership-legacy-ambiguous"],
+  "ambiguous legacy player data must be preserved even when no safe club can be inferred");
+assert.ok(!rosterMigrationWorld.clubs["membership-origin"].roster.includes("membership-legacy-ambiguous")
+  && !rosterMigrationWorld.clubs["membership-destination"].roster.includes("membership-legacy-ambiguous"),
+  "an ambiguous legacy player must not be counted in two clubs");
+assert.ok(!sandbox.window.__lwTestRosterPlayers(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-origin"])
+  .some(player => player.id === "membership-transferred"),
+  "old-club squad calculations must ignore a player whose canonical clubId points elsewhere");
+assert.ok(!sandbox.window.__lwTestPlayersForClub(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-origin"])
+  .some(player => player.id === "membership-transferred"),
+  "matchday player selection must not include a stale cross-club roster reference");
+assert.ok(sandbox.window.__lwTestMakeLineup(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-origin"])
+  .every(player => player.id !== "membership-transferred"),
+  "the former club must never field a transferred player from a stale roster ID");
+assert.ok(sandbox.window.__lwTestMakeLineup(rosterMigrationWorld, rosterMigrationWorld.clubs["membership-destination"])
+  .some(player => player.id === "membership-transferred"),
+  "the destination club must continue to field the transferred player");
+
+
+// Legacy boolean-like strings must not make active players look retired/free agents.
+const legacyFlagClubId = "legacy-string-flag-club";
+const legacyFlagSave = { season: 1, worldSimulation: {
+  schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, seasonStats: {}, leagueTables: {},
+  completedSeasons: [], transfers: [], marketReports: [], playerHistory: {},
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 3,
+  clubs: {
+    [legacyFlagClubId]: { id: legacyFlagClubId, name: "Legacy Flag Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1, power: 70, basePower: 70,
+      roster: ["legacy-flag-false", "legacy-flag-zero", "legacy-flag-retired", "legacy-flag-free"] }
+  },
+  players: {
+    "legacy-flag-false": { id: "legacy-flag-false", name: "False String", clubId: legacyFlagClubId,
+      group: "attacker", position: "ST", ovr: 70, potential: 75, age: 24, contractSeasons: 2,
+      retired: "false", freeAgent: "false" },
+    "legacy-flag-zero": { id: "legacy-flag-zero", name: "Zero String", clubId: legacyFlagClubId,
+      group: "attacker", position: "ST", ovr: 68, potential: 73, age: 25, contractSeasons: 2,
+      retired: "0", freeAgent: "0" },
+    "legacy-flag-retired": { id: "legacy-flag-retired", name: "Retired String", clubId: legacyFlagClubId,
+      group: "attacker", position: "ST", ovr: 80, potential: 80, age: 40, contractSeasons: 0,
+      retired: "true", freeAgent: "false" },
+    "legacy-flag-free": { id: "legacy-flag-free", name: "Free String", clubId: legacyFlagClubId,
+      group: "midfielder", position: "CM", ovr: 72, potential: 77, age: 26, contractSeasons: 0,
+      retired: "false", freeAgent: "true" }
+  }
+} };
+const legacyFlagWorld = ai.ensureState(legacyFlagSave, db);
+const legacyFlagClub = legacyFlagWorld.clubs[legacyFlagClubId];
+assert.equal(legacyFlagWorld.rosterMembershipSchemaVersion, 4,
+  "v3 saves must normalize legacy string-valued player status flags once");
+assert.deepEqual(ai.rosterPlayers(legacyFlagWorld, legacyFlagClub).map(player => player.id).sort(),
+  ["legacy-flag-false", "legacy-flag-zero"],
+  "string false/zero flags must keep active players while true flags detach retired/free agents");
+assert.equal(legacyFlagWorld.players["legacy-flag-false"].retired, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-false"].freeAgent, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-zero"].retired, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-zero"].freeAgent, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-retired"].retired, true);
+assert.equal(legacyFlagWorld.players["legacy-flag-retired"].freeAgent, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-retired"].previousClubId, legacyFlagClubId);
+assert.equal(legacyFlagWorld.players["legacy-flag-free"].retired, false);
+assert.equal(legacyFlagWorld.players["legacy-flag-free"].freeAgent, true);
+assert.equal(legacyFlagWorld.players["legacy-flag-free"].previousClubId, legacyFlagClubId);
+assert.ok(!legacyFlagClub.roster.includes("legacy-flag-retired")
+  && !legacyFlagClub.roster.includes("legacy-flag-free"),
+  "true retirement/free-agent flags must remove stale squad membership without deleting player records");
+
+const missingMembershipSave = { season: 1, worldSimulation: {
+  schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 2, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 77,
+  transferSequence: 0, projectionRevision: 4,
+  clubs: {
+    "membership-gap-origin": { id: "membership-gap-origin", name: "Membership Gap Origin", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1,
+      roster: ["membership-gap-existing", "membership-gap-existing", "membership-gap-transferred", "membership-gap-retired", "membership-gap-free", "membership-gap-retired-unowned", "membership-gap-free-unowned"] },
+    "membership-gap-destination": { id: "membership-gap-destination", name: "Membership Gap Destination", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1, roster: ["membership-gap-transferred"] }
+  },
+  players: {
+    "membership-gap-existing": { id: "membership-gap-existing", name: "Existing Member",
+      clubId: "membership-gap-origin", group: "attacker", ovr: 71, retired: false, freeAgent: false },
+    "membership-gap-unlisted": { id: "membership-gap-unlisted", name: "Missing Roster Reference",
+      clubId: "membership-gap-origin", group: "defender", ovr: 83, retired: false, freeAgent: false },
+    "membership-gap-transferred": { id: "membership-gap-transferred", name: "Transferred Member",
+      clubId: "membership-gap-destination", group: "midfielder", ovr: 79, retired: false, freeAgent: false },
+    "membership-gap-retired": { id: "membership-gap-retired", name: "Retired Member",
+      clubId: "membership-gap-origin", leagueId: rosterMigrationLeagueId, division: 1,
+      group: "goalkeeper", ovr: 66, retired: true, freeAgent: false },
+    "membership-gap-free": { id: "membership-gap-free", name: "Free Member",
+      clubId: "membership-gap-origin", leagueId: rosterMigrationLeagueId, division: 1,
+      group: "midfielder", ovr: 69, retired: false, freeAgent: true },
+    "membership-gap-retired-unowned": { id: "membership-gap-retired-unowned", name: "Retired Unowned",
+      clubId: "", leagueId: "", division: 0, group: "defender", ovr: 64, retired: true, freeAgent: false },
+    "membership-gap-free-unowned": { id: "membership-gap-free-unowned", name: "Free Unowned",
+      clubId: "", leagueId: "", division: 0, group: "midfielder", ovr: 67, retired: false, freeAgent: true }
+  }
+} };
+const missingMembershipPlayerCount = Object.keys(missingMembershipSave.worldSimulation.players).length;
+const missingMembershipNextGenerated = missingMembershipSave.worldSimulation.nextGeneratedPlayer;
+const missingMembershipWorld = ai.ensureState(missingMembershipSave, db);
+assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 4,
+  "version-one saves must receive the missing-membership repair migration");
+assert.deepEqual(missingMembershipWorld.clubs["membership-gap-origin"].roster,
+  ["membership-gap-existing", "membership-gap-unlisted"],
+  "a canonical owner missing from every roster must be restored without keeping stale transfers or duplicate IDs");
+assert.deepEqual(missingMembershipWorld.clubs["membership-gap-destination"].roster,
+  ["membership-gap-transferred"],
+  "the transferred player must remain attached only to the canonical destination club");
+assert.ok(missingMembershipWorld.clubs["membership-gap-origin"].roster.includes("membership-gap-unlisted"),
+  "a player with a valid clubId but no roster reference must be restored to that club");
+assert.ok(["membership-gap-retired", "membership-gap-free", "membership-gap-retired-unowned", "membership-gap-free-unowned"]
+  .every(id => !missingMembershipWorld.clubs["membership-gap-origin"].roster.includes(id)),
+  "retired players and free agents must be detached from every active squad");
+for (const id of ["membership-gap-retired", "membership-gap-free", "membership-gap-retired-unowned", "membership-gap-free-unowned"]) {
+  const player = missingMembershipWorld.players[id];
+  assert.ok(player, "inactive player records must be preserved during roster migration");
+  assert.equal(player.clubId, "", "retired players and free agents must not regain a current club");
+  assert.equal(player.leagueId, "", "unattached players must not retain an active league");
+  assert.equal(player.division, 0, "unattached players must not retain an active division");
+  assert.equal(player.contractSeasons, 0, "unattached players must not retain an active contract");
+  assert.equal(player.previousClubId, "membership-gap-origin",
+    "the former club must be preserved separately from current club ownership");
+}
+assert.equal(missingMembershipWorld.players["membership-gap-retired"].freeAgent, false,
+  "retired players must not be reclassified as free agents");
+assert.equal(missingMembershipWorld.players["membership-gap-free"].freeAgent, true,
+  "free-agent status must remain authoritative after migration");
+assert.equal(Object.keys(missingMembershipWorld.players).length, missingMembershipPlayerCount,
+  "roster repair must preserve every existing player record without generating replacements");
+assert.equal(missingMembershipWorld.nextGeneratedPlayer, missingMembershipNextGenerated,
+  "roster membership migration must not allocate synthetic replacement players");
+assert.equal(missingMembershipWorld.projectionRevision, 5,
+  "roster membership migration must invalidate cached squad-strength projections");
+assert.ok(ai.rosterPlayers(missingMembershipWorld, missingMembershipWorld.clubs["membership-gap-origin"])
+  .some(player => player.id === "membership-gap-unlisted"),
+  "restored players must count in squad-strength calculations");
+assert.ok(sandbox.window.__lwTestMakeLineup(missingMembershipWorld, missingMembershipWorld.clubs["membership-gap-origin"])
+  .some(player => player.id === "membership-gap-unlisted"),
+  "restored players must be eligible for their club's matchday lineup");
+
+const duplicateFillWorld = { players: {
+  "fill-transferred": { id: "fill-transferred", clubId: "fill-destination", group: "attacker", ovr: 95 },
+  "fill-active": { id: "fill-active", clubId: "fill-origin", group: "midfielder", ovr: 70 }
+}, nextGeneratedPlayer: 1, dbVersion: 1 };
+const duplicateFillClub = { id: "fill-origin", name: "Fill Origin", country: "Testland",
+  basePower: 60, power: 60, roster: ["fill-transferred", "fill-active", "fill-active"] };
+sandbox.window.__lwTestFillRoster(duplicateFillWorld, duplicateFillClub);
+assert.deepEqual(duplicateFillClub.roster.filter(id => id === "fill-active"), ["fill-active"],
+  "roster refill must collapse duplicate IDs without deleting the player record");
+assert.ok(!duplicateFillClub.roster.includes("fill-transferred"),
+  "roster refill must remove a player who now belongs to another club");
+assert.ok(duplicateFillWorld.players["fill-transferred"],
+  "cross-club cleanup must preserve the transferred player's career record");
+
+
+// Transfer-market competition labels must follow the simulated club's current division.
+// AI world clubs keep their dynamic division, while leagueFor supplies the matching
+// first/second-tier competition name after relegation or promotion.
+const transferCompetitionSave = { season: 1 };
+const transferCompetitionWorld = ai.ensureState(transferCompetitionSave, db);
+const transferCompetitionSeed = db.clubs().find(club =>
+  Number(club.division) === 1 && typeof db.leagueFor(club.country, 2) === "object");
+assert.ok(transferCompetitionSeed, "the sourced club database must include a first-division club with a second-tier profile");
+const transferCompetitionWorldClub = transferCompetitionWorld.clubs[
+  ai.clubKey(transferCompetitionSeed.name, transferCompetitionSeed.country)
+];
+assert.ok(transferCompetitionWorldClub, "the sourced club must exist in the simulated football world");
+transferCompetitionWorldClub.division = 2;
+const secondTierProfile = db.leagueFor(transferCompetitionSeed.country, 2);
+const unlistedDivisionPlayer = {
+  id: "division-reconcile-unlisted-player", name: "Division Reconcile Unlisted Player",
+  clubId: transferCompetitionWorldClub.id, division: 1, position: "وسط", group: "midfielder"
+};
+transferCompetitionWorld.players[unlistedDivisionPlayer.id] = unlistedDivisionPlayer;
+sandbox.window.__lwTestReconcileDatabase(transferCompetitionWorld, db);
+assert.equal(transferCompetitionWorldClub.leagueName, secondTierProfile.name,
+  "database reconciliation must retain the simulated second-tier local competition label");
+assert.equal(transferCompetitionWorldClub.leagueEnglish, secondTierProfile.englishName,
+  "database reconciliation must retain the simulated second-tier English competition label");
+assert.equal(transferCompetitionWorldClub.matchesPerSeason, secondTierProfile.matchesPerSeason,
+  "database reconciliation must retain the current division's season length");
+assert.ok(Object.values(transferCompetitionWorld.players).filter(player => player.clubId === transferCompetitionWorldClub.id)
+  .every(player => Number(player.division) === 2),
+  "database reconciliation must synchronize every attached player's dynamic division");
+const secondTierTarget = ai.transferTargets(transferCompetitionSave, db).find(target =>
+  target.club === transferCompetitionSeed.name && target.country === transferCompetitionSeed.country);
+assert.equal(secondTierTarget.division, 2, "the transfer target must preserve the simulated second-tier division");
+assert.equal(secondTierTarget.league, secondTierProfile.name,
+  "a relegated club must advertise the second-tier competition instead of its seed-time first-tier league");
+assert.equal(secondTierTarget.leagueEnglish, secondTierProfile.englishName,
+  "the English competition label must also follow the current division");
+transferCompetitionWorldClub.division = 1;
+sandbox.window.__lwTestReconcileDatabase(transferCompetitionWorld, db);
+const firstTierProfile = db.leagueFor(transferCompetitionSeed.country, 1);
+assert.equal(transferCompetitionWorldClub.leagueName, firstTierProfile.name,
+  "database reconciliation must restore first-tier labels after promotion");
+assert.equal(transferCompetitionWorldClub.matchesPerSeason, firstTierProfile.matchesPerSeason,
+  "database reconciliation must restore first-tier season length after promotion");
+assert.ok(Object.values(transferCompetitionWorld.players).filter(player => player.clubId === transferCompetitionWorldClub.id)
+  .every(player => Number(player.division) === 1),
+  "database reconciliation must synchronize attached players after promotion");
+const firstTierTarget = ai.transferTargets(transferCompetitionSave, db).find(target =>
+  target.club === transferCompetitionSeed.name && target.country === transferCompetitionSeed.country);
+assert.equal(firstTierTarget.league, db.leagueFor(transferCompetitionSeed.country, 1).name,
+  "a promoted club must return to the first-tier competition label without rewriting its roster");
 
 // Transfer windows must include lower divisions and schedule buyers fairly by division.
 assert.equal(typeof sandbox.window.__lwTestRunTransferWindow, "function", "the world transfer-window simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestSignFreeAgents, "function", "the free-agent signing simulator must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestFillRoster, "function", "the roster filler must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestRosterPlayers, "function", "active roster players must be available to the free-agent regression guard");
 assert.equal(typeof sandbox.window.__lwTestBaseGetSeasonLines, "function", "projected season lines must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestBaseCompleteSeason, "function", "legacy season completion must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared season rows must be available to the regression guard");
@@ -113,10 +425,31 @@ assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared 
  assert.ok(retiredSeasonWorld.seasonStats["1"].some(row => row.id === retiredSeasonPlayerId && row.goals === 9),
    "excluding future rows must preserve the player's previous season statistics");
 
+ // Unattached free agents must not receive invented appearances or production in later seasons.
+ const freeAgentSeasonPlayer = Object.values(retiredSeasonWorld.players).find(player =>
+   player && !player.retired && player.clubId);
+ assert.ok(freeAgentSeasonPlayer, "the free-agent projection fixture must start from an attached player");
+ const freeAgentSeasonClub = retiredSeasonWorld.clubs[freeAgentSeasonPlayer.clubId];
+ freeAgentSeasonClub.roster = freeAgentSeasonClub.roster.filter(id => id !== freeAgentSeasonPlayer.id);
+ freeAgentSeasonPlayer.previousClubId = freeAgentSeasonPlayer.clubId;
+ freeAgentSeasonPlayer.clubId = "";
+ freeAgentSeasonPlayer.leagueId = "";
+ freeAgentSeasonPlayer.division = 0;
+ freeAgentSeasonPlayer.freeAgent = true;
+ const freeAgentProjectedRows = sandbox.window.__lwTestBaseGetSeasonLines(retiredSeasonSave, 3, 1, db);
+ assert.ok(!freeAgentProjectedRows.some(row => row.id === freeAgentSeasonPlayer.id),
+   "free agents without a club must be omitted from unfinished-season projections");
+ const freeAgentCompletedRows = sandbox.window.__lwTestBaseCompleteSeason(retiredSeasonSave, 3, db);
+ assert.ok(!freeAgentCompletedRows.rows.some(row => row.id === freeAgentSeasonPlayer.id),
+   "free agents without a club must not receive legacy completed-season statistics");
+ const freeAgentSharedRows = sandbox.window.__lwTestBuildPlayerRows(retiredSeasonWorld, 3, new Map());
+ assert.ok(!freeAgentSharedRows.some(row => row.id === freeAgentSeasonPlayer.id),
+   "free agents without a club must be omitted from shared match-based season statistics");
+
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }
-  const positions = { goalkeeper: "حارس مرمى", defender: "قلب دفاع", midfielder: "وسط مهاجم", attacker: "مهاجم" };
+  const positions = { goalkeeper: "حارس مرمى", defender: "قلب دفاع", midfielder: "وسط", attacker: "مهاجم" };
   const club = { id, name: id, country: "Testland", leagueId: "test-market", division, power: division === 1 ? 67 : 65, basePower: division === 1 ? 67 : 65, prestige: 60, budget: 1200, currency: "€", roster: [], updatedSeason: 1 };
   world.clubs[id] = club;
   for (const [group, count] of Object.entries(counts)) {
@@ -150,24 +483,227 @@ const simulatedTransfers = sandbox.window.__lwTestRunTransferWindow(transferWorl
 assert.ok(simulatedTransfers.length > 0, "lower-division clubs with a role deficit must have access to the world transfer market");
 assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "the transfer buyer order must not starve second-tier clubs behind first-tier buyers");
 const budgetedTransfer = simulatedTransfers[0];
-const budgetBuyer = Object.values(transferWorld.clubs).find(club => club.name === budgetedTransfer.to);
-const budgetSeller = Object.values(transferWorld.clubs).find(club => club.name === budgetedTransfer.from);
+const budgetBuyer = transferWorld.clubs[String(budgetedTransfer.toClubId || "")];
+const budgetSeller = transferWorld.clubs[String(budgetedTransfer.fromClubId || "")];
 assert.ok(budgetBuyer && budgetSeller, "the transfer must identify its actual buyer and seller");
+assert.equal(String(budgetedTransfer.toClubId), String(budgetBuyer.id),
+  "paid transfer records must preserve the exact destination club ID");
+assert.equal(String(budgetedTransfer.fromClubId), String(budgetSeller.id),
+  "paid transfer records must preserve the exact selling club ID");
 assert.equal(budgetBuyer.budget, Math.max(0, expectedSeasonBudget(budgetBuyer.id) - budgetedTransfer.fee),
   "the buyer must retain the transfer-fee deduction in its persisted cash balance");
 assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].power * 8),
   "the fixture must exercise a transfer fee above the old seller-income cap");
 assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budgetedTransfer.fee,
   "the seller must receive the full recorded transfer fee after the market refreshes squad strength");
+
+// Transfer-market phases are atomic: a late roster/history failure must not leave
+// half-applied fees, ownership changes, generated players, or history rows behind.
+const rollbackWorld = {
+  clubs: {}, players: {}, transfers: [],
+  marketReports: [{ season: 6, moves: 0, transferIds: [], summary: "existing report" }],
+  playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const rollbackSeller = makeMarketTestClub(rollbackWorld, "Rollback Seller", 1, null);
+makeMarketTestClub(rollbackWorld, "Rollback Buyer", 2, "defender");
+rollbackSeller.power = rollbackSeller.basePower = 50;
+const rollbackGeneratedClub = makeMarketTestClub(rollbackWorld, "Rollback Generated Fill", 0, null);
+rollbackGeneratedClub.roster.pop();
+const rollbackFaultClub = makeMarketTestClub(rollbackWorld, "Rollback Fault Club", 0, null);
+let rollbackFaultRoster = rollbackFaultClub.roster.slice();
+let throwOnRollbackRosterWrite = true;
+Object.defineProperty(rollbackFaultClub, "roster", {
+  configurable: true,
+  enumerable: true,
+  get() { return rollbackFaultRoster; },
+  set(value) {
+    if (throwOnRollbackRosterWrite) {
+      throwOnRollbackRosterWrite = false;
+      throw new Error("forced transfer window failure");
+    }
+    rollbackFaultRoster = value;
+  }
+});
+const rollbackControl = JSON.parse(JSON.stringify(rollbackWorld));
+assert.ok(sandbox.window.__lwTestRunTransferWindow(rollbackControl, 6).length > 0,
+  "the rollback fixture must complete a paid transfer when no injected failure occurs");
+const rollbackBefore = JSON.stringify(rollbackWorld);
+assert.throws(() => sandbox.window.__lwTestRunTransferWindow(rollbackWorld, 6),
+  /forced transfer window failure/,
+  "a late roster failure must abort the paid transfer window");
+assert.equal(JSON.stringify(rollbackWorld), rollbackBefore,
+  "a failed paid window must restore club budgets, player ownership, rosters, history, reports, transfer IDs, and generated-player counters");
+
+// The free-agent phase has a separate mutation path and must roll back its player and roster
+// changes if writing the player's history fails after the signing has been prepared.
+const freeAgentRollbackWorld = {
+  clubs: {}, players: {}, transfers: [],
+  marketReports: [{ season: 7, moves: 0, transferIds: [], summary: "existing free-agent report" }],
+  playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+makeMarketTestClub(freeAgentRollbackWorld, "Free Agent Rollback Buyer", 2, "goalkeeper");
+freeAgentRollbackWorld.players["free-agent-rollback-player"] = {
+  id: "free-agent-rollback-player", name: "Free Agent Rollback Player", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى", group: "goalkeeper",
+  ovr: 60, potential: 66, age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: "", freeAgentSince: 0, transferListed: false
+};
+let failFreeAgentHistoryWrite = true;
+const freeAgentHistoryBacking = {};
+freeAgentRollbackWorld.playerHistory = new Proxy(freeAgentHistoryBacking, {
+  set(target, key, value) {
+    if (failFreeAgentHistoryWrite) {
+      failFreeAgentHistoryWrite = false;
+      throw new Error("forced free-agent history failure");
+    }
+    target[key] = value;
+    return true;
+  }
+});
+const freeAgentRollbackBefore = JSON.stringify(freeAgentRollbackWorld);
+assert.throws(() => sandbox.window.__lwTestSignFreeAgents(freeAgentRollbackWorld, 8, []),
+  /forced free-agent history failure/,
+  "a free-agent history write failure must abort the signing");
+assert.equal(JSON.stringify(freeAgentRollbackWorld), freeAgentRollbackBefore,
+  "a failed free-agent signing must restore the player, roster, history, market report, and transfer ledger");
+
+// Stale roster references must not make an otherwise eligible club look full to the transfer market.
+const staleTransferWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
+makeMarketTestClub(staleTransferWorld, "Stale Transfer Seller", 1, null);
+const staleTransferBuyer = makeMarketTestClub(staleTransferWorld, "Stale Transfer Buyer", 2, "defender");
+const staleTransferRetiredId = "stale-transfer-retired";
+staleTransferWorld.players[staleTransferRetiredId] = {
+  id: staleTransferRetiredId, name: "Retired stale defender", clubId: staleTransferBuyer.id,
+  group: "defender", position: "قلب دفاع", ovr: 99, retired: true, freeAgent: false
+};
+staleTransferBuyer.roster.push(staleTransferRetiredId, "missing-transfer-roster-id");
+const staleTransferMoves = sandbox.window.__lwTestRunTransferWindow(staleTransferWorld, 4);
+assert.ok(staleTransferMoves.some(move => move.to === staleTransferBuyer.name),
+  "a club with 16 active players must remain eligible to buy when stale IDs inflate its raw roster array");
+assert.ok(!staleTransferBuyer.roster.includes(staleTransferRetiredId)
+  && !staleTransferBuyer.roster.includes("missing-transfer-roster-id"),
+  "transfer completion must remove stale and retired references from the buyer roster");
+assert.equal(new Set(staleTransferBuyer.roster).size, staleTransferBuyer.roster.length,
+  "transfer completion must not introduce duplicate roster IDs");
+assert.ok(staleTransferBuyer.roster.every(id => staleTransferWorld.players[id]
+  && staleTransferWorld.players[id].clubId === staleTransferBuyer.id
+  && !staleTransferWorld.players[id].retired && !staleTransferWorld.players[id].freeAgent),
+  "the receiving club roster must contain only active players owned by that club");
+
 // Free agents must also be able to fill an eligible lower-tier vacancy when top-tier clubs have no need.
 const freeAgentWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
 makeMarketTestClub(freeAgentWorld, "D1 Full Club", 1, null);
-makeMarketTestClub(freeAgentWorld, "D2 Keeper Vacancy", 2, "goalkeeper");
+const staleFreeAgentBuyer = makeMarketTestClub(freeAgentWorld, "D2 Keeper Vacancy", 2, "goalkeeper");
+const staleFreeAgentRetiredId = "stale-free-agent-retired-keeper";
+freeAgentWorld.players[staleFreeAgentRetiredId] = {
+  id: staleFreeAgentRetiredId, name: "Retired stale keeper", clubId: staleFreeAgentBuyer.id,
+  group: "goalkeeper", position: "حارس مرمى", ovr: 99, retired: true, freeAgent: false
+};
+staleFreeAgentBuyer.roster.push(staleFreeAgentRetiredId, "missing-free-agent-roster-id");
 freeAgentWorld.players["free-agent-test-keeper"] = { id: "free-agent-test-keeper", name: "Free-agent keeper test", clubId: "", country: "Testland", leagueId: "test-market", division: 0, position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65, age: 26, contractSeasons: 0, freeAgent: true, previousClubId: "former-club", isGenerated: false };
 const signedLowerTier = sandbox.window.__lwTestSignFreeAgents(freeAgentWorld, 3, []);
 assert.equal(signedLowerTier.length, 1, "a free agent should sign when a lower-tier club has a compatible vacancy");
+assert.equal(signedLowerTier[0].toClubId, staleFreeAgentBuyer.id,
+  "free-agent transfer records must retain the destination club's stable ID");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].clubId, "D2 Keeper Vacancy", "free-agent recruitment must include the lower-tier club when higher-tier clubs have no matching vacancy");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 2, "the free agent must inherit the destination club division");
+assert.ok(!staleFreeAgentBuyer.roster.includes(staleFreeAgentRetiredId)
+  && !staleFreeAgentBuyer.roster.includes("missing-free-agent-roster-id"),
+  "free-agent signing must rebuild the buyer roster from active players and remove stale references");
+assert.equal(staleFreeAgentBuyer.roster.filter(id => id === "free-agent-test-keeper").length, 1,
+  "the signed free agent must be added exactly once even if a stale reference already existed");
+assert.equal(new Set(staleFreeAgentBuyer.roster).size, staleFreeAgentBuyer.roster.length,
+  "free-agent signing must preserve unique roster membership");
+
+// The paid transfer phase reserves both clubs in a deal. The free-agent phase
+// must honor that same per-window participation guard instead of signing again.
+const crossMarketWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const crossMarketSeller = makeMarketTestClub(crossMarketWorld, "D1 Already Moved Seller", 1, "goalkeeper");
+const crossMarketBuyer = makeMarketTestClub(crossMarketWorld, "D2 A Already Moved Buyer", 2, "goalkeeper");
+const crossMarketAvailableBuyer = makeMarketTestClub(crossMarketWorld, "D2 B Remaining Buyer", 2, "goalkeeper");
+crossMarketWorld.players["cross-market-free-agent"] = {
+  id: "cross-market-free-agent", name: "Cross-market free agent", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى",
+  group: "goalkeeper", ovr: 60, potential: 66, age: 26, contractSeasons: 0,
+  freeAgent: true, previousClubId: "former-club", freeAgentSince: 0
+};
+const paidWindowMove = {
+  from: crossMarketSeller.name, fromCountry: crossMarketSeller.country,
+  to: crossMarketBuyer.name, toCountry: crossMarketBuyer.country
+};
+const crossMarketSignings = sandbox.window.__lwTestSignFreeAgents(crossMarketWorld, 5, [paidWindowMove]);
+assert.equal(crossMarketSignings.length, 1,
+  "an unused club should still be allowed to sign a free agent after the paid phase");
+assert.equal(crossMarketSignings[0].to, crossMarketAvailableBuyer.name,
+  "the free-agent phase must skip both clubs already involved in a paid deal");
+assert.ok(!crossMarketSignings.some(move => move.to === crossMarketSeller.name || move.to === crossMarketBuyer.name),
+  "neither the seller nor buyer from the paid transfer may make a second move in the same window");
+
+// Stable club IDs must disambiguate two clubs that share the same display name and country.
+const duplicateNameMarketWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const duplicateNameSeller = makeMarketTestClub(duplicateNameMarketWorld, "duplicate-name-seller", 1, "goalkeeper");
+const duplicateNameBuyer = makeMarketTestClub(duplicateNameMarketWorld, "duplicate-name-buyer", 2, "goalkeeper");
+const duplicateNameAvailable = makeMarketTestClub(duplicateNameMarketWorld, "duplicate-name-available", 2, "goalkeeper");
+duplicateNameSeller.name = "Shared FC";
+duplicateNameBuyer.name = "Shared FC";
+duplicateNameMarketWorld.players["duplicate-name-free-agent"] = {
+  id: "duplicate-name-free-agent", name: "Duplicate-name free agent", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى",
+  group: "goalkeeper", ovr: 60, potential: 66, age: 26, contractSeasons: 0,
+  freeAgent: true, previousClubId: "former-club", freeAgentSince: 0
+};
+const duplicateNamePaidMove = {
+  from: duplicateNameSeller.name, fromCountry: duplicateNameSeller.country,
+  fromClubId: duplicateNameSeller.id,
+  to: duplicateNameBuyer.name, toCountry: duplicateNameBuyer.country,
+  toClubId: duplicateNameBuyer.id
+};
+const duplicateNameSignings = sandbox.window.__lwTestSignFreeAgents(
+  duplicateNameMarketWorld, 5, [duplicateNamePaidMove]
+);
+assert.equal(duplicateNameSignings.length, 1,
+  "a distinct club must remain eligible after a same-name paid deal");
+assert.equal(duplicateNameSignings[0].toClubId, duplicateNameAvailable.id,
+  "stable paid-move IDs must reserve the exact seller and buyer when names collide");
+assert.equal(duplicateNameMarketWorld.players["duplicate-name-free-agent"].clubId, duplicateNameAvailable.id,
+  "a free agent must not be assigned to either same-name club already involved in the paid deal");
+assert.equal(duplicateNameMarketWorld.playerHistory["duplicate-name-free-agent"][0].clubId, duplicateNameAvailable.id,
+  "player history must retain the exact club ID for a free-agent signing");
+
+// A former club cannot immediately re-sign a player it just released, but may
+// bring them back after one complete free-agent season if the role vacancy remains.
+const formerClubReturnWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const formerClubReturn = makeMarketTestClub(formerClubReturnWorld, "D2 Former Club", 2, "goalkeeper");
+formerClubReturnWorld.players["returning-free-agent"] = {
+  id: "returning-free-agent", name: "Returning free-agent keeper",
+  clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+  age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: formerClubReturn.id, freeAgentSince: 2, isGenerated: false
+};
+const immediateFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(formerClubReturnWorld, 2, []);
+assert.equal(immediateFormerClubReturn.length, 0,
+  "a club must not immediately re-sign a player in the same season their contract expires");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgent, true,
+  "the player must remain available to other clubs during the initial free-agent window");
+const delayedFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(formerClubReturnWorld, 3, []);
+assert.equal(delayedFormerClubReturn.length, 1,
+  "the former club must be allowed to re-sign the player after one complete free-agent season");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].clubId, formerClubReturn.id,
+  "a delayed return must attach the player to their former club again");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgent, false,
+  "a completed return must clear free-agent status");
+assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgentSince, 0,
+  "a completed signing must clear the old free-agent start marker");
 
 
 // An expiring defender should receive the squad-need renewal bonus when only four
@@ -343,14 +879,20 @@ assert.equal(retiredReconcileWorld.playerHistory[retiredReconcilePlayerId][0].ty
 const promotionClubs = [];
 for (let index = 1; index <= 6; index++) promotionClubs.push({
   id: "promotion-first-" + index, name: "Promotion First " + index,
-  leagueId: "promotion-test", division: 1, roster: []
+  leagueId: "promotion-test", country: "Testland", division: 1,
+  leagueName: "Test Premier", leagueEnglish: "Test Premier League", matchesPerSeason: 34, roster: []
 });
 for (let index = 1; index <= 3; index++) promotionClubs.push({
   id: "promotion-second-" + index, name: "Promotion Second " + index,
-  leagueId: "promotion-test", division: 2, roster: []
+  leagueId: "promotion-test", country: "Testland", division: 2,
+  leagueName: "Test Second Division", leagueEnglish: "Test Championship", matchesPerSeason: 22, roster: []
 });
 const promotionWorld = {
-  players: {},
+  players: {
+    "promotion-listed-player": { id: "promotion-listed-player", clubId: "promotion-second-1", division: 2 },
+    "promotion-unlisted-player": { id: "promotion-unlisted-player", clubId: "promotion-second-1", division: 2 },
+    "promotion-relegated-player": { id: "promotion-relegated-player", clubId: "promotion-first-6", division: 1 }
+  },
   clubs: Object.fromEntries(promotionClubs.map(club => [club.id, club])),
   leagueTables: {
     "1": {
@@ -373,14 +915,37 @@ const promotionWorld = {
 };
 assert.equal(typeof sandbox.window.__lwTestApplyPromotionRelegation, "function",
   "the promotion/relegation function must be exposed to the isolated regression test");
-const seasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1);
+const promotionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Test Second Division", englishName: "Test Championship", matchesPerSeason: 22 }
+    : { name: "Test Premier", englishName: "Test Premier League", matchesPerSeason: 34 }
+};
+promotionWorld.clubs["promotion-second-1"].roster = ["promotion-listed-player"];
+promotionWorld.clubs["promotion-first-6"].roster = ["promotion-relegated-player"];
+const seasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1, promotionDb);
 assert.equal(seasonOneMoves.length, 1, "season 1 should promote and relegate one club in the fixture league");
 assert.equal(promotionWorld.promotionHistory[0].season, 2,
   "promotion history should label the destination season");
-const repeatedSeasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1);
+assert.equal(promotionWorld.clubs["promotion-second-1"].leagueName, "Test Premier",
+  "promotion must refresh the club's persisted local competition name immediately");
+assert.equal(promotionWorld.clubs["promotion-second-1"].leagueEnglish, "Test Premier League",
+  "promotion must refresh the club's persisted English competition name immediately");
+assert.equal(promotionWorld.clubs["promotion-second-1"].matchesPerSeason, 34,
+  "promotion must refresh division-dependent season length metadata");
+assert.equal(promotionWorld.clubs["promotion-first-6"].leagueName, "Test Second Division",
+  "relegation must refresh the club's persisted local competition name immediately");
+assert.equal(promotionWorld.clubs["promotion-first-6"].matchesPerSeason, 22,
+  "relegation must refresh division-dependent season length metadata");
+assert.equal(promotionWorld.players["promotion-listed-player"].division, 1,
+  "promotion must update listed players' division");
+assert.equal(promotionWorld.players["promotion-unlisted-player"].division, 1,
+  "promotion must update every player attached to the club, even if missing from its roster array");
+assert.equal(promotionWorld.players["promotion-relegated-player"].division, 2,
+  "relegation must update attached players' division");
+const repeatedSeasonOneMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 1, promotionDb);
 assert.equal(repeatedSeasonOneMoves.length, 0,
   "replaying the same source season must not duplicate its promotion/relegation");
-const seasonTwoMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 2);
+const seasonTwoMoves = sandbox.window.__lwTestApplyPromotionRelegation(promotionWorld, 2, promotionDb);
 assert.equal(seasonTwoMoves.length, 1,
   "a season 2 promotion/relegation must not be blocked by the prior season's destination-season history row");
 assert.equal(promotionWorld.promotionHistory[0].season, 3,
@@ -389,6 +954,177 @@ assert.equal(promotionWorld.clubs["promotion-first-6"].division, 1,
   "the season 2 second-tier winner must be promoted");
 assert.equal(promotionWorld.clubs["promotion-first-5"].division, 2,
   "the season 2 first-tier bottom club must be relegated");
+assert.equal(promotionWorld.clubs["promotion-first-6"].leagueName, "Test Premier",
+  "a later promotion must refresh the club's division metadata again");
+assert.equal(promotionWorld.players["promotion-relegated-player"].division, 1,
+  "a later promotion must synchronize every attached player again");
+ 
+// Promotion/relegation must ignore stale standings rows after a club changes tier,
+// moves to another league, or appears more than once in a legacy table.
+const staleDivisionClubs = [];
+for (let index = 1; index <= 6; index++) staleDivisionClubs.push({
+  id: "stale-first-" + index, name: "Stale First " + index, leagueId: "stale-league",
+  country: "Testland", division: 1, leagueName: "Stale Premier", leagueEnglish: "Stale Premier League",
+  matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 4; index++) staleDivisionClubs.push({
+  id: "stale-second-" + index, name: "Stale Second " + index, leagueId: "stale-league",
+  country: "Testland", division: 2, leagueName: "Stale Second Division", leagueEnglish: "Stale Championship",
+  matchesPerSeason: 22, roster: []
+});
+staleDivisionClubs.push({
+  id: "stale-foreign-1", name: "Foreign Club", leagueId: "foreign-league",
+  country: "Elsewhere", division: 1, leagueName: "Foreign Premier", matchesPerSeason: 30, roster: []
+});
+const staleDivisionWorld = {
+  players: {
+    "stale-promoted-player": { id: "stale-promoted-player", clubId: "stale-second-1", division: 2 },
+    "stale-relegated-player": { id: "stale-relegated-player", clubId: "stale-first-6", division: 1 }
+  },
+  clubs: Object.fromEntries(staleDivisionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "5": {
+      "stale-league": [
+        ...Array.from({ length: 5 }, (_, index) => ({ clubId: "stale-first-" + (index + 1), leagueId: "stale-league", division: 1 })),
+        { clubId: "stale-second-3", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-first-6", leagueId: "stale-league", division: 1 }
+      ],
+      "stale-league:2": [
+        { clubId: "stale-foreign-1", leagueId: "foreign-league", division: 2 },
+        { clubId: "stale-first-1", leagueId: "stale-league", division: 1 },
+        { clubId: "stale-second-1", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-second-1", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-second-2", leagueId: "foreign-league", division: 2 },
+        { clubId: "stale-second-3", leagueId: "stale-league", division: 2 },
+        { clubId: "stale-second-4", leagueId: "stale-league", division: 2 }
+      ]
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const staleDivisionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Stale Second Division", englishName: "Stale Championship", matchesPerSeason: 22 }
+    : { name: "Stale Premier", englishName: "Stale Premier League", matchesPerSeason: 34 }
+};
+const staleDivisionMoves = sandbox.window.__lwTestApplyPromotionRelegation(staleDivisionWorld, 5, staleDivisionDb);
+assert.equal(staleDivisionMoves.length, 1,
+  "stale, duplicate and cross-league rows must not inflate promotion or relegation places");
+assert.equal(staleDivisionMoves[0].promoted, "Stale Second 1",
+  "the highest eligible second-tier club must be promoted after invalid rows are removed");
+assert.equal(staleDivisionMoves[0].relegated, "Stale First 6",
+  "the lowest eligible first-tier club must be relegated after stale rows are removed");
+assert.equal(staleDivisionWorld.clubs["stale-first-1"].division, 1,
+  "a first-tier club duplicated into the second-tier table must not be promoted");
+assert.equal(staleDivisionWorld.clubs["stale-second-3"].division, 2,
+  "a second-tier club duplicated into the first-tier table must not be relegated");
+assert.equal(staleDivisionWorld.clubs["stale-second-2"].division, 2,
+  "a row with a conflicting league ID must not move a club");
+assert.equal(staleDivisionWorld.clubs["stale-foreign-1"].division, 1,
+  "a club from another league must never be promoted by this league's table");
+assert.equal(staleDivisionWorld.players["stale-promoted-player"].division, 1);
+assert.equal(staleDivisionWorld.players["stale-relegated-player"].division, 2);
+
+
+ 
+// Imported standings may be shuffled. Promotion and relegation must follow the
+// explicit rank column rather than whichever club happens to appear first/last.
+const rankedPromotionClubs = [];
+for (let index = 1; index <= 6; index++) rankedPromotionClubs.push({
+  id: "ranked-first-" + index, name: "Ranked First " + index,
+  leagueId: "ranked-league", country: "Testland", division: 1,
+  power: index === 6 ? 999 : 1, leagueName: "Ranked Premier",
+  leagueEnglish: "Ranked Premier League", matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 3; index++) rankedPromotionClubs.push({
+  id: "ranked-second-" + index, name: "Ranked Second " + index,
+  leagueId: "ranked-league", country: "Testland", division: 2,
+  power: index === 3 ? 999 : 1, leagueName: "Ranked Second Division",
+  leagueEnglish: "Ranked Championship", matchesPerSeason: 22, roster: []
+});
+const rankedPromotionWorld = {
+  players: {},
+  clubs: Object.fromEntries(rankedPromotionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "6": {
+      "ranked-league": [6, 2, 5, 1, 4, 3].map(rank => ({
+        clubId: "ranked-first-" + rank, leagueId: "ranked-league",
+        division: 1, rank, pts: 30 - rank, gd: 12 - rank, gf: 20 - rank
+      })),
+      "ranked-league:2": [3, 2, 1].map(rank => ({
+        clubId: "ranked-second-" + rank, leagueId: "ranked-league",
+        division: 2, rank, pts: 15 - rank, gd: 8 - rank, gf: 12 - rank
+      }))
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const rankedPromotionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Ranked Second Division", englishName: "Ranked Championship", matchesPerSeason: 22 }
+    : { name: "Ranked Premier", englishName: "Ranked Premier League", matchesPerSeason: 34 }
+};
+const rankedPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  rankedPromotionWorld, 6, rankedPromotionDb
+);
+assert.equal(rankedPromotionMoves.length, 1, "ranked legacy tables must still produce one valid promotion/relegation move");
+assert.equal(rankedPromotionMoves[0].promoted, "Ranked Second 1",
+  "promotion must use the best explicit second-tier rank, not the first array item");
+assert.equal(rankedPromotionMoves[0].relegated, "Ranked First 6",
+  "relegation must use the worst explicit first-tier rank, not the last array item");
+assert.equal(rankedPromotionWorld.clubs["ranked-second-1"].division, 1);
+assert.equal(rankedPromotionWorld.clubs["ranked-first-6"].division, 2);
+
+// A metadata failure midway through a promotion batch must roll back every club and player tier.
+const atomicPromotionClubs = [];
+for (let index = 1; index <= 6; index++) atomicPromotionClubs.push({
+  id: "atomic-first-" + index, name: "Atomic First " + index, leagueId: "atomic-league",
+  country: "Testland", division: 1, leagueName: "Atomic Premier", leagueEnglish: "Atomic Premier League",
+  matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 3; index++) atomicPromotionClubs.push({
+  id: "atomic-second-" + index, name: "Atomic Second " + index, leagueId: "atomic-league",
+  country: "Testland", division: 2, leagueName: "Atomic Second Division", leagueEnglish: "Atomic Championship",
+  matchesPerSeason: 22, roster: []
+});
+const atomicPromotionWorld = {
+  players: {
+    "atomic-promoted-player": { id: "atomic-promoted-player", clubId: "atomic-second-1", division: 2 },
+    "atomic-relegated-player": { id: "atomic-relegated-player", clubId: "atomic-first-6", division: 1 }
+  },
+  clubs: Object.fromEntries(atomicPromotionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "8": {
+      "atomic-league": Array.from({ length: 6 }, (_, index) => ({
+        clubId: "atomic-first-" + (index + 1), leagueId: "atomic-league", division: 1
+      })),
+      "atomic-league:2": Array.from({ length: 3 }, (_, index) => ({
+        clubId: "atomic-second-" + (index + 1), leagueId: "atomic-league", division: 2
+      }))
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const atomicPromotionBefore = JSON.stringify(atomicPromotionWorld);
+let atomicPromotionLookups = 0;
+const failingPromotionDb = {
+  leagueFor: (_country, division) => {
+    atomicPromotionLookups++;
+    if (atomicPromotionLookups === 2) throw new Error("forced promotion metadata failure");
+    return Number(division) >= 2
+      ? { name: "Atomic Second Division", englishName: "Atomic Championship", matchesPerSeason: 22 }
+      : { name: "Atomic Premier", englishName: "Atomic Premier League", matchesPerSeason: 34 };
+  }
+};
+assert.throws(() => sandbox.window.__lwTestApplyPromotionRelegation(atomicPromotionWorld, 8, failingPromotionDb),
+  /forced promotion metadata failure/,
+  "a failed division metadata lookup must abort the complete promotion batch");
+assert.equal(JSON.stringify(atomicPromotionWorld), atomicPromotionBefore,
+  "failed promotion/relegation must restore club metadata, attached player divisions, history and notes");
+
 
 assert.equal(typeof ai.positionProductionProfile, "function", "world AI must expose role-specific production profiles");
 assert.equal(typeof ai.playerRoleWeight, "function", "match scoring must use the same position-aware role weights");
@@ -414,6 +1150,42 @@ const save = {
   seasonApps: 0, seasonAppsTarget: 34, careerMatchHistory: []
 };
 const world = ai.ensureState(save, db);
+assert.equal(ai.groupForPosition("GK"), "goalkeeper");
+assert.equal(ai.groupForPosition("CB"), "defender");
+assert.equal(ai.groupForPosition("CDM"), "midfielder");
+assert.equal(ai.groupForPosition("ST"), "attacker");
+assert.equal(ai.groupForPosition("RW"), "attacker");
+const matchProfileSave = { season: 1, worldSimulation: JSON.parse(JSON.stringify(world)) };
+const matchProfileWorld = matchProfileSave.worldSimulation;
+const matchProfileClub = Object.values(matchProfileWorld.clubs).find(club =>
+  Array.isArray(club.roster) && club.roster
+    .map(id => matchProfileWorld.players[id])
+    .filter(player => player && (String(player.position || "").trim()
+      ? ai.groupForPosition(player.position) === "goalkeeper" : player.group === "goalkeeper"))
+    .length >= 2);
+assert.ok(matchProfileClub, "keeper-depth fixture requires two goalkeepers");
+const matchProfileKeepers = matchProfileClub.roster
+  .map(id => matchProfileWorld.players[id])
+  .filter(player => player && (String(player.position || "").trim()
+      ? ai.groupForPosition(player.position) === "goalkeeper" : player.group === "goalkeeper"))
+  .sort((a, b) => Number(b.ovr || 0) - Number(a.ovr || 0));
+const misclassifiedFieldPlayer = matchProfileClub.roster
+  .map(id => matchProfileWorld.players[id])
+  .find(player => player && ai.groupForPosition(player.position) !== "goalkeeper");
+assert.ok(misclassifiedFieldPlayer, "keeper-depth fixture requires at least one outfield player");
+misclassifiedFieldPlayer.group = "goalkeeper";
+misclassifiedFieldPlayer.position = "مهاجم";
+misclassifiedFieldPlayer.goalkeeping = 99;
+matchProfileKeepers[0].group = "midfielder";
+matchProfileKeepers[0].position = "حارس مرمى";
+matchProfileKeepers[0].goalkeeping = 94;
+matchProfileKeepers[1].group = "goalkeeper";
+matchProfileKeepers[1].position = "حارس مرمى";
+matchProfileKeepers[1].goalkeeping = 70;
+assert.equal(typeof ai.getClubMatchProfile, "function");
+const matchProfile = ai.getClubMatchProfile(matchProfileSave, matchProfileClub.name, matchProfileClub.country, db);
+assert.equal(matchProfile.power, Number(matchProfileClub.power) || Number(matchProfileClub.basePower) || null);
+assert.equal(matchProfile.goalkeeping, 91);
 const duplicateSourceName = "Scotland Test Player 1-1";
 const duplicateSourcePlayers = Object.values(world.players).filter(player =>
   player && player.name === duplicateSourceName && player.isRealPlayer === true && player.isGenerated !== true);
@@ -741,6 +1513,124 @@ const table = ai.getLeagueTable(save, "egypt", 1, db);
 assert.ok(table.length >= 3, "league table must include the available clubs for the selected league");
 assert.equal(table[0].rank, 1);
 assert.ok(table.every((row, index) => row.rank === index + 1 && row.played > 0 && Number.isFinite(row.pts)));
+function assertBalancedLeagueTable(rows, label) {
+  const total = key => rows.reduce((sum, row) => sum + Math.max(0, Number(row[key]) || 0), 0);
+  assert.ok(rows.length >= 2, label + " must contain at least two clubs");
+  assert.equal(total("w"), total("l"), label + " must balance every win with a loss");
+  assert.equal(total("gf"), total("ga"), label + " must balance goals scored with goals conceded");
+  assert.ok(rows.every(row => Number(row.played) === Number(row.w) + Number(row.d) + Number(row.l)),
+    label + " must reconcile each club's played, wins, draws and losses");
+  assert.equal(new Set(rows.map(row => Number(row.played))).size, 1,
+    label + " must give every club the same number of fixtures");
+}
+assertBalancedLeagueTable(table, "Egyptian Premier League");
+
+const oddTable = ai.getLeagueTable(save, "tunisia", 1, db);
+assert.equal(oddTable.length, 15, "the Tunisian top flight must retain its 15 real clubs");
+assertBalancedLeagueTable(oddTable, "Fifteen-club Tunisian league");
+assert.ok(oddTable[0].played > 0,
+  "an odd-sized league must produce a complete schedule without phantom byes");
+
+const secondTierCounts = new Map();
+for (const club of Object.values(world.clubs)) {
+  if (!club || Number(club.division) !== 2 || !club.leagueId) continue;
+  const leagueId = String(club.leagueId);
+  secondTierCounts.set(leagueId, (secondTierCounts.get(leagueId) || 0) + 1);
+}
+const [secondTierLeagueId, expectedSecondTierCount] =
+  Array.from(secondTierCounts.entries()).sort((a, b) => b[1] - a[1])[0] || ["", 0];
+assert.ok(expectedSecondTierCount >= 3,
+  "the world database must expose at least three real second-tier clubs for promotion/relegation");
+const baseFallbackClubs = Object.fromEntries(Object.entries(world.clubs).filter(([, club]) =>
+  String(club.leagueId) === secondTierLeagueId && [1, 2].includes(Number(club.division))));
+const baseFallbackWorld = {
+  ...world,
+  clubs: baseFallbackClubs,
+  players: {}, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  transfers: [], marketReports: [], playerHistory: {}, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, transferSequence: 0,
+  projectionRevision: 0, notes: [], archive: {},
+  dbVersion: Number(db.version) || Number(world.dbVersion) || 0,
+  rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: Number(world.rosterMembershipSchemaVersion) || 0
+};
+delete baseFallbackWorld.matchesBySeason;
+const baseFallbackSave = { season: 1, worldSimulation: baseFallbackWorld };
+const baseFallbackSeason = ai.completeSeason(baseFallbackSave, 1, db);
+const secondTierTable = baseFallbackSeason.tables[secondTierLeagueId + ":2"] || [];
+assert.equal(secondTierTable.length, expectedSecondTierCount,
+  "base season completion must save every available real second-division club");
+assertBalancedLeagueTable(secondTierTable, "Largest available second division");
+assert.ok(secondTierTable.every(row => row.leagueId === secondTierLeagueId && row.division === 2),
+  "second-tier rows must retain their parent league ID and division number");
+const firstTierTable = baseFallbackSeason.tables[secondTierLeagueId] || [];
+assert.ok(firstTierTable.length >= 6, "promotion fixture must include a complete first-tier table");
+const expectedRelegationSlots = firstTierTable.length < 6 || secondTierTable.length < 3
+  ? 0
+  : Math.min(2, Math.max(1, Math.floor(secondTierTable.length * 0.15)),
+    Math.max(1, Math.floor(firstTierTable.length * 0.1)));
+const relegatedFirstTierRows = firstTierTable.filter(row => row.status === "منطقة الهبوط — محاكاة");
+const expectedRelegatedClubIds = expectedRelegationSlots > 0
+  ? firstTierTable.slice(-expectedRelegationSlots).map(row => row.clubId).sort()
+  : [];
+assert.equal(relegatedFirstTierRows.length, expectedRelegationSlots,
+  "first-tier relegation labels must match the shared promotion/relegation eligibility rule");
+assert.deepEqual(relegatedFirstTierRows.map(row => row.clubId).sort(), expectedRelegatedClubIds,
+  "only the eligible bottom first-tier clubs should be labelled for relegation");
+assert.ok(secondTierTable.every(row => row.status !== "منطقة الهبوط — محاكاة"),
+  "second-tier clubs must never be labelled as relegated when no third tier is simulated");
+assert.equal(secondTierTable[1].status,
+  expectedRelegationSlots > 1 ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية",
+  "the second-tier runner-up should be a promotion contender only when a second promotion slot is eligible");
+const firstTierOnlyClubs = Object.fromEntries(Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 1));
+const firstTierOnlyWorld = {
+  ...baseFallbackWorld, clubs: firstTierOnlyClubs, players: {},
+  completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0
+};
+const firstTierOnlyResult = ai.completeSeason({ season: 1, worldSimulation: firstTierOnlyWorld }, 1, db);
+const firstTierOnlyTable = firstTierOnlyResult.tables[secondTierLeagueId] || [];
+assert.ok(firstTierOnlyTable.slice(-2).every(row => row.status === "مركز الدوري"),
+  "first-tier clubs must not be labelled for relegation when no playable second division exists");
+
+// Promotion places must not be advertised when the first tier lacks the six clubs
+// required by the same rule that commits promotion/relegation at season transition.
+const shortFirstTierEntries = Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 1).slice(0, 5);
+const shortSecondTierEntries = Object.entries(baseFallbackClubs).filter(([, club]) => Number(club.division) === 2).slice(0, 3);
+assert.equal(shortFirstTierEntries.length, 5, "the incomplete-promotion fixture must contain five real first-tier clubs");
+assert.equal(shortSecondTierEntries.length, 3, "the incomplete-promotion fixture must contain three real second-tier clubs");
+const incompletePromotionClubs = Object.fromEntries(shortFirstTierEntries.concat(shortSecondTierEntries));
+const incompletePromotionWorld = {
+  ...baseFallbackWorld, clubs: incompletePromotionClubs, players: {},
+  completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  competitionsBySeason: {}, currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0
+};
+const incompletePromotionResult = ai.completeSeason({ season: 1, worldSimulation: incompletePromotionWorld }, 1, db);
+const incompletePromotionFirst = incompletePromotionResult.tables[secondTierLeagueId] || [];
+const incompletePromotionSecond = incompletePromotionResult.tables[secondTierLeagueId + ":2"] || [];
+assert.ok(incompletePromotionFirst.every(row => row.status !== "منطقة الهبوط — محاكاة"),
+  "a first tier with only five eligible clubs must not advertise relegation places");
+assert.equal(incompletePromotionSecond[0].status, "بطل الدرجة الثانية",
+  "a second-tier champion must not be labelled as automatically promoted when the first tier is too small");
+assert.ok(incompletePromotionSecond.every(row => row.status !== "منافس على الصعود — محاكاة"),
+  "an incomplete first tier must not advertise any second-tier promotion contenders");
+assert.equal(typeof sandbox.window.__lwTestSimulateLeagueSeason, "function",
+  "the match-based season simulator must be available for identical division-status regression coverage");
+const matchPromotionWorld = JSON.parse(JSON.stringify(incompletePromotionWorld));
+matchPromotionWorld.completedSeasons = [];
+matchPromotionWorld.matchesBySeason = {};
+matchPromotionWorld.leagueTables = {};
+matchPromotionWorld.seasonStats = {};
+matchPromotionWorld.competitionsBySeason = {};
+const incompleteMatchPromotion = sandbox.window.__lwTestSimulateLeagueSeason(
+  { season: 1, worldSimulation: matchPromotionWorld }, 1, db
+);
+const incompleteMatchSecond = incompleteMatchPromotion.tables[secondTierLeagueId + ":2"] || [];
+assert.equal(incompleteMatchSecond[0].status, "بطل الدرجة الثانية",
+  "the match-based simulator must not advertise automatic promotion without six first-tier clubs");
+assert.ok(incompleteMatchSecond.every(row => row.status !== "منافس على الصعود — محاكاة"),
+  "the match-based simulator must apply the same unavailable-promotion status");
+
 
 const oldTransferCount = world.transfers.length;
 const transition = ai.advanceToSeason(save, 2, db);
@@ -1044,6 +1934,635 @@ assert.ok(postAdvanceBuilds > 0, "a new world season must rebuild its projected 
 sandbox.window.__lwTestBaseGetSeasonLines(projectionCacheSave, 2, 1, db);
 assert.equal(sandbox.window.__lwSeasonProjectionBuilds, postAdvanceBuilds,
   "the rebuilt projection must also be reused until the world changes");
+
+const staleAdvanceTransferCount = projectionCacheWorld.transfers.length;
+const staleAdvance = ai.advanceToSeason(projectionCacheSave, 1, db);
+assert.equal(staleAdvance.alreadyAdvanced, true,
+  "a stale request for an earlier season must be treated as already advanced");
+assert.equal(staleAdvance.season, 2,
+  "a stale season request must return the stable world season, not the requested old season");
+assert.equal(projectionCacheWorld.currentSeason, 2,
+  "replaying an earlier season must never move the world clock backwards");
+assert.equal(projectionCacheWorld.lastAdvancedTo, 2,
+  "a stale request must preserve the last applied transfer-window marker");
+assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
+  "a stale season request must not create or remove transfer records");
+
+
+ // The async wrapper must reject stale season requests before its own completion/promotion side effects.
+ const staleWrapperSave = { season: 1, name: "Stale world-season wrapper regression" };
+ const staleWrapperWorld = ai.ensureState(staleWrapperSave, db);
+ const staleLeagueId = "scotland";
+ assert.ok(db.leagues().some(profile => String(profile.id) === staleLeagueId),
+   "the stale-season fixture must use a league supported by the current source catalogue");
+ const staleFirstDivision = [], staleSecondDivision = [];
+ for (let index = 0; index < 6; index++) {
+   const id = "stale-season-first-" + index;
+   staleWrapperWorld.clubs[id] = { id, name: id, country: "Testland", leagueId: staleLeagueId, division: 1, roster: [] };
+   staleFirstDivision.push({ clubId: id, rank: index + 1 });
+ }
+ for (let index = 0; index < 3; index++) {
+   const id = "stale-season-second-" + index;
+   staleWrapperWorld.clubs[id] = { id, name: id, country: "Testland", leagueId: staleLeagueId, division: 2, roster: [] };
+   staleSecondDivision.push({ clubId: id, rank: index + 1 });
+ }
+ staleWrapperWorld.currentSeason = 3;
+ staleWrapperWorld.lastAdvancedTo = 0;
+ staleWrapperWorld.lastCompletedSeason = 1;
+ staleWrapperWorld.completedSeasons = [1];
+ staleWrapperWorld.matchesBySeason = { "1": [] };
+ staleWrapperWorld.seasonStats = { "1": [{ id: "season-one-snapshot", goals: 9 }] };
+ staleWrapperWorld.leagueTables = { "1": {
+   [staleLeagueId]: staleFirstDivision,
+   [staleLeagueId + ":2"]: staleSecondDivision
+ } };
+ staleWrapperWorld.promotionHistory = [];
+ staleWrapperWorld.notes = [];
+ staleWrapperWorld.transfers = [];
+ staleWrapperWorld.marketReports = [];
+ const staleDivisionSnapshot = JSON.stringify(
+   Object.values(staleWrapperWorld.clubs).filter(club => club.leagueId === staleLeagueId)
+     .map(club => [club.id, club.division]).sort((a,b) => a[0].localeCompare(b[0]))
+ );
+ const staleTableSnapshot = JSON.stringify(staleWrapperWorld.leagueTables["1"]);
+ const staleStatsSnapshot = JSON.stringify(staleWrapperWorld.seasonStats["1"]);
+
+ // Direct completion requests must not reconstruct an older season from the current rosters.
+ const staleCompletionResult = ai.completeSeason(staleWrapperSave, 2, db);
+ assert.equal(staleCompletionResult.staleRequest, true, "a direct completion request for an older, unrecorded season must be rejected");
+ assert.equal(staleCompletionResult.season, 3, "a stale completion must report the stable world season");
+ assert.equal(staleWrapperWorld.currentSeason, 3, "a stale completion must not rewind the world clock");
+ assert.deepEqual(staleWrapperWorld.completedSeasons, [1], "a stale completion must not mark the requested old season complete");
+ assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.matchesBySeason, "2"), false,
+   "a stale completion must not generate fixtures from current rosters");
+ assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.seasonStats, "2"), false,
+   "a stale completion must not fabricate historical player statistics");
+ assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.leagueTables, "2"), false,
+   "a stale completion must not generate historical league tables");
+
+ const staleWrapperResult = ai.advanceToSeason(staleWrapperSave, 2, db);
+ assert.equal(staleWrapperResult.alreadyAdvanced, true,
+   "a request older than currentSeason must be rejected by the effective world wrapper");
+ assert.equal(staleWrapperResult.season, 3, "a stale wrapper request must return the stable world season");
+ assert.equal(staleWrapperWorld.currentSeason, 3, "a stale wrapper request must not rewind the world clock");
+ assert.equal(staleWrapperWorld.lastAdvancedTo, 0, "a stale wrapper request must not rewrite a missing legacy transfer marker");
+ assert.deepEqual(staleWrapperWorld.promotionHistory, [],
+   "a stale wrapper request must not apply promotion/relegation to the current squads");
+ assert.equal(JSON.stringify(Object.values(staleWrapperWorld.clubs)
+   .filter(club => club.leagueId === staleLeagueId)
+   .map(club => [club.id, club.division]).sort((a,b) => a[0].localeCompare(b[0]))), staleDivisionSnapshot,
+   "a stale wrapper request must preserve every club's division");
+ assert.equal(JSON.stringify(staleWrapperWorld.leagueTables["1"]), staleTableSnapshot,
+   "a stale wrapper request must preserve archived league tables");
+ assert.equal(JSON.stringify(staleWrapperWorld.seasonStats["1"]), staleStatsSnapshot,
+   "a stale wrapper request must preserve saved player-season statistics");
+ assert.deepEqual(staleWrapperWorld.notes, [], "a stale wrapper request must not append promotion or market notes");
+ assert.deepEqual(staleWrapperWorld.transfers, [], "a stale wrapper request must not create transfer records");
+ assert.deepEqual(staleWrapperWorld.marketReports, [], "a stale wrapper request must not create market reports");
+
+
+ 
+// Historical league and division tables must survive the shorter fixture/stat retention window.
+const retentionClubs = [];
+for (let index = 1; index <= 6; index++) retentionClubs.push({
+  id: "retention-first-" + index, name: "Retention First " + index, country: "Testland",
+  leagueId: "retention-league", division: 1, power: 58 + index, basePower: 58 + index,
+  prestige: 60, matchesPerSeason: 10, roster: []
+});
+for (let index = 1; index <= 3; index++) retentionClubs.push({
+  id: "retention-second-" + index, name: "Retention Second " + index, country: "Testland",
+  leagueId: "retention-league", division: 2, power: 48 + index, basePower: 48 + index,
+  prestige: 45, matchesPerSeason: 4, roster: []
+});
+const retentionWorld = {
+  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, currentSeason: 1,
+  lastAdvancedTo: 0, lastCompletedSeason: 0, completedSeasons: [],
+  players: {}, clubs: Object.fromEntries(retentionClubs.map(club => [club.id, club])),
+  playerHistory: {}, seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  competitionsBySeason: {}, transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+};
+const retentionSave = { season: 1, worldSimulation: retentionWorld };
+const retentionDb = {
+  version: 0,
+  clubs: () => [],
+  leagues: () => [],
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Retention Second Division", englishName: "Retention Championship", matchesPerSeason: 4 }
+    : { name: "Retention Premier", englishName: "Retention Premier League", matchesPerSeason: 10 },
+  simulationCupDefinitions: () => []
+};
+const retentionSeasonOne = ai.completeSeason(retentionSave, 1, retentionDb);
+const retainedFirstTierIds = retentionSeasonOne.tables["retention-league"].map(row => String(row.clubId));
+const retainedSecondTierIds = retentionSeasonOne.tables["retention-league:2"].map(row => String(row.clubId));
+assert.equal(retainedFirstTierIds.length, 6, "the retention fixture must generate a complete first-tier table");
+assert.equal(retainedSecondTierIds.length, 3, "the retention fixture must generate a complete second-tier table");
+ai.completeSeason(retentionSave, 2, retentionDb);
+ai.completeSeason(retentionSave, 3, retentionDb);
+assert.equal(Object.prototype.hasOwnProperty.call(retentionWorld.matchesBySeason, "1"), false,
+  "detailed fixtures should remain limited to the latest season");
+assert.equal(Object.prototype.hasOwnProperty.call(retentionWorld.seasonStats, "1"), false,
+  "player-season rows should retain their existing compact two-season window");
+assert.equal(Object.prototype.hasOwnProperty.call(retentionWorld.leagueTables, "1"), true,
+  "completed league tables must remain available across the 20-season history window");
+retentionWorld.clubs["retention-second-1"].division = 1;
+retentionWorld.clubs["retention-first-6"].division = 2;
+assert.equal(JSON.stringify(ai.getLeagueTable(retentionSave, "retention-league", 1, retentionDb)
+  .map(row => String(row.clubId))), JSON.stringify(retainedFirstTierIds),
+  "historical first-tier standings must use the saved season snapshot, not today's club divisions");
+assert.equal(JSON.stringify(ai.getDivisionTable(retentionSave, "retention-league", 2, 1, retentionDb)
+  .map(row => String(row.clubId))), JSON.stringify(retainedSecondTierIds),
+  "historical second-tier standings must survive fixture pruning and later promotion/relegation");
+
+// A completed legacy season with pruned fixtures but no saved standings cannot be
+// reconstructed accurately from today's club divisions. Return no fabricated table.
+const missingSnapshotSave = JSON.parse(JSON.stringify(retentionSave));
+delete missingSnapshotSave.worldSimulation.leagueTables["1"];
+assert.equal(ai.getLeagueTable(missingSnapshotSave, "retention-league", 1, retentionDb).length, 0,
+  "a completed historical league with no snapshot must not be regenerated from current club divisions");
+assert.equal(ai.getDivisionTable(missingSnapshotSave, "retention-league", 2, 1, retentionDb).length, 0,
+  "league and division history getters must agree when a completed snapshot is unavailable");
+
+function makeLeagueMatchCountFixture(spec) {
+  const players = {}, clubs = {};
+  const roles = [
+    ["goalkeeper", "حارس مرمى"], ["defender", "قلب دفاع"], ["defender", "ظهير"],
+    ["defender", "قلب دفاع"], ["defender", "ظهير"], ["midfielder", "وسط دفاعي"],
+    ["midfielder", "وسط"], ["midfielder", "وسط مهاجم"], ["midfielder", "وسط"],
+    ["attacker", "جناح"], ["attacker", "مهاجم"]
+  ];
+  for (let clubIndex = 0; clubIndex < spec.clubCount; clubIndex++) {
+    const clubId = spec.leagueId + "-schedule-" + String(clubIndex + 1).padStart(2, "0");
+    const roster = [];
+    roles.forEach(([group, position], playerIndex) => {
+      const playerId = clubId + "-player-" + (playerIndex + 1);
+      roster.push(playerId);
+      players[playerId] = {
+        id: playerId, name: "Schedule Test Player " + playerId, clubId,
+        country: spec.country, leagueId: spec.leagueId, division: spec.division,
+        position, group, ovr: 60 + (playerIndex % 5), potential: 70,
+        age: 24, contractSeasons: 2, freeAgent: false, retired: false
+      };
+    });
+    clubs[clubId] = {
+      id: clubId, name: "Schedule Test Club " + (clubIndex + 1),
+      country: spec.country, leagueId: spec.leagueId, division: spec.division,
+      matchesPerSeason: spec.matchesPerSeason, power: 60 + clubIndex % 7,
+      basePower: 60, prestige: 55, roster, updatedSeason: 1
+    };
+  }
+  const world = {
+    schemaVersion: 1, dbVersion: Number(db.version) || 4,
+    rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 3,
+    currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0,
+    completedSeasons: [], seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+    competitionsBySeason: {}, transfers: [], marketReports: [], playerHistory: {},
+    nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
+    notes: [], archive: {}, clubs, players
+  };
+  const fixtureDb = {
+    version: world.dbVersion,
+    leagues: () => [{ id: spec.leagueId, country: spec.country }],
+    leagueFor: () => ({
+      name: "Schedule Test League", englishName: "Schedule Test League",
+      teamCount: spec.expectedTeamCount, matchesPerSeason: spec.matchesPerSeason
+    })
+  };
+  return { save: { season: 1, worldSimulation: world }, world, fixtureDb };
+}
+
+function assertLeagueMatchCountCase(spec) {
+  const fixture = makeLeagueMatchCountFixture(spec);
+  const result = ai.completeSeason(fixture.save, 1, fixture.fixtureDb);
+  const tableKey = spec.division === 1 ? spec.leagueId : spec.leagueId + ":" + spec.division;
+  const rows = result.tables[tableKey] || [];
+  const expectedMatches = spec.clubCount === spec.expectedTeamCount
+    ? spec.matchesPerSeason : 2 * (spec.clubCount - 1);
+  assert.equal(rows.length, spec.clubCount, spec.label + " must retain all available clubs");
+  assert.ok(rows.every(row => row.played === expectedMatches),
+    spec.label + " must use the configured season length only when the full league field exists");
+  assert.equal(rows.reduce((sum, row) => sum + row.played, 0), spec.clubCount * expectedMatches,
+    spec.label + " must balance every club's match count");
+  assert.equal(rows.reduce((sum, row) => sum + row.w, 0), rows.reduce((sum, row) => sum + row.l, 0),
+    spec.label + " must balance wins and losses");
+  assert.equal(rows.reduce((sum, row) => sum + row.gf, 0), rows.reduce((sum, row) => sum + row.ga, 0),
+    spec.label + " must balance goals for and against");
+  assert.ok(rows.every(row => row.played === row.w + row.d + row.l),
+    spec.label + " must reconcile played matches with results");
+  assert.equal(result.rows.length, spec.clubCount * 11,
+    spec.label + " must preserve every supplied player record");
+  assert.ok(result.rows.every(row => row.appearances <= expectedMatches),
+    spec.label + " player appearances must not exceed the simulated league season");
+}
+
+assertLeagueMatchCountCase({
+  label: "Scottish Championship", leagueId: "scotland", country: "اسكتلندا",
+  division: 2, clubCount: 10, expectedTeamCount: 10, matchesPerSeason: 36
+});
+assertLeagueMatchCountCase({
+  label: "Argentine Primera División", leagueId: "argentina", country: "الأرجنتين",
+  division: 1, clubCount: 30, expectedTeamCount: 30, matchesPerSeason: 30
+});
+assertLeagueMatchCountCase({
+  label: "Argentine Primera Nacional", leagueId: "argentina", country: "الأرجنتين",
+  division: 2, clubCount: 36, expectedTeamCount: 36, matchesPerSeason: 34
+});
+assertLeagueMatchCountCase({
+  label: "Incomplete league catalogue", leagueId: "incomplete-test", country: "Testland",
+  division: 1, clubCount: 10, expectedTeamCount: 20, matchesPerSeason: 38
+});
+assertLeagueMatchCountCase({
+  label: "Two-club incomplete league", leagueId: "two-club-test", country: "Testland",
+  division: 1, clubCount: 2, expectedTeamCount: 20, matchesPerSeason: 38
+});
+
+// Players without a valid current club must be detached and made available as free agents.
+const orphanedContractPlayerId = "orphaned-contract-player";
+const unattachedContractPlayerId = "unattached-contract-player";
+const orphanedContractWorld = {
+  players: {
+    [orphanedContractPlayerId]: {
+      id: orphanedContractPlayerId, name: "Orphaned Contract Player",
+      clubId: "missing-club-record", leagueId: "stale-league", division: 2,
+      age: 24, position: "وسط", group: "midfielder", contractSeasons: 3,
+      ovr: 65, potential: 80, freeAgent: false, transferListed: true
+    },
+    [unattachedContractPlayerId]: {
+      id: unattachedContractPlayerId, name: "Unattached Contract Player",
+      clubId: "", previousClubId: "last-known-club", leagueId: "stale-league", division: 2,
+      age: 25, position: "وسط", group: "midfielder", contractSeasons: 3,
+      ovr: 64, potential: 78, freeAgent: false, transferListed: true
+    }
+  },
+  clubs: {}, seasonStats: { "1": [] }, notes: [], playerHistory: {}
+};
+sandbox.window.__lwTestDevelopPlayers(orphanedContractWorld, 1);
+const orphanedContractPlayer = orphanedContractWorld.players[orphanedContractPlayerId];
+assert.equal(orphanedContractPlayer.clubId, "", "a missing club reference must be detached");
+assert.equal(orphanedContractPlayer.previousClubId, "missing-club-record",
+  "orphan recovery must retain the last club identifier for provenance");
+assert.equal(orphanedContractPlayer.leagueId, "", "orphan recovery must clear stale league membership");
+assert.equal(orphanedContractPlayer.division, 0, "orphan recovery must clear stale division membership");
+assert.equal(orphanedContractPlayer.contractSeasons, 0,
+  "a player cannot retain an active contract with a club that no longer exists");
+assert.equal(orphanedContractPlayer.freeAgent, true, "orphaned players must enter the free-agent pool");
+assert.equal(orphanedContractPlayer.freeAgentSince, 2,
+  "orphaned players must receive a deterministic free-agent start season");
+assert.equal(orphanedContractPlayer.transferListed, false,
+  "an orphaned player must not keep a stale transfer-list flag");
+
+const unattachedContractPlayer = orphanedContractWorld.players[unattachedContractPlayerId];
+assert.equal(unattachedContractPlayer.clubId, "", "an empty club ID must remain unattached");
+assert.equal(unattachedContractPlayer.previousClubId, "last-known-club",
+  "releasing an unattached player must preserve their known former club");
+assert.equal(unattachedContractPlayer.leagueId, "", "unattached players must lose stale league membership");
+assert.equal(unattachedContractPlayer.division, 0, "unattached players must lose stale division membership");
+assert.equal(unattachedContractPlayer.contractSeasons, 0,
+  "an unattached player must not retain a contract with an unknown club");
+assert.equal(unattachedContractPlayer.freeAgent, true,
+  "an unattached player with a stale contract must enter the free-agent pool");
+assert.equal(unattachedContractPlayer.freeAgentSince, 2,
+  "an unattached player must receive the next-season free-agent marker");
+assert.equal(unattachedContractPlayer.transferListed, false,
+  "an unattached player must not retain a stale transfer-list flag");
+
+const orphanReleaseNoticeCount = orphanedContractWorld.notes.length;
+sandbox.window.__lwTestDevelopPlayers(orphanedContractWorld, 2);
+assert.equal(orphanedContractWorld.notes.length, orphanReleaseNoticeCount,
+  "orphan-release notes must not be duplicated after players have been detached");
+
+
+// Domestic cups marked for lower-tier entry must include every eligible club,
+// rather than silently truncating the field to the first 16 clubs in catalogue order.
+const cupFixtureClubs = [];
+for (let index = 1; index <= 12; index++) cupFixtureClubs.push({
+  id: "cup-first-" + String(index).padStart(2, "0"),
+  name: "Cup First Tier " + index, country: "Testland", leagueId: "test-cup-league",
+  division: 1, power: 60 + index, basePower: 60 + index, prestige: 55, roster: []
+});
+for (let index = 1; index <= 5; index++) cupFixtureClubs.push({
+  id: "cup-second-" + String(index).padStart(2, "0"),
+  name: "Cup Second Tier " + index, country: "Testland", leagueId: "test-cup-league",
+  division: 2, power: 45 + index, basePower: 45 + index, prestige: 40, roster: []
+});
+const cupWorld = {
+  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 4,
+  currentSeason: 1, lastAdvancedTo: 0, lastCompletedSeason: 0, completedSeasons: [],
+  players: {}, clubs: Object.fromEntries(cupFixtureClubs.map(club => [club.id, club])),
+  playerHistory: {}, seasonStats: {}, leagueTables: {}, matchesBySeason: {},
+  competitionsBySeason: {}, transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+};
+const cupSave = { season: 1, worldSimulation: cupWorld };
+const cupDb = {
+  version: 0, clubs: () => [], leagues: () => [],
+  leagueFor: (_country, division) => ({
+    teamCount: Number(division) >= 2 ? 5 : 12, matchesPerSeason: 2
+  }),
+  simulationCupDefinitions: () => [
+    { id: "test-all-tier-cup", name: "Test All-Tier Cup", kind: "domestic-cup",
+      countries: ["test-cup-league"], lower: true },
+    { id: "test-first-tier-cup", name: "Test First-Tier Cup", kind: "domestic-cup",
+      countries: ["test-cup-league"], lower: false }
+  ]
+};
+const simulatedCups = ai.seasonCompetitions(cupSave, 1, cupDb);
+const allTierCup = simulatedCups.find(row => row.id === "test-all-tier-cup");
+const firstTierCup = simulatedCups.find(row => row.id === "test-first-tier-cup");
+assert.ok(allTierCup, "the all-tier domestic cup must be simulated");
+assert.equal(allTierCup.participants.length, 17,
+  "a lower-tier domestic cup must include all 12 first-tier and 5 second-tier clubs");
+assert.ok(allTierCup.participants.includes("cup-second-05"),
+  "the last lower-tier club must not be dropped by catalogue ordering");
+assert.equal(allTierCup.matches.length, 16,
+  "a 17-team knockout cup must advance every participant through byes to one champion");
+assert.ok(allTierCup.matches.every(match =>
+  allTierCup.participants.includes(match.homeClubId) && allTierCup.participants.includes(match.awayClubId)),
+  "every cup fixture must belong to the saved participant field");
+assert.ok(firstTierCup, "the first-tier-only cup must be simulated");
+assert.equal(firstTierCup.participants.length, 12,
+  "a domestic cup without lower-tier entry must remain limited to the first division");
+assert.ok(firstTierCup.participants.every(id => id.startsWith("cup-first-")),
+  "first-tier-only cups must never include second-division clubs");
+
+assert.equal(Object.keys(cupWorld.players).length, 0,
+  "cup participant selection must not fabricate player records");
+
+// Domestic and continental supercups must draw from the correct previous-season winners.
+cupDb.simulationCupDefinitions = () => [
+  { id: "test-all-tier-cup", name: "Test All-Tier Cup", kind: "domestic-cup",
+    countries: ["test-cup-league"], lower: true },
+  { id: "test-first-tier-cup", name: "Test First-Tier Cup", kind: "domestic-cup",
+    countries: ["test-cup-league"], lower: false },
+  { id: "test-domestic-supercup", name: "Test Domestic Super Cup", kind: "supercup",
+    confederation: "CAF", countries: ["test-cup-league"] },
+  { id: "test-continental-supercup", name: "Test Continental Super Cup", kind: "supercup",
+    confederation: "CAF" }
+];
+cupWorld.leagueTables["1"]["test-cup-league"] = [
+  { clubId: "cup-first-01", rank: 1 }, { clubId: "cup-first-02", rank: 2 }
+];
+cupWorld.competitionsBySeason["1"] = [
+  { id: "test-continental-winner", kind: "continental", confederation: "CAF",
+    championId: "cup-second-05" },
+  { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-03", runnerUpId: "cup-first-04" }
+];
+const yearTwoCompetitions = ai.seasonCompetitions(cupSave, 2, cupDb);
+const domesticSupercup = yearTwoCompetitions.find(row => row.id === "test-domestic-supercup");
+assert.ok(domesticSupercup, "the domestic supercup must be simulated when prior domestic winners exist");
+assert.deepEqual([...domesticSupercup.participants].sort(), ["cup-first-01", "cup-first-03"],
+  "a domestic supercup must pair the previous league champion with the previous domestic-cup champion");
+assert.ok(!domesticSupercup.participants.includes("cup-second-05"),
+  "a continental champion must never replace a domestic supercup participant");
+assert.ok(!yearTwoCompetitions.some(row => row.id === "test-continental-supercup"),
+  "a continental supercup must not borrow a domestic-cup winner when only one continental champion exists");
+
+// If the same club wins the league and domestic cup, use the cup runner-up as opponent.
+cupWorld.leagueTables["2"]["test-cup-league"] = [
+  { clubId: "cup-first-01", rank: 1 }, { clubId: "cup-first-02", rank: 2 }
+];
+cupWorld.competitionsBySeason["2"] = [
+  { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-01", runnerUpId: "cup-second-05" }
+];
+const yearThreeCompetitions = ai.seasonCompetitions(cupSave, 3, cupDb);
+const doubleWinnerSupercup = yearThreeCompetitions.find(row => row.id === "test-domestic-supercup");
+assert.ok(doubleWinnerSupercup, "a domestic double winner must still produce a two-club supercup");
+assert.deepEqual([...doubleWinnerSupercup.participants].sort(), ["cup-first-01", "cup-second-05"],
+  "a domestic double winner must be paired with the domestic cup runner-up");
+
+
+
+// Continental tournaments must use the previous completed domestic standings and the
+// tournament's configured places, never the highest raw club power.
+const qualificationClubs = [];
+const qualificationStandings = {};
+const currentQualificationStandings = {};
+const expectedContinentalIds = [];
+const expectedBootstrapIds = [];
+for (let leagueIndex = 1; leagueIndex <= 4; leagueIndex++) {
+  const leagueId = "qualification-league-" + leagueIndex;
+  const standings = [];
+  for (const rank of [4, 2, 1, 3]) {
+    const id = "qualification-" + leagueIndex + "-" + rank;
+    qualificationClubs.push({
+      id, name: "Qualification Club " + leagueIndex + "-" + rank,
+      leagueId, country: "Qualification Country " + leagueIndex,
+      confederation: "CAF", division: 1,
+      power: rank === 4 ? 120 : 60 - rank * 5, roster: []
+    });
+    standings.push({
+      clubId: id, leagueId, division: 1, rank,
+      pts: 100 - rank * 10, gf: 30 - rank, ga: rank
+    });
+    if (rank <= 3) expectedContinentalIds.push(id);
+  }
+  qualificationStandings[leagueId] = standings;
+  currentQualificationStandings[leagueId] = standings.map(row => ({
+    ...row, rank: 5 - row.rank, pts: 200 - row.pts
+  }));
+  currentQualificationStandings[leagueId].forEach(row => {
+    if (row.rank <= 3) expectedBootstrapIds.push(row.clubId);
+  });
+}
+qualificationClubs.push({
+  id: "qualification-second-tier", name: "Qualification Second Tier",
+  leagueId: "qualification-league-1", country: "Qualification Country 1",
+  confederation: "CAF", division: 2, power: 999, roster: []
+});
+qualificationStandings["qualification-league-1"].unshift({
+  clubId: "qualification-second-tier", leagueId: "qualification-league-1",
+  division: 1, rank: 1, pts: 999
+});
+qualificationClubs.push({
+  id: "qualification-foreign", name: "Foreign Qualification Club",
+  leagueId: "foreign-qualification-league", country: "Foreign Country",
+  confederation: "UEFA", division: 1, power: 999, roster: []
+});
+qualificationStandings["qualification-league-2"].unshift({
+  clubId: "qualification-foreign", leagueId: "qualification-league-2",
+  division: 1, rank: 1, pts: 999
+});
+const qualificationWorld = {
+  players: {},
+  clubs: Object.fromEntries(qualificationClubs.map(club => [club.id, club])),
+  leagueTables: { "4": qualificationStandings },
+  competitionsBySeason: {}
+};
+const qualificationDb = {
+  leagueById: leagueId => ({
+    globalTier: Number(String(leagueId).split("-").pop()),
+    strength: 100 - Number(String(leagueId).split("-").pop()) * 5
+  }),
+  simulationCupDefinitions: () => [{
+    id: "test-caf-qualification", name: "Test CAF Qualification",
+    kind: "continental", confederation: "CAF", qualificationPlaces: [1, 2, 3, 4]
+  }]
+};
+assert.equal(typeof sandbox.window.__lwTestSimulateCompetitions, "function",
+  "the real continental selector must be exposed to the isolated regression test");
+const qualifiedCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  qualificationWorld, 5, qualificationDb, currentQualificationStandings
+);
+const qualifiedTournament = qualifiedCompetitions.find(row => row.id === "test-caf-qualification");
+assert.ok(qualifiedTournament, "a continental tournament must be simulated when eligible standings exist");
+assert.equal(qualifiedTournament.participants.length, 12,
+  "the continental simulator must preserve its 12-club knockout limit");
+assert.deepEqual([...qualifiedTournament.participants].sort(), expectedContinentalIds.sort(),
+  "previous-season league positions must select the 12 highest eligible domestic places, not the strongest squads");
+assert.ok(!qualifiedTournament.participants.includes("qualification-second-tier"),
+  "a second-tier club must not take a first-tier continental place");
+assert.ok(!qualifiedTournament.participants.includes("qualification-foreign"),
+  "a club from another confederation or league must not enter this qualification pool");
+assert.equal(Object.keys(qualificationWorld.players).length, 0,
+  "continental qualification must not fabricate player records");
+ 
+// The 32-team world club tournament is a four-season qualification cycle.
+// Champions and runners-up of the top-tier continental championships qualify first;
+// remaining places come from recorded performance in those same competitions.
+const worldCupCompetitionDefs = [
+  { id: "ucl", confederation: "UEFA" },
+  { id: "caf-cl", confederation: "CAF" },
+  { id: "libertadores", confederation: "CONMEBOL" }
+];
+const worldCupClubs = {};
+const worldCupHistory = {};
+const worldCupChampions = [];
+const worldCupRunnerUps = [];
+const worldCupSemifinalists = [];
+for (let historySeason = 1; historySeason <= 4; historySeason++) {
+  const seasonCompetitions = [];
+  worldCupCompetitionDefs.forEach(def => {
+    const championId = "world-cup-" + historySeason + "-" + def.id + "-champion";
+    const runnerUpId = "world-cup-" + historySeason + "-" + def.id + "-runner-up";
+    const semifinalistId = "world-cup-" + historySeason + "-" + def.id + "-semi";
+    [championId, runnerUpId, semifinalistId].forEach((id, index) => {
+      worldCupClubs[id] = {
+        id, name: id, leagueId: "world-cup-league-" + def.confederation,
+        confederation: def.confederation, division: 1,
+        power: index === 0 ? 90 : index === 1 ? 80 : 70, roster: []
+      };
+    });
+    worldCupChampions.push(championId);
+    worldCupRunnerUps.push(runnerUpId);
+    worldCupSemifinalists.push(semifinalistId);
+    seasonCompetitions.push({
+      id: def.id, kind: "continental", confederation: def.confederation,
+      participants: [championId, runnerUpId, semifinalistId],
+      championId, runnerUpId,
+      matches: [
+        { round: 4, homeClubId: championId, awayClubId: runnerUpId, winnerId: championId },
+        { round: 3, homeClubId: semifinalistId, awayClubId: runnerUpId, winnerId: runnerUpId }
+      ]
+    });
+  });
+  worldCupHistory[String(historySeason)] = seasonCompetitions;
+}
+const worldCupOutsiderId = "world-cup-high-power-outsider";
+worldCupClubs[worldCupOutsiderId] = {
+  id: worldCupOutsiderId, name: "Unqualified High Power Club",
+  leagueId: "world-cup-outsider-league", confederation: "UEFA",
+  division: 1, power: 9999, roster: []
+};
+const worldCupForeignId = "world-cup-cross-confederation-record";
+worldCupClubs[worldCupForeignId] = {
+  id: worldCupForeignId, name: "Cross Confederation Club",
+  leagueId: "world-cup-foreign-league", confederation: "CAF",
+  division: 1, power: 9998, roster: []
+};
+const worldCupSecondaryId = "world-cup-secondary-cup-winner";
+worldCupClubs[worldCupSecondaryId] = {
+  id: worldCupSecondaryId, name: "Secondary Continental Cup Winner",
+  leagueId: "world-cup-secondary-league", confederation: "UEFA",
+  division: 1, power: 9997, roster: []
+};
+worldCupHistory["1"][0].participants.push(worldCupForeignId);
+worldCupHistory["1"].push({
+  id: "uel", kind: "continental", confederation: "UEFA",
+  participants: [worldCupSecondaryId], championId: worldCupSecondaryId,
+  runnerUpId: "", matches: []
+});
+const worldCupWorld = {
+  clubs: worldCupClubs, players: {}, competitionsBySeason: worldCupHistory
+};
+const worldCupDb = {
+  simulationCupDefinitions: () => [{
+    id: "fifa-club-world-cup", name: "FIFA Club World Cup",
+    kind: "world", confederation: "FIFA", system: "world32"
+  }]
+};
+const worldCupResults = sandbox.window.__lwTestSimulateCompetitions(worldCupWorld, 5, worldCupDb, {});
+const worldCup = worldCupResults.find(row => row.id === "fifa-club-world-cup");
+assert.ok(worldCup, "the world club tournament must run when a complete four-season qualification field exists");
+assert.equal(worldCup.participants.length, 32, "the world club tournament must contain exactly 32 qualified clubs");
+assert.equal(worldCup.matches.length, 31, "a 32-team knockout tournament must contain 31 matches");
+assert.ok(worldCupChampions.every(id => worldCup.participants.includes(id)),
+  "all recorded top-tier continental champions must receive priority qualification");
+assert.ok(worldCupRunnerUps.every(id => worldCup.participants.includes(id)),
+  "all recorded top-tier continental runners-up must qualify before ranking places");
+assert.equal(worldCup.participants.filter(id => worldCupSemifinalists.includes(id)).length, 8,
+  "the remaining eight places must use performance in top-tier continental competitions");
+assert.ok(!worldCup.participants.includes(worldCupOutsiderId),
+  "a powerful club without continental qualification results must not enter the world tournament");
+assert.ok(!worldCup.participants.includes(worldCupForeignId),
+  "a club recorded under another confederation must not inherit a continental qualification place");
+assert.ok(!worldCup.participants.includes(worldCupSecondaryId),
+  "a secondary continental cup winner must not be treated as a top-tier world-cup qualifier");
+assert.equal(Object.keys(worldCupWorld.players).length, 0,
+  "world tournament qualification must not create synthetic player records");
+assert.equal(sandbox.window.__lwTestSimulateCompetitions(worldCupWorld, 6, worldCupDb, {}).length, 0,
+  "the 32-team world club tournament must not be simulated every season");
+const incompleteWorldCupHistory = { ...worldCupWorld, competitionsBySeason: { ...worldCupHistory } };
+delete incompleteWorldCupHistory.competitionsBySeason["1"];
+assert.equal(sandbox.window.__lwTestSimulateCompetitions(incompleteWorldCupHistory, 5, worldCupDb, {}).length, 0,
+  "a missing season in the four-year qualification window must block the tournament rather than invent entrants");
+const limitedWorldCupClubs = {};
+worldCupChampions.forEach(id => { limitedWorldCupClubs[id] = worldCupClubs[id]; });
+worldCupRunnerUps.forEach(id => { limitedWorldCupClubs[id] = worldCupClubs[id]; });
+worldCupSemifinalists.slice(0, 7).forEach(id => { limitedWorldCupClubs[id] = worldCupClubs[id]; });
+const undersizedWorldCup = {
+  clubs: limitedWorldCupClubs, competitionsBySeason: worldCupHistory
+};
+assert.equal(sandbox.window.__lwTestSimulateCompetitions(undersizedWorldCup, 5, worldCupDb, {}).length, 0,
+  "the world tournament must not start with fewer than 32 real qualified clubs");
+const retentionFixture = {
+  competitionsBySeason: { "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] }
+};
+sandbox.window.__lwTestRetainCompetitionHistory(retentionFixture, 4);
+assert.deepEqual(Object.keys(retentionFixture.competitionsBySeason).sort(), ["3", "4", "5", "6"],
+  "the world save must retain exactly the latest four completed competition seasons");
+
+
+// On the first simulated season only, use the just-completed table as the bootstrap source.
+const bootstrapWorld = {
+  players: {},
+  clubs: qualificationWorld.clubs,
+  leagueTables: {},
+  competitionsBySeason: {}
+};
+const bootstrapCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  bootstrapWorld, 1, qualificationDb, currentQualificationStandings
+);
+const bootstrapTournament = bootstrapCompetitions.find(row => row.id === "test-caf-qualification");
+assert.ok(bootstrapTournament, "the first season must bootstrap continental entry from its completed domestic tables");
+assert.deepEqual([...bootstrapTournament.participants].sort(), expectedBootstrapIds.sort(),
+  "first-season continental entry must follow the current table when no previous season exists");
+
+const noStandingsCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  { players: {}, clubs: qualificationWorld.clubs, leagueTables: {}, competitionsBySeason: {} },
+  5, qualificationDb, {}
+);
+assert.equal(noStandingsCompetitions.length, 0,
+  "continental entrants must not be invented from club power when no qualifying standings exist");
+
+const configuredContinentalPlaces = new Map(db.simulationCupDefinitions()
+  .filter(def => def.kind === "continental")
+  .map(def => [def.id, Array.from(def.qualificationPlaces || [])]));
+assert.deepEqual(configuredContinentalPlaces.get("caf-cl"), [1, 2]);
+assert.deepEqual(configuredContinentalPlaces.get("caf-confed"), [3, 4]);
+assert.deepEqual(configuredContinentalPlaces.get("libertadores"), [1, 2, 3, 4]);
+assert.deepEqual(configuredContinentalPlaces.get("sudamericana"), [5, 6, 7, 8, 9, 10]);
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

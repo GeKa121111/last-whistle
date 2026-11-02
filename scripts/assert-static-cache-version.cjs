@@ -20,3 +20,31 @@ module.exports.assertAssetVersionAtLeast = function assertAssetVersionAtLeast(so
     `${assetName} asset version must be at least v${minimumVersion}; found v${match[1]}`);
   return actualVersion;
 };
+
+if (require.main === module) {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.resolve(__dirname, "..");
+  const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const minimumCacheVersion = 405
+  const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
+  const requiredAssets = [
+    ["career-state-store.js", 6],
+    ["ai-career-engine.js", 7],
+    ["data/career-engine.js", 69],
+    ["data/match-engine.js", 77],
+    ["football-world-ai.js", 72],
+    ["football-world-db.js", 9],
+    ["football-world-worker.js", 61],
+    ["transfer-awards-engine.js", 17],
+    ["ui-organization.css", 5]
+  ];
+  requiredAssets.forEach(([asset, minimum]) => {
+    const assetSource = asset === "football-world-worker.js"
+      ? fs.readFileSync(path.join(root, "football-world-ai.js"), "utf8")
+      : asset === "data/career-engine.js" || asset === "data/match-engine.js" ? serviceWorker : html;
+    module.exports.assertAssetVersionAtLeast(assetSource, asset, minimum);
+  });
+  console.log("Static cache v" + cacheVersion + " and " + requiredAssets.length + " versioned app assets verified.");
+}

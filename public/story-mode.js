@@ -234,6 +234,8 @@ function ensureShell(){
   if(!app)return;
   var header=app.querySelector(".header");
   if(!header)return;
+  var home=document.getElementById("page-home");
+  if(!home)return;
   if(!document.getElementById("lw-command-center")){
     var shell=document.createElement("section");
     shell.id="lw-command-center";
@@ -245,7 +247,6 @@ function ensureShell(){
       '<div class="lw-overview-stat"><small>PLAYER / اللاعب</small><strong id="lw-hub-name">لاعب جديد</strong></div>'+
       '<div class="lw-overview-stat"><small>CLUB / النادي</small><strong id="lw-hub-club">—</strong></div>'+
       '<div class="lw-overview-stat"><small>SEASON / المشاركات</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
-      '<div class="lw-overview-stat"><small>ENERGY / الطاقة</small><strong class="lw-lime" id="lw-hub-energy">—</strong></div><div class="lw-overview-stat"><small>BALANCE / الرصيد</small><strong id="lw-hub-money">—</strong></div>'+
       '</div>'+
       '<div class="lw-progress-block"><div class="lw-progress-head"><span id="lw-hub-progress-label">مؤشر الموسم</span><b id="lw-hub-progress-value">0%</b></div><div class="lw-progress-line"><i id="lw-hub-progress-bar" style="width:0%"></i></div></div>'+
       '<div class="lw-action-heading"><span>اختار خطوتك الجاية</span><small>QUICK ACTIONS</small></div>'+
@@ -256,14 +257,19 @@ function ensureShell(){
       '<button type="button" class="btn ghost" id="lw-cta-transfers"><i>⇄</i> سوق الانتقالات</button>'+
       '</div>'+
       '<div class="lw-next-match"><div><small>NEXT FIXTURE <span>•</span> المباراة القادمة</small><strong id="lw-next-opponent">منافسك القادم</strong></div><span class="lw-match-day"><b id="lw-console-round">1</b><small id="lw-next-match-meta">جولة الموسم</small></span></div>';
-    header.insertAdjacentElement("afterend",shell);
+    home.insertAdjacentElement("afterbegin",shell);
     var story=document.createElement("section");
     story.id="lw-story-panel";
     story.setAttribute("aria-live","polite");
     story.setAttribute("aria-label","أحداث المسيرة والقرارات المصيرية");
     story.innerHTML='<div class="lw-story-layout"><div><div class="lw-story-top"><span>STORYLINE</span><span class="lw-story-badge" id="lw-story-tag">قرارك يصنع الفارق</span><span class="lw-chapter-count" id="lw-chapter-count">0 فصل محسوم</span></div><h2 class="lw-story-title" id="lw-story-title">الموسم لسه بيكتب أول سطر</h2><p class="lw-story-body" id="lw-story-body">لما تظهر لحظة مصيرية، هتلاقي القرار هنا. كل اختيار له تبعات فعلية بتتسجل في مسيرتك.</p><div class="lw-story-consequence" id="lw-story-consequence">قراراتك هتأثر على المعنويات، ثقة المدرب، السمعة والعلاقات.</div></div><div class="lw-choice-wrap" id="lw-story-choices"><div class="lw-empty-story">ابدأ مسيرتك. أول فصل قصصي هيظهر هنا، وقراراتك هتفضل محفوظة على جهازك.</div></div></div><div style="padding:0 22px 18px"><div class="lw-history" id="lw-story-history"></div></div>';
-    var home=document.getElementById("page-home");
-    if(home)home.insertAdjacentElement("afterbegin",story);
+    shell.insertAdjacentElement("afterend",story);
+  }
+  var commandCenter=document.getElementById("lw-command-center");
+  var storyPanel=document.getElementById("lw-story-panel");
+  if(commandCenter&&commandCenter.parentNode!==home)home.insertAdjacentElement("afterbegin",commandCenter);
+  if(commandCenter&&storyPanel&&(storyPanel.parentNode!==home||storyPanel.previousElementSibling!==commandCenter)){
+    commandCenter.insertAdjacentElement("afterend",storyPanel);
   }
   var oldHero=app.querySelector(".hero");
   if(oldHero)oldHero.setAttribute("aria-hidden","true");
@@ -399,7 +405,7 @@ function chooseStory(id,index){
 }
 function renderOverview(s){
   var api=API();if(!s)return;
-  var overview=document.getElementById("lw-command-center");var appRoot=document.querySelector(".app.hasSidebar");var activePage=appRoot&&appRoot.getAttribute("data-active-page");if(!activePage)activePage=s.currentPage||"home";if(overview)overview.style.display=activePage==="home"?"":"none";
+  
   var set=function(id,value){var el=document.getElementById(id);if(!el)return;var text=value==null?"—":String(value);if(el.textContent!==text)el.textContent=text;};
   var val=api&&typeof api.overall==="function"?api.overall():(typeof s.overall==="number"?s.overall:null);
   if(val==null){
@@ -416,7 +422,6 @@ function renderOverview(s){
   if(total<=0)total=38;
   var pct=Math.max(0,Math.min(100,Math.round(current/total*100)));
   set("lw-hub-progress",current+" / "+total);
-  set("lw-hub-energy",Math.max(0,Math.min(100,Number(s.energy)||0))+"%");
   set("lw-hub-progress-label","الموسم "+(s.season||1)+" • المباريات");
   set("lw-hub-progress-value",pct+"%");
   var bar=document.getElementById("lw-hub-progress-bar");if(bar&&bar.style.width!==pct+"%")bar.style.width=pct+"%";
@@ -427,8 +432,6 @@ function renderOverview(s){
     ? window.LWCareer.leagueMatchDaysRemaining(lastMatchDay,calendarDay,5) : 0;
   set("lw-console-round",waitDays===0?"النهارده":waitDays===1?"بعد يوم":"بعد "+waitDays+" أيام");
   set("lw-next-match-meta","الجولة "+((Number(s.leagueRoundIndex)||0)+1)+" من "+total);
-  var currency=api&&typeof api.currency==="function"?api.currency():"";
-  set("lw-hub-money",Number(s.money||0).toLocaleString("en-US")+(currency?" "+currency:""));
   var desc=" "+(s.age||17)+" سنة • "+(s.leagueCountry||"مصر")+" • "+(s.role||"بديل");
   set("lw-overview-sub","مسيرة "+(s.name||"لاعب جديد")+" — "+(s.clubName||"ناديك")+" / "+desc+". كل قرار بيغير طريقك.");
   var cta=document.getElementById("lw-cta-match");if(cta&&cta.disabled!==!!s.retired)cta.disabled=!!s.retired;

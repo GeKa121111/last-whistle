@@ -48,11 +48,70 @@
 
 /* Mobile full-width layout regression guard: avoid a compressed right-side dashboard. */
 @media(max-width:760px){
-  body.lw-rebuild #page-europe{
+  /* A page is visible only while its navigation state is active. */
+  body.lw-rebuild #page-europe:not(.active){display:none!important;}
+  body.lw-rebuild #page-europe.active{
     display:block;
     width:100%;
     min-width:0;
     max-width:100%;
+  }
+  body.lw-rebuild #page-europe > .grid{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    margin-inline:0!important;
+  }
+  body.lw-rebuild #page-europe > .grid > .card{
+    grid-column:1/-1!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+  body.lw-rebuild #page-europe .global-directory-heading{
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  body.lw-rebuild #page-europe .global-directory-heading>div{
+    flex:1 1 100%;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  body.lw-rebuild #page-europe .global-directory-heading h2,
+  body.lw-rebuild #page-europe .global-directory-heading .subline{
+    max-width:100%;
+    overflow-wrap:anywhere;
+    word-break:normal;
+  }
+  body.lw-rebuild #page-europe .globalFilters{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    width:100%;
+    min-width:0;
+    gap:8px;
+  }
+  body.lw-rebuild #page-europe .globalFilters label,
+  body.lw-rebuild #page-europe .field{
+    width:100%;
+    min-width:0;
+  }
+  body.lw-rebuild #page-europe .dataGrid,
+  body.lw-rebuild #page-europe .officialList,
+  body.lw-rebuild #page-europe .leagueCatalog{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  body.lw-rebuild #page-europe .dataCard{
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    overflow-wrap:anywhere;
   }
   body.lw-rebuild #page-europe .world-ai-dashboard-grid{
     display:grid !important;

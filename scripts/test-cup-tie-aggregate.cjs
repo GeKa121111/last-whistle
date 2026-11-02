@@ -73,7 +73,7 @@ for (const [value,fallback] of [
 assert.equal(parseOpponent(null,"Away Club",null,"Home Club").valid,false,
   "a second-leg opponent must belong to a persisted club list");
 
-const playMatch = html.match(/function playCupMatch\(\)\s*\{[\s\S]*?\n\}/);
+const playMatch = html.match(/function playCupMatchUnsafe\(\)\s*\{[\s\S]*?\n\}/);
 assert.ok(playMatch, "the cup match action must exist");
 const playBody = playMatch[0];
 const aggregateValidationIndex = playBody.indexOf("parseCupTieAggregate(c.tieAggregate)");
@@ -102,7 +102,7 @@ assert.equal(playBody.includes("Number(c.tieLeg)===2"),false,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 219);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 56);
+require("./assert-static-cache-version.cjs")(sw, 222);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 59);
 
 console.log("PASS: malformed second-leg cup aggregates are rejected before match actions, while legacy integer values remain compatible.");

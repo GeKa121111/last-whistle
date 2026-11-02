@@ -60,39 +60,179 @@ body.lw-rebuild #page-europe .world-ai-dashboard-grid{margin-top:0}
   body.lw-rebuild .hub-page-heading{margin-bottom:11px;padding-bottom:10px}
   body.lw-rebuild .hub-page-heading p{font-size:10px}
 }
+/* Keep the competition rules available without letting the reference card
+   dominate the season dashboard on every visit. */
+body.lw-rebuild #page-league .match-rules-card{
+  padding:0;
+  overflow:hidden;
+}
+body.lw-rebuild #page-league .match-rules-card>summary{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:58px;
+  padding:12px 14px;
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+}
+body.lw-rebuild #page-league .match-rules-card>summary::-webkit-details-marker{
+  display:none;
+}
+body.lw-rebuild #page-league .match-rules-summary>div:first-child{
+  flex:1 1 auto;
+  min-width:0;
+}
+body.lw-rebuild #page-league .match-rules-summary h2{
+  margin:0;
+  color:#edf4e8;
+  font-size:13px;
+  font-weight:950;
+}
+body.lw-rebuild #page-league .match-rules-summary .subline{
+  display:block;
+  margin-top:3px;
+  color:#839383;
+  font-size:9px;
+  line-height:1.6;
+}
+body.lw-rebuild #page-league .match-rules-chevron{
+  display:grid;
+  place-items:center;
+  flex:0 0 28px;
+  width:28px;
+  height:28px;
+  border:1px solid #344536;
+  border-radius:8px;
+  background:#17221a;
+  color:var(--lw-lime);
+}
+body.lw-rebuild #page-league .match-rules-chevron:before{
+  content:"+";
+  font-size:17px;
+  font-weight:800;
+  line-height:1;
+}
+body.lw-rebuild #page-league .match-rules-card[open] .match-rules-chevron:before{
+  content:"−";
+}
+body.lw-rebuild #page-league .match-rules-card>summary:focus-visible{
+  outline:2px solid var(--lw-lime);
+  outline-offset:-3px;
+}
+body.lw-rebuild #page-league .match-rules-card[open]>summary{
+  border-bottom:1px solid #263429;
+}
+body.lw-rebuild #page-league .match-rules-content{
+  padding:12px 14px 15px;
+}
+body.lw-rebuild #page-league .match-rules-content>p:first-child{
+  margin:0 0 9px;
+  line-height:1.8;
+}
+@media(max-width:760px){
+  body.lw-rebuild #page-league .match-rules-summary{
+    min-height:56px;
+    padding:11px 12px;
+  }
+  body.lw-rebuild #page-league .match-rules-content{
+    padding:10px 12px 13px;
+  }
+}
+/* Keep the legacy/example player names available as an optional reference,
+   separate from the sourced league and club directory. */
+body.lw-rebuild #page-europe .global-legacy-examples{
+  margin-top:13px;
+  overflow:hidden;
+  border:1px dashed #354536;
+  border-radius:12px;
+  background:#0b120d;
+}
+body.lw-rebuild #page-europe .global-legacy-examples>summary{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:50px;
+  padding:10px 12px;
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+}
+body.lw-rebuild #page-europe .global-legacy-examples>summary::-webkit-details-marker{
+  display:none;
+}
+body.lw-rebuild #page-europe .global-legacy-title{
+  flex:0 0 auto;
+  color:#c9d7c6;
+  font-size:11px;
+  font-weight:900;
+}
+body.lw-rebuild #page-europe .global-legacy-note{
+  flex:1 1 auto;
+  min-width:0;
+  color:#748572;
+  font-size:9px;
+  line-height:1.6;
+}
+body.lw-rebuild #page-europe .global-legacy-chevron{
+  display:grid;
+  place-items:center;
+  flex:0 0 26px;
+  width:26px;
+  height:26px;
+  border:1px solid #324333;
+  border-radius:8px;
+  background:#131e15;
+  color:var(--lw-lime);
+}
+body.lw-rebuild #page-europe .global-legacy-chevron:before{
+  content:"+";
+  font-size:16px;
+  line-height:1;
+}
+body.lw-rebuild #page-europe .global-legacy-examples[open] .global-legacy-chevron:before{
+  content:"−";
+}
+body.lw-rebuild #page-europe .global-legacy-examples>summary:focus-visible{
+  outline:2px solid var(--lw-lime);
+  outline-offset:-3px;
+}
+body.lw-rebuild #page-europe .global-legacy-examples[open]>summary{
+  border-bottom:1px solid #273629;
+}
+body.lw-rebuild #page-europe .global-legacy-examples>.dataDisclaimer,
+body.lw-rebuild #page-europe .global-legacy-examples>#realPlayerCatalog{
+  margin:10px 12px;
+}
+@media(max-width:520px){
+  body.lw-rebuild #page-europe .global-legacy-examples>summary{
+    gap:7px;
+    min-height:48px;
+    padding:9px 10px;
+  }
+  body.lw-rebuild #page-europe .global-legacy-title{font-size:10px}
+  body.lw-rebuild #page-europe .global-legacy-note{font-size:8px}
+}
+/* On phones, stack every top-level feature card. Several pages still use
+   desktop span-6 cards; without resetting their spans they remain side by
+   side even when the layout viewport is narrow. */
+@media(max-width:760px){
+  body.lw-rebuild .app.hasSidebar>main>.page:not(#page-home)>.grid{
+    display:grid!important;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    grid-template-columns:minmax(0,1fr)!important;
+    column-gap:0;
+  }
+  body.lw-rebuild .app.hasSidebar>main>.page:not(#page-home)>.grid>*{
+    grid-column:1/-1!important;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+  }
+}
 
-/* League reference material stays available without dominating the season dashboard. */
-body.lw-rebuild .league-rules-card{padding:0;overflow:hidden}
-body.lw-rebuild .league-rules-summary{
-  display:flex;align-items:center;gap:12px;min-width:0;padding:15px 16px;
-  list-style:none;cursor:pointer
-}
-body.lw-rebuild .league-rules-summary::-webkit-details-marker{display:none}
-body.lw-rebuild .league-rules-summary::marker{content:""}
-body.lw-rebuild .league-rules-summary-copy{flex:1 1 auto;min-width:0}
-body.lw-rebuild .league-rules-summary h2{margin:0;color:#eaf2e5;font-size:13px;font-weight:950}
-body.lw-rebuild .league-rules-summary p{margin:4px 0 0;color:#8e9d8b;font-size:10px;line-height:1.7}
-body.lw-rebuild .league-rules-summary .pill{flex:0 0 auto}
-body.lw-rebuild .league-rules-chevron{
-  display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;
-  border:1px solid #2d3d30;border-radius:8px;color:var(--lw-lime);
-  transition:transform .18s ease
-}
-body.lw-rebuild .league-rules-details[open] .league-rules-chevron{transform:rotate(180deg)}
-body.lw-rebuild .league-rules-summary:focus-visible{
-  outline:2px solid var(--lw-lime);outline-offset:-3px;border-radius:10px
-}
-body.lw-rebuild .league-rules-content{
-  margin:0 16px 16px;padding-top:13px;border-top:1px solid #28362a
-}
-body.lw-rebuild .league-rules-content>.muted.small{margin-top:0;font-size:11px;line-height:1.8}
-body.lw-rebuild .league-rules-content .ruleList{
-  margin:10px 0;padding-inline-start:20px;color:#b8c5b2;font-size:11px;line-height:1.9
-}
-@media(max-width:540px){
-  body.lw-rebuild .league-rules-summary{gap:8px;padding:13px 11px}
-  body.lw-rebuild .league-rules-summary h2{font-size:12px}
-  body.lw-rebuild .league-rules-summary p{font-size:9px}
-  body.lw-rebuild .league-rules-content{margin:0 11px 12px}
-  body.lw-rebuild .league-rules-summary .pill{font-size:8px;padding:4px 6px}
-}
+/* Contract overview keeps only contract-owned metrics; coaching trust lives on the readiness page. */
+body.lw-rebuild #page-contract .contract-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}

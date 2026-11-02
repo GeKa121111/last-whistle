@@ -6,6 +6,58 @@
     return Math.max(min, Math.min(max, Number.isFinite(number) ? number : min));
   }
 
+  const MAX_SEASON_STAT = 1000000;
+
+  function safeCount(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(0, Math.min(MAX_SEASON_STAT, number)) : fallback;
+  }
+
+  function safeRating(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? clamp(number, 0, 10) : fallback;
+  }
+
+  function safeStrength(value, fallback = 60) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? clamp(number, 25, 100) : fallback;
+  }
+
+  function safePrestige(value, fallback = 60) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? clamp(number, 1, 100) : fallback;
+  }
+
+  function isYouthAwardEligible(value) {
+    if (value === undefined || value === null || value === "") return false;
+    const age = Number(value);
+    return Number.isFinite(age) && age >= 16 && age <= 21;
+  }
+
+  function isYouthAwardEligibleForPlayer(player, fallbackAge) {
+    const rawAge = player && player.age;
+    if (rawAge === undefined || rawAge === null || rawAge === "") {
+      return isYouthAwardEligible(fallbackAge);
+    }
+    const age = Number(rawAge);
+    return age === 0
+      ? isYouthAwardEligible(fallbackAge)
+      : isYouthAwardEligible(age);
+  }
+
+  function safeAge(value, fallback = 18) {
+    if (value === undefined || value === null || value === "") return fallback;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0) return 100;
+    if (number === 0) return fallback;
+    return Math.min(100, Math.floor(number));
+  }
+
+  function safePercent(value, fallback = 50) {
+    const number = Number(value);
+    return Number.isFinite(number) ? clamp(number, 0, 100) : fallback;
+  }
+
   function stableHash(value) {
     let hash = 2166136261;
     for (const char of String(value)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
@@ -30,22 +82,72 @@
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
   }
 
+  // Keep award projections consistent with the career/match engines when a
+  // roster stores an English position abbreviation instead of its Arabic label.
+  const POSITION_ROLE_ALIASES = Object.freeze({
+    gk: "keeper", goalkeeper: "keeper", keeper: "keeper", goalie: "keeper",
+    cb: "defender", lcb: "defender", rcb: "defender", centerback: "defender",
+    centreback: "defender", centraldefender: "defender",
+    lb: "defender", rb: "defender", lwb: "defender", rwb: "defender", wb: "defender", fb: "defender",
+    leftback: "defender", rightback: "defender", leftwingback: "defender", rightwingback: "defender",
+    fullback: "defender", wingback: "defender",
+    cdm: "midfielder", dm: "midfielder", defensivemidfielder: "midfielder",
+    defensivemid: "midfielder", holdingmidfielder: "midfielder",
+    cm: "midfielder", rcm: "midfielder", lcm: "midfielder",
+    centralmidfielder: "midfielder", centralmidfield: "midfielder", midfielder: "midfielder",
+    cam: "midfielder", am: "midfielder", attackingmidfielder: "midfielder", attackingmid: "midfielder",
+    lw: "winger", rw: "winger", lm: "winger", rm: "winger", lwf: "winger", rwf: "winger",
+    leftwing: "winger", rightwing: "winger", leftwinger: "winger", rightwinger: "winger",
+    winger: "winger", widemidfielder: "winger", leftmidfielder: "winger", rightmidfielder: "winger",
+    cf: "attacker", ss: "attacker", secondstriker: "attacker", mobileforward: "attacker",
+    st: "striker", fw: "striker", fwd: "striker", striker: "striker", forward: "striker",
+    centreforward: "striker", centerforward: "striker"
+  });
   function roleType(position) {
-    const value = normalized(position);
+    const store = global.LWStateStore;
+    const canonical = store && typeof store.normalizePosition === "function"
+      ? store.normalizePosition(position) : position;
+    const value = normalized(canonical);
+    if (POSITION_ROLE_ALIASES[value]) return POSITION_ROLE_ALIASES[value];
     if (value.includes("حارس")) return "keeper";
     // Central/attacking midfielders are still midfielders; classify their line
     // before checking role words such as "defensive" or "attacking".
     if (value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")) return "midfielder";
     if (value.includes("دفاع") || value.includes("ظهير")) return "defender";
     if (value.includes("رأسحربة") || value.includes("راسحربة") || value.includes("راسحربه")) return "striker";
-    if (value.includes("جناح") || value.includes("مهاجم")) return "attacker";
+    if (value.includes("جناح")) return "winger";
+    if (value.includes("مهاجم")) return "attacker";
     return "midfielder";
+  }
+
+  function projectedMinutesPerAppearance(player) {
+    const role = normalized(player && (player.role || player.squadRole || player.playingTime) || "");
+    if ((role.includes("بديل") && role.includes("اساسي")) || role === "coresubstitute") return 66;
+    if (role.includes("نجمالفريق") || role.includes("starplayer")) return 88;
+    if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return 83;
+    if (role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return 43;
+    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")
+      || role.includes("فريقالرديف") || role.includes("لاعبتحتالتقييم") || role.includes("reserve") || role.includes("academy")) return 20;
+    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 28;
+    // The match engine defaults missing or unrecognized squad roles to substitute (28 minutes).
+    return 28;
+  }
+  function seasonProductionRates(type) {
+    const profiles = {
+      striker: { goalsPer90: 0.37, assistsPer90: 0.085 },
+      attacker: { goalsPer90: 0.26, assistsPer90: 0.14 },
+      winger: { goalsPer90: 0.22, assistsPer90: 0.17 },
+      midfielder: { goalsPer90: 0.105, assistsPer90: 0.125 },
+      defender: { goalsPer90: 0.04, assistsPer90: 0.045 },
+      keeper: { goalsPer90: 0.001, assistsPer90: 0.002 }
+    };
+    return profiles[type] || profiles.midfielder;
   }
 
   // Use season evidence when available; otherwise create a deterministic career-world
   // projection so goalkeepers are not excluded from end-of-season awards.
   function defensiveAwardBonus(row) {
-    const value = key => Math.max(0, Number(row && row[key]) || 0);
+    const value = key => safeCount(row && row[key]);
     return value("cleanSheets") * 0.35 + value("saves") * 0.025
       + value("penaltiesSaved") * 0.8 + value("tacklesWon") * 0.05
       + value("interceptions") * 0.06 + value("clearances") * 0.015
@@ -57,9 +159,9 @@
     const saved = player.seasonStats && Number(player.seasonStats.season) === Number(season)
       ? player.seasonStats : {};
     const type = roleType(row.position || player.position);
-    const appearances = Math.max(0, Number(row.appearances) || 0);
+    const appearances = safeCount(row.appearances);
     const ovr = clamp(row.ovr || player.ovr || 60, 35, 99);
-    const strength = clamp(row.leagueStrength || player.leagueStrength || 60, 25, 100);
+    const strength = safeStrength(row.leagueStrength || player.leagueStrength);
     const random = seeded(stableHash("defense|" + season + "|" + String(row.club || player.clubName || player.club || "")
       + "|" + String(row.name || player.name || "")));
     const cleanRate = type === "keeper"
@@ -73,7 +175,7 @@
       : 0;
     const value = (key, fallback = 0) => {
       const raw = saved[key] != null ? saved[key] : player[key] != null ? player[key] : undefined;
-      return raw === undefined ? Math.max(0, Number(fallback) || 0) : Math.max(0, Number(raw) || 0);
+      return raw === undefined ? safeCount(fallback) : safeCount(raw);
     };
     row.cleanSheets = value("cleanSheets", projectedCleanSheets);
     row.saves = value("saves", projectedSaves);
@@ -85,7 +187,7 @@
     row.keyPasses = value("keyPasses", 0);
     row.defensiveBonus = defensiveAwardBonus(row);
     row.goldenGloveScore = type === "keeper"
-      ? row.cleanSheets * 3 + row.saves * 0.3 + row.penaltiesSaved * 2 + Math.max(0, Number(row.averageRating) || 0) * 0.3
+      ? row.cleanSheets * 3 + row.saves * 0.3 + row.penaltiesSaved * 2 + safeRating(row.averageRating) * 0.3
       : 0;
     return row;
   }
@@ -120,11 +222,11 @@
     if (saved && Number(saved.season) === Number(season)) {
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
-      const appearances = Math.round(Math.max(0, Number(saved.appearances) || 0) * scale);
-      const goals = appearances > 0 ? Math.round(Math.max(0, Number(saved.goals) || 0) * scale) : 0;
-      const assists = appearances > 0 ? Math.round(Math.max(0, Number(saved.assists) || 0) * scale) : 0;
-      const averageRating = appearances > 0 ? clamp(saved.averageRating || 0, 0, 10) : 0;
-      const leagueStrength = Number(player.leagueStrength) || 60;
+      const appearances = Math.round(safeCount(saved.appearances) * scale);
+      const goals = appearances > 0 ? Math.round(safeCount(saved.goals) * scale) : 0;
+      const assists = appearances > 0 ? Math.round(safeCount(saved.assists) * scale) : 0;
+      const averageRating = appearances > 0 ? safeRating(saved.averageRating) : 0;
+      const leagueStrength = safeStrength(player.leagueStrength);
       return {
         name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
@@ -142,17 +244,24 @@
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
-    const attackRate = type === "striker" ? 0.62 : type === "attacker" ? 0.43 : type === "midfielder" ? 0.19 : type === "defender" ? 0.055 : 0.005;
-    const assistRate = type === "striker" ? 0.20 : type === "attacker" ? 0.30 : type === "midfielder" ? 0.36 : type === "defender" ? 0.10 : 0.015;
-    const ratingBase = 5.8 + Math.max(0, ovr - 48) * 0.031 + Math.max(0, (Number(player.prestige) || 60) - 65) * 0.002;
-    const goalsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * attackRate + random() * (type === "striker" ? 8 : type === "attacker" ? 7 : 4)));
-    const assistsFull = Math.max(0, Math.round(Math.max(0, ovr - 42) * assistRate + random() * 5));
-    const goals = Math.round(goalsFull * scale);
-    const assists = Math.round(assistsFull * scale);
+    const minutesPerAppearance = projectedMinutesPerAppearance(player);
+    const fullSeasonMinutes = Math.round(expectedApps * minutesPerAppearance);
+    const projectedMinutes = Math.round(fullSeasonMinutes * scale);
+    const production = seasonProductionRates(type);
+    const overallMultiplier = clamp(0.85 + (ovr - 60) * 0.004, 0.75, 1.08);
+    // Build a full-season production baseline, then apply progress once to the final totals.
+    const goalsExpected = fullSeasonMinutes / 90 * production.goalsPer90 * overallMultiplier;
+    const assistsExpected = fullSeasonMinutes / 90 * production.assistsPer90 * overallMultiplier;
+    const goalsFull = Math.max(0, Math.round(goalsExpected * (0.84 + random() * 0.32)));
+    const assistsFull = Math.max(0, Math.round(assistsExpected * (0.84 + random() * 0.32)));
+    const goals = appearances > 0 ? Math.round(goalsFull * scale) : 0;
+    const assists = appearances > 0 ? Math.round(assistsFull * scale) : 0;
+    const prestige = safePrestige(player.prestige);
+    const ratingBase = 5.8 + Math.max(0, ovr - 48) * 0.031 + Math.max(0, prestige - 65) * 0.002;
     const rating = appearances > 0 ? Math.min(9.2, ratingBase + random() * 0.56) : 0;
-    const competitionStrength = Number(player.leagueStrength) || 60;
+    const competitionStrength = safeStrength(player.leagueStrength);
     const score = appearances > 0
-      ? rating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + competitionStrength * 0.035 + (Number(player.prestige) || 60) * 0.018
+      ? rating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + competitionStrength * 0.035 + prestige * 0.018
       : 0;
     return {
       name: player.name,
@@ -162,6 +271,7 @@
       age: estimatedAge(player, season),
       ovr: ovr,
       appearances: appearances,
+      minutes: projectedMinutes,
       goals: goals,
       assists: assists,
       averageRating: Number(rating.toFixed(2)),
@@ -382,18 +492,26 @@
         realPlayer: false,
         isUser: true
       }, input.userLine);
-      const userAppearances = Math.max(0, Number(user.appearances || user.apps) || 0);
+      const appearanceValue = user.appearances !== undefined && user.appearances !== null
+        ? user.appearances : user.apps;
+      const userAppearances = safeCount(appearanceValue);
+      const userGoals = userAppearances > 0 ? safeCount(user.goals) : 0;
+      const userAssists = userAppearances > 0 ? safeCount(user.assists) : 0;
+      const userAverageRating = userAppearances > 0 ? safeRating(user.averageRating) : 0;
+      const userLeagueStrength = safeStrength(user.leagueStrength);
       user.appearances = userAppearances;
+      user.goals = userGoals;
+      user.assists = userAssists;
+      user.averageRating = userAverageRating;
+      user.leagueStrength = userLeagueStrength;
+      user.ovr = clamp(user.ovr || 50, 35, 99);
       if (userAppearances === 0) {
-        user.goals = 0;
-        user.assists = 0;
-        user.averageRating = 0;
         user.score = 0;
         user.weightedGoals = 0;
       } else {
-        user.score = Number(user.averageRating || 0) * 9 + Number(user.goals || 0) * 0.95
-          + Number(user.assists || 0) * 0.62 + Number(user.leagueStrength || 60) * 0.035;
-        user.weightedGoals = Number(user.goals || 0) * (0.82 + Number(user.leagueStrength || 60) / 450);
+        user.score = userAverageRating * 9 + userGoals * 0.95
+          + userAssists * 0.62 + userLeagueStrength * 0.035;
+        user.weightedGoals = userGoals * (0.82 + userLeagueStrength / 450);
       }
       rows.push(user);
     }
@@ -411,7 +529,7 @@
     const season = Number(input.season) || 1;
     const player = input.player || {};
     const realPlayers = Array.isArray(input.realPlayers) ? input.realPlayers : [];
-    const trophies = Math.max(0, Number(player.trophies) || 0);
+    const trophies = safeCount(player.trophies);
     const candidates = [];
     const seen = new Set();
 
@@ -421,33 +539,39 @@
       if (seen.has(key)) continue;
       seen.add(key);
       const row = applyDefensiveSeasonStats(simulatePlayerSeason(realPlayer, season, 1), realPlayer, season);
+      row.youthAwardEligible = isYouthAwardEligibleForPlayer(realPlayer, row.age);
       row.trophyBonus = stableHash(season + "|" + row.club + "|trophy") % 8;
       row.ballonScore = row.averageRating * 8.8 + row.goals * 0.94 + row.assists * 0.64
-        + row.ovr * 0.08 + row.trophyBonus + (Number(realPlayer.leagueStrength) || 60) * 0.04
-        + (Number(realPlayer.prestige) || 60) * 0.025 + row.defensiveBonus;
+        + row.ovr * 0.08 + row.trophyBonus + row.leagueStrength * 0.04
+        + safePrestige(realPlayer.prestige) * 0.025 + row.defensiveBonus;
       row.theBestScore = row.ballonScore + row.averageRating * 0.22
         + (stableHash(row.name + "|" + season + "|best") % 17) / 10;
       row.originConfederation = realPlayer.originConfederation || realPlayer.confederation || "";
       candidates.push(row);
     }
 
+    const userAppearances = safeCount(player.appearances);
+    const userGoals = userAppearances > 0 ? safeCount(player.goals) : 0;
+    const userAssists = userAppearances > 0 ? safeCount(player.assists) : 0;
+    const userAverageRating = userAppearances > 0 ? safeRating(player.averageRating) : 0;
     const user = {
       name: String(player.name || "لاعب المسيرة"),
       club: String(player.club || "نادي غير محدد"),
       country: String(player.country || ""),
       position: String(player.position || "غير محدد"),
-      age: Number(player.age) || 18,
+      age: safeAge(player.age),
+      youthAwardEligible: isYouthAwardEligibleForPlayer(player, safeAge(player.age)),
       ovr: clamp(player.ovr || 50, 35, 99),
-      appearances: Math.max(0, Number(player.appearances) || 0),
-      goals: Math.max(0, Number(player.goals) || 0),
-      assists: Math.max(0, Number(player.assists) || 0),
-      averageRating: Math.max(0, Number(player.averageRating) || 0),
+      appearances: userAppearances,
+      goals: userGoals,
+      assists: userAssists,
+      averageRating: userAverageRating,
       score: 0,
       weightedGoals: 0,
       trophyBonus: trophies * 5,
       confederation: String(player.confederation || ""),
       originConfederation: String(player.originConfederation || player.confederation || ""),
-      leagueStrength: Number(player.leagueStrength) || 60,
+      leagueStrength: safeStrength(player.leagueStrength),
       realPlayer: false,
       isUser: true
     };
@@ -457,7 +581,7 @@
     user.weightedGoals = user.goals * (0.82 + user.leagueStrength / 450);
     user.ballonScore = user.averageRating * 8.8 + user.goals * 0.94 + user.assists * 0.64
       + user.ovr * 0.08 + trophies * 5 + user.leagueStrength * 0.04 + user.defensiveBonus;
-    user.theBestScore = user.ballonScore + user.averageRating * 0.22 + (Number(player.professionalism) || 50) * 0.025;
+    user.theBestScore = user.ballonScore + user.averageRating * 0.22 + safePercent(player.professionalism) * 0.025;
     candidates.push(user);
 
     const rank = function (rows, scoreKey) {
@@ -477,7 +601,7 @@
       { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: eligibleCandidates },
       { id: "golden-glove", title: "القفاز الذهبي (Golden Glove)", metric: "goldenGloveScore",
         pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
-      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => Number(row.age) <= 21) },
+      { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.youthAwardEligible === true) },
       { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.originConfederation === "CAF") },
       { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "UEFA") },
       { id: "conmebol-player", title: "أفضل لاعب في أمريكا الجنوبية", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "CONMEBOL") }
@@ -620,7 +744,8 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 4,
+    version: 12,
+    roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,
     evaluateNegotiation: evaluateNegotiation,

@@ -51,6 +51,57 @@ const browserShortCameoScoring = browserEngine.simulateMatch(shortCameoScoringOp
 assert.equal(browserShortCameoScoring.player.rating, shortCameoScoring.player.rating,
   "the deployed browser engine must preserve the corrected short-cameo rating");
 
+// A non-empty but unrecognized legacy role must not mask a recognized fallback field.
+const fallbackStarOptions = {
+  ...shortCameoScoringOptions,
+  seed: 601,
+  player: { ...shortCameoScoringOptions.player, role: "unclassified squad tier", squadRole: "نجم الفريق" }
+};
+const primaryStarOptions = {
+  ...shortCameoScoringOptions,
+  seed: 601,
+  player: { ...shortCameoScoringOptions.player, role: "نجم الفريق", squadRole: "بديل" }
+};
+const fallbackStarResult = engine.simulateMatch(fallbackStarOptions);
+const primaryStarResult = engine.simulateMatch(primaryStarOptions);
+assert.equal(fallbackStarResult.player.minutes, primaryStarResult.player.minutes,
+  "an unknown role must fall through to a recognized squadRole instead of forcing substitute minutes");
+assert.deepEqual(fallbackStarResult.events, primaryStarResult.events,
+  "recognized squadRole fallback must preserve the canonical star-player event timeline");
+assert.deepEqual(browserEngine.simulateMatch(fallbackStarOptions), fallbackStarResult,
+  "the embedded browser engine must use the same recognized squad-role fallback");
+
+const fallbackRotationOptions = {
+  ...shortCameoScoringOptions,
+  seed: 602,
+  player: { ...shortCameoScoringOptions.player, role: "unclassified squad tier", playingTime: "تناوب" }
+};
+const primaryRotationOptions = {
+  ...shortCameoScoringOptions,
+  seed: 602,
+  player: { ...shortCameoScoringOptions.player, role: "تناوب" }
+};
+const fallbackRotationResult = engine.simulateMatch(fallbackRotationOptions);
+const primaryRotationResult = engine.simulateMatch(primaryRotationOptions);
+assert.equal(fallbackRotationResult.player.minutes, primaryRotationResult.player.minutes,
+  "an unknown role must fall through to the recognized playingTime field");
+assert.deepEqual(fallbackRotationResult.events, primaryRotationResult.events,
+  "playingTime fallback must preserve the canonical rotation event timeline");
+
+const primarySubstituteOptions = {
+  ...shortCameoScoringOptions,
+  seed: 603,
+  player: { ...shortCameoScoringOptions.player, role: "بديل", squadRole: "نجم الفريق" }
+};
+const canonicalSubstituteOptions = {
+  ...shortCameoScoringOptions,
+  seed: 603,
+  player: { ...shortCameoScoringOptions.player, role: "بديل" }
+};
+assert.equal(engine.simulateMatch(primarySubstituteOptions).player.minutes,
+  engine.simulateMatch(canonicalSubstituteOptions).player.minutes,
+  "a recognized primary role must remain authoritative over a conflicting fallback field");
+
 
 function extractNamedFunctionForAdapterTest(source, name) {
   const marker = "function " + name + "(";

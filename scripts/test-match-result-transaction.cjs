@@ -167,7 +167,16 @@ assert.deepEqual({
   ballRecoveries: 8, keyPasses: 2
 }, "season award aggregation must recover defensive and goalkeeper actions from persisted match history");
 
-const mixedLegacyAndCurrentStats = sandbox.playerCurrentSeasonStats([\n  { minutes: 90, goals: 0, assists: 0, rating: 7, stats: { tackles: 5 } },\n  { minutes: 90, goals: 0, assists: 0, rating: 7, stats: { tackles: 8, tacklesWon: 3 } },\n  { minutes: 90, goals: 0, assists: 0, rating: 7, stats: { tackles: 4, tacklesWon: 0 } },\n  { minutes: 90, goals: 0, assists: 0, rating: 7, tackles: 2 }\n]);\nassert.equal(mixedLegacyAndCurrentStats.tacklesWon, 10,\n  "mixed legacy/current history must fall back per match and respect an explicit modern zero");\n\nconst afterCommit = JSON.stringify(sandbox.state);
+const mixedLegacyAndCurrentStats = sandbox.playerCurrentSeasonStats([
+  { minutes: 90, goals: 0, assists: 0, rating: 7, stats: { tackles: 5 } },
+  { minutes: 90, goals: 0, assists: 0, rating: 7, stats: { tackles: 8, tacklesWon: 3 } },
+  { minutes: 90, goals: 0, assists: 0, rating: 7, stats: { tackles: 4, tacklesWon: 0 } },
+  { minutes: 90, goals: 0, assists: 0, rating: 7, tackles: 2 }
+]);
+assert.equal(mixedLegacyAndCurrentStats.tacklesWon, 10,
+  "mixed legacy/current history must fall back per match and respect an explicit modern zero");
+
+const afterCommit = JSON.stringify(sandbox.state);
 assert.equal(sandbox.settleMatch(result, meta), false, "the same match id must remain idempotent");
 assert.equal(JSON.stringify(sandbox.state), afterCommit,
   "a duplicate settlement must not increment stats or append another history row");

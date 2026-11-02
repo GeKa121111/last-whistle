@@ -5810,7 +5810,11 @@ function playerCurrentSeasonStats(rows){
  const averageRating=apps?rows.reduce((total,row)=>total+(Number(row.rating)||0),0)/apps:0;
  const statValue=(row,key)=>Math.max(0,Number(row&&row[key]!=null?row[key]:row&&row.stats&&row.stats[key])||0);
  const sum=key=>rows.reduce((total,row)=>total+statValue(row,key),0);
- const tacklesWon=rows.reduce((total,row)=>{\n  const hasExplicitTacklesWon=!!(row&&(row.tacklesWon!=null||row.stats&&row.stats.tacklesWon!=null));\n  return total+statValue(row,hasExplicitTacklesWon?"tacklesWon":"tackles");\n },0);\n const cleanSheets=rows.reduce((total,row)=>{
+ const tacklesWon=rows.reduce((total,row)=>{
+  const hasExplicitTacklesWon=!!(row&&(row.tacklesWon!=null||row.stats&&row.stats.tacklesWon!=null));
+  return total+statValue(row,hasExplicitTacklesWon?"tacklesWon":"tackles");
+ },0);
+ const cleanSheets=rows.reduce((total,row)=>{
   const direct=row&&row.cleanSheets!=null?row.cleanSheets:row&&row.stats&&row.stats.cleanSheets;
   return total+(direct!=null?Math.max(0,Number(direct)||0):(row&&(row.cleanSheet===true||row.stats&&row.stats.cleanSheet===true)?1:0));
  },0);

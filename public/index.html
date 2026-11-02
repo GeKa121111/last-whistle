@@ -5613,7 +5613,9 @@ function transferOfferMatchesWindow(offer,windowId,windowInfo){
   &&String(offer.windowId||"")==="winter-season-"+(Number(state.season)||0);
 }
 function currentFreeAgentTransferWindowId(){
- return "free-agent-"+Math.floor((Number(state.calendarDay)||1)/14);
+ const rawCalendarDay=Number(state.calendarDay);
+ const calendarDay=Number.isFinite(rawCalendarDay)?Math.max(1,Math.floor(rawCalendarDay)):1;
+ return "free-agent-"+Math.floor((calendarDay-1)/14);
 }
 function transferOfferMatchesCurrentWindow(offer,windowInfo=transferWindow()){
  if(!offer)return false;

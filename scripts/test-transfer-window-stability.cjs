@@ -415,6 +415,21 @@ assert.equal(sameNameDifferentCountry.state.transferHistory.length, 1,
  vm.createContext(freeAgentWindowState);
  vm.runInContext(transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource, freeAgentWindowState,
   { filename: "free-agent-window-identity" });
+const freeAgentWindowBoundaries = [
+  [1, "free-agent-0"],
+  [14, "free-agent-0"],
+  [15, "free-agent-1"],
+  [28, "free-agent-1"],
+  [29, "free-agent-2"],
+  [42, "free-agent-2"],
+  [43, "free-agent-3"]
+];
+for (const [calendarDay, expectedWindowId] of freeAgentWindowBoundaries) {
+  freeAgentWindowState.state.calendarDay = calendarDay;
+  assert.equal(freeAgentWindowState.currentFreeAgentTransferWindowId(), expectedWindowId,
+    "rolling free-agent windows must use complete 14-day blocks starting on calendar day 1");
+}
+freeAgentWindowState.state.calendarDay = 30;
  assert.equal(freeAgentWindowState.transferOfferMatchesCurrentWindow(
   { id: "old-free-agent", windowId: "free-agent-1" }, freeAgentWindowState.transferWindow()), false,
   "an offer from the previous 14-day free-agent period must expire");
@@ -1148,7 +1163,7 @@ expiryTest();
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 175);
+require("./assert-static-cache-version.cjs")(sw, 424);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=17"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");

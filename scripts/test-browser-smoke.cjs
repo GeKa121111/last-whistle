@@ -1313,6 +1313,20 @@ async function main() {
         const worldCardWidths = worldGrid
           ? Array.from(worldGrid.querySelectorAll(".world-ai-dashboard-card")).map(card => Math.round(card.getBoundingClientRect().width))
           : [];
+        const selectedPage = document.querySelector("#page-" + routeName);
+        const pageGridLayouts = Array.from(selectedPage?.querySelectorAll(":scope > .grid") || []).map(grid => {
+          const gridStyle = getComputedStyle(grid);
+          const gridRect = grid.getBoundingClientRect();
+          const directChildren = Array.from(grid.children).filter(child => {
+            const style = getComputedStyle(child);
+            return style.display !== "none" && style.visibility !== "hidden";
+          });
+          return {
+            columns: gridStyle.display === "grid" ? gridStyle.gridTemplateColumns.trim().split(/\\s+/).filter(Boolean).length : 0,
+            gridWidth: Math.round(gridRect.width),
+            childWidths: directChildren.map(child => Math.round(child.getBoundingClientRect().width))
+          };
+        });
         const offenders = Array.from(document.querySelectorAll("body *")).filter(element => {
           const style = getComputedStyle(element);
           const rect = element.getBoundingClientRect();
@@ -1341,7 +1355,7 @@ async function main() {
           && getComputedStyle(directoryPage).display !== "none"
           && directoryRect && directoryRect.width > 0 && directoryRect.height > 0);
         return {
-          route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, offenders,
+          route: routeName, viewport, documentWidth, bodyWidth, worldGridWidth, worldCardWidths, pageGridLayouts, offenders,
           activePages, directoryCount: document.querySelectorAll("#globalDirectoryPanel").length,
           directoryPage: directoryPage ? directoryPage.id : null, directoryVisible
         };
@@ -1359,6 +1373,14 @@ async function main() {
         layout.documentWidth <= layout.viewport + 1 && layout.bodyWidth <= layout.viewport + 1,
         "mobile page '" + route + "' has horizontal overflow: " + JSON.stringify(layout)
       );
+      if (route !== "home") {
+        assert.ok(layout.pageGridLayouts.length > 0,
+          "page '" + route + "' must expose its direct content grid to the mobile layout audit");
+        assert.ok(layout.pageGridLayouts.every(grid => grid.columns === 1),
+          "all top-level grids on mobile page '" + route + "' must use one column: " + JSON.stringify(layout.pageGridLayouts));
+        assert.ok(layout.pageGridLayouts.every(grid => grid.childWidths.every(width => width >= grid.gridWidth * 0.9)),
+          "top-level cards on mobile page '" + route + "' must use the available width instead of remaining span-6 half cards: " + JSON.stringify(layout.pageGridLayouts));
+      }
       if (route === "europe") {
         assert.ok(layout.worldGridWidth !== null, "the world dashboard grid must exist on the Europe page");
         assert.ok(

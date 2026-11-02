@@ -562,12 +562,19 @@ if (!redesignSource.includes("article:not(.seasonJourneyCard)")
   console.error("The home page must keep the season roadmap while moving world AI details to the world page.");
   process.exit(1);
 }
-if (!html.includes('href="./ui-organization.css?v=3"')
+if (!html.includes('href="./ui-organization.css?v=4"')
   || (html.match(/class="navGroup"/g) || []).length !== 3
   || !html.includes("navGroupCareer")
   || !html.includes("navGroupCompetition")
   || !html.includes("navGroupOffPitch")) {
   console.error("Navigation groups and the shared UI organization stylesheet must be present.");
+  process.exit(1);
+}
+if (!organizationSource.includes("@media(max-width:760px)")
+  || !organizationSource.includes(".page:not(#page-home)>.grid{")
+  || !organizationSource.includes(".page:not(#page-home)>.grid>*{")
+  || !organizationSource.includes("grid-column:1/-1!important")) {
+  console.error("Every non-home page must stack its top-level cards into one readable mobile column.");
   process.exit(1);
 }
 for (const pageId of ["page-europe", "page-life", "page-diary", "page-social"]) {

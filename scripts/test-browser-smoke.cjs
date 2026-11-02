@@ -397,17 +397,26 @@ async function main() {
       const transferButton = document.querySelector("#lw-cta-transfers");
       const seasonButton = document.querySelector("#lw-cta-season");
       const seasonRoadmap = document.querySelector("#page-home .seasonJourneyCard");
-      const shortcutPanel = document.querySelector("#page-home .hub-launch-panel");
-      const playerSummary = document.querySelector("#page-home .hub-player-card");
-      const duplicateActionPanel = document.querySelector("#page-home .hub-home-season-actions");
+      const actionBridge = document.querySelector("#seasonActionBridge");
+      const readinessHint = document.querySelector("#homeReadinessHint");
+      const legacyHomeCards = [
+        "#page-home .hub-launch-panel",
+        "#page-home .hub-player-card",
+        "#page-home .storyBox",
+        "#page-home .world-ai-home"
+      ];
       if (!commandCenter || !storyPanel || !transferButton || !seasonButton || !seasonRoadmap) return null;
       return {
         commandCenterBeforeStory: !!(commandCenter.compareDocumentPosition(storyPanel) & Node.DOCUMENT_POSITION_FOLLOWING),
         bothPrimaryActionsVisible: transferButton.getBoundingClientRect().width > 0 && seasonButton.getBoundingClientRect().width > 0,
         commandCenterAboveSeasonRoadmap: commandCenter.getBoundingClientRect().top < seasonRoadmap.getBoundingClientRect().top,
-        duplicateShortcutsHidden: !!shortcutPanel && getComputedStyle(shortcutPanel).display === "none",
-        duplicatePlayerSummaryHidden: !!playerSummary && getComputedStyle(playerSummary).display === "none",
-        duplicateActionPanelHidden: !!duplicateActionPanel && getComputedStyle(duplicateActionPanel).display === "none"
+        legacyHomeCardsRemoved: legacyHomeCards.every(selector => !document.querySelector(selector)),
+        actionBridgeHidden: !!actionBridge && actionBridge.hidden
+          && !!actionBridge.querySelector("#seasonStageAction")
+          && !!actionBridge.querySelector("#seasonTransferAction"),
+        readinessHintVisible: !!readinessHint && commandCenter.contains(readinessHint)
+          && getComputedStyle(readinessHint).display !== "none"
+          && readinessHint.getBoundingClientRect().width > 0
       };
     });
     assert.ok(homeActionPlacement, "redesigned home dashboard must exist");
@@ -417,12 +426,12 @@ async function main() {
       "match-season and transfer actions must be visible inside the command center during an open transfer window");
     assert.equal(homeActionPlacement.commandCenterAboveSeasonRoadmap, true,
       "the main player controls must appear before the season roadmap");
-    assert.equal(homeActionPlacement.duplicateShortcutsHidden, true,
-      "the duplicated shortcut panel must be removed from the home screen");
-    assert.equal(homeActionPlacement.duplicatePlayerSummaryHidden, true,
-      "the duplicate player summary must be removed from the home screen");
-    assert.equal(homeActionPlacement.duplicateActionPanelHidden, true,
-      "the old season action panel must be hidden after moving its actions into the command center");
+    assert.equal(homeActionPlacement.legacyHomeCardsRemoved, true,
+      "obsolete launch, player, story and world-AI cards must be removed from home markup");
+    assert.equal(homeActionPlacement.actionBridgeHidden, true,
+      "the internal season action bridge must stay hidden while driving visible command-center buttons");
+    assert.equal(homeActionPlacement.readinessHintVisible, true,
+      "daily readiness advice must appear inside the visible command center");
     await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
       const backup = window.__transferEligibilityTestBackup;
@@ -1376,8 +1385,8 @@ async function main() {
     // The Career Hub must not mix the dark app shell with legacy white cards.
     const careerThemeAudit = await page.evaluate(() => {
       const surfaces = [
-        [".hub-launch-panel", "rgb(16, 23, 18)"],
-        [".hub-tile", "rgb(18, 29, 22)"],
+        [".lw-readiness-brief", "rgb(16, 24, 18)"],
+        [".seasonJourneyCard", "rgb(13, 19, 15)"],
         [".hub-training-card .trainingControls", "rgb(17, 26, 20)"],
         [".hub-training-rules>div", "rgb(17, 26, 20)"],
         [".hub-readiness-feature", "rgb(16, 24, 19)"],
@@ -1397,7 +1406,7 @@ async function main() {
         "Career Hub surface must use the shared dark theme: " + JSON.stringify(surface));
     }
     const careerTypeAudit = await page.evaluate(() => [
-      [".hub-tile-desc", "10px"],
+      [".lw-readiness-brief p", "10px"],
       [".hub-training-card .trainingNote", "10px"],
       [".hub-recovery-action p", "10px"]
     ].map(([selector, expected]) => {

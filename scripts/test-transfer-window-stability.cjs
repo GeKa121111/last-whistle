@@ -1072,7 +1072,7 @@ assert.match(pendingTransferBox.innerHTML, /data-retry-pending-transfer/,
   "a rolled-back accepted transfer must render an explicit retry button");
 assert.match(pendingTransferBox.innerHTML, /نادي ب/,
   "the retry card must identify the accepted destination club");
-assert.match(app, /const retryPendingTransfer=e\\.target\\.closest\\("\\[data-retry-pending-transfer\\]"\\);if\\(retryPendingTransfer\\)\\{transferTo\\(\\);renderTransferMarket\\(\\);return;\\}/,
+assert.ok(app.includes('const retryPendingTransfer=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransfer){transferTo();renderTransferMarket();return;} '),
   "the transfer-market click handler must execute the retry action");
 
 const cupArchiveScenario = {

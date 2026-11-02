@@ -7491,6 +7491,35 @@ function finishSeason(skipAnnualTraining=false){
  finishSeasonInFlight=Promise.resolve(pending).finally(()=>{finishSeasonInFlight=null;});
  return finishSeasonInFlight;
 }
+function completeTrailingLeagueByes(){
+ if((Number(state.seasonApps)||0)<seasonMatchTotal())throw new Error("Cannot close league rounds before all player fixtures are complete.");
+ ensureFixtureSchedule();
+ const rounds=Array.isArray(state.fixtureSchedule)?state.fixtureSchedule:[];
+ const ours=clubNameForLeague();
+ let processed=0;
+ while((Number(state.leagueRoundIndex)||0)<rounds.length){
+  const index=Math.max(0,Math.floor(Number(state.leagueRoundIndex)||0));
+  const round=rounds[index];
+  if(!Array.isArray(round))throw new Error("Missing league round while finalizing the season.");
+  if(round.some(pair=>Array.isArray(pair)&&pair.includes(ours)))throw new Error("A player fixture remains after the season appearance target.");
+  const segmentId=ensureLeagueSegmentId();
+  state.leagueRoundHistory=Array.isArray(state.leagueRoundHistory)?state.leagueRoundHistory:[];
+  const alreadyRecorded=state.leagueRoundHistory.some(row=>row&&row.outcome==="bye"
+   &&row.segmentId===segmentId&&Number(row.matchday)===index+1);
+  if(!alreadyRecorded){
+   if((Number(state.calendarDay)||0)<=(Number(state.lastLeagueMatchCalendarDay)||0)){
+    advanceCalendarDays(seasonMatchIntervalDays(),"الوصول إلى آخر جولة راحة في جدول الدوري");
+   }
+   simulateOtherFixtures(index,null);
+   recordLeagueByeRound(index);
+  }
+  state.leagueRoundIndex=index+1;
+  state.lastLeagueMatchCalendarDay=Number(state.calendarDay)||0;
+  state.playedToday=false;
+  processed++;
+ }
+ return {processed,complete:true};
+}
 async function finishSeasonTransaction(skipAnnualTraining=false){
  if(state.retired||state.seasonFinished||state.seasonApps<seasonMatchTotal())return false;
  let snapshot;
@@ -7502,6 +7531,8 @@ async function finishSeasonTransaction(skipAnnualTraining=false){
   return false;
  }
  try{
+  const completion=completeTrailingLeagueByes();
+  if(!completion.complete)throw new Error("The league schedule still has unresolved rounds.");
   return await finishSeasonInternal(skipAnnualTraining);
  }catch(error){
   restoreSeasonTransitionState(snapshot);

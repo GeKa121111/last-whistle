@@ -5387,7 +5387,7 @@ function renderContract(){
  setText("contractMessage",contractHint);
  const negotiationButton=$("negotiateBtn");if(negotiationButton){negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";negotiationButton.textContent=state.retired?"المسيرة انتهت":state.loan?"التفاوض متوقف أثناء الإعارة":state.freeAgent?"لا يوجد عقد للتفاوض":Number(state.contractSeasons)<=1?"انتظار عرض التجديد":negotiationStatus==="cooldown"?"التفاوض متاح لاحقًا":"تفاوض على العقد";}
  renderTransferMarket();
- setText("contractPill",state.retired?"معتزل":contractDisplayState.freeAgent?"لاعب حر":contractDisplayState.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+contractDisplayState.contractSeasons+" موسم");
+ 
  const stages=[["درجة ثانية / أكاديمية",0,0,250],["درجة أولى / نادي صاعد",55,35,650],["دوري ممتاز / نادي ثابت",62,48,1500],["نادي أوروبي كبير",70,60,4000]];
  $("clubLadder").innerHTML=stages.map((c,i)=>`<div class="feedItem"><b>${i===state.clubIndex?"📍":i<state.clubIndex?"✅":"🔒"} ${c[0]} ${i===state.clubIndex?"(أنت هنا)":""}</b><span class="muted">${i===state.clubIndex?"مرحلتك الحالية":`الشروط: تقييم ${c[1]}+ وثقة ${c[2]}+`} • مرتب نموذجي ${c[3]} ${currencyLabel()}/أسبوع</span></div>`).join("");
  $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(x=>`<div class="feedItem"><b>الموسم ${x.season} • اليوم ${x.day}</b>${x.text}</div>`).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';

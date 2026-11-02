@@ -901,75 +901,17 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   </section>
 
   <main>    <section class="page active" id="page-home">
-      <div class="hub-launch-panel">
-        <div class="hub-launch-header">
-          <div><span class="hub-overline">YOUR CAREER / QUICK ACCESS</span><h2>كل جزء من مسيرتك في مكانه</h2><p>اختار القسم من الأيقونة بدل ما تدور على التدريب والإحصائيات وسط الرئيسية.</p></div>
-          <div class="hub-shortcut-mark" aria-hidden="true">LW<span>+</span></div>
-        </div>
-        <div class="hub-app-grid" aria-label="أقسام المسيرة">
-          <button class="hub-tile" data-page="training"><span class="hub-tile-icon">🏋️</span><span class="hub-tile-title">التدريب</span><span class="hub-tile-desc">طوّر مهاراتك واختر شدة الحصة</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="stats"><span class="hub-tile-icon">📊</span><span class="hub-tile-title">الإحصائيات</span><span class="hub-tile-desc">المهارات والأداء والإنجازات</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="wellness"><span class="hub-tile-icon">🩺</span><span class="hub-tile-title">الجاهزية والراحة</span><span class="hub-tile-desc">الطاقة والإجهاد وثقة الجهاز الفني</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="league"><span class="hub-tile-icon">🏆</span><span class="hub-tile-title">المسابقات</span><span class="hub-tile-desc">الجدول والنتائج والبطولات</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="contract"><span class="hub-tile-icon">📄</span><span class="hub-tile-title">العقد والوكلاء</span><span class="hub-tile-desc">الراتب والانتقالات والتمثيل</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="national"><span class="hub-tile-icon">🌍</span><span class="hub-tile-title">المنتخب</span><span class="hub-tile-desc">الاستدعاءات والمشاركات الدولية</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="life"><span class="hub-tile-icon">🎙️</span><span class="hub-tile-title">الحياة والسمعة</span><span class="hub-tile-desc">الإعلام والعلاقات والقرارات اليومية</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="europe"><span class="hub-tile-icon">🌐</span><span class="hub-tile-title">عالم الكرة</span><span class="hub-tile-desc">الدوريات والأندية والبطولات</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="shop"><span class="hub-tile-icon">🛍️</span><span class="hub-tile-title">المتجر</span><span class="hub-tile-desc">معدات وتطويرات داخل اللعبة</span><span class="hub-tile-arrow">←</span></button>
-          <button class="hub-tile" data-page="diary"><span class="hub-tile-icon">📔</span><span class="hub-tile-title">المذكرات</span><span class="hub-tile-desc">قراراتك وأحداث مسيرتك</span><span class="hub-tile-arrow">←</span></button>
-        </div>
+      <div class="grid home-roadmap-grid">
+      <div id="seasonActionBridge" class="lw-internal-action-bridge" hidden aria-hidden="true">
+        <button type="button" id="seasonTransferAction" data-season-action="transfer-review" tabindex="-1">راجع سوق الانتقالات</button>
+        <button type="button" id="seasonStageAction" data-season-action="season-block" tabindex="-1">العب الموسم لحد الشتاء</button>
       </div>
-      <div class="grid hub-home-grid">
-        <div class="hub-home-season-actions" aria-label="إجراءات الموسم">
-            <div class="hub-home-season-actions-head"><strong>خطوتك الجاية</strong><span>استعداد للمباريات وإدارة الموسم</span></div>
-            <div class="hub-home-season-actions-buttons">
-              <button type="button" class="btn ghost" id="seasonTransferAction" data-season-action="transfer-review">راجع سوق الانتقالات</button>
-              <button type="button" class="btn primary" id="seasonStageAction" data-season-action="season-block">العب الموسم لحد الشتاء</button>
-            </div>
-          </div>
-        <article class="card span5 hub-player-card">
-          <div class="cardHead"><div><h2>ملخص اللاعب</h2><div class="subline">نظرة سريعة على وضعك الحالي</div></div><span class="pill green" id="clubPill">مركز شباب النور</span></div>
-          <div class="big" id="playerName">يوسف حسن</div>
-          <div class="subline" id="playerMeta">17 سنة • جناح أيمن • مصر</div>
-          <div class="pills"><span class="pill" id="squadRole">بديل</span><span class="pill" id="injuryPill">سليم</span><span class="pill" id="contractPill">عقد 2 موسم</span></div>
-          <div class="hub-home-meters">
-            <div class="progressRow"><span>التقييم العام</span><div class="bar indigo"><i id="ovBar"></i></div><b id="ovVal">54</b></div>
-            <div class="progressRow"><span>الطاقة</span><div class="bar"><i id="energyBar"></i></div><b id="energyVal">80</b></div>
-            <div class="progressRow"><span>المعنويات</span><div class="bar gold"><i id="moraleBar"></i></div><b id="moraleVal">65</b></div>
-            <div class="progressRow"><span>ثقة الجهاز الفني</span><div class="bar indigo"><i id="trustBar"></i></div><b id="trustVal">25</b></div>
-          </div>
-          <div class="kpiGrid" style="margin-top:13px">
-            <div class="kpi"><div class="kpiNum" id="kpiMoney">450</div><div class="kpiLabel" id="kpiCurrency">ج.م</div></div>
-            <div class="kpi"><div class="kpiNum" id="kpiFollowers">120</div><div class="kpiLabel">متابع</div></div>
-            <div class="kpi"><div class="kpiNum" id="kpiApps">0</div><div class="kpiLabel">مباراة</div></div>
-          </div>
-          <div class="hub-readiness-hint" id="homeReadinessHint">جارٍ تقييم جاهزيتك لليوم…</div>
-          <button class="btn primary block" data-page="wellness" style="margin-top:10px">راجع الجاهزية والراحة ←</button>
-        </article>
-        <article class="card span5">
-          <div class="cardHead"><h2>حكاية اليوم</h2><span class="pill gold">قصة مستمرة</span></div>
-          <div class="storyBox"><div class="storyLabel" id="storyTitle">الفصل الأول: فرصة العمر</div><p class="storyText" id="storyText">النهارده أول يوم ليك في مركز شباب النور...</p></div>
-          <div class="pills"><span class="pill">الأهداف <b id="goalsVal">0</b></span><span class="pill">الأسيستات <b id="assistsVal">0</b></span><span class="pill">آخر تقييم <b id="ratingVal">—</b></span></div>
-          <div class="btnRow" style="margin-top:12px"><button class="btn block" data-page="diary">افتح مذكراتي ←</button></div>
-        </article>
         <article class="card span12 seasonJourneyCard">
           <div class="cardHead"><div><h2>مسار تقدم الموسم</h2><div class="subline">خمس محطات مترابطة — تقدمك وقراراتك بيتسجلوا في مسيرتك</div></div><span class="pill gold" id="seasonStageBadge">المحطة 1 من 5</span></div>
           <div class="seasonJourney" id="seasonJourney"></div>
           <div class="seasonJourneyFoot"><div><strong id="seasonStageTitle">المباريات والأداء</strong><p id="seasonStageDesc" class="muted small">العب مبارياتك وسجّل أهدافك وصناعاتك وارفع تقييمك.</p></div></div>
         </article>
-        <article class="card world-ai-home" id="worldAIHomePanel">
-          <div class="cardHead">
-            <div><h2>ذكاء عالم الكرة</h2><div class="subline">الأندية بتدور على احتياجاتها، واللاعبين بيتطوروا، والسوق بيتغير موسم ورا موسم.</div></div>
-            <span class="pill green" id="worldAIHomeStatus">جاري تجهيز العالم</span>
-          </div>
-          <div class="world-ai-pulse" id="worldAIHomePulse">بيتم تجهيز قاعدة اللاعبين والميزانيات وسجل الإحصائيات الديناميكي.</div>
-          <div class="kpiGrid">
-            <div class="kpi"><div class="kpiNum" id="worldAIHomeMoves">0</div><div class="kpiLabel">انتقالات آخر نافذة</div></div>
-            <div class="kpi"><div class="kpiNum" id="worldAIHomeTeams">0</div><div class="kpiLabel">نادي في عالم المحاكاة</div></div>
-            <div class="kpi"><div class="kpiNum" id="worldAIHomePlayers">0</div><div class="kpiLabel">لاعب في قاعدة العالم</div></div>
-          </div>
-          <div class="world-ai-home-cta"><button type="button" class="btn primary" data-page="europe">افتح انتقالات وإحصائيات عالم الكرة ←</button></div>
-        </article>
+
       </div>
     </section>
 
@@ -6125,13 +6067,6 @@ function renderWorldAIDashboard(){
  const db=window.LWWorldDB,view=window.LWWorldAI.dashboard(state,db);
  lastWorldDashboardRenderWorld=state.worldSimulation||null;
  lastWorldDashboardRenderSignature=worldDashboardRenderSignature(lastWorldDashboardRenderWorld);
- setText("worldAIHomeStatus","الموسم "+view.season+" • عالم متغير");
- setText("worldAIHomePulse",view.lastMarket.season
-  ?("آخر نافذة انتقالات: "+view.lastMarket.moves+" صفقة في الموسم "+view.lastMarket.season+". "+view.lastMarket.summary)
-  :"الأندية واللاعبون جاهزون للمحاكاة. صفقات AI هتظهر عند الانتقال للموسم التالي.");
- setText("worldAIHomeMoves",view.lastMarket.moves||0);
- setText("worldAIHomeTeams",view.clubCount);
- setText("worldAIHomePlayers",view.playerCount);
  setText("worldAISeasonTag","الموسم "+view.season+" • "+view.progress+"% من جدولك");
  setText("worldAIOverallSummary","العالم الحالي يضم "+view.clubCount+" ناديًا و"+view.playerCount+" لاعبًا. مستوى الأندية والانتقالات والتطور والإحصائيات بيتغيروا مع نهاية كل موسم، ومفيش صفقات بتتكرر مرتين لنفس الحفظ.");
  setText("worldAIMarketMoves",view.lastMarket.moves||0);
@@ -6416,17 +6351,10 @@ function render(){
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
  setText("heroDescription",`كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك مع ${club().name}، واكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.`);
  setText("headDay",state.day);setText("headMoney",Number(state.money||0).toLocaleString("en-US"));setText("headCurrency",currencyLabel());setText("headEnergy",state.energy);
- setText("playerName",state.name);setText("playerMeta",`${state.age} سنة • ${displayPositionLabel(state.pos)} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
- setText("injuryPill",state.injuryDays>0?`مصاب: ${state.injuryDays} يوم`:"سليم");$("injuryPill").className="pill "+(state.injuryDays>0?"red":"green");
- setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":"عقد "+state.contractSeasons+" موسم");
- [["ovBar",ov],["energyBar",state.energy],["moraleBar",state.morale],["trustBar",state.trust]].forEach(([id,v])=>setBar(id,v));
- setText("ovVal",ov);setText("energyVal",state.energy);setText("moraleVal",state.morale);setText("trustVal",state.trust);
- setText("kpiMoney",Number(state.money||0).toLocaleString("en-US"));setText("kpiCurrency",currencyLabel());setText("storeCurrency",currencyLabel());setText("kpiFollowers",state.followers);setText("kpiApps",state.apps);
+ setText("storeCurrency",currencyLabel());
  SKILLS.forEach(k=>{setBar("skill-"+k,state[k]);setText("val-"+k,state[k]);});
  const levelThreshold=100+Math.min(80,((Number(state.careerLevel)||1)-1)*8);setBar("careerXPBar",(Number(state.levelXP)||0)/levelThreshold*100);setText("careerLevelBadge","المستوى "+(state.careerLevel||1));setText("careerLevelValue",state.careerLevel||1);setText("careerProgressText",`خبرة المستوى ${state.levelXP||0}/${levelThreshold} • إجمالي خبرة ${state.careerXP||0} • إمكانات ${state.playerPotential||82} • حصص ${state.trainingSessions||0}`);
  setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
- setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
- setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
 
  // Rendering every hidden page on every training/rest/match made ordinary clicks pay
  // for league-wide rankings, transfer-market cards and all catalogue HTML at once.

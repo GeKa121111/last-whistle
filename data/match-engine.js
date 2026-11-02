@@ -208,6 +208,7 @@
     const extraTimeEventRandom = seededRandom(extraTimeEventSeed);
     const player = options.player && typeof options.player === "object" ? options.player : {};
     const profile = positionProfile(String(player.position || player.pos || ""));
+    const fallbackTeamGoalkeeping = clamp(options.teamGoalkeeping ?? 55, 25, 95);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
     const tactic = ["balanced", "attack", "defend", "counter"].includes(options.tactic) ? options.tactic : "balanced";
@@ -338,7 +339,10 @@
             + (Number(profile.finishingBonus) || 0)
             + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
           const teamShotChance = clamp(0.21 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
-          const opponentShotChance = clamp(0.21 - relativeGap * 0.0018 - clamp(options.teamGoalkeeping ?? 55, 25, 95) * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
+          const goalkeeperRating = profile.goalkeeper && minute >= playerStartMinute && minute <= playerEndMinute
+            ? clamp(player.goalkeeping ?? fallbackTeamGoalkeeping, 25, 95)
+            : fallbackTeamGoalkeeping;
+          const opponentShotChance = clamp(0.21 - relativeGap * 0.0018 - goalkeeperRating * 0.00055 + (opponentTactic === "wide" ? 0.018 * tacticalScale : opponentTactic === "counter" && tactic === "attack" ? 0.022 * tacticalScale : 0), 0.07, 0.38);
           const isGoal = random() < (byPlayer ? playerShotChance : isOurs ? teamShotChance : opponentShotChance);
           const shotEvent = events[events.length - 1];
           shotEvent.shooter = byPlayer ? "player" : isOurs ? "teammate" : "opponent";
@@ -479,9 +483,9 @@
         const skill = clamp(player.composure, 25, 95);
         const playerKeeperActive = Boolean(profile.goalkeeper && playerEndMinute >= 120 && !redCard && !injured);
         const opponentKeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
-        const teamKeeper = clamp(playerKeeperActive
-          ? (player.goalkeeping ?? options.teamGoalkeeping ?? 55)
-          : (options.teamGoalkeeping ?? 55), 25, 95);
+        const teamKeeper = playerKeeperActive
+          ? clamp(player.goalkeeping ?? fallbackTeamGoalkeeping, 25, 95)
+          : fallbackTeamGoalkeeping;
         const teamKickChance = clamp(0.76 + (teamPower - opponentPower) * 0.0012
           + (skill - 50) * 0.0007 - (opponentKeeper - 55) * 0.0009, 0.62, 0.88);
         const opponentSaveChance = clamp(0.10 + (teamKeeper - 55) * 0.0025, 0.04, 0.22);

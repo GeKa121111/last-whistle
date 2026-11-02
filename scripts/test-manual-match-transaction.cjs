@@ -37,7 +37,7 @@ function extractFunction(source, name) {
 const functionNames = [
   "cloneSeasonTransitionState", "restoreSeasonTransitionState",
   "applyLeagueResult", "updateLeague", "simulateOtherFixtures",
-  "recordLeagueRound", "recordLeagueByeRound", "withManualLeagueTransaction",
+  "recordLeagueRound", "recordLeagueByeRound", "persistRollbackSnapshot", "withManualLeagueTransaction",
   "processManualLeagueBye", "commitManualLeagueMatch", "match"
 ];
 const transactionSource = functionNames.map(name => extractFunction(html, name)).join("\n");
@@ -116,6 +116,7 @@ function makeHarness(options = {}) {
     setStory: (title, body) => { state.storyTitle = title; state.storyText = body; },
     currencyLabel: () => "£",
     saveGame: () => { events.saves++; },
+    flushQueuedSave: () => Promise.resolve(true),
     render: () => { events.renders++; },
     openModal: () => { events.modals++; },
     toast: message => { events.toasts.push(String(message)); },

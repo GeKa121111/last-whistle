@@ -52,6 +52,7 @@ const fillRosterMarker = "  function fillRoster(world, club) {";
 const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
 const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
+const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
@@ -63,6 +64,7 @@ assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the ros
 assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain projected season lines for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(matchSeasonMarker), "AI engine must retain the match-based season simulator for division-status regression coverage");
+assert.ok(aiSourceRaw.includes(competitionHistoryMarker), "AI engine must retain four seasons of continental qualification history");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
@@ -82,6 +84,7 @@ const aiSource = aiSourceRaw
   .replace(baseSeasonLinesMarker, "  global.__lwTestBaseGetSeasonLines = getSeasonLines;\n" + baseSeasonLinesMarker)
   .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
   .replace(matchSeasonMarker, "  global.__lwTestSimulateLeagueSeason = simulateLeagueSeason;\n" + matchSeasonMarker)
+  .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
   .replace(projectionCacheMarker, projectionCacheMarker)
   .replace("    if (!cached.rows.has(targetSeason)) {", "    if (!cached.rows.has(targetSeason)) {\n      global.__lwSeasonProjectionBuilds = (global.__lwSeasonProjectionBuilds || 0) + 1;");
@@ -2327,6 +2330,122 @@ assert.ok(!qualifiedTournament.participants.includes("qualification-foreign"),
   "a club from another confederation or league must not enter this qualification pool");
 assert.equal(Object.keys(qualificationWorld.players).length, 0,
   "continental qualification must not fabricate player records");
+ 
+// The 32-team world club tournament is a four-season qualification cycle.
+// Champions and runners-up of the top-tier continental championships qualify first;
+// remaining places come from recorded performance in those same competitions.
+const worldCupCompetitionDefs = [
+  { id: "ucl", confederation: "UEFA" },
+  { id: "caf-cl", confederation: "CAF" },
+  { id: "libertadores", confederation: "CONMEBOL" }
+];
+const worldCupClubs = {};
+const worldCupHistory = {};
+const worldCupChampions = [];
+const worldCupRunnerUps = [];
+const worldCupSemifinalists = [];
+for (let historySeason = 1; historySeason <= 4; historySeason++) {
+  const seasonCompetitions = [];
+  worldCupCompetitionDefs.forEach(def => {
+    const championId = "world-cup-" + historySeason + "-" + def.id + "-champion";
+    const runnerUpId = "world-cup-" + historySeason + "-" + def.id + "-runner-up";
+    const semifinalistId = "world-cup-" + historySeason + "-" + def.id + "-semi";
+    [championId, runnerUpId, semifinalistId].forEach((id, index) => {
+      worldCupClubs[id] = {
+        id, name: id, leagueId: "world-cup-league-" + def.confederation,
+        confederation: def.confederation, division: 1,
+        power: index === 0 ? 90 : index === 1 ? 80 : 70, roster: []
+      };
+    });
+    worldCupChampions.push(championId);
+    worldCupRunnerUps.push(runnerUpId);
+    worldCupSemifinalists.push(semifinalistId);
+    seasonCompetitions.push({
+      id: def.id, kind: "continental", confederation: def.confederation,
+      participants: [championId, runnerUpId, semifinalistId],
+      championId, runnerUpId,
+      matches: [
+        { round: 4, homeClubId: championId, awayClubId: runnerUpId, winnerId: championId },
+        { round: 3, homeClubId: semifinalistId, awayClubId: runnerUpId, winnerId: runnerUpId }
+      ]
+    });
+  });
+  worldCupHistory[String(historySeason)] = seasonCompetitions;
+}
+const worldCupOutsiderId = "world-cup-high-power-outsider";
+worldCupClubs[worldCupOutsiderId] = {
+  id: worldCupOutsiderId, name: "Unqualified High Power Club",
+  leagueId: "world-cup-outsider-league", confederation: "UEFA",
+  division: 1, power: 9999, roster: []
+};
+const worldCupForeignId = "world-cup-cross-confederation-record";
+worldCupClubs[worldCupForeignId] = {
+  id: worldCupForeignId, name: "Cross Confederation Club",
+  leagueId: "world-cup-foreign-league", confederation: "CAF",
+  division: 1, power: 9998, roster: []
+};
+const worldCupSecondaryId = "world-cup-secondary-cup-winner";
+worldCupClubs[worldCupSecondaryId] = {
+  id: worldCupSecondaryId, name: "Secondary Continental Cup Winner",
+  leagueId: "world-cup-secondary-league", confederation: "UEFA",
+  division: 1, power: 9997, roster: []
+};
+worldCupHistory["1"][0].participants.push(worldCupForeignId);
+worldCupHistory["1"].push({
+  id: "uel", kind: "continental", confederation: "UEFA",
+  participants: [worldCupSecondaryId], championId: worldCupSecondaryId,
+  runnerUpId: "", matches: []
+});
+const worldCupWorld = {
+  clubs: worldCupClubs, players: {}, competitionsBySeason: worldCupHistory
+};
+const worldCupDb = {
+  simulationCupDefinitions: () => [{
+    id: "fifa-club-world-cup", name: "FIFA Club World Cup",
+    kind: "world", confederation: "FIFA", system: "world32"
+  }]
+};
+const worldCupResults = sandbox.window.__lwTestSimulateCompetitions(worldCupWorld, 5, worldCupDb, {});
+const worldCup = worldCupResults.find(row => row.id === "fifa-club-world-cup");
+assert.ok(worldCup, "the world club tournament must run when a complete four-season qualification field exists");
+assert.equal(worldCup.participants.length, 32, "the world club tournament must contain exactly 32 qualified clubs");
+assert.equal(worldCup.matches.length, 31, "a 32-team knockout tournament must contain 31 matches");
+assert.ok(worldCupChampions.every(id => worldCup.participants.includes(id)),
+  "all recorded top-tier continental champions must receive priority qualification");
+assert.ok(worldCupRunnerUps.every(id => worldCup.participants.includes(id)),
+  "all recorded top-tier continental runners-up must qualify before ranking places");
+assert.equal(worldCup.participants.filter(id => worldCupSemifinalists.includes(id)).length, 8,
+  "the remaining eight places must use performance in top-tier continental competitions");
+assert.ok(!worldCup.participants.includes(worldCupOutsiderId),
+  "a powerful club without continental qualification results must not enter the world tournament");
+assert.ok(!worldCup.participants.includes(worldCupForeignId),
+  "a club recorded under another confederation must not inherit a continental qualification place");
+assert.ok(!worldCup.participants.includes(worldCupSecondaryId),
+  "a secondary continental cup winner must not be treated as a top-tier world-cup qualifier");
+assert.equal(Object.keys(worldCupWorld.players).length, 0,
+  "world tournament qualification must not create synthetic player records");
+assert.equal(sandbox.window.__lwTestSimulateCompetitions(worldCupWorld, 6, worldCupDb, {}).length, 0,
+  "the 32-team world club tournament must not be simulated every season");
+const incompleteWorldCupHistory = { ...worldCupWorld, competitionsBySeason: { ...worldCupHistory } };
+delete incompleteWorldCupHistory.competitionsBySeason["1"];
+assert.equal(sandbox.window.__lwTestSimulateCompetitions(incompleteWorldCupHistory, 5, worldCupDb, {}).length, 0,
+  "a missing season in the four-year qualification window must block the tournament rather than invent entrants");
+const limitedWorldCupClubs = {};
+worldCupChampions.forEach(id => { limitedWorldCupClubs[id] = worldCupClubs[id]; });
+worldCupRunnerUps.forEach(id => { limitedWorldCupClubs[id] = worldCupClubs[id]; });
+worldCupSemifinalists.slice(0, 7).forEach(id => { limitedWorldCupClubs[id] = worldCupClubs[id]; });
+const undersizedWorldCup = {
+  clubs: limitedWorldCupClubs, competitionsBySeason: worldCupHistory
+};
+assert.equal(sandbox.window.__lwTestSimulateCompetitions(undersizedWorldCup, 5, worldCupDb, {}).length, 0,
+  "the world tournament must not start with fewer than 32 real qualified clubs");
+const retentionFixture = {
+  competitionsBySeason: { "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] }
+};
+sandbox.window.__lwTestRetainCompetitionHistory(retentionFixture, 4);
+assert.deepEqual(Object.keys(retentionFixture.competitionsBySeason).sort(), ["3", "4", "5", "6"],
+  "the world save must retain exactly the latest four completed competition seasons");
+
 
 // On the first simulated season only, use the just-completed table as the bootstrap source.
 const bootstrapWorld = {

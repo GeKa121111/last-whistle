@@ -6,6 +6,11 @@
   "use strict";
   const VERSION = 1;
   const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 4;
+  const WORLD_CLUB_CUP_CYCLE_YEARS = 4;
+  const WORLD_CLUB_CUP_TEAM_COUNT = 32;
+  const WORLD_CLUB_CUP_COMPETITION_WEIGHTS = Object.freeze({
+    ucl: 7, libertadores: 7, "caf-cl": 6
+  });
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -1915,8 +1920,99 @@
     const tableKeep = Object.keys(world.leagueTables).map(Number).sort((a,b)=>a-b).slice(-20);
     const tableKeepSet = new Set(tableKeep.map(String));
     Object.keys(world.leagueTables).forEach(key => { if (!tableKeepSet.has(key)) delete world.leagueTables[key]; });
-    Object.keys(world.competitionsBySeason).forEach(key => { if (!seasonKeepSet.has(key)) delete world.competitionsBySeason[key]; });
+    // The four-year world club qualification cycle needs a compact history of
+    // completed top-tier continental competitions, independent of player-season stats.
+    retainCompetitionHistory(world, WORLD_CLUB_CUP_CYCLE_YEARS);
     return { season: year, rows, tables, matches: allMatches, competitions: world.competitionsBySeason[String(year)] };
+  }
+  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {
+    if (!world || typeof world !== "object") return;
+    if (!world.competitionsBySeason || typeof world.competitionsBySeason !== "object"
+      || Array.isArray(world.competitionsBySeason)) world.competitionsBySeason = {};
+    const keepCount = Math.max(1, Math.floor(Number(limit) || WORLD_CLUB_CUP_CYCLE_YEARS));
+    const keep = Object.keys(world.competitionsBySeason).map(key => ({ key, season: Number(key) }))
+      .filter(entry => Number.isSafeInteger(entry.season) && entry.season > 0)
+      .sort((a, b) => a.season - b.season)
+      .slice(-keepCount);
+    const keepKeys = new Set(keep.map(entry => entry.key));
+    Object.keys(world.competitionsBySeason).forEach(key => {
+      if (!keepKeys.has(key)) delete world.competitionsBySeason[key];
+    });
+  }
+  function worldClubCupParticipants(world, season, def) {
+    const currentSeason = Math.max(1, Math.floor(Number(season) || 1));
+    const cycleYears = WORLD_CLUB_CUP_CYCLE_YEARS;
+    if (!def || String(def.system || "") !== "world32" || currentSeason <= cycleYears
+      || (currentSeason - 1) % cycleYears !== 0) return [];
+    const clubs = world && world.clubs && typeof world.clubs === "object" ? world.clubs : {};
+    const history = world && world.competitionsBySeason && typeof world.competitionsBySeason === "object"
+      ? world.competitionsBySeason : {};
+    const candidates = new Map();
+    const firstSeason = currentSeason - cycleYears;
+    for (let historySeason = firstSeason; historySeason < currentSeason; historySeason++) {
+      const competitions = history[String(historySeason)];
+      // A missing season is not a blank season: it means the save cannot prove a
+      // complete qualification cycle, so do not invent replacement entrants.
+      if (!Array.isArray(competitions)) return [];
+      competitions.forEach(competition => {
+        if (!competition || competition.kind !== "continental") return;
+        const weight = WORLD_CLUB_CUP_COMPETITION_WEIGHTS[String(competition.id || "")];
+        // Only top-tier continental championships award world-cup qualification.
+        // Secondary cups are not treated as equivalent to the Champions League.
+        if (!weight) return;
+        const confederation = String(competition.confederation || "").trim();
+        if (!confederation) return;
+        const participantIds = Array.from(new Set((Array.isArray(competition.participants)
+          ? competition.participants : []).map(id => String(id || "").trim()).filter(Boolean)));
+        if (!participantIds.length) return;
+        const participantSet = new Set(participantIds);
+        const matchStats = new Map();
+        const recordAppearance = (clubId, round, won) => {
+          const stat = matchStats.get(clubId) || { wins: 0, matches: 0, highestRound: 0 };
+          stat.matches++;
+          stat.highestRound = Math.max(stat.highestRound, round);
+          if (won) stat.wins++;
+          matchStats.set(clubId, stat);
+        };
+        (Array.isArray(competition.matches) ? competition.matches : []).forEach(match => {
+          if (!match) return;
+          const homeId = String(match.homeClubId || "");
+          const awayId = String(match.awayClubId || "");
+          if (!homeId || !awayId || homeId === awayId) return;
+          const round = Math.max(0, Math.floor(Number(match.round) || 0));
+          const winnerId = String(match.winnerId || "");
+          if (participantSet.has(homeId)) recordAppearance(homeId, round, winnerId === homeId);
+          if (participantSet.has(awayId)) recordAppearance(awayId, round, winnerId === awayId);
+        });
+        participantIds.forEach(clubId => {
+          const club = clubs[clubId];
+          const division = Number(club && club.division);
+          if (!club || !club.leagueId || !Number.isFinite(division) || division < 1
+            || String(club.confederation || "") !== confederation) return;
+          let entry = candidates.get(clubId);
+          if (!entry) {
+            entry = { club, champions: 0, runnersUp: 0, points: 0, latestSeason: 0 };
+            candidates.set(clubId, entry);
+          }
+          if (String(competition.championId || "") === clubId) entry.champions++;
+          if (String(competition.runnerUpId || "") === clubId) entry.runnersUp++;
+          const stat = matchStats.get(clubId) || { wins: 0, matches: 0, highestRound: 0 };
+          entry.points += weight * 100 + stat.highestRound * 20 + stat.wins * 5
+            + stat.matches + (historySeason - firstSeason);
+          entry.latestSeason = Math.max(entry.latestSeason, historySeason);
+        });
+      });
+    }
+    const selected = Array.from(candidates.values()).sort((a, b) =>
+      b.champions - a.champions
+      || b.runnersUp - a.runnersUp
+      || b.points - a.points
+      || b.latestSeason - a.latestSeason
+      || String(a.club.id).localeCompare(String(b.club.id)))
+      .slice(0, WORLD_CLUB_CUP_TEAM_COUNT);
+    // A 32-team field must be earned through recorded top-tier continental results.
+    // Never fall back to global squad power, static example names, or generated clubs.
+    return selected.length === WORLD_CLUB_CUP_TEAM_COUNT ? selected.map(entry => entry.club) : [];
   }
   function knockout(world, season, def, participants) {
     let teams = participants.slice();
@@ -2040,8 +2136,7 @@
           || String(a.club.id).localeCompare(String(b.club.id)));
         participants = candidates.slice(0, 12).map(entry => entry.club);
       } else if (def.kind === "world") {
-        participants = clubs.filter(club => Number(club.division) === 1)
-          .sort((a, b) => Number(b.power || 50) - Number(a.power || 50)).slice(0, 16);
+        participants = worldClubCupParticipants(world, season, def);
       } else if (def.kind === "supercup" && season > 1) {
         const previous = Array.isArray(world.competitionsBySeason[String(season - 1)])
           ? world.competitionsBySeason[String(season - 1)] : [];

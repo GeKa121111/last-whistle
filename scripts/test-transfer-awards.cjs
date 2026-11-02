@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 7);
+assert.equal(engine.version, 8);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -151,6 +151,12 @@ const sameStrikerRotation = engine.simulatePlayerSeason({ ...sameForward, positi
 const sameStrikerCoreSub = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "بديل أساسي" }, 5, 1);
 const sameStrikerStar = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "نجم الفريق" }, 5, 1);
 const sameStrikerProspect = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "ناشئ" }, 5, 1);
+const sameStrikerCoreSubEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "core substitute" }, 5, 1);
+const sameStrikerStarterEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "regularstarter" }, 5, 1);
+const sameStrikerStarEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "star player" }, 5, 1);
+const sameStrikerRotationEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "squad player" }, 5, 1);
+const sameStrikerProspectEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "youngster" }, 5, 1);
+const sameStrikerSubEnglish = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "impact sub" }, 5, 1);
 assert.equal(sameStrikerStarter.minutes, sameStrikerStarter.appearances * 83,
   "starter projections must use the same 83-minute participation baseline as match simulation");
 assert.equal(sameStrikerCoreSub.minutes, sameStrikerCoreSub.appearances * 66,
@@ -161,6 +167,18 @@ assert.equal(sameStrikerRotation.minutes, sameStrikerRotation.appearances * 43,
   "rotation projections must use the same 43-minute baseline as match simulation");
 assert.equal(sameStrikerProspect.minutes, sameStrikerProspect.appearances * 20,
   "prospect projections must use the same 20-minute baseline as match simulation");
+assert.equal(sameStrikerCoreSubEnglish.minutes, sameStrikerCoreSubEnglish.appearances * 66,
+  "English core-substitute aliases must keep the same 66-minute match baseline");
+assert.equal(sameStrikerStarterEnglish.minutes, sameStrikerStarterEnglish.appearances * 83,
+  "English regular-starter aliases must keep the same 83-minute match baseline");
+assert.equal(sameStrikerStarEnglish.minutes, sameStrikerStarEnglish.appearances * 88,
+  "English star-player aliases must keep the same 88-minute match baseline");
+assert.equal(sameStrikerRotationEnglish.minutes, sameStrikerRotationEnglish.appearances * 43,
+  "English squad-player aliases must keep the same 43-minute match baseline");
+assert.equal(sameStrikerProspectEnglish.minutes, sameStrikerProspectEnglish.appearances * 20,
+  "English youngster aliases must keep the same 20-minute match baseline");
+assert.equal(sameStrikerSubEnglish.minutes, sameStrikerSubEnglish.appearances * 28,
+  "English impact-sub aliases must keep the same 28-minute match baseline");
 assert.equal(sameStrikerSubstitute.minutes, sameStrikerSubstitute.appearances * 28,
   "substitute projections must use the same 28-minute baseline as match simulation");
 assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);

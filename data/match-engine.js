@@ -81,8 +81,9 @@
       .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
   }
-  function squadRoleType(value) {
-    const role = normalizeSquadRole(value || "بديل");
+  function squadRoleType(value, fallbackToSubstitute = true) {
+    const role = normalizeSquadRole(value);
+    if (!role) return fallbackToSubstitute ? "substitute" : null;
     // Keep the historical core-substitute label as a short-starting rotation role.
     if ((role.includes("بديل") && role.includes("اساسي")) || role === "coresubstitute") return "legacy-rotation-starter";
     if (role.includes("نجمالفريق") || role.includes("starplayer")) return "star";
@@ -91,6 +92,14 @@
     if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")
       || role.includes("فريقالرديف") || role.includes("لاعبتحتالتقييم") || role.includes("reserve") || role.includes("academy")) return "prospect";
     if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return "substitute";
+    return fallbackToSubstitute ? "substitute" : null;
+  }
+  function playerSquadRoleType(player) {
+    const candidates = [player && player.role, player && player.squadRole, player && player.playingTime];
+    for (const candidate of candidates) {
+      const type = squadRoleType(candidate, false);
+      if (type) return type;
+    }
     return "substitute";
   }
   function selectedMinutes(player, available, random, roleType, startsOnBench) {
@@ -225,7 +234,7 @@
     const homeAdvantage = options.home ? 3 : 0;
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
-    const playerRoleType = squadRoleType(player.role || player.squadRole || player.playingTime);
+    const playerRoleType = playerSquadRoleType(player);
     // A rotation contract is mostly a bench role, but the player also earns occasional starts.
     const playerStartsOnBench = playerRoleType === "rotation"
       ? (!unavailable && random() < 0.68)

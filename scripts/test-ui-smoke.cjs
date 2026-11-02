@@ -132,6 +132,17 @@ if (!redesign.includes("body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel
 }
 
 
+const leagueRulesCardStart = html.indexOf('<details class="card span12 match-rules-card">');
+const leagueRulesCardEnd = html.indexOf("</details></div></details>", leagueRulesCardStart);
+if (leagueRulesCardStart < 0 || leagueRulesCardEnd < leagueRulesCardStart
+  || !html.slice(leagueRulesCardStart, leagueRulesCardEnd).includes("<summary")
+  || !html.slice(leagueRulesCardStart, leagueRulesCardEnd).includes("ruleLinks")
+  || !html.slice(leagueRulesCardStart, leagueRulesCardEnd).includes("عرض ملخص القوانين السبعة عشر")
+  || !fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8").includes("match-rules-card[open]")) {
+  console.error("Match laws must stay in a single accessible, collapsible reference card on the competition page.");
+  process.exit(1);
+}
+
 if (!redesign.includes("body.lw-rebuild #page-contract .transfer-card-actions .btn")
   || !redesign.includes("min-height:46px")
   || !redesign.includes("flex-basis:100%")) {

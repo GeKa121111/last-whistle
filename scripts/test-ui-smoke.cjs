@@ -539,7 +539,7 @@ const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css")
 const organizationSource = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");
 if (!redesignSource.includes("body.lw-rebuild #seasonActionBridge{display:none!important}")
   || !organizationSource.includes("body.lw-rebuild .lw-readiness-brief")
-  || !html.includes('id="seasonActionBridge" hidden')
+  || !/<div id="seasonActionBridge"[^>]*\shidden(?:\s|>)/.test(html)
   || !html.includes('id="seasonJourney"')
   || !html.includes('id="worldAISimulationDashboard"')
   || html.includes('id="worldAIHomePanel"')

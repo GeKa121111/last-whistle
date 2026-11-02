@@ -35,7 +35,9 @@ function extractNamedFunctionForAdapterTest(source, name) {
   const marker = "function " + name + "(";
   const start = source.indexOf(marker);
   assert.ok(start >= 0, "missing adapter function: " + name);
-  const brace = source.indexOf("{", start);
+  const signatureEnd = source.indexOf("){", start);
+  assert.ok(signatureEnd >= 0, "function signature must end before its body: " + name);
+  const brace = signatureEnd + 1;
   let depth = 0, quote = null, escaped = false, lineComment = false, blockComment = false;
   for (let i = brace; i < source.length; i++) {
     const c = source[i], n = source[i + 1];

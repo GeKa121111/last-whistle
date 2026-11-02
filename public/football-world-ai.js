@@ -1360,7 +1360,8 @@
     const club = world.clubs[clubKey(name, country)] || Object.values(world.clubs).find(item => normalize(item.name) === normalize(name));
     if (!club) return null;
     const goalkeepers = rosterPlayers(world, club)
-      .filter(player => (player.group || groupForPosition(player.position)) === "goalkeeper")
+      .filter(player => (String(player.position || "").trim()
+        ? groupForPosition(player.position) : player.group) === "goalkeeper")
       .map(player => clamp(Number(player.goalkeeping) || Number(player.ovr) || 55, 35, 99))
       .sort((a, b) => b - a);
     const starter = goalkeepers.length ? goalkeepers[0] : null;
@@ -2760,7 +2761,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=60");
+    const worker = new global.Worker("./football-world-worker.js?v=61");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

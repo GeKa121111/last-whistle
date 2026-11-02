@@ -135,6 +135,21 @@ if (!redesign.includes("body.lw-rebuild #page-stats .hub-stats-summary .kpiLabel
 const leagueRulesCardStart = html.indexOf('<details class="card span12 match-rules-card">');
 const leagueRulesCardEnd = html.indexOf("</details></div></details>", leagueRulesCardStart);
 const organizationUi = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");
+const contractCardStart = html.indexOf('<article class="card span6"><div class="cardHead"><h2>📄 عقدك الحالي</h2>');
+const contractCardEnd = html.indexOf("</article>", contractCardStart);
+const contractCardMarkup = contractCardStart >= 0 && contractCardEnd > contractCardStart
+  ? html.slice(contractCardStart, contractCardEnd)
+  : "";
+if (!contractCardMarkup.includes('class="kpiGrid contract-kpi-grid"')
+  || contractCardMarkup.includes('id="contractTrust"')
+  || contractCardMarkup.includes("ثقة المدرب")
+  || html.includes('setText("contractTrust"')
+  || !html.includes('id="trustVal"')
+  || !html.includes('id="wellnessTrustValue"')
+  || !organizationUi.includes("body.lw-rebuild #page-contract .contract-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}")) {
+  console.error("Contract overview must avoid repeating coaching trust while preserving its home and readiness summaries.");
+  process.exit(1);
+}
 if (leagueRulesCardStart < 0 || leagueRulesCardEnd < leagueRulesCardStart
   || !html.slice(leagueRulesCardStart, leagueRulesCardEnd).includes("<summary")
   || !html.slice(leagueRulesCardStart, leagueRulesCardEnd).includes("ruleLinks")

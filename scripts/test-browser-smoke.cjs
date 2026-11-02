@@ -1322,7 +1322,7 @@ async function main() {
             return style.display !== "none" && style.visibility !== "hidden";
           });
           return {
-            columns: gridStyle.display === "grid" ? gridStyle.gridTemplateColumns.trim().split(/\\s+/).filter(Boolean).length : 0,
+            columns: gridStyle.display === "grid" ? gridStyle.gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
             gridWidth: Math.round(gridRect.width),
             childWidths: directChildren.map(child => Math.round(child.getBoundingClientRect().width))
           };
@@ -1507,8 +1507,13 @@ async function main() {
       const count = document.querySelector("#transferMarketCount");
       const list = document.querySelector("#transferMarket");
       const kpiLabel = document.querySelector("#page-contract .kpiLabel");
+      const contractKpis = document.querySelector("#page-contract .contract-kpi-grid");
       return {
         type: search?.type,
+        contractKpiCount: contractKpis?.children.length ?? 0,
+        contractKpiColumns: contractKpis ? getComputedStyle(contractKpis).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
+        contractTrustVisible: !!document.querySelector("#page-contract #contractTrust"),
+        readinessTrustVisible: !!document.querySelector("#page-wellness #wellnessTrustValue"),
         label: search?.getAttribute("aria-label"),
         controls: search?.getAttribute("aria-controls"),
         description: search?.getAttribute("aria-describedby"),
@@ -1534,7 +1539,11 @@ async function main() {
     assert.equal(contractMarketAccess.resultsLabel, "نتائج سوق الأندية", "the results region must have an accessible name");
     assert.equal(contractMarketAccess.searchFits, true, "the contract search field must fit the mobile viewport");
     assert.equal(contractMarketAccess.kpiLabelSize, "11px", "contract KPI labels must be readable on mobile");
-    results.push("contract market search accessibility, live result count, and readable KPI labels");
+    assert.equal(contractMarketAccess.contractKpiCount, 2, "the contract summary must show only wage and remaining seasons");
+    assert.equal(contractMarketAccess.contractKpiColumns, 2, "the reduced contract metrics must use both available columns");
+    assert.equal(contractMarketAccess.contractTrustVisible, false, "coaching trust must not be repeated in the contract card");
+    assert.equal(contractMarketAccess.readinessTrustVisible, true, "the full coaching-trust detail must remain on the readiness page");
+    results.push("contract market accessibility and non-duplicated contract metrics");
 
     // Secondary labels on the statistics, competition, and contract pages share one readable scale.
     await page.evaluate(() => window.LWStoryRuntime.showPage("stats"));

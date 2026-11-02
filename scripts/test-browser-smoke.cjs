@@ -1557,6 +1557,61 @@ async function main() {
     assert.equal(statsTypography.kpi, "11px", "statistics KPI labels must use the readable secondary type scale");
     assert.equal(statsTypography.copy, "11px", "statistics explanatory copy must remain readable on mobile");
     assert.equal(statsTypography.seasonAppsLabel, "مشاركات الموسم", "statistics must label all-competition season appearances clearly");
+    const statsDataProbe = await page.evaluate(() => {
+      const runtime = window.LWStoryRuntime;
+      const state = runtime.getState();
+      const original = {
+        season: state.season, apps: state.apps, goals: state.goals, assists: state.assists,
+        careerMatchHistory: state.careerMatchHistory, seasonLog: state.seasonLog
+      };
+      const season = Math.max(2, Number(state.season) || 1);
+      const records = [
+        { id: "browser-stats-league-current", season, scope: "league", minutes: 90, goals: 2, assists: 1, rating: 7.1 },
+        { id: "browser-stats-cup-current", season, scope: "cup", minutes: 30, goals: 1, assists: 0, rating: 7.0 },
+        { id: "browser-stats-league-previous", season: season - 1, scope: "league", minutes: 60, goals: 8, assists: 4, rating: 6.8 },
+        { id: "browser-stats-international", season, scope: "international", minutes: 90, goals: 7, assists: 2, rating: 8.0 }
+      ];
+      state.season = season;
+      state.apps = 3;
+      state.goals = 11;
+      state.assists = 5;
+      state.seasonLog = [];
+      state.careerMatchHistory = records;
+      runtime.showPage("stats");
+      runtime.render();
+      const read = id => document.querySelector("#" + id)?.textContent.trim() || null;
+      const complete = {
+        careerApps: read("statsCareerApps"), careerGoals: read("statsCareerGoals"),
+        careerAssists: read("statsCareerAssists"), seasonApps: read("statsSeasonApps"),
+        seasonGoals: read("statsSeasonGoals"), seasonAssists: read("statsSeasonAssists"),
+        goalsPer90: read("statsGoalsPer90"), assistsPer90: read("statsAssistsPer90"),
+        minutesPerAppearance: read("statsMinutesPerAppearance")
+      };
+      state.careerMatchHistory = [records[0]];
+      runtime.render();
+      const incomplete = {
+        goalsPer90: read("statsGoalsPer90"), assistsPer90: read("statsAssistsPer90"),
+        minutesPerAppearance: read("statsMinutesPerAppearance")
+      };
+      state.season = original.season;
+      state.apps = original.apps;
+      state.goals = original.goals;
+      state.assists = original.assists;
+      state.careerMatchHistory = original.careerMatchHistory;
+      state.seasonLog = original.seasonLog;
+      runtime.render();
+      return { complete, incomplete };
+    });
+    assert.deepEqual(statsDataProbe.complete, {
+      careerApps: "3", careerGoals: "11", careerAssists: "5",
+      seasonApps: "2", seasonGoals: "3", seasonAssists: "1",
+      goalsPer90: "5.50", assistsPer90: "2.50", minutesPerAppearance: "60"
+    }, "the stats dashboard must aggregate current league and cup appearances while excluding internationals");
+    assert.deepEqual(statsDataProbe.incomplete, {
+      goalsPer90: "—", assistsPer90: "—", minutesPerAppearance: "—"
+    }, "the stats dashboard must not publish rates or average minutes from a truncated career ledger");
+    results.push("career and season statistics reconciliation, cup aggregation, international exclusion and incomplete-history fallback");
+
     await page.evaluate(() => window.LWStoryRuntime.showPage("league"));
     const leagueTypography = await page.evaluate(() => {
       const element = document.querySelector("#page-league .muted.small");
@@ -1570,7 +1625,7 @@ async function main() {
     assert.equal(leagueTypography.copySize, "11px", "competition explanatory copy must use the readable secondary type scale");
     assert.equal(leagueTypography.appsLabel, "مباريات الدوري", "league fixture count must be labeled as league-only");
     assert.equal(leagueTypography.pointsLabel, "نقاط الدوري", "league points must be labeled as competition points");
-    assert.equal(leagueTypography.goalsLabel, "أهداف الموسم", "season goals must not be mistaken for league-only goals");
+    assert.equal(leagueTypography.goalsLabel, "أهداف الدوري", "the competition page must show league-only goals");
     const leagueRulesCollapsed = await page.evaluate(() => {
       const card = document.querySelector("#page-league .match-rules-card");
       const summary = card?.querySelector(":scope > summary");

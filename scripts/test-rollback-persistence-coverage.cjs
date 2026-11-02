@@ -31,6 +31,17 @@ for (const name of ["withManualLeagueTransaction", "playCupMatch", "applyMatchRe
   assert.match(wrapper, /persistRollbackSnapshot\(/, name + " must verify durable rollback persistence");
   assert.doesNotMatch(wrapper, /saveGame\(true\)/, name + " must not bypass rollback flush verification");
 }
+const warningOrderCases = [
+  { name: "withManualLeagueTransaction", notice: 'try{toast("تعذر اعتماد المباراة اليدوية.', persist: 'persistRollbackSnapshot("manual league rollback");' },
+  { name: "playCupMatch", notice: 'try{toast("تعذر اعتماد مباراة الكأس.', persist: 'persistRollbackSnapshot("cup-match rollback");' },
+  { name: "applyMatchResult", notice: 'try{toast("تعذر اعتماد نتيجة المباراة.', persist: 'persistRollbackSnapshot("match settlement rollback");' }
+];
+for (const item of warningOrderCases) {
+  const wrapper = extractFunction(html, item.name);
+  assert.ok(wrapper.lastIndexOf(item.notice) >= 0
+    && wrapper.lastIndexOf(item.persist) > wrapper.lastIndexOf(item.notice),
+    item.name + " must leave a synchronous rollback-persistence warning visible instead of overwriting it with a generic toast");
+}
 assert.match(helper, /saveGame\(true\)/);
 assert.match(helper, /flushQueuedSave\(\{backupFirst:true\}\)/);
 assert.match(helper, /saved!==true/);

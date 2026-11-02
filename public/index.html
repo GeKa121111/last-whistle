@@ -7465,7 +7465,14 @@ function finishSeasonInternal(skipAnnualTraining=false){
  renderLeague();renderCareerAwards();render();saveGame(true);
 }
 
-async function finishSeason(skipAnnualTraining=false){
+let finishSeasonInFlight=null;
+function finishSeason(skipAnnualTraining=false){
+ if(finishSeasonInFlight)return finishSeasonInFlight;
+ const pending=finishSeasonTransaction(skipAnnualTraining);
+ finishSeasonInFlight=Promise.resolve(pending).finally(()=>{finishSeasonInFlight=null;});
+ return finishSeasonInFlight;
+}
+async function finishSeasonTransaction(skipAnnualTraining=false){
  if(state.retired||state.seasonFinished||state.seasonApps<seasonMatchTotal())return false;
  let snapshot;
  try{snapshot=cloneSeasonTransitionState(state);}

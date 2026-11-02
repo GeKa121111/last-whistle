@@ -34,9 +34,11 @@ function extractFunction(source, marker) {
 }
 
 const transactionSource = [
+  "let finishSeasonInFlight=null;",
   extractFunction(html, "function cloneSeasonTransitionState("),
   extractFunction(html, "function restoreSeasonTransitionState("),
-  extractFunction(html, "async function finishSeason(")
+  extractFunction(html, "function finishSeason("),
+  extractFunction(html, "async function finishSeasonTransaction(")
 ].join("\n");
 
 function makeHarness(options = {}) {
@@ -49,10 +51,13 @@ function makeHarness(options = {}) {
   if (options.alreadyFinished) state.seasonFinished = true;
   if (options.incomplete) state.seasonApps = 9;
   const events = { internalCalls: 0, logs: [], toasts: [], renders: 0, saves: 0, flushes: 0, flushOptions: [] };
+  let releaseDeferredFlush = null;
+  const deferredFlush = options.deferredFlush
+    ? new Promise(resolve => { releaseDeferredFlush = resolve; }) : null;
   const sandbox = {
     state, console,
     seasonMatchTotal: () => 10,
-    finishSeasonInternal: async skipAnnualTraining => {
+    finishSeasonInternal: skipAnnualTraining => {
       events.internalCalls++;
       events.skipFlags = [skipAnnualTraining];
       if (options.fail === false) {
@@ -79,6 +84,7 @@ function makeHarness(options = {}) {
     flushQueuedSave: async optionsArg => {
       events.flushes++;
       events.flushOptions.push(optionsArg);
+      if (deferredFlush) return deferredFlush;
       return options.flushResult !== false;
     },
     events
@@ -87,7 +93,7 @@ function makeHarness(options = {}) {
   new vm.Script(transactionSource + "\nthis.runFinishSeason = finishSeason;", {
     filename: "season-finalization-transaction.js"
   }).runInContext(sandbox);
-  return { sandbox, state, events };
+  return { sandbox, state, events, releaseFlush: value => { if (releaseDeferredFlush) releaseDeferredFlush(value); } };
 }
 
 (async () => {
@@ -121,6 +127,21 @@ function makeHarness(options = {}) {
     assert.ok(h.events.toasts.some(message => message.includes("لا تغلق اللعبة")));
     assert.ok(!h.events.toasts.some(message => message.includes("تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية")),
       "the UI must not claim a durable rollback when the backup flush failed");
+  }
+
+  {
+    const h = makeHarness({ deferredFlush: true });
+    const before = JSON.stringify(h.state);
+    const first = h.sandbox.runFinishSeason(false);
+    const second = h.sandbox.runFinishSeason(true);
+    assert.equal(first, second, "concurrent finalization requests must share one in-flight transaction");
+    assert.equal(h.events.internalCalls, 1, "a second click must not start another world-season commit during rollback persistence");
+    assert.equal(h.events.flushes, 1, "the failed transaction must be waiting on its single rollback flush");
+    assert.deepEqual(h.events.skipFlags, [false], "the first request owns the in-flight finalization options");
+    h.releaseFlush(true);
+    assert.equal(await first, false);
+    assert.equal(JSON.stringify(h.state), before, "the shared failed transaction must restore the original save");
+    assert.equal(h.events.internalCalls, 1);
   }
 
   {

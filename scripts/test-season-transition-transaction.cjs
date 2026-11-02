@@ -14,7 +14,7 @@ const end = html.indexOf("\nasync function startNewSeasonInternalUnsafe", start)
 assert.ok(start >= 0 && end > start, "the season transition transaction wrapper must exist");
 const transactionSource = html.slice(start, end);
 
-function makeSandbox(initialState, flushResult = true) {
+function makeSandbox(initialState, flushResult = true, saveBehavior = "queued") {
   const events = { logs: [], toasts: [], renders: 0, saves: 0, flushes: 0 };
   const sandbox = {
     state: initialState,
@@ -22,7 +22,12 @@ function makeSandbox(initialState, flushResult = true) {
     log: message => events.logs.push(String(message)),
     toast: message => events.toasts.push(String(message)),
     render: () => { events.renders++; },
-    saveGame: silent => { assert.equal(silent, true); events.saves++; },
+    saveGame: silent => {
+      assert.equal(silent, true);
+      events.saves++;
+      if (saveBehavior === "throws") throw new Error("simulated rollback queue failure");
+      return saveBehavior === "false" ? false : true;
+    },
     flushQueuedSave: async options => {
       assert.equal(options.backupFirst, true);
       await Promise.resolve();
@@ -109,6 +114,22 @@ function makeSandbox(initialState, flushResult = true) {
     "the player must be warned not to close the game when rollback persistence fails");
   assert.ok(!persistenceFailure.events.toasts.some(message => message.includes("تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية")),
     "the UI must not claim that rollback was durably saved when flushQueuedSave returned false");
+
+  for (const saveBehavior of ["throws", "false"]) {
+    const queueFailure = makeSandbox({ season: 8, age: 26, seasonFinished: true }, true, saveBehavior);
+    queueFailure.startNewSeasonInternalUnsafe = async () => {
+      queueFailure.state.season = 9;
+      throw new Error("simulated transition failure before rollback queue");
+    };
+    const restored = await queueFailure.runSeasonTransition(true);
+    assert.equal(restored, false);
+    assert.equal(queueFailure.state.season, 8, "the in-memory state must still roll back when queuing the save fails");
+    assert.equal(queueFailure.events.saves, 1);
+    assert.equal(queueFailure.events.flushes, 0,
+      "a stale successful flush must not be mistaken for persistence of a rollback that was never queued");
+    assert.ok(queueFailure.events.logs.some(message => message.includes("تعذر تأكيد حفظ النسخة الاحتياطية")));
+    assert.ok(queueFailure.events.toasts.some(message => message.includes("تعذر حفظ النسخة الاحتياطية")));
+  }
 
   const success = makeSandbox({ season: 7, age: 25, seasonFinished: true });
   success.startNewSeasonInternalUnsafe = async () => {

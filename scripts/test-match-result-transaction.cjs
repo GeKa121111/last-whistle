@@ -50,6 +50,8 @@ const extracted = [
 ];
 assert.ok(applyMatchResultUnsafeSource.includes("recordedMatchIds.push(id)"),
   "the real settlement implementation must retain its idempotency guard");
+assert.ok(applyMatchResultUnsafeSource.includes("state.careerMatchHistory,state.seasonLog,state.cupMatchHistory,state.internationalHistory"),
+  "legacy match history must participate in the idempotency guard when the newer ledger is absent");
 assert.ok(applyMatchResultSource.includes("cloneSeasonTransitionState(state)"),
   "the public settlement path must snapshot the career before applying a result");
 assert.ok(applyMatchResultSource.includes("restoreSeasonTransitionState(snapshot)"),
@@ -202,6 +204,32 @@ const afterCommit = JSON.stringify(sandbox.state);
 assert.equal(sandbox.settleMatch(result, meta), false, "the same match id must remain idempotent");
 assert.equal(JSON.stringify(sandbox.state), afterCommit,
   "a duplicate settlement must not increment stats or append another history row");
+
+const legacyReplayStats = () => JSON.stringify({
+  apps: sandbox.state.apps, goals: sandbox.state.goals, assists: sandbox.state.assists,
+  totalCareerAppearances: sandbox.state.totalCareerAppearances,
+  seasonW: sandbox.state.seasonW, seasonD: sandbox.state.seasonD, seasonL: sandbox.state.seasonL,
+  seasonPoints: sandbox.state.seasonPoints, money: sandbox.state.money,
+  careerRows: sandbox.state.careerMatchHistory.length, seasonRows: sandbox.state.seasonLog.length
+});
+sandbox.state.recordedMatchIds = [];
+const beforeLegacyHistoryReplay = legacyReplayStats();
+assert.equal(sandbox.settleMatch(result, meta), false,
+  "a match already present in legacy career history must not be settled again when recordedMatchIds is missing");
+assert.deepEqual(Array.from(sandbox.state.recordedMatchIds), [meta.id],
+  "a legacy history duplicate should repopulate the idempotency ledger");
+assert.equal(legacyReplayStats(), beforeLegacyHistoryReplay,
+  "history-based duplicate detection must not alter player stats, money, or history rows");
+
+sandbox.state.recordedMatchIds = [];
+sandbox.state.careerMatchHistory = [];
+sandbox.state.seasonLog = [{ matchId: meta.id }];
+const beforeSeasonLogReplay = legacyReplayStats();
+assert.equal(sandbox.settleMatch(result, meta), false,
+  "a legacy seasonLog matchId must also block duplicate settlement when careerMatchHistory is unavailable");
+assert.deepEqual(Array.from(sandbox.state.recordedMatchIds), [meta.id]);
+assert.equal(legacyReplayStats(), beforeSeasonLogReplay,
+  "seasonLog fallback detection must not change any match statistics");
 
 sandbox.state.seasonLog = [
   { id: "legacy-only-3", season: 3, day: 4, minutes: 90, goals: 1, assists: 0, rating: 8, club: "نادي الاختبار", opponent: "خصم قديم" },

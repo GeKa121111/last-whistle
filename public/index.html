@@ -6769,7 +6769,20 @@ function applyMatchResultUnsafe(result,meta){
   toast("لا يمكن اعتماد مشاركة نادي للاعب حر بدون عقد.");
   return false;
  }
- if(state.recordedMatchIds.includes(id))return false;
+ const ledgerHasMatchId=state.recordedMatchIds.some(value=>String(value)===id);
+ const historyHasMatchId=[state.careerMatchHistory,state.seasonLog,state.cupMatchHistory,state.internationalHistory]
+  .some(rows=>Array.isArray(rows)&&rows.some(row=>{
+   if(!row||typeof row!=="object")return false;
+   const rowId=String(row.id??"").trim()||String(row.matchId??"").trim();
+   return rowId===id;
+  }));
+ if(ledgerHasMatchId||historyHasMatchId){
+  if(!ledgerHasMatchId){
+   state.recordedMatchIds.push(id);
+   if(state.recordedMatchIds.length>4000)state.recordedMatchIds.splice(0,state.recordedMatchIds.length-4000);
+  }
+  return false;
+ }
  state.recordedMatchIds.push(id);if(state.recordedMatchIds.length>4000)state.recordedMatchIds.splice(0,state.recordedMatchIds.length-4000);
  const scope=incomingScope,competition=meta.competition||"",country=meta.country||state.leagueCountry||"",key=disciplineKey(scope,country,competition);
  const suspendedAtKickoff=!!meta.suspendedAtKickoff;

@@ -5410,7 +5410,9 @@ function loanTo(target){
 }
 function returnFromLoan(){
  const l=state.loan;if(!l)return false;
- if(typeof l.parentClub!=="string"||!l.parentClub.trim()||typeof l.parentCountry!=="string"||!l.parentCountry.trim()){
+ const hasRestorableParent=typeof l.parentClub==="string"&&!!l.parentClub.trim()&&typeof l.parentCountry==="string"&&!!l.parentCountry.trim();
+ const transactionResult=withCareerStateTransaction("العودة من الإعارة",function(){
+ if(!hasRestorableParent){
   // There is no reliable parent contract to restore. Preserve the host-stage
   // archive, then clear the temporary loan wage/term instead of inventing a host deal.
   const hostClub=String(state.clubName||"النادي المضيف");
@@ -5423,7 +5425,7 @@ function returnFromLoan(){
   state.transferHistory.unshift({season:state.season,day:state.day,
    text:"تعذر استعادة النادي الأصلي بعد الإعارة من "+hostClub+"؛ تم إنهاء الإعارة والتحويل إلى سوق اللاعبين الأحرار دون الاحتفاظ بعقد أو مرتب مؤقت."});
   log("تعذر استعادة النادي الأصلي بعد الإعارة من "+hostClub+"؛ تم إنهاء الإعارة والتحويل إلى سوق اللاعبين الأحرار.");
-  return false;
+  return true;
  }
  // Archive the temporary club's stage before restoring the parent club. Without
  // this, league results earned during the loan vanish when the next season is built.
@@ -5459,6 +5461,8 @@ function returnFromLoan(){
  log(returnMessage);state.transferHistory.unshift({season:state.season,day:state.day,text:parentHasNoContract
   ?`انتهت الإعارة وأصبحت لاعبًا حرًا بعد انتهاء عقدك مع ${state.clubName}.`
   :`انتهت الإعارة والعودة إلى ${state.clubName} (${state.leagueCountry}).`});return true;
+ });
+ return hasRestorableParent ? transactionResult : false;
 }
 
 function renderContract(){
@@ -7400,7 +7404,7 @@ function proceedSeasonTransition(viewLeague=false){
  }
  advanceAfterContractDecision(viewLeague);
 }
-function advanceAfterContractDecision(viewLeague){if(state.loan)returnFromLoan();startNewSeason(false);if(viewLeague)showPage("league");}
+function advanceAfterContractDecision(viewLeague){if(state.loan&&returnFromLoan()===false&&state.loan)return false;startNewSeason(false);if(viewLeague)showPage("league");return true;}
 
 function settleTrailingByeRounds(){
  const ours=clubNameForLeague();
@@ -7645,7 +7649,7 @@ async function startNewSeasonInternalUnsafe(showStory=true){
  if(window.LWCareer?.shouldRetire(state,40)){retireCareer();return;}
  const contractState=window.LWCareer?.contractStateForSeasonTransition(state)||state;
  if(!isYouthAcademyPlayer()&&!state.academyGraduationPending&&!state.academyReserve&&!contractState.freeAgent&&Number(contractState.contractSeasons)<=1&&Number(state.contractDecisionSeason)!==Number(state.season)){proceedSeasonTransition(false);return;}
- if(state.loan)returnFromLoan();
+ if(state.loan&&returnFromLoan()===false&&state.loan)return false;
  // Every career season starts in the summer window. The previous season's fixtures
  // can finish before July, so advance through the off-season instead of letting
  // later seasons drift between the summer and winter windows.
@@ -8040,4 +8044,4 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 <script src="./ai-career-ui.js?v=1"></script>
 <script src="./social-media.js?v=2"></script>
 </body>
-</html>
+</html

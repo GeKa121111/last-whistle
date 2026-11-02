@@ -39,6 +39,7 @@ const applyMatchResultSource = extractFunction(html, "applyMatchResult");
 const extracted = [
   extractFunction(html, "cloneSeasonTransitionState"),
   extractFunction(html, "restoreSeasonTransitionState"),
+  extractFunction(html, "persistRollbackSnapshot"),
   extractFunction(html, "ensureLeagueSegmentId"),
   applyMatchResultUnsafeSource,
   applyMatchResultSource,
@@ -95,6 +96,7 @@ sandbox = {
   log: message => sandbox.state.logs.push(String(message)),
   render: () => { events.renders++; },
   saveGame: silent => { assert.equal(silent, true); events.saves++; },
+  flushQueuedSave: () => Promise.resolve(true),
   careerMatchPlayerEligible: () => true,
   disciplineKey: (...parts) => parts.join("|"),
   clamp: value => Math.max(0, Math.min(100, Math.round(Number(value) || 0))),

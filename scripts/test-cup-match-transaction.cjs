@@ -47,6 +47,7 @@ function extractFunction(source, name) {
 
 const clone = extractFunction(html, "cloneSeasonTransitionState");
 const restore = extractFunction(html, "restoreSeasonTransitionState");
+const persistRollback = extractFunction(html, "persistRollbackSnapshot");
 const unsafe = extractFunction(html, "playCupMatchUnsafe");
 const wrapper = extractFunction(html, "playCupMatch");
 assert.match(wrapper, /cloneSeasonTransitionState\(state\)/,
@@ -117,6 +118,7 @@ function makeHarness(options = {}) {
     advanceCalendarDays: days => { state.calendarDay += days; },
     log: () => {},
     saveGame: () => { events.saves++; },
+    flushQueuedSave: () => Promise.resolve(true),
     render: () => { events.renders++; },
     openModal: () => { events.modals++; },
     currencyLabel: () => "£",
@@ -125,7 +127,7 @@ function makeHarness(options = {}) {
   };
   vm.createContext(sandbox);
   vm.runInContext([
-    clone, restore, unsafe, wrapper,
+    clone, restore, persistRollback, unsafe, wrapper,
     "globalThis.runCupMatch = playCupMatch;"
   ].join("\n"), sandbox, { filename: "cup-match-transaction-harness.js" });
   return { sandbox, state, events };

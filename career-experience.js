@@ -103,9 +103,8 @@
       panel = document.getElementById("lw-career-experience");
       return true;
     }
-    var anchor = document.getElementById("lw-story-panel");
-    var home = document.getElementById("page-home");
-    if (!anchor || !home) return false;
+    var anchor = document.getElementById("lifePageGrid");
+    if (!anchor) return false;
     panel = document.createElement("section");
     panel.id = "lw-career-experience";
     panel.className = "lwcx-panel";
@@ -124,7 +123,7 @@
         '<article class="lwcx-card"><div class="lwcx-card-icon">03</div><div class="lwcx-card-copy"><span class="lwcx-tag">PEOPLE AROUND YOU</span><h3>العلاقات والتوجيه</h3><p>جلسة مع المدرب، دعم لاعب أصغر، أو راحة ذهنية. اختار نشاط واحد في اليوم زي نظام المسيرة الأساسي.</p></div><button type="button" class="lwcx-button" data-lwcx-action="open-mentor">اختار نشاط <span aria-hidden="true">←</span></button></article>' +
         '<article class="lwcx-card"><div class="lwcx-card-icon">04</div><div class="lwcx-card-copy"><span class="lwcx-tag">YOUR LEGACY</span><h3>إرثك الكروي</h3><p>بطاقة تتحدّث تلقائيًا حسب المشاركات والأهداف والبطولات والمنتخب والقرارات اللي عشتها.</p></div><button type="button" class="lwcx-button" data-lwcx-action="open-legacy">اعرض الإرث <span aria-hidden="true">←</span></button></article>' +
       '</div><div class="lwcx-footnote"><span class="lwcx-live-dot"></span><span id="lwcx-status">النتائج بتتحفظ مع مسيرتك على نفس الجهاز.</span><span class="lwcx-foot-right">IN-GAME SYSTEMS · NOT REAL MONEY</span></div>';
-    anchor.insertAdjacentElement("afterend", panel);
+    anchor.insertAdjacentElement("afterbegin", panel);
     return true;
   }
 

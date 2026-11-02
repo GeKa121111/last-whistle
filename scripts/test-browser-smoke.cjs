@@ -1551,16 +1551,26 @@ async function main() {
       kpi: document.querySelector("#page-stats .hub-stats-summary .kpiLabel")
         ? getComputedStyle(document.querySelector("#page-stats .hub-stats-summary .kpiLabel")).fontSize : null,
       copy: document.querySelector("#page-stats .muted.small")
-        ? getComputedStyle(document.querySelector("#page-stats .muted.small")).fontSize : null
+        ? getComputedStyle(document.querySelector("#page-stats .muted.small")).fontSize : null,
+      seasonAppsLabel: document.querySelector("#page-stats #statsSeasonApps")?.nextElementSibling?.textContent.trim() || null
     }));
     assert.equal(statsTypography.kpi, "11px", "statistics KPI labels must use the readable secondary type scale");
     assert.equal(statsTypography.copy, "11px", "statistics explanatory copy must remain readable on mobile");
+    assert.equal(statsTypography.seasonAppsLabel, "مشاركات الموسم", "statistics must label all-competition season appearances clearly");
     await page.evaluate(() => window.LWStoryRuntime.showPage("league"));
     const leagueTypography = await page.evaluate(() => {
       const element = document.querySelector("#page-league .muted.small");
-      return element ? getComputedStyle(element).fontSize : null;
+      return {
+        copySize: element ? getComputedStyle(element).fontSize : null,
+        appsLabel: document.querySelector("#page-league #seasonApps")?.nextElementSibling?.textContent.trim() || null,
+        pointsLabel: document.querySelector("#page-league #seasonPoints")?.nextElementSibling?.textContent.trim() || null,
+        goalsLabel: document.querySelector("#page-league #seasonGoals")?.nextElementSibling?.textContent.trim() || null
+      };
     });
-    assert.equal(leagueTypography, "11px", "competition explanatory copy must use the readable secondary type scale");
+    assert.equal(leagueTypography.copySize, "11px", "competition explanatory copy must use the readable secondary type scale");
+    assert.equal(leagueTypography.appsLabel, "مباريات الدوري", "league fixture count must be labeled as league-only");
+    assert.equal(leagueTypography.pointsLabel, "نقاط الدوري", "league points must be labeled as competition points");
+    assert.equal(leagueTypography.goalsLabel, "أهداف الموسم", "season goals must not be mistaken for league-only goals");
     const leagueRulesCollapsed = await page.evaluate(() => {
       const card = document.querySelector("#page-league .match-rules-card");
       const summary = card?.querySelector(":scope > summary");

@@ -285,7 +285,6 @@ const required = [
   'data-action="train-physical"',
   'id="storeCurrency"',
   'id="headCurrency"',
-  'id="kpiCurrency"',
   "currency: () => currencyLabel()",
   "schemaVersion:10",
   "renderPositionDevelopment",

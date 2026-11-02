@@ -34,6 +34,17 @@
     return Number.isFinite(age) && age >= 16 && age <= 21;
   }
 
+  function isYouthAwardEligibleForPlayer(player, fallbackAge) {
+    const rawAge = player && player.age;
+    if (rawAge === undefined || rawAge === null || rawAge === "") {
+      return isYouthAwardEligible(fallbackAge);
+    }
+    const age = Number(rawAge);
+    return age === 0
+      ? isYouthAwardEligible(fallbackAge)
+      : isYouthAwardEligible(age);
+  }
+
   function safeAge(value, fallback = 18) {
     if (value === undefined || value === null || value === "") return fallback;
     const number = Number(value);
@@ -528,7 +539,7 @@
       if (seen.has(key)) continue;
       seen.add(key);
       const row = applyDefensiveSeasonStats(simulatePlayerSeason(realPlayer, season, 1), realPlayer, season);
-      row.youthAwardEligible = isYouthAwardEligible(realPlayer.age);
+      row.youthAwardEligible = isYouthAwardEligibleForPlayer(realPlayer, row.age);
       row.trophyBonus = stableHash(season + "|" + row.club + "|trophy") % 8;
       row.ballonScore = row.averageRating * 8.8 + row.goals * 0.94 + row.assists * 0.64
         + row.ovr * 0.08 + row.trophyBonus + row.leagueStrength * 0.04
@@ -549,7 +560,7 @@
       country: String(player.country || ""),
       position: String(player.position || "غير محدد"),
       age: safeAge(player.age),
-      youthAwardEligible: isYouthAwardEligible(player.age),
+      youthAwardEligible: isYouthAwardEligibleForPlayer(player, safeAge(player.age)),
       ovr: clamp(player.ovr || 50, 35, 99),
       appearances: userAppearances,
       goals: userGoals,

@@ -375,7 +375,9 @@
     // so use it only when the newer history has no records and reverse it before slicing.
     const raw = careerHistory.length ? careerHistory :
       Array.isArray(state.seasonLog) ? state.seasonLog.slice().reverse() : [];
-    const played = raw.filter(row => row && (row.minutes == null ? num(row.rating, 0) > 0 : num(row.minutes, 0) > 0)).slice(0, 5);
+    const uniqueHistory = global.LWCareer && typeof global.LWCareer.uniqueMatchRows === "function"
+      ? global.LWCareer.uniqueMatchRows(raw) : raw;
+    const played = uniqueHistory.filter(row => row && (row.minutes == null ? num(row.rating, 0) > 0 : num(row.minutes, 0) > 0)).slice(0, 5);
     const ratings = played.map(row => num(row.rating, NaN)).filter(value => Number.isFinite(value) && value >= 0 && value <= 10);
     const averageRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : base.formRating(state);
     const goals = played.reduce((sum, row) => sum + Math.max(0, num(row.goals, 0)), 0);

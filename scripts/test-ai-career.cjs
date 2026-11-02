@@ -8,9 +8,40 @@ const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "public", "ai-career-engine.js"), "utf8");
 const sandbox = { window: {}, console };
 vm.createContext(sandbox);
+const careerEngineSource = fs.readFileSync(path.join(root, "public", "data", "career-engine.js"), "utf8");
+new vm.Script(careerEngineSource, { filename: "public/data/career-engine.js" }).runInContext(sandbox);
 new vm.Script(source, { filename: "public/ai-career-engine.js" }).runInContext(sandbox);
 const ai = sandbox.window.LWCareerAI;
+assert.equal(typeof sandbox.window.LWCareer.uniqueMatchRows, "function",
+  "the shared career engine must expose the match-history deduplicator before career AI runs");
 assert.ok(ai && ai.version === 1, "career AI module must initialize");
+
+const duplicateRecentMatch = {
+  id: "recent-form-duplicate-1", scope: "league", season: 3, segmentId: "segment-3-a",
+  competition: "Test League", club: "Test FC", opponent: "Opponent FC", day: 12,
+  minutes: 90, rating: 10, goals: 2, assists: 1, teamGoals: 2, oppGoals: 1
+};
+const recentHistory = [
+  duplicateRecentMatch,
+  { ...duplicateRecentMatch },
+  ...Array.from({ length: 4 }, (_, index) => ({
+    id: "recent-form-low-" + index, scope: "league", season: 3, segmentId: "segment-3-a",
+    competition: "Test League", club: "Test FC", opponent: "Opponent " + index, day: 11 - index,
+    minutes: 90, rating: 6, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1
+  }))
+];
+const recentForm = ai.contextSnapshot({
+  season: 3, day: 15, age: 24, pos: "مهاجم", clubName: "Test FC",
+  careerMatchHistory: recentHistory, coachRelationship: 55, contractSeasons: 2
+}, 70);
+assert.equal(recentForm.recentMatches, 5,
+  "recent form must count five unique fixtures, not duplicate legacy rows");
+assert.equal(recentForm.averageRating, 6.8,
+  "a duplicated high-rated fixture must not inflate the recent average rating");
+assert.equal(recentForm.goalsLastFive, 2,
+  "a duplicated legacy fixture must not double the player's recent goal total");
+assert.equal(recentForm.assistsLastFive, 1,
+  "a duplicated legacy fixture must not double the player's recent assist total");
 assert.equal(fs.readFileSync(path.join(root, "ai-career-engine.js"), "utf8"), source,
   "root and public career AI engines must remain synchronized");
 

@@ -1075,7 +1075,7 @@ assert.match(pendingTransferBox.innerHTML, /نادي ب/,
 assert.ok(app.includes('const retryPendingTransferButton=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransferButton){retryPendingTransfer();return;}'),
   "the transfer-market click handler must delegate retries to the guarded retry flow");
 
-const retryPendingTransferSource = section("function retryPendingTransfer(){", "\\nfunction negotiate(){");
+const retryPendingTransferSource = section("function retryPendingTransfer(){", "\nfunction negotiate(){");
 function runPendingTransferRetry(mode) {
   const scenario = {
     state: {
@@ -1096,7 +1096,7 @@ function runPendingTransferRetry(mode) {
     toast(message) { this.toastMessage = message; }
   };
   vm.createContext(scenario);
-  vm.runInContext(retryPendingTransferSource + "\\nthis.retryPendingTransfer = retryPendingTransfer;", scenario,
+  vm.runInContext(retryPendingTransferSource + "\nthis.retryPendingTransfer = retryPendingTransfer;", scenario,
     { filename: "pending-transfer-retry-" + mode });
   scenario.retryPendingTransfer();
   return scenario;

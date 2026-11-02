@@ -6,11 +6,6 @@
   "use strict";
   const VERSION = 1;
   const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 4;
-  const WORLD_CLUB_CUP_CYCLE_YEARS = 4;
-  const WORLD_CLUB_CUP_TEAM_COUNT = 32;
-  const WORLD_CLUB_CUP_COMPETITION_WEIGHTS = Object.freeze({
-    ucl: 7, libertadores: 7, "caf-cl": 6
-  });
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -1453,6 +1448,11 @@
   const base = global.LWWorldAI;
   if (!base) return;
   const ROLE_TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
+  const WORLD_CLUB_CUP_CYCLE_YEARS = 4;
+  const WORLD_CLUB_CUP_TEAM_COUNT = 32;
+  const WORLD_CLUB_CUP_COMPETITION_WEIGHTS = Object.freeze({
+    ucl: 7, libertadores: 7, "caf-cl": 6
+  });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
   const hash = value => {

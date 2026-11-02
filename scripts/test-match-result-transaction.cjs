@@ -197,20 +197,26 @@ assert.equal(JSON.stringify(sandbox.state), afterCommit,
 
 sandbox.state.seasonLog = [
   { id: "legacy-only-3", season: 3, day: 4, minutes: 90, goals: 1, assists: 0, rating: 8, club: "نادي الاختبار", opponent: "خصم قديم" },
-  { id: "legacy-duplicate-3", season: 3, day: 5, minutes: 75, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم مكرر" }
+  { id: "legacy-duplicate-3", season: 3, day: 5, minutes: 75, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم مكرر" },
+  { id: "legacy-no-season-3", day: 6, minutes: 60, goals: 1, assists: 0, rating: 7.5, club: "نادي الاختبار", opponent: "خصم بلا موسم" }
 ];
 sandbox.state.careerMatchHistory = [
   { id: "legacy-duplicate-3", season: 3, day: 5, scope: "league", minutes: 75, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم مكرر" },
-  { id: "cup-match-3", season: 3, day: 6, scope: "cup", minutes: 30, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم الكأس" },
-  { id: "international-match-3", season: 3, day: 7, scope: "international", minutes: 90, goals: 1, assists: 0, rating: 8 },
-  { id: "prior-season-match", season: 2, day: 8, scope: "league", minutes: 90, goals: 1, assists: 0, rating: 8 }
+  { id: "cup-match-3", season: 3, day: 7, scope: "cup", minutes: 30, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم الكأس" },
+  { id: "international-match-3", season: 3, day: 8, scope: "international", minutes: 90, goals: 1, assists: 0, rating: 8 },
+  { id: "prior-season-match", season: 2, day: 9, scope: "league", minutes: 90, goals: 1, assists: 0, rating: 8 },
+  { id: "unknown-career-season", day: 10, scope: "league", minutes: 90, goals: 1, assists: 0, rating: 8 }
 ];
 const currentSeasonRows = sandbox.currentSeasonMatchRows();
 assert.deepEqual(Array.from(currentSeasonRows, row => row.id),
-  ["legacy-only-3", "legacy-duplicate-3", "cup-match-3"],
-  "current season leaderboards and awards must include legacy seasonLog rows, deduplicate overlaps, and exclude international/older-season matches");
+  ["legacy-only-3", "legacy-duplicate-3", "legacy-no-season-3", "cup-match-3"],
+  "current-season stats must infer the season only for legacy seasonLog rows, deduplicate overlaps, and exclude international/older/unknown career rows");
+assert.equal(currentSeasonRows.find(row => row.id === "legacy-no-season-3").season, 3,
+  "a legacy seasonLog row without an explicit season must inherit the active season");
+assert.equal(currentSeasonRows.some(row => row.id === "unknown-career-season"), false,
+  "a career-history row with no season must not be assigned to the current season");
 assert.deepEqual(Array.from(sandbox.currentSeasonMatchRows(row => row.scope === "league"), row => row.id),
-  ["legacy-only-3", "legacy-duplicate-3"],
+  ["legacy-only-3", "legacy-duplicate-3", "legacy-no-season-3"],
   "competition filters must work over the unified legacy/current match history");
 
 console.log("PASS: match settlement is atomic, season stats preserve legacy history, and duplicate settlement remains idempotent.");

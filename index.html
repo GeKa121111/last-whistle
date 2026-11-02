@@ -4617,9 +4617,12 @@ function loadGame(options = {}){
 }
 function ensureLeagueSegmentId(){if(!state.leagueSegmentId)state.leagueSegmentId=`${state.season}|${state.leagueCountry}|${state.leagueCompetition}|${club().name}|${++state.leagueArchiveSequence}`;return state.leagueSegmentId;}
 function allCareerMatchRowsForHistory(){
+ // seasonLog is the active season's legacy league list; older saves may omit season.
+ const currentSeason=Number(state.season)||1;
  const legacyLeagueRows=(Array.isArray(state.seasonLog)?state.seasonLog:[])
   .filter(row=>row&&typeof row==="object"&&!Array.isArray(row))
-  .map(row=>({...row,scope:row.scope||"league"}));
+  .map(row=>({...row,scope:row.scope||"league",
+   season:row.season===undefined||row.season===null||row.season===""?currentSeason:row.season}));
  const careerRows=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[];
  const rows=[...legacyLeagueRows,...careerRows];
  const dedupe=window.LWCareer?.uniqueMatchRows;

@@ -57,6 +57,7 @@ function makeHarness(options = {}) {
   const sandbox = {
     state, console,
     seasonMatchTotal: () => 10,
+    completeTrailingLeagueByes: () => ({ processed: 0, complete: true }),
     finishSeasonInternal: skipAnnualTraining => {
       events.internalCalls++;
       events.skipFlags = [skipAnnualTraining];

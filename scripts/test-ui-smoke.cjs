@@ -577,7 +577,7 @@ if (!redesignSource.includes("article:not(.seasonJourneyCard)")
   console.error("The home page must keep the season roadmap while moving world AI details to the world page.");
   process.exit(1);
 }
-if (!html.includes('href="./ui-organization.css?v=4"')
+if (!html.includes('href="./ui-organization.css?v=5"')
   || (html.match(/class="navGroup"/g) || []).length !== 3
   || !html.includes("navGroupCareer")
   || !html.includes("navGroupCompetition")

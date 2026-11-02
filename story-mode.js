@@ -249,6 +249,7 @@ function ensureShell(){
       '<div class="lw-overview-stat"><small>SEASON / المشاركات</small><strong id="lw-hub-progress">0 / 0</strong></div>'+
       '</div>'+
       '<div class="lw-progress-block"><div class="lw-progress-head"><span id="lw-hub-progress-label">مؤشر الموسم</span><b id="lw-hub-progress-value">0%</b></div><div class="lw-progress-line"><i id="lw-hub-progress-bar" style="width:0%"></i></div></div>'+
+      '<div class="lw-readiness-brief" aria-label="ملخص الجاهزية اليومية"><div><span class="lw-readiness-label">جاهزية اليوم</span><p id="homeReadinessHint" role="status" aria-live="polite">جارٍ تقييم جاهزيتك لليوم…</p></div><button type="button" class="lw-readiness-link" data-page="wellness">تفاصيل الحالة ←</button></div>'+
       '<div class="lw-action-heading"><span>اختار خطوتك الجاية</span><small>QUICK ACTIONS</small></div>'+
       '<div class="lw-overview-actions">'+
       '<button type="button" class="btn primary" id="lw-cta-match"><i>▶</i> استعد للمباراة</button>'+

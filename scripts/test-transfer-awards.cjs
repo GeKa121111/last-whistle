@@ -122,10 +122,10 @@ const sameForward = {
   ovr: 95, prestige: 90, leagueStrength: 70, age: 24
 };
 const mobileForwardLine = engine.simulatePlayerSeason({
-  ...sameForward, position: "مهاجم"
+  ...sameForward, position: "مهاجم", role: "أساسي"
 }, 3, 1);
 const centreStrikerLine = engine.simulatePlayerSeason({
-  ...sameForward, position: "رأس حربة"
+  ...sameForward, position: "رأس حربة", role: "أساسي"
 }, 3, 1);
 assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
   "a high-rated centre striker should produce more goals than an otherwise identical mobile forward");

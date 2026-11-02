@@ -1322,7 +1322,7 @@ async function main() {
             return style.display !== "none" && style.visibility !== "hidden";
           });
           return {
-            columns: gridStyle.display === "grid" ? gridStyle.gridTemplateColumns.trim().split(/\\s+/).filter(Boolean).length : 0,
+            columns: gridStyle.display === "grid" ? gridStyle.gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
             gridWidth: Math.round(gridRect.width),
             childWidths: directChildren.map(child => Math.round(child.getBoundingClientRect().width))
           };
@@ -1511,7 +1511,7 @@ async function main() {
       return {
         type: search?.type,
         contractKpiCount: contractKpis?.children.length ?? 0,
-        contractKpiColumns: contractKpis ? getComputedStyle(contractKpis).gridTemplateColumns.trim().split(/\\s+/).filter(Boolean).length : 0,
+        contractKpiColumns: contractKpis ? getComputedStyle(contractKpis).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
         contractTrustVisible: !!document.querySelector("#page-contract #contractTrust"),
         readinessTrustVisible: !!document.querySelector("#page-wellness #wellnessTrustValue"),
         label: search?.getAttribute("aria-label"),

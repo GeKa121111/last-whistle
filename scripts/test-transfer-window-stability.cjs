@@ -1085,9 +1085,9 @@ function runPendingTransferRetry(mode) {
       transferHistory: []
     },
     transferTo() {
-      if (mode === "expired") { this.state.pendingTransfer = null; return undefined; }
+      if (mode === "expired") { state.pendingTransfer = null; return undefined; }
       if (mode === "rollback") return false;
-      this.state.clubName = "نادي ب"; this.state.leagueCountry = "مصر"; this.state.pendingTransfer = null;
+      state.clubName = "نادي ب"; state.leagueCountry = "مصر"; state.pendingTransfer = null;
       return true;
     },
     saveCalls: 0, renderCalls: 0, toastMessage: "",

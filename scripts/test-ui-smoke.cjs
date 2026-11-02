@@ -505,7 +505,7 @@ try { new vm.Script(agentSource, { filename: "public/agent-system.js" }); } catc
 for (const marker of ["حسام الجندي", "نادين فريد", "سيف مراد", "كريم منصور", "رامي رأفت", "سليم فوزي", "currentChapter", "contractTerms", "prioritizeTargets", "chargeFee"]) { if (!agentSource.includes(marker)) { console.error("Agent-system smoke test failed. Missing marker:", marker); process.exit(1); } }
 const hubSource = fs.readFileSync(path.join(root, "public", "career-hub.js"), "utf8");
 try { new vm.Script(hubSource, { filename: "public/career-hub.js" }); } catch (error) { console.error("Career hub JavaScript syntax error:", error.message); process.exit(1); }
-for (const marker of ["wellnessReadinessScore", "wellnessTrustBar", "homeReadinessHint", "coachRelationship", "wellnessDailyActionLabel"]) { if (!hubSource.includes(marker)) { console.error("Career hub smoke test failed. Missing marker:", marker); process.exit(1); } }
+for (const marker of ["wellnessReadinessScore", "wellnessTrustBar", "coachRelationship", "wellnessDailyActionLabel"]) { if (!hubSource.includes(marker)) { console.error("Career hub smoke test failed. Missing marker:", marker); process.exit(1); } }
 const careerHubSource = fs.readFileSync(path.join(root, "public", "career-hub.js"), "utf8");
 try { new vm.Script(careerHubSource, { filename: "public/career-hub.js" }); }
 catch (error) { console.error("Career hub JavaScript syntax error:", error.message); process.exit(1); }

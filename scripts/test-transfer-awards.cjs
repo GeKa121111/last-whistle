@@ -354,6 +354,46 @@ assert.equal(zeroAppearanceUserRow.score, 0);
 assert.equal(zeroAppearanceUserRow.weightedGoals, 0,
   "leaderboard rows with no appearances must not retain stale season contributions");
 
+const malformedCareerLeaderboard = engine.buildLeagueLeaderboard({
+  season: 5,
+  progress: 1,
+  players: [],
+  userLine: {
+    name: "مسيرة بإحصائيات تالفة", club: "فريق الاختبار", position: "مهاجم",
+    ovr: 88, appearances: "Infinity", apps: 25, goals: "Infinity",
+    assists: "NaN", averageRating: "Infinity", leagueStrength: "Infinity"
+  }
+});
+const malformedCareerRow = malformedCareerLeaderboard.find(row => row.isUser);
+assert.ok(malformedCareerRow, "the career player must remain present in the leaderboard");
+assert.equal(malformedCareerRow.appearances, 0,
+  "an explicit invalid appearance value must not fall through to a stale apps alias");
+assert.equal(malformedCareerRow.goals, 0);
+assert.equal(malformedCareerRow.assists, 0);
+assert.equal(malformedCareerRow.averageRating, 0);
+assert.equal(malformedCareerRow.score, 0);
+assert.equal(malformedCareerRow.weightedGoals, 0);
+assert.equal(malformedCareerRow.leagueStrength, 60);
+
+const boundedCareerLeaderboard = engine.buildLeagueLeaderboard({
+  season: 5,
+  progress: 1,
+  players: [],
+  userLine: {
+    name: "مسيرة بقيم خارج النطاق", club: "فريق الاختبار", position: "مهاجم",
+    ovr: 88, appearances: 12, goals: "Infinity", assists: -3,
+    averageRating: 12, leagueStrength: "Infinity"
+  }
+});
+const boundedCareerRow = boundedCareerLeaderboard.find(row => row.isUser);
+assert.equal(boundedCareerRow.appearances, 12);
+assert.equal(boundedCareerRow.goals, 0);
+assert.equal(boundedCareerRow.assists, 0);
+assert.equal(boundedCareerRow.averageRating, 10);
+assert.equal(boundedCareerRow.leagueStrength, 60);
+assert.ok(Number.isFinite(boundedCareerRow.score) && Number.isFinite(boundedCareerRow.weightedGoals),
+  "malformed career leaderboard values must never produce non-finite ranking scores");
+
 const realPlayers = [
   { name: "كيليان مبابي", clubName: "ريال مدريد", country: "إسبانيا", position: "مهاجم", ovr: 93, prestige: 100, leagueStrength: 96, age: 27, confederation: "UEFA", originConfederation: "UEFA" },
   { name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح", ovr: 91, prestige: 99, leagueStrength: 96, age: 19, confederation: "UEFA", originConfederation: "UEFA" },

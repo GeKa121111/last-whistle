@@ -120,8 +120,9 @@
     return "midfielder";
   }
 
-  function projectedMinutesPerAppearance(player) {
-    const role = normalized(player && (player.role || player.squadRole || player.playingTime) || "");
+  function projectedMinutesForRole(value) {
+    const role = normalized(value == null ? "" : value);
+    if (!role) return null;
     if ((role.includes("بديل") && role.includes("اساسي")) || role === "coresubstitute") return 66;
     if (role.includes("نجمالفريق") || role.includes("starplayer")) return 88;
     if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return 83;
@@ -129,6 +130,15 @@
     if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")
       || role.includes("فريقالرديف") || role.includes("لاعبتحتالتقييم") || role.includes("reserve") || role.includes("academy")) return 20;
     if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 28;
+    return null;
+  }
+
+  function projectedMinutesPerAppearance(player) {
+    const candidates = [player && player.role, player && player.squadRole, player && player.playingTime];
+    for (const candidate of candidates) {
+      const minutes = projectedMinutesForRole(candidate);
+      if (minutes !== null) return minutes;
+    }
     // The match engine defaults missing or unrecognized squad roles to substitute (28 minutes).
     return 28;
   }

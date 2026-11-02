@@ -21,6 +21,8 @@ const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "ut
 const inlineScripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const matchBundle = inlineScripts.find(script => script.includes("window.LWMatch ="));
 assert.ok(matchBundle, "deployed HTML must contain the match engine");
+assert.ok(html.includes("teamGoalkeeping:55,"),
+  "the career adapter must pass a neutral replacement-keeper rating and let the match engine apply the player's skill only while active");
 assert.ok(html.includes('"substitution-on":"دخول بديل"') && html.includes('"substitution-on","substitution"'),
   "the match report must display a late substitute's entry event");
 const browserContext = { window: {} };
@@ -783,6 +785,37 @@ const substituteOptions = {
 };
 const substituteResult = engine.simulateMatch(substituteOptions);
 const substituteEntry = substituteResult.events.find(event => event.type === "substitution-on" && event.side === "player");
+const goalkeeperSkillBase = {
+  seed: 500005, teamPower: 65, opponentPower: 65, teamGoalkeeping: 55,
+  player: {
+    name: "اختبار تأثير حارس المرمى", position: "GK", role: "بديل", goalkeeping: 95,
+    shooting: 25, composure: 70, trust: 55, fitness: 75, energy: 95, fatigue: 5,
+    passing: 50, vision: 50, speed: 50, physical: 50, dribbling: 40
+  }
+};
+const highSkillKeeper = engine.simulateMatch(goalkeeperSkillBase);
+const lowSkillKeeper = engine.simulateMatch({
+  ...goalkeeperSkillBase,
+  player: { ...goalkeeperSkillBase.player, goalkeeping: 25 }
+});
+const goalkeeperEntry = highSkillKeeper.events.find(event => event.type === "substitution-on" && event.side === "player");
+assert.equal(goalkeeperEntry?.minute, 55,
+  "the deterministic goalkeeper fixture must enter as a late substitute");
+const goalsBeforeGoalkeeperEntry = result => result.events
+  .filter(event => event.type === "goal" && event.side === "opponent" && event.minute < goalkeeperEntry.minute)
+  .map(event => event.minute);
+assert.deepEqual(goalsBeforeGoalkeeperEntry(highSkillKeeper), goalsBeforeGoalkeeperEntry(lowSkillKeeper),
+  "a substitute goalkeeper's personal rating must not protect the team before the player enters");
+const goalsAfterHighSkillEntry = highSkillKeeper.events
+  .filter(event => event.type === "goal" && event.side === "opponent" && event.minute >= goalkeeperEntry.minute).length;
+const goalsAfterLowSkillEntry = lowSkillKeeper.events
+  .filter(event => event.type === "goal" && event.side === "opponent" && event.minute >= goalkeeperEntry.minute).length;
+assert.ok(goalsAfterLowSkillEntry > goalsAfterHighSkillEntry,
+  "a substitute goalkeeper's own rating must reduce opponent goals only while the player is on the pitch");
+assert.equal(engine.validateResult(highSkillKeeper).ok, true,
+  "goalkeeper-rating integration must preserve a valid match event ledger");
+assert.deepEqual(browserEngine.simulateMatch(goalkeeperSkillBase).events, highSkillKeeper.events,
+  "the embedded match engine must apply the same active-goalkeeper rating window");
 assert.ok(substituteEntry && substituteEntry.minute >= 55,
   "a regular substitute must enter in the final 35 minutes, not during the first half");
 assert.ok(substituteResult.player.minutes <= 35,

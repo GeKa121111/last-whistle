@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 5);
+assert.equal(engine.version, 6);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -131,6 +131,43 @@ assert.ok(centreStrikerLine.goals > mobileForwardLine.goals,
   "a high-rated centre striker should produce more goals than an otherwise identical mobile forward");
 assert.ok(centreStrikerLine.assists < mobileForwardLine.assists,
   "a mobile forward should produce more assists than an otherwise identical centre striker");
+
+// Imported English position codes must use the same production profile as Arabic positions.
+const codeKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "GK" }, 3, 1);
+const arabicKeeper = engine.simulatePlayerSeason({ ...sameForward, position: "حارس مرمى" }, 3, 1);
+assert.equal(codeKeeper.goals, arabicKeeper.goals);
+assert.equal(codeKeeper.assists, arabicKeeper.assists);
+const codeCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "CB" }, 3, 1);
+const arabicCentreBack = engine.simulatePlayerSeason({ ...sameForward, position: "قلب دفاع" }, 3, 1);
+assert.equal(codeCentreBack.goals, arabicCentreBack.goals);
+assert.equal(codeCentreBack.assists, arabicCentreBack.assists);
+assert.equal(engine.roleType("جناح"), "winger");
+assert.equal(engine.roleType("LW"), "winger");
+assert.equal(engine.roleType("مهاجم"), "attacker");
+
+const sameStrikerStarter = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 1);
+const sameStrikerSubstitute = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "لاعب بديل" }, 5, 1);
+const sameStrikerRotation = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "تناوب" }, 5, 1);
+assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);
+assert.ok(sameStrikerStarter.minutes > sameStrikerRotation.minutes && sameStrikerRotation.minutes > sameStrikerSubstitute.minutes);
+assert.ok(sameStrikerStarter.goals > sameStrikerSubstitute.goals);
+assert.ok(sameStrikerStarter.assists > sameStrikerSubstitute.assists);
+assert.ok(sameStrikerStarter.goals * 90 / Math.max(1, sameStrikerStarter.minutes) <= 0.55);
+assert.equal(engine.simulatePlayerSeason({ ...sameForward, position: "حارس مرمى" }, 5, 1).goals, 0);
+const noProjectionProgress = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 0);
+assert.equal(noProjectionProgress.minutes, 0);
+assert.equal(noProjectionProgress.goals, 0);
+assert.equal(noProjectionProgress.assists, 0);
+const sameStrikerHalfSeason = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 0.5);
+assert.equal(sameStrikerHalfSeason.minutes, Math.round(sameStrikerStarter.minutes * 0.5));
+assert.equal(sameStrikerHalfSeason.goals, Math.round(sameStrikerStarter.goals * 0.5));
+assert.equal(sameStrikerHalfSeason.assists, Math.round(sameStrikerStarter.assists * 0.5));
+const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 1);
+assert.equal(savedSeasonStatsRemainAuthoritative.goals, 8);
+assert.equal(savedSeasonStatsRemainAuthoritative.assists, 3);
 
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,

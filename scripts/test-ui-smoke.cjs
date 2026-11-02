@@ -8,6 +8,18 @@ const htmlPath = path.join(root, "public", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
+
+const careerMatchStart = html.indexOf("function simulateCareerMatch(");
+const careerMatchEnd = html.indexOf("\nfunction matchCleanSheetContractBonus", careerMatchStart);
+const careerMatchSource = careerMatchStart >= 0 && careerMatchEnd > careerMatchStart
+  ? html.slice(careerMatchStart, careerMatchEnd) : "";
+if (!careerMatchSource.includes("getClubMatchProfile")
+  || !careerMatchSource.includes("opponentClubProfile?.goalkeeping")
+  || !careerMatchSource.includes("ownClubProfile?.goalkeeping")
+  || /teamGoalkeeping:55/.test(careerMatchSource)) {
+  console.error("Career match integration must use actual club goalkeeper depth instead of a fixed 55.");
+  process.exit(1);
+}
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }
@@ -284,7 +296,7 @@ const required = [
   "player-store.css?v=2",
   "ai-career-engine.js?v=7",
   "football-world-ai.css?v=2",
-  "football-world-ai.js?v=70",
+  "football-world-ai.js?v=71",
   'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
   "window.LWWorldAI.advanceToSeasonAsync",
@@ -530,7 +542,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=70", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=6", "ai-career-ui.js?v=1", "football-world-worker.js?v=59", "world-roster-audit.json", "redesign.css?v=17"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=71", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=6", "ai-career-ui.js?v=1", "football-world-worker.js?v=60", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
@@ -770,7 +782,7 @@ if (!html.includes("function buildSeasonAwardCeremony(place){")
   || !html.includes('id="playmakerLeaderboard"')) {
   console.error("Season awards test failed: ceremony, leaderboards, or trophy cabinet is missing."); process.exit(1);
 }
-if (!html.includes('src="./transfer-awards-engine.js?v=10"')
+if (!html.includes('src="./transfer-awards-engine.js?v=11"')
   || !html.includes("transferOffersWindowId")
   || !html.includes("awardCeremonies")
   || !html.includes("currentCompetitions")) {

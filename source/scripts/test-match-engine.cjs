@@ -21,8 +21,8 @@ const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "ut
 const inlineScripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 const matchBundle = inlineScripts.find(script => script.includes("window.LWMatch ="));
 assert.ok(matchBundle, "deployed HTML must contain the match engine");
-assert.ok(html.includes("teamGoalkeeping:55,"),
-  "the career adapter must pass a neutral replacement-keeper rating and let the match engine apply the player's skill only while active");
+assert.ok(html.includes("teamGoalkeeping:clamp(Number(ownClubProfile?.goalkeeping)||((clubPowerForMatch+55)/2),35,88),"),
+  "the career adapter must pass the club's replacement-keeper strength and let the match engine apply the player's skill only while active");
 assert.ok(html.includes('"substitution-on":"دخول بديل"') && html.includes('"substitution-on","substitution"'),
   "the match report must display a late substitute's entry event");
 const browserContext = { window: {} };
@@ -114,8 +114,8 @@ assert.equal(highRatedGoalkeeperOptions.teamPower, lowRatedGoalkeeperOptions.tea
   "a goalkeeper's personal overall must not strengthen the team while the goalkeeper is benched");
 assert.equal(highRatedGoalkeeperOptions.player.goalkeeping, 95);
 assert.equal(lowRatedGoalkeeperOptions.player.goalkeeping, 25);
-assert.equal(highRatedGoalkeeperOptions.teamGoalkeeping, 55,
-  "the replacement keeper must retain the neutral fallback before the user goalkeeper enters");
+assert.equal(highRatedGoalkeeperOptions.teamGoalkeeping, 57.5,
+  "the replacement keeper must use the club-level fallback before the user goalkeeper enters");
 adapterSandbox.state.pos = "CM";
 adapterSandbox.state.overall = 95;
 const highRatedOutfieldOptions = adapterSandbox.runCareerMatch(adapterMatchMeta);

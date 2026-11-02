@@ -1,5 +1,6 @@
 /* LAST WHISTLE — interactive career experience pack */
 body.lw-rebuild .lwcx-panel{
+  grid-column:1/-1;min-width:0;width:100%;
   margin:0 0 16px;padding:23px;border:1px solid #354637;border-radius:22px;
   background:linear-gradient(142deg,#141f17f2 0%,#0c120f 70%);box-shadow:0 18px 50px #0003;
   color:#f1f5e9;direction:rtl;overflow:hidden;position:relative

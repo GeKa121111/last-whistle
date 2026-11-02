@@ -7832,6 +7832,30 @@ function transferTo(){
   return true;
  });
 }
+function retryPendingTransfer(){
+ const pending=state.pendingTransfer;
+ if(!pending)return false;
+ const result=transferTo();
+ const destinationChanged=state.clubName!==pending.club||state.leagueCountry!==pending.country;
+ if(result!==false&&!state.pendingTransfer&&destinationChanged){
+  const offers=Array.isArray(state.transferOffers)?state.transferOffers:[];
+  const acceptedOffer=offers.find(item=>item&&item.status==="accepted"&&(
+   (pending.id&&item.id===pending.id)
+   ||(!pending.id&&item.club===pending.club&&item.country===pending.country&&(!pending.league||item.league===pending.league))
+  ));
+  if(acceptedOffer){
+   acceptedOffer.status="expired";
+   acceptedOffer.expiredReason="destination-unavailable";
+   if(!Array.isArray(state.transferHistory))state.transferHistory=[];
+   state.transferHistory.unshift({season:state.season,day:state.day,
+    text:"انتهت صلاحية العقد المقبول مع "+pending.club+" قبل اكتمال الانتقال؛ لم يتم تغيير النادي."});
+   if(saveGame(true)===false)toast("تعذر حفظ انتهاء صلاحية العقد؛ حاول حفظ المسيرة مرة أخرى.");
+  }
+ }
+ renderTransferMarket();
+ return result;
+}
+
 function negotiate(){
  if(isYouthAcademyPlayer()||state.academyReserve||state.academyGraduationPending){toast("مفاوضات العقود الاحترافية بتبدأ بعد التخرج من الأكاديمية.");return;}
  const status=window.LWCareer?.wageNegotiationStatus(state)||"invalid-state";
@@ -8021,7 +8045,7 @@ function bind(){
  $("trainingIntensity").addEventListener("change",e=>{state.trainingIntensity=e.target.value;saveGame(true);toast("اتحفظت شدة التدريب للمسيرة.");});
  const favoriteHandler=e=>{const b=e.target.closest("[data-favorite-league]");if(!b)return;state.favoriteLeague=b.dataset.favoriteLeague;saveGame(true);toast("اتسجل "+state.favoriteLeague+" كدوري مفضل.");};
  $("leagueCatalog").addEventListener("click",favoriteHandler);$("playableLeagueCatalog").addEventListener("click",favoriteHandler);
- $("transferMarket").addEventListener("click",e=>{const retryPendingTransfer=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransfer){transferTo();renderTransferMarket();return;}const negotiate=e.target.closest("[data-negotiate-offer]");if(negotiate){beginTransferNegotiation(negotiate.dataset.negotiateOffer);return;}const reject=e.target.closest("[data-reject-offer]");if(reject){rejectTransferOffer(reject.dataset.rejectOffer);return;}if(e.target.closest("[data-submit-negotiation]")){submitTransferNegotiation();return;}if(e.target.closest("[data-cancel-negotiation]")){state.transferNegotiation=null;saveGame(true);renderTransferMarket();return;}});$("transferMarket").addEventListener("input",e=>{if(e.target.matches("[data-negotiation-field]"))updateNegotiationPreview();});$("transferMarket").addEventListener("change",e=>{if(!e.target.matches("[data-negotiation-field]"))return;if(e.target.dataset.negotiationField==="salaryPeriod"){const wage=$("transferNegotiationPanel")?.querySelector('[data-negotiation-field="wage"]');if(wage){const next=e.target.value==="monthly"?Math.round((Number(wage.value)||0)*52/12):Math.round((Number(wage.value)||0)*12/52);wage.value=String(next);}if(state.transferNegotiation)state.transferNegotiation.salaryPeriod=e.target.value;updateNegotiationPreview();}});$("requestLoanBtn").addEventListener("click",requestLoan);
+ $("transferMarket").addEventListener("click",e=>{const retryPendingTransferButton=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransferButton){retryPendingTransfer();return;}const negotiate=e.target.closest("[data-negotiate-offer]");if(negotiate){beginTransferNegotiation(negotiate.dataset.negotiateOffer);return;}const reject=e.target.closest("[data-reject-offer]");if(reject){rejectTransferOffer(reject.dataset.rejectOffer);return;}if(e.target.closest("[data-submit-negotiation]")){submitTransferNegotiation();return;}if(e.target.closest("[data-cancel-negotiation]")){state.transferNegotiation=null;saveGame(true);renderTransferMarket();return;}});$("transferMarket").addEventListener("input",e=>{if(e.target.matches("[data-negotiation-field]"))updateNegotiationPreview();});$("transferMarket").addEventListener("change",e=>{if(!e.target.matches("[data-negotiation-field]"))return;if(e.target.dataset.negotiationField==="salaryPeriod"){const wage=$("transferNegotiationPanel")?.querySelector('[data-negotiation-field="wage"]');if(wage){const next=e.target.value==="monthly"?Math.round((Number(wage.value)||0)*52/12):Math.round((Number(wage.value)||0)*12/52);wage.value=String(next);}if(state.transferNegotiation)state.transferNegotiation.salaryPeriod=e.target.value;updateNegotiationPreview();}});$("requestLoanBtn").addEventListener("click",requestLoan);
  $("cupCatalog").addEventListener("click",e=>{const b=e.target.closest("[data-enter-cup]");if(b)enterCup(b.dataset.enterCup);});
  $("cupActive").addEventListener("click",e=>{if(e.target.closest("[data-play-cup]"))playCupMatch();});
  

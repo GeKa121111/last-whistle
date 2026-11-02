@@ -233,3 +233,6 @@ body.lw-rebuild #page-europe .global-legacy-examples>#realPlayerCatalog{
     box-sizing:border-box;
   }
 }
+
+/* Contract overview keeps only contract-owned metrics; coaching trust lives on the readiness page. */
+body.lw-rebuild #page-contract .contract-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}

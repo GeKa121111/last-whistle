@@ -162,6 +162,15 @@ const sameStrikerReserveEnglish = engine.simulatePlayerSeason({ ...sameForward, 
 const sameStrikerMissingRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة" }, 5, 1);
 const sameStrikerUnknownRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "unclassified squad tier" }, 5, 1);
 const sameStrikerUnknownSquadRole = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", squadRole: "unclassified squad tier" }, 5, 1);
+const sameStrikerFallbackStar = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "unclassified squad tier", squadRole: "نجم الفريق"
+}, 5, 1);
+const sameStrikerFallbackRotation = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "unclassified squad tier", playingTime: "تناوب"
+}, 5, 1);
+const sameStrikerPrimarySubstitute = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل", squadRole: "نجم الفريق"
+}, 5, 1);
 assert.equal(sameStrikerStarter.minutes, sameStrikerStarter.appearances * 83,
   "starter projections must use the same 83-minute participation baseline as match simulation");
 assert.equal(sameStrikerCoreSub.minutes, sameStrikerCoreSub.appearances * 66,
@@ -194,6 +203,12 @@ assert.equal(sameStrikerUnknownRole.minutes, sameStrikerUnknownRole.appearances 
   "unrecognized squad roles must not inflate award projections above the match-engine substitute fallback");
 assert.equal(sameStrikerUnknownSquadRole.minutes, sameStrikerUnknownSquadRole.appearances * 28,
   "unrecognized alternate squad-role fields must use the match-engine substitute fallback");
+assert.equal(sameStrikerFallbackStar.minutes, sameStrikerStar.minutes,
+  "an unrecognized primary role must fall through to a recognized squadRole for award minutes");
+assert.equal(sameStrikerFallbackRotation.minutes, sameStrikerRotation.minutes,
+  "an unrecognized primary role must fall through to a recognized playingTime field");
+assert.equal(sameStrikerPrimarySubstitute.minutes, sameStrikerSubstitute.minutes,
+  "a recognized primary role must remain authoritative over a conflicting squadRole");
 assert.equal(sameStrikerSubstitute.minutes, sameStrikerSubstitute.appearances * 28,
   "substitute projections must use the same 28-minute baseline as match simulation");
 assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);

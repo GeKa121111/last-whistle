@@ -29,8 +29,11 @@
   }
 
   function safeAge(value, fallback = 18) {
+    if (value === undefined || value === null || value === "") return fallback;
     const number = Number(value);
-    return Number.isFinite(number) && number >= 1 ? Math.min(100, Math.floor(number)) : fallback;
+    if (!Number.isFinite(number) || number < 0) return 100;
+    if (number === 0) return fallback;
+    return Math.min(100, Math.floor(number));
   }
 
   function safePercent(value, fallback = 50) {

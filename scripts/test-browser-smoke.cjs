@@ -447,6 +447,30 @@ async function main() {
         const active = document.querySelector(".page.active");
         return active && active.id === "page-" + value;
       }, section);
+      if (section === "life") {
+        await page.locator("#page-life #lw-career-experience").waitFor({ state: "attached", timeout: 10000 });
+        const experiencePlacement = await page.evaluate(() => {
+          const page = document.querySelector("#page-life");
+          const host = document.querySelector("#lifePageGrid");
+          const panel = document.querySelector("#lw-career-experience");
+          return {
+            insideLifeGrid: !!page && !!host && page.contains(host) && panel?.parentElement === host,
+            firstInLifeGrid: !!host && host.firstElementChild === panel,
+            absentFromHome: !document.querySelector("#page-home #lw-career-experience"),
+            fullWidth: !!panel && !!host
+              && panel.getBoundingClientRect().width >= host.getBoundingClientRect().width - 2
+          };
+        });
+        assert.equal(experiencePlacement.insideLifeGrid, true,
+          "career experience tools must live inside the life and reputation page");
+        assert.equal(experiencePlacement.firstInLifeGrid, true,
+          "career experience tools must lead the life page content");
+        assert.equal(experiencePlacement.absentFromHome, true,
+          "career experience tools must not lengthen the Home dashboard");
+        assert.equal(experiencePlacement.fullWidth, true,
+          "career experience tools must span the full life-page grid");
+        results.push("career experience panel placement on the life page");
+      }
       const layout = await page.evaluate(() => {
         const offenders = [...document.querySelectorAll("#page-europe *, #page-europe")]
           .map(el => {

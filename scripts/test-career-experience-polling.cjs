@@ -15,9 +15,11 @@ const vm = require("node:vm");
   assert.equal(source, deployed, "career-experience source and deployed copies must match");
   assert.equal(html, publicHtml, "root and public HTML must match");
   assert.equal(sw, publicSw, "root and public service workers must match");
-  assert.match(html, /career-experience\.js\?v=6/, "page should load the updated life-system script");
+  assert.match(html, /career-experience\.js\?v=7/, "page should load the updated life-system script");
+  assert.match(html, /id="lifePageGrid"/, "career experience must have a dedicated life-page mount point");
+  assert.match(source, /host\.insertBefore\(panel, host\.firstElementChild\)/, "career experience must lead the life-page content grid");
   require("./assert-static-cache-version.cjs")(sw, 175);
-  assert.match(sw, /career-experience\.js\?v=6/, "service worker shell should cache the updated life-system script");
+  assert.match(sw, /career-experience\.js\?v=7/, "service worker shell should cache the updated life-system script");
 
   let intervalCallback = null;
   let intervalMs = 0;
@@ -32,7 +34,17 @@ const vm = require("node:vm");
     disabled: false,
     getAttribute(name) { return name === "data-lwcx-action" ? action : null; }
   }));
+  const host = {
+    firstElementChild: null,
+    insertBefore(child) {
+      child.parentElement = this;
+      this.firstElementChild = child;
+    }
+  };
   const panel = {
+    parentElement: null,
+    className: "",
+    setAttribute() {},
     querySelectorAll(selector) {
       if (selector === "button[data-lwcx-action]") {
         panelRefreshes++;
@@ -41,6 +53,7 @@ const vm = require("node:vm");
       return [];
     }
   };
+  nodes["lifePageGrid"] = host;
   nodes["lw-career-experience"] = panel;
   for (const id of ["lwcx-wins", "lwcx-attempts", "lwcx-investments", "lwcx-investment-note",
     "lwcx-mentors", "lwcx-stories", "lwcx-status"]) {
@@ -101,6 +114,9 @@ const vm = require("node:vm");
     filename: "career-experience.js"
   });
 
+  assert.equal(panel.parentElement, host, "an existing career panel should be moved into the life-page grid");
+  assert.equal(host.firstElementChild, panel, "the career panel should be first in the life-page grid");
+  assert.equal(panel.className, "lwcx-panel span12", "the career panel should span the full life-page grid");
   assert.equal(intervalMs, 5000, "state-store mode should use a low-frequency safety poll");
   assert.equal(typeof subscriber, "function", "the life system should subscribe to state-store changes");
   assert.equal(panelRefreshes, 1, "the initial state should render the life-system panel once");

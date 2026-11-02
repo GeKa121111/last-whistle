@@ -350,8 +350,8 @@ const required = [
   "renderPositionDevelopment",
   "story-ui.css?v=1",
   "story-mode.js?v=12",
-  "career-experience.js?v=6",
-  "career-experience.css?v=1",
+  "career-experience.js?v=7",
+  "career-experience.css?v=2",
   "career-hub.css?v=1",
   "career-hub.js?v=3",
   "player-store.css?v=2",
@@ -626,15 +626,36 @@ for (const pageId of ["page-europe", "page-life", "page-diary", "page-social"]) 
     process.exit(1);
   }
 }
+const lifePageStart = html.indexOf('id="page-life"');
+const lifePageEnd = html.indexOf('id="page-diary"', lifePageStart);
+const lifeGridStart = html.indexOf('id="lifePageGrid"', lifePageStart);
+const lifeGridCount = (html.match(/id="lifePageGrid"/g) || []).length;
+const experienceMountSource = fs.readFileSync(path.join(root, "career-experience.js"), "utf8");
+const ensurePanelStart = experienceMountSource.indexOf("function ensurePanel()");
+const ensurePanelEnd = experienceMountSource.indexOf("\n  function renderPanel", ensurePanelStart);
+const ensurePanelSource = ensurePanelStart >= 0 && ensurePanelEnd > ensurePanelStart
+  ? experienceMountSource.slice(ensurePanelStart, ensurePanelEnd) : "";
+const experienceCss = fs.readFileSync(path.join(root, "career-experience.css"), "utf8");
+if (lifeGridCount !== 1 || lifePageStart < 0 || lifeGridStart < lifePageStart
+  || lifePageEnd < lifeGridStart
+  || !ensurePanelSource.includes('document.getElementById("lifePageGrid")')
+  || !ensurePanelSource.includes("host.insertBefore(panel, host.firstElementChild)")
+  || ensurePanelSource.includes("lw-story-panel") || ensurePanelSource.includes("page-home")
+  || !experienceCss.includes("grid-column:1/-1")) {
+  console.error("Career experience must mount first inside the full-width life-page grid, never on Home.");
+  process.exit(1);
+}
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 const workerCacheDeclaration = workerSource.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=1", "career-experience.js?v=6", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=72", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=6", "ai-career-ui.js?v=1", "football-world-worker.js?v=61", "world-roster-audit.json", "redesign.css?v=17"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=2", "career-experience.js?v=7", "agent-system.css?v=1", "agent-system.js?v=6", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=72", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=6", "ai-career-ui.js?v=1", "football-world-worker.js?v=61", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.js", 7);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.css", 2);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 64);
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
 try {

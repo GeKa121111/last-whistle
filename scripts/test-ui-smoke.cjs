@@ -630,11 +630,11 @@ const lifePageStart = html.indexOf('id="page-life"');
 const lifePageEnd = html.indexOf('id="page-diary"', lifePageStart);
 const lifeGridStart = html.indexOf('id="lifePageGrid"', lifePageStart);
 const lifeGridCount = (html.match(/id="lifePageGrid"/g) || []).length;
-const experienceSource = fs.readFileSync(path.join(root, "career-experience.js"), "utf8");
-const ensurePanelStart = experienceSource.indexOf("function ensurePanel()");
-const ensurePanelEnd = experienceSource.indexOf("\n  function renderPanel", ensurePanelStart);
+const experienceMountSource = fs.readFileSync(path.join(root, "career-experience.js"), "utf8");
+const ensurePanelStart = experienceMountSource.indexOf("function ensurePanel()");
+const ensurePanelEnd = experienceMountSource.indexOf("\n  function renderPanel", ensurePanelStart);
 const ensurePanelSource = ensurePanelStart >= 0 && ensurePanelEnd > ensurePanelStart
-  ? experienceSource.slice(ensurePanelStart, ensurePanelEnd) : "";
+  ? experienceMountSource.slice(ensurePanelStart, ensurePanelEnd) : "";
 const experienceCss = fs.readFileSync(path.join(root, "career-experience.css"), "utf8");
 if (lifeGridCount !== 1 || lifePageStart < 0 || lifeGridStart < lifePageStart
   || lifePageEnd < lifeGridStart

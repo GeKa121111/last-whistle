@@ -1530,6 +1530,31 @@ async function main() {
       return element ? getComputedStyle(element).fontSize : null;
     });
     assert.equal(leagueTypography, "11px", "competition explanatory copy must use the readable secondary type scale");
+    const leagueRulesCollapsed = await page.evaluate(() => {
+      const card = document.querySelector("#page-league .match-rules-card");
+      const summary = card?.querySelector(":scope > summary");
+      const rect = card?.getBoundingClientRect();
+      return {
+        exists: Boolean(card && summary),
+        openByDefault: card?.open ?? null,
+        summaryText: summary?.textContent.replace(/\\s+/g, " ").trim() || "",
+        height: rect ? Math.round(rect.height) : 0,
+        touchHeight: summary ? Math.round(summary.getBoundingClientRect().height) : 0
+      };
+    });
+    assert.equal(leagueRulesCollapsed.exists, true, "match laws must remain available on the competition page");
+    assert.equal(leagueRulesCollapsed.openByDefault, false, "match laws should start collapsed to keep the season dashboard concise");
+    assert.ok(leagueRulesCollapsed.summaryText.includes("قوانين المباراة"), "the collapsed reference must have a clear Arabic label");
+    assert.ok(leagueRulesCollapsed.touchHeight >= 44, "the match-law accordion summary must remain easy to tap");
+    await page.locator("#page-league .match-rules-card > summary").click();
+    assert.equal(await page.locator("#page-league .match-rules-card").evaluate(el => el.open), true,
+      "the match-law reference must expand on demand");
+    assert.ok(await page.locator("#page-league .match-rules-content .ruleLinks a").count() >= 5,
+      "opening the reference must preserve the official rules links");
+    await page.locator("#page-league .match-rules-card > summary").click();
+    assert.equal(await page.locator("#page-league .match-rules-card").evaluate(el => el.open), false,
+      "the match-law reference must collapse again after review");
+    results.push("competition page collapsible match-law reference and touch target");
     await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
     results.push("readable secondary typography on stats, competition, and contract pages");
 

@@ -42,6 +42,7 @@ const beginNegotiationSource = section("function beginTransferNegotiation(", "\n
 const requestLoanSource = section("function requestLoan(){", "\nfunction loanTo(");
 const loanToSource = transitionTransactionStub + section("function loanTo(target){", "\nfunction returnFromLoan()");
 const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
+const renderTransferMarketSource = section("function renderTransferMarket(){", "\nfunction renderSquadCompetition()");
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
 const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
@@ -999,6 +1000,81 @@ assert.equal(completedTransfer.state.transferOffers[0].status, "accepted",
 assert.equal(completedTransfer.state.transferOffers[0].expiredReason, undefined,
   "a successful transfer must not receive a failure reason");
 
+// A failed transaction must not be misclassified as a vanished destination.
+const rolledBackNegotiatedTransfer = {
+  state: {
+    clubName: "نادي أ", leagueCountry: "مصر", season: 4, day: 190,
+    pendingTransfer: null, transferNegotiation: { offerId: "rollback-offer", patience: 100, round: 0 },
+    transferOffers: [{ id: "rollback-offer", status: "pending", club: "نادي ب", country: "مصر",
+      league: "الدوري المصري", division: 1, wage: 1000, currency: "ج.م", signingBonus: 5000 }],
+    transferHistory: []
+  },
+  window: { LWTransferAwards: { evaluateNegotiation: () => ({ status: "accepted", patience: 100,
+    terms: { weeklyWage: 1000, signingBonus: 5000, goalBonus: 300, cleanSheetBonus: 200,
+      contractSeasons: 3, releaseClause: 0 } }) } },
+  offerIsAvailable: () => true,
+  negotiationTermsFromDom: () => ({ weeklyWage: 1000 }),
+  transferTo: () => false,
+  saveGame: () => {},
+  renderTransferMarket: () => { rolledBackNegotiatedTransfer.rendered = true; },
+  toast: message => { rolledBackNegotiatedTransfer.toastMessage = message; },
+  log: () => {}
+};
+vm.createContext(rolledBackNegotiatedTransfer);
+vm.runInContext(submitNegotiationSource, rolledBackNegotiatedTransfer,
+  { filename: "rolled-back-negotiated-transfer" });
+rolledBackNegotiatedTransfer.submitTransferNegotiation();
+assert.equal(rolledBackNegotiatedTransfer.state.transferOffers[0].status, "accepted",
+  "a failed transfer transaction must preserve the accepted offer");
+assert.equal(rolledBackNegotiatedTransfer.state.transferOffers[0].expiredReason, undefined,
+  "a storage or transaction failure must not expire a still-valid accepted offer");
+assert.equal(rolledBackNegotiatedTransfer.state.pendingTransfer.club, "نادي ب",
+  "the accepted destination and negotiated terms must survive rollback for retry");
+assert.equal(rolledBackNegotiatedTransfer.state.pendingTransfer.signingBonus, 5000,
+  "the exact negotiated signing bonus must survive rollback");
+assert.equal(rolledBackNegotiatedTransfer.rendered, true,
+  "the transfer market must refresh to expose the retained accepted contract");
+assert.match(rolledBackNegotiatedTransfer.toastMessage, /أعد المحاولة/,
+  "the player must be told that the accepted transfer can be retried");
+assert.equal(rolledBackNegotiatedTransfer.state.transferHistory.some(row => /تعذر إتمام الانتقال/.test(row.text)), false,
+  "a transaction failure must not be falsely recorded as a destination disappearing");
+
+// The transfer market must expose the accepted contract after rollback and provide a retry action.
+assert.ok(renderTransferMarketSource, "the real transfer-market renderer must be available to the regression test");
+const pendingTransferBox = { innerHTML: "" };
+const pendingTransferElements = {
+  transferMarket: pendingTransferBox,
+  marketAvailability: { textContent: "" },
+  transferMarketCount: { textContent: "" },
+  transferMarketNotice: { textContent: "" }
+};
+const pendingTransferMarket = {
+  state: {
+    retired: false, loan: null, winterBreakPending: false, apps: 8, freeAgent: false,
+    transferOffers: [],
+    pendingTransfer: { club: "نادي ب", country: "مصر", wage: 1000, currency: "ج.م", signingBonus: 5000 }
+  },
+  $: id => pendingTransferElements[id] || null,
+  ensureTransferOffers: () => {},
+  transferWindow: () => ({ open: true, name: "الانتقالات الصيفية", days: 0 }),
+  offerIsAvailable: () => false,
+  setText: () => {},
+  transferAverageRating: () => 6.5,
+  safeHTML: value => String(value == null ? "" : value),
+  currencyLabel: () => "ج.م",
+  renderNegotiationPanel: () => "",
+  updateNegotiationPreview: () => {}
+};
+vm.createContext(pendingTransferMarket);
+vm.runInContext(renderTransferMarketSource, pendingTransferMarket, { filename: "pending-transfer-market-render" });
+pendingTransferMarket.renderTransferMarket();
+assert.match(pendingTransferBox.innerHTML, /data-retry-pending-transfer/,
+  "a rolled-back accepted transfer must render an explicit retry button");
+assert.match(pendingTransferBox.innerHTML, /نادي ب/,
+  "the retry card must identify the accepted destination club");
+assert.ok(app.includes('const retryPendingTransfer=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransfer){transferTo();renderTransferMarket();return;}'),
+  "the transfer-market click handler must execute the retry action");
+
 const cupArchiveScenario = {
   state: {
     season: 4, clubName: "نادي أ",
@@ -1163,7 +1239,7 @@ expiryTest();
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 424);
+require("./assert-static-cache-version.cjs")(sw, 425);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=17"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");

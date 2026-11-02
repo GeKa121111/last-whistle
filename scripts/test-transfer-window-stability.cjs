@@ -1078,17 +1078,18 @@ assert.ok(app.includes('const retryPendingTransferButton=e.target.closest("[data
 const retryPendingTransferSource = section("function retryPendingTransfer(){", "\nfunction negotiate(){");
 function runPendingTransferRetry(mode) {
   let saveCalls = 0, renderCalls = 0, toastMessage = "";
+  const retryState = {
+    clubName: "نادي أ", leagueCountry: "مصر", season: 4, day: 190,
+    pendingTransfer: { id: "accepted-retry", club: "نادي ب", country: "مصر", league: "الدوري المصري" },
+    transferOffers: [{ id: "accepted-retry", status: "accepted", club: "نادي ب", country: "مصر", league: "الدوري المصري" }],
+    transferHistory: []
+  };
   const scenario = {
-    state: {
-      clubName: "نادي أ", leagueCountry: "مصر", season: 4, day: 190,
-      pendingTransfer: { id: "accepted-retry", club: "نادي ب", country: "مصر", league: "الدوري المصري" },
-      transferOffers: [{ id: "accepted-retry", status: "accepted", club: "نادي ب", country: "مصر", league: "الدوري المصري" }],
-      transferHistory: []
-    },
+    state: retryState,
     transferTo() {
-      if (mode === "expired") { state.pendingTransfer = null; return undefined; }
+      if (mode === "expired") { retryState.pendingTransfer = null; return undefined; }
       if (mode === "rollback") return false;
-      state.clubName = "نادي ب"; state.leagueCountry = "مصر"; state.pendingTransfer = null;
+      retryState.clubName = "نادي ب"; retryState.leagueCountry = "مصر"; retryState.pendingTransfer = null;
       return true;
     },
     saveGame() { saveCalls++; return true; },
@@ -1099,7 +1100,7 @@ function runPendingTransferRetry(mode) {
   vm.runInContext(retryPendingTransferSource + "\nthis.retryPendingTransfer = retryPendingTransfer;", scenario,
     { filename: "pending-transfer-retry-" + mode });
   scenario.retryPendingTransfer();
-  return { state: scenario.state, saveCalls, renderCalls, toastMessage };
+  return { state: retryState, saveCalls, renderCalls, toastMessage };
 }
 const expiredRetry = runPendingTransferRetry("expired");
 assert.equal(expiredRetry.state.transferOffers[0].status, "expired",

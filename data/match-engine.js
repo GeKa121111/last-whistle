@@ -566,7 +566,10 @@
     
     if (minutes > 0) {
       const scale = Math.min(1, minutes / 78);
-      stats.rating = Math.round(clamp((6.05 + impact * scale + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
+      // Event impact already comes from actions during the player's actual minutes.
+      // Apply only a confidence floor for short appearances, not a second full minutes penalty.
+      const impactConfidence = 0.65 + 0.35 * scale;
+      stats.rating = Math.round(clamp((6.05 + impact * impactConfidence + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
     if (minutes > 0 && playerEndMinute < 90 && !redCard && !injured) events.push({ type: "substitution", minute: playerEndMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });

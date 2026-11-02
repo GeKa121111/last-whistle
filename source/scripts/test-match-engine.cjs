@@ -30,6 +30,27 @@ vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
+ 
+// A short substitute cameo must retain meaningful credit for a decisive action.
+// The action count is already limited by actual minutes; scaling it by minutes again
+// was suppressing a goal contribution twice.
+const shortCameoScoringOptions = {
+  seed: 6, teamPower: 78, opponentPower: 40, tactic: "attack", opponentTactic: "compact",
+  player: {
+    name: "اختبار تقييم البديل", position: "رأس حربة", role: "بديل",
+    shooting: 99, passing: 80, vision: 80, composure: 95, fitness: 95,
+    speed: 95, physical: 80, dribbling: 95, trust: 90, energy: 100, fatigue: 0
+  }
+};
+const shortCameoScoring = engine.simulateMatch(shortCameoScoringOptions);
+assert.equal(shortCameoScoring.player.minutes, 24, "the rating regression fixture must remain a 24-minute cameo");
+assert.equal(shortCameoScoring.player.goals, 1, "the rating regression fixture must contain one player goal");
+assert.ok(shortCameoScoring.player.rating >= 7.5,
+  "a decisive 24-minute substitute cameo must not have its goal impact suppressed by a second minutes multiplier");
+const browserShortCameoScoring = browserEngine.simulateMatch(shortCameoScoringOptions);
+assert.equal(browserShortCameoScoring.player.rating, shortCameoScoring.player.rating,
+  "the deployed browser engine must preserve the corrected short-cameo rating");
+
 
 function extractNamedFunctionForAdapterTest(source, name) {
   const marker = "function " + name + "(";

@@ -459,6 +459,41 @@ assert.ok(malformedCeremony.awards.every(award =>
     && award.topThree.every(row => Number.isFinite(row.score))),
   "all award winners and shortlists must remain finite when saved player stats are malformed");
 
+const estimatedYouthCeremony = engine.buildSeasonAwardCeremony({
+  season: 2,
+  currentDate: "2026-07-31T00:00:00.000Z",
+  player: {
+    name: "لاعب مخضرم", club: "فريقه", country: "مصر", position: "وسط",
+    age: 30, appearances: 0, goals: 0, assists: 0, averageRating: 0
+  },
+  realPlayers: [{
+    name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح",
+    ovr: 90, prestige: 90, leagueStrength: 90, confederation: "UEFA",
+    originConfederation: "UEFA",
+    seasonStats: { season: 2, appearances: 15, goals: 4, assists: 3, averageRating: 8.1 }
+  }]
+});
+const estimatedYouthAward = estimatedYouthCeremony.awards.find(row => row.id === "golden-boy");
+assert.ok(estimatedYouthAward,
+  "a player with no sourced age must retain the simulator's existing estimated-age youth eligibility");
+assert.equal(estimatedYouthAward.winner.name, "لامين يامال");
+assert.equal(estimatedYouthAward.winner.age, 20);
+
+const defaultAgeCareerCeremony = engine.buildSeasonAwardCeremony({
+  season: 1,
+  currentDate: "2026-07-31T00:00:00.000Z",
+  player: {
+    name: "لاعب مسيرة جديد", club: "فريقه", country: "مصر", position: "مهاجم",
+    appearances: 12, goals: 5, assists: 3, averageRating: 7.2
+  },
+  realPlayers: []
+});
+const defaultAgeGoldenBoy = defaultAgeCareerCeremony.awards.find(row => row.id === "golden-boy");
+assert.ok(defaultAgeGoldenBoy,
+  "a career player whose age uses the engine's existing 18-year default must remain Golden Boy eligible");
+assert.equal(defaultAgeGoldenBoy.winner.name, "لاعب مسيرة جديد");
+assert.equal(defaultAgeGoldenBoy.winner.age, 18);
+
 const noYouthCeremony = engine.buildSeasonAwardCeremony({
   season: 4,
   currentDate: "2028-02-14T00:00:00.000Z",

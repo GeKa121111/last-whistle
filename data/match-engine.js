@@ -75,15 +75,21 @@
       "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
     })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
+  function normalizeSquadRole(value) {
+    return String(value == null ? "" : value).normalize("NFD")
+      .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
+      .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
+      .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
+  }
   function squadRoleType(value) {
-    const role = String(value || "بديل").trim().toLocaleLowerCase();
-    // Keep the historical "بديل أساسي" label as a short-starting rotation role.
-    if (role === "بديل أساسي") return "legacy-rotation-starter";
-    if (role.includes("نجم الفريق") || role.includes("star player")) return "star";
-    if (role === "أساسي" || role.includes("لاعب أساسي") || role.includes("regular starter")) return "starter";
-    if (role.includes("تناوب") || role.includes("rotation") || role.includes("squad player")) return "rotation";
-    if (role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return "prospect";
-    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impact sub") || role.includes("fringe player")) return "substitute";
+    const role = normalizeSquadRole(value || "بديل");
+    // Keep the historical core-substitute label as a short-starting rotation role.
+    if ((role.includes("بديل") && role.includes("اساسي")) || role === "coresubstitute") return "legacy-rotation-starter";
+    if (role.includes("نجمالفريق") || role.includes("starplayer")) return "star";
+    if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return "starter";
+    if (role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return "rotation";
+    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return "prospect";
+    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return "substitute";
     return "substitute";
   }
   function selectedMinutes(player, available, random, roleType, startsOnBench) {

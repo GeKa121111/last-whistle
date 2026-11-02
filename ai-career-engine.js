@@ -142,6 +142,7 @@
     const gap = ours - theirs;
     const energy = clamp(state.energy, 0, 100);
     const fatigue = clamp(state.fatigue, 0, 100);
+    const position = normalizePosition(state.pos || state.position || "");
     let tactic = "balanced", reason = "القوتان متقاربتان؛ ابدأ بخطة متوازنة وغيّرها بناءً على نتيجة المباراة.";
     if (number(state.injuryDays, 0) > 0 || energy < 30 || fatigue > 78) {
       tactic = gap < -4 ? "counter" : "defend";
@@ -152,7 +153,7 @@
     } else if (gap <= -9) {
       tactic = "counter";
       reason = "المنافس أقوى على الورق؛ استغل المساحات خلفه بدل الدخول في تبادل هجمات مفتوح.";
-    } else if (String(state.pos || "") === "حارس مرمى" || String(state.pos || "") === "قلب دفاع") {
+    } else if (position === "حارس مرمى" || position === "قلب دفاع") {
       tactic = "defend";
       reason = "التوازن الدفاعي يقلل الضغط على الخط الخلفي ويمنح الفريق وقتًا لتنظيم البناء.";
     }

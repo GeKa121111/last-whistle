@@ -246,7 +246,25 @@
     if (id === DEFAULT_SLOT) throw new Error("The default career slot cannot be deleted");
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }
-  async function flush(state) { if (state && typeof state === "object") await save(state, {slotId:DEFAULT_SLOT}); await lastWrite; return true; }
+  async function flush(state) {
+    let target = state && typeof state === "object" ? state : currentState;
+    if (!target || typeof target !== "object") {
+      await lastWrite;
+      return true;
+    }
+    // A publish/import can supersede a save while IndexedDB is still opening.
+    // Retry once with the newest live state instead of reporting the stale flush as successful.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await save(target, { slotId: DEFAULT_SLOT });
+      if (!result || result.superseded !== true) {
+        await lastWrite;
+        return true;
+      }
+      target = currentState;
+      if (!target || typeof target !== "object") return false;
+    }
+    return false;
+  }
   function selectorSignature(value) {
     if (value === undefined) return "undefined";
     if (value === null || typeof value !== "object") return typeof value + ":" + String(value);

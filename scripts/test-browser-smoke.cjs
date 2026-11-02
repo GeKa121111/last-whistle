@@ -1530,6 +1530,16 @@ async function main() {
       return element ? getComputedStyle(element).fontSize : null;
     });
     assert.equal(leagueTypography, "11px", "competition explanatory copy must use the readable secondary type scale");
+    const leagueRules = page.locator("#page-league .league-rules-details");
+    assert.equal(await leagueRules.count(), 1, "the league page must contain one consolidated IFAB reference");
+    assert.equal(await leagueRules.evaluate(element => element.open), false,
+      "the long law reference must start collapsed so season information stays easy to scan");
+    await leagueRules.locator("summary").click();
+    await page.waitForFunction(() => document.querySelector("#page-league .league-rules-details")?.open === true);
+    assert.ok(await leagueRules.locator(".league-rules-content .ruleList").count() > 0,
+      "opening the IFAB reference must reveal the complete existing rule summary");
+    await leagueRules.locator("summary").click();
+    await page.waitForFunction(() => document.querySelector("#page-league .league-rules-details")?.open === false);
     await page.evaluate(() => window.LWStoryRuntime.showPage("contract"));
     results.push("readable secondary typography on stats, competition, and contract pages");
 

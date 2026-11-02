@@ -5799,7 +5799,7 @@ function seasonRealPlayerDirectory(){
 }
 function currentSeasonMatchRows(scopeFilter){
  const season=Number(state.season)||1;
- return (Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[]).filter(row=>
+ return allCareerMatchRowsForHistory().filter(row=>
   row&&Number(row.season)===season&&Number(row.minutes)>0&&row.scope!=="international"
   &&(!scopeFilter||scopeFilter(row)));
 }

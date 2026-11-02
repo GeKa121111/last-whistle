@@ -39,6 +39,8 @@ const extracted = [
   extractFunction(html, "restoreSeasonTransitionState"),
   extractFunction(html, "applyMatchResultUnsafe"),
   extractFunction(html, "applyMatchResult"),
+  extractFunction(html, "allCareerMatchRowsForHistory"),
+  extractFunction(html, "currentSeasonMatchRows"),
   extractFunction(html, "playerCurrentSeasonStats")
 ];
 assert.ok(extracted[2].includes("recordedMatchIds.push(id)"),
@@ -70,7 +72,19 @@ sandbox = {
   state: JSON.parse(JSON.stringify(initialState)),
   window: {
     LWMatch: { validateResult: () => ({ ok: true }) },
-    LWCareer: { matchDevelopment: () => ({}) }
+    LWCareer: {
+      matchDevelopment: () => ({}),
+      uniqueMatchRows: rows => {
+        const seen = new Set();
+        return rows.filter(row => {
+          const id = String(row && (row.id ?? row.matchId) || "");
+          if (!id) return true;
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+      }
+    }
   },
   console: { error: () => {}, warn: () => {} },
   toast: message => events.toasts.push(String(message)),
@@ -94,7 +108,7 @@ sandbox = {
 };
 
 const harness = extracted.join(String.fromCharCode(10)) + String.fromCharCode(10)
-  + "globalThis.settleMatch = applyMatchResult; globalThis.playerCurrentSeasonStats = playerCurrentSeasonStats;";
+  + "globalThis.settleMatch = applyMatchResult; globalThis.playerCurrentSeasonStats = playerCurrentSeasonStats; globalThis.currentSeasonMatchRows = currentSeasonMatchRows;";
 vm.createContext(sandbox);
 vm.runInContext(harness, sandbox, { filename: "match-result-transaction-harness.js" });
 
@@ -181,4 +195,22 @@ assert.equal(sandbox.settleMatch(result, meta), false, "the same match id must r
 assert.equal(JSON.stringify(sandbox.state), afterCommit,
   "a duplicate settlement must not increment stats or append another history row");
 
-console.log("PASS: match settlement is atomic on failure and remains idempotent on success.");
+sandbox.state.seasonLog = [
+  { id: "legacy-only-3", season: 3, day: 4, minutes: 90, goals: 1, assists: 0, rating: 8, club: "نادي الاختبار", opponent: "خصم قديم" },
+  { id: "legacy-duplicate-3", season: 3, day: 5, minutes: 75, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم مكرر" }
+];
+sandbox.state.careerMatchHistory = [
+  { id: "legacy-duplicate-3", season: 3, day: 5, scope: "league", minutes: 75, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم مكرر" },
+  { id: "cup-match-3", season: 3, day: 6, scope: "cup", minutes: 30, goals: 0, assists: 1, rating: 7, club: "نادي الاختبار", opponent: "خصم الكأس" },
+  { id: "international-match-3", season: 3, day: 7, scope: "international", minutes: 90, goals: 1, assists: 0, rating: 8 },
+  { id: "prior-season-match", season: 2, day: 8, scope: "league", minutes: 90, goals: 1, assists: 0, rating: 8 }
+];
+const currentSeasonRows = sandbox.currentSeasonMatchRows();
+assert.deepEqual(Array.from(currentSeasonRows, row => row.id),
+  ["legacy-only-3", "legacy-duplicate-3", "cup-match-3"],
+  "current season leaderboards and awards must include legacy seasonLog rows, deduplicate overlaps, and exclude international/older-season matches");
+assert.deepEqual(Array.from(sandbox.currentSeasonMatchRows(row => row.scope === "league"), row => row.id),
+  ["legacy-only-3", "legacy-duplicate-3"],
+  "competition filters must work over the unified legacy/current match history");
+
+console.log("PASS: match settlement is atomic, season stats preserve legacy history, and duplicate settlement remains idempotent.");

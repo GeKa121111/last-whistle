@@ -1077,6 +1077,7 @@ assert.ok(app.includes('const retryPendingTransferButton=e.target.closest("[data
 
 const retryPendingTransferSource = section("function retryPendingTransfer(){", "\nfunction negotiate(){");
 function runPendingTransferRetry(mode) {
+  let saveCalls = 0, renderCalls = 0, toastMessage = "";
   const scenario = {
     state: {
       clubName: "نادي أ", leagueCountry: "مصر", season: 4, day: 190,
@@ -1090,16 +1091,15 @@ function runPendingTransferRetry(mode) {
       state.clubName = "نادي ب"; state.leagueCountry = "مصر"; state.pendingTransfer = null;
       return true;
     },
-    saveCalls: 0, renderCalls: 0, toastMessage: "",
-    saveGame() { this.saveCalls++; return true; },
-    renderTransferMarket() { this.renderCalls++; },
-    toast(message) { this.toastMessage = message; }
+    saveGame() { saveCalls++; return true; },
+    renderTransferMarket() { renderCalls++; },
+    toast(message) { toastMessage = message; }
   };
   vm.createContext(scenario);
   vm.runInContext(retryPendingTransferSource + "\nthis.retryPendingTransfer = retryPendingTransfer;", scenario,
     { filename: "pending-transfer-retry-" + mode });
   scenario.retryPendingTransfer();
-  return scenario;
+  return { state: scenario.state, saveCalls, renderCalls, toastMessage };
 }
 const expiredRetry = runPendingTransferRetry("expired");
 assert.equal(expiredRetry.state.transferOffers[0].status, "expired",

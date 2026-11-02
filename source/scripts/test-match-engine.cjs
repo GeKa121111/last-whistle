@@ -752,6 +752,25 @@ const substituteMinutesProbe = engine.simulateMatch({
 assert.ok(starterMinutesProbe.player.minutes > substituteMinutesProbe.player.minutes,
   "a promoted striker must receive more match minutes than a substitute");
 
+// Squad-role aliases must resolve to the same participation model as canonical Arabic roles.
+const roleMinutes = role => engine.simulateMatch({
+  seed: 91001,
+  player: { position: "رأس حربة", role, shooting: 68, composure: 70,
+    fitness: 78, speed: 70, physical: 68, trust: 55, energy: 85, fatigue: 10 }
+}).player.minutes;
+const roleAliasPairs = [
+  ["أساسي", "regular starter"], ["أساسي", "regularstarter"], ["أساسي", "لاعب اساسي"],
+  ["نجم الفريق", "star player"], ["نجم الفريق", "starplayer"],
+  ["تناوب", "squad player"], ["تناوب", "squadplayer"], ["تناوب", "rotation"],
+  ["بديل أساسي", "core substitute"], ["بديل أساسي", "بديل   اساسي"],
+  ["ناشئ", "prospect"], ["ناشئ", "youngster"], ["ناشئ", "ناشي"], ["ناشئ", "صاعد"],
+  ["بديل", "impact sub"], ["بديل", "impactsub"], ["بديل", "fringe player"], ["بديل", "fringeplayer"]
+];
+for (const [canonicalRole, aliasRole] of roleAliasPairs) {
+  assert.equal(roleMinutes(aliasRole), roleMinutes(canonicalRole),
+    "role alias " + aliasRole + " must preserve the minutes of " + canonicalRole);
+}
+
 // Regression sweep for same-minute injuries/red cards: player activity must be ordered before the exit event.
 let injuryExits = 0;
 let redCardExits = 0;

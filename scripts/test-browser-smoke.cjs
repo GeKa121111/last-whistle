@@ -1562,7 +1562,9 @@ async function main() {
       const state = runtime.getState();
       const original = {
         season: state.season, apps: state.apps, goals: state.goals, assists: state.assists,
-        careerMatchHistory: state.careerMatchHistory, seasonLog: state.seasonLog
+        careerMatchHistory: state.careerMatchHistory, seasonLog: state.seasonLog,
+        achievements: state.achievements, diary: state.diary, followers: state.followers,
+        trust: state.trust, trophies: state.trophies
       };
       const season = Math.max(2, Number(state.season) || 1);
       const records = [
@@ -1572,12 +1574,22 @@ async function main() {
         { id: "browser-stats-international", season, scope: "international", minutes: 90, goals: 7, assists: 2, rating: 8.0 }
       ];
       state.season = season;
+      state.apps = 0;
+      state.goals = 0;
+      state.assists = 0;
+      state.seasonLog = [];
+      state.careerMatchHistory = [];
+      state.achievements = [];
+      state.diary = [];
+      state.followers = 0;
+      state.trust = 0;
+      state.trophies = 0;
+      runtime.showPage("stats");
+      runtime.render();
       state.apps = 3;
       state.goals = 11;
       state.assists = 5;
-      state.seasonLog = [];
       state.careerMatchHistory = records;
-      runtime.showPage("stats");
       runtime.render();
       const read = id => document.querySelector("#" + id)?.textContent.trim() || null;
       const complete = {
@@ -1585,7 +1597,9 @@ async function main() {
         careerAssists: read("statsCareerAssists"), seasonApps: read("statsSeasonApps"),
         seasonGoals: read("statsSeasonGoals"), seasonAssists: read("statsSeasonAssists"),
         goalsPer90: read("statsGoalsPer90"), assistsPer90: read("statsAssistsPer90"),
-        minutesPerAppearance: read("statsMinutesPerAppearance")
+        minutesPerAppearance: read("statsMinutesPerAppearance"),
+        unlockedAchievements: Array.from(document.querySelectorAll("#achievements .achievement.unlocked b"))
+          .map(element => element.textContent.trim())
       };
       state.careerMatchHistory = [records[0]];
       runtime.render();
@@ -1599,14 +1613,20 @@ async function main() {
       state.assists = original.assists;
       state.careerMatchHistory = original.careerMatchHistory;
       state.seasonLog = original.seasonLog;
+      state.achievements = original.achievements;
+      state.diary = original.diary;
+      state.followers = original.followers;
+      state.trust = original.trust;
+      state.trophies = original.trophies;
       runtime.render();
       return { complete, incomplete };
     });
     assert.deepEqual(statsDataProbe.complete, {
       careerApps: "3", careerGoals: "11", careerAssists: "5",
       seasonApps: "2", seasonGoals: "3", seasonAssists: "1",
-      goalsPer90: "5.50", assistsPer90: "2.50", minutesPerAppearance: "60"
-    }, "the stats dashboard must aggregate current league and cup appearances while excluding internationals");
+      goalsPer90: "5.50", assistsPer90: "2.50", minutesPerAppearance: "60",
+      unlockedAchievements: ["أول ظهور", "أول هدف"]
+    }, "the stats dashboard must aggregate league/cup stats, exclude internationals and refresh achievements on the stats page");
     assert.deepEqual(statsDataProbe.incomplete, {
       goalsPer90: "—", assistsPer90: "—", minutesPerAppearance: "—"
     }, "the stats dashboard must not publish rates or average minutes from a truncated career ledger");

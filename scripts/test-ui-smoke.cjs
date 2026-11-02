@@ -9,8 +9,8 @@ const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
 
-const staticMarkup = html.replace(/<script\\b[\\s\\S]*?<\\/script>/gi, "").replace(/<!--[\\s\\S]*?-->/g, "");
-const staticIds = [...staticMarkup.matchAll(/\\bid\\s*=\\s*(["'])(.*?)\\1/gi)].map(match => match[2]);
+const staticMarkup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "").replace(/<!--[\s\S]*?-->/g, "");
+const staticIds = [...staticMarkup.matchAll(/\bid\s*=\s*(["'])(.*?)\1/gi)].map(match => match[2]);
 const seenStaticIds = new Set();
 const duplicateStaticIds = new Set();
 for (const id of staticIds) {
@@ -21,9 +21,9 @@ if (duplicateStaticIds.size) {
   console.error("Static app markup contains duplicate DOM IDs: " + [...duplicateStaticIds].join(", "));
   process.exit(1);
 }
-const pageSlugs = [...staticMarkup.matchAll(/\\bid\\s*=\\s*["']page-([a-z0-9-]+)["']/gi)].map(match => match[1]);
+const pageSlugs = [...staticMarkup.matchAll(/\bid\s*=\s*["']page-([a-z0-9-]+)["']/gi)].map(match => match[1]);
 const pageSlugSet = new Set(pageSlugs);
-const navigationSlugs = new Set([...staticMarkup.matchAll(/\\bdata-page\\s*=\\s*["']([^"']+)["']/gi)].map(match => match[1]));
+const navigationSlugs = new Set([...staticMarkup.matchAll(/\bdata-page\s*=\s*["']([^"']+)["']/gi)].map(match => match[1]));
 const missingPageNavigation = [...pageSlugSet].filter(slug => !navigationSlugs.has(slug));
 const unknownNavigationPages = [...navigationSlugs].filter(slug => !pageSlugSet.has(slug));
 if (!pageSlugSet.size || pageSlugSet.size !== pageSlugs.length

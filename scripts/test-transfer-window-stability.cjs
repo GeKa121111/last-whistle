@@ -1149,7 +1149,7 @@ const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
 require("./assert-static-cache-version.cjs")(sw, 175);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
-assert.ok(sw.includes("transfer-awards-engine.js?v=15"),
+assert.ok(sw.includes("transfer-awards-engine.js?v=17"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 68);
 

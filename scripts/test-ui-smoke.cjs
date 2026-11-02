@@ -782,7 +782,7 @@ if (!html.includes("function buildSeasonAwardCeremony(place){")
   || !html.includes('id="playmakerLeaderboard"')) {
   console.error("Season awards test failed: ceremony, leaderboards, or trophy cabinet is missing."); process.exit(1);
 }
-if (!html.includes('src="./transfer-awards-engine.js?v=15"')
+if (!html.includes('src="./transfer-awards-engine.js?v=17"')
   || !html.includes("transferOffersWindowId")
   || !html.includes("awardCeremonies")
   || !html.includes("currentCompetitions")) {

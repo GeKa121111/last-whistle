@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 10);
+assert.equal(engine.version, 12);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -217,6 +217,31 @@ const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
 assert.equal(savedSeasonStatsRemainAuthoritative.goals, 8);
 assert.equal(savedSeasonStatsRemainAuthoritative.assists, 3);
 
+const malformedSavedSeason = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", leagueStrength: "Infinity",
+  seasonStats: { season: 6, appearances: "Infinity", goals: "Infinity", assists: "NaN", averageRating: "Infinity" }
+}, 6, 1);
+assert.equal(malformedSavedSeason.appearances, 0,
+  "non-finite saved appearances must not enter award eligibility or ranking");
+assert.equal(malformedSavedSeason.goals, 0);
+assert.equal(malformedSavedSeason.assists, 0);
+assert.equal(malformedSavedSeason.averageRating, 0);
+assert.equal(malformedSavedSeason.score, 0);
+assert.equal(malformedSavedSeason.weightedGoals, 0,
+  "malformed league strength must not turn a zero-goal row into NaN weighted goals");
+
+const malformedEligibleSeason = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", leagueStrength: "Infinity",
+  seasonStats: { season: 6, appearances: 12, goals: "Infinity", assists: -4, averageRating: 12 }
+}, 6, 1);
+assert.equal(malformedEligibleSeason.appearances, 12);
+assert.equal(malformedEligibleSeason.goals, 0);
+assert.equal(malformedEligibleSeason.assists, 0);
+assert.equal(malformedEligibleSeason.averageRating, 10);
+assert.equal(malformedEligibleSeason.leagueStrength, 60);
+assert.ok(Number.isFinite(malformedEligibleSeason.score));
+assert.ok(Number.isFinite(malformedEligibleSeason.weightedGoals));
+
 const youthPlayer = {
   name: "لاعب أكاديمية", age: 17, position: "جناح", ovr: 58, potential: 82,
   country: "مصر", currentClub: "مركز شباب النور", currentClubPower: 52,
@@ -329,6 +354,46 @@ assert.equal(zeroAppearanceUserRow.score, 0);
 assert.equal(zeroAppearanceUserRow.weightedGoals, 0,
   "leaderboard rows with no appearances must not retain stale season contributions");
 
+const malformedCareerLeaderboard = engine.buildLeagueLeaderboard({
+  season: 5,
+  progress: 1,
+  players: [],
+  userLine: {
+    name: "مسيرة بإحصائيات تالفة", club: "فريق الاختبار", position: "مهاجم",
+    ovr: 88, appearances: "Infinity", apps: 25, goals: "Infinity",
+    assists: "NaN", averageRating: "Infinity", leagueStrength: "Infinity"
+  }
+});
+const malformedCareerRow = malformedCareerLeaderboard.find(row => row.isUser);
+assert.ok(malformedCareerRow, "the career player must remain present in the leaderboard");
+assert.equal(malformedCareerRow.appearances, 0,
+  "an explicit invalid appearance value must not fall through to a stale apps alias");
+assert.equal(malformedCareerRow.goals, 0);
+assert.equal(malformedCareerRow.assists, 0);
+assert.equal(malformedCareerRow.averageRating, 0);
+assert.equal(malformedCareerRow.score, 0);
+assert.equal(malformedCareerRow.weightedGoals, 0);
+assert.equal(malformedCareerRow.leagueStrength, 60);
+
+const boundedCareerLeaderboard = engine.buildLeagueLeaderboard({
+  season: 5,
+  progress: 1,
+  players: [],
+  userLine: {
+    name: "مسيرة بقيم خارج النطاق", club: "فريق الاختبار", position: "مهاجم",
+    ovr: 88, appearances: 12, goals: "Infinity", assists: -3,
+    averageRating: 12, leagueStrength: "Infinity"
+  }
+});
+const boundedCareerRow = boundedCareerLeaderboard.find(row => row.isUser);
+assert.equal(boundedCareerRow.appearances, 12);
+assert.equal(boundedCareerRow.goals, 0);
+assert.equal(boundedCareerRow.assists, 0);
+assert.equal(boundedCareerRow.averageRating, 10);
+assert.equal(boundedCareerRow.leagueStrength, 60);
+assert.ok(Number.isFinite(boundedCareerRow.score) && Number.isFinite(boundedCareerRow.weightedGoals),
+  "malformed career leaderboard values must never produce non-finite ranking scores");
+
 const realPlayers = [
   { name: "كيليان مبابي", clubName: "ريال مدريد", country: "إسبانيا", position: "مهاجم", ovr: 93, prestige: 100, leagueStrength: 96, age: 27, confederation: "UEFA", originConfederation: "UEFA" },
   { name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح", ovr: 91, prestige: 99, leagueStrength: 96, age: 19, confederation: "UEFA", originConfederation: "UEFA" },
@@ -349,6 +414,51 @@ const ceremony = engine.buildSeasonAwardCeremony({
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+const malformedCeremony = engine.buildSeasonAwardCeremony({
+  season: 8,
+  currentDate: "2032-02-14T00:00:00.000Z",
+  player: {
+    name: "لاعب بيانات تالفة", club: "نادي الاختبار", country: "مصر", position: "حارس مرمى",
+    age: "Infinity", ovr: 80, appearances: 12, goals: "Infinity", assists: "NaN",
+    averageRating: "Infinity", trophies: "Infinity", professionalism: "Infinity",
+    leagueStrength: "Infinity", cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
+  },
+  realPlayers: [{
+    name: "حارس بيانات تالفة", clubName: "نادي اختبار آخر", country: "مصر", position: "حارس مرمى",
+    age: 25, ovr: 80, prestige: "Infinity", leagueStrength: "Infinity",
+    confederation: "CAF", originConfederation: "CAF",
+    seasonStats: {
+      season: 8, appearances: 12, goals: "Infinity", assists: "NaN", averageRating: "Infinity",
+      cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
+    }
+  }, {
+    name: "لامين يامال", clubName: "نادي موهبة", country: "إسبانيا", position: "جناح",
+    age: "Infinity", ovr: 90, prestige: 90, leagueStrength: 80,
+    confederation: "UEFA", originConfederation: "UEFA",
+    seasonStats: { season: 8, appearances: 25, goals: 10, assists: 8, averageRating: 8.1 }
+  }, {
+    name: "موهبة بلا عمر موثق", clubName: "نادي ناشئين", country: "مصر", position: "مهاجم",
+    ovr: 80, prestige: 75, leagueStrength: 65,
+    seasonStats: { season: 8, appearances: 20, goals: 7, assists: 4, averageRating: 7.4 }
+  }]
+});
+assert.ok(malformedCeremony.ballonDor.topFive.length > 0,
+  "finite appearance counts must remain eligible even when malformed performance fields are sanitized");
+assert.equal(malformedCeremony.awards.some(award => award.id === "golden-boy"), false,
+  "an invalid age must not be converted into an under-21 Golden Boy candidate");
+assert.ok(!malformedCeremony.awards.some(award => award.id === "golden-boy"),
+  "a known young player with a malformed saved age must not qualify through a name-based fallback");
+assert.ok(malformedCeremony.ballonDor.topFive.every(row =>
+  Number.isFinite(row.score) && Number.isFinite(row.goals) && Number.isFinite(row.assists)
+    && Number.isFinite(row.averageRating)),
+  "Ballon d'Or ranking must never expose non-finite player scores or statistics");
+assert.ok(malformedCeremony.awards.every(award =>
+  Number.isFinite(award.winner.goals) && Number.isFinite(award.winner.assists)
+    && Number.isFinite(award.winner.averageRating) && Number.isFinite(award.winner.cleanSheets)
+    && Number.isFinite(award.winner.saves) && Number.isFinite(award.winner.penaltiesSaved)
+    && award.topThree.every(row => Number.isFinite(row.score))),
+  "all award winners and shortlists must remain finite when saved player stats are malformed");
+
 const noYouthCeremony = engine.buildSeasonAwardCeremony({
   season: 4,
   currentDate: "2028-02-14T00:00:00.000Z",

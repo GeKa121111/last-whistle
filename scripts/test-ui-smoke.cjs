@@ -63,8 +63,8 @@ if (!redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page{display:none!
 
 const careerHubThemeRules = [
   "CAREER HUB — dark theme consolidation",
-  "body.lw-rebuild .hub-launch-panel{",
-  "body.lw-rebuild .hub-tile{",
+  "body.lw-rebuild .hub-training-card .trainingControls{",
+  "body.lw-rebuild .hub-training-rules>div{",
   "body.lw-rebuild .hub-training-card .trainingControls{",
   "body.lw-rebuild .hub-training-rules>div{",
   "body.lw-rebuild .hub-readiness-feature{",
@@ -77,9 +77,10 @@ if (careerHubThemeRules.some(rule => !redesign.includes(rule))) {
   console.error("Career Hub theme regression: every primary feature surface must use the consolidated dark theme.");
   process.exit(1);
 }
-if (!redesign.includes("body.lw-rebuild .hub-tile-desc{color:#a2b09d;font-size:10px}")
+if (!organizationSource.includes("body.lw-rebuild .lw-readiness-brief p")
+  || !organizationSource.includes("font-size:10px")
   || !redesign.includes("body.lw-rebuild .hub-recovery-action p{color:#a4b19f;font-size:10px}")) {
-  console.error("Career Hub typography regression: mobile helper text must remain readable.");
+  console.error("Career UI typography regression: daily readiness and recovery helper text must remain readable.");
   process.exit(1);
 }
 
@@ -536,10 +537,15 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW"]', '["LW", "
 }
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
 const organizationSource = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");
-if (!redesignSource.includes("article:not(.seasonJourneyCard)")
-  || !organizationSource.includes("body.lw-rebuild #page-home .world-ai-home")
-  || !organizationSource.includes("display:none!important")) {
-  console.error("The home page must keep the season roadmap while moving world AI details to the world page.");
+if (!redesignSource.includes("body.lw-rebuild #seasonActionBridge{display:none!important}")
+  || !organizationSource.includes("body.lw-rebuild .lw-readiness-brief")
+  || !html.includes('id="seasonActionBridge" hidden')
+  || !html.includes('id="seasonJourney"')
+  || !html.includes('id="worldAISimulationDashboard"')
+  || html.includes('id="worldAIHomePanel"')
+  || html.includes('class="hub-launch-panel"')
+  || html.includes('class="card span5 hub-player-card"')) {
+  console.error("Home UI must remove obsolete hidden cards, keep a hidden functional action bridge, and surface daily readiness in the command center.");
   process.exit(1);
 }
 if (!html.includes('href="./ui-organization.css?v=1"')

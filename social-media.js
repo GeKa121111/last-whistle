@@ -451,9 +451,11 @@
     var social = ensureState(state);
     var seen = social.seen[key];
     var pending = [];
+    var pendingTokens = Object.create(null);
     (Array.isArray(items) ? items : []).forEach(function (item) {
       var token = keyFn(item);
-      if (!token || seen.indexOf(token) >= 0) return;
+      if (!token || seen.indexOf(token) >= 0 || pendingTokens[token]) return;
+      pendingTokens[token] = true;
       pending.push({ item: item, token: token });
     });
     // Histories are newest-first. Publish a bounded oldest-first batch so a

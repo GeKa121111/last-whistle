@@ -89,6 +89,30 @@ assert.equal(social.syncState(backlog), 0);
 assert.equal(backlogStore.posts.filter(post => post.kind === "match").length, 12);
 assert.equal(backlogStore.seen.matches.length, 12);
 
+// A duplicate legacy fixture can appear twice in one newest-first batch.
+// It must produce one social post and one seen cursor, not two posts before the
+// seen-key list is updated.
+const duplicateBatch = {
+  name: "Duplicate Match Player", careerStarted: true, season: 5, day: 1,
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: []
+};
+const duplicateBatchStore = social.ensureState(duplicateBatch);
+social.syncState(duplicateBatch);
+const duplicateSocialMatch = {
+  id: "duplicate-social-fixture", season: 5, day: 2, opponent: "Duplicate Opponent",
+  teamGoals: 2, oppGoals: 1, minutes: 90, rating: 7.4, goals: 1, assists: 1
+};
+duplicateBatch.careerMatchHistory.unshift(duplicateSocialMatch, { ...duplicateSocialMatch });
+assert.equal(social.syncState(duplicateBatch), 1,
+  "same-batch duplicate fixtures must create one social post");
+assert.equal(social.syncState(duplicateBatch), 0,
+  "the duplicate fixture must remain seen on the next refresh");
+assert.equal(duplicateBatchStore.posts.filter(post => post.kind === "match").length, 1);
+assert.equal(duplicateBatchStore.seen.matches.length, 1);
+
+
+
 // Multiple events of each type must drain over successive refreshes instead of
 // being marked seen after only the first event was posted.
 const eventBatch = {

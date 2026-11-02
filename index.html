@@ -1015,6 +1015,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
             <div class="kpi"><div class="kpiNum" id="statsCareerGoals">0</div><div class="kpiLabel">أهداف</div></div>
             <div class="kpi"><div class="kpiNum" id="statsCareerAssists">0</div><div class="kpiLabel">صناعات</div></div>
             <div class="kpi"><div class="kpiNum" id="statsSeasonApps">0</div><div class="kpiLabel">مشاركات الموسم</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsSeasonGoals">0</div><div class="kpiLabel">أهداف الموسم</div></div>
+            <div class="kpi"><div class="kpiNum" id="statsSeasonAssists">0</div><div class="kpiLabel">صناعات الموسم</div></div>
             <div class="kpi"><div class="kpiNum" id="statsGoalsPer90">0.00</div><div class="kpiLabel">أهداف لكل 90 دقيقة</div></div>
             <div class="kpi"><div class="kpiNum" id="statsAssistsPer90">0.00</div><div class="kpiLabel">صناعات لكل 90 دقيقة</div></div>
             <div class="kpi"><div class="kpiNum" id="statsMinutesPerAppearance">0</div><div class="kpiLabel">متوسط دقائق المشاركة</div></div>
@@ -1091,7 +1093,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       <div class="grid">
         <article class="card span12"><div class="cardHead"><h2>🏆 جدول الدوري</h2><span class="pill" id="leagueSeason">الموسم 1</span></div><p class="muted small">ترتيب الفرق بيتحدّث بعد كل مباراة، ونتائج بقية المواجهات بتتحسب مع جولتك. بطل الموسم بياخد مكافأة داخل اللعبة.</p><p class="league-table-hint">على الموبايل اسحب الجدول أفقيًا لعرض باقي الإحصائيات.</p><div class="tableWrap"><table aria-label="جدول ترتيب الدوري الحالي"><caption class="league-table-caption">ترتيب الفرق حسب النقاط وفارق الأهداف</caption><thead><tr><th>#</th><th>الفريق</th><th>لعب</th><th>ف</th><th>ت</th><th>خ</th><th>له</th><th>عليه</th><th>فارق</th><th>نقاط</th></tr></thead><tbody id="leagueBody"></tbody></table></div></article>
         <details class="card span12 match-rules-card"><summary class="cardHead match-rules-summary"><div><h2>📘 قوانين المباراة</h2><span class="subline">مرجع تحكيمي مختصر — افتحه وقت ما تحتاج</span></div><span class="pill green">IFAB • 2026/27</span><span class="match-rules-chevron" aria-hidden="true"></span></summary><div class="match-rules-content"><p class="muted small">مرجع توعوي موجز لقوانين IFAB، وليس كل ما يرد هنا مطبقًا حرفيًا داخل محاكاة اللعبة؛ المحاكاة تختصر بعض أحداث التحكيم، ولا تحسب وقت بدل الضائع أو كل استئنافات اللعب. تفاصيل عدد التبديلات وحسم التعادل ترجع إلى لائحة المسابقة.</p><ul class="ruleList"><li><b>اللاعبون:</b> لكل فريق بحد أقصى 11 لاعبًا، ويجب وجود حارس مرمى. لا تبدأ المباراة ولا تستمر إذا قلّ عدد فريق عن 7 لاعبين.</li><li><b>المدة:</b> شوطان متساويان، كل منهما 45 دقيقة. يضيف الحكم وقتًا بدل الضائع عن التوقفات، والاستراحة بين الشوطين لا تتجاوز 15 دقيقة.</li><li><b>التسلل:</b> مجرد الوقوف في موقف تسلل ليس مخالفة؛ تُعاقب المشاركة الفعلية. لا يوجد تسلل عند استلام الكرة مباشرة من رمية تماس أو ركلة مرمى أو ركلة ركنية.</li><li><b>الأخطاء والانضباط:</b> المخالفة التي تستوجب ركلة حرة مباشرة داخل منطقة جزاء المدافع تُحتسب ركلة جزاء. التهور يستوجب إنذارًا، واللعب العنيف أو القوة المفرطة قد يستوجب الطرد.</li><li><b>الأدوار الإقصائية:</b> إذا كانت لوائح البطولة تشترط فائزًا، يمكن اللجوء إلى شوطين إضافيين متساويين لا يتجاوز كل منهما 15 دقيقة، ثم ركلات الترجيح عند استمرار التعادل.</li></ul><div class="ruleLinks"><a href="https://www.theifab.com/laws-of-the-game-documents/" target="_blank" rel="noopener noreferrer">نسخة القوانين الحالية</a><a href="https://www.theifab.com/laws/latest/the-players/" target="_blank" rel="noopener noreferrer">اللاعبون</a><a href="https://www.theifab.com/laws/latest/the-duration-of-the-match/" target="_blank" rel="noopener noreferrer">مدة المباراة</a><a href="https://www.theifab.com/laws/latest/offside/" target="_blank" rel="noopener noreferrer">التسلل</a><a href="https://www.theifab.com/laws/latest/fouls-and-misconduct/" target="_blank" rel="noopener noreferrer">الأخطاء والعقوبات</a><a href="https://www.theifab.com/laws/latest/determining-the-outcome-of-a-match/" target="_blank" rel="noopener noreferrer">حسم نتيجة المباراة</a></div><details class="sectionNote" style="margin-top:12px"><summary style="cursor:pointer;font-weight:850;color:var(--green)">عرض ملخص القوانين السبعة عشر</summary><ol class="ruleList"><li><b>ملعب اللعب:</b> الملعب مستطيل، بخطوط ومناطق مرسومة وأبعاد وأهداف مطابقة للمواصفات.</li><li><b>الكرة:</b> مواصفات الكرة المعتمدة وإجراءات استبدالها أو التعامل معها إذا أصبحت غير صالحة.</li><li><b>اللاعبون:</b> عدد اللاعبين والحارس، الحد الأدنى لاستمرار المباراة، والتبديلات وفق لوائح المسابقة.</li><li><b>معدات اللاعبين:</b> المعدات الأساسية الآمنة، واقيات الساق، ضوابط الزي، ومنع الحلي والأشياء الخطرة.</li><li><b>الحكم:</b> سلطة تطبيق القوانين، إدارة المباراة، احتساب الميزة، واتخاذ القرارات الانضباطية.</li><li><b>الحكام الآخرون:</b> المساعدون والحكم الرابع وحكام الفيديو، ومهامهم في مساندة طاقم التحكيم.</li><li><b>مدة المباراة:</b> شوطان متساويان من 45 دقيقة، وقت بدل ضائع، واستراحة بين الشوطين لا تتجاوز 15 دقيقة.</li><li><b>بدء واستئناف اللعب:</b> ركلة البداية بعد القرعة وعقب الهدف، والكرة الساقطة عند أنواع محددة من إيقاف اللعب.</li><li><b>الكرة داخل وخارج اللعب:</b> تخرج فقط عندما تتجاوز بكاملها خط التماس أو المرمى، أو عندما يوقف الحكم اللعب.</li><li><b>نتيجة المباراة:</b> يُحتسب الهدف عندما تعبر الكرة بكاملها خط المرمى بين القائمين وتحت العارضة دون مخالفة؛ وحسم التعادل يخضع للائحة المسابقة.</li><li><b>التسلل:</b> يُعاقب اللاعب فقط عند تدخله في اللعب من موقف تسلل؛ ولا تسلل من تماس مباشر أو ركلة مرمى أو ركنية.</li><li><b>الأخطاء وسوء السلوك:</b> ركلات حرة أو جزاء بحسب نوع المخالفة ومكانها، مع إنذار أو طرد بحسب درجة السلوك.</li><li><b>الركلات الحرة:</b> مباشرة أو غير مباشرة، مع قواعد موضع التنفيذ والمسافة والإشارات.</li><li><b>ركلة الجزاء:</b> تُنفذ من علامة الجزاء عند ارتكاب المدافع مخالفة تستوجب ركلة حرة مباشرة داخل منطقته.</li><li><b>رمية التماس:</b> استئناف عندما تتجاوز الكرة خط التماس بالكامل، من المكان الذي خرجت منه وبالإجراء الصحيح.</li><li><b>ركلة المرمى:</b> استئناف للفريق المدافع عندما تخرج الكرة بالكامل فوق خط مرماه بعد لمس مهاجم دون تسجيل هدف.</li><li><b>الركلة الركنية:</b> استئناف للفريق المهاجم عندما تخرج الكرة بالكامل فوق خط مرمى الخصم بعد لمس مدافع دون تسجيل هدف.</li></ol><p class="tiny muted" style="margin:8px 0 0">هذا ملخص توعوي مختصر، وليس بديلًا للنص الرسمي أو لوائح البطولة التي تحدد التفاصيل التنظيمية.</p></details></div></details>
-        <article class="card span6"><h2>📊 سجل موسمك</h2><div class="kpiGrid" style="margin-top:12px"><div class="kpi"><div class="kpiNum" id="seasonApps">0/38</div><div class="kpiLabel">مباريات الدوري</div></div><div class="kpi"><div class="kpiNum" id="seasonPoints">0</div><div class="kpiLabel">نقاط الدوري</div></div><div class="kpi"><div class="kpiNum" id="seasonGoals">0</div><div class="kpiLabel">أهداف الموسم</div></div></div></article>
+        <article class="card span6"><h2>📊 سجل موسمك</h2><div class="kpiGrid" style="margin-top:12px"><div class="kpi"><div class="kpiNum" id="seasonApps">0/38</div><div class="kpiLabel">مباريات الدوري</div></div><div class="kpi"><div class="kpiNum" id="seasonPoints">0</div><div class="kpiLabel">نقاط الدوري</div></div><div class="kpi"><div class="kpiNum" id="seasonGoals">0</div><div class="kpiLabel">أهداف الدوري</div></div></div></article>
         <article class="card span6"><h2>🎖️ سجل البطولات</h2><div id="trophyCabinet" class="muted small" style="margin-top:10px">لسه مفيش بطولات. خلي أول لقب هو بداية الحكاية.</div></article>
         <article class="card span12"><div class="cardHead"><h2>🏅 الجوائز الفردية في مسيرتك</h2><span class="pill gold" id="careerAwardCount">0 جائزة</span></div><p class="dataDisclaimer">جوائز المسيرة هنا نتائج محاكاة مستقلة داخل اللعبة، وليست تصويتًا أو اعتمادًا من FIFA أو أي اتحاد.</p><div id="careerAwards" class="eventFeed"></div></article>
         <article class="card span12"><div class="cardHead"><h2>🗺️ البطولات الجارية</h2><span class="pill" id="currentCompetitionCount">0 بطولة</span></div><p class="muted small">حالة الدوري والكؤوس والبطولات القارية في مسيرتك الحالية؛ البطولات المشروطة لا تُفتح إلا بعد التأهل.</p><div class="dataGrid" id="currentCompetitions"></div></article>
@@ -6322,6 +6324,40 @@ function performanceAdviceForRole(position,metrics={},rating=6.2,energy=100,fati
  return "حافظ على طاقتك، واختار تدريب يناسب مركزك بدل ما تستهلك نفسك.";
 }
 
+function renderStatsSummary(){
+ const nonnegative=value=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(0,numeric):0;};
+ const careerApps=Math.floor(nonnegative(state.apps));
+ const careerGoals=Math.floor(nonnegative(state.goals));
+ const careerAssists=Math.floor(nonnegative(state.assists));
+ const careerRows=allCareerMatchRowsForHistory().filter(row=>{
+  if(!row||typeof row!=="object"||Array.isArray(row)||nonnegative(row.minutes)<=0)return false;
+  return String(row.scope||"league").toLowerCase()!=="international";
+ });
+ const recordedMinutes=careerRows.reduce((total,row)=>total+nonnegative(row.minutes),0);
+ const recordedGoals=careerRows.reduce((total,row)=>total+nonnegative(row.goals),0);
+ const recordedAssists=careerRows.reduce((total,row)=>total+nonnegative(row.assists),0);
+ // Long/legacy saves can contain compacted history. Never invent a per-90 rate
+ // from a partial ledger: show it only when apps, goals, and assists reconcile.
+ const historyComplete=careerRows.length===careerApps
+  &&Math.abs(recordedGoals-careerGoals)<0.001
+  &&Math.abs(recordedAssists-careerAssists)<0.001;
+ const currentSeason=playerCurrentSeasonStats(currentSeasonMatchRows());
+ const per90=value=>historyComplete&&recordedMinutes>0
+  ?(value*90/recordedMinutes).toFixed(2):careerApps===0?"0.00":"—";
+ const minutesPerAppearance=historyComplete&&careerApps>0
+  ?String(Math.round(recordedMinutes/careerApps)):careerApps===0?"0":"—";
+ const count=value=>Math.max(0,Math.floor(nonnegative(value))).toLocaleString("en-US");
+ setText("statsCareerApps",count(careerApps));
+ setText("statsCareerGoals",count(careerGoals));
+ setText("statsCareerAssists",count(careerAssists));
+ setText("statsSeasonApps",count(currentSeason.appearances));
+ setText("statsSeasonGoals",count(currentSeason.goals));
+ setText("statsSeasonAssists",count(currentSeason.assists));
+ setText("statsGoalsPer90",per90(careerGoals));
+ setText("statsAssistsPer90",per90(careerAssists));
+ setText("statsMinutesPerAppearance",minutesPerAppearance);
+}
+
 function renderPerformanceInsights(){
  const root=$("performanceInsights");if(!root)return;
  const records=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[];
@@ -6440,6 +6476,7 @@ function render(){
   case "training":
    break;
   case "stats":
+   renderStatsSummary();
    renderPerformanceInsights();
    break;
   case "league":

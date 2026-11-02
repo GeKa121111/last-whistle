@@ -215,8 +215,10 @@ vm.runInContext(rootHtml.slice(inlineDateStart, inlineDateEnd)
   + "\nthis.calendarGameDateISO = calendarGameDateISO;", inlineDateContext);
 assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "the browser career engine must use the same game-calendar date");
-assert.ok(rootHtml.includes('const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);'),
-  "the inline browser award engine must deduplicate repeated match rows");
+assert.ok(rootHtml.includes("const log = currentSeasonLeagueMatchRows(state);"),
+  "the inline browser award engine must use the unified current-season league history");
+assert.ok(rootHtml.includes("function currentSeasonLeagueMatchRows(state)"),
+  "the inline browser award engine must keep the current-season history filter deployed");
 assert.ok(rootHtml.includes("const awardCount = value => {"),
   "the inline browser award engine must normalize malformed goals and assists");
 assert.ok(rootHtml.includes("const awardMinutes = value => {") && rootHtml.includes("const awardRating = value => {"),
@@ -2333,6 +2335,50 @@ assert.equal(JSON.stringify(stringTrueAwardState.careerAwards), JSON.stringify(b
   "legacy string-true availability must remain equivalent to boolean true");
 assert.equal(stringTrueAwardState.money, booleanTrueAwardState.money,
   "legacy string-true availability must preserve valid award rewards");
+
+// Current-season awards must merge current career history with legacy seasonLog,
+// deduplicate the overlap, and exclude older seasons and non-league competitions.
+function makeUnifiedAwardHistoryState() {
+  const common = {
+    leagueCountry: "England", leagueCompetition: "Test League", competition: "Test League",
+    club: "Test FC", minutes: 90, rating: 8, goals: 1, assists: 0, playerAvailable: true
+  };
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", leagueDivision: 1, season: 4, calendarDay: 120,
+    money: 0, topScorerAwards: 0, careerAwards: [],
+    seasonLog: [
+      { ...common, matchId: "unified-award-1", opponent: "Opponent 1", day: 1 }
+    ],
+    careerMatchHistory: [
+      { ...common, matchId: "unified-award-1", season: 4, scope: "league", opponent: "Opponent 1", day: 1 },
+      { ...common, matchId: "unified-award-2", season: 4, scope: "league", opponent: "Opponent 2", day: 2 },
+      { ...common, matchId: "unified-award-3", season: 4, scope: "league", opponent: "Opponent 3", day: 3, assists: 1 },
+      { ...common, matchId: "unified-award-old", season: 3, scope: "league", opponent: "Old Opponent", day: 4, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-cup", season: 4, scope: "cup", competition: "Test Cup", leagueCompetition: "Test Cup", opponent: "Cup Opponent", day: 5, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-international", season: 4, scope: "international", competition: "International", leagueCompetition: "International", club: "Egypt", opponent: "Other Country", day: 6, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-unknown-season", scope: "league", opponent: "Unknown Season", day: 7, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-other-country", season: 4, scope: "league", leagueCountry: "Spain", opponent: "Spain Opponent", day: 8, goals: 99, assists: 99, rating: 10 },
+      { ...common, matchId: "unified-award-other-competition", season: 4, scope: "league", leagueCompetition: "Other League", competition: "Other League", opponent: "Other Competition", day: 9, goals: 99, assists: 99, rating: 10 }
+    ]
+  };
+}
+const sourceUnifiedAwardState = makeUnifiedAwardHistoryState();
+const browserUnifiedAwardState = makeUnifiedAwardHistoryState();
+career.seasonAwards(sourceUnifiedAwardState, [{ name: "Test FC", power: 50 }], 1);
+deployedCareer.seasonAwards(browserUnifiedAwardState, [{ name: "Test FC", power: 50 }], 1);
+const sourceUnifiedBoot = sourceUnifiedAwardState.careerAwards.find(award => award.id === "golden-boot");
+const browserUnifiedBoot = browserUnifiedAwardState.careerAwards.find(award => award.id === "golden-boot");
+assert.ok(sourceUnifiedBoot, "three current-season league goals from careerMatchHistory must qualify for the simulated golden boot");
+assert.ok(browserUnifiedBoot, "the deployed browser engine must include current-season career history in awards");
+assert.equal(sourceUnifiedBoot.note, "3 هدف في 3 مشاركة",
+  "award totals must deduplicate seasonLog overlap and exclude older/cup/international/unknown-season rows");
+assert.equal(browserUnifiedBoot.note, sourceUnifiedBoot.note,
+  "deployed and shared award calculations must use identical current-season rows");
+assert.equal(sourceUnifiedAwardState.money, 1100,
+  "only the current-season league player and golden-boot awards may pay out");
+assert.equal(browserUnifiedAwardState.money, sourceUnifiedAwardState.money,
+  "deployed and shared award payouts must remain identical");
 
 
 // Contract dialogs can become stale if retirement happens after they were opened.

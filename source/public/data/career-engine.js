@@ -278,6 +278,31 @@
     return uniqueMatchRows([...leagueRows, ...careerRows]);
   }
 
+  // Awards are season-scoped: merge legacy seasonLog rows with current-season
+  // career rows, but never let older seasons or cup/international matches leak in.
+  function currentSeasonLeagueMatchRows(state) {
+    const seasonValue = Number(state && state.season);
+    const currentSeason = Number.isFinite(seasonValue) && seasonValue > 0 ? seasonValue : 1;
+    const isLeagueRow = row => !row.scope || String(row.scope) === "league";
+    const belongsToCurrentSeason = row => {
+      if (row.season === undefined || row.season === null || row.season === "") return true;
+      const savedSeason = Number(row.season);
+      return Number.isFinite(savedSeason) && savedSeason === currentSeason;
+    };
+    const legacySeasonRows = (Array.isArray(state && state.seasonLog) ? state.seasonLog : [])
+      .filter(row => row && typeof row === "object" && !Array.isArray(row)
+        && isLeagueRow(row) && belongsToCurrentSeason(row))
+      .map(row => ({
+        ...row,
+        scope: row.scope || "league",
+        season: row.season === undefined || row.season === null || row.season === "" ? currentSeason : row.season
+      }));
+    const careerRows = (Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [])
+      .filter(row => row && typeof row === "object" && !Array.isArray(row)
+        && isLeagueRow(row) && Number(row.season) === currentSeason);
+    return uniqueMatchRows([...legacySeasonRows, ...careerRows]);
+  }
+
   const normalizeLegacyBoolean = (value, fallback = false) => {
     if (typeof value === "boolean") return value;
     if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : fallback;
@@ -783,7 +808,7 @@
 
 function seasonAwards(state, league, teamRank) {
     ensureState(state);
-    const log = uniqueMatchRows(Array.isArray(state.seasonLog) ? state.seasonLog : []);
+    const log = currentSeasonLeagueMatchRows(state);
     const competition = String(state.leagueCompetition || "");
     const country = String(state.leagueCountry || "");
     const awardCount = value => {

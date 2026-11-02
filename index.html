@@ -7338,7 +7338,43 @@ function seedLeagueHistory(throughRounds){
 }
 
 function retireCareer(){
- if(state.retired&&state.retirementRecord){openPostCareerMenu();return;}
+ const pendingTransfer=state.pendingTransfer&&typeof state.pendingTransfer==="object"?{...state.pendingTransfer}:state.pendingTransfer||null;
+ const transferNegotiation=state.transferNegotiation&&typeof state.transferNegotiation==="object"?{...state.transferNegotiation}:state.transferNegotiation||null;
+ const matchesPendingOffer=offer=>{
+  if(!pendingTransfer||!offer)return false;
+  if(pendingTransfer.id&&offer.id)return String(pendingTransfer.id)===String(offer.id);
+  return String(offer.club||"")===String(pendingTransfer.club||"")
+   &&String(offer.country||"")===String(pendingTransfer.country||"")
+   &&(!pendingTransfer.league||String(offer.league||"")===String(pendingTransfer.league));
+ };
+ const matchesNegotiationOffer=offer=>!!(transferNegotiation&&transferNegotiation.offerId&&offer&&offer.id
+  &&String(transferNegotiation.offerId)===String(offer.id));
+ const expiredOffers=[];
+ (Array.isArray(state.transferOffers)?state.transferOffers:[]).forEach(offer=>{
+  if(!offer||typeof offer!=="object")return;
+  const status=String(offer.status||"").trim().toLowerCase();
+  const active=status==="pending"||status==="negotiating"
+   ||(status==="accepted"&&(matchesPendingOffer(offer)||matchesNegotiationOffer(offer)));
+  if(!active)return;
+  expiredOffers.push({...offer});
+  offer.status="expired";
+  offer.expiredReason="career-retired";
+ });
+ const hadTransferState=!!pendingTransfer||!!transferNegotiation||expiredOffers.length>0;
+ state.pendingTransfer=null;
+ state.transferNegotiation=null;
+ if(hadTransferState){
+  state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
+  state.transferHistory.unshift({
+   season:Number(state.season)||1,day:Number(state.day)||1,type:"retirement-transfer-cleanup",
+   reason:"career-retired",pendingTransfer,transferNegotiation,expiredOffers,
+   text:"تم إغلاق عروض ومفاوضات الانتقال غير المكتملة بسبب الاعتزال، مع حفظ تفاصيلها في سجل الانتقالات."
+  });
+ }
+ if(state.retired&&state.retirementRecord){
+  if(hadTransferState)saveGame(true);
+  openPostCareerMenu();return;
+ }
  state.retired=true;state.retirementRecord={season:Number(state.season)||1,age:Number(state.age)||40,club:club().name,overall:overall(),apps:Number(state.apps)||0,goals:Number(state.goals)||0,assists:Number(state.assists)||0,trophies:Number(state.trophies)||0,retiredAtDay:Number(state.day)||0};
  state.seasonFinished=true;log(`اعتزلت في سن ${state.age} بعد موسم ${state.season}. إجمالي المشاركات ${state.apps}، الأهداف ${state.goals}، الصناعات ${state.assists}.`);saveGame(true);render();
  openModal("أسطورة انتهت مسيرتها",`اعتزل ${state.name} في سن ${state.age}.\nالنادي الأخير: ${club().name}\nالتقييم: ${overall()}\nالمشاركات: ${state.apps} • الأهداف: ${state.goals} • الصناعات: ${state.assists} • البطولات: ${state.trophies}.\nتم حفظ سجل الاعتزال في المسيرة.`,[{label:"مسار ما بعد الاعتزال",className:"primary",action:()=>openPostCareerMenu()},{label:"عرض المذكرات",action:()=>showPage("diary")},{label:"مسيرة جديدة",action:newCareer}]);

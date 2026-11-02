@@ -78,8 +78,11 @@ assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf
   "root and public app shell must stay synchronized");
 assert.ok(html.includes("if(activateMidSeasonBreakIfDue())break;"),
   "season simulation must stop immediately at the shared midpoint transition");
-assert.ok(html.includes("activateMidSeasonBreakIfDue();\n const tactics="),
-  "manual matches must use the shared midpoint transition");
+const manualSettlementStart = html.indexOf("function commitManualLeagueMatch(");
+const midpointTransition = html.indexOf("activateMidSeasonBreakIfDue();", manualSettlementStart);
+const tacticsDeclaration = html.indexOf("const tactics=", midpointTransition);
+assert.ok(manualSettlementStart >= 0 && midpointTransition > manualSettlementStart && tacticsDeclaration > midpointTransition,
+  "manual matches must use the shared midpoint transition inside the atomic settlement");
 assert.ok(html.includes('setStory(state.winterBreakPending?"وصلنا لنص الموسم — راجع انتقالات الشتاء":"صافرة النهاية: "+result.outcome,story);'),
   "manual match results must preserve guidance when the winter break activates");
 

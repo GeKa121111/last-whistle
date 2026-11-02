@@ -5,6 +5,7 @@
 (function (global) {
   "use strict";
   const VERSION = 1;
+  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 4;
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -13,15 +14,26 @@
   const POSITIONS = Object.freeze({
     goalkeeper: ["حارس مرمى"],
     defender: ["قلب دفاع", "ظهير"],
-    midfielder: ["وسط دفاعي", "وسط مهاجم"],
+    midfielder: ["وسط دفاعي", "وسط مهاجم", "وسط"],
     attacker: ["جناح", "مهاجم", "رأس حربة"]
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  function isTrueFlag(value) {
+    if (value === true || value === 1) return true;
+    if (typeof value !== "string") return false;
+    return /^(?:true|1|yes|on)$/i.test(value.trim());
+  }
   function normalize(value) {
     return String(value == null ? "" : value).normalize("NFKC").toLocaleLowerCase()
       .replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
       .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
+  }
+  function normalizePosition(value) {
+    const store = global.LWStateStore;
+    const canonical = store && typeof store.normalizePosition === "function"
+      ? store.normalizePosition(value) : value;
+    return normalize(canonical);
   }
   function hash(value) {
     let h = 2166136261;
@@ -43,7 +55,7 @@
     return choices[Math.floor(rng() * choices.length)];
   }
   function groupForPosition(position) {
-    const p = normalize(position);
+    const p = normalizePosition(position);
     if (p.includes("حارس")) return "goalkeeper";
     // "وسط مهاجم" and "وسط دفاعي" are midfielders; classify the line before the role wording.
     if (p.includes("وسط") || p.includes("ارتكاز") || p.includes("صانع")) return "midfielder";
@@ -52,7 +64,7 @@
     return "midfielder";
   }
   function positionProductionProfile(position) {
-    const p = normalize(position);
+    const p = normalizePosition(position);
     // Centre strikers should finish moves more often; mobile forwards and wingers
     // should contribute more assists rather than sharing one generic attacker rate.
     if (p === "st" || p === "f" || p === "striker"
@@ -81,14 +93,40 @@
   function clubKey(name, country) {
     return normalize(country) + "|" + normalize(name);
   }
+  function syncClubDivisionMetadata(world, club, division, db, sourceRow) {
+    if (!club) return null;
+    const tier = Math.max(1, int(division, int(club.division, 1)));
+    club.division = tier;
+    const profile = db && typeof db.leagueFor === "function"
+      ? db.leagueFor(club.country, tier) || {}
+      : db && typeof db.leagueById === "function" ? db.leagueById(club.leagueId) || {} : {};
+    const profileName = profile.name || (tier >= 2 ? profile.tier2 : profile.league);
+    const profileEnglish = profile.englishName || (tier >= 2 ? profile.tier2English : profile.english);
+    const sourceTier = Math.max(1, int(sourceRow && sourceRow.division, 1));
+    if (profileName) club.leagueName = String(profileName);
+    else if (sourceTier === tier && sourceRow && sourceRow.leagueName) club.leagueName = String(sourceRow.leagueName);
+    if (profileEnglish) club.leagueEnglish = String(profileEnglish);
+    else if (sourceTier === tier && sourceRow && sourceRow.leagueEnglish) club.leagueEnglish = String(sourceRow.leagueEnglish);
+    const profileMatches = profile.matchesPerSeason || (tier >= 2 ? profile.tier2MatchesPerSeason : profile.matches);
+    const sourceMatches = sourceTier === tier && sourceRow ? sourceRow.matchesPerSeason : 0;
+    const matches = Number(profileMatches || sourceMatches);
+    if (Number.isFinite(matches) && matches > 0) club.matchesPerSeason = Math.max(20, Math.round(matches));
+    const clubId = String(club.id || "");
+    if (clubId) {
+      Object.values(world && world.players || {}).forEach(player => {
+        if (player && String(player.clubId || "") === clubId) player.division = tier;
+      });
+    }
+    return profile;
+  }
   function sourcePlayerIdentityKey(player) {
     const name = normalize(player && player.name);
     if (!name) return "";
-    return [name, normalize(player && player.position), int(player && player.age, 0)].join("|");
+    return [name, normalizePosition(player && player.position), int(player && player.age, 0)].join("|");
   }
   function rosterIdentityKey(player) {
     const name = normalize(player && player.name);
-    return name ? name + "|" + normalize(player && player.position) : "";
+    return name ? name + "|" + normalizePosition(player && player.position) : "";
   }
   function marketValue(player, seller) {
     const ovr = clamp(player.ovr, 35, 99);
@@ -117,7 +155,8 @@
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
       lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
-      nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive()
+      nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive(),
+      rosterMembershipSchemaVersion: ROSTER_MEMBERSHIP_SCHEMA_VERSION
     };
   }
   function addClub(world, row, db) {
@@ -141,7 +180,7 @@
   function makePlayer(world, row, club, index, generated, forcedGroup) {
     const rng = random(hash(club.id + "|" + (row && row.name || "academy") + "|" + index + "|" + VERSION));
     let position = String(row && row.position || "");
-    if (!position || normalize(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
+    if (!position || normalizePosition(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
     const group = groupForPosition(position);
     const ovr = clamp(row && (row.ovr || row.power) || club.power - 5 + Math.round(rng() * 9 - 5), 38, 96);
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
@@ -162,11 +201,87 @@
     club.roster.push(id);
     return player;
   }
-  function fillRoster(world, club) {
-    club.roster = (club.roster || []).filter(id => {
-      const player = world.players[id];
-      return Boolean(player && !player.retired);
+  function activeRosterIds(world, club) {
+    const seen = new Set();
+    return (Array.isArray(club && club.roster) ? club.roster : []).filter(id => {
+      const key = String(id || "");
+      const player = world && world.players && world.players[key];
+      if (!key || seen.has(key) || !player || isTrueFlag(player.retired) || isTrueFlag(player.freeAgent)) return false;
+      const ownerClubId = String(player.clubId || "").trim();
+      if (ownerClubId && ownerClubId !== String(club.id)) return false;
+      seen.add(key);
+      return true;
     });
+  }
+  function normalizeRosterMembership(world) {
+    if (!world || !world.clubs || !world.players) return world;
+    const memberships = new Map();
+    Object.values(world.clubs).forEach(club => {
+      if (!club) return;
+      const localSeen = new Set();
+      (Array.isArray(club.roster) ? club.roster : []).forEach(id => {
+        const key = String(id || "");
+        if (!key || localSeen.has(key)) return;
+        localSeen.add(key);
+        if (!memberships.has(key)) memberships.set(key, []);
+        memberships.get(key).push(String(club.id || ""));
+      });
+    });
+    const ambiguous = new Set();
+    Object.entries(world.players).forEach(([id, player]) => {
+      if (!player) return;
+      // Legacy saves may encode boolean flags as strings; normalize before interpreting roster ownership.
+      player.retired = isTrueFlag(player.retired);
+      player.freeAgent = player.retired ? false : isTrueFlag(player.freeAgent);
+      const ownerClubId = String(player.clubId || "").trim();
+      const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
+
+      // Retirement/free agency is authoritative. Old roster references must never
+      // resurrect an unattached player or turn a former club into their current club.
+      if (isTrueFlag(player.retired) || isTrueFlag(player.freeAgent)) {
+        const formerClubId = ownerClubId && world.clubs[ownerClubId]
+          ? ownerClubId : candidates.length === 1 ? candidates[0] : "";
+        if (formerClubId && !String(player.previousClubId || "").trim()) {
+          player.previousClubId = formerClubId;
+        }
+        player.clubId = "";
+        player.leagueId = "";
+        player.division = 0;
+        player.contractSeasons = 0;
+        player.transferListed = false;
+        if (isTrueFlag(player.retired)) player.freeAgent = false;
+        return;
+      }
+
+      if (ownerClubId && world.clubs[ownerClubId]) {
+        // The canonical owner is authoritative even when an interrupted save lost
+        // the roster reference. Restore membership before any squad refill runs.
+        const owner = world.clubs[ownerClubId];
+        if (!Array.isArray(owner.roster)) owner.roster = [];
+        if (!owner.roster.some(rosterId => String(rosterId) === String(id))) {
+          owner.roster.push(String(id));
+        }
+        return;
+      }
+      if (candidates.length === 1) {
+        const clubId = candidates[0], club = world.clubs[clubId];
+        player.clubId = clubId;
+        if (!String(player.country || "").trim()) player.country = String(club.country || "");
+        if (!String(player.leagueId || "").trim()) player.leagueId = String(club.leagueId || "");
+        if (!(Number(player.division) > 0)) player.division = Number(club.division) || 1;
+      } else if (candidates.length > 1) {
+        // Keep the player record, but do not assign an ambiguous legacy player to two clubs.
+        ambiguous.add(String(id));
+      }
+    });
+    Object.values(world.clubs).forEach(club => {
+      if (!club) return;
+      club.roster = activeRosterIds(world, club).filter(id => !ambiguous.has(String(id)));
+    });
+    return world;
+  }
+  function fillRoster(world, club) {
+    club.roster = activeRosterIds(world, club);
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
     club.roster.forEach(id => {
@@ -206,6 +321,7 @@
     }
     world.currentSeason = 1;
     world.rosterSchemaVersion = 3;
+    world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
     return world;
   }
   function reconcileDatabase(world, db) {
@@ -302,11 +418,14 @@
         ));
       });
     }
+    // Restore authoritative player-to-club links before database reconciliation can
+    // refill a missing squad slot with a generated placeholder.
+    normalizeRosterMembership(world);
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const retiredIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
     for (const player of Object.values(world.players || {})) {
-      if (!player || !player.retired) continue;
+      if (!player || !isTrueFlag(player.retired)) continue;
       const identityKey = rosterIdentityKey(player);
       if (!identityKey) continue;
       const clubIds = new Set([
@@ -334,7 +453,7 @@
     }
     const knownPlayersByClub = new Map();
     for (const player of Object.values(world.players || {})) {
-      if (!player || player.retired) continue;
+      if (!player || isTrueFlag(player.retired)) continue;
       const clubId = String(player.clubId || "");
       const identityKey = rosterIdentityKey(player);
       if (!clubId || !identityKey) continue;
@@ -362,18 +481,13 @@
         fillRoster(world, club);
       } else {
         const club = world.clubs[id];
-        const profile = db && typeof db.leagueFor === "function"
-          ? db.leagueFor(row.country, row.division) || {}
-          : db && typeof db.leagueById === "function" ? db.leagueById(row.leagueId) || {} : {};
-        club.leagueName = String(row.leagueName || profile.name || profile.league || club.leagueName || "");
-        club.leagueEnglish = String(row.leagueEnglish || profile.englishName || profile.english || club.leagueEnglish || "");
         const sourceDivision = Math.max(1, int(row.division, 1));
         const savedDivision = Number(club.division);
-        // Reconcile roster metadata without undoing in-game promotion/relegation.
-        // A valid saved division belongs to this simulation, even if the source catalogue refreshes.
-        club.division = Number.isFinite(savedDivision) && savedDivision >= 1
+        // A saved in-game tier is authoritative after promotion/relegation. Resolve all
+        // division-dependent metadata from that tier, not from the source roster's seed tier.
+        const activeDivision = Number.isFinite(savedDivision) && savedDivision >= 1
           ? Math.max(1, int(savedDivision, sourceDivision)) : sourceDivision;
-        club.matchesPerSeason = Math.max(20, int(row.matchesPerSeason || profile.matchesPerSeason || profile.matches, club.matchesPerSeason || 34));
+        syncClubDivisionMetadata(world, club, activeDivision, db, row);
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.
         const knownForClub = knownPlayersByClub.get(id) || new Set();
@@ -406,8 +520,10 @@
     Object.values(world.players).forEach(player => {
       player.group = groupForPosition(player.position);
     });
+    normalizeRosterMembership(world);
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
     world.rosterSchemaVersion = 3;
+    world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     return world;
   }
@@ -442,6 +558,11 @@
       || Number(world.rosterSchemaVersion) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
+    if (Number(world.rosterMembershipSchemaVersion) !== ROSTER_MEMBERSHIP_SCHEMA_VERSION) {
+      normalizeRosterMembership(world);
+      world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
+      world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
+    }
     // The world-simulation season is independent of the player's career season.
     // Never rewind completed global seasons just because save.season has not caught up.
     if (Number(world.lastAdvancedTo) > 0) {
@@ -455,7 +576,7 @@
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 55;
   }
   function rosterPlayers(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.retired);
+    return activeRosterIds(world, club).map(id => world.players[id]);
   }
   function roleStats(world, club) {
     const output = {};
@@ -466,16 +587,58 @@
     }
     return output;
   }
-  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague) {
+  function buildLeagueMatchCountLookup(world, db) {
+    const groups = new Map();
+    Object.values(world.clubs || {}).forEach(club => {
+      if (!club || !club.leagueId) return;
+      const division = Math.max(1, int(club.division, 1));
+      const key = String(club.leagueId) + "|" + division;
+      if (!groups.has(key)) groups.set(key, { division, clubs: [] });
+      groups.get(key).clubs.push(club);
+    });
+    const matchesByClub = new Map();
+    groups.forEach(group => {
+      const clubs = group.clubs;
+      const clubCount = clubs.length;
+      const clubMatchValues = clubs.map(club => Math.max(0, int(club.matchesPerSeason, 34)));
+      const fallbackMatches = clubCount > 1
+        ? Math.max(0, Math.min(60, Math.round(average(clubMatchValues)))) : 0;
+      let profile = {};
+      try {
+        profile = db && typeof db.leagueFor === "function"
+          ? db.leagueFor(clubs[0] && clubs[0].country, group.division) || {} : {};
+      } catch (_) {}
+      const expectedTeamCount = Math.max(0, int(profile.teamCount, 0));
+      let matchesPerClub = fallbackMatches;
+      if (expectedTeamCount > 1) {
+        if (clubCount === expectedTeamCount) {
+          const officialMatches = Number(profile.matchesPerSeason);
+          if (Number.isFinite(officialMatches) && officialMatches > 0) matchesPerClub = Math.round(officialMatches);
+        } else {
+          // An incomplete catalogue must not simulate a full season against only a handful of known clubs.
+          matchesPerClub = 2 * Math.max(0, clubCount - 1);
+        }
+      }
+      matchesPerClub = Math.max(0, Math.min(60, matchesPerClub));
+      if (clubCount % 2 === 1 && matchesPerClub % 2 === 1) matchesPerClub = Math.max(0, matchesPerClub - 1);
+      clubs.forEach(club => matchesByClub.set(String(club.id), matchesPerClub));
+    });
+    return matchesByClub;
+  }
+  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
     const club = world.clubs[player.clubId];
     const rng = random(hash(player.id + "|" + season + "|season-stat-v" + VERSION));
     const power = club ? Number(club.power) || 55 : 55;
-    const matches = club ? Math.max(20, int(club.matchesPerSeason, 34)) : 34;
+    const matches = club
+      ? Math.max(0, Math.min(60, int(matchesByClub && matchesByClub.get(String(club.id)), Math.max(0, int(club.matchesPerSeason, 34)))))
+      : 34;
     const ovr = clamp(player.ovr, 35, 99);
     const group = player.group || groupForPosition(player.position);
     const peers = club ? rosterPlayers(world, club).filter(row => row.group === group) : [player];
     const roleStrength = peers.length ? (peers.slice().sort((a, b) => b.ovr - a.ovr).findIndex(row => row.id === player.id)) : 0;
-    const expectedApps = clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), 4, matches);
+    const expectedApps = matches > 0
+      ? clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), Math.min(4, matches), matches)
+      : 0;
     const appearances = Math.round(expectedApps * clamp(progress, 0, 1));
     const production = positionProductionProfile(player.position);
     const rate = production.attackRate;
@@ -533,7 +696,7 @@
       String(club.leagueId || "") === String(leagueId || "") && Math.max(1, int(club.division, 1)) === 1)
       .map(club => Number(club.power) || 55)));
   }
-  function getProjectedSeasonRows(world, targetSeason) {
+  function getProjectedSeasonRows(world, targetSeason, db) {
     const signature = [
       int(world.projectionRevision, 0), int(world.dbVersion, 0), int(world.rosterSchemaVersion, 0),
       int(world.currentSeason, 1), int(world.lastAdvancedTo, 0), int(world.lastCompletedSeason, 0),
@@ -546,8 +709,9 @@
     }
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
-      const rows = Object.values(world.players || {}).filter(player => player && !player.retired).map(player =>
-        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague));
+      const matchesByClub = buildLeagueMatchCountLookup(world, db);
+      const rows = Object.values(world.players || {}).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
+        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
       if (cached.rows.size > 2) cached.rows.delete(cached.rows.keys().next().value);
@@ -559,7 +723,7 @@
     const targetSeason = Math.max(1, int(season, int(save.season, 1)));
     const scale = clamp(progress, 0, 1);
     const completed = world.seasonStats[String(targetSeason)];
-    const fullRows = Array.isArray(completed) ? completed : getProjectedSeasonRows(world, targetSeason);
+    const fullRows = Array.isArray(completed) ? completed : getProjectedSeasonRows(world, targetSeason, db);
     return fullRows.map(row => {
       const rawAppearances = row.appearances !== undefined && row.appearances !== null
         ? Number(row.appearances)
@@ -577,33 +741,134 @@
         seasonStats: { ...seasonStats }, displayStats: { appearances: apps, goals, assists, averageRating: apps > 0 ? Number(row.averageRating) || 0 : 0 } };
     });
   }
-  function simulateLeagueTables(world, season, progress = 1) {
+  function promotionPlaces(firstTierCount, secondTierCount) {
+    const firstCount = Math.max(0, int(firstTierCount, 0));
+    const secondCount = Math.max(0, int(secondTierCount, 0));
+    if (firstCount < 6 || secondCount < 3) return 0;
+    return Math.min(2, Math.max(1, Math.floor(secondCount * 0.15)), Math.max(1, Math.floor(firstCount * 0.1)));
+  }
+  function simulateLeagueTables(world, season, progress = 1, db, suppliedMatchesByClub) {
     const byLeague = new Map();
-    for (const club of Object.values(world.clubs).filter(row => row.division === 1)) {
-      if (!byLeague.has(club.leagueId)) byLeague.set(club.leagueId, []);
-      byLeague.get(club.leagueId).push(club);
+    for (const club of Object.values(world.clubs)) {
+      if (!club || !club.leagueId) continue;
+      const leagueId = String(club.leagueId);
+      const division = Math.max(1, int(club.division, 1));
+      const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
+      if (!byLeague.has(tableKey)) byLeague.set(tableKey, { leagueId, division, clubs: [] });
+      byLeague.get(tableKey).clubs.push(club);
     }
     const tables = {};
-    for (const [leagueId, clubs] of byLeague.entries()) {
-      const mid = average(clubs.map(club => club.power));
+    for (const [tableKey, group] of byLeague.entries()) {
+      const leagueId = group.leagueId;
+      const division = group.division;
+      const sourceClubs = group.clubs;
+      const promotionSlots = division === 2
+        ? promotionPlaces((byLeague.get(leagueId) || {}).clubs?.length || 0, sourceClubs.length) : 0;
+      const relegationSlots = division === 1
+        ? promotionPlaces(sourceClubs.length, (byLeague.get(leagueId + ":2") || {}).clubs?.length || 0) : 0;
+      const clubs = sourceClubs.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const clubCount = clubs.length;
+      const matchesByClub = suppliedMatchesByClub instanceof Map
+        ? suppliedMatchesByClub : buildLeagueMatchCountLookup(world, db);
+      const matchesPerClub = clubCount > 1
+        ? Math.max(0, Math.min(60, int(matchesByClub.get(String(clubs[0].id)), 34)))
+        : 0;
+      const statsByClub = new Map(clubs.map(club => [String(club.id), {
+        played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, home: 0, away: 0
+      }]));
+      let fixtureNumber = 0;
+      function playFixture(first, second, cycle) {
+        const firstStats = statsByClub.get(String(first.id));
+        const secondStats = statsByClub.get(String(second.id));
+        const firstHomeCost = Math.abs((firstStats.home + 1) - firstStats.away)
+          + Math.abs(secondStats.home - (secondStats.away + 1));
+        const secondHomeCost = Math.abs((secondStats.home + 1) - secondStats.away)
+          + Math.abs(firstStats.home - (firstStats.away + 1));
+        let homeClub, awayClub;
+        if (firstHomeCost < secondHomeCost) {
+          homeClub = first; awayClub = second;
+        } else if (secondHomeCost < firstHomeCost) {
+          homeClub = second; awayClub = first;
+        } else if (hash([leagueId, season, cycle, first.id, second.id, "home-choice-v2"].join("|")) % 2 === 0) {
+          homeClub = first; awayClub = second;
+        } else {
+          homeClub = second; awayClub = first;
+        }
+        const relativePower = clamp(((Number(homeClub.power) || 55) - (Number(awayClub.power) || 55)) / 100, -0.55, 0.55);
+        const rng = random(hash([leagueId, season, cycle, fixtureNumber++, homeClub.id, awayClub.id, "league-fixture-v2"].join("|")));
+        function sampleGoals(rate) {
+          const threshold = Math.exp(-rate);
+          let product = 1, goals = 0;
+          do {
+            goals++;
+            product *= rng();
+          } while (product > threshold && goals < 8);
+          return goals - 1;
+        }
+        const homeGoals = sampleGoals(clamp(1.30 + relativePower * 1.65, 0.25, 2.85));
+        const awayGoals = sampleGoals(clamp(1.20 - relativePower * 1.65, 0.20, 2.75));
+        const home = statsByClub.get(String(homeClub.id));
+        const away = statsByClub.get(String(awayClub.id));
+        home.played++; away.played++;
+        home.home++; away.away++;
+        home.gf += homeGoals; home.ga += awayGoals;
+        away.gf += awayGoals; away.ga += homeGoals;
+        if (homeGoals > awayGoals) {
+          home.w++; away.l++;
+        } else if (homeGoals < awayGoals) {
+          home.l++; away.w++;
+        } else {
+          home.d++; away.d++;
+        }
+      }
+      if (clubCount > 1 && matchesPerClub > 0) {
+        // A full cycle gives every club one match against every other club.
+        // A balanced circulant remainder graph handles leagues whose configured
+        // match count is not an exact multiple of (clubs - 1).
+        const matchesPerFullCycle = clubCount - 1;
+        const fullCycles = Math.floor(matchesPerClub / matchesPerFullCycle);
+        const remainder = matchesPerClub % matchesPerFullCycle;
+        for (let cycle = 0; cycle < fullCycles; cycle++) {
+          for (let i = 0; i < clubCount; i++) {
+            for (let j = i + 1; j < clubCount; j++) playFixture(clubs[i], clubs[j], cycle);
+          }
+        }
+        const usedPairs = new Set();
+        const addRemainderPair = (left, right) => {
+          if (left === right) return;
+          const low = Math.min(left, right), high = Math.max(left, right);
+          const key = low + "|" + high;
+          if (usedPairs.has(key)) return;
+          usedPairs.add(key);
+          playFixture(clubs[low], clubs[high], fullCycles);
+        };
+        for (let distance = 1; distance <= Math.floor(remainder / 2); distance++) {
+          for (let index = 0; index < clubCount; index++) addRemainderPair(index, (index + distance) % clubCount);
+        }
+        if (remainder % 2 === 1 && clubCount % 2 === 0) {
+          for (let index = 0; index < clubCount / 2; index++) addRemainderPair(index, index + clubCount / 2);
+        }
+      }
       const rows = clubs.map(club => {
-        const rng = random(hash(leagueId + "|" + club.id + "|" + season + "|table-v" + VERSION));
-        const matches = club.matchesPerSeason || 34;
-        const quality = Number(club.power || 55) - mid;
-        const draws = Math.round(matches * clamp(0.23 + rng() * 0.05, 0.18, 0.30));
-        const expectedWins = clamp(0.40 + quality * 0.017 + rng() * 0.12 - 0.06, 0.10, 0.76);
-        const wins = clamp(Math.round(matches * expectedWins), 0, matches - draws);
-        const losses = matches - wins - draws;
-        const goalsFor = Math.max(0, Math.round(matches * clamp(1.18 + quality * 0.022 + rng() * 0.38, 0.55, 2.55)));
-        const goalsAgainst = Math.max(0, Math.round(matches * clamp(1.24 - quality * 0.018 + rng() * 0.38, 0.50, 2.65)));
-        return { season: Number(season), leagueId, country: club.country, clubId: club.id,
-          club: club.name, power: Math.round(club.power), played: matches, w: wins, d: draws, l: losses,
-          gf: goalsFor, ga: goalsAgainst, pts: wins * 3 + draws,
-          form: Number((6.0 + quality * 0.025 + rng() * 0.6).toFixed(2)) };
+        const stats = statsByClub.get(String(club.id));
+        const points = stats.w * 3 + stats.d;
+        const goalDifference = stats.gf - stats.ga;
+        const form = stats.played > 0
+          ? clamp(5.7 + points / stats.played * 0.55 + goalDifference / stats.played * 0.12, 5.1, 8.8)
+          : 0;
+        return {
+          season: Number(season), leagueId, division, country: club.country, clubId: club.id,
+          club: club.name, power: Math.round(Number(club.power) || 55), played: stats.played,
+          w: stats.w, d: stats.d, l: stats.l, gf: stats.gf, ga: stats.ga,
+          pts: points, form: Number(form.toFixed(2))
+        };
       });
       const ranked = rows.sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || b.power - a.power);
-      tables[leagueId] = ranked.map((row, index) => ({ ...row, rank: index + 1,
-        status: index === 0 ? "بطل المحاكاة" : index >= ranked.length - 2 ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
+      tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
+        status: division === 1
+          ? index === 0 ? "بطل المحاكاة" : relegationSlots > 0 && index >= ranked.length - relegationSlots ? "منطقة الهبوط — محاكاة" : "مركز الدوري"
+          : index === 0 ? promotionSlots > 0 ? "بطل الدرجة الثانية — صاعد" : "بطل الدرجة الثانية"
+            : index < promotionSlots ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية" }));
     }
     return tables;
   }
@@ -615,8 +880,10 @@
       alreadyCompleted: true, transfers: (world.marketReports.find(row => row.season === year) || {}).moves || 0
     };
     const strengthByLeague = buildLeagueStrengthLookup(world);
-    const rows = Object.values(world.players).filter(player => player && !player.retired).map(player => generatePlayerSeason(world, player, year, 1, strengthByLeague));
-    const tables = simulateLeagueTables(world, year, 1);
+    const matchesByClub = buildLeagueMatchCountLookup(world, db);
+    const rows = Object.values(world.players).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
+      generatePlayerSeason(world, player, year, 1, strengthByLeague, matchesByClub));
+    const tables = simulateLeagueTables(world, year, 1, db, matchesByClub);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
     world.completedSeasons.push(year);
@@ -691,8 +958,101 @@
     });
     return candidates[0] || null;
   }
+  // A transfer window touches several linked records. Keep each market phase atomic:
+  // if any roster/history/report update fails, restore the exact pre-window state.
+  function captureTransferValue(value) {
+    return Array.isArray(value)
+      ? { isArray: true, reference: value, items: value.slice() }
+      : { isArray: false, value };
+  }
+  function restoreTransferValue(snapshot) {
+    if (!snapshot || !snapshot.isArray) return snapshot && snapshot.value;
+    snapshot.reference.splice(0, snapshot.reference.length, ...snapshot.items);
+    return snapshot.reference;
+  }
+  function captureTransferFields(target, fields) {
+    return fields.map(key => ({
+      key,
+      present: Object.prototype.hasOwnProperty.call(target, key),
+      value: captureTransferValue(target[key])
+    }));
+  }
+  function restoreTransferFields(target, snapshots) {
+    snapshots.forEach(snapshot => {
+      if (snapshot.present) target[snapshot.key] = restoreTransferValue(snapshot.value);
+      else delete target[snapshot.key];
+    });
+  }
+  function withTransferMarketTransaction(world, operation) {
+    const playerMap = world && world.players && typeof world.players === "object" ? world.players : null;
+    const originalPlayers = new Map(playerMap ? Object.entries(playerMap) : []);
+    const originalPlayerIds = new Set(originalPlayers.keys());
+    const clubSnapshots = new Map();
+    const playerSnapshots = new Map();
+    const historySnapshots = new Map();
+    const historyMap = world && world.playerHistory && typeof world.playerHistory === "object"
+      ? world.playerHistory : null;
+    const worldSnapshots = captureTransferFields(world, [
+      "transferSequence", "nextGeneratedPlayer", "transfers", "marketReports"
+    ]);
+    const reportSnapshots = (Array.isArray(world.marketReports) ? world.marketReports : [])
+      .filter(report => report && typeof report === "object")
+      .map(report => ({
+        report,
+        fields: captureTransferFields(report, ["moves", "transferIds", "summary"])
+      }));
+    const transaction = {
+      captureClub(club) {
+        if (club && !clubSnapshots.has(club)) {
+          clubSnapshots.set(club, captureTransferFields(club, ["budget", "roster", "power", "updatedSeason"]));
+        }
+      },
+      capturePlayer(player) {
+        if (player && !playerSnapshots.has(player)) {
+          playerSnapshots.set(player, captureTransferFields(player, [
+            "clubId", "country", "leagueId", "division", "contractSeasons",
+            "transferListed", "freeAgent", "freeAgentSince", "previousClubId"
+          ]));
+        }
+      },
+      captureHistory(playerId) {
+        const key = String(playerId || "");
+        if (!key || historySnapshots.has(key) || !historyMap) return;
+        const present = Object.prototype.hasOwnProperty.call(historyMap, key);
+        historySnapshots.set(key, {
+          present,
+          value: present ? captureTransferValue(historyMap[key]) : null
+        });
+      }
+    };
+    try {
+      return operation(transaction);
+    } catch (error) {
+      clubSnapshots.forEach((snapshot, club) => restoreTransferFields(club, snapshot));
+      playerSnapshots.forEach((snapshot, player) => restoreTransferFields(player, snapshot));
+      if (playerMap && world.players === playerMap) {
+        Object.keys(playerMap).forEach(id => {
+          if (!originalPlayerIds.has(id)) delete playerMap[id];
+        });
+        originalPlayers.forEach((player, id) => {
+          if (!Object.prototype.hasOwnProperty.call(playerMap, id)) playerMap[id] = player;
+        });
+      }
+      reportSnapshots.forEach(snapshot => restoreTransferFields(snapshot.report, snapshot.fields));
+      restoreTransferFields(world, worldSnapshots);
+      if (historyMap && world.playerHistory === historyMap) {
+        historySnapshots.forEach((snapshot, key) => {
+          if (snapshot.present) historyMap[key] = restoreTransferValue(snapshot.value);
+          else delete historyMap[key];
+        });
+      }
+      throw error;
+    }
+  }
   function runTransferWindow(world, season) {
-    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
+    return withTransferMarketTransaction(world, function(transaction) {
+      const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
+      Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     // Apply the new-season operating allocation before deals, while retaining leftover transfer cash.
     // The cap prevents balances from growing without bound over long simulated careers.
     for (const club of clubs) {
@@ -731,7 +1091,7 @@
       if (moves.length >= maxMoves) break;
       if (alreadyUsedClubs.has(buyer.id)) continue;
       // Avoid squad hoarding: each AI club has a soft roster ceiling before buying.
-      if (buyer.roster.length >= 18) continue;
+      if (activeRosterIds(world, buyer).length >= 18) continue;
       const roles = roleAverages(world, buyer);
       const needs = Object.keys(TARGETS).map(group => ({ group, score: needScore(buyer, group, roles) }))
         .sort((a, b) => b.score - a.score);
@@ -770,9 +1130,14 @@
       const candidate = candidates[0];
       if (!candidate || candidate.score < 37) continue;
       const { player, seller, fee, group } = candidate;
+      transaction.capturePlayer(player);
+      transaction.captureHistory(player.id);
       const origin = seller.name;
-      seller.roster = seller.roster.filter(id => id !== player.id);
-      buyer.roster.push(player.id);
+      // Rebuild both memberships from active ownership before moving the player.
+      // This discards stale, duplicate, retired, free-agent, and cross-club IDs.
+      seller.roster = activeRosterIds(world, seller).filter(id => id !== String(player.id));
+      buyer.roster = activeRosterIds(world, buyer).filter(id => id !== String(player.id));
+      buyer.roster.push(String(player.id));
       // The recorded fee is a direct buyer-to-seller transaction; never discard part of it.
       seller.budget = Math.max(0, Number(seller.budget) || 0) + fee;
       buyer.budget = Math.max(0, buyer.budget - fee);
@@ -783,14 +1148,17 @@
       const transfer = {
         id: "world-transfer-" + season + "-" + (++world.transferSequence),
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
-        group, from: origin, fromCountry: seller.country, to: buyer.name, toCountry: buyer.country,
+        group, from: origin, fromCountry: seller.country, fromClubId: String(seller.id),
+        to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id),
         fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (player.age <= 23 ? "استثمار في المستقبل" : player.age >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
         playerOvr: player.ovr, kind: "انتقال — محاكاة"
       };
       moves.push(transfer);
       world.transfers.unshift(transfer);
       world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: Number(season), club: buyer.name, country: buyer.country, type: "transfer-in", from: origin });
+      world.playerHistory[player.id].unshift({ season: Number(season), clubId: String(buyer.id),
+        club: buyer.name, country: buyer.country, fromClubId: String(seller.id),
+        type: "transfer-in", from: origin });
       world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
     }
     world.transfers = world.transfers.slice(0, 300);
@@ -810,6 +1178,7 @@
     });
     world.marketReports = world.marketReports.slice(0, 12);
     return moves;
+    });
   }
   function roleNeedsLabel(group) {
     return ({ goalkeeper: "تدعيم حراسة المرمى", defender: "تدعيم الدفاع", midfielder: "تدعيم الوسط", attacker: "تدعيم الهجوم" })[group] || "تدعيم الفريق";
@@ -868,7 +1237,7 @@
     const byId = new Map(stats.map(row => [row.id, row]));
     const seasonAges = new Map();
     Object.values(world.players).forEach(player => {
-      if (!player || player.retired) return;
+      if (!player || isTrueFlag(player.retired)) return;
       const row = byId.get(player.id);
       // Season statistics describe the season just played, so development thresholds
       // must use the player's age during that season, before advancing their age.
@@ -890,16 +1259,43 @@
     // Contracts now truly expire. A deterministic renewal decision keeps key players
     // when the club needs them, while the rest enter the free-agent pool.
     Object.values(world.players).forEach(player => {
-      if (!player || player.retired) return;
+      if (!player || isTrueFlag(player.retired)) return;
       const seasonAge = seasonAges.get(player.id);
       const row = byId.get(player.id);
       if (shouldRetirePlayer(player, seasonAge, row, season)) {
         retireWorldPlayer(world, player, season, seasonAge);
         return;
       }
-      if (Number(player.contractSeasons) > 0 || !player.clubId) return;
-      const club = world.clubs[player.clubId];
-      if (!club) { player.clubId = ""; player.freeAgent = true; return; }
+      const orphanedClubId = String(player.clubId || "");
+      const club = orphanedClubId ? world.clubs[orphanedClubId] : null;
+      if (isTrueFlag(player.freeAgent) || !orphanedClubId || !club) {
+        const wasFreeAgent = isTrueFlag(player.freeAgent);
+        const hasStaleFreeAgentState = Boolean(orphanedClubId) || !wasFreeAgent
+          || Number(player.contractSeasons) > 0
+          || Boolean(String(player.leagueId || "").trim())
+          || Number(player.division) > 0
+          || player.transferListed === true;
+        if (hasStaleFreeAgentState) {
+          if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
+          player.clubId = "";
+          player.leagueId = "";
+          player.division = 0;
+          player.contractSeasons = 0;
+          player.freeAgent = true;
+          const freeAgentSince = Number(player.freeAgentSince);
+          player.freeAgentSince = Number.isFinite(freeAgentSince) && freeAgentSince > 0
+            ? freeAgentSince : Number(season) + 1;
+          player.transferListed = false;
+          if (!wasFreeAgent) {
+            world.notes = Array.isArray(world.notes) ? world.notes : [];
+            world.notes.unshift({ season: Number(season) + 1, type: "free-agent",
+              text: player.name + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
+            world.notes = world.notes.slice(0, 30);
+          }
+        }
+        return;
+      }
+      if (Number(player.contractSeasons) > 0) return;
       const roster = rosterPlayers(world, club);
       const sameRole = roster.filter(row => row.group === player.group && row.id !== player.id);
       const roleTarget = Math.max(1, Number(TARGETS[player.group]) || 1);
@@ -932,9 +1328,12 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    if (world.lastAdvancedTo >= next) {
-      world.currentSeason = next;
-      return { season: next, moves: [], alreadyAdvanced: true };
+    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const currentSeason = Math.max(1, int(world.currentSeason, 1));
+    if (lastAdvancedTo >= next || currentSeason > next) {
+      const stableSeason = Math.max(currentSeason, lastAdvancedTo);
+      world.currentSeason = stableSeason;
+      return { season: stableSeason, moves: [], alreadyAdvanced: true };
     }
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
@@ -962,9 +1361,17 @@
         age: player.age, contractSeasons: player.contractSeasons
       }));
       const stars = players.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 7).map(player => player.name);
+      const division = Math.max(1, int(club.division, 1));
+      // League membership can change after promotion/relegation. Resolve the competition
+      // from the club's current division instead of reusing the seed-time tier-one label.
+      const profile = db && typeof db.leagueFor === "function"
+        ? db.leagueFor(club.country, division) || {}
+        : db && typeof db.leagueById === "function" ? db.leagueById(club.leagueId) || {} : {};
+      const league = profile.name || (division >= 2 ? profile.tier2 : profile.league) || club.leagueName;
+      const leagueEnglish = profile.englishName || (division >= 2 ? profile.tier2English : profile.english) || club.leagueEnglish;
       return {
-        country: club.country, club: club.name, league: club.leagueName, leagueEnglish: club.leagueEnglish,
-        season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: club.division,
+        country: club.country, club: club.name, league: league, leagueEnglish: leagueEnglish,
+        season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: division,
         power: club.power, prestige: club.prestige, confederation: club.confederation,
         currency: club.currency, stars, players, leagueId: club.leagueId, sourceUrl: ""
       };
@@ -975,7 +1382,7 @@
     const year = Math.max(1, int(season, int(save.season, 1)));
     const snapshot = world.leagueTables[String(year)] && world.leagueTables[String(year)][String(leagueId)];
     if (Array.isArray(snapshot)) return snapshot.slice();
-    const table = simulateLeagueTables(world, year, 1)[String(leagueId)] || [];
+    const table = simulateLeagueTables(world, year, 1, db)[String(leagueId)] || [];
     return table.slice();
   }
   function leaderboard(save, options = {}, db) {
@@ -1025,9 +1432,9 @@
     };
   }
   global.LWWorldAI = Object.freeze({
-    version: VERSION, normalize, clubKey, groupForPosition, positionProductionProfile, playerRoleWeight,
+    version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, transferTargets,
-    getLeagueTable, leaderboard, dashboard
+    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction, isTrueFlag
   });
 })(window);
 
@@ -1041,6 +1448,11 @@
   const base = global.LWWorldAI;
   if (!base) return;
   const ROLE_TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
+  const WORLD_CLUB_CUP_CYCLE_YEARS = 4;
+  const WORLD_CLUB_CUP_TEAM_COUNT = 32;
+  const WORLD_CLUB_CUP_COMPETITION_WEIGHTS = Object.freeze({
+    ucl: 7, libertadores: 7, "caf-cl": 6
+  });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
   const hash = value => {
@@ -1073,7 +1485,10 @@
     return groups;
   }
   function playersForClub(world, club) {
-    return (club.roster || []).map(id => world.players[id]).filter(player => player && !player.freeAgent);
+    return base.rosterPlayers(world, club);
+  }
+  function activeRosterIdsForClub(world, club) {
+    return playersForClub(world, club).map(player => String(player && player.id || "")).filter(Boolean);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);
@@ -1223,7 +1638,7 @@
       const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + Number(division));
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(world.players).filter(player => player && !player.retired).map(player => {
+    return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && !base.isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player => {
       const acc = accumulators.get(player.id) || playerAccumulator();
       const historicalClub = world.clubs[acc.clubId || player.clubId] || null;
       const apps = Number(acc.appearances) || 0, goals = Number(acc.goals) || 0, assists = Number(acc.assists) || 0;
@@ -1253,6 +1668,69 @@
       return row;
     });
   }
+  function buildBalancedLeagueSchedule(clubs, matchesPerClub, seed) {
+    const teams = Array.isArray(clubs) ? clubs.slice() : [];
+    const teamCount = teams.length;
+    if (teamCount < 2) return [];
+    let target = Math.max(0, Math.min(60, int(matchesPerClub, 2 * (teamCount - 1))));
+    if (teamCount % 2 === 1 && target % 2 === 1) target--;
+    if (!target) return [];
+    const fixtures = [], homeCounts = new Map(teams.map(club => [String(club.id), 0]));
+    let matchday = 0;
+    const addFixture = (first, second, day, cycle) => {
+      if (!first || !second || String(first.id) === String(second.id)) return;
+      const firstId=String(first.id), secondId=String(second.id);
+      const firstHomes=homeCounts.get(firstId)||0, secondHomes=homeCounts.get(secondId)||0;
+      let home,away;
+      if(firstHomes<secondHomes){home=first;away=second;}
+      else if(secondHomes<firstHomes){home=second;away=first;}
+      else if(hash([seed,cycle,day,firstId,secondId,"balanced-home"].join("|"))%2===0){home=first;away=second;}
+      else{home=second;away=first;}
+      homeCounts.set(String(home.id),(homeCounts.get(String(home.id))||0)+1);
+      fixtures.push({home,away,round:day});
+    };
+    const cycleSize=teamCount-1, fullCycles=Math.floor(target/cycleSize), remainder=target%cycleSize;
+    for(let cycle=0;cycle<fullCycles;cycle++){
+      let rotation=teams.slice(); if(rotation.length%2) rotation.push(null);
+      const roundCount=rotation.length-1;
+      for(let round=0;round<roundCount;round++){
+        matchday++;
+        for(let index=0;index<rotation.length/2;index++){
+          const first=rotation[index],second=rotation[rotation.length-1-index];
+          if(first&&second)addFixture(first,second,matchday,cycle);
+        }
+        const fixed=rotation[0],rest=rotation.slice(1);rest.unshift(rest.pop());rotation=[fixed].concat(rest);
+      }
+    }
+    const remainderPairs=[],usedPairs=new Set();
+    const addRemainderPair=(left,right)=>{
+      if(left===right)return;
+      const low=Math.min(left,right),high=Math.max(left,right),key=low+"|"+high;
+      if(usedPairs.has(key))return;
+      usedPairs.add(key);remainderPairs.push([teams[left],teams[right]]);
+    };
+    for(let distance=1;distance<=Math.floor(remainder/2);distance++)
+      for(let index=0;index<teamCount;index++)addRemainderPair(index,(index+distance)%teamCount);
+    if(remainder%2===1&&teamCount%2===0)
+      for(let index=0;index<teamCount/2;index++)addRemainderPair(index,index+teamCount/2);
+    const remainderMatchdays=[];
+    remainderPairs.forEach(pair=>{
+      let dayIndex=0;
+      while(dayIndex<remainderMatchdays.length&&remainderMatchdays[dayIndex].some(row=>row.includes(pair[0])||row.includes(pair[1])))dayIndex++;
+      if(!remainderMatchdays[dayIndex])remainderMatchdays[dayIndex]=[];
+      remainderMatchdays[dayIndex].push(pair);
+    });
+    remainderMatchdays.forEach(dayPairs=>{
+      matchday++;dayPairs.forEach(([home,away])=>addFixture(home,away,matchday,fullCycles));
+    });
+    return fixtures;
+  }
+  function promotionPlaces(firstTierCount, secondTierCount) {
+    const firstCount = Math.max(0, int(firstTierCount, 0));
+    const secondCount = Math.max(0, int(secondTierCount, 0));
+    if (firstCount < 6 || secondCount < 3) return 0;
+    return Math.min(2, Math.max(1, Math.floor(secondCount * 0.15)), Math.max(1, Math.floor(firstCount * 0.1)));
+  }
   function simulateLeagueSeason(save, season, db) {
     const world = base.ensureState(save, db);
     world.matchesBySeason = world.matchesBySeason && typeof world.matchesBySeason === "object" ? world.matchesBySeason : {};
@@ -1274,10 +1752,27 @@
       const clubs = clubsRaw.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
       const split = groupKey.lastIndexOf(":");
       const leagueId = groupKey.slice(0, split), division = Number(groupKey.slice(split + 1)) || 1;
+      const firstTierCount = (groups.get(leagueId + ":1") || []).length;
+      const secondTierCount = (groups.get(leagueId + ":2") || []).length;
+      const promotionSlots = division === 2 ? promotionPlaces(firstTierCount, clubs.length) : 0;
+      const relegationSlots = division === 1 ? promotionPlaces(clubs.length, secondTierCount) : 0;
       const leagueTables = new Map(), recent = new Map();
       clubs.forEach(club => { leagueTables.set(club.id, tableRow(club, year, leagueId, division)); recent.set(club.id, ""); });
       const groupMatchStartIndex = allMatches.length;
+      const standardMatchesPerClub = Math.max(0, 2 * (clubs.length - 1));
+      const leagueProfile = db && typeof db.leagueFor === "function"
+        ? db.leagueFor(clubs[0] && clubs[0].country, division) || {} : {};
+      const expectedTeamCount = Math.max(0, int(leagueProfile.teamCount, 0));
+      // Only use the official season length when every registered club is present.
+      // An incomplete catalogue must not create a long league between a few known clubs.
+      const hasCompleteLeagueField = expectedTeamCount > 1 && clubs.length === expectedTeamCount;
+      const configuredMatches = Number(leagueProfile.matchesPerSeason);
+      let targetMatchesPerClub = hasCompleteLeagueField && Number.isFinite(configuredMatches) && configuredMatches > 0
+        ? Math.max(0, Math.min(60, Math.round(configuredMatches))) : standardMatchesPerClub;
+      if (clubs.length % 2 === 1 && targetMatchesPerClub % 2 === 1) targetMatchesPerClub--;
+      const isScottishPremiership = leagueId === "scotland" && division === 1 && clubs.length === 12;
       if (clubs.length >= 2) {
+        if (isScottishPremiership || targetMatchesPerClub === standardMatchesPerClub) {
         let rotation = clubs.slice();
         if (rotation.length % 2) rotation.push(null);
         const n = rotation.length, rounds = n - 1;
@@ -1382,6 +1877,16 @@
             }
           });
         }
+        } else {
+          const fixtures = buildBalancedLeagueSchedule(clubs, targetMatchesPerClub,
+            [leagueId, division, year, "configured-league-schedule-v1"].join("|"));
+          fixtures.forEach(fixture => {
+            const match = playMatch(world, fixture.home, fixture.away, year, division,
+              fixture.round, ++sequence, accumulators, "league", lineupCache);
+            allMatches.push(match);
+            applyResult(leagueTables, match);
+          });
+        }
       }
       const ranked = Array.from(leagueTables.values()).map(row => {
         row.gd = row.gf - row.ga;
@@ -1391,8 +1896,10 @@
       }).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || b.power - a.power || a.club.localeCompare(b.club, "ar"));
       const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
       tables[tableKey] = ranked.map((row, index) => ({ ...row, rank: index + 1,
-        status: division > 1 ? (index < 2 ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية")
-          : index === 0 ? "بطل المحاكاة" : index >= Math.max(1, ranked.length - 2) ? "منطقة الهبوط — محاكاة" : "مركز الدوري" }));
+        status: division === 1
+          ? index === 0 ? "بطل المحاكاة" : relegationSlots > 0 && index >= ranked.length - relegationSlots ? "منطقة الهبوط — محاكاة" : "مركز الدوري"
+          : index === 0 ? promotionSlots > 0 ? "بطل الدرجة الثانية — صاعد" : "بطل الدرجة الثانية"
+            : index < promotionSlots ? "منافس على الصعود — محاكاة" : "مركز الدرجة الثانية" }));
     }
     const rows = buildPlayerRows(world, year, accumulators);
     // Persist compact match scores and only the most recent complete season of fixtures.
@@ -1407,9 +1914,105 @@
     const seasonKeep = Object.keys(world.seasonStats).map(Number).sort((a,b)=>a-b).slice(-2);
     const seasonKeepSet = new Set(seasonKeep.map(String));
     Object.keys(world.seasonStats).forEach(key => { if (!seasonKeepSet.has(key)) delete world.seasonStats[key]; });
-    Object.keys(world.leagueTables).forEach(key => { if (!seasonKeepSet.has(key)) delete world.leagueTables[key]; });
-    Object.keys(world.competitionsBySeason).forEach(key => { if (!seasonKeepSet.has(key)) delete world.competitionsBySeason[key]; });
+    // Standings are compact snapshots needed for promotion history and historical tables.
+    // Keep the same 20-season window as completedSeasons; only detailed fixtures and
+    // player-season rows are aggressively pruned to control save size.
+    const tableKeep = Object.keys(world.leagueTables).map(Number).sort((a,b)=>a-b).slice(-20);
+    const tableKeepSet = new Set(tableKeep.map(String));
+    Object.keys(world.leagueTables).forEach(key => { if (!tableKeepSet.has(key)) delete world.leagueTables[key]; });
+    // The four-year world club qualification cycle needs a compact history of
+    // completed top-tier continental competitions, independent of player-season stats.
+    retainCompetitionHistory(world, WORLD_CLUB_CUP_CYCLE_YEARS);
     return { season: year, rows, tables, matches: allMatches, competitions: world.competitionsBySeason[String(year)] };
+  }
+  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {
+    if (!world || typeof world !== "object") return;
+    if (!world.competitionsBySeason || typeof world.competitionsBySeason !== "object"
+      || Array.isArray(world.competitionsBySeason)) world.competitionsBySeason = {};
+    const keepCount = Math.max(1, Math.floor(Number(limit) || WORLD_CLUB_CUP_CYCLE_YEARS));
+    const keep = Object.keys(world.competitionsBySeason).map(key => ({ key, season: Number(key) }))
+      .filter(entry => Number.isSafeInteger(entry.season) && entry.season > 0)
+      .sort((a, b) => a.season - b.season)
+      .slice(-keepCount);
+    const keepKeys = new Set(keep.map(entry => entry.key));
+    Object.keys(world.competitionsBySeason).forEach(key => {
+      if (!keepKeys.has(key)) delete world.competitionsBySeason[key];
+    });
+  }
+  function worldClubCupParticipants(world, season, def) {
+    const currentSeason = Math.max(1, Math.floor(Number(season) || 1));
+    const cycleYears = WORLD_CLUB_CUP_CYCLE_YEARS;
+    if (!def || String(def.system || "") !== "world32" || currentSeason <= cycleYears
+      || (currentSeason - 1) % cycleYears !== 0) return [];
+    const clubs = world && world.clubs && typeof world.clubs === "object" ? world.clubs : {};
+    const history = world && world.competitionsBySeason && typeof world.competitionsBySeason === "object"
+      ? world.competitionsBySeason : {};
+    const candidates = new Map();
+    const firstSeason = currentSeason - cycleYears;
+    for (let historySeason = firstSeason; historySeason < currentSeason; historySeason++) {
+      const competitions = history[String(historySeason)];
+      // A missing season is not a blank season: it means the save cannot prove a
+      // complete qualification cycle, so do not invent replacement entrants.
+      if (!Array.isArray(competitions)) return [];
+      competitions.forEach(competition => {
+        if (!competition || competition.kind !== "continental") return;
+        const weight = WORLD_CLUB_CUP_COMPETITION_WEIGHTS[String(competition.id || "")];
+        // Only top-tier continental championships award world-cup qualification.
+        // Secondary cups are not treated as equivalent to the Champions League.
+        if (!weight) return;
+        const confederation = String(competition.confederation || "").trim();
+        if (!confederation) return;
+        const participantIds = Array.from(new Set((Array.isArray(competition.participants)
+          ? competition.participants : []).map(id => String(id || "").trim()).filter(Boolean)));
+        if (!participantIds.length) return;
+        const participantSet = new Set(participantIds);
+        const matchStats = new Map();
+        const recordAppearance = (clubId, round, won) => {
+          const stat = matchStats.get(clubId) || { wins: 0, matches: 0, highestRound: 0 };
+          stat.matches++;
+          stat.highestRound = Math.max(stat.highestRound, round);
+          if (won) stat.wins++;
+          matchStats.set(clubId, stat);
+        };
+        (Array.isArray(competition.matches) ? competition.matches : []).forEach(match => {
+          if (!match) return;
+          const homeId = String(match.homeClubId || "");
+          const awayId = String(match.awayClubId || "");
+          if (!homeId || !awayId || homeId === awayId) return;
+          const round = Math.max(0, Math.floor(Number(match.round) || 0));
+          const winnerId = String(match.winnerId || "");
+          if (participantSet.has(homeId)) recordAppearance(homeId, round, winnerId === homeId);
+          if (participantSet.has(awayId)) recordAppearance(awayId, round, winnerId === awayId);
+        });
+        participantIds.forEach(clubId => {
+          const club = clubs[clubId];
+          const division = Number(club && club.division);
+          if (!club || !club.leagueId || !Number.isFinite(division) || division < 1
+            || String(club.confederation || "") !== confederation) return;
+          let entry = candidates.get(clubId);
+          if (!entry) {
+            entry = { club, champions: 0, runnersUp: 0, points: 0, latestSeason: 0 };
+            candidates.set(clubId, entry);
+          }
+          if (String(competition.championId || "") === clubId) entry.champions++;
+          if (String(competition.runnerUpId || "") === clubId) entry.runnersUp++;
+          const stat = matchStats.get(clubId) || { wins: 0, matches: 0, highestRound: 0 };
+          entry.points += weight * 100 + stat.highestRound * 20 + stat.wins * 5
+            + stat.matches + (historySeason - firstSeason);
+          entry.latestSeason = Math.max(entry.latestSeason, historySeason);
+        });
+      });
+    }
+    const selected = Array.from(candidates.values()).sort((a, b) =>
+      b.champions - a.champions
+      || b.runnersUp - a.runnersUp
+      || b.points - a.points
+      || b.latestSeason - a.latestSeason
+      || String(a.club.id).localeCompare(String(b.club.id)))
+      .slice(0, WORLD_CLUB_CUP_TEAM_COUNT);
+    // A 32-team field must be earned through recorded top-tier continental results.
+    // Never fall back to global squad power, static example names, or generated clubs.
+    return selected.length === WORLD_CLUB_CUP_TEAM_COUNT ? selected.map(entry => entry.club) : [];
   }
   function knockout(world, season, def, participants) {
     let teams = participants.slice();
@@ -1467,104 +2070,304 @@
         const leagueId = Array.isArray(def.countries) ? def.countries[0] : "";
         participants = clubs.filter(club => club.leagueId === leagueId && (def.lower || Number(club.division) === 1));
       } else if (def.kind === "continental") {
-        const pool = clubs.filter(club => club.confederation === def.confederation && Number(club.division) === 1)
-          .sort((a, b) => Number(b.power || 50) - Number(a.power || 50));
-        const maxTeams = Math.min(12, pool.length);
-        const usedCountries = new Set();
-        for (const club of pool) {
-          if (participants.length >= maxTeams) break;
-          if (!usedCountries.has(normalize(club.country))) {
-            participants.push(club); usedCountries.add(normalize(club.country));
+        // Continental places come from domestic standings, not raw squad power. A
+        // season uses the previous completed table; the current table is only the
+        // bootstrap source when no historical table exists for that league.
+        const previousSeason = Math.max(0, Math.floor(Number(season) || 1) - 1);
+        const previousTables = world.leagueTables && world.leagueTables[String(previousSeason)] || {};
+        const currentTables = tables && typeof tables === "object" ? tables : {};
+        const qualificationPlaces = Array.from(new Set((Array.isArray(def.qualificationPlaces) ? def.qualificationPlaces : [])
+          .map(value => Number(value)).filter(value => Number.isInteger(value) && value > 0))).sort((a, b) => a - b);
+        if (!qualificationPlaces.length) return;
+        const slotStart = qualificationPlaces[0];
+        const slotCount = qualificationPlaces.length;
+        const leagueIds = Array.from(new Set(clubs
+          .filter(club => club.confederation === def.confederation && Number(club.division) === 1 && club.leagueId)
+          .map(club => String(club.leagueId)))).sort();
+        const candidates = [];
+        for (const leagueId of leagueIds) {
+          const historicalRows = previousTables[leagueId];
+          const rows = Array.isArray(historicalRows) && historicalRows.length ? historicalRows : currentTables[leagueId];
+          if (!Array.isArray(rows)) continue;
+          const sampleClub = clubs.find(club => String(club.leagueId) === leagueId);
+          let profile = null;
+          try {
+            if (db && typeof db.leagueById === "function") profile = db.leagueById(leagueId) || null;
+            if (!profile && db && typeof db.leagueFor === "function" && sampleClub) {
+              profile = db.leagueFor(sampleClub.country, 1) || null;
+            }
+          } catch (_) { profile = null; }
+          const rankedRows = rows.map((row, index) => {
+            const savedRank = Number(row && row.rank);
+            return { row, rank: Number.isInteger(savedRank) && savedRank > 0 ? savedRank : index + 1 };
+          }).filter(entry => entry.rank >= slotStart)
+            .sort((a, b) => a.rank - b.rank
+              || Number(b.row && b.row.pts || 0) - Number(a.row && a.row.pts || 0)
+              || (Number(b.row && b.row.gf || 0) - Number(b.row && b.row.ga || 0))
+                - (Number(a.row && a.row.gf || 0) - Number(a.row && a.row.ga || 0))
+              || String(a.row && a.row.clubId || "").localeCompare(String(b.row && b.row.clubId || "")));
+          const seenLeagueClubIds = new Set();
+          let filledSlots = 0;
+          for (const entry of rankedRows) {
+            if (filledSlots >= slotCount) break;
+            const row = entry.row || {};
+            const clubId = String(row.clubId || "");
+            if (!clubId || seenLeagueClubIds.has(clubId)) continue;
+            const club = world.clubs && world.clubs[clubId];
+            if (!club || String(club.leagueId || "") !== leagueId || Number(club.division) !== 1
+              || String(club.confederation || "") !== String(def.confederation || "")) continue;
+            if (row.leagueId != null && String(row.leagueId).trim() && String(row.leagueId).trim() !== leagueId) continue;
+            if (row.division != null && String(row.division).trim() && Number(row.division) !== 1) continue;
+            seenLeagueClubIds.add(clubId);
+            filledSlots++;
+            candidates.push({
+              club, rank: entry.rank,
+              globalTier: Number(profile && profile.globalTier) || 99,
+              leagueStrength: Number(profile && profile.strength) || 0,
+              points: Number(row.pts) || 0,
+              goalDifference: Number(row.gd) || (Number(row.gf || 0) - Number(row.ga || 0))
+            });
           }
         }
-        for (const club of pool) if (participants.length < maxTeams && !participants.some(row => row.id === club.id)) participants.push(club);
+        candidates.sort((a, b) => a.rank - b.rank || a.globalTier - b.globalTier
+          || b.leagueStrength - a.leagueStrength || b.points - a.points
+          || b.goalDifference - a.goalDifference
+          || Number(b.club.power || 50) - Number(a.club.power || 50)
+          || String(a.club.id).localeCompare(String(b.club.id)));
+        participants = candidates.slice(0, 12).map(entry => entry.club);
       } else if (def.kind === "world") {
-        participants = clubs.filter(club => Number(club.division) === 1)
-          .sort((a, b) => Number(b.power || 50) - Number(a.power || 50)).slice(0, 16);
+        participants = worldClubCupParticipants(world, season, def);
       } else if (def.kind === "supercup" && season > 1) {
-        const previous = world.competitionsBySeason[String(season - 1)] || [];
-        const eligible = previous.filter(row => row && row.championId
-          && (!def.confederation || row.confederation === def.confederation));
-        eligible.sort((a,b)=>a.kind==="continental" ? -1 : b.kind==="continental" ? 1 : 0);
-        eligible.slice(0, 2).forEach(row => {
-          const club = world.clubs[row.championId];
+        const previous = Array.isArray(world.competitionsBySeason[String(season - 1)])
+          ? world.competitionsBySeason[String(season - 1)] : [];
+        const addParticipant = club => {
           if (club && !participants.some(team => team.id === club.id)) participants.push(club);
-        });
-        if (participants.length < 2 && def.countries && def.countries.length) {
-          const leagueId = def.countries[0];
-          const leagueChampion = (tables[leagueId] || [])[0];
-          const cupChampion = previous.find(row => row.kind === "domestic-cup" && row.id && row.championId
-            && (world.clubs[row.championId] || {}).leagueId === leagueId);
-          [leagueChampion && world.clubs[leagueChampion.clubId], cupChampion && world.clubs[cupChampion.championId]]
-            .forEach(club => { if (club && !participants.some(team => team.id === club.id)) participants.push(club); });
+        };
+        if (Array.isArray(def.countries) && def.countries.length) {
+          // Domestic supercups use the previous season's league and domestic-cup winners.
+          // Never substitute continental champions or this season's still-unfinished table.
+          const leagueId = String(def.countries[0]);
+          const previousTables = world.leagueTables && world.leagueTables[String(season - 1)] || {};
+          const leagueRows = Array.isArray(previousTables[leagueId]) ? previousTables[leagueId] : [];
+          const leagueChampionRow = leagueRows.find(row => Number(row && row.rank) === 1) || leagueRows[0];
+          const leagueRunnerUpRow = leagueRows.find(row => Number(row && row.rank) === 2) || leagueRows[1];
+          const domesticCup = previous.find(row => row && row.kind === "domestic-cup" && row.championId
+            && world.clubs[row.championId] && String(world.clubs[row.championId].leagueId) === leagueId);
+          addParticipant(leagueChampionRow && world.clubs[leagueChampionRow.clubId]);
+          addParticipant(domesticCup && world.clubs[domesticCup.championId]);
+          if (participants.length < 2) {
+            addParticipant(domesticCup && world.clubs[domesticCup.runnerUpId]);
+            if (participants.length < 2) addParticipant(leagueRunnerUpRow && world.clubs[leagueRunnerUpRow.clubId]);
+          }
+        } else {
+          // Continental supercups may only use winners of continental competitions.
+          const eligible = previous.filter(row => row && row.kind === "continental" && row.championId
+            && (!def.confederation || row.confederation === def.confederation));
+          eligible.slice(0, 2).forEach(row => addParticipant(world.clubs[row.championId]));
         }
       } else {
         return;
       }
       const unique = [];
       participants.forEach(club => { if (club && !unique.some(row => row.id === club.id)) unique.push(club); });
-      const tournament = knockout(world, season, def, unique.slice(0, 16));
+      // Domestic cups with lower-tier entry must retain every eligible club; knockout() handles byes.
+      const tournament = knockout(world, season, def, unique);
       if (tournament) results.push(tournament);
     });
     return results;
   }
-  function applyPromotionRelegation(world, season) {
+  function applyPromotionRelegation(world, season, db) {
     world.promotionHistory = Array.isArray(world.promotionHistory) ? world.promotionHistory : [];
     const destinationSeason = Number(season) + 1;
     if (world.promotionHistory.some(row => Number(row.season) === destinationSeason)) return [];
-    const tables = world.leagueTables[String(season)] || {};
-    const leagueIds = new Set(Object.values(world.clubs).map(club => String(club.leagueId || "")).filter(Boolean));
-    const moves = [];
+    const tables = world.leagueTables && world.leagueTables[String(season)] || {};
+    const leagueIds = new Set(Object.values(world.clubs || {}).map(club => String(club && club.leagueId || "")).filter(Boolean));
+    const eligibleTableRows = (rows, leagueId, expectedDivision) => {
+      const seen = new Set();
+      const eligible = [];
+      let sourceIndex = 0;
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const index = sourceIndex++;
+        const clubId = String(row && row.clubId || "");
+        if (!clubId || seen.has(clubId)) continue;
+        const club = world.clubs && world.clubs[clubId];
+        if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
+        const clubDivision = Number(club.division);
+        if (!Number.isInteger(clubDivision) || clubDivision !== expectedDivision) continue;
+        const rowLeagueId = String(row.leagueId || "").trim();
+        if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
+        if (row.division !== undefined && row.division !== null && String(row.division).trim() !== "") {
+          const rowDivision = Number(row.division);
+          if (!Number.isInteger(rowDivision) || rowDivision !== expectedDivision) continue;
+        }
+        seen.add(clubId);
+        eligible.push({ club, row, index });
+      }
+      // New season tables are rank-sorted, but imported/legacy snapshots are not
+      // guaranteed to preserve array order. Honor an explicit rank first, then use
+      // standings metrics as a deterministic fallback for older rows without rank.
+      const pointsFor = row => Number.isFinite(Number(row && row.pts)) ? Number(row.pts) : 0;
+      const goalDifferenceFor = row => row && row.gd != null && row.gd !== ""
+        && Number.isFinite(Number(row.gd))
+        ? Number(row.gd) : (Number(row && row.gf) || 0) - (Number(row && row.ga) || 0);
+      eligible.sort((a, b) => {
+        const aRank = Number(a.row && a.row.rank), bRank = Number(b.row && b.row.rank);
+        const aHasRank = Number.isInteger(aRank) && aRank > 0;
+        const bHasRank = Number.isInteger(bRank) && bRank > 0;
+        if (aHasRank && bHasRank && aRank !== bRank) return aRank - bRank;
+        if (aHasRank !== bHasRank) return aHasRank ? -1 : 1;
+        return pointsFor(b.row) - pointsFor(a.row)
+          || goalDifferenceFor(b.row) - goalDifferenceFor(a.row)
+          || (Number(b.row && b.row.gf) || 0) - (Number(a.row && a.row.gf) || 0)
+          || (Number(b.club.power) || 50) - (Number(a.club.power) || 50)
+          || a.index - b.index;
+      });
+      return eligible.map(entry => entry.club);
+    };
+    const plannedMoves = [];
+    const scheduledClubIds = new Set();
     for (const leagueId of leagueIds) {
-      const first = tables[leagueId] || [], second = tables[leagueId + ":2"] || [];
-      if (first.length < 6 || second.length < 3) continue;
-      const count = Math.min(2, Math.max(1, Math.floor(second.length * 0.15)), Math.max(1, Math.floor(first.length * 0.1)));
+      // Standings can outlive a transfer or a division change in legacy saves. Only clubs
+      // that still belong to this league and tier may take part in the current promotion.
+      const first = eligibleTableRows(tables[leagueId], leagueId, 1);
+      const second = eligibleTableRows(tables[leagueId + ":2"], leagueId, 2);
+      const count = promotionPlaces(first.length, second.length);
+      if (!count) continue;
       const promoted = second.slice(0, count), relegated = first.slice(-count);
       for (let i = 0; i < count; i++) {
-        const up = world.clubs[promoted[i].clubId], down = world.clubs[relegated[i].clubId];
-        if (!up || !down) continue;
-        up.division = 1; down.division = 2;
-        up.roster.forEach(id => { if (world.players[id]) world.players[id].division = 1; });
-        down.roster.forEach(id => { if (world.players[id]) world.players[id].division = 2; });
-        moves.push({ leagueId, promoted: up.name, relegated: down.name, season: Number(season) + 1 });
+        const up = promoted[i], down = relegated[i];
+        if (!up || !down || up.id === down.id
+          || scheduledClubIds.has(String(up.id)) || scheduledClubIds.has(String(down.id))) continue;
+        scheduledClubIds.add(String(up.id));
+        scheduledClubIds.add(String(down.id));
+        plannedMoves.push({ leagueId, up, down });
       }
     }
-    if (moves.length) {
-      world.promotionHistory.unshift({ season: Number(season) + 1, moves });
-      world.promotionHistory = world.promotionHistory.slice(0, 30);
-      world.notes.unshift({ season: Number(season) + 1, type: "promotion", text: "اكتملت حركة الصعود والهبوط بين الدرجات في " + moves.length + " دوريًا." });
-      world.notes = world.notes.slice(0, 30);
+    if (!plannedMoves.length) return [];
+
+    // Apply the complete promotion batch atomically. A metadata lookup can fail after the
+    // division field changes, so retain both club metadata and every attached player's tier.
+    const affectedClubIds = new Set();
+    const clubSnapshots = new Map();
+    const clubFields = ["division", "leagueName", "leagueEnglish", "matchesPerSeason"];
+    for (const plan of plannedMoves) {
+      for (const club of [plan.up, plan.down]) {
+        const id = String(club.id || "");
+        affectedClubIds.add(id);
+        if (!clubSnapshots.has(club)) {
+          const snapshot = {};
+          clubFields.forEach(field => {
+            snapshot[field] = {
+              present: Object.prototype.hasOwnProperty.call(club, field),
+              value: club[field]
+            };
+          });
+          clubSnapshots.set(club, snapshot);
+        }
+      }
     }
+    const playerSnapshots = [];
+    Object.values(world.players || {}).forEach(player => {
+      if (player && affectedClubIds.has(String(player.clubId || ""))) {
+        playerSnapshots.push({
+          player,
+          present: Object.prototype.hasOwnProperty.call(player, "division"),
+          value: player.division
+        });
+      }
+    });
+
+    const moves = [];
+    try {
+      for (const plan of plannedMoves) {
+        base.syncClubDivisionMetadata(world, plan.up, 1, db);
+        base.syncClubDivisionMetadata(world, plan.down, 2, db);
+        moves.push({
+          leagueId: plan.leagueId,
+          promoted: plan.up.name,
+          relegated: plan.down.name,
+          season: destinationSeason
+        });
+      }
+    } catch (error) {
+      for (const [club, snapshot] of clubSnapshots) {
+        for (const [field, saved] of Object.entries(snapshot)) {
+          if (saved.present) club[field] = saved.value;
+          else delete club[field];
+        }
+      }
+      playerSnapshots.forEach(snapshot => {
+        if (snapshot.present) snapshot.player.division = snapshot.value;
+        else delete snapshot.player.division;
+      });
+      throw error;
+    }
+
+    world.promotionHistory.unshift({ season: destinationSeason, moves });
+    world.promotionHistory = world.promotionHistory.slice(0, 30);
+    world.notes = Array.isArray(world.notes) ? world.notes : [];
+    world.notes.unshift({ season: destinationSeason, type: "promotion", text: "اكتملت حركة الصعود والهبوط بين الدرجات في " + moves.length + " دوريًا." });
+    world.notes = world.notes.slice(0, 30);
     return moves;
   }
   function signFreeAgents(world, season, existingMoves) {
-    const freeAgents = Object.values(world.players).filter(player => player && !player.retired && player.freeAgent && Number(player.contractSeasons) <= 0)
+    return base.withTransferMarketTransaction(world, function(transaction) {
+    const freeAgents = Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent) && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
-    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1 && (club.roster || []).length < 18)
+    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division))
+      && Number(club.division) >= 1 && activeRosterIdsForClub(world, club).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
+    Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     const roleCountsByClub = new Map();
     for (const club of clubs) {
       const counts = Object.create(null);
-      for (const id of club.roster || []) {
-        const player = world.players[id];
-        if (!player || player.freeAgent) continue;
+      for (const player of playersForClub(world, club)) {
+        if (!player) continue;
         const group = player.group || base.groupForPosition(player.position);
         counts[group] = (counts[group] || 0) + 1;
       }
       roleCountsByClub.set(club.id, counts);
     }
-    const usedClubs = new Set(), signed = [];
+    const usedClubs = new Set();
+    // The paid market runs first. Carry both sides of its completed deals into
+    // this phase so one club cannot make a second move in the same window.
+    for (const move of Array.isArray(existingMoves) ? existingMoves : []) {
+      if (!move) continue;
+      for (const side of ["from", "to"]) {
+        const clubId = String(move[side + "ClubId"] || "").trim();
+        if (clubId && world.clubs[clubId]) {
+          usedClubs.add(clubId);
+          continue;
+        }
+        const name = String(move[side] || "").trim();
+        if (!name) continue;
+        const country = String(move[side + "Country"] || "").trim();
+        const matches = Object.values(world.clubs).filter(club => club
+          && String(club.name || "").trim() === name
+          && (!country || String(club.country || "").trim() === country));
+        // Legacy transfer rows have no stable club IDs. Only resolve their names
+        // when the name/country pair identifies exactly one club.
+        if (matches.length === 1) usedClubs.add(String(matches[0].id || ""));
+      }
+    }
+    const signed = [];
     const maxSignings = Math.min(12, Math.max(2, Math.round(clubs.length * 0.10)));
     for (const player of freeAgents) {
       if (signed.length >= maxSignings) break;
       const group = player.group || base.groupForPosition(player.position);
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
+      const formerClubSince = Number(player.freeAgentSince);
+      // Do not let a just-expired player bounce straight back to the same club.
+      // After one complete free-agent season, a former club may recruit them again.
+      // Legacy saves without a freeAgentSince marker keep the conservative old guard.
+      const formerClubReturnEligible = Number.isFinite(formerClubSince)
+        && formerClubSince > 0 && Number(season) > formerClubSince;
       const eligible = clubs.filter(club => {
         const counts = roleCountsByClub.get(club.id) || {};
         return !usedClubs.has(club.id)
-          && Number(club.roster.length) < 18
-          && (!player.previousClubId || player.previousClubId !== club.id)
+          && activeRosterIdsForClub(world, club).length < 18
+          && (!player.previousClubId || player.previousClubId !== club.id || formerClubReturnEligible)
           && Number(player.ovr) <= Number(club.power || 55) + 10
           && Number(player.ovr) >= Number(club.power || 55) - 23
           && (player.age || 18) < 37
@@ -1578,12 +2381,17 @@
         return aCount - bCount || Number(b.power || 50) - Number(a.power || 50) || String(a.id).localeCompare(String(b.id));
       });
       const buyer = eligible[0];
+      transaction.captureClub(buyer);
+      transaction.capturePlayer(player);
+      transaction.captureHistory(player.id);
+      buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
       const previousClub = player.previousClubId && world.clubs[player.previousClubId];
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = buyer.division; player.freeAgent = false;
+      player.freeAgentSince = 0;
       player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
-      buyer.roster.push(player.id);
+      buyer.roster.push(String(player.id));
       const counts = roleCountsByClub.get(buyer.id);
       counts[group] = (counts[group] || 0) + 1;
       usedClubs.add(buyer.id);
@@ -1591,13 +2399,15 @@
         id: "world-transfer-" + season + "-free-" + hash(player.id + "|" + buyer.id).toString(36),
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
         group, from: oldClubName, fromCountry: previousClub ? previousClub.country : "",
-        to: buyer.name, toCountry: buyer.country, fee: 0, currency: buyer.currency,
+        fromClubId: previousClub ? String(previousClub.id) : "",
+        to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id), fee: 0, currency: buyer.currency,
         reason: "تعاقد مجاني • احتياج في المركز وخبرة/إمكانات مناسبة",
         playerOvr: player.ovr, kind: "تعاقد مع لاعب حر — محاكاة"
       };
       signed.push(move);
       world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: Number(season), club: buyer.name, country: buyer.country,
+      world.playerHistory[player.id].unshift({ season: Number(season), clubId: String(buyer.id),
+        club: buyer.name, country: buyer.country, fromClubId: previousClub ? String(previousClub.id) : "",
         type: "free-agent-signing", from: oldClubName });
       world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
     }
@@ -1616,11 +2426,21 @@
       }
     }
     return signed;
+    });
   }
   function completeSeason(save, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
+    const stableCurrentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     const alreadyCompleted = Array.isArray(world.completedSeasons) && world.completedSeasons.includes(year);
+    // Do not fabricate an older season from today's squads when a stale completion request arrives.
+    if (stableCurrentSeason > year && !alreadyCompleted) {
+      const market = (world.marketReports || []).find(row => Number(row.season) === year) || {};
+      return {
+        season: stableCurrentSeason, rows: [], tables: {}, matches: [], competitions: [],
+        alreadyCompleted: true, staleRequest: true, transfers: Number(market.moves) || 0
+      };
+    }
     if (alreadyCompleted) {
       // Preserve the legacy fallback for compact saves whose old match list was pruned.
       if (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))) {
@@ -1649,7 +2469,11 @@
     const year = Math.max(1, int(season, int(save.season, 1)));
     if (world.completedSeasons && world.completedSeasons.includes(year)
       && (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year)))) {
-      return base.getLeagueTable(save, leagueId, year, db);
+      // Once detailed fixtures are pruned, only a saved standings snapshot is authoritative.
+      // Never rebuild a completed historical table from clubs' current divisions.
+      const storedTables = world.leagueTables && world.leagueTables[String(year)] || {};
+      const snapshot = storedTables[String(leagueId)];
+      return Array.isArray(snapshot) ? snapshot.slice() : [];
     }
     const sim = simulateLeagueSeason(save, year, db);
     return (sim.tables[String(leagueId)] || []).slice();
@@ -1683,10 +2507,13 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = base.ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    if (world.lastAdvancedTo >= next) return base.advanceToSeason(save, next, db);
+    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const currentSeason = Math.max(1, int(world.currentSeason, 1));
+    // A stale request must exit before completing an older season or applying promotion/relegation.
+    if (lastAdvancedTo >= next || currentSeason > next) return base.advanceToSeason(save, next, db);
     const previous = Math.max(1, next - 1);
     completeSeason(save, previous, db);
-    const promotions = applyPromotionRelegation(world, previous);
+    const promotions = applyPromotionRelegation(world, previous, db);
     const transition = base.advanceToSeason(save, next, db);
     if (!transition.alreadyAdvanced) {
       const freeAgentMoves = signFreeAgents(world, next, transition.moves || []);
@@ -1753,7 +2580,7 @@
     let output = base.dashboard(dashboardSave, db);
     output.season = season;
     output.progress = Math.round(currentProgress * 100);
-    output.freeAgentCount = Object.values(world.players || {}).filter(player => player && player.freeAgent).length;
+    output.freeAgentCount = Object.values(world.players || {}).filter(player => player && base.isTrueFlag(player.freeAgent)).length;
     output.matchesSimulated = Array.isArray(currentMatches) ? currentMatches.length : 0;
     output.competitionsSimulated = Array.isArray(currentCompetitions) ? currentCompetitions.length : 0;
     output.promotionHistory = world.promotionHistory || [];
@@ -1780,7 +2607,7 @@
     },
     freeAgents: function (save, db) {
       const world = base.ensureState(save, db);
-      return Object.values(world.players).filter(player => player && !player.retired && player.freeAgent).map(player => ({
+      return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent)).map(player => ({
         id: player.id, name: player.name, position: player.position, ovr: player.ovr, age: player.age,
         potential: player.potential, contractSeasons: player.contractSeasons, formerClub: player.previousClubId
       })).sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
@@ -1913,7 +2740,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=22");
+    const worker = new global.Worker("./football-world-worker.js?v=59");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

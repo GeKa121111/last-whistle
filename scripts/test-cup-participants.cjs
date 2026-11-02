@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const worldDbSource = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");
 const summaryStart = html.indexOf("function cupLegResultSummary(result,opponent,isTwoLegSecondLeg=false){");
-const summaryEnd = html.indexOf("\nfunction playCupMatch()", summaryStart);
+const summaryEnd = html.indexOf("\nfunction playCupMatchUnsafe()", summaryStart);
 assert.ok(summaryStart >= 0 && summaryEnd > summaryStart, "cup result summary helper must exist");
 const summarySource = html.slice(summaryStart, summaryEnd) + "\nthis.cupLegResultSummary = cupLegResultSummary;";
 assert.ok(html.includes("cupLegResultSummary(result,opponent,isTwoLegTie&&tieLegAtKickoff===2)"),
@@ -18,7 +18,7 @@ const end = html.indexOf("\nfunction cupConfig", start);
 assert.ok(start >= 0 && end > start, "cup participant builder must exist");
 const source = html.slice(start, end) + "\nthis.cupParticipants = cupParticipants;";
 assert.ok(!source.includes("نادي مشارك"), "cup generation must not invent placeholder clubs");
-assert.ok(html.includes('<script src="./football-world-db.js?v=8"></script>'), "world database script must be cache-busted when its public API changes");
+assert.ok(html.includes('<script src="./football-world-db.js?v=9"></script>'), "world database script must be cache-busted when its public API changes");
 assert.ok(html.includes('if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}'),
   "a cup must be blocked rather than started with fabricated participants");
 

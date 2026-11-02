@@ -73,7 +73,7 @@ for (const [value,fallback] of [
 assert.equal(parseOpponent(null,"Away Club",null,"Home Club").valid,false,
   "a second-leg opponent must belong to a persisted club list");
 
-const playMatch = html.match(/function playCupMatch\(\)\s*\{[\s\S]*?\n\}/);
+const playMatch = html.match(/function playCupMatchUnsafe\(\)\s*\{[\s\S]*?\n\}/);
 assert.ok(playMatch, "the cup match action must exist");
 const playBody = playMatch[0];
 const aggregateValidationIndex = playBody.indexOf("parseCupTieAggregate(c.tieAggregate)");

@@ -7,8 +7,38 @@
   const DB_NAME = "last-whistle-state";
   const DB_VERSION = 1;
   const DEFAULT_SLOT = "career:default";
+  const POSITION_ALIASES = Object.freeze({
+    gk: "حارس مرمى", goalkeeper: "حارس مرمى", keeper: "حارس مرمى", goalie: "حارس مرمى",
+    cb: "قلب دفاع", lcb: "قلب دفاع", rcb: "قلب دفاع", centerback: "قلب دفاع", "center back": "قلب دفاع",
+    centreback: "قلب دفاع", "centre back": "قلب دفاع", centraldefender: "قلب دفاع", "central defender": "قلب دفاع",
+    lb: "ظهير", rb: "ظهير", lwb: "ظهير", rwb: "ظهير", wb: "ظهير", fb: "ظهير",
+    leftback: "ظهير", "left back": "ظهير", rightback: "ظهير", "right back": "ظهير",
+    fullback: "ظهير", "full back": "ظهير", wingback: "ظهير", "wing back": "ظهير",
+    "left wing back": "ظهير", "right wing back": "ظهير",
+    cdm: "وسط دفاعي", dm: "وسط دفاعي", "defensive midfielder": "وسط دفاعي", "defensive mid": "وسط دفاعي",
+    holdingmidfielder: "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    cam: "وسط مهاجم", am: "وسط مهاجم", "attacking midfielder": "وسط مهاجم", "attacking mid": "وسط مهاجم",
+    cm: "وسط", rcm: "وسط", lcm: "وسط", mf: "وسط", midfield: "وسط",
+    "central midfielder": "وسط", "central midfield": "وسط", midfielder: "وسط",
+    lw: "جناح", rw: "جناح", lm: "جناح", rm: "جناح", lwf: "جناح", rwf: "جناح",
+    "left wing": "جناح", "right wing": "جناح", winger: "جناح",
+    "left winger": "جناح", "right winger": "جناح",
+    "left midfielder": "جناح", "right midfielder": "جناح", "wide midfielder": "جناح",
+    cf: "مهاجم", ss: "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم",
+    st: "رأس حربة", fw: "رأس حربة", fwd: "رأس حربة", striker: "رأس حربة", forward: "رأس حربة",
+    "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  });
+  function normalizePosition(position) {
+    const raw = String(position == null ? "" : position).normalize("NFKC").trim();
+    if (!raw) return "";
+    const key = raw.toLocaleLowerCase("en")
+      .replace(/[\u064B-\u065F\u0670]/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
+      .replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    return POSITION_ALIASES[key] || raw;
+  }
   const listeners = new Set();
-  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve();
+  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null;
   function safeClone(value) {
     if (!value || typeof value !== "object") return value;
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
@@ -64,13 +94,23 @@
       });
     });
   }
-  const ready = (async function () {
-    try {
-      const record = await readRecord(DEFAULT_SLOT);
-      if (record && record.state && typeof record.state === "object") { startupSave = record.state; currentState = record.state; }
-      return { available: !!database, hasSave: !!startupSave, slotId: DEFAULT_SLOT };
-    } catch (error) { return { available: false, hasSave: false, error: String(error && error.message || error) }; }
-  })();
+  const ready = !global.document
+    ? Promise.resolve({ available: false, hasSave: false, worker: true, slotId: DEFAULT_SLOT })
+    : (async function () {
+      const startupRevision = revision;
+      try {
+        const record = await readRecord(DEFAULT_SLOT);
+        // An import or new career can publish while IndexedDB is still opening.
+        // Never let that older startup snapshot replace a newer live state.
+        if (record && record.state && typeof record.state === "object" && revision === startupRevision) {
+          startupSave = record.state;
+          currentState = record.state;
+        }
+        return { available: !!database, hasSave: !!startupSave, slotId: DEFAULT_SLOT };
+      } catch (error) {
+        return { available: false, hasSave: false, error: String(error && error.message || error) };
+      }
+    })();
   function notify(meta) {
     const event = Object.freeze({ revision, state: currentState, meta: meta || {}, timestamp: Date.now() });
     listeners.forEach(function (listener) {
@@ -81,8 +121,21 @@
         global.dispatchEvent(new global.CustomEvent("lw:state-change", { detail: event }));
     } catch (_) {}
   }
+  function abortPendingDefaultWrite() {
+    const pending = pendingDefaultWrite;
+    if (!pending || pending.superseded) return;
+    pending.superseded = true;
+    try { pending.transaction.abort(); }
+    catch (error) {
+      if (global.console) global.console.warn("LWStateStore could not abort a superseded default save", error);
+    }
+  }
   function publish(state, meta) {
     if (!state || typeof state !== "object") return revision;
+    // A load/import/newer publish supersedes any default-slot transaction that has
+    // not committed yet. Protecting startupSave alone is insufficient: the stale
+    // IndexedDB put itself must not be allowed to overwrite the selected career.
+    abortPendingDefaultWrite();
     currentState = state;
     const source = meta && meta.source;
     if (source === "load" || source === "import" || source === "migration") startupSave = state;
@@ -94,23 +147,83 @@
     const snapshot = safeClone(state);
     if (!snapshot || typeof snapshot !== "object") return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
+    const saveRevision = revision;
     const record = {
       id, label: String(options.label || snapshot.name || (id === DEFAULT_SLOT ? "المسيرة الرئيسية" : id)),
       updatedAt: new Date().toISOString(), game: "LAST WHISTLE",
       schemaVersion: Number(snapshot.schemaVersion) || 10, season: Math.max(1, Number(snapshot.season) || 1),
       playerName: String(snapshot.name || "لاعب"), state: snapshot
     };
-    lastWrite = transact("saves", "readwrite", store => store.put(record)).then(function () {
-      if (id === DEFAULT_SLOT) startupSave = snapshot;
-      return { id, updatedAt: record.updatedAt, revision };
+    if (id !== DEFAULT_SLOT) {
+      lastWrite = transact("saves", "readwrite", store => store.put(record));
+      return lastWrite;
+    }
+    // Check the revision after the asynchronous database open, then keep the
+    // transaction abortable until IndexedDB confirms that it has committed.
+    lastWrite = openDatabase().then(function (db) {
+      if (!db) throw new Error("IndexedDB is not available");
+      if (revision !== saveRevision) {
+        return { id, updatedAt: record.updatedAt, revision, superseded: true };
+      }
+      return new Promise(function (resolve, reject) {
+        let tx;
+        try { tx = db.transaction("saves", "readwrite"); }
+        catch (error) { reject(error); return; }
+        const pending = { transaction: tx, superseded: false };
+        pendingDefaultWrite = pending;
+        const clearPending = function () {
+          if (pendingDefaultWrite === pending) pendingDefaultWrite = null;
+        };
+        tx.oncomplete = function () {
+          clearPending();
+          if (revision === saveRevision && !pending.superseded) startupSave = snapshot;
+          const result = { id, updatedAt: record.updatedAt, revision };
+          if (pending.superseded) result.superseded = true;
+          resolve(result);
+        };
+        tx.onerror = function () {
+          if (pending.superseded) return;
+          clearPending();
+          reject(tx.error || new Error("IndexedDB transaction failed"));
+        };
+        tx.onabort = function () {
+          clearPending();
+          if (pending.superseded) {
+            resolve({ id, updatedAt: record.updatedAt, revision, superseded: true });
+          } else {
+            reject(tx.error || new Error("IndexedDB transaction aborted"));
+          }
+        };
+        if (revision !== saveRevision) {
+          pending.superseded = true;
+          try { tx.abort(); }
+          catch (error) {
+            clearPending();
+            resolve({ id, updatedAt: record.updatedAt, revision, superseded: true });
+          }
+          return;
+        }
+        try { tx.objectStore("saves").put(record); }
+        catch (error) {
+          clearPending();
+          try { tx.abort(); } catch (_) {}
+          reject(error);
+        }
+      });
     });
     return lastWrite;
   }
   async function load(slotId) {
-    const id = String(slotId || DEFAULT_SLOT), record = await readRecord(id);
+    const id = String(slotId || DEFAULT_SLOT);
+    const loadRevision = revision;
+    const record = await readRecord(id);
     if (!record || !record.state) return null;
     const result = safeClone(record.state);
-    if (id === DEFAULT_SLOT) { startupSave = result; publish(result, { source: "load", slotId: id }); }
+    // A delayed explicit load must not replace a newer import, save, or live publish.
+    if (id === DEFAULT_SLOT && revision === loadRevision) {
+      startupSave = result;
+      publish(result, { source: "load", slotId: id });
+    }
     return result;
   }
   async function listSaves() {
@@ -134,10 +247,43 @@
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }
   async function flush(state) { if (state && typeof state === "object") await save(state, {slotId:DEFAULT_SLOT}); await lastWrite; return true; }
+  function selectorSignature(value) {
+    if (value === undefined) return "undefined";
+    if (value === null || typeof value !== "object") return typeof value + ":" + String(value);
+    try {
+      const encoded = JSON.stringify(value);
+      return typeof encoded === "string" ? encoded : String(encoded);
+    } catch (_) {
+      return Object.prototype.toString.call(value);
+    }
+  }
+  function subscribeSelector(selector, listener, equals) {
+    if (typeof selector !== "function" || typeof listener !== "function") return function () {};
+    let selected;
+    try { selected = safeClone(selector(currentState)); } catch (_) { selected = undefined; }
+    let signature = selectorSignature(selected);
+    const wrapped = function (event) {
+      let next;
+      try { next = selector(event && event.state); } catch (_) { return; }
+      const nextSignature = selectorSignature(next);
+      let unchanged = nextSignature === signature;
+      if (typeof equals === "function") {
+        try { unchanged = !!equals(selected, next); } catch (_) { unchanged = false; }
+      }
+      if (unchanged) return;
+      const previous = selected;
+      selected = safeClone(next);
+      signature = nextSignature;
+      try { listener(event, next, previous); }
+      catch (error) { if (global.console) global.console.warn("LWStateStore selector listener failed", error); }
+    };
+    listeners.add(wrapped);
+    return function () { listeners.delete(wrapped); };
+  }
   global.LWStateStore = Object.freeze({
-    version: 1, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish,
+    version: 3, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, normalizePosition,
     getState: () => currentState, getStartupSave: () => startupSave, getRevision: () => revision,
     subscribe: function (listener) { if (typeof listener !== "function") return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
-    save, load, listSaves, deleteSave, flush, openDatabase
+    subscribeSelector, save, load, listSaves, deleteSave, flush, openDatabase
   });
 })(window);

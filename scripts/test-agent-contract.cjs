@@ -109,6 +109,11 @@ const calendarEnd = html.indexOf("\nfunction ", calendarStart + 10);
 assert.ok(calendarStart >= 0 && calendarEnd > calendarStart,
   "the shared calendar function must be available for payroll regression testing");
 const calendarSource = html.slice(calendarStart, calendarEnd);
+const eligibilityStart = html.indexOf("function careerMatchPlayerEligible(");
+const eligibilityEnd = html.indexOf("\nfunction simulateCareerMatch(", eligibilityStart + 10);
+assert.ok(eligibilityStart >= 0 && eligibilityEnd > eligibilityStart,
+  "the shared club-contract eligibility helper must be available for payroll regression testing");
+const eligibilitySource = html.slice(eligibilityStart, eligibilityEnd);
 const payrollLogs = [];
 function payOneWeek() {
   const calendarContext = {
@@ -118,12 +123,14 @@ function payOneWeek() {
     resetDailyActions() {}
   };
   vm.createContext(calendarContext);
+  vm.runInContext(eligibilitySource, calendarContext, { filename: "careerMatchPlayerEligible" });
   vm.runInContext(calendarSource, calendarContext, { filename: "advanceCalendarDays" });
   calendarContext.advanceCalendarDays(7, "اختبار صرف المرتب");
 }
 function resetCalendarForPayroll() {
   state.calendarDay = 1; state.day = 1; state.daysSinceTransfer = 0;
   state.daysSinceNegotiation = 0; state.transferCooldown = 0;
+  state.agentDebtLastPayrollDay = 0;
 }
 const signedAgent = state.agent;
 const signedProfile = state.agentProfile;
@@ -152,6 +159,25 @@ assert.equal(state.agentCommissionPaid, expectedAgentCommission,
   "paid agent commission must be tracked in the career save");
 assert.ok(payrollLogs.some(message => message.includes("عمولة الوكيل")),
   "the diary must explain the agent's weekly commission");
+
+// Migrate a legacy profile debt, then add a new unpaid fee to the durable ledger.
+state.money = 0;
+state.agentProfile.feeDebt = 50;
+delete state.agentFeeDebtLedger;
+window.LWAgentRuntime.ensureState(state);
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 50,
+  "legacy profile debt must migrate into the persistent ledger");
+assert.equal(window.LWAgentRuntime.chargeFee(state, "اختبار ترحيل الدين", 19000), 0,
+  "an unaffordable agent fee must not be paid from a negative balance");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 1000,
+  "legacy debt and the new unpaid fee must both remain outstanding");
+assert.equal(state.agentProfile.feeDebt, 1000,
+  "the active profile debt must mirror its ledger balance");
+windowListeners.pageshow();
+const debtBanner = document.getElementById("lwa-agent-debt");
+assert.ok(debtBanner && !debtBanner.hidden, "the agent panel must show outstanding debt");
+assert.ok(debtBanner.innerHTML.includes("1000"), "the debt banner must display the outstanding amount");
+state.money = 50000;
 
 // Simulate an old saved contract and advance far beyond its former expiry season.
 delete state.agentProfile.contractMode;
@@ -198,6 +224,38 @@ assert.equal(state.agent, true, "switching agents should leave representation ac
 assert.equal(state.agentProfile.id, "nadine", "switching must sign the newly selected agent");
 assert.ok(state.agentHistory.some(event => event.title === "تغيير الوكيل"),
   "switching should write a history entry for the old and new agreement");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 1000,
+  "switching representatives must preserve the former agent's unpaid balance");
+const nadineCommissionBefore = Number(state.agentCommissionPaid) || 0;
+const balanceBeforeFirstDebtPay = state.money;
+payOneWeek();
+const nadineCommission = Math.round(1000 * window.LWAgentRuntime.commissionRate(state));
+assert.equal(state.money - balanceBeforeFirstDebtPay, 0,
+  "the first future wage should be fully applied to the debt when the debt exceeds net pay");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 1000 - (1000 - nadineCommission),
+  "partial repayment must leave the exact unpaid balance");
+assert.equal(state.agentDebtPaid, 1000 - nadineCommission,
+  "debt repayments must be tracked separately from agent commission");
+const duplicateSettlement = window.LWAgentRuntime.collectDebtFromPayroll(state, 1000 - nadineCommission, state.calendarDay);
+assert.equal(duplicateSettlement.paid, 0, "the same payroll day must never collect twice");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 1000 - (1000 - nadineCommission),
+  "a duplicate payroll callback must not reduce the debt again");
+const balanceBeforeSecondDebtPay = state.money;
+payOneWeek();
+assert.equal(state.money - balanceBeforeSecondDebtPay, 1000 - nadineCommission - nadineCommission,
+  "the next salary must settle the remainder and credit only the surplus");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 0,
+  "the old representative's debt must clear after sufficient future wages");
+assert.equal(state.agentDebtPaid, 1000, "all debt repayments must remain auditable");
+assert.equal(state.agentCommissionPaid - nadineCommissionBefore, nadineCommission * 2,
+  "weekly commissions must remain separate from debt repayments");
+
+// Create a second unpaid balance, then terminate the current representation agreement.
+state.money = 0;
+assert.equal(window.LWAgentRuntime.chargeFee(state, "اختبار دين بعد تغيير الوكيل", 2000), 0);
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 170,
+  "the new unpaid fee must be attributed to the newly hired representative");
+state.money = 50000;
 
 // The player can also end the current agreement, then sign a different agent later.
 const moneyBeforeTermination = state.money;
@@ -207,10 +265,38 @@ click("agent-confirm-end", "nadine");
 assert.equal(state.agent, false, "confirmed termination should remove the current representative");
 assert.equal(state.agentProfile, null, "confirmed termination should clear the current profile");
 assert.ok(state.money < moneyBeforeTermination, "the configured in-game exit fee should be charged on termination");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 170,
+  "ending the agreement must preserve the former agent's debt");
 click("agent-sign", "karim");
 assert.equal(state.agent, true, "the player can sign another representative after termination");
 assert.equal(state.agentProfile.id, "karim", "the new representative must become active");
 assert.ok(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"),
   "voluntary termination should be recorded in the agent history");
+const balanceBeforeFormerAgentDebtPay = state.money;
+payOneWeek();
+const karimCommission = Math.round(1000 * window.LWAgentRuntime.commissionRate(state));
+assert.equal(state.money - balanceBeforeFormerAgentDebtPay, 1000 - karimCommission - 170,
+  "a debt from a terminated agent must be collected from a later club wage");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 0,
+  "the former agent's debt must clear after repayment");
+assert.equal(state.agentDebtPaid, 1170, "repayments across representatives must remain auditable");
+const duplicateAfterSettlement = window.LWAgentRuntime.collectDebtFromPayroll(state, 1000 - karimCommission, state.calendarDay);
+assert.equal(duplicateAfterSettlement.paid, 0, "a repeated callback after settlement must remain idempotent");
 
-console.log("PASS: open-ended agent contracts persist across seasons, migrate old saves, reject stale switches, and can be terminated or switched.");
+// A legacy/free-agent save can retain an old wage value. It must not generate salary or agent commission.
+const balanceBeforeUnsignedPayroll = state.money;
+const commissionBeforeUnsignedPayroll = state.agentCommissionPaid;
+const debtPaidBeforeUnsignedPayroll = state.agentDebtPaid;
+state.freeAgent = true;
+state.contractSeasons = 0;
+state.contractType = "free-agent";
+state.weeklyWage = 1000;
+payOneWeek();
+assert.equal(state.money, balanceBeforeUnsignedPayroll,
+  "an unsigned player must not receive a stale weekly wage");
+assert.equal(state.agentCommissionPaid, commissionBeforeUnsignedPayroll,
+  "an unsigned player must not accrue a new weekly agent commission");
+assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
+  "no debt may be collected when no contracted wage is paid");
+
+console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, and no salary for unsigned free agents.");

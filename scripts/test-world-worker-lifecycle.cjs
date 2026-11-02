@@ -108,8 +108,34 @@ async function main() {
   assert.equal(workerInstances.length, 1, "dashboard and season jobs must reuse a single Worker instance");
   const worker = workerInstances[0];
   const workerSource = fs.readFileSync(path.join(root, "public", "football-world-worker.js"), "utf8");
-  assert.ok(workerSource.includes('"./football-world-ai.js?v=30"'), "worker must load the cache-busted AI engine");
-  assert.equal(worker.url, "./football-world-worker.js?v=22");
+  const pageSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
+  const worldAiSource = fs.readFileSync(path.join(root, "public", "football-world-ai.js"), "utf8");
+  const serviceWorkerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
+  const pageAiVersion = pageSource.match(/football-world-ai\.js\?v=(\d+)/);
+  const workerAiVersion = workerSource.match(/football-world-ai\.js\?v=(\d+)/);
+  const pageStoreVersion = pageSource.match(/career-state-store\.js\?v=(\d+)/);
+  const workerStoreVersion = workerSource.match(/career-state-store\.js\?v=(\d+)/);
+  const pageDbVersion = pageSource.match(/football-world-db\.js\?v=(\d+)/);
+  const workerDbVersion = workerSource.match(/football-world-db\.js\?v=(\d+)/);
+  const shellStoreVersion = serviceWorkerSource.match(/\.\/career-state-store\.js\?v=(\d+)/);
+  const shellDbVersion = serviceWorkerSource.match(/\.\/football-world-db\.js\?v=(\d+)/);
+  const appWorkerVersion = worldAiSource.match(/football-world-worker\.js\?v=(\d+)/);
+  const shellWorkerVersion = serviceWorkerSource.match(/\.\/football-world-worker\.js\?v=(\d+)/);
+  assert.ok(pageAiVersion && workerAiVersion, "page and worker must declare their world-AI asset versions");
+  assert.equal(workerAiVersion[1], pageAiVersion[1], "main thread and worker must run the same world-AI engine version");
+  assert.equal(pageAiVersion[1], "70", "the current page must load the expected world-AI asset");
+  assert.ok(pageDbVersion && workerDbVersion && shellDbVersion, "page, worker, and offline shell must declare database asset versions");
+  assert.equal(workerDbVersion[1], pageDbVersion[1], "main thread and worker must load the same world database version");
+  assert.equal(shellDbVersion[1], pageDbVersion[1], "offline shell must precache the database version used by the page");
+  assert.ok(pageStoreVersion && workerStoreVersion && shellStoreVersion,
+    "page, worker, and offline shell must declare the shared state-store version");
+  assert.equal(workerStoreVersion[1], pageStoreVersion[1],
+    "main thread and worker must use the same canonical position normalizer version");
+  assert.equal(shellStoreVersion[1], pageStoreVersion[1],
+    "offline shell must precache the same state-store version used by page and worker");
+  assert.ok(appWorkerVersion && shellWorkerVersion, "app and offline shell must declare the worker asset version");
+  assert.equal(shellWorkerVersion[1], appWorkerVersion[1], "offline shell must precache the exact worker asset used by the app");
+  assert.equal(worker.url, "./football-world-worker.js?v=" + appWorkerVersion[1]);
   assert.equal(worker.terminateCalls, 0, "successful requests must not terminate the shared worker");
   assert.deepEqual(worker.messages.map(row => row.command), ["dashboard", "advanceToSeason", "completeSeason"]);
   assert.deepEqual(worker.messages.map(row => row.inputCount), [0, 1, 2],

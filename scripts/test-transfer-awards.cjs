@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 4);
+assert.equal(engine.version, 5);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -92,6 +92,30 @@ assert.equal(defensiveMidfieldLine.goals, attackingMidfieldLine.goals,
   "a defensive midfielder must not be assigned defender goal rates");
 assert.equal(defensiveMidfieldLine.assists, attackingMidfieldLine.assists,
   "an attacking midfielder must not be assigned striker assist rates");
+
+// English roster aliases must use the same statistical role as their canonical
+// Arabic position. Otherwise GK/ST/CB/LW records are incorrectly projected as midfielders.
+const aliasSeasonBase = {
+  name: "اختبار توحيد مركز اللاعب", clubName: "نادي اختبار", country: "مصر",
+  ovr: 76, prestige: 72, leagueStrength: 68, age: 24
+};
+for (const [alias, canonical] of [
+  ["GK", "حارس مرمى"], ["GOALIE", "حارس مرمى"],
+  ["CB", "قلب دفاع"], ["LCB", "قلب دفاع"], ["RCB", "قلب دفاع"],
+  ["LB", "ظهير"], ["RB", "ظهير"], ["LWB", "ظهير"], ["RWB", "ظهير"],
+  ["CDM", "وسط دفاعي"], ["DM", "وسط دفاعي"],
+  ["CM", "وسط"], ["RCM", "وسط"], ["LCM", "وسط"],
+  ["CAM", "وسط مهاجم"], ["AM", "وسط مهاجم"],
+  ["LW", "جناح"], ["RW", "جناح"], ["LM", "جناح"], ["RM", "جناح"],
+  ["CF", "مهاجم"], ["SS", "مهاجم"], ["ST", "رأس حربة"], ["FW", "رأس حربة"]
+]) {
+  const aliasRow = engine.simulatePlayerSeason({ ...aliasSeasonBase, position: alias }, 3, 1);
+  const canonicalRow = engine.simulatePlayerSeason({ ...aliasSeasonBase, position: canonical }, 3, 1);
+  for (const field of ["appearances", "goals", "assists", "averageRating", "score", "weightedGoals"]) {
+    assert.equal(aliasRow[field], canonicalRow[field],
+      alias + " must use the same projected " + field + " as " + canonical);
+  }
+}
 
 const sameForward = {
   name: "مهاجم اختبار متطابق", clubName: "نادي اختبار", country: "مصر",
@@ -286,6 +310,20 @@ assert.equal(userGoldenGlove.winner.name, "حارس مسيرتي",
   "a goalkeeper's actual career clean sheets and saves must be considered for Golden Glove");
 assert.ok(keeperCareer.playerAwards.some(row => row.id === "golden-glove"),
   "winning Golden Glove should be recorded in the player's end-of-season awards");
+const keeperAliasCareer = engine.buildSeasonAwardCeremony({
+  season: 4,
+  player: { name: "حارس باختصار إنجليزي", club: "فريقي", country: "مصر", position: "GK",
+    ovr: 88, age: 25, appearances: 38, goals: 0, assists: 0, averageRating: 8.2,
+    professionalism: 85, leagueStrength: 78 },
+  realPlayers: []
+});
+const keeperAliasGlove = keeperAliasCareer.awards.find(row => row.id === "golden-glove");
+assert.ok(keeperAliasGlove,
+  "an English GK alias must receive goalkeeper defensive projections and qualify for Golden Glove");
+assert.equal(keeperAliasGlove.winner.name, "حارس باختصار إنجليزي",
+  "the GK alias must be ranked as a goalkeeper rather than an outfield midfielder");
+assert.ok(keeperAliasCareer.playerAwards.some(row => row.id === "golden-glove"),
+  "a GK alias Golden Glove win must be recorded in the career awards");
 const outfieldOnlyCeremony = engine.buildSeasonAwardCeremony({
   season: 4,
   player: { name: "لاعب ميداني", club: "فريقي", country: "مصر", position: "جناح", ovr: 80,

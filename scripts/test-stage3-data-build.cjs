@@ -101,6 +101,7 @@ for (const file of [
   const canonical = fs.readFileSync(path.join(root, "source", "public", "data", file));
   assert.deepEqual(fs.readFileSync(path.join(root, "data", file)), canonical, "root data drift: " + file);
   assert.deepEqual(fs.readFileSync(path.join(root, "public", "data", file)), canonical, "public data drift: " + file);
+  assert.deepEqual(fs.readFileSync(path.join(root, "dist", "data", file)), canonical, "built data drift: " + file);
 }
 
 for (const file of [

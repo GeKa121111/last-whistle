@@ -7490,10 +7490,11 @@ async function finishSeasonTransaction(skipAnnualTraining=false){
   try{log("تعذر اعتماد نهاية الموسم؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
   try{if(typeof closeModal==="function")closeModal();}catch(modalError){}
   try{render();}catch(renderError){console.warn("Season finalization rollback render failed",renderError);}
-  try{saveGame(true);}catch(saveError){console.warn("Season finalization rollback queue failed",saveError);}
+  let rollbackQueued=false;
+  try{rollbackQueued=saveGame(true)!==false;}catch(saveError){console.warn("Season finalization rollback queue failed",saveError);}
   let rollbackPersisted=false;
   try{
-   if(typeof flushQueuedSave==="function")rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;
+   if(rollbackQueued&&typeof flushQueuedSave==="function")rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;
   }catch(flushError){console.warn("Season finalization rollback flush failed",flushError);}
   if(rollbackPersisted){
    try{toast("حصلت مشكلة أثناء اعتماد نهاية الموسم. تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية.");}catch(toastError){}
@@ -7543,10 +7544,11 @@ async function startNewSeasonInternal(showStory=true){
   const reason=String(error&&error.message||error||"unknown");
   try{log("تعذر تجهيز الموسم الجديد؛ تمت استعادة حالة المسيرة بالكامل. السبب: "+reason);}catch(logError){}
   try{render();}catch(renderError){console.warn("Season transition rollback render failed",renderError);}
-  try{saveGame(true);}catch(saveError){console.warn("Season transition rollback queue failed",saveError);}
+  let rollbackQueued=false;
+  try{rollbackQueued=saveGame(true)!==false;}catch(saveError){console.warn("Season transition rollback queue failed",saveError);}
   let rollbackPersisted=false;
   try{
-   if(typeof flushQueuedSave==="function")rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;
+   if(rollbackQueued&&typeof flushQueuedSave==="function")rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;
   }catch(flushError){console.warn("Season transition rollback flush failed",flushError);}
   if(rollbackPersisted){
    try{toast("حصلت مشكلة أثناء تجهيز الموسم الجديد. تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية.");}catch(toastError){}

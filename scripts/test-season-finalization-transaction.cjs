@@ -80,7 +80,12 @@ function makeHarness(options = {}) {
     toast: message => events.toasts.push(String(message)),
     render: () => { events.renders++; },
     closeModal: () => { events.modalCloses = (events.modalCloses || 0) + 1; },
-    saveGame: silent => { assert.equal(silent, true); events.saves++; },
+    saveGame: silent => {
+      assert.equal(silent, true);
+      events.saves++;
+      if (options.saveThrows) throw new Error("simulated rollback queue failure");
+      return options.saveResult === false ? false : true;
+    },
     flushQueuedSave: async optionsArg => {
       events.flushes++;
       events.flushOptions.push(optionsArg);
@@ -127,6 +132,19 @@ function makeHarness(options = {}) {
     assert.ok(h.events.toasts.some(message => message.includes("لا تغلق اللعبة")));
     assert.ok(!h.events.toasts.some(message => message.includes("تم استعادة بيانات المسيرة؛ تقدر تحاول مرة تانية")),
       "the UI must not claim a durable rollback when the backup flush failed");
+  }
+
+  for (const saveOptions of [{ saveThrows: true }, { saveResult: false }]) {
+    const h = makeHarness(saveOptions);
+    const before = JSON.stringify(h.state);
+    const result = await h.sandbox.runFinishSeason(false);
+    assert.equal(result, false);
+    assert.equal(JSON.stringify(h.state), before, "the in-memory rollback must survive a save-queue failure");
+    assert.equal(h.events.saves, 1);
+    assert.equal(h.events.flushes, 0,
+      "a successful stale flush must not be used to claim persistence when the rollback was not queued");
+    assert.ok(h.events.logs.some(message => message.includes("تعذر تأكيد حفظ النسخة الاحتياطية")));
+    assert.ok(h.events.toasts.some(message => message.includes("لا تغلق اللعبة")));
   }
 
   {

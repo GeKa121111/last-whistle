@@ -70,10 +70,12 @@
 
   function projectedMinutesPerAppearance(player) {
     const role = normalized(player && (player.role || player.squadRole || player.playingTime) || "");
-    if (role === "بديلأساسي" || role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return 60;
-    if (role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return 24;
-    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 30;
-    if (role.includes("نجمالفريق") || role.includes("starplayer") || role === "اساسي" || role === "regularstarter") return 82;
+    if (role.includes("بديل") && role.includes("اساسي")) return 66;
+    if (role.includes("نجمالفريق") || role.includes("starplayer")) return 88;
+    if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return 83;
+    if (role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return 43;
+    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return 20;
+    if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 28;
     return 76;
   }
   function seasonProductionRates(type) {
@@ -673,7 +675,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 6,
+    version: 7,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

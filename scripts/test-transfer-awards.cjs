@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 6);
+assert.equal(engine.version, 7);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
@@ -148,6 +148,21 @@ assert.equal(engine.roleType("مهاجم"), "attacker");
 const sameStrikerStarter = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 1);
 const sameStrikerSubstitute = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "لاعب بديل" }, 5, 1);
 const sameStrikerRotation = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "تناوب" }, 5, 1);
+const sameStrikerCoreSub = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "بديل أساسي" }, 5, 1);
+const sameStrikerStar = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "نجم الفريق" }, 5, 1);
+const sameStrikerProspect = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "ناشئ" }, 5, 1);
+assert.equal(sameStrikerStarter.minutes, sameStrikerStarter.appearances * 83,
+  "starter projections must use the same 83-minute participation baseline as match simulation");
+assert.equal(sameStrikerCoreSub.minutes, sameStrikerCoreSub.appearances * 66,
+  "core-substitute projections must use the same 66-minute baseline as match simulation");
+assert.equal(sameStrikerStar.minutes, sameStrikerStar.appearances * 88,
+  "star-player projections must use the same 88-minute baseline as match simulation");
+assert.equal(sameStrikerRotation.minutes, sameStrikerRotation.appearances * 43,
+  "rotation projections must use the same 43-minute baseline as match simulation");
+assert.equal(sameStrikerProspect.minutes, sameStrikerProspect.appearances * 20,
+  "prospect projections must use the same 20-minute baseline as match simulation");
+assert.equal(sameStrikerSubstitute.minutes, sameStrikerSubstitute.appearances * 28,
+  "substitute projections must use the same 28-minute baseline as match simulation");
 assert.equal(sameStrikerStarter.appearances, sameStrikerSubstitute.appearances);
 assert.ok(sameStrikerStarter.minutes > sameStrikerRotation.minutes && sameStrikerRotation.minutes > sameStrikerSubstitute.minutes);
 assert.ok(sameStrikerStarter.goals > sameStrikerSubstitute.goals);

@@ -75,7 +75,8 @@ const legacyArchive = runLegacyLeagueArchive([
 assert.deepEqual(Array.from(legacyArchive.matches, row => row.id),
   ["legacy-season-log", "legacy-no-scope", "legacy-whitespace-alias", "segment-only"],
   "transfer archives must recover legacy league rows while excluding cups, other clubs, seasons, and segments");
-assert.equal(legacyArchive.stats.played, 4);
+assert.equal(legacyArchive.stats.played, 3,
+  "archived player appearances must exclude a zero-minute fixture while retaining that fixture in the match audit");
 assert.equal(legacyArchive.stats.minutes, 240);
 assert.equal(legacyArchive.stats.goals, 1);
 assert.equal(legacyArchive.stats.assists, 2);

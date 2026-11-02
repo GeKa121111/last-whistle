@@ -794,13 +794,10 @@ const goalkeeperSkillBase = {
   }
 };
 const highSkillKeeper = engine.simulateMatch(JSON.parse(JSON.stringify(goalkeeperSkillBase)));
-const lowSkillKeeper = engine.simulateMatch(JSON.stringify({
+const lowSkillKeeper = engine.simulateMatch(JSON.parse(JSON.stringify({
   ...goalkeeperSkillBase,
   player: { ...goalkeeperSkillBase.player, goalkeeping: 25 }
-}) && {
-  ...goalkeeperSkillBase,
-  player: { ...goalkeeperSkillBase.player, goalkeeping: 25 }
-});
+})));
 const goalkeeperEntry = highSkillKeeper.events.find(event => event.type === "substitution-on" && event.side === "player");
 assert.equal(goalkeeperEntry?.minute, 55,
   "the deterministic goalkeeper fixture must enter as a late substitute");

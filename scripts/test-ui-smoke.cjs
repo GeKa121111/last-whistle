@@ -8,6 +8,18 @@ const htmlPath = path.join(root, "public", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
+
+const careerMatchStart = html.indexOf("function simulateCareerMatch(");
+const careerMatchEnd = html.indexOf("\\nfunction matchCleanSheetContractBonus", careerMatchStart);
+const careerMatchSource = careerMatchStart >= 0 && careerMatchEnd > careerMatchStart
+  ? html.slice(careerMatchStart, careerMatchEnd) : "";
+if (!careerMatchSource.includes("getClubMatchProfile")
+  || !careerMatchSource.includes("opponentClubProfile?.goalkeeping")
+  || !careerMatchSource.includes("ownClubProfile?.goalkeeping")
+  || /teamGoalkeeping:55/.test(careerMatchSource)) {
+  console.error("Career match integration must use actual club goalkeeper depth instead of a fixed 55.");
+  process.exit(1);
+}
 const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicServiceWorker = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 if (serviceWorker !== publicServiceWorker) { console.error("Root sw.js and public/sw.js are out of sync."); process.exit(1); }

@@ -1150,6 +1150,33 @@ const save = {
   seasonApps: 0, seasonAppsTarget: 34, careerMatchHistory: []
 };
 const world = ai.ensureState(save, db);
+assert.equal(ai.groupForPosition("GK"), "goalkeeper");
+assert.equal(ai.groupForPosition("CB"), "defender");
+assert.equal(ai.groupForPosition("CDM"), "midfielder");
+assert.equal(ai.groupForPosition("ST"), "attacker");
+assert.equal(ai.groupForPosition("RW"), "attacker");
+const matchProfileSave = { season: 1, worldSimulation: JSON.parse(JSON.stringify(world)) };
+const matchProfileWorld = matchProfileSave.worldSimulation;
+const matchProfileClub = Object.values(matchProfileWorld.clubs).find(club =>
+  Array.isArray(club.roster) && club.roster
+    .map(id => matchProfileWorld.players[id])
+    .filter(player => player && (player.group === "goalkeeper" || ai.groupForPosition(player.position) === "goalkeeper"))
+    .length >= 2);
+assert.ok(matchProfileClub, "keeper-depth fixture requires two goalkeepers");
+const matchProfileKeepers = matchProfileClub.roster
+  .map(id => matchProfileWorld.players[id])
+  .filter(player => player && (player.group === "goalkeeper" || ai.groupForPosition(player.position) === "goalkeeper"))
+  .sort((a, b) => Number(b.ovr || 0) - Number(a.ovr || 0));
+matchProfileKeepers[0].group = "goalkeeper";
+matchProfileKeepers[0].position = "حارس مرمى";
+matchProfileKeepers[0].goalkeeping = 94;
+matchProfileKeepers[1].group = "goalkeeper";
+matchProfileKeepers[1].position = "حارس مرمى";
+matchProfileKeepers[1].goalkeeping = 70;
+assert.equal(typeof ai.getClubMatchProfile, "function");
+const matchProfile = ai.getClubMatchProfile(matchProfileSave, matchProfileClub.name, matchProfileClub.country, db);
+assert.equal(matchProfile.power, Number(matchProfileClub.power) || Number(matchProfileClub.basePower) || null);
+assert.equal(matchProfile.goalkeeping, 91);
 const duplicateSourceName = "Scotland Test Player 1-1";
 const duplicateSourcePlayers = Object.values(world.players).filter(player =>
   player && player.name === duplicateSourceName && player.isRealPlayer === true && player.isGenerated !== true);

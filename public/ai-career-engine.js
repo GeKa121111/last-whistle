@@ -3,10 +3,48 @@
   "use strict";
   const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
   const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const POSITION_ALIASES = Object.freeze({
+    gk: "حارس مرمى", goalkeeper: "حارس مرمى", keeper: "حارس مرمى", goalie: "حارس مرمى",
+    cb: "قلب دفاع", lcb: "قلب دفاع", rcb: "قلب دفاع", centerback: "قلب دفاع", "center back": "قلب دفاع",
+    centreback: "قلب دفاع", "centre back": "قلب دفاع", centraldefender: "قلب دفاع", "central defender": "قلب دفاع",
+    lb: "ظهير", rb: "ظهير", lwb: "ظهير", rwb: "ظهير", wb: "ظهير", fb: "ظهير",
+    leftback: "ظهير", "left back": "ظهير", rightback: "ظهير", "right back": "ظهير",
+    fullback: "ظهير", "full back": "ظهير", wingback: "ظهير", "wing back": "ظهير",
+    "left wing back": "ظهير", "right wing back": "ظهير",
+    cdm: "وسط دفاعي", dm: "وسط دفاعي", "defensive midfielder": "وسط دفاعي",
+    "defensive mid": "وسط دفاعي", holdingmidfielder: "وسط دفاعي", "holding midfielder": "وسط دفاعي",
+    cam: "وسط مهاجم", am: "وسط مهاجم", "attacking midfielder": "وسط مهاجم", "attacking mid": "وسط مهاجم",
+    cm: "وسط", rcm: "وسط", lcm: "وسط", mf: "وسط", midfield: "وسط",
+    "central midfielder": "وسط", "central midfield": "وسط", midfielder: "وسط",
+    lw: "جناح", rw: "جناح", lm: "جناح", rm: "جناح", lwf: "جناح", rwf: "جناح",
+    "left wing": "جناح", "right wing": "جناح", winger: "جناح",
+    "left winger": "جناح", "right winger": "جناح",
+    "left midfielder": "جناح", "right midfielder": "جناح", "wide midfielder": "جناح",
+    cf: "مهاجم", ss: "مهاجم", "second striker": "مهاجم", "mobile forward": "مهاجم", "مهاجم متحرك": "مهاجم",
+    st: "رأس حربة", fw: "رأس حربة", fwd: "رأس حربة", striker: "رأس حربة", forward: "رأس حربة",
+    "centre forward": "رأس حربة", "center forward": "رأس حربة"
+  });
+  function normalizePosition(value) {
+    const raw = String(value == null ? "" : value).normalize("NFKC").trim();
+    if (!raw) return "";
+    const key = raw.toLocaleLowerCase("en")
+      .replace(/[\u064B-\u065F\u0670]/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
+      .replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    const shared = global.LWStateStore && global.LWStateStore.normalizePosition;
+    if (typeof shared === "function") {
+      try {
+        const normalized = shared(raw);
+        if (normalized && normalized !== raw) return normalized;
+      } catch (_) {}
+    }
+    return POSITION_ALIASES[key] || raw;
+  }
   const POSITION_FOCUS = Object.freeze({
     "حارس مرمى": ["goalkeeping", "composure"],
     "قلب دفاع": ["defending", "physical"],
     "ظهير": ["speed", "fitness"],
+    "وسط": ["passing", "vision", "defending"],
     "وسط دفاعي": ["defending", "passing"],
     "وسط مهاجم": ["passing", "vision"],
     "جناح": ["speed", "dribbling"],
@@ -60,7 +98,8 @@
     const fatigue = clamp(state.fatigue, 0, 100);
     const trust = clamp(state.trust, 0, 100);
     const injury = Math.max(0, number(state.injuryDays, 0));
-    const focus = POSITION_FOCUS[String(state.pos || "جناح")] || POSITION_FOCUS["جناح"];
+    const position = normalizePosition(state.pos || state.position || "جناح");
+    const focus = POSITION_FOCUS[position] || POSITION_FOCUS["جناح"];
     const primarySkill = focus[0];
     const skillValue = clamp(state[primarySkill], 0, 100);
     let title, summary, page = "training", actionLabel = "افتح التدريب";
@@ -85,7 +124,7 @@
         + "؛ قيمة المهارة " + skillValue + "/100. كلما استقر أداؤك زادت قوة حجتك لطلب دور أكبر.";
     }
     const priorities = [
-      "المركز: " + String(state.pos || "جناح"),
+      "المركز: " + position,
       "التقييم العام: " + clamp(overall, 0, 99) + "/99",
       "الجاهزية: طاقة " + energy + "%، إجهاد " + fatigue + "%",
       "ثقة المدرب: " + trust + "/100",
@@ -209,6 +248,7 @@
   global.LWCareerAI = Object.freeze({
     version: 1,
     positionFocus: POSITION_FOCUS,
+    normalizePosition,
     skillLabels: SKILL_LABELS,
     tacticLabels: TACTIC_LABELS,
     opponentTacticLabels: OPPONENT_LABELS,
@@ -344,7 +384,7 @@
     const saves = played.reduce((sum, row) => sum + Math.max(0, num(row.saves ?? row.stats?.saves, 0)), 0);
     const keyPasses = played.reduce((sum, row) => sum + Math.max(0, num(row.keyPasses ?? row.stats?.keyPasses, 0)), 0);
     const shotsOnTarget = played.reduce((sum, row) => sum + Math.max(0, num(row.shotsOnTarget ?? row.stats?.shotsOnTarget, 0)), 0);
-    const position = String(state.pos || state.position || "غير محدد");
+    const position = base.normalizePosition(state.pos || state.position || "غير محدد");
     const cleanSheetEligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(position);
     // Saved flags from older versions are not enough by themselves: require an eligible role and 60 minutes.
     const cleanSheets = cleanSheetEligible
@@ -358,9 +398,9 @@
     const goalkeeperContribution = /حارس/.test(position) && (saves >= 2 || cleanSheets > 0);
     const defensiveContribution = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)
       && (tackles >= 3 || interceptions >= 2 || cleanSheets > 0);
-    const creatorContribution = position === "وسط مهاجم"
+    const creatorContribution = ["وسط", "وسط مهاجم"].includes(position)
       && (keyPasses >= 2 || goals > 0 || assists > 0 || tackles >= 3 || interceptions >= 2);
-    const attackerContribution = ["جناح", "مهاجم", "مهاجم متحرك", "رأس حربة"].includes(position)
+    const attackerContribution = ["جناح", "مهاجم", "رأس حربة"].includes(position)
       && (goals > 0 || assists > 0 || shotsOnTarget >= 2 || keyPasses >= 2);
     const roleContributionLastFive = goalkeeperContribution || defensiveContribution
       || creatorContribution || attackerContribution
@@ -375,7 +415,7 @@
     const age = clamp(num(state.age, 24), 0, 99), stage = stageFor(state), rank = clubRank(state);
     return {
       season: currentSeason, day: dayOf(state), age, stage, stageLabel: AGE_STAGES[stage].label,
-      position: String(state.pos || state.position || "غير محدد"), clubName: String(state.clubName || ""),
+      position, clubName: String(state.clubName || ""),
       overall: clamp(num(overall, num(state.ovr, 50)), 0, 99), recentMatches: played.length,
       averageRating: Number(averageRating.toFixed(2)), goalsLastFive: goals, assistsLastFive: assists,
       tacklesLastFive: tackles, interceptionsLastFive: interceptions, savesLastFive: saves,

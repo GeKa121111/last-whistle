@@ -146,7 +146,7 @@ if (!html.includes("function renderStatsSummary(){")
   || !html.includes('setText("statsCareerApps"')
   || !html.includes('setText("statsSeasonGoals"')
   || !html.includes('setText("statsGoalsPer90"')
-  || !html.includes('case "stats":\\n   renderStatsSummary();\\n   renderPerformanceInsights();')) {
+  || !html.includes('case "stats":\n   renderStatsSummary();\n   renderPerformanceInsights();')) {
   console.error("Player statistics summary must be populated from reconciled career and current-season match ledgers.");
   process.exit(1);
 }

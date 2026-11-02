@@ -1465,6 +1465,41 @@ vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bu
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
 
+function makeSegmentScopedAwardState() {
+  const makeRow = (matchId, segmentId, goals, extra = {}) => ({
+    matchId, segmentId, scope: "league", leagueCountry: "England",
+    leagueCompetition: "Test League", minutes: 90, rating: 8, goals, assists: 0, ...extra
+  });
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", season: 1, calendarDay: 120, money: 0,
+    topScorerAwards: 0, careerAwards: [], seasonLog: [],
+    leagueSegmentId: "active-segment-1",
+    leagueArchives: [
+      { season: 1, segmentId: "archived-segment-1" },
+      { season: 2, segmentId: "archived-segment-2" }
+    ],
+    careerMatchHistory: [
+      makeRow("archived-segment-match-1", "archived-segment-1", 1),
+      makeRow("archived-segment-match-2", "archived-segment-1", 1),
+      makeRow("active-segment-match-3", "active-segment-1", 1),
+      makeRow("unknown-season-match", "", 20),
+      makeRow("prior-season-segment-match", "archived-segment-2", 20),
+      makeRow("explicit-prior-season-match", "archived-segment-1", 20, { season: 2 })
+    ]
+  };
+}
+
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const segmentScopedState = makeSegmentScopedAwardState();
+  engine.seasonAwards(segmentScopedState, [{ name: "Test FC", power: 50 }], 1);
+  const segmentScopedBoot = segmentScopedState.careerAwards.find(award => award.id === "golden-boot");
+  assert.ok(segmentScopedBoot,
+    engineName + " awards must recover season-less career rows whose segment is archived in the current season");
+  assert.equal(segmentScopedBoot.note, "3 هدف في 3 مشاركة",
+    engineName + " awards must include current archived/active segments but exclude unknown and prior-season rows");
+}
+
 const unidentifiedLegacyRepeat = {
   scope: "league", competition: "Premier League", season: 4, club: "Test FC",
   opponent: "Repeat Opponent", teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0

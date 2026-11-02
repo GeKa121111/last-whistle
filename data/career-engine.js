@@ -284,22 +284,40 @@
     const seasonValue = Number(state && state.season);
     const currentSeason = Number.isFinite(seasonValue) && seasonValue > 0 ? seasonValue : 1;
     const isLeagueRow = row => !row.scope || String(row.scope) === "league";
-    const belongsToCurrentSeason = row => {
-      if (row.season === undefined || row.season === null || row.season === "") return true;
-      const savedSeason = Number(row.season);
-      return Number.isFinite(savedSeason) && savedSeason === currentSeason;
-    };
+    const currentSeasonSegments = new Set(
+      (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
+        .filter(archive => archive && typeof archive === "object"
+          && Number(archive.season) === currentSeason)
+        .map(archive => String(archive.segmentId || "").trim())
+        .filter(Boolean)
+    );
+    const activeSegmentId = String(state && state.leagueSegmentId || "").trim();
+    if (activeSegmentId) currentSeasonSegments.add(activeSegmentId);
     const legacySeasonRows = (Array.isArray(state && state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object" && !Array.isArray(row)
-        && isLeagueRow(row) && belongsToCurrentSeason(row))
+        && isLeagueRow(row)
+        && (row.season === undefined || row.season === null || String(row.season).trim() === ""
+          || Number(row.season) === currentSeason))
       .map(row => ({
         ...row,
         scope: row.scope || "league",
-        season: row.season === undefined || row.season === null || row.season === "" ? currentSeason : row.season
+        season: row.season === undefined || row.season === null || String(row.season).trim() === ""
+          ? currentSeason : row.season
       }));
     const careerRows = (Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [])
-      .filter(row => row && typeof row === "object" && !Array.isArray(row)
-        && isLeagueRow(row) && Number(row.season) === currentSeason);
+      .filter(row => {
+        if (!row || typeof row !== "object" || Array.isArray(row) || !isLeagueRow(row)) return false;
+        const rawSeason = row.season;
+        const hasSeason = rawSeason !== undefined && rawSeason !== null && String(rawSeason).trim() !== "";
+        if (hasSeason) {
+          const savedSeason = Number(rawSeason);
+          return Number.isFinite(savedSeason) && savedSeason === currentSeason;
+        }
+        const segmentId = String(row.segmentId || "").trim();
+        return !!segmentId && currentSeasonSegments.has(segmentId);
+      })
+      .map(row => row.season === undefined || row.season === null || String(row.season).trim() === ""
+        ? { ...row, season: currentSeason } : row);
     return uniqueMatchRows([...legacySeasonRows, ...careerRows]);
   }
 

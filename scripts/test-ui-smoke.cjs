@@ -144,6 +144,14 @@ if (leagueRulesCardStart < 0 || leagueRulesCardEnd < leagueRulesCardStart
   process.exit(1);
 }
 
+const legacyExamplesStart = html.indexOf('<details class="global-legacy-examples">');
+const legacyExamplesEnd = html.indexOf("</details>", legacyExamplesStart);
+if (legacyExamplesStart < 0 || legacyExamplesEnd < legacyExamplesStart
+  || !html.slice(legacyExamplesStart, legacyExamplesEnd).includes("مرجع إرشادي غير رسمي وغير محدّث لحظيًا")
+  || (html.match(/id="realPlayerCatalog"/g) || []).length !== 1) {
+  console.error("Legacy player examples must stay as one clearly labeled optional reference, not a primary directory section.");
+  process.exit(1);
+}
 if (!redesign.includes("body.lw-rebuild #page-contract .transfer-card-actions .btn")
   || !redesign.includes("min-height:46px")
   || !redesign.includes("flex-basis:100%")) {
@@ -554,7 +562,7 @@ if (!redesignSource.includes("article:not(.seasonJourneyCard)")
   console.error("The home page must keep the season roadmap while moving world AI details to the world page.");
   process.exit(1);
 }
-if (!html.includes('href="./ui-organization.css?v=2"')
+if (!html.includes('href="./ui-organization.css?v=3"')
   || (html.match(/class="navGroup"/g) || []).length !== 3
   || !html.includes("navGroupCareer")
   || !html.includes("navGroupCompetition")

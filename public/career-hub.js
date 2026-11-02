@@ -114,14 +114,6 @@
     text("statsAssistsPer90",careerMinutes>0?(loggedAssists*90/careerMinutes).toFixed(2):"0.00");
     text("statsMinutesPerAppearance",careerRows.length?Math.round(careerMinutes/careerRows.length):0);
     text("statsPositionContext","مركزك الحالي: "+roleLabel+" — "+roleAdvice+" المعدلات محسوبة من سجل المباريات المحفوظة.");
-    var hint=$("homeReadinessHint");
-    if(hint){
-      if(injury>0)hint.textContent="حالتك الحالية: إصابة لمدة "+injury+" يوم — افتح الجاهزية عشان تتابع التعافي.";
-      else if(energy<35||fatigue>=65)hint.textContent="نصيحة اليوم: الطاقة أو الإجهاد بيقولوا إن الراحة أهم من حصة مكثفة.";
-      else if(used)hint.textContent="نصيحة اليوم: استخدمت نشاطك الجانبي؛ باقي لك التدريب أو الراحة أو المباراة حسب التقويم.";
-      else if(trust<35)hint.textContent="نصيحة اليوم: ثقة الجهاز الفني محتاجة أداء ثابت وتواصل مهني.";
-      else hint.textContent="جاهزيتك مقبولة؛ راجع الإحصائيات أو اختار تدريبك من الأيقونات.";
-    }
     var trainingBadge=$("trainingPageBadge");
     if(trainingBadge){
       if(s.retired)trainingBadge.textContent="المسيرة انتهت";

@@ -481,18 +481,26 @@
         realPlayer: false,
         isUser: true
       }, input.userLine);
-      const userAppearances = Math.max(0, Number(user.appearances || user.apps) || 0);
+      const appearanceValue = user.appearances !== undefined && user.appearances !== null
+        ? user.appearances : user.apps;
+      const userAppearances = safeCount(appearanceValue);
+      const userGoals = userAppearances > 0 ? safeCount(user.goals) : 0;
+      const userAssists = userAppearances > 0 ? safeCount(user.assists) : 0;
+      const userAverageRating = userAppearances > 0 ? safeRating(user.averageRating) : 0;
+      const userLeagueStrength = safeStrength(user.leagueStrength);
       user.appearances = userAppearances;
+      user.goals = userGoals;
+      user.assists = userAssists;
+      user.averageRating = userAverageRating;
+      user.leagueStrength = userLeagueStrength;
+      user.ovr = clamp(user.ovr || 50, 35, 99);
       if (userAppearances === 0) {
-        user.goals = 0;
-        user.assists = 0;
-        user.averageRating = 0;
         user.score = 0;
         user.weightedGoals = 0;
       } else {
-        user.score = Number(user.averageRating || 0) * 9 + Number(user.goals || 0) * 0.95
-          + Number(user.assists || 0) * 0.62 + Number(user.leagueStrength || 60) * 0.035;
-        user.weightedGoals = Number(user.goals || 0) * (0.82 + Number(user.leagueStrength || 60) / 450);
+        user.score = userAverageRating * 9 + userGoals * 0.95
+          + userAssists * 0.62 + userLeagueStrength * 0.035;
+        user.weightedGoals = userGoals * (0.82 + userLeagueStrength / 450);
       }
       rows.push(user);
     }

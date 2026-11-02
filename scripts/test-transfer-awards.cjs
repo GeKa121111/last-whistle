@@ -379,7 +379,7 @@ const malformedCeremony = engine.buildSeasonAwardCeremony({
   currentDate: "2032-02-14T00:00:00.000Z",
   player: {
     name: "لاعب بيانات تالفة", club: "نادي الاختبار", country: "مصر", position: "حارس مرمى",
-    age: 24, ovr: 80, appearances: 12, goals: "Infinity", assists: "NaN",
+    age: "Infinity", ovr: 80, appearances: 12, goals: "Infinity", assists: "NaN",
     averageRating: "Infinity", trophies: "Infinity", professionalism: "Infinity",
     leagueStrength: "Infinity", cleanSheets: "Infinity", saves: "Infinity", penaltiesSaved: "Infinity"
   },
@@ -395,6 +395,8 @@ const malformedCeremony = engine.buildSeasonAwardCeremony({
 });
 assert.ok(malformedCeremony.ballonDor.topFive.length > 0,
   "finite appearance counts must remain eligible even when malformed performance fields are sanitized");
+assert.equal(malformedCeremony.awards.some(award => award.id === "golden-boy"), false,
+  "an invalid age must not be converted into an under-21 Golden Boy candidate");
 assert.ok(malformedCeremony.ballonDor.topFive.every(row =>
   Number.isFinite(row.score) && Number.isFinite(row.goals) && Number.isFinite(row.assists)
     && Number.isFinite(row.averageRating)),

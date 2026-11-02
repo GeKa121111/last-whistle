@@ -297,7 +297,6 @@ const required = [
   "ai-career-engine.js?v=7",
   "football-world-ai.css?v=2",
   "football-world-ai.js?v=72",
-  'id="worldAIHomePanel"',
   'id="worldAISimulationDashboard"',
   "window.LWWorldAI.advanceToSeasonAsync",
   "window.LWWorldAI?.completeSeason",
@@ -536,7 +535,21 @@ for (const marker of ['["ST", "LS", "RS", "F"]', '["CF", "SS", "FW"]', '["LW", "
   if (!squadRefreshSource.includes(marker)) { console.error("Sourced squad position normalization collapsed striker roles:", marker); process.exit(1); }
 }
 const redesignSource = fs.readFileSync(path.join(root, "public", "redesign.css"), "utf8");
-if (!redesignSource.includes("article:not(.seasonJourneyCard):not(.world-ai-home)")) { console.error("Redesigned home must keep the world AI panel visible."); process.exit(1); }
+const organizationSource = fs.readFileSync(path.join(root, "public", "ui-organization.css"), "utf8");
+if (!redesignSource.includes("article:not(.seasonJourneyCard)")
+  || !organizationSource.includes("body.lw-rebuild #page-home .world-ai-home")
+  || !organizationSource.includes("display:none!important")) {
+  console.error("The home page must keep the season roadmap while moving world AI details to the world page.");
+  process.exit(1);
+}
+if (!html.includes('href="./ui-organization.css?v=1"')
+  || (html.match(/class="navGroup"/g) || []).length !== 3
+  || !html.includes("navGroupCareer")
+  || !html.includes("navGroupCompetition")
+  || !html.includes("navGroupOffPitch")) {
+  console.error("Navigation groups and the shared UI organization stylesheet must be present.");
+  process.exit(1);
+}
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 const workerCacheDeclaration = workerSource.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {

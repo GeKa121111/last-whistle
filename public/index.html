@@ -6298,8 +6298,9 @@ function performanceAdviceForRole(position,metrics={},rating=6.2,energy=100,fati
  const role=String(position||"");
  const value=key=>Math.max(0,Number(metrics[key])||0);
  const goals=value("goals"),assists=value("assists"),tackles=value("tackles"),interceptions=value("interceptions");
- const saves=value("saves"),cleanSheets=value("cleanSheets"),keyPasses=value("keyPasses"),shotsOnTarget=value("shotsOnTarget");
+ const saves=value("saves"),cleanSheets=value("cleanSheets"),keyPasses=value("keyPasses"),shotsOnTarget=value("shotsOnTarget"),recoveries=value("recoveries");
  const defensive=["قلب دفاع","ظهير","وسط دفاعي"].includes(role);
+ const centralMidfield=role==="وسط";
  const creator=role==="وسط مهاجم";
  const goalkeeper=role==="حارس مرمى";
  const attacker=["جناح","مهاجم","مهاجم متحرك","رأس حربة"].includes(role);
@@ -6307,12 +6308,14 @@ function performanceAdviceForRole(position,metrics={},rating=6.2,energy=100,fati
  if(Number(rating)<6.3){
   if(goalkeeper)return "راجع تمركزك ورد فعلك وقرار الخروج للكرة؛ حراسة المرمى ليها مؤشرات مختلفة عن الأهداف والصناعات.";
   if(defensive)return "ركز على التمركز والالتحامات وقراءة التمريرة لزيادة التدخلات والاعتراضات، بدل مطاردة المساهمات التهديفية.";
+  if(centralMidfield)return "ركز على ربط الخطوط: استلام الكرة تحت الضغط، التمرير للأمام، والضغط العكسي لاستعادة الاستحواذ.";
   if(creator)return "ركز على اختيار التمريرة والتمركز بين الخطوط وصناعة الفرص، مع الحفاظ على هدوئك وجودة الاستحواذ.";
   if(attacker)return "راجع تحركاتك بدون كرة وتوقيت التسديد والتمركز داخل المنطقة لزيادة فرص التسجيل والصناعة.";
   return "ركز على أساسيات مركزك والتمركز والهدوء، ووازن بين التدريب والاستشفاء لتحسين التقييم.";
  }
  if(goalkeeper&&saves===0&&cleanSheets===0)return "راجع التمركز والتواصل مع خط الدفاع؛ تقييم الحارس بيتقاس بالتصديات والشباك النظيفة، مش بالأهداف والصناعات.";
  if(defensive&&tackles+interceptions===0&&cleanSheets===0)return "راقب تمركزك وتوقيت الضغط والاعتراض؛ التدخلات الناجحة والكرات المقطوعة هي مؤشرات أساسية لمركزك.";
+ if(centralMidfield&&keyPasses+assists+tackles+interceptions+recoveries===0)return "شارك أكتر في بناء اللعب: اطلب الكرة بين الخطوط، افتح زوايا تمرير، وساعد الفريق في استرجاع الاستحواذ.";
  if(creator&&keyPasses===0&&assists===0)return "حاول تكون متاحًا بين الخطوط وتصنع فرصًا بتمريرات مفتاحية، مش بالضرورة بزيادة التسديد.";
  if(attacker&&goals+assists===0&&shotsOnTarget===0&&keyPasses<2)return "حسّن توقيت الجري بدون كرة والتحرك في المساحات؛ المهاجم محتاج يحوّل التحركات لتسديدات خطرة أو أهداف وصناعات.";
  if(Number(rating)>=7.5)return "مستواك ممتاز في الفترة دي؛ حافظ على الاستمرارية وراجع العروض والعقد في الوقت المناسب.";
@@ -6340,18 +6343,20 @@ function renderPerformanceInsights(){
  const statValue=(row,key)=>Math.max(0,Number(row?.[key]??row?.stats?.[key])||0);
  const sumStat=key=>recent.reduce((sum,row)=>sum+statValue(row,key),0);
  const tackles=sumStat("tackles"),interceptions=sumStat("interceptions"),saves=sumStat("saves");
- const keyPasses=sumStat("keyPasses"),shotsOnTarget=sumStat("shotsOnTarget");
+ const keyPasses=sumStat("keyPasses"),shotsOnTarget=sumStat("shotsOnTarget"),recoveries=sumStat("ballRecoveries");
  const cleanSheets=recent.filter(row=>row.cleanSheet===true||row.stats?.cleanSheet===true).length;
- const roleMetrics={goals,assists,tackles,interceptions,saves,keyPasses,shotsOnTarget,cleanSheets};
+ const roleMetrics={goals,assists,tackles,interceptions,saves,keyPasses,shotsOnTarget,recoveries,cleanSheets};
  const tip=performanceAdviceForRole(state.pos,roleMetrics,avg,state.energy,state.fatigue);
  const position=String(state.pos||"");
  const statCards=position==="حارس مرمى"
   ? [{value:saves,label:"تصديات"},{value:cleanSheets,label:"شباك نظيفة"},{value:recent.length,label:"مشاركات"}]
   : ["قلب دفاع","ظهير","وسط دفاعي"].includes(position)
    ? [{value:tackles,label:"تدخلات"},{value:interceptions,label:"اعتراضات"},{value:cleanSheets,label:"شباك نظيفة"}]
-   : position==="وسط مهاجم"
-    ? [{value:keyPasses,label:"تمريرات مفتاحية"},{value:assists,label:"صناعات"},{value:tackles+interceptions,label:"تدخلات واعتراضات"}]
-    : [{value:goals,label:"أهداف"},{value:assists,label:"صناعات"},{value:contributions,label:"مساهمات تهديفية"}];
+   : position==="وسط"
+    ? [{value:keyPasses,label:"تمريرات مفتاحية"},{value:assists,label:"صناعات"},{value:tackles+interceptions+recoveries,label:"افتكاكات واسترجاعات"}]
+    : position==="وسط مهاجم"
+     ? [{value:keyPasses,label:"تمريرات مفتاحية"},{value:assists,label:"صناعات"},{value:tackles+interceptions,label:"تدخلات واعتراضات"}]
+     : [{value:goals,label:"أهداف"},{value:assists,label:"صناعات"},{value:contributions,label:"مساهمات تهديفية"}];
  const kpiMarkup=[{value:avg.toFixed(2),label:"متوسط التقييم • آخر "+recent.length},...statCards]
   .map(card=>`<div class="kpi"><div class="kpiNum">${card.value}</div><div class="kpiLabel">${card.label}</div></div>`).join("");
  const rows=recent.map((row,index)=>{

@@ -550,6 +550,14 @@ if (!html.includes('href="./ui-organization.css?v=1"')
   console.error("Navigation groups and the shared UI organization stylesheet must be present.");
   process.exit(1);
 }
+for (const pageId of ["page-europe", "page-life", "page-diary", "page-social"]) {
+  const pageStart = html.indexOf('id="' + pageId + '"');
+  const pageMarkup = pageStart >= 0 ? html.slice(pageStart, pageStart + 900) : "";
+  if (!pageMarkup.includes("hub-page-heading")) {
+    console.error("Page is missing the shared section heading: " + pageId);
+    process.exit(1);
+  }
+}
 const workerSource = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 const workerCacheDeclaration = workerSource.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {

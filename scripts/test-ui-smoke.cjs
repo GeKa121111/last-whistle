@@ -9,6 +9,31 @@ const html = fs.readFileSync(htmlPath, "utf8");
 const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (rootHtml !== html) { console.error("Root index.html and public/index.html are out of sync."); process.exit(1); }
 
+const uiNavAuditMarkup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "").replace(/<!--[\s\S]*?-->/g, "");
+const uiNavAuditIds = [...uiNavAuditMarkup.matchAll(/\bid\s*=\s*(["'])(.*?)\1/gi)].map(match => match[2]);
+const uiNavSeenIds = new Set();
+const uiNavDuplicateIds = new Set();
+for (const id of uiNavAuditIds) {
+  if (uiNavSeenIds.has(id)) uiNavDuplicateIds.add(id);
+  uiNavSeenIds.add(id);
+}
+if (uiNavDuplicateIds.size) {
+  console.error("Static app markup contains duplicate DOM IDs: " + [...uiNavDuplicateIds].join(", "));
+  process.exit(1);
+}
+const uiNavPageSlugs = [...uiNavAuditMarkup.matchAll(/\bid\s*=\s*["']page-([a-z0-9-]+)["']/gi)].map(match => match[1]);
+const uiNavPageSlugSet = new Set(uiNavPageSlugs);
+const uiNavTargets = new Set([...uiNavAuditMarkup.matchAll(/\bdata-page\s*=\s*["']([^"']+)["']/gi)].map(match => match[1]));
+const uiNavMissingPages = [...uiNavPageSlugSet].filter(slug => !uiNavTargets.has(slug));
+const uiNavUnknownTargets = [...uiNavTargets].filter(slug => !uiNavPageSlugSet.has(slug));
+if (!uiNavPageSlugSet.size || uiNavPageSlugSet.size !== uiNavPageSlugs.length
+  || uiNavMissingPages.length || uiNavUnknownTargets.length
+  || uiNavPageSlugSet.size !== uiNavTargets.size) {
+  console.error("Page sections and navigation targets must map one-to-one. Missing navigation: "
+    + uiNavMissingPages.join(", ") + "; unknown targets: " + uiNavUnknownTargets.join(", "));
+  process.exit(1);
+}
+
 const careerMatchStart = html.indexOf("function simulateCareerMatch(");
 const careerMatchEnd = html.indexOf("\nfunction matchCleanSheetContractBonus", careerMatchStart);
 const careerMatchSource = careerMatchStart >= 0 && careerMatchEnd > careerMatchStart

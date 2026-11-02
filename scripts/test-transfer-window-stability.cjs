@@ -1072,8 +1072,60 @@ assert.match(pendingTransferBox.innerHTML, /data-retry-pending-transfer/,
   "a rolled-back accepted transfer must render an explicit retry button");
 assert.match(pendingTransferBox.innerHTML, /نادي ب/,
   "the retry card must identify the accepted destination club");
-assert.ok(app.includes('const retryPendingTransfer=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransfer){transferTo();renderTransferMarket();return;}'),
-  "the transfer-market click handler must execute the retry action");
+assert.ok(app.includes('const retryPendingTransferButton=e.target.closest("[data-retry-pending-transfer]");if(retryPendingTransferButton){retryPendingTransfer();return;}'),
+  "the transfer-market click handler must delegate retries to the guarded retry flow");
+
+const retryPendingTransferSource = section("function retryPendingTransfer(){", "\\nfunction negotiate(){");
+function runPendingTransferRetry(mode) {
+  const scenario = {
+    state: {
+      clubName: "نادي أ", leagueCountry: "مصر", season: 4, day: 190,
+      pendingTransfer: { id: "accepted-retry", club: "نادي ب", country: "مصر", league: "الدوري المصري" },
+      transferOffers: [{ id: "accepted-retry", status: "accepted", club: "نادي ب", country: "مصر", league: "الدوري المصري" }],
+      transferHistory: []
+    },
+    transferTo() {
+      if (mode === "expired") { this.state.pendingTransfer = null; return undefined; }
+      if (mode === "rollback") return false;
+      this.state.clubName = "نادي ب"; this.state.leagueCountry = "مصر"; this.state.pendingTransfer = null;
+      return true;
+    },
+    saveCalls: 0, renderCalls: 0, toastMessage: "",
+    saveGame() { this.saveCalls++; return true; },
+    renderTransferMarket() { this.renderCalls++; },
+    toast(message) { this.toastMessage = message; }
+  };
+  vm.createContext(scenario);
+  vm.runInContext(retryPendingTransferSource + "\\nthis.retryPendingTransfer = retryPendingTransfer;", scenario,
+    { filename: "pending-transfer-retry-" + mode });
+  scenario.retryPendingTransfer();
+  return scenario;
+}
+const expiredRetry = runPendingTransferRetry("expired");
+assert.equal(expiredRetry.state.transferOffers[0].status, "expired",
+  "a retry rejected by a closed window or unavailable destination must expire the accepted offer");
+assert.equal(expiredRetry.state.transferOffers[0].expiredReason, "destination-unavailable");
+assert.equal(expiredRetry.state.transferHistory.length, 1,
+  "a rejected retry must record one expiry event without changing the current club");
+assert.equal(expiredRetry.state.clubName, "نادي أ");
+assert.equal(expiredRetry.saveCalls, 1, "the expired retry state must be saved");
+assert.equal(expiredRetry.renderCalls, 1, "the market must refresh after an expired retry");
+
+const rolledBackRetry = runPendingTransferRetry("rollback");
+assert.equal(rolledBackRetry.state.transferOffers[0].status, "accepted",
+  "a transaction rollback must keep the accepted contract available for another retry");
+assert.ok(rolledBackRetry.state.pendingTransfer, "a failed transaction must preserve the pending contract");
+assert.equal(rolledBackRetry.state.transferHistory.length, 0);
+assert.equal(rolledBackRetry.saveCalls, 0,
+  "a transaction failure must not write an expiry after rollback");
+
+const successfulRetry = runPendingTransferRetry("success");
+assert.equal(successfulRetry.state.clubName, "نادي ب");
+assert.equal(successfulRetry.state.pendingTransfer, null);
+assert.equal(successfulRetry.state.transferOffers[0].status, "accepted",
+  "a successful retry must retain the accepted offer instead of marking it expired");
+assert.equal(successfulRetry.state.transferHistory.length, 0,
+  "a successful retry must not append an expiry record");
 
 const cupArchiveScenario = {
   state: {
@@ -1239,7 +1291,7 @@ expiryTest();
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 425);
+require("./assert-static-cache-version.cjs")(sw, 426);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=17"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");

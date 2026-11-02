@@ -77,7 +77,8 @@
     if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")
       || role.includes("فريقالرديف") || role.includes("لاعبتحتالتقييم") || role.includes("reserve") || role.includes("academy")) return 20;
     if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 28;
-    return 76;
+    // The match engine defaults missing or unrecognized squad roles to substitute (28 minutes).
+    return 28;
   }
   function seasonProductionRates(type) {
     const profiles = {
@@ -676,7 +677,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 9,
+    version: 10,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

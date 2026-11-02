@@ -60,3 +60,39 @@ body.lw-rebuild #page-europe .world-ai-dashboard-grid{margin-top:0}
   body.lw-rebuild .hub-page-heading{margin-bottom:11px;padding-bottom:10px}
   body.lw-rebuild .hub-page-heading p{font-size:10px}
 }
+
+/* League reference material stays available without dominating the season dashboard. */
+body.lw-rebuild .league-rules-card{padding:0;overflow:hidden}
+body.lw-rebuild .league-rules-summary{
+  display:flex;align-items:center;gap:12px;min-width:0;padding:15px 16px;
+  list-style:none;cursor:pointer
+}
+body.lw-rebuild .league-rules-summary::-webkit-details-marker{display:none}
+body.lw-rebuild .league-rules-summary::marker{content:""}
+body.lw-rebuild .league-rules-summary-copy{flex:1 1 auto;min-width:0}
+body.lw-rebuild .league-rules-summary h2{margin:0;color:#eaf2e5;font-size:13px;font-weight:950}
+body.lw-rebuild .league-rules-summary p{margin:4px 0 0;color:#8e9d8b;font-size:10px;line-height:1.7}
+body.lw-rebuild .league-rules-summary .pill{flex:0 0 auto}
+body.lw-rebuild .league-rules-chevron{
+  display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;
+  border:1px solid #2d3d30;border-radius:8px;color:var(--lw-lime);
+  transition:transform .18s ease
+}
+body.lw-rebuild .league-rules-details[open] .league-rules-chevron{transform:rotate(180deg)}
+body.lw-rebuild .league-rules-summary:focus-visible{
+  outline:2px solid var(--lw-lime);outline-offset:-3px;border-radius:10px
+}
+body.lw-rebuild .league-rules-content{
+  margin:0 16px 16px;padding-top:13px;border-top:1px solid #28362a
+}
+body.lw-rebuild .league-rules-content>.muted.small{margin-top:0;font-size:10px;line-height:1.8}
+body.lw-rebuild .league-rules-content .ruleList{
+  margin:10px 0;padding-inline-start:20px;color:#b8c5b2;font-size:10px;line-height:1.9
+}
+@media(max-width:540px){
+  body.lw-rebuild .league-rules-summary{gap:8px;padding:13px 11px}
+  body.lw-rebuild .league-rules-summary h2{font-size:12px}
+  body.lw-rebuild .league-rules-summary p{font-size:9px}
+  body.lw-rebuild .league-rules-content{margin:0 11px 12px}
+  body.lw-rebuild .league-rules-summary .pill{font-size:8px;padding:4px 6px}
+}

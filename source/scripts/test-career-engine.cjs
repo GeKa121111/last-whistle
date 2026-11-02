@@ -743,7 +743,8 @@ const malformedParentLoan = runBrowserLoanReturnCase({
   parentClub: "", parentCountry: "", parentWage: 450,
   parentContractSeasons: 2, parentFreeAgent: false, parentContractType: "professional"
 });
-assert.equal(malformedParentLoan.result, false);
+assert.equal(malformedParentLoan.result, true,
+  "a malformed legacy loan is a committed free-agent recovery, not a failed transaction");
 assert.equal(malformedParentLoan.state.loan, null);
 assert.equal(malformedParentLoan.state.weeklyWage, 0,
   "an un-restorable legacy loan must never leave the temporary host wage active");

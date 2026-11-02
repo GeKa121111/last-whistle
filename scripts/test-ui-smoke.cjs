@@ -681,7 +681,7 @@ for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experi
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.js", 7);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.css", 2);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 64);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 71);
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
 try {
   new vm.Script(experienceSource, { filename: "public/career-experience.js" });

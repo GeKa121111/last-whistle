@@ -110,8 +110,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 320);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 64);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 423);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 71);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1520,6 +1520,19 @@ for (const engine of [career, deployedCareer]) {
   const scopeOnlyLegacyRepeat = { scope: "league", day: 24, minutes: 90, goals: 0, assists: 0 };
   assert.equal(engine.uniqueMatchRows([scopeOnlyLegacyRepeat, { ...scopeOnlyLegacyRepeat }]).length, 2,
     "a scope and date alone are not enough identity to collapse two legacy fixtures");
+  const incompleteFallbackContexts = [
+    { scope: "league", competition: "Premier League", opponent: "Repeat Opponent", day: 24, matchday: 12, teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0 },
+    { scope: "league", competition: "Premier League", season: 4, opponent: "Repeat Opponent", day: 24, matchday: 12, teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0 },
+    { scope: "league", competition: "Premier League", club: "Test FC", opponent: "Repeat Opponent", day: 24, matchday: 12, teamGoals: 1, oppGoals: 0, minutes: 90, goals: 0, assists: 0 }
+  ];
+  incompleteFallbackContexts.forEach((row, index) => {
+    assert.equal(engine.uniqueMatchRows([row, { ...row }]).length, 2,
+      "no-ID fixtures need competition, club, and season/segment context before deduplication (" + index + ")");
+  });
+  const segmentScopedLegacyRepeat = { ...identifiedLegacyRepeat, segmentId: "season-4" };
+  delete segmentScopedLegacyRepeat.season;
+  assert.equal(engine.uniqueMatchRows([segmentScopedLegacyRepeat, { ...segmentScopedLegacyRepeat }]).length, 1,
+    "a stable segment ID may substitute for a missing season when deduplicating legacy fixtures");
   const sparseHistory = {
     apps: 2,
     seasonLog: [unidentifiedLegacyRepeat],

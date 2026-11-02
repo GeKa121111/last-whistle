@@ -88,7 +88,8 @@
     if (role.includes("نجمالفريق") || role.includes("starplayer")) return "star";
     if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return "starter";
     if (role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return "rotation";
-    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return "prospect";
+    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")
+      || role.includes("فريقالرديف") || role.includes("لاعبتحتالتقييم") || role.includes("reserve") || role.includes("academy")) return "prospect";
     if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return "substitute";
     return "substitute";
   }

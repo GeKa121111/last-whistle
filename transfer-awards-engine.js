@@ -74,7 +74,8 @@
     if (role.includes("نجمالفريق") || role.includes("starplayer")) return 88;
     if (role === "اساسي" || role.includes("لاعباساسي") || role.includes("regularstarter")) return 83;
     if (role.includes("تناوب") || role.includes("rotation") || role.includes("squadplayer")) return 43;
-    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")) return 20;
+    if (role.includes("ناشي") || role.includes("ناشئ") || role.includes("صاعد") || role.includes("prospect") || role.includes("youngster")
+      || role.includes("فريقالرديف") || role.includes("لاعبتحتالتقييم") || role.includes("reserve") || role.includes("academy")) return 20;
     if (role.includes("بديل") || role.includes("احتياطي") || role.includes("impactsub") || role.includes("fringeplayer")) return 28;
     return 76;
   }
@@ -675,7 +676,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 8,
+    version: 9,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

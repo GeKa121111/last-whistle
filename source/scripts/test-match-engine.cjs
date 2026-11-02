@@ -68,7 +68,7 @@ assert.equal(fallbackStarResult.player.minutes, primaryStarResult.player.minutes
   "an unknown role must fall through to a recognized squadRole instead of forcing substitute minutes");
 assert.deepEqual(fallbackStarResult.events, primaryStarResult.events,
   "recognized squadRole fallback must preserve the canonical star-player event timeline");
-assert.deepEqual(browserEngine.simulateMatch(fallbackStarOptions), fallbackStarResult,
+assert.equal(JSON.stringify(browserEngine.simulateMatch(fallbackStarOptions)), JSON.stringify(fallbackStarResult),
   "the embedded browser engine must use the same recognized squad-role fallback");
 
 const fallbackRotationOptions = {

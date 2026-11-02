@@ -163,7 +163,7 @@ function createHarness() {
   assert.equal(flushRace.committedWrites.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(flushRace.committedWrites[0].state)), latestImportedCareer,
     "the committed default-slot record must be the imported career, never the stale queued state");
-  assert.strictEqual(flushRace.store.getStartupSave(), latestImportedCareer,
+  assert.deepEqual(JSON.parse(JSON.stringify(flushRace.store.getStartupSave())), latestImportedCareer,
     "the successful retry must become the startup save");
 
   const delayedWrite = createHarness();

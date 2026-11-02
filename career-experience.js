@@ -142,7 +142,7 @@
     text("lwcx-investment-note", pending ? "في انتظار يوم الاستحقاق" : "مفيش استثمارات معلّقة");
     text("lwcx-mentors", w.mentorSessions);
     text("lwcx-stories", Array.isArray(s.storyHistory) ? s.storyHistory.length : 0);
-    text("lwcx-status", s.retired ? "المسيرة انتهت — تقدر تراجع بطاقة الإرث النهائية." : "الطاقة " + cap(s.energy, 0, 100) + "% · الرصيد " + Math.max(0, Number(s.money) || 0) + " جنيه داخل اللعبة");
+    text("lwcx-status", s.retired ? "المسيرة انتهت — تقدر تراجع بطاقة الإرث النهائية." : "إنجازاتك واستثماراتك محفوظة مع بيانات مسيرتك على نفس الجهاز.");
     var actions = panel.querySelectorAll("button[data-lwcx-action]");
     actions.forEach(function (button) {
       var action = button.getAttribute("data-lwcx-action");

@@ -42,6 +42,8 @@ const advanceSource = extractByMarker(html, "function advanceAfterContractDecisi
 const contractPreparationSource = extractByMarker(html, "function prepareContractDecisionAfterLoanReturn(");
 const newSeasonSource = extractByMarker(html, "async function startNewSeasonInternalUnsafe(");
 const loanGuard = "if(state.loan&&!returnFromLoan())return false;";
+assert.ok(newSeasonSource.includes("return true;"), "a fully committed new season must report success");
+assert.ok(newSeasonSource.includes("proceedSeasonTransition(false);return false;"), "a pending renewal modal must not be reported as a completed season");
 assert.ok(newSeasonSource.includes(loanGuard),
   "a failed loan return must stop the new season from starting at the temporary host club");
 assert.ok(advanceSource.includes(loanGuard),
@@ -166,13 +168,13 @@ function makeHarness(options = {}) {
   assert.ok(h.events.toasts.some(message => message.includes("جاري تأكيد حفظ النسخة")));
 }
 
-function runAdvanceCase(returnResult, clearLoan) {
+function runAdvanceCase(returnResult, clearLoan, transitionResult = true) {
   const state = { loan: { parentClub: "Parent FC" } };
   let starts = 0, pages = 0;
   const sandbox = {
     state,
     returnFromLoan() { if (clearLoan) state.loan = null; return returnResult; },
-    startNewSeason() { starts++; },
+    startNewSeason() { starts++; return transitionResult; },
     showPage() { pages++; }
   };
   vm.createContext(sandbox);
@@ -207,6 +209,49 @@ function runAdvanceCase(returnResult, clearLoan) {
   assert.equal(success.starts, 1);
   assert.equal(success.pages, 1);
 }
+{
+  const failedStart = runAdvanceCase(true, true, false);
+  assert.equal(failedStart.result, false, "a failed season transition must not be reported as a successful contract decision");
+  assert.equal(failedStart.starts, 1);
+  assert.equal(failedStart.pages, 0, "the league page must not be shown when the season did not commit");
+}
+
+function runDeferredAdvanceCase(transitionResult) {
+  const state = { loan: null };
+  let resolveTransition, pages = 0, starts = 0;
+  const pending = new Promise(resolve => { resolveTransition = resolve; });
+  const sandbox = {
+    state,
+    startNewSeason() { starts++; return pending; },
+    showPage() { pages++; },
+    console: { error() {} },
+    toast() {}
+  };
+  vm.createContext(sandbox);
+  new vm.Script(advanceSource + String.fromCharCode(10) + "globalThis.advance = advanceAfterContractDecision;", {
+    filename: "deferred-contract-season-advance.js"
+  }).runInContext(sandbox);
+  const result = sandbox.advance(true);
+  assert.equal(typeof result.then, "function", "async season transitions must return a completion promise");
+  assert.equal(pages, 0, "navigation must wait until the season transition commits");
+  resolveTransition(transitionResult);
+  return result.then(value => ({ value, pages, starts }));
+}
+(async () => {
+  const committed = await runDeferredAdvanceCase(true);
+  assert.equal(committed.value, true);
+  assert.equal(committed.starts, 1);
+  assert.equal(committed.pages, 1, "the league page should open only after a successful transition");
+
+  const rolledBack = await runDeferredAdvanceCase(false);
+  assert.equal(rolledBack.value, false);
+  assert.equal(rolledBack.starts, 1);
+  assert.equal(rolledBack.pages, 0, "a rolled-back transition must keep the current page visible");
+  console.log("PASS: contract-decision navigation waits for a committed season transition.");
+})().catch(error => {
+  console.error(error && error.stack ? error.stack : error);
+  process.exitCode = 1;
+});
 
 function makeContractPreparationHarness(options = {}) {
   const state = { loan: options.hasLoan === false ? null : { parentClub: "Parent FC" }, freeAgent: false };
@@ -261,5 +306,5 @@ function makeContractPreparationHarness(options = {}) {
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 415);
+require("./assert-static-cache-version.cjs")(sw, 416);
 console.log("PASS: loan returns are atomic, malformed legacy loans recover safely, and failed returns cannot advance the season.");

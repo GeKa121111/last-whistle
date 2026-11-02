@@ -225,7 +225,7 @@
     const homeAdvantage = options.home ? 3 : 0;
     const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
       || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
-    const playerRoleType = squadRoleType(player.role);
+    const playerRoleType = squadRoleType(player.role || player.squadRole || player.playingTime);
     // A rotation contract is mostly a bench role, but the player also earns occasional starts.
     const playerStartsOnBench = playerRoleType === "rotation"
       ? (!unavailable && random() < 0.68)

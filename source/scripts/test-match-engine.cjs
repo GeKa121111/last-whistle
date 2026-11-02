@@ -920,6 +920,38 @@ const substituteOptions = {
 };
 const substituteResult = engine.simulateMatch(substituteOptions);
 const substituteEntry = substituteResult.events.find(event => event.type === "substitution-on" && event.side === "player");
+
+// The awards projection already accepts all three role fields. Match simulation
+// must resolve them in the same order so legacy/imported squad-role records do
+// not silently turn starters into 28-minute substitutes.
+const canonicalStarterOptions = {
+  ...substituteOptions, seed: 24061033,
+  player: { ...substituteOptions.player, role: "أساسي" }
+};
+const squadRoleStarterOptions = {
+  ...substituteOptions, seed: 24061033,
+  player: { ...substituteOptions.player, role: undefined, squadRole: "أساسي" }
+};
+const playingTimeStarterOptions = {
+  ...substituteOptions, seed: 24061033,
+  player: { ...substituteOptions.player, role: undefined, playingTime: "regular starter" }
+};
+const canonicalStarterResult = engine.simulateMatch(canonicalStarterOptions);
+assert.deepEqual(engine.simulateMatch(squadRoleStarterOptions), canonicalStarterResult,
+  "squadRole must be used when the primary role field is missing");
+assert.deepEqual(engine.simulateMatch(playingTimeStarterOptions), canonicalStarterResult,
+  "playingTime must be used when both role and squadRole are missing");
+assert.equal(
+  JSON.stringify(browserEngine.simulateMatch(squadRoleStarterOptions)),
+  JSON.stringify(browserEngine.simulateMatch(canonicalStarterOptions)),
+  "the embedded browser engine must resolve squadRole exactly like the canonical engine"
+);
+assert.equal(
+  JSON.stringify(browserEngine.simulateMatch(playingTimeStarterOptions)),
+  JSON.stringify(browserEngine.simulateMatch(canonicalStarterOptions)),
+  "the embedded browser engine must resolve playingTime exactly like the canonical engine"
+);
+
 const goalkeeperSkillBase = {
   seed: 500005, teamPower: 65, opponentPower: 65, teamGoalkeeping: 55,
   player: {

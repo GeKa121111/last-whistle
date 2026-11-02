@@ -1160,14 +1160,23 @@ const matchProfileWorld = matchProfileSave.worldSimulation;
 const matchProfileClub = Object.values(matchProfileWorld.clubs).find(club =>
   Array.isArray(club.roster) && club.roster
     .map(id => matchProfileWorld.players[id])
-    .filter(player => player && (player.group === "goalkeeper" || ai.groupForPosition(player.position) === "goalkeeper"))
+    .filter(player => player && (String(player.position || "").trim()
+      ? ai.groupForPosition(player.position) === "goalkeeper" : player.group === "goalkeeper"))
     .length >= 2);
 assert.ok(matchProfileClub, "keeper-depth fixture requires two goalkeepers");
 const matchProfileKeepers = matchProfileClub.roster
   .map(id => matchProfileWorld.players[id])
-  .filter(player => player && (player.group === "goalkeeper" || ai.groupForPosition(player.position) === "goalkeeper"))
+  .filter(player => player && (String(player.position || "").trim()
+      ? ai.groupForPosition(player.position) === "goalkeeper" : player.group === "goalkeeper"))
   .sort((a, b) => Number(b.ovr || 0) - Number(a.ovr || 0));
-matchProfileKeepers[0].group = "goalkeeper";
+const misclassifiedFieldPlayer = matchProfileClub.roster
+  .map(id => matchProfileWorld.players[id])
+  .find(player => player && ai.groupForPosition(player.position) !== "goalkeeper");
+assert.ok(misclassifiedFieldPlayer, "keeper-depth fixture requires at least one outfield player");
+misclassifiedFieldPlayer.group = "goalkeeper";
+misclassifiedFieldPlayer.position = "مهاجم";
+misclassifiedFieldPlayer.goalkeeping = 99;
+matchProfileKeepers[0].group = "midfielder";
 matchProfileKeepers[0].position = "حارس مرمى";
 matchProfileKeepers[0].goalkeeping = 94;
 matchProfileKeepers[1].group = "goalkeeper";

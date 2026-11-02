@@ -1582,6 +1582,30 @@ async function main() {
 
 
 
+    await page.evaluate(() => window.LWStoryRuntime.showPage("europe"));
+    const legacyExamplesDefault = await page.evaluate(() => {
+      const panel = document.querySelector("#page-europe .global-legacy-examples");
+      const summary = panel?.querySelector(":scope > summary");
+      return {
+        exists: Boolean(panel && summary),
+        open: panel?.open ?? null,
+        label: summary?.textContent.replace(/\\s+/g, " ").trim() || "",
+        catalogCount: document.querySelectorAll("#realPlayerCatalog").length,
+        touchHeight: summary ? Math.round(summary.getBoundingClientRect().height) : 0
+      };
+    });
+    assert.equal(legacyExamplesDefault.exists, true, "the legacy player reference must remain available on the world page");
+    assert.equal(legacyExamplesDefault.open, false, "old sample players should not compete with current world directories by default");
+    assert.equal(legacyExamplesDefault.catalogCount, 1, "the legacy sample catalog must remain present exactly once");
+    assert.ok(legacyExamplesDefault.label.includes("غير رسمي"), "the collapsed label must identify the sample data as unofficial");
+    assert.ok(legacyExamplesDefault.touchHeight >= 44, "the optional sample reference must have a comfortable touch target");
+    await page.locator("#page-europe .global-legacy-examples > summary").click();
+    assert.equal(await page.locator("#page-europe .global-legacy-examples").evaluate(el => el.open), true,
+      "the optional player examples should expand on demand");
+    await page.locator("#page-europe .global-legacy-examples > summary").click();
+    assert.equal(await page.locator("#page-europe .global-legacy-examples").evaluate(el => el.open), false,
+      "the optional player examples should collapse again");
+    results.push("world directory optional legacy player examples accordion");
     results.push("mobile horizontal-overflow audit across all 12 career/world/social pages");
 
     // At tablet widths the redesign hides the bottom bar and moves the drawer off-canvas.

@@ -35,7 +35,7 @@ if (require.main === module) {
     ["data/match-engine.js", 72],
     ["football-world-ai.js", 69],
     ["football-world-db.js", 9],
-    ["football-world-worker.js", 57],
+    ["football-world-worker.js", 58],
     ["transfer-awards-engine.js", 10]
   ];
   requiredAssets.forEach(([asset, minimum]) => {

@@ -1026,6 +1026,57 @@ assert.equal(staleDivisionWorld.clubs["stale-foreign-1"].division, 1,
 assert.equal(staleDivisionWorld.players["stale-promoted-player"].division, 1);
 assert.equal(staleDivisionWorld.players["stale-relegated-player"].division, 2);
 
+
+ 
+// Imported standings may be shuffled. Promotion and relegation must follow the
+// explicit rank column rather than whichever club happens to appear first/last.
+const rankedPromotionClubs = [];
+for (let index = 1; index <= 6; index++) rankedPromotionClubs.push({
+  id: "ranked-first-" + index, name: "Ranked First " + index,
+  leagueId: "ranked-league", country: "Testland", division: 1,
+  power: index === 6 ? 999 : 1, leagueName: "Ranked Premier",
+  leagueEnglish: "Ranked Premier League", matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 3; index++) rankedPromotionClubs.push({
+  id: "ranked-second-" + index, name: "Ranked Second " + index,
+  leagueId: "ranked-league", country: "Testland", division: 2,
+  power: index === 3 ? 999 : 1, leagueName: "Ranked Second Division",
+  leagueEnglish: "Ranked Championship", matchesPerSeason: 22, roster: []
+});
+const rankedPromotionWorld = {
+  players: {},
+  clubs: Object.fromEntries(rankedPromotionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "6": {
+      "ranked-league": [6, 2, 5, 1, 4, 3].map(rank => ({
+        clubId: "ranked-first-" + rank, leagueId: "ranked-league",
+        division: 1, rank, pts: 30 - rank, gd: 12 - rank, gf: 20 - rank
+      })),
+      "ranked-league:2": [3, 2, 1].map(rank => ({
+        clubId: "ranked-second-" + rank, leagueId: "ranked-league",
+        division: 2, rank, pts: 15 - rank, gd: 8 - rank, gf: 12 - rank
+      }))
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const rankedPromotionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Ranked Second Division", englishName: "Ranked Championship", matchesPerSeason: 22 }
+    : { name: "Ranked Premier", englishName: "Ranked Premier League", matchesPerSeason: 34 }
+};
+const rankedPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  rankedPromotionWorld, 6, rankedPromotionDb
+);
+assert.equal(rankedPromotionMoves.length, 1, "ranked legacy tables must still produce one valid promotion/relegation move");
+assert.equal(rankedPromotionMoves[0].promoted, "Ranked Second 1",
+  "promotion must use the best explicit second-tier rank, not the first array item");
+assert.equal(rankedPromotionMoves[0].relegated, "Ranked First 6",
+  "relegation must use the worst explicit first-tier rank, not the last array item");
+assert.equal(rankedPromotionWorld.clubs["ranked-second-1"].division, 1);
+assert.equal(rankedPromotionWorld.clubs["ranked-first-6"].division, 2);
+
 // A metadata failure midway through a promotion batch must roll back every club and player tier.
 const atomicPromotionClubs = [];
 for (let index = 1; index <= 6; index++) atomicPromotionClubs.push({

@@ -2185,7 +2185,9 @@
     const eligibleTableRows = (rows, leagueId, expectedDivision) => {
       const seen = new Set();
       const eligible = [];
+      let sourceIndex = 0;
       for (const row of Array.isArray(rows) ? rows : []) {
+        const index = sourceIndex++;
         const clubId = String(row && row.clubId || "");
         if (!clubId || seen.has(clubId)) continue;
         const club = world.clubs && world.clubs[clubId];
@@ -2199,9 +2201,28 @@
           if (!Number.isInteger(rowDivision) || rowDivision !== expectedDivision) continue;
         }
         seen.add(clubId);
-        eligible.push(club);
+        eligible.push({ club, row, index });
       }
-      return eligible;
+      // New season tables are rank-sorted, but imported/legacy snapshots are not
+      // guaranteed to preserve array order. Honor an explicit rank first, then use
+      // standings metrics as a deterministic fallback for older rows without rank.
+      const pointsFor = row => Number.isFinite(Number(row && row.pts)) ? Number(row.pts) : 0;
+      const goalDifferenceFor = row => row && row.gd != null && row.gd !== ""
+        && Number.isFinite(Number(row.gd))
+        ? Number(row.gd) : (Number(row && row.gf) || 0) - (Number(row && row.ga) || 0);
+      eligible.sort((a, b) => {
+        const aRank = Number(a.row && a.row.rank), bRank = Number(b.row && b.row.rank);
+        const aHasRank = Number.isInteger(aRank) && aRank > 0;
+        const bHasRank = Number.isInteger(bRank) && bRank > 0;
+        if (aHasRank && bHasRank && aRank !== bRank) return aRank - bRank;
+        if (aHasRank !== bHasRank) return aHasRank ? -1 : 1;
+        return pointsFor(b.row) - pointsFor(a.row)
+          || goalDifferenceFor(b.row) - goalDifferenceFor(a.row)
+          || (Number(b.row && b.row.gf) || 0) - (Number(a.row && a.row.gf) || 0)
+          || (Number(b.club.power) || 50) - (Number(a.club.power) || 50)
+          || a.index - b.index;
+      });
+      return eligible.map(entry => entry.club);
     };
     const plannedMoves = [];
     const scheduledClubIds = new Set();
@@ -2719,7 +2740,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=58");
+    const worker = new global.Worker("./football-world-worker.js?v=59");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

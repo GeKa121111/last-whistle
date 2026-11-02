@@ -139,3 +139,77 @@ body.lw-rebuild #page-league .match-rules-content>p:first-child{
     padding:10px 12px 13px;
   }
 }
+/* Keep the legacy/example player names available as an optional reference,
+   separate from the sourced league and club directory. */
+body.lw-rebuild #page-europe .global-legacy-examples{
+  margin-top:13px;
+  overflow:hidden;
+  border:1px dashed #354536;
+  border-radius:12px;
+  background:#0b120d;
+}
+body.lw-rebuild #page-europe .global-legacy-examples>summary{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:50px;
+  padding:10px 12px;
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+}
+body.lw-rebuild #page-europe .global-legacy-examples>summary::-webkit-details-marker{
+  display:none;
+}
+body.lw-rebuild #page-europe .global-legacy-title{
+  flex:0 0 auto;
+  color:#c9d7c6;
+  font-size:11px;
+  font-weight:900;
+}
+body.lw-rebuild #page-europe .global-legacy-note{
+  flex:1 1 auto;
+  min-width:0;
+  color:#748572;
+  font-size:9px;
+  line-height:1.6;
+}
+body.lw-rebuild #page-europe .global-legacy-chevron{
+  display:grid;
+  place-items:center;
+  flex:0 0 26px;
+  width:26px;
+  height:26px;
+  border:1px solid #324333;
+  border-radius:8px;
+  background:#131e15;
+  color:var(--lw-lime);
+}
+body.lw-rebuild #page-europe .global-legacy-chevron:before{
+  content:"+";
+  font-size:16px;
+  line-height:1;
+}
+body.lw-rebuild #page-europe .global-legacy-examples[open] .global-legacy-chevron:before{
+  content:"−";
+}
+body.lw-rebuild #page-europe .global-legacy-examples>summary:focus-visible{
+  outline:2px solid var(--lw-lime);
+  outline-offset:-3px;
+}
+body.lw-rebuild #page-europe .global-legacy-examples[open]>summary{
+  border-bottom:1px solid #273629;
+}
+body.lw-rebuild #page-europe .global-legacy-examples>.dataDisclaimer,
+body.lw-rebuild #page-europe .global-legacy-examples>#realPlayerCatalog{
+  margin:10px 12px;
+}
+@media(max-width:520px){
+  body.lw-rebuild #page-europe .global-legacy-examples>summary{
+    gap:7px;
+    min-height:48px;
+    padding:9px 10px;
+  }
+  body.lw-rebuild #page-europe .global-legacy-title{font-size:10px}
+  body.lw-rebuild #page-europe .global-legacy-note{font-size:8px}
+}

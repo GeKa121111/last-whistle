@@ -213,3 +213,23 @@ body.lw-rebuild #page-europe .global-legacy-examples>#realPlayerCatalog{
   body.lw-rebuild #page-europe .global-legacy-title{font-size:10px}
   body.lw-rebuild #page-europe .global-legacy-note{font-size:8px}
 }
+/* On phones, stack every top-level feature card. Several pages still use
+   desktop span-6 cards; without resetting their spans they remain side by
+   side even when the layout viewport is narrow. */
+@media(max-width:760px){
+  body.lw-rebuild .app.hasSidebar>main>.page:not(#page-home)>.grid{
+    display:grid!important;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    grid-template-columns:minmax(0,1fr)!important;
+    column-gap:0;
+  }
+  body.lw-rebuild .app.hasSidebar>main>.page:not(#page-home)>.grid>*{
+    grid-column:1/-1!important;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+  }
+}

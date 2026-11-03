@@ -15,6 +15,10 @@ assert.ok(appHtml.includes("currentDate:window.LWCareer?.calendarGameDateISO?.(s
   "the app must pass its in-game calendar date into the global award ceremony");
 assert.ok(appHtml.includes("cleanSheets:stats.cleanSheets") && appHtml.includes("saves:stats.saves"),
   "the career award ceremony must receive the player's actual defensive season totals");
+assert.ok(appHtml.includes('minutes:sum("minutes")'),
+  "current-season career aggregation must total actual match minutes instead of estimating 65 per appearance");
+assert.ok(appHtml.includes("minutes:stats.minutes"),
+  "the award ceremony must receive the career player's actual current-season minutes");
 assert.ok(appHtml.includes('"id":"golden-glove","name":"القفاز الذهبي"'),
   "the award catalogue must list Golden Glove for the season award UI");
 assert.ok(appHtml.includes('"golden-glove":1200'),
@@ -24,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 14);
+assert.equal(engine.version, 15);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -305,6 +309,14 @@ const explicitZeroSavedMinutes = engine.simulatePlayerSeason({
 }, 5, 1);
 assert.equal(explicitZeroSavedMinutes.minutes, 0,
   "an explicit zero-minute season must not be replaced with an estimated appearance duration");
+assert.equal(explicitZeroSavedMinutes.goals, 0,
+  "a saved season with zero actual minutes must not retain goal contributions in award projections");
+assert.equal(explicitZeroSavedMinutes.assists, 0,
+  "a saved season with zero actual minutes must not retain assist contributions in award projections");
+assert.equal(explicitZeroSavedMinutes.averageRating, 0,
+  "a saved season with zero actual minutes must not retain an appearance rating in award projections");
+assert.equal(explicitZeroSavedMinutes.score, 0,
+  "a saved season with zero actual minutes must not earn performance points");
 
 const malformedSavedSeason = engine.simulatePlayerSeason({
   ...sameForward, position: "رأس حربة", leagueStrength: "Infinity",
@@ -503,6 +515,31 @@ const ceremony = engine.buildSeasonAwardCeremony({
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+const zeroMinuteCeremony = engine.buildSeasonAwardCeremony({
+  season: 9,
+  player: {
+    name: "لاعب بلا دقائق", club: "فريق الاختبار", country: "مصر", position: "حارس مرمى",
+    age: 25, ovr: 99, appearances: 20, minutes: 0, goals: 30, assists: 20,
+    averageRating: 10, cleanSheets: 20, saves: 100, penaltiesSaved: 4
+  },
+  realPlayers: [{
+    name: "حارس بلا دقائق", clubName: "نادي الحارس", country: "مصر", position: "حارس مرمى",
+    age: 28, ovr: 99, prestige: 100, leagueStrength: 90,
+    seasonStats: { season: 9, appearances: 30, minutes: 0, goals: 0, assists: 0,
+      averageRating: 10, cleanSheets: 30, saves: 200, penaltiesSaved: 10 }
+  }, {
+    name: "مهاجم بلا دقائق", clubName: "نادي المهاجم", country: "مصر", position: "مهاجم",
+    age: 25, ovr: 99, prestige: 100, leagueStrength: 90,
+    seasonStats: { season: 9, appearances: 30, minutes: 0, goals: 50, assists: 20, averageRating: 10 }
+  }]
+});
+assert.equal(zeroMinuteCeremony.ballonDor.topFive.length, 0,
+  "players with appearances but zero actual minutes must not enter the Ballon d'Or shortlist");
+assert.equal(zeroMinuteCeremony.awards.length, 0,
+  "zero-minute players must not win any season award, including goalkeeper-only awards");
+assert.equal(zeroMinuteCeremony.playerAwards.length, 0,
+  "zero-minute career players must not receive season award records");
+
 const malformedCeremony = engine.buildSeasonAwardCeremony({
   season: 8,
   currentDate: "2032-02-14T00:00:00.000Z",

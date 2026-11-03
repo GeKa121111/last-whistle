@@ -113,11 +113,22 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "100",
     "minutes per appearance must use the deduplicated career match count");
 
+  state.pos = "وسط";
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(queryCalls, 5, "changing to central midfield must refresh the position context");
+  const centralMidfieldContext = nodes.get("statsPositionContext").textContent;
+  assert.match(centralMidfieldContext, /مركزك الحالي: وسط —/,
+    "central midfield must be shown as the current career role");
+  assert.match(centralMidfieldContext, /ربط الدفاع بالهجوم/,
+    "central midfield must receive role-specific performance guidance");
+
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
   require("./assert-static-cache-version.cjs")(sw, 175);
-  assert.match(sw, /career-hub\.js\?v=3/, "PWA must cache the new event-driven career UI");
+  assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
   console.log("PASS: career hub responds to state events, coalesces duplicate saves, caches history summaries, and skips unchanged work.");
 })().catch(error => {
   console.error(error);

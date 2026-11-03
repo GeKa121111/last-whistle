@@ -26,14 +26,14 @@ const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
 assert.equal(engine.version, 13);
 
-const zeroAppearanceSeason = {
+const zeroAppearanceTransferRow = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
   appearances: 0, apps: 24, minutes: 0, averageRating: 9.8,
   goals: 35, assists: 22, cleanSheets: 0, leagueStrength: 98
 };
-assert.equal(engine.performanceIndex(zeroAppearanceSeason), 0,
+assert.equal(engine.performanceIndex(zeroAppearanceTransferRow), 0,
   "an explicit zero current-season appearance count must not fall back to career apps or stale contributions");
-const zeroAppearanceEvaluation = engine.evaluateSeasonPerformance(zeroAppearanceSeason);
+const zeroAppearanceEvaluation = engine.evaluateSeasonPerformance(zeroAppearanceTransferRow);
 assert.equal(zeroAppearanceEvaluation.score, 0);
 assert.equal(zeroAppearanceEvaluation.performanceSample, 0);
 assert.equal(zeroAppearanceEvaluation.minutes, 0);
@@ -82,20 +82,20 @@ assert.equal(thresholdLoan.developmentPriority, false);
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
-const zeroAppearanceSeason = engine.simulatePlayerSeason({
+const zeroAppearanceTransferRow = engine.simulatePlayerSeason({
   name: "لاعب بلا ظهور", clubName: "نادي اختبار", position: "مهاجم",
   ovr: 99, prestige: 100, leagueStrength: 98,
   seasonStats: { season: 4, appearances: 0, goals: 50, assists: 25, averageRating: 9.8 }
 }, 4, 1);
-assert.equal(zeroAppearanceSeason.appearances, 0);
-assert.equal(zeroAppearanceSeason.goals, 0,
+assert.equal(zeroAppearanceTransferRow.appearances, 0);
+assert.equal(zeroAppearanceTransferRow.goals, 0,
   "saved goals must be discarded when a season records zero appearances");
-assert.equal(zeroAppearanceSeason.assists, 0,
+assert.equal(zeroAppearanceTransferRow.assists, 0,
   "saved assists must be discarded when a season records zero appearances");
-assert.equal(zeroAppearanceSeason.averageRating, 0);
-assert.equal(zeroAppearanceSeason.score, 0,
+assert.equal(zeroAppearanceTransferRow.averageRating, 0);
+assert.equal(zeroAppearanceTransferRow.score, 0,
   "a zero-appearance season must not earn leaderboard performance points from OVR or league strength");
-assert.equal(zeroAppearanceSeason.weightedGoals, 0);
+assert.equal(zeroAppearanceTransferRow.weightedGoals, 0);
 
 const ageProgressionFixture = {
   name: "لاعب عمره ثابت", clubName: "نادي اختبار", position: "مهاجم",

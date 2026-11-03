@@ -304,5 +304,38 @@ assert.equal(state.agentCommissionPaid, commissionBeforeUnsignedPayroll,
 assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
   "no debt may be collected when no contracted wage is paid");
 
-console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, and no salary for unsigned free agents.");
+// Malformed legacy balances must never be treated as spendable funds.
+ const malformedBalanceFeeRate = window.LWAgentRuntime.commissionRate(state);
+ const expectedMalformedBalanceFee = Math.round(2000 * malformedBalanceFeeRate);
+ function makeMalformedFeeState(money) {
+   return {
+     agent: true,
+     agentProfile: { ...JSON.parse(JSON.stringify(state.agentProfile)), feeDebt: 0 },
+     money,
+     agentFeeDebtLedger: [],
+     agentFeeDebtSequence: 0,
+     agentDebtPaid: 0,
+     agentDebtLastPayrollDay: 0,
+     season: state.season,
+     day: state.day,
+     agentHistory: [],
+     randomSeed: 1
+   };
+ }
+ for (const malformedBalance of [undefined, NaN, Infinity, -100]) {
+   const feeState = makeMalformedFeeState(malformedBalance);
+   const paid = window.LWAgentRuntime.chargeFee(feeState, "اختبار رصيد مالي غير صالح", 2000);
+   assert.equal(paid, 0, "invalid balances must not be treated as spendable money");
+   assert.equal(feeState.money, 0, "invalid balances must be normalized before a fee is applied");
+   assert.equal(window.LWAgentRuntime.outstandingFeeDebt(feeState), expectedMalformedBalanceFee,
+     "an unpaid fee must remain recorded when the saved balance is invalid");
+ }
+ const invalidGrossState = makeMalformedFeeState(500);
+ const invalidGrossPaid = window.LWAgentRuntime.chargeFee(invalidGrossState, "اختبار قيمة عمولة غير صالحة", Infinity);
+ assert.equal(invalidGrossPaid, 0, "a non-finite fee base must be rejected without charging the player");
+ assert.equal(invalidGrossState.money, 500, "an invalid fee base must not consume a valid balance");
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(invalidGrossState), 0,
+   "an invalid fee base must not create an uncollectable debt");
+
+ console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

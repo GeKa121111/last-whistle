@@ -278,7 +278,18 @@
       storyStage:0,strategyOverride:"",perks:{},feeDebt:0,legacyMigrated:!!legacy,contractMultiplierDelta:0,negotiationRaiseBonusDelta:0},s);
   }
   function current(s){return s&&s.agent&&s.agentProfile&&BY_ID[s.agentProfile.id]?BY_ID[s.agentProfile.id]:null;}
-  function ensureState(s){
+function availableAgentBalance(s){
+    var value=Number(s&&s.money);
+    return Number.isFinite(value)?Math.max(0,value):0;
+  }
+  function pendingAgentFeeQuote(s,id){
+    var quote=s&&s.agentNegotiationQuote,agent=BY_ID[String(id||"")];
+    if(!quote||!agent||String(quote.agentId)!==String(id))return null;
+    var rate=Number(quote.feeRate);
+    if(!Number.isFinite(rate)||rate<.035||rate>Number(agent.feeRate))return null;
+    return Math.round(rate*1000)/1000;
+  }
+    function ensureState(s){
     if(!s||typeof s!=="object")return false;
     var changed=false;
     if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
@@ -289,6 +300,18 @@
       if(oldContractMode!=="open-ended"||oldExpiresSeason!=null)changed=true;
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
+    if(s.agentNegotiationQuote!=null){
+      var quote=s.agentNegotiationQuote,quoteId=String(quote.agentId||""),quoteAgent=BY_ID[quoteId],quoteRate=Number(quote.feeRate);
+      if(!quoteAgent||!Number.isFinite(quoteRate)||quoteRate<.035||quoteRate>Number(quoteAgent.feeRate)){
+        s.agentNegotiationQuote=null;changed=true;
+      }else{
+        var normalizedRate=Math.round(quoteRate*1000)/1000;
+        if(quote.agentId!==quoteId||quote.feeRate!==normalizedRate){
+          s.agentNegotiationQuote={agentId:quoteId,feeRate:normalizedRate,season:Number(quote.season)||Number(s.season)||1,calendarDay:Number(quote.calendarDay)||Number(s.calendarDay||s.day)||1};
+          changed=true;
+        }
+      }
+    }
     if(ensureFeeDebtLedger(s))changed=true;
     return changed;
   }
@@ -387,36 +410,50 @@
     var s=API().getState();if(!canUseAgent(s)){API().toast(s&&s.retired?"المسيرة انتهت بالاعتزال.":"ابدأ مسيرتك الأول علشان تقابل الوكلاء.");return;}
     var a=candidate(id);if(!a)return;
     if(s.agent&&s.agentProfile&&s.agentProfile.id===id){openActive();return;}
-    selectedAgentId=id;quotedFeeRate=a.feeRate;
+    selectedAgentId=id;
+    var savedQuote=pendingAgentFeeQuote(s,id);
+    quotedFeeRate=savedQuote==null?a.feeRate:savedQuote;
     if(s.agent&&s.agentProfile){
       var old=agentConfig(s)||LEGACY_AGENT,exitFee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(old.exitFeeWeeks||.25)));
-      frame("قبل ما تغيّر وكيلك","CHANGE REPRESENTATIVE",meetingBody(a,s,quotedFeeRate)+'<div class="lwa-change-notice"><strong>إنهاء الاتفاق الحالي</strong><p>هتدفع '+exitFee+' جنيه داخل اللعبة كشرط خروج من '+esc(old.name)+'. بعدها يبدأ اتفاق جديد مفتوح المدة مع '+esc(a.name)+'.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-switch-sign" data-agent-id="'+esc(id)+'"'+(Number(s.money)<exitFee?" disabled":"")+'>أدفع شرط الخروج وأوقّع</button><button type="button" class="lwa-button" data-lwag-action="close">أرجع</button></div>',"تغيير الوكيل قرار داخل المسيرة. راجع العمولة والأسلوب قبل ما تلتزم.");
+      frame("قبل ما تغيّر وكيلك","CHANGE REPRESENTATIVE",meetingBody(a,s,quotedFeeRate)+'<div class="lwa-change-notice"><strong>إنهاء الاتفاق الحالي</strong><p>هتدفع '+exitFee+' جنيه داخل اللعبة كشرط خروج من '+esc(old.name)+'. بعدها يبدأ اتفاق جديد مفتوح المدة مع '+esc(a.name)+'.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-switch-sign" data-agent-id="'+esc(id)+'"'+(availableAgentBalance(s)<exitFee?" disabled":"")+'>'+ (availableAgentBalance(s)<exitFee?"رصيدك غير كافٍ":"أدفع شرط الخروج وأوقّع") +'</button><button type="button" class="lwa-button" data-lwag-action="close">أرجع</button></div>',"تغيير الوكيل قرار داخل المسيرة. راجع العمولة والأسلوب قبل ما تلتزم.");
     }else{
       frame("مقابلة أولى مع "+a.name,"FIRST MEETING",meetingBody(a,s,quotedFeeRate)+'<p class="lwa-intro">اسمع عرضه، وبعدها اختار بين قبول الشروط أو التفاوض على عمولته. نجاح التفاوض مش مضمون.</p><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أوقّع الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="agent-counter" data-agent-id="'+esc(id)+'">أفاوض على العمولة</button><button type="button" class="lwa-button" data-lwag-action="close">أفكر شوية</button></div>',"اتفاق التمثيل مستمر لحد ما تختار تنهيه. العمولة تُخصم من مكافآت اللعبة فقط، ولا يوجد دفع بفلوس حقيقية.");
     }
   }
-  function negotiateFee(id){
-    var s=API().getState(),a=candidate(id);if(!a||!canUseAgent(s))return;
-    var skill=Number(s.professionalism)||0,rating=API().overall?Number(API().overall())||0:50;
+  async function negotiateFee(id){
+    var api=API(),s=api&&api.getState(),a=candidate(id);if(!a||!canUseAgent(s))return {ok:false,reason:"التفاوض غير متاح حاليًا."};
+    var skill=Number(s.professionalism)||0,rating=api.overall?Number(api.overall())||0:50;
     var chance=cap(54+(skill-50)*.28+(rating-60)*.22-a.counterDifficulty*12,18,86),won=randomUnit(s)*100<chance;
     if(won){
-      quotedFeeRate=Math.max(.035,Math.round((a.feeRate-.015)*1000)/1000);
-      record(s,"تفاوض أولي مع "+a.name,"نجحت في تخفيض العمولة المبدئية إلى "+Math.round(quotedFeeRate*100)+"%.");
-      save(s);selectedAgentId=id;
-      frame("المفاوضات جابت نتيجة","FEE NEGOTIATION",meetingBody(a,s,quotedFeeRate)+'<div class="lwa-result lwa-result-good"><strong>اتفقتم على عمولة أقل</strong><p>نزلت العمولة من '+Math.round(a.feeRate*100)+'% إلى '+Math.round(quotedFeeRate*100)+'%. الخطوة الجاية توقيع الاتفاق أو الرجوع للتفكير.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أوقّع على الشروط الجديدة</button><button type="button" class="lwa-button" data-lwag-action="close">مش دلوقتي</button></div>',"التخفيض ده محفوظ في الاتفاق الحالي لو وافقت على التوقيع.");
-    }else{
-      record(s,"تفاوض أولي مع "+a.name,"الوكيل رفض تخفيض العمولة المقترح. تقدر تقبل عرضه الأصلي أو تبحث عن وكيل آخر.");
-      save(s);
-      frame("الوكيل متمسك بشروطه","FEE NEGOTIATION",'<div class="lwa-result lwa-result-neutral"><strong>'+esc(a.name)+' رفض التخفيض</strong><p>'+esc(a.voice)+'</p><p>العمولة المعروضة ما زالت '+Math.round(a.feeRate*100)+'%. تقدر تقبل الاتفاق أو تنهي المقابلة.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أقبل العمولة الأصلية</button><button type="button" class="lwa-button" data-lwag-action="close">أنهي المقابلة</button></div>');
+      var nextRate=Math.max(.035,Math.round((a.feeRate-.015)*1000)/1000);
+      var success=await runAgentContractMutation(s,function(){
+        s.agentNegotiationQuote={agentId:id,feeRate:nextRate,season:Number(s.season)||1,calendarDay:Number(s.calendarDay||s.day)||1};
+        record(s,"تفاوض أولي مع "+a.name,"نجحت في تخفيض العمولة المبدئية إلى "+Math.round(nextRate*100)+"%.");
+        return {agentId:id,feeRate:nextRate};
+      },"تم حفظ عرض العمولة المخفّضة. تقدر توقّع عليه حتى بعد إعادة فتح اللعبة.");
+      if(!success.ok)return success;
+      quotedFeeRate=nextRate;selectedAgentId=id;
+      frame("المفاوضات جابت نتيجة","FEE NEGOTIATION",meetingBody(a,s,quotedFeeRate)+'<div class="lwa-result lwa-result-good"><strong>اتفقتم على عمولة أقل</strong><p>نزلت العمولة من '+Math.round(a.feeRate*100)+'% إلى '+Math.round(quotedFeeRate*100)+'%. العرض محفوظ في مسيرتك لحد ما توقّع أو تفاوض على وكيل آخر.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أوقّع على الشروط الجديدة</button><button type="button" class="lwa-button" data-lwag-action="close">مش دلوقتي</button></div>');
+      return success;
     }
+    var existingQuote=pendingAgentFeeQuote(s,id),availableRate=existingQuote==null?a.feeRate:existingQuote;
+    var rejected=await runAgentContractMutation(s,function(){
+      record(s,"تفاوض أولي مع "+a.name,"الوكيل رفض تخفيض العمولة المقترح. العرض المتاح حاليًا "+Math.round(availableRate*100)+"%.");
+      return {agentId:id,negotiated:false};
+    },"تم حفظ نتيجة التفاوض.");
+    if(!rejected.ok)return rejected;
+    quotedFeeRate=availableRate;selectedAgentId=id;
+    frame("الوكيل متمسك بشروطه","FEE NEGOTIATION",'<div class="lwa-result lwa-result-neutral"><strong>'+esc(a.name)+' رفض تخفيضًا إضافيًا</strong><p>'+esc(a.voice)+'</p><p>العمولة المتاحة حاليًا '+Math.round(availableRate*100)+'%. تقدر تقبل العرض الحالي أو تبحث عن وكيل آخر.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أقبل العمولة المعروضة</button><button type="button" class="lwa-button" data-lwag-action="close">أنهي المقابلة</button></div>');
+    return rejected;
   }
   function applyAgentSigning(s,id,a,newFee){
-    var p=makeProfile(id,s,false);
-    p.customFeeRate=Math.max(.035,Math.min(.14,Number(newFee)||a.feeRate));p.feeRate=a.feeRate;p.relationship=55;
+    var p=makeProfile(id,s,false),rate=Number(newFee);
+    if(!Number.isFinite(rate)||rate<=0)rate=Number(a.feeRate);
+    p.customFeeRate=Math.max(.035,Math.min(.14,rate));p.feeRate=a.feeRate;p.relationship=55;
     p.signedApps=Number(s.apps)||0;p.lastChapterApps=Number(s.apps)||0;p.lastChapterSeason=Number(s.season)||1;p.lastPerformanceMilestone=Math.floor((Number(s.apps)||0)/5);
     p.contractMultiplierDelta=0;p.negotiationRaiseBonusDelta=0;p.strategyOverride="";
     s.agentProfile=p;s.agent=true;s.agentLead=false;s.storyFlags=s.storyFlags&&typeof s.storyFlags==="object"?s.storyFlags:{};
-    s.storyFlags["agent-offer"]=true;
+    s.storyFlags["agent-offer"]=true;s.agentNegotiationQuote=null;quotedFeeRate=null;selectedAgentId=id;
     record(s,"توقيع اتفاق تمثيل مع "+a.name,"وقعت اتفاق تمثيل مفتوح المدة بعمولة "+Math.round(p.customFeeRate*100)+"%. "+a.pitch);
     if(API().setStory)API().setStory("بدأ فصل جديد: "+a.name,"وكيل أعمالك الجديد هو "+a.name+". أسلوبه: "+a.style+". اختياراتك في قصته هتأثر على خطتك ومميزات التفاوض والانتقالات.");
     return p;
@@ -429,9 +466,10 @@
       return {ok:false,reason:"already-signed"};
     }
     if(s.agent&&s.agentProfile&&s.agentProfile.id!==id&&!exitPaid){openMeeting(id);return {ok:false,reason:"switch-required"};}
+    var savedQuote=pendingAgentFeeQuote(s,id),feeRate=savedQuote==null?newFee:savedQuote;
     var result=await runAgentContractMutation(s,function(){
-      applyAgentSigning(s,id,a,newFee);
-      return {agentId:id};
+      applyAgentSigning(s,id,a,feeRate);
+      return {agentId:id,feeRate:Number(s.agentProfile.customFeeRate)};
     },"تم توقيع اتفاق الوكالة. قصة "+a.name+" هتتفتح مع تقدم المسيرة.");
     if(result.ok)closeDialog();
     return result;
@@ -477,7 +515,8 @@
       closeDialog();return;
     }
     var cfg=agentConfig(s)||LEGACY_AGENT,fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
-    frame("إنهاء اتفاق التمثيل","END REPRESENTATION",'<div class="lwa-change-notice"><strong>شرط الخروج: '+fee+' جنيه</strong><p>لو أنهيت الاتفاق، هتدفع الشرط من رصيد اللعبة، وبعدها تقدر تختار وكيلًا آخر أو تكمل من غير وكيل.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-confirm-end"'+(Number(s.money)<fee?" disabled":"")+'>أدفع وأنهي الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="close">أكمل معاه</button></div>');
+    var balance=availableAgentBalance(s);
+    frame("إنهاء اتفاق التمثيل","END REPRESENTATION",'<div class="lwa-change-notice"><strong>شرط الخروج: '+fee+' جنيه</strong><p>لو أنهيت الاتفاق، هتدفع الشرط من رصيد اللعبة، وبعدها تقدر تختار وكيلًا آخر أو تكمل من غير وكيل.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-confirm-end"'+(balance<fee?" disabled":"")+'>'+(balance<fee?"رصيدك غير كافٍ":"أدفع وأنهي الاتفاق")+'</button><button type="button" class="lwa-button" data-lwag-action="close">أكمل معاه</button></div>');
   }
   async function confirmEnd(){
     var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
@@ -486,10 +525,10 @@
       closeDialog();return {ok:false,reason:"no-active-agent"};
     }
     var cfg=agentConfig(s)||LEGACY_AGENT;
-    var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
-    if(Number(s.money)<fee){if(api.toast)api.toast("رصيدك مش كفاية لشرط الخروج. تقدر تكمّل الاتفاق لحد ما تقدر تغيّره.");return {ok:false,reason:"insufficient-exit-fee"};}
+    var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25))),balance=availableAgentBalance(s);
+    if(balance<fee){if(api.toast)api.toast("رصيدك مش كفاية لشرط الخروج. تقدر تكمّل الاتفاق لحد ما تقدر تغيّره.");return {ok:false,reason:"insufficient-exit-fee"};}
     var result=await runAgentContractMutation(s,function(){
-      s.money=Math.max(0,Number(s.money||0)-fee);
+      s.money=balance-fee;
       record(s,"إنهاء اتفاق الوكالة","أنهيت اتفاق التمثيل مع "+cfg.name+" ودفعت "+fee+" جنيه داخل اللعبة.");
       s.agent=false;s.agentProfile=null;
       return {fee:fee};
@@ -504,14 +543,15 @@
       if(api.toast)api.toast("ده وكيلك الحالي بالفعل.");
       return {ok:false,reason:"already-current-agent"};
     }
-    var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(old.exitFeeWeeks||.25)));
-    if(Number(s.money)<fee){if(api.toast)api.toast("رصيدك مش كفاية لشرط الخروج من الوكيل الحالي.");return {ok:false,reason:"insufficient-exit-fee"};}
+    var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(old.exitFeeWeeks||.25))),balance=availableAgentBalance(s);
+    if(balance<fee){if(api.toast)api.toast("رصيدك مش كفاية لشرط الخروج من الوكيل الحالي.");return {ok:false,reason:"insufficient-exit-fee"};}
+    var savedQuote=pendingAgentFeeQuote(s,id);
     var result=await runAgentContractMutation(s,function(){
-      s.money=Math.max(0,Number(s.money||0)-fee);
+      s.money=balance-fee;
       record(s,"تغيير الوكيل","أنهيت اتفاق "+old.name+" ودفعت "+fee+" جنيه داخل اللعبة لاختيار "+a.name+".");
       s.agent=false;s.agentProfile=null;
-      applyAgentSigning(s,id,a,quotedFeeRate);
-      return {exitFee:fee,agentId:id};
+      applyAgentSigning(s,id,a,savedQuote);
+      return {exitFee:fee,agentId:id,feeRate:Number(s.agentProfile.customFeeRate)};
     },"تم تغيير الوكيل وحفظ الاتفاق الجديد.");
     if(result.ok)closeDialog();
     return result;
@@ -597,7 +637,7 @@
     if(action==="close"){closeDialog();return;}
     if(action==="agent-meet"){openMeeting(id);return;}
     if(action==="agent-active"){openActive();return;}
-    if(action==="agent-counter"){negotiateFee(id);return;}
+    if(action==="agent-counter"){return negotiateFee(id);}
     if(action==="agent-sign"){return signAgent(id,quotedFeeRate,false);}
     if(action==="agent-switch-sign"){return switchAgent(id);}
     if(action==="agent-story"){openActive();return;}
@@ -617,6 +657,7 @@
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
       p&&p.contractMultiplierDelta,p&&p.negotiationRaiseBonusDelta,p&&p.feeDebt,
       s.agentFeeDebtLedger&&JSON.stringify(s.agentFeeDebtLedger),s.agentDebtPaid,s.agentDebtLastPayrollDay,perks,
+      s.agentNegotiationQuote&&JSON.stringify(s.agentNegotiationQuote),
       s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
       history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
     ].join("|");

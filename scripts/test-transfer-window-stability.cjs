@@ -1459,11 +1459,11 @@ assert.equal(cleanRetirement.counts.persistence, 1);
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v451";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v452";'),
   "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
-assert.ok(sw.includes("transfer-awards-engine.js?v=23"),
+assert.ok(sw.includes("transfer-awards-engine.js?v=24"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 68);
 

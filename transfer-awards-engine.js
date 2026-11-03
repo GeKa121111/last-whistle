@@ -377,7 +377,7 @@
         .slice(0, 3).map(item => item.name);
       const stars = (positionRivals.length ? positionRivals : (Array.isArray(raw.stars) ? raw.stars : []))
         .filter(Boolean).slice(0, 4);
-      const regionalBonus = raw.country === player.country ? -5 : 2;
+      const regionalBonus = normalized(raw.country) === normalized(player.country) ? -5 : 2;
       const divisionBonus = Number(raw.division) >= 2 ? -1.5 : 1;
       const proximity = Math.abs(power - Math.min(maxPower, currentPower + 5));
       const scoutScore = proximity + regionalBonus + divisionBonus - (Number(raw.prestige) || 50) * 0.025
@@ -832,7 +832,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 18,
+    version: 19,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

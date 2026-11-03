@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 18);
+assert.equal(engine.version, 19);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -428,6 +428,21 @@ assert.equal(fallbackCurrencyOffers[0].currency, "ج.م",
   "a missing target currency must use the Egyptian-pound display fallback");
 assert.equal(fallbackCurrencyOffers[0].wage, 350 + 72 * 28 + 80 * 12,
   "the wage formula must use the same Egyptian-pound fallback as the displayed currency");
+
+// Regional offer ranking must use normalized country identity, not raw label equality.
+const regionalIdentityOffers = engine.generateOffers({
+  player: { ...normalizedIdentityPlayer, name: "Regional Scout", country: "Spain", currentClub: "Real Madrid" },
+  windowId: "regional-normalization",
+  currentClubPower: 70,
+  targets: [
+    { club: "نادي محلي", country: " SPAIN ", power: 72, prestige: 80, division: 1 },
+    { club: "Nantes", country: "France", power: 72, prestige: 80, division: 1 }
+  ]
+});
+assert.equal(regionalIdentityOffers.length, 2,
+  "both eligible regional and foreign targets must remain in the offer set");
+assert.equal(regionalIdentityOffers[0].club, "نادي محلي",
+  "a country label that normalizes to the player's country must receive the regional scouting advantage");
 
 const invalidOfferCases = [
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },

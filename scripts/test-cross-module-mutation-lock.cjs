@@ -41,7 +41,8 @@ for (let i = 0; i < moduleSpecs.length; i++) {
   assert.match(source, /window\.__LW_DURABLE_MUTATION_LOCK__/);
   for (const name of spec.transactions) {
     const fn = extractFunction(source, name);
-    assert.ok(fn.includes('await acquireSharedMutationLock("' + spec.owner + '")'), spec.file + " " + name + " must await the shared lock");
+    assert.ok(fn.includes('var mutationLock = acquireSharedMutationLock("' + spec.owner + '")'), spec.file + " " + name + " must acquire the shared lock");
+    assert.ok(fn.includes('typeof mutationLock.then === "function"'), spec.file + " " + name + " must await queued lock grants");
     assert.ok(fn.includes('releaseSharedMutationLock("' + spec.owner + '")'), spec.file + " " + name + " must release the shared lock");
   }
 }

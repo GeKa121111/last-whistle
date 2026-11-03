@@ -7379,16 +7379,50 @@ function retireCareer(){
  state.seasonFinished=true;log(`اعتزلت في سن ${state.age} بعد موسم ${state.season}. إجمالي المشاركات ${state.apps}، الأهداف ${state.goals}، الصناعات ${state.assists}.`);persistRollbackSnapshot("career retirement","تعذر تأكيد حفظ سجل الاعتزال. صدّر نسخة احتياطية قبل المتابعة.");render();
  openModal("أسطورة انتهت مسيرتها",`اعتزل ${state.name} في سن ${state.age}.\nالنادي الأخير: ${club().name}\nالتقييم: ${overall()}\nالمشاركات: ${state.apps} • الأهداف: ${state.goals} • الصناعات: ${state.assists} • البطولات: ${state.trophies}.\nتم تسجيل سجل الاعتزال في المسيرة.`,[{label:"مسار ما بعد الاعتزال",className:"primary",action:()=>openPostCareerMenu()},{label:"عرض المذكرات",action:()=>showPage("diary")},{label:"مسيرة جديدة",action:newCareer}]);
 }
-function startPostCareerPath(path){
- if(!state.retired||!state.retirementRecord){toast("مسارات ما بعد الاعتزال بتبدأ بعد تسجيل الاعتزال.");return;}
- if(!["agent","investor"].includes(path)){toast("المسار غير معروف.");return;}
- if(state.postCareer){openPostCareerMenu();return;}
- const role=path==="agent"?"وكيل لاعبين":"مستثمر في النادي";
- state.postCareer={path:path,clubName:club().name,shares:0,investment:0,clients:0,reputation:clamp(Number(state.professionalism)||65),earnings:0,actions:0,yearsOperated:0,dividendsDue:0,startedSeason:Number(state.season)||1,lastAction:"بدأت مسارك كـ"+role};
- log("بدأت مرحلة ما بعد الاعتزال: "+role+".");
- setStory("فصل جديد بعد صافرة النهاية",path==="agent"?"خبرتك داخل الملعب هتساعدك تكتشف مواهب وتفاوض على عقود لاعبين.":"بدأت طريق الاستثمار الرياضي بحصة صغيرة قابلة للزيادة في النادي.");
- saveGame(true);render();openPostCareerMenu();
+let postCareerMutationPending=false;
+async function runPostCareerMutation(label,operation){
+ if(postCareerMutationPending){toast("فيه نشاط ما بعد الاعتزال بيتحفظ بالفعل. استنى تأكيد الحفظ.");return false;}
+ if(typeof operation!=="function")return false;
+ let snapshot;
+ try{snapshot=cloneSeasonTransitionState(state);}
+ catch(error){console.error("Post-career transaction snapshot failed",error);toast("تعذر تأمين بيانات المسيرة قبل النشاط؛ لم يتم تنفيذ العملية.");return false;}
+ postCareerMutationPending=true;
+ try{
+  const applied=operation();
+  if(applied!==true){restoreSeasonTransitionState(snapshot);return false;}
+  if(saveGame(true)===false)throw new Error("save queue rejected");
+  const persisted=await flushQueuedSave({backupFirst:true});
+  if(persisted!==true)throw new Error("durable save not confirmed");
+ }catch(error){
+  try{restoreSeasonTransitionState(snapshot);}
+  catch(restoreError){console.error("Post-career transaction rollback failed",restoreError);toast("تعذر استعادة بيانات ما بعد الاعتزال. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");return false;}
+  const reason=String(error&&error.message||error||"unknown");
+  try{log("تعذر حفظ "+label+"؛ تمت استعادة حالة المسيرة. السبب: "+reason);}catch(logError){}
+  let rollbackPersisted=false;
+  try{if(saveGame(true)!==false)rollbackPersisted=await flushQueuedSave({backupFirst:true})===true;}
+  catch(rollbackError){console.error("Post-career rollback persistence failed",rollbackError);}
+  try{render();}catch(renderError){console.warn("Post-career rollback render failed",renderError);}
+  try{toast(rollbackPersisted?"تعذر حفظ النشاط؛ تمت استعادة بيانات المسيرة وحفظ النسخة السابقة. تقدر تحاول مرة تانية.":"تمت استعادة بيانات المسيرة داخل اللعبة، لكن تعذر تأكيد حفظ النسخة. صدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
+  return false;
+ }finally{postCareerMutationPending=false;}
+ try{render();openPostCareerMenu();}
+ catch(uiError){console.error("Post-career menu refresh failed after durable save",uiError);toast("تم حفظ النشاط، لكن تعذر تحديث القائمة. افتح مسار ما بعد الاعتزال مرة أخرى.");}
+ return true;
 }
+function startPostCareerPath(path){
+ if(!state.retired||!state.retirementRecord){toast("مسارات ما بعد الاعتزال بتبدأ بعد تسجيل الاعتزال.");return false;}
+ if(postCareerMutationPending){toast("فيه نشاط ما بعد الاعتزال بيتحفظ بالفعل. استنى تأكيد الحفظ.");return false;}
+ if(!["agent","investor"].includes(path)){toast("المسار غير معروف.");return false;}
+ if(state.postCareer){openPostCareerMenu();return false;}
+ return runPostCareerMutation("بدء مسار ما بعد الاعتزال",function(){
+  const role=path==="agent"?"وكيل لاعبين":"مستثمر في النادي";
+  state.postCareer={path:path,clubName:club().name,shares:0,investment:0,clients:0,reputation:clamp(Number(state.professionalism)||65),earnings:0,actions:0,yearsOperated:0,dividendsDue:0,startedSeason:Number(state.season)||1,lastAction:"بدأت مسارك كـ"+role};
+  log("بدأت مرحلة ما بعد الاعتزال: "+role+".");
+  setStory("فصل جديد بعد صافرة النهاية",path==="agent"?"خبرتك داخل الملعب هتساعدك تكتشف مواهب وتفاوض على عقود لاعبين.":"بدأت طريق الاستثمار الرياضي بحصة صغيرة قابلة للزيادة في النادي.");
+  return true;
+ });
+}
+
 function openPostCareerMenu(){
  if(!state.retired||!state.retirementRecord){toast("أنه مسيرتك وسجّل الاعتزال الأول.");return;}
  const post=state.postCareer;
@@ -7419,7 +7453,9 @@ function openPostCareerMenu(){
 }
 function performPostCareerAction(action){
  const post=state.postCareer;
- if(!state.retired||!state.retirementRecord||!post){toast("اختار مسار ما بعد الاعتزال الأول.");return;}
+ if(!state.retired||!state.retirementRecord||!post){toast("اختار مسار ما بعد الاعتزال الأول.");return false;}
+ return runPostCareerMutation("نشاط ما بعد الاعتزال",function(){
+  const post=state.postCareer;
  post.actions=Math.max(0,Number(post.actions)||0)+1;
  if(post.path==="agent"){
   if(action==="scout"){
@@ -7453,8 +7489,11 @@ function performPostCareerAction(action){
    const payout=Math.max(0,Math.round(shares*((Number(state.clubPower)||50)*75+800)/10));state.money+=payout;post.dividendsDue=Math.max(0,Number(post.dividendsDue)-1);post.earnings=(Number(post.earnings)||0)+payout;post.lastAction="عائد استثماري محاكاة "+payout+" "+currencyLabel()+" مقابل حصة "+shares+"%.";setStory("عائد الاستثمار","استلمت عائدًا افتراضيًا من حصتك في النادي. الأرقام جزء من المحاكاة وليست توقعًا ماليًا واقعيًا.");
   }else{post.actions--;toast("النشاط غير متاح في مسار الاستثمار.");return;}
  }else{post.actions--;toast("مسار ما بعد الاعتزال غير صالح.");return;}
- log(post.lastAction);saveGame(true);render();openPostCareerMenu();
+ log(post.lastAction);
+  return true;
+ });
 }
+
 function proceedSeasonTransition(viewLeague=false){
  if(window.LWCareer?.shouldRetire(state,40)||state.retired){retireCareer();return;}
  // An on-loan player's contract belongs to the parent club. Inspect a snapshot

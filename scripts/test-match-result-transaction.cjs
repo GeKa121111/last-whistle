@@ -73,12 +73,31 @@ const initialState = {
   academyReserve: false, academyGraduationPending: false, careerLevel: 1,
   logs: [], calendarEvents: []
 };
-const events = { toasts: [], renders: 0, saves: 0, failCalendar: true };
+const events = { toasts: [], renders: 0, saves: 0, failCalendar: true, storyReports: [] };
 let sandbox;
 sandbox = {
   state: JSON.parse(JSON.stringify(initialState)),
   window: {
     LWMatch: { validateResult: () => ({ ok: true }) },
+    LWStoryContext: {
+      acceptMatchReport(report, options) {
+        assert.equal(options && options.deferSave, true,
+          "match reports must join the already-open match persistence transaction");
+        events.storyReports.push(JSON.parse(JSON.stringify(report)));
+        const summary = {
+          outcome: report.score.for > report.score.against ? "win" : report.score.for < report.score.against ? "loss" : "draw",
+          score: report.score, minutes: report.player.minutes, rating: report.player.rating,
+          goals: report.player.goals, assists: report.player.assists, key: report.matchId
+        };
+        sandbox.state.lastStoryMatchKey = report.matchId;
+        sandbox.state.lastMatchReport = summary;
+        sandbox.state.matchNarrativeLedger = Array.isArray(sandbox.state.matchNarrativeLedger) ? sandbox.state.matchNarrativeLedger : [];
+        sandbox.state.matchNarrativeLedger.unshift({ key: report.matchId, summary });
+        sandbox.state.inbox = Array.isArray(sandbox.state.inbox) ? sandbox.state.inbox : [];
+        sandbox.state.inbox.unshift({ id: "match-report-" + report.matchId });
+        return { ok: true, summary };
+      }
+    },
     LWCareer: {
       matchDevelopment: () => ({}),
       uniqueMatchRows: rows => {
@@ -145,6 +164,14 @@ const failedSettlement = sandbox.settleMatch(result, meta);
 assert.equal(failedSettlement, false, "a failed downstream settlement side effect must not be accepted");
 assert.equal(JSON.stringify(sandbox.state), beforeFailure,
   "a failed settlement must restore every career field, history row, stat and recorded match id");
+assert.equal(sandbox.state.lastStoryMatchKey, undefined,
+  "a failed match must also roll back its linked story report key");
+assert.equal(sandbox.state.matchNarrativeLedger, undefined,
+  "a failed match must not leave a narrative ledger entry behind");
+assert.equal(sandbox.state.inbox, undefined,
+  "a failed match must not leave a match-report inbox item behind");
+assert.equal(events.storyReports.length, 1,
+  "the failed attempt should have entered the outer transaction exactly once before rollback");
 assert.equal(events.renders, 1, "a rolled-back settlement must refresh the visible career state");
 assert.equal(events.saves, 1, "a rolled-back settlement must queue the restored save");
 assert.ok(events.toasts.length > 0, "the player must be told that the result was not committed");
@@ -160,6 +187,27 @@ assert.equal(sandbox.state.seasonPoints, 3);
 assert.equal(sandbox.state.careerMatchHistory.length, 1);
 assert.equal(sandbox.state.seasonLog.length, 1);
 assert.equal(sandbox.state.calendarEvents.length, 1);
+assert.equal(events.storyReports.length, 2,
+  "a committed player match must publish one story report inside the same settlement");
+const storyReport = events.storyReports[1];
+assert.equal(storyReport.matchId, meta.id);
+assert.equal(storyReport.competitionId, "league|مصر|الدوري الممتاز");
+assert.equal(storyReport.matchType, "league");
+assert.deepEqual(storyReport.score, { for: 2, against: 1 });
+assert.deepEqual({
+  minutes: storyReport.player.minutes, rating: storyReport.player.rating,
+  goals: storyReport.player.goals, assists: storyReport.player.assists,
+  tackles: storyReport.player.tackles, interceptions: storyReport.player.interceptions,
+  saves: storyReport.player.saves, cleanSheet: storyReport.player.cleanSheet
+}, {
+  minutes: 90, rating: 8, goals: 1, assists: 0,
+  tackles: 5, interceptions: 3, saves: 6, cleanSheet: false
+});
+assert.equal(sandbox.state.lastStoryMatchKey, meta.id);
+assert.equal(sandbox.state.matchNarrativeLedger.length, 1);
+assert.equal(sandbox.state.inbox[0].id, "match-report-" + meta.id);
+assert.equal(events.saves, 1,
+  "story report handling must not start a second save outside the match transaction");
 assert.deepEqual({
   tackles: committed.record.stats.tackles,
   tacklesWon: committed.record.stats.tacklesWon,
@@ -201,7 +249,10 @@ assert.equal(mixedLegacyAndCurrentStats.tacklesWon, 10,
   "mixed legacy/current history must fall back per match and respect an explicit modern zero");
 
 const afterCommit = JSON.stringify(sandbox.state);
+const storyReportCountBeforeDuplicate = events.storyReports.length;
 assert.equal(sandbox.settleMatch(result, meta), false, "the same match id must remain idempotent");
+assert.equal(events.storyReports.length, storyReportCountBeforeDuplicate,
+  "duplicate match settlement must not publish a second story report");
 assert.equal(JSON.stringify(sandbox.state), afterCommit,
   "a duplicate settlement must not increment stats or append another history row");
 

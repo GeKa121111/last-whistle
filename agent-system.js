@@ -743,6 +743,21 @@ function availableAgentBalance(s){
     };
   }
   var postRetirementMutationPending = false;
+
+  function acquireSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (!coordinator || typeof coordinator !== "object") {
+      coordinator = { owner: "" };
+      window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
+    }
+    if (coordinator.owner) return false;
+    coordinator.owner = String(owner || "");
+    return !!coordinator.owner;
+  }
+  function releaseSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (coordinator && coordinator.owner === owner) coordinator.owner = "";
+  }
   function clonePostRetirementMutationState(state){
     if(!state||typeof state!=="object")return null;
     try{if(typeof window.structuredClone==="function")return window.structuredClone(state);}catch(error){}
@@ -775,8 +790,15 @@ function availableAgentBalance(s){
     }
     if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
       return {ok:false,reason:"agent-mutation-unavailable"};
+    if(!acquireSharedMutationLock("agent-system")){
+      if(api&&api.toast)api.toast("فيه تغيير تاني في المسيرة بيتحفظ دلوقتي. استنى تأكيد الحفظ.");
+      return {ok:false,reason:"agent-mutation-pending"};
+    }
     var snapshot=clonePostRetirementMutationState(state);
-    if(!snapshot)return {ok:false,reason:"تعذر تأمين بيانات الاتفاق قبل التغيير."};
+    if(!snapshot){
+      releaseSharedMutationLock("agent-system");
+      return {ok:false,reason:"تعذر تأمين بيانات الاتفاق قبل التغيير."};
+    }
     agentContractMutationPending=true;
     var payload=null;
     try{
@@ -808,6 +830,7 @@ function availableAgentBalance(s){
       return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
     }finally{
       agentContractMutationPending=false;
+      releaseSharedMutationLock("agent-system");
     }
     if(renderOnSuccess){
       try{if(api.render)api.render();}catch(renderError){}
@@ -821,8 +844,15 @@ function availableAgentBalance(s){
     if(!state||typeof operation!=="function")return {ok:false,reason:"بيانات مسار ما بعد الاعتزال غير متاحة."};
     var api=API();
     if(!api||typeof api.save!=="function")return {ok:false,reason:"الحفظ غير متاح؛ لم يتم تنفيذ العملية."};
+    if(!acquireSharedMutationLock("agent-system")){
+      if(api&&api.toast)api.toast("فيه تغيير تاني في المسيرة بيتحفظ دلوقتي. استنى تأكيد الحفظ.");
+      return {ok:false,reason:"agent-mutation-pending"};
+    }
     var snapshot=clonePostRetirementMutationState(state);
-    if(!snapshot)return {ok:false,reason:"تعذر تأمين بيانات المسيرة قبل العملية؛ لم يتم خصم أي أموال."};
+    if(!snapshot){
+      releaseSharedMutationLock("agent-system");
+      return {ok:false,reason:"تعذر تأمين بيانات المسيرة قبل العملية؛ لم يتم خصم أي أموال."};
+    }
     postRetirementMutationPending=true;
     var payload=null;
     try{
@@ -848,6 +878,7 @@ function availableAgentBalance(s){
       return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
     }finally{
       postRetirementMutationPending=false;
+      releaseSharedMutationLock("agent-system");
     }
     try{if(api.render)api.render();}
     catch(renderError){try{if(api.toast)api.toast("تم حفظ العملية، لكن تعذر تحديث الواجهة. افتح المسار مرة أخرى.");}catch(toastError){}}

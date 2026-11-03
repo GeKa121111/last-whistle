@@ -6868,6 +6868,21 @@ function applyMatchResultUnsafe(result,meta){
  if(scope==="league"){state.seasonLog.push(record);}
  if(scope==="international"){state.internationalHistory.unshift(record);state.internationalHistory=state.internationalHistory.slice(0,250);state.internationalPlayed=true;}
  if(scope==="cup"){state.cupMatchHistory=Array.isArray(state.cupMatchHistory)?state.cupMatchHistory:[];state.cupMatchHistory.unshift(record);state.cupMatchHistory=state.cupMatchHistory.slice(0,300);}
+ const storyContext=window.LWStoryContext;
+ if(storyContext&&typeof storyContext.acceptMatchReport==="function"){
+  const storyReport={
+   matchId:id,competitionId:key,competition,
+   opponentId:String(meta.opponent||result.opponentName||""),
+   opponentName:String(meta.opponent||result.opponentName||""),
+   matchType:scope,season:record.season,week:record.matchday||record.day,
+   score:{for:record.teamGoals,against:record.oppGoals},
+   player:{minutes:record.minutes,rating:record.rating,goals:record.goals,assists:record.assists,
+    tackles:m.tackles,interceptions:m.interceptions,saves:m.saves,cleanSheet:!!m.cleanSheet}
+  };
+  const accepted=storyContext.acceptMatchReport(storyReport,{deferSave:true});
+  if(accepted&&typeof accepted.then==="function")throw new Error("Match story report must join the synchronous settlement transaction.");
+  if(!accepted||accepted.ok!==true)throw new Error("Match story report could not be committed with the match.");
+ }
  const eventKind=scope==="league"?"league-match":scope==="cup"?"cup-match":"international-match";
  calendarEvent(eventKind,`${competition||"مباراة"}: ${record.club} ضد ${record.opponent}`,`${record.teamGoals}-${record.oppGoals}${participated?` • ${minutes} دقيقة • تقييم ${rating.toFixed(1)}`:" • اللاعب لم يشارك"}`);
  log(`${scope==="international"?"دولي • ":scope==="cup"?"كأس • ":"دوري • "}${record.club} ${record.teamGoals}-${record.oppGoals} ${record.opponent}${participated?` • ${minutes} دقيقة • ${rating.toFixed(1)}/10${goals?` • ${goals} هدف`:""}${assists?" • صناعة":""}`:" • لم يشارك اللاعب"}.`);

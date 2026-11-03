@@ -603,8 +603,14 @@ function acceptMatchReport(report,options){
 }
 function syncMatchContext(s,options){
   if(!s)return {ok:false,reason:"career-state-unavailable"};
-  var report=s.lastMatchReportRaw||s.matchResult||s.lastMatch;
-  if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)return acceptMatchReport(report,options);
+  var candidates=[s.lastMatchReportRaw,s.matchResult,s.lastMatch];
+  for(var i=0;i<candidates.length;i++){
+    var report=candidates[i];
+    if(!report||report===s.lastMatchReport||!report.score)continue;
+    var summary=matchNarrativeSummary(report);
+    if(matchReportAlreadyRecorded(s,summary))continue;
+    return acceptMatchReport(report,options);
+  }
   return {ok:true,unchanged:true};
 }
 function tick(){

@@ -75,6 +75,7 @@ function makeHarness(stateOverrides, flushQueue) {
     state, notices, warnings, api, sandbox,
     checkTriggers: () => sandbox.checkTriggers(state, api),
     accept: report => sandbox.acceptMatchReport(report),
+    sync: options => sandbox.syncMatchContext(state, options),
     acceptDeferred: report => sandbox.acceptMatchReport(report, { deferSave: true }),
     get saveCalls() { return saveCalls; },
     get flushCalls() { return flushCalls; },
@@ -89,6 +90,37 @@ const report = {
 };
 
 (async function run() {
+  const rawSync = makeHarness({ lastMatchReportRaw: report }, [true]);
+  const rawSyncResult = await rawSync.sync();
+  assert.equal(rawSyncResult.ok, true);
+  assert.equal(rawSync.state.lastStoryMatchKey, rawSyncResult.summary.key);
+  assert.equal(rawSync.state.matchNarrativeLedger.length, 1);
+  assert.equal(rawSync.state.inbox.length, 1);
+  assert.equal(rawSync.saveCalls, 1);
+
+  const staleRaw = Object.assign({}, report, { matchId: "fixture-6" });
+  const latestMatch = Object.assign({}, report, { matchId: "fixture-8", score: { for: 0, against: 2 } });
+  const staleAndLatest = makeHarness({ lastMatchReportRaw: staleRaw, matchResult: latestMatch }, [true]);
+  staleAndLatest.state.lastStoryMatchKey = staleAndLatest.sandbox.matchNarrativeSummary(staleRaw).key;
+  const latestSyncResult = await staleAndLatest.sync();
+  assert.equal(latestSyncResult.ok, true);
+  assert.equal(latestSyncResult.summary.key, staleAndLatest.sandbox.matchNarrativeSummary(latestMatch).key);
+  assert.equal(staleAndLatest.state.matchNarrativeLedger.length, 1);
+  assert.equal(staleAndLatest.state.inbox.length, 1);
+  assert.equal(staleAndLatest.saveCalls, 1);
+
+  const malformedRawFallback = makeHarness({ lastMatchReportRaw: { id: "malformed" }, matchResult: report }, [true]);
+  const fallbackSyncResult = await malformedRawFallback.sync();
+  assert.equal(fallbackSyncResult.ok, true);
+  assert.equal(fallbackSyncResult.summary.key, malformedRawFallback.sandbox.matchNarrativeSummary(report).key);
+  assert.equal(malformedRawFallback.state.inbox.length, 1);
+
+  const deferredSync = makeHarness({ lastMatchReportRaw: report }, []);
+  const deferredSyncResult = deferredSync.sync({ deferSave: true });
+  assert.equal(deferredSyncResult.ok, true);
+  assert.equal(deferredSyncResult.summary.key, deferredSync.state.lastStoryMatchKey);
+  assert.equal(deferredSync.saveCalls, 0);
+  assert.equal(deferredSync.flushCalls, 0);
   const triggerSuccess = makeHarness({}, [true]);
   const triggerResult = await triggerSuccess.checkTriggers();
   assert.equal(triggerResult.ok, true);

@@ -10,7 +10,7 @@ const source = fs.readFileSync(path.join(root, "social-media.js"), "utf8");
 const deployed = fs.readFileSync(path.join(root, "public", "social-media.js"), "utf8");
 assert.equal(source, deployed, "root and public social media runtimes must stay synchronized");
 
-function makeHarness(state, flush) {
+function makeHarness(state, flush, clone) {
   let saves = 0;
   let flushes = 0;
   const notices = [];
@@ -27,6 +27,7 @@ function makeHarness(state, flush) {
     },
     console
   };
+  if (typeof clone === "function") window.structuredClone = clone;
   const sandbox = { window, Math, Promise, console };
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox, { filename: "social-media.js" });
@@ -136,6 +137,20 @@ function careerState() {
   assert.equal(migrationResult.ok, true);
   assert.equal(migration.socialMedia.initialized, true);
   assert.equal(migrationHarness.counts().saves, 1, "social migration must be durably saved");
+
+  const largeState = careerState();
+  largeState.worldSimulation = { players: Object.fromEntries(Array.from({ length: 200 }, (_, index) => ["p" + index, { name: "Player " + index }])) };
+  const clonedValues = [];
+  const lightweight = makeHarness(largeState, [], value => {
+    clonedValues.push(value);
+    return structuredClone(value);
+  });
+  const lightweightResult = await lightweight.social.refresh();
+  assert.equal(lightweightResult.ok, true);
+  assert.equal(clonedValues.length, 1);
+  assert.equal(clonedValues[0], largeState.socialMedia,
+    "periodic feed sync must snapshot only social state, not the full world/player database");
+  assert.deepEqual(lightweight.counts(), { saves: 0, flushes: 0 });
 
   console.log("PASS: social posts, replies, likes, automatic feed sync and migration use confirmed saves with rollback and concurrency protection.");
 })().catch(error => {

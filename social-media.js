@@ -119,8 +119,10 @@
     return await Promise.resolve(pending) === true;
   }
 
-  async function runSocialMutation(state, operation) {
+  async function runSocialMutation(state, operation, options) {
     var runtime = api();
+    options = options || {};
+    var socialOnly = options.socialOnly === true;
     if (socialMutationPending) return { ok: false, reason: "social-mutation-pending" };
     if (!state || typeof operation !== "function" || !runtime || typeof runtime.save !== "function") {
       return { ok: false, reason: "social-persistence-unavailable" };
@@ -129,26 +131,48 @@
       && !(window.LWStateStore && typeof window.LWStateStore.flush === "function")) {
       return { ok: false, reason: "social-persistence-unavailable" };
     }
-    var snapshot = cloneSocialState(state);
-    if (!snapshot) return { ok: false, reason: "social-snapshot-unavailable" };
-    var before = socialStateSignature(snapshot);
+    var hadSocialState = socialOnly && Object.prototype.hasOwnProperty.call(state, "socialMedia");
+    var rawSocialState = socialOnly ? state.socialMedia : null;
+    var snapshot = socialOnly
+      ? (hadSocialState && rawSocialState && typeof rawSocialState === "object" ? cloneSocialState(rawSocialState) : rawSocialState)
+      : cloneSocialState(state);
+    if ((!socialOnly && !snapshot) || (socialOnly && hadSocialState && rawSocialState
+      && typeof rawSocialState === "object" && !snapshot)) {
+      return { ok: false, reason: "social-snapshot-unavailable" };
+    }
+    var before = socialOnly
+      ? socialStateSignature({ present: hadSocialState, value: snapshot })
+      : socialStateSignature(snapshot);
     if (before === null) return { ok: false, reason: "social-snapshot-unavailable" };
+    function restoreSnapshot() {
+      if (!socialOnly) return restoreSocialState(state, snapshot);
+      if (hadSocialState) state.socialMedia = snapshot;
+      else delete state.socialMedia;
+    }
+    function currentSignature() {
+      return socialOnly
+        ? socialStateSignature({
+          present: Object.prototype.hasOwnProperty.call(state, "socialMedia"),
+          value: state.socialMedia
+        })
+        : socialStateSignature(state);
+    }
     socialMutationPending = true;
     try {
       var value = operation();
       if (value && typeof value.then === "function") value = await value;
       if (value && value.ok === false) {
-        restoreSocialState(state, snapshot);
+        restoreSnapshot();
         return { ok: false, reason: value.reason || "social-operation-rejected", value: value };
       }
-      var after = socialStateSignature(state);
+      var after = currentSignature();
       if (after === null) throw new Error("social-state-not-serializable");
       if (after === before) return { ok: true, changed: false, value: value };
       if (!(await flushSocialState(runtime, state))) throw new Error("social-save-not-confirmed");
       socialPersistenceWarningShown = false;
       return { ok: true, changed: true, value: value };
     } catch (error) {
-      try { restoreSocialState(state, snapshot); }
+      try { restoreSnapshot(); }
       catch (restoreError) {
         if (window.console && window.console.warn) window.console.warn("Social media rollback restore failed", restoreError);
         return { ok: false, reason: "social-rollback-restore-failed", rollbackPersisted: false, error: error };
@@ -822,7 +846,7 @@
     var state = runtime.getState();
     if (!state) return Promise.resolve({ ok: false, reason: "social-state-unavailable" });
     if (socialMutationPending) return Promise.resolve({ ok: false, reason: "social-mutation-pending" });
-    return runSocialMutation(state, function () { return syncState(state); }).then(function (result) {
+    return runSocialMutation(state, function () { return syncState(state); }, { socialOnly: true }).then(function (result) {
       if (result.ok) socialPersistenceWarningShown = false;
       else if (result.reason !== "social-mutation-pending") notifyPersistenceFailure(result);
       render(state);

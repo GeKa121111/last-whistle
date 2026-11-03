@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 assert.equal(source, fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8"));
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 432);
+require("./assert-static-cache-version.cjs")(sw, 433);
 
 function extract(name) {
   const marker = "function " + name + "(";

@@ -598,8 +598,8 @@ function availableAgentBalance(s){
   function chargeFee(s,reason,gross){
     if(!s||!s.agent||!s.agentProfile)return 0;
     ensureFeeDebtLedger(s);
-    var base=Math.max(0,Number(gross)||0);if(!base)return 0;
-    var requested=Math.max(1,Math.round(base*feeRate(s))),available=Math.max(0,Number(s.money)||0),paid=Math.min(available,requested);
+    var base=safeWholeAmount(gross);if(!base)return 0;
+    var requested=Math.max(1,Math.round(base*feeRate(s))),available=safeWholeAmount(s.money),paid=Math.min(available,requested);
     s.money=available-paid;
     if(paid<requested){appendFeeDebt(s,requested-paid,reason);addTrust(s,-2);}else addTrust(s,1);
     var cfg=agentConfig(s)||LEGACY_AGENT;

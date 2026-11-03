@@ -46,6 +46,7 @@ const renderTransferMarketSource = section("function renderTransferMarket(){", "
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
 const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
+const retirementSource = section("function retireCareer(){", "\nfunction ");
 
 function runLegacyLeagueArchive(rows, seasonRows = []) {
   const archiveState = { season: 4, day: 20, leagueCountry: "مصر", leagueCompetition: "الدوري الممتاز",
@@ -1289,10 +1290,102 @@ const expiryTest=()=>{
 };
 expiryTest();
 
+
+// Retirement is terminal for transfer activity, but completed historical contracts stay intact.
+function runRetirementScenario(state) {
+  const counts = { saves: 0, renders: 0, modals: 0, menus: 0 };
+  const sandbox = {
+    state,
+    club: () => ({ name: "Club A" }),
+    overall: () => 71,
+    log: () => {},
+    saveGame: () => { counts.saves++; return true; },
+    render: () => { counts.renders++; },
+    openModal: () => { counts.modals++; },
+    openPostCareerMenu: () => { counts.menus++; },
+    showPage: () => {},
+    newCareer: () => {}
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(retirementSource + "\nthis.retireCareer = retireCareer;", sandbox,
+    { filename: "retirement-transfer-cleanup" });
+  sandbox.retireCareer();
+  return { state, counts, retireCareer: sandbox.retireCareer };
+}
+const activeRetirement = runRetirementScenario({
+  retired: false, season: 5, day: 24, age: 40, name: "Test Player",
+  apps: 25, goals: 9, assists: 4, trophies: 1,
+  pendingTransfer: { id: "accepted-current", club: "Club B", country: "Egypt", league: "Premier League", wage: 1000 },
+  transferNegotiation: { offerId: "pending-current", round: 2, requestedWage: 1100 },
+  transferOffers: [
+    { id: "pending-current", status: "pending", club: "Club C", country: "Egypt", wage: 1200 },
+    { id: "accepted-current", status: "accepted", club: "Club B", country: "Egypt", wage: 1000 },
+    { id: "historic-accepted", status: "accepted", club: "Club D", country: "Egypt" },
+    { id: "already-rejected", status: "rejected", club: "Club E", country: "Egypt" }
+  ],
+  transferHistory: [{ text: "previous transfer record" }]
+});
+assert.equal(activeRetirement.state.retired, true, "retirement must still mark the player career as retired");
+assert.equal(activeRetirement.state.pendingTransfer, null, "retirement must clear a pending accepted transfer");
+assert.equal(activeRetirement.state.transferNegotiation, null, "retirement must clear an open transfer negotiation");
+assert.equal(activeRetirement.state.transferOffers[0].status, "expired");
+assert.equal(activeRetirement.state.transferOffers[0].expiredReason, "career-retired");
+assert.equal(activeRetirement.state.transferOffers[1].status, "expired",
+  "an accepted offer still awaiting its move must expire with the retirement");
+assert.equal(activeRetirement.state.transferOffers[2].status, "accepted",
+  "a completed historical accepted transfer must not be rewritten as expired");
+assert.equal(activeRetirement.state.transferOffers[3].status, "rejected",
+  "previously rejected offers must remain unchanged");
+const retirementTransferAudit = activeRetirement.state.transferHistory[0];
+assert.equal(retirementTransferAudit.type, "retirement-transfer-cleanup");
+assert.equal(retirementTransferAudit.pendingTransfer.id, "accepted-current",
+  "the accepted contract terms must remain recoverable in transfer history");
+assert.equal(retirementTransferAudit.transferNegotiation.offerId, "pending-current",
+  "the open negotiation terms must remain recoverable in transfer history");
+assert.deepEqual(Array.from(retirementTransferAudit.expiredOffers, row => row.id),
+  ["pending-current", "accepted-current"]);
+assert.equal(activeRetirement.state.transferHistory.length, 2,
+  "retirement cleanup must preserve the existing transfer history");
+assert.equal(activeRetirement.counts.saves, 1,
+  "the normal retirement save must also persist the transfer cleanup");
+assert.equal(activeRetirement.counts.renders, 1);
+assert.equal(activeRetirement.counts.modals, 1);
+
+const legacyRetiredCleanup = runRetirementScenario({
+  retired: true, retirementRecord: { age: 40 }, season: 7, day: 1,
+  pendingTransfer: { id: "legacy-accepted", club: "Old Club", country: "Egypt" },
+  transferNegotiation: { offerId: "legacy-accepted", round: 1 },
+  transferOffers: [{ id: "legacy-accepted", status: "accepted", club: "Old Club", country: "Egypt" }],
+  transferHistory: []
+});
+assert.equal(legacyRetiredCleanup.state.pendingTransfer, null,
+  "an already-retired legacy save must also clear stale pending transfers");
+assert.equal(legacyRetiredCleanup.state.transferNegotiation, null,
+  "an already-retired legacy save must also clear stale negotiations");
+assert.equal(legacyRetiredCleanup.state.transferOffers[0].status, "expired");
+assert.equal(legacyRetiredCleanup.counts.saves, 1,
+  "cleaning a previously retired save must persist the repair");
+assert.equal(legacyRetiredCleanup.counts.menus, 1);
+legacyRetiredCleanup.retireCareer();
+assert.equal(legacyRetiredCleanup.state.transferHistory.length, 1,
+  "reopening an already-cleaned retirement must not duplicate the audit event");
+assert.equal(legacyRetiredCleanup.counts.saves, 1,
+  "an idempotent retirement revisit must not write another cleanup save");
+assert.equal(legacyRetiredCleanup.counts.menus, 2);
+
+const cleanRetirement = runRetirementScenario({
+  retired: false, season: 2, age: 40, name: "No Transfer",
+  apps: 0, goals: 0, assists: 0, trophies: 0,
+  transferOffers: [], transferHistory: []
+});
+assert.equal(cleanRetirement.state.transferHistory.length, 0,
+  "retirement without active transfer state must not add a synthetic transfer record");
+assert.equal(cleanRetirement.counts.saves, 1);
+
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 426);
+require("./assert-static-cache-version.cjs")(sw, 427);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=17"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");

@@ -46,7 +46,7 @@ const renderTransferMarketSource = section("function renderTransferMarket(){", "
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
 const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
-const retirementSource = section("function retireCareer(){", "\nfunction ");
+const retirementSource = section("function retireCareer(){", "\nlet postCareerMutationPending=false;");
 const retirementPersistenceSource = section("function persistRollbackSnapshot(", "\nfunction withCareerStateTransaction(");
 assert.match(retirementPersistenceSource, /warningMessage/, "retirement persistence must support context-specific warnings");
 

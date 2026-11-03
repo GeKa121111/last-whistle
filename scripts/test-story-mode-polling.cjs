@@ -69,7 +69,7 @@ const vm = require("node:vm");
       checkTriggers() {},
       renderOverview() { overviewRenders++; },
       renderStoryPanel() {},
-      stateRef: null, previousSnapshot: "", lastPending: "", storyTickScheduled: false
+      stateRef: null, previousSnapshot: "", lastPending: "", storyTickScheduled: false, storyTickRunning: false, storyMutationPending: false
     };
     vm.createContext(sandbox);
     vm.runInContext(tickSource, sandbox, { filename: "story-mode.tick" });

@@ -745,7 +745,7 @@
     input = input || {};
     const player = input.player || {};
     const age = Number(player.age) || 24;
-    const apps = Number(player.appearances || player.apps) || 0;
+    const apps = seasonAppearanceCount(player);
     const durationMonths = Number(input.durationMonths) === 6 ? 6 : 12;
     const isYouth = age < 23;
     const minutesTarget = isYouth ? (durationMonths === 6 ? 700 : 1400) : (durationMonths === 6 ? 450 : 900);

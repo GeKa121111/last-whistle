@@ -59,6 +59,26 @@ assert.equal(legacyEvaluation.performanceSample, 10);
 assert.equal(legacyEvaluation.minutes, 650);
 assert.ok(engine.performanceIndex(legacyPerformance) > 0);
 
+const noAppearanceLoan = engine.buildLoanProposal({
+  player: { age: 20, appearances: 0, apps: 24 }, durationMonths: 12
+});
+assert.equal(noAppearanceLoan.developmentPriority, true,
+  "a youth with zero current-season appearances must receive a development-focused loan even if career apps are nonzero");
+const legacyLoan = engine.buildLoanProposal({
+  player: { age: 20, apps: 24 }, durationMonths: 12
+});
+assert.equal(legacyLoan.developmentPriority, false,
+  "legacy loan rows without season appearances must continue to use their apps fallback");
+const lowAppearanceLoan = engine.buildLoanProposal({
+  player: { age: 20, appearances: 11, apps: 24 }, durationMonths: 12
+});
+assert.equal(lowAppearanceLoan.developmentPriority, true);
+const thresholdLoan = engine.buildLoanProposal({
+  player: { age: 20, appearances: 12, apps: 24 }, durationMonths: 12
+});
+assert.equal(thresholdLoan.developmentPriority, false);
+
+
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.

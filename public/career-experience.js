@@ -108,10 +108,10 @@
     }
     if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
     owner = String(owner || "");
-    if (!owner) return Promise.resolve(false);
+    if (!owner) return false;
     if (!coordinator.owner) {
       coordinator.owner = owner;
-      return Promise.resolve(true);
+      return true;
     }
     return new Promise(function(resolve) { coordinator.queue.push({ owner: owner, resolve: resolve }); });
   }
@@ -174,7 +174,8 @@
       return { ok: false, reason: isFinance ? "finance-persistence-unavailable" : "career-persistence-unavailable" };
     }
     financeMutationPending = true;
-    await acquireSharedMutationLock("career-experience");
+    var mutationLock = acquireSharedMutationLock("career-experience");
+    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
     var snapshot = cloneFinanceState(state);
     if (!snapshot) {
       financeMutationPending = false;

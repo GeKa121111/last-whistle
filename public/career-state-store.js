@@ -38,7 +38,7 @@
     return POSITION_ALIASES[key] || raw;
   }
   const listeners = new Set();
-  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null, activeDefaultFlush = null;
+  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null, activeDefaultFlush = null, activeDefaultFlushRequested = false;
   function safeClone(value) {
     if (!value || typeof value !== "object") return value;
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
@@ -256,10 +256,13 @@
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }
   function flush(state) {
-    // Coalesce overlapping default-slot flushes. Without a single writer, two
-    // callers can repeatedly supersede one another's IndexedDB transactions and
-    // both return before either has committed the latest career.
-    if (activeDefaultFlush) return activeDefaultFlush;
+    // A caller arriving while the current writer is completing must not be
+    // lost between the final revision check and release of the shared promise.
+    if (activeDefaultFlush) {
+      activeDefaultFlushRequested = true;
+      return activeDefaultFlush;
+    }
+    activeDefaultFlushRequested = false;
     const requested = state && typeof state === "object" ? state : null;
     const work = Promise.resolve().then(async function () {
       let target = currentState && typeof currentState === "object" ? currentState : requested;
@@ -268,8 +271,9 @@
         return true;
       }
       for (let attempt = 0; attempt < 5; attempt += 1) {
+        activeDefaultFlushRequested = false;
         const result = await save(target, { slotId: DEFAULT_SLOT });
-        if (!result || result.superseded === true) {
+        if (!result || result.superseded === true || activeDefaultFlushRequested) {
           target = currentState;
           if (!target || typeof target !== "object") return false;
           continue;
@@ -289,8 +293,18 @@
       }
       return false;
     });
-    const active = work.finally(function () {
+    let active;
+    active = work.then(function (result) {
       if (activeDefaultFlush === active) activeDefaultFlush = null;
+      if (activeDefaultFlushRequested) {
+        activeDefaultFlushRequested = false;
+        return flush(currentState && typeof currentState === "object" ? currentState : requested);
+      }
+      return result;
+    }, function (error) {
+      if (activeDefaultFlush === active) activeDefaultFlush = null;
+      activeDefaultFlushRequested = false;
+      throw error;
     });
     activeDefaultFlush = active;
     return active;

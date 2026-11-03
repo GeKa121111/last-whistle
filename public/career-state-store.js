@@ -329,7 +329,7 @@
     return function () { listeners.delete(wrapped); };
   }
   global.LWStateStore = Object.freeze({
-    version: 4, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, markDirty, normalizePosition,
+    version: 3, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, markDirty, normalizePosition,
     getState: () => currentState, getStartupSave: () => startupSave, getRevision: () => revision,
     subscribe: function (listener) { if (typeof listener !== "function") return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
     subscribeSelector, save, load, listSaves, deleteSave, flush, openDatabase

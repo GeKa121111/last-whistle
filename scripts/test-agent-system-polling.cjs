@@ -14,9 +14,9 @@ const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(source, publicSource, "agent root/public runtimes must match");
 assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
-assert.match(html, /agent-system\.js\?v=8/);
-require("./assert-static-cache-version.cjs")(sw, 175);
-assert.match(sw, /agent-system\.js\?v=8/);
+assert.match(html, /agent-system\.js\?v=9/);
+require("./assert-static-cache-version.cjs")(sw, 447);
+assert.match(sw, /agent-system\.js\?v=9/);
 assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 
 const tickStart = source.indexOf("  function tick(force){");
@@ -35,10 +35,10 @@ const startSource = source.slice(startStart, startEnd);
 function makeHarness(withStore = true) {
   const state = {
     careerStarted: true, agent: false, agentLead: null, retired: false, agentProfile: null,
-    agentHistory: [], apps: 0, season: 1, seasonFinished: false, money: 1000, weeklyWage: 100,
+    agentFeeDebtLedger: [], apps: 0, season: 1, seasonFinished: false, money: 1000, weeklyWage: 100,
     day: 1
   };
-  let renders = 0, saves = 0, subscriber = null;
+  let renders = 0, saves = 0, maintenanceCalls = 0, subscriber = null;
   const intervals = [];
   const windowListeners = Object.create(null), documentListeners = Object.create(null);
   const api = { getState: () => state, save() { saves++; } };
@@ -56,9 +56,9 @@ function makeHarness(withStore = true) {
     addEventListener(name, callback) { (documentListeners[name] ||= []).push(callback); }
   };
   const sandbox = {
-    API: () => api, ensureState: () => false, renewRelationship: () => false,
+    API: () => api, ensureState: state => { if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; return true; } return false; }, renewRelationship: () => false,
     cloneAgentMaintenancePreview: state => Object.assign({}, state),
-    runAgentContractMutation: (state, operation) => { operation(); return Promise.resolve({ ok: true }); },
+    runAgentContractMutation: (state, operation) => { maintenanceCalls++; operation(); return Promise.resolve({ ok: true }); },
     agentContractMutationPending: false, postRetirementMutationPending: false,
     scheduleTick: () => {},
     ensurePanel: () => true, renderPanel: () => { renders++; },
@@ -69,7 +69,7 @@ function makeHarness(withStore = true) {
   vm.runInContext(startSource, sandbox, { filename: "agent-system.start" });
   return {
     state, sandbox, window, document, intervals, windowListeners, documentListeners,
-    get renders() { return renders; }, get saves() { return saves; }, get subscriber() { return subscriber; }
+    get renders() { return renders; }, get saves() { return saves; }, get maintenanceCalls() { return maintenanceCalls; }, get subscriber() { return subscriber; }
   };
 }
 
@@ -77,6 +77,8 @@ function makeHarness(withStore = true) {
   const current = makeHarness(true);
   current.sandbox.start();
   assert.equal(current.renders, 1, "startup should render the agent panel once");
+  assert.equal(current.maintenanceCalls, 0, "an empty fee-debt ledger must not trigger a maintenance save for a career without an agent");
+  assert.equal(current.state.agentHistory, undefined, "fresh careers should not receive an empty agent history just because the debt ledger exists");
   assert.equal(current.intervals.length, 1);
   assert.equal(current.intervals[0].ms, 5000, "state-store mode should use a low-frequency safety poll");
   assert.equal(typeof current.subscriber, "function", "agent system should subscribe to state changes");

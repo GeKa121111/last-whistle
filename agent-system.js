@@ -664,7 +664,7 @@ function availableAgentBalance(s){
     if(agentContractMutationPending||postRetirementMutationPending)return;
     var hasAgentState=!!s.agent||!!(s.agentProfile&&typeof s.agentProfile==="object")
       ||(Array.isArray(s.agentHistory)&&s.agentHistory.length>0)
-      ||!!s.agentFeeDebtLedger||!!s.agentNegotiationQuote
+      ||(Array.isArray(s.agentFeeDebtLedger)&&s.agentFeeDebtLedger.length>0)||!!s.agentNegotiationQuote
       ||Number(s.agentFeeDebtSequence)>0||Number(s.agentDebtPaid)>0
       ||Number(s.agentCommissionPaid)>0;
     if(hasAgentState){

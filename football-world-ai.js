@@ -2766,7 +2766,18 @@
     }
     if (worldWorkerQueue.length) failed.push.apply(failed, worldWorkerQueue);
     worldWorkerQueue = [];
-    failed.forEach(request => request.reject(error));
+    failed.forEach(request => {
+      const currentRevision = getStateStoreRevision();
+      const revisionChanged = request.revision !== currentRevision
+        && (request.revision !== null || currentRevision !== null);
+      if (revisionChanged) {
+        const staleError = new Error("World worker failed after the career state changed");
+        staleError.code = "LW_WORLD_WORKER_STALE_SAVE";
+        request.reject(staleError);
+      } else {
+        request.reject(error);
+      }
+    });
   }
 
   function getWorldWorker() {
@@ -2784,13 +2795,15 @@
       }
       activeWorldWorkerRequest = null;
       try {
-        if (!msg.ok) {
-          request.reject(new Error(msg.error || "World worker failed"));
-        } else if (request.revision !== null && getStateStoreRevision() !== null
-          && getStateStoreRevision() !== request.revision) {
+        const currentRevision = getStateStoreRevision();
+        const revisionChanged = request.revision !== currentRevision
+          && (request.revision !== null || currentRevision !== null);
+        if (revisionChanged) {
           const staleError = new Error("World worker result superseded by a newer career state");
           staleError.code = "LW_WORLD_WORKER_STALE_SAVE";
           request.reject(staleError);
+        } else if (!msg.ok) {
+          request.reject(new Error(msg.error || "World worker failed"));
         } else {
           applySaveResult(request.save, msg.save);
           if (global.LWStateStore && typeof global.LWStateStore.publish === "function")
@@ -2823,11 +2836,11 @@
     }
     const request = worldWorkerQueue.shift();
     const currentRevision = getStateStoreRevision();
-    if (currentRevision !== null && request.revision !== currentRevision) {
-      const latestState = getCurrentCareerState();
-      if (latestState && typeof latestState === "object") request.save = latestState;
-      request.revision = currentRevision;
-    }
+    const latestState = getCurrentCareerState();
+    // The shared store is the authoritative career object. A caller may still hold
+    // an older object even when its captured revision happens to match the store.
+    if (latestState && typeof latestState === "object") request.save = latestState;
+    request.revision = currentRevision;
     request.id = "lw-world-" + Date.now() + "-" + (++worldWorkerSequence);
     activeWorldWorkerRequest = request;
     try {
@@ -2860,17 +2873,22 @@
   function worldJob(command, save, data, db) {
     const payload = data || {};
     return workerRequest(command, save, payload).catch(error => {
-      if (error && error.code === "LW_WORLD_WORKER_STALE_SAVE") {
-        const latestState = getCurrentCareerState();
-        const target = latestState && typeof latestState === "object" ? latestState : save;
-        const store = global.LWStateStore;
-        return asyncFallback(command, target, payload, db).then(result => {
-          if (store && typeof store.publish === "function" && store.getState() === target)
-            store.publish(target, { source: "world-worker-fallback", command });
-          return result;
-        });
-      }
-      return asyncFallback(command, save, payload, db);
+      const store = global.LWStateStore;
+      const latestState = getCurrentCareerState();
+      const target = latestState && typeof latestState === "object" ? latestState : save;
+      // Worker failures are not proof that the input snapshot is still current.
+      // Always recover against the store's latest career object when one exists.
+      return asyncFallback(command, target, payload, db).then(result => {
+        if (store && typeof store.publish === "function"
+          && (!store.getState || store.getState() === target)) {
+          store.publish(target, {
+            source: "world-worker-fallback",
+            command,
+            stale: !!(error && error.code === "LW_WORLD_WORKER_STALE_SAVE")
+          });
+        }
+        return result;
+      });
     });
   }
   global.LWWorldAI = Object.freeze(Object.assign({}, base, {

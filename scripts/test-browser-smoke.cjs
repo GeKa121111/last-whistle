@@ -555,7 +555,22 @@ async function main() {
       const saved = window.LWStoryRuntime.save();
       if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
       if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
+      const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+        ? window.LWStateStore.getState() : null;
+      return {
+        stateMoney: Number(state.money),
+        storeMoney: stored ? Number(stored.money) : null,
+        sameState: stored === state,
+        revision: window.LWStateStore && typeof window.LWStateStore.getRevision === "function"
+          ? window.LWStateStore.getRevision() : null
+      };
     });
+    assert.equal(seedDiagnostic.stateMoney, 3000,
+      "the browser smoke test must seed the live career balance before opening the shop: " + JSON.stringify(seedDiagnostic));
+    assert.equal(seedDiagnostic.storeMoney, 3000,
+      "the shared store must persist the seeded balance before shop navigation: " + JSON.stringify(seedDiagnostic));
+    assert.equal(seedDiagnostic.sameState, true,
+      "the shared store and player runtime must reference the same career object after seeding");
     await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
     // Wait for the destination and drawer transition; the shop card can be transiently
@@ -568,6 +583,25 @@ async function main() {
         && getComputedStyle(drawer).visibility === "hidden";
     }, null, { timeout: 10000 });
     await page.locator('#shopItems [data-buy="xpMultiplier"]').waitFor({ state: "visible", timeout: 10000 });
+    const shopSeedDiagnostic = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+        ? window.LWStateStore.getState() : null;
+      return {
+        money: Number(state.money),
+        storeMoney: stored ? Number(stored.money) : null,
+        sameState: stored === state,
+        revision: window.LWStateStore && typeof window.LWStateStore.getRevision === "function"
+          ? window.LWStateStore.getRevision() : null,
+        toast: document.querySelector(".toast")?.textContent || ""
+      };
+    });
+    assert.equal(shopSeedDiagnostic.money, 3000,
+      "a background world update must not restore the pre-seed balance before purchase: " + JSON.stringify(shopSeedDiagnostic));
+    assert.equal(shopSeedDiagnostic.storeMoney, 3000,
+      "the store's authoritative balance must remain seeded during shop navigation: " + JSON.stringify(shopSeedDiagnostic));
+    assert.equal(shopSeedDiagnostic.sameState, true,
+      "the player runtime must keep the authoritative state object while the shop is open");
     // The shop rerenders its cards while state subscribers settle. Use the live
     // DOM node's native click in one task so Playwright's actionability polling
     // cannot lose the button between layout frames; the same click handler runs.
@@ -579,11 +613,33 @@ async function main() {
     });
     assert.equal(storeButtonClick.clicked, true,
       "the XP multiplier purchase button must be present and enabled: " + JSON.stringify(storeButtonClick));
-    await page.waitForFunction(() => {
-      const title = document.querySelector("#modalTitle");
-      return document.querySelector("#modalShade").classList.contains("open")
-        && title && title.textContent.includes("تأكيد الشراء");
-    });
+    try {
+      await page.waitForFunction(() => {
+        const title = document.querySelector("#modalTitle");
+        return document.querySelector("#modalShade").classList.contains("open")
+          && title && title.textContent.includes("تأكيد الشراء");
+      }, null, { timeout: 10000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+          ? window.LWStateStore.getState() : null;
+        return {
+          money: Number(state.money),
+          storeMoney: stored ? Number(stored.money) : null,
+          xpMultiplier: !!state.xpMultiplier,
+          sameState: stored === state,
+          revision: window.LWStateStore && typeof window.LWStateStore.getRevision === "function"
+            ? window.LWStateStore.getRevision() : null,
+          toast: document.querySelector(".toast")?.textContent || "",
+          modalOpen: document.querySelector("#modalShade")?.classList.contains("open"),
+          modalTitle: document.querySelector("#modalTitle")?.textContent || ""
+        };
+      });
+      throw new Error("purchase confirmation modal did not open: "
+        + JSON.stringify({ ...diagnostic, pageErrors: pageErrors.slice() })
+        + "; " + error.message);
+    }
     const confirmPurchaseClick = await page.evaluate(() => {
       const button = Array.from(document.querySelectorAll("#modalChoices button"))
         .find(candidate => candidate.textContent.includes("اشتري دلوقتي"));

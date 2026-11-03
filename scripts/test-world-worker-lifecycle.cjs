@@ -35,9 +35,11 @@ const fixture = {
 
 const workerInstances = [];
 const publications = [];
+const stateEvents = [];
 
 class FakeWorldWorker {
   static mismatchNextResponse = false;
+  static failNextResponse = false;
   static holdNextResponse = false;
   static heldResponse = null;
   constructor(url) {
@@ -55,9 +57,12 @@ class FakeWorldWorker {
     message.save.workerRoundTrips = inputCount + 1;
     const responseId = FakeWorldWorker.mismatchNextResponse ? "mismatch-" + message.id : message.id;
     FakeWorldWorker.mismatchNextResponse = false;
+    const failed = FakeWorldWorker.failNextResponse;
+    FakeWorldWorker.failNextResponse = false;
     const response = {
       id: responseId,
-      ok: true,
+      ok: !failed,
+      error: failed ? "simulated worker failure" : undefined,
       command: message.command,
       result: { command: message.command, sequence: inputCount + 1 },
       save: message.save
@@ -87,6 +92,7 @@ async function main() {
     publish(save, metadata) {
       currentState = save;
       storeRevision++;
+      stateEvents.push({ state: save, source: metadata && metadata.source, command: metadata && metadata.command });
       if (metadata && metadata.source === "world-worker")
         publications.push({ name: save.name, source: metadata.source, command: metadata.command });
     }
@@ -139,7 +145,7 @@ async function main() {
   const shellWorkerVersion = serviceWorkerSource.match(/\.\/football-world-worker\.js\?v=(\d+)/);
   assert.ok(pageAiVersion && workerAiVersion, "page and worker must declare their world-AI asset versions");
   assert.equal(workerAiVersion[1], pageAiVersion[1], "main thread and worker must run the same world-AI engine version");
-  assert.equal(pageAiVersion[1], "72", "the current page must load the expected world-AI asset");
+  assert.equal(pageAiVersion[1], "73", "the current page must load the expected world-AI asset");
   assert.ok(pageDbVersion && workerDbVersion && shellDbVersion, "page, worker, and offline shell must declare database asset versions");
   assert.equal(workerDbVersion[1], pageDbVersion[1], "main thread and worker must load the same world database version");
   assert.equal(shellDbVersion[1], pageDbVersion[1], "offline shell must precache the database version used by the page");
@@ -193,7 +199,61 @@ async function main() {
   assert.equal(staleSave.workerRoundTrips, 0, "the stale worker payload must not be merged into the live save");
   assert.equal(publications.length, 3, "a stale worker response must not publish an old career snapshot");
 
-  console.log("PASS: world simulation reuses one worker, serializes saves, rejects stale worker snapshots, and recovers safely from response-ID mismatches.");
+  // A caller can retain an older object even while the shared store has moved on.
+  // Matching revision numbers must not make that stale argument authoritative.
+  const authoritativeSave = {
+    name: "authoritative store state", season: 1, money: 600, xpMultiplier: true, workerRoundTrips: 0
+  };
+  const staleArgument = {
+    name: "stale caller argument", season: 1, money: 3000, xpMultiplier: false, workerRoundTrips: 0
+  };
+  stateStore.publish(authoritativeSave, { source: "test-authoritative-state" });
+  const authoritativeResult = await ai.dashboardAsync(staleArgument, {});
+  assert.ok(authoritativeResult && typeof authoritativeResult === "object");
+  assert.equal(stateStore.getState(), authoritativeSave,
+    "a worker must publish against the current store object, not an old caller argument");
+  assert.equal(authoritativeSave.workerRoundTrips, 1,
+    "the worker must receive and update the authoritative career object");
+  assert.equal(staleArgument.workerRoundTrips, 0,
+    "a stale caller object must not be sent to the worker");
+  assert.equal(authoritativeSave.money, 600);
+  assert.equal(authoritativeSave.xpMultiplier, true);
+
+  // Even a failed worker response after a purchase must fall back against the
+  // latest store state rather than the older save object captured by the request.
+  const failedRequestSave = {
+    name: "worker failure before purchase", season: 1, money: 3000, xpMultiplier: false, workerRoundTrips: 0
+  };
+  const purchasedState = {
+    name: "worker failure after purchase", season: 1, money: 600, xpMultiplier: true, workerRoundTrips: 0
+  };
+  stateStore.publish(failedRequestSave, { source: "test-worker-failure-start" });
+  FakeWorldWorker.holdNextResponse = true;
+  FakeWorldWorker.failNextResponse = true;
+  const failedJob = ai.dashboardAsync(failedRequestSave, {});
+  assert.equal(typeof FakeWorldWorker.heldResponse, "function",
+    "the failing worker response should be held for the race test");
+  stateStore.publish(purchasedState, { source: "store-purchase" });
+  const deliverFailedResponse = FakeWorldWorker.heldResponse;
+  FakeWorldWorker.heldResponse = null;
+  deliverFailedResponse();
+  const failedResult = await failedJob;
+  assert.ok(failedResult && typeof failedResult === "object",
+    "a failed worker request should recover using the current career state");
+  assert.equal(stateStore.getState(), purchasedState,
+    "worker fallback must not replace the current career object with an older request object");
+  assert.equal(purchasedState.money, 600,
+    "worker fallback must preserve the post-purchase balance");
+  assert.equal(purchasedState.xpMultiplier, true,
+    "worker fallback must preserve purchased ownership");
+  assert.ok(purchasedState.worldSimulation && typeof purchasedState.worldSimulation === "object",
+    "worker fallback must apply its world update to the latest career state");
+  assert.equal(failedRequestSave.worldSimulation, undefined,
+    "worker fallback must not mutate the stale request snapshot");
+  assert.ok(stateEvents.some(row => row.source === "world-worker-fallback" && row.state === purchasedState),
+    "the recovered current career state must be published to subscribers");
+
+  console.log("PASS: world simulation reuses one worker, serializes saves, rejects stale worker snapshots, and recovers against the authoritative career after stale or failed responses.");
 }
 
 main().catch(error => {

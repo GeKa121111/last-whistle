@@ -410,9 +410,7 @@
       frame("الوكيل متمسك بشروطه","FEE NEGOTIATION",'<div class="lwa-result lwa-result-neutral"><strong>'+esc(a.name)+' رفض التخفيض</strong><p>'+esc(a.voice)+'</p><p>العمولة المعروضة ما زالت '+Math.round(a.feeRate*100)+'%. تقدر تقبل الاتفاق أو تنهي المقابلة.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-sign" data-agent-id="'+esc(id)+'">أقبل العمولة الأصلية</button><button type="button" class="lwa-button" data-lwag-action="close">أنهي المقابلة</button></div>');
     }
   }
-  function signAgent(id,newFee,exitPaid){
-    var s=API().getState(),a=candidate(id);if(!a||!canUseAgent(s))return;
-    if(s.agent&&s.agentProfile&&s.agentProfile.id!==id&&!exitPaid){openMeeting(id);return;}
+  function applyAgentSigning(s,id,a,newFee){
     var p=makeProfile(id,s,false);
     p.customFeeRate=Math.max(.035,Math.min(.14,Number(newFee)||a.feeRate));p.feeRate=a.feeRate;p.relationship=55;
     p.signedApps=Number(s.apps)||0;p.lastChapterApps=Number(s.apps)||0;p.lastChapterSeason=Number(s.season)||1;p.lastPerformanceMilestone=Math.floor((Number(s.apps)||0)/5);
@@ -421,7 +419,22 @@
     s.storyFlags["agent-offer"]=true;
     record(s,"توقيع اتفاق تمثيل مع "+a.name,"وقعت اتفاق تمثيل مفتوح المدة بعمولة "+Math.round(p.customFeeRate*100)+"%. "+a.pitch);
     if(API().setStory)API().setStory("بدأ فصل جديد: "+a.name,"وكيل أعمالك الجديد هو "+a.name+". أسلوبه: "+a.style+". اختياراتك في قصته هتأثر على خطتك ومميزات التفاوض والانتقالات.");
-    save(s,"تم توقيع اتفاق الوكالة. قصة "+a.name+" هتتفتح مع تقدم المسيرة.");closeDialog();
+    return p;
+  }
+  async function signAgent(id,newFee,exitPaid){
+    var api=API(),s=api&&api.getState(),a=candidate(id);
+    if(!a||!canUseAgent(s))return {ok:false,reason:"اتفاق الوكالة غير متاح حاليًا."};
+    if(s.agent&&s.agentProfile&&String(s.agentProfile.id)===String(id)){
+      if(api.toast)api.toast("أنت متعاقد بالفعل مع الوكيل ده.");
+      return {ok:false,reason:"already-signed"};
+    }
+    if(s.agent&&s.agentProfile&&s.agentProfile.id!==id&&!exitPaid){openMeeting(id);return {ok:false,reason:"switch-required"};}
+    var result=await runAgentContractMutation(s,function(){
+      applyAgentSigning(s,id,a,newFee);
+      return {agentId:id};
+    },"تم توقيع اتفاق الوكالة. قصة "+a.name+" هتتفتح مع تقدم المسيرة.");
+    if(result.ok)closeDialog();
+    return result;
   }
   function openActive(){
     var s=API().getState(),cfg=agentConfig(s),p=s.agentProfile;
@@ -438,20 +451,24 @@
     body+='<div class="lwa-dialog-actions"><button type="button" class="lwa-button" data-lwag-action="close">رجوع</button><button type="button" class="lwa-button" data-lwag-action="agent-end-current">إنهاء التعاقد</button></div>';
     frame("ملف الوكيل: "+cfg.name,"YOUR REPRESENTATIVE",body,"العلاقة المرتفعة تقوّي مزايا الوكيل. قراراتك في الفصول قد تغيّر تخصصه وطريقة بحثه.");
   }
-  function finishStory(index){
-    var s=API().getState(),cfg=agentConfig(s),p=s.agentProfile,chapter=currentChapter(s);
-    if(!cfg||!p||!chapter||!chapter.options[index])return;
+  async function finishStory(index){
+    var api=API(),s=api&&api.getState(),cfg=agentConfig(s),p=s&&s.agentProfile,chapter=currentChapter(s);
+    if(!cfg||!p||!chapter||!chapter.options[index])return {ok:false,reason:"اختيار قصة الوكيل غير متاح."};
     var c=chapter.options[index];
-    Object.keys(c.effects||{}).forEach(function(k){if(["trust","morale","energy","fatigue","professionalism","mediaReputation","teamChemistry","coachRelationship","money","followers"].indexOf(k)>=0)boundedStat(s,k,c.effects[k]);});
-    if(c.strategy)p.strategyOverride=c.strategy;
-    if(c.contractMultiplierDelta)p.contractMultiplierDelta=Math.max(-.06,Math.min(.06,(Number(p.contractMultiplierDelta)||0)+c.contractMultiplierDelta));
-    if(c.negotiationRaiseBonusDelta)p.negotiationRaiseBonusDelta=Math.max(-.1,Math.min(.15,(Number(p.negotiationRaiseBonusDelta)||0)+c.negotiationRaiseBonusDelta));
-    if(c.setPerk)p.perks[c.setPerk]=true;
-    addTrust(s,c.relationship);p.storyStage=cap(Number(p.storyStage)+1,0,cfg.chapters.length);
-    p.lastChapterApps=Number(s.apps)||0;p.lastChapterSeason=Number(s.season)||1;
-    record(s,cfg.name+" — "+chapter.title,c.outcome+" (العلاقة: "+rel(s)+"/100)");
-    if(API().setStory)API().setStory(chapter.title,c.outcome);
-    save(s,"القرار اتسجل في قصة الوكيل واتطبقت نتائجه.");openActive();
+    var result=await runAgentContractMutation(s,function(){
+      Object.keys(c.effects||{}).forEach(function(k){if(["trust","morale","energy","fatigue","professionalism","mediaReputation","teamChemistry","coachRelationship","money","followers"].indexOf(k)>=0)boundedStat(s,k,c.effects[k]);});
+      if(c.strategy)p.strategyOverride=c.strategy;
+      if(c.contractMultiplierDelta)p.contractMultiplierDelta=Math.max(-.06,Math.min(.06,(Number(p.contractMultiplierDelta)||0)+c.contractMultiplierDelta));
+      if(c.negotiationRaiseBonusDelta)p.negotiationRaiseBonusDelta=Math.max(-.1,Math.min(.15,(Number(p.negotiationRaiseBonusDelta)||0)+c.negotiationRaiseBonusDelta));
+      if(c.setPerk)p.perks[c.setPerk]=true;
+      addTrust(s,c.relationship);p.storyStage=cap(Number(p.storyStage)+1,0,cfg.chapters.length);
+      p.lastChapterApps=Number(s.apps)||0;p.lastChapterSeason=Number(s.season)||1;
+      record(s,cfg.name+" — "+chapter.title,c.outcome+" (العلاقة: "+rel(s)+"/100)");
+      if(api.setStory)api.setStory(chapter.title,c.outcome);
+      return {chapterTitle:chapter.title};
+    },"القرار اتسجل في قصة الوكيل واتطبقت نتائجه.");
+    if(result.ok)openActive();
+    return result;
   }
   function endCurrent(){
     var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
@@ -462,25 +479,42 @@
     var cfg=agentConfig(s)||LEGACY_AGENT,fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
     frame("إنهاء اتفاق التمثيل","END REPRESENTATION",'<div class="lwa-change-notice"><strong>شرط الخروج: '+fee+' جنيه</strong><p>لو أنهيت الاتفاق، هتدفع الشرط من رصيد اللعبة، وبعدها تقدر تختار وكيلًا آخر أو تكمل من غير وكيل.</p></div><div class="lwa-dialog-actions"><button type="button" class="lwa-button lwa-button-primary" data-lwag-action="agent-confirm-end"'+(Number(s.money)<fee?" disabled":"")+'>أدفع وأنهي الاتفاق</button><button type="button" class="lwa-button" data-lwag-action="close">أكمل معاه</button></div>');
   }
-  function confirmEnd(){
+  async function confirmEnd(){
     var api=API(),s=api&&api.getState(),p=s&&s.agentProfile;
     if(!canUseAgent(s)||!s.agent||!p){
       if(api&&api.toast)api.toast(s&&s.retired?"المسيرة انتهت بالاعتزال؛ لا يمكن إنهاء اتفاق الوكالة.":"لا يوجد اتفاق وكالة نشط.");
-      closeDialog();return;
+      closeDialog();return {ok:false,reason:"no-active-agent"};
     }
     var cfg=agentConfig(s)||LEGACY_AGENT;
     var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(cfg.exitFeeWeeks||.25)));
-    if(Number(s.money)<fee){API().toast("رصيدك مش كفاية لشرط الخروج. تقدر تكمّل الاتفاق لحد ما تقدر تغيّره.");return;}
-    s.money-=fee;record(s,"إنهاء اتفاق الوكالة","أنهيت اتفاق التمثيل مع "+cfg.name+" ودفعت "+fee+" جنيه داخل اللعبة.");
-    s.agent=false;s.agentProfile=null;save(s,"انتهى اتفاق الوكالة. السوق متاح لاختيار وكيل جديد.");closeDialog();
+    if(Number(s.money)<fee){if(api.toast)api.toast("رصيدك مش كفاية لشرط الخروج. تقدر تكمّل الاتفاق لحد ما تقدر تغيّره.");return {ok:false,reason:"insufficient-exit-fee"};}
+    var result=await runAgentContractMutation(s,function(){
+      s.money=Math.max(0,Number(s.money||0)-fee);
+      record(s,"إنهاء اتفاق الوكالة","أنهيت اتفاق التمثيل مع "+cfg.name+" ودفعت "+fee+" جنيه داخل اللعبة.");
+      s.agent=false;s.agentProfile=null;
+      return {fee:fee};
+    },"انتهى اتفاق الوكالة. السوق متاح لاختيار وكيل جديد.");
+    if(result.ok)closeDialog();
+    return result;
   }
-  function switchAgent(id){
-    var s=API().getState(),old=agentConfig(s)||LEGACY_AGENT,p=s.agentProfile,a=candidate(id);
-    if(!a||!p||!s.agent||!canUseAgent(s))return;
+  async function switchAgent(id){
+    var api=API(),s=api&&api.getState(),old=s&&(agentConfig(s)||LEGACY_AGENT),p=s&&s.agentProfile,a=candidate(id);
+    if(!a||!p||!s.agent||!canUseAgent(s))return {ok:false,reason:"تغيير الوكيل غير متاح حاليًا."};
+    if(String(p.id)===String(id)){
+      if(api.toast)api.toast("ده وكيلك الحالي بالفعل.");
+      return {ok:false,reason:"already-current-agent"};
+    }
     var fee=Math.max(20,Math.round((Number(s.weeklyWage)||250)*Number(old.exitFeeWeeks||.25)));
-    if(Number(s.money)<fee){API().toast("رصيدك مش كفاية لشرط الخروج من الوكيل الحالي.");return;}
-    s.money-=fee;record(s,"تغيير الوكيل","أنهيت اتفاق "+old.name+" ودفعت "+fee+" جنيه داخل اللعبة لاختيار "+a.name+".");
-    s.agent=false;s.agentProfile=null;signAgent(id,quotedFeeRate,true);
+    if(Number(s.money)<fee){if(api.toast)api.toast("رصيدك مش كفاية لشرط الخروج من الوكيل الحالي.");return {ok:false,reason:"insufficient-exit-fee"};}
+    var result=await runAgentContractMutation(s,function(){
+      s.money=Math.max(0,Number(s.money||0)-fee);
+      record(s,"تغيير الوكيل","أنهيت اتفاق "+old.name+" ودفعت "+fee+" جنيه داخل اللعبة لاختيار "+a.name+".");
+      s.agent=false;s.agentProfile=null;
+      applyAgentSigning(s,id,a,quotedFeeRate);
+      return {exitFee:fee,agentId:id};
+    },"تم تغيير الوكيل وحفظ الاتفاق الجديد.");
+    if(result.ok)closeDialog();
+    return result;
   }
 
   function profileValue(s,key,fallback){
@@ -564,12 +598,12 @@
     if(action==="agent-meet"){openMeeting(id);return;}
     if(action==="agent-active"){openActive();return;}
     if(action==="agent-counter"){negotiateFee(id);return;}
-    if(action==="agent-sign"){signAgent(id,quotedFeeRate,false);return;}
-    if(action==="agent-switch-sign"){switchAgent(id);return;}
+    if(action==="agent-sign"){return signAgent(id,quotedFeeRate,false);}
+    if(action==="agent-switch-sign"){return switchAgent(id);}
     if(action==="agent-story"){openActive();return;}
-    if(action==="agent-story-choice"){finishStory(Number(element.getAttribute("data-choice-index")));return;}
+    if(action==="agent-story-choice"){return finishStory(Number(element.getAttribute("data-choice-index")));}
     if(action==="agent-end-current"){endCurrent();return;}
-    if(action==="agent-confirm-end"){confirmEnd();return;}
+    if(action==="agent-confirm-end"){return confirmEnd();}
   }
   function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
@@ -608,7 +642,7 @@
   }
   document.addEventListener("click",function(event){
     var b=event.target&&event.target.closest?event.target.closest("[data-lwag-action]"):null;
-    if(!b||b.disabled)return;event.preventDefault();handleAction(b.getAttribute("data-lwag-action")||"",b);
+    if(!b||b.disabled)return;event.preventDefault();return handleAction(b.getAttribute("data-lwag-action")||"",b);
   });
   document.addEventListener("keydown",function(e){if(e.key==="Escape"&&overlay&&!overlay.hidden)closeDialog();});
   function start(){
@@ -655,6 +689,49 @@
     else if(window.LWStateStore&&typeof window.LWStateStore.flush==="function")pending=window.LWStateStore.flush(state);
     else return false;
     return await Promise.resolve(pending)===true;
+  }
+  var agentContractMutationPending = false;
+  async function runAgentContractMutation(state,operation,successMessage){
+    var api=API();
+    if(agentContractMutationPending||postRetirementMutationPending){
+      if(api&&api.toast)api.toast("فيه تغيير تاني بيتحفظ دلوقتي. استنى تأكيد الحفظ.");
+      return {ok:false,reason:"agent-mutation-pending"};
+    }
+    if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
+      return {ok:false,reason:"agent-mutation-unavailable"};
+    var snapshot=clonePostRetirementMutationState(state);
+    if(!snapshot)return {ok:false,reason:"تعذر تأمين بيانات الاتفاق قبل التغيير."};
+    agentContractMutationPending=true;
+    var payload=null;
+    try{
+      payload=operation();
+      if(payload===false||payload==null)throw new Error("agent contract mutation rejected");
+      if(!(await flushPostRetirementMutation(api,state)))throw new Error("agent contract save not confirmed");
+    }catch(error){
+      try{restorePostRetirementMutationState(state,snapshot);}
+      catch(restoreError){
+        try{if(api.toast)api.toast("تعذر استعادة اتفاق الوكيل. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
+        try{if(api.render)api.render();}catch(renderError){}
+        return {ok:false,reason:"agent-rollback-restore-failed",rollbackPersisted:false};
+      }
+      var rollbackPersisted=false;
+      try{rollbackPersisted=await flushPostRetirementMutation(api,state)===true;}
+      catch(rollbackError){if(window.console&&window.console.warn)window.console.warn("Agent contract rollback persistence failed",rollbackError);}
+      try{if(api.render)api.render();}catch(renderError){}
+      try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+      var message=rollbackPersisted
+        ?"تعذر حفظ تغيير الوكيل؛ تمت استعادة الاتفاق السابق وحفظه. تقدر تحاول مرة تانية."
+        :"تمت استعادة الاتفاق داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
+      try{if(api.toast)api.toast(message);}catch(toastError){}
+      if(window.console&&window.console.warn)window.console.warn("Agent contract mutation rolled back",error);
+      return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
+    }finally{
+      agentContractMutationPending=false;
+    }
+    try{if(api.render)api.render();}catch(renderError){}
+    try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+    try{if(successMessage&&api.toast)api.toast(successMessage);}catch(toastError){}
+    return Object.assign({ok:true},payload&&typeof payload==="object"?payload:{});
   }
   async function runPostRetirementMutation(state,operation){
     if(postRetirementMutationPending)return {ok:false,reason:"فيه عملية ما بعد الاعتزال بيتحفظ بالفعل. استنى تأكيد الحفظ."};

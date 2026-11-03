@@ -31,12 +31,12 @@ const transferEligibilitySource = section("function transferEligibilityReason(ta
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
 const leagueArchiveSource = section("function ensureLeagueSegmentId(){", "\nfunction archiveSeasonRecord()");
 const transitionTransactionStub = "function withCareerStateTransaction(label, operation){ return operation(); }\n";
-const transferToSource = transitionTransactionStub + section("function transferTo(){", "\nfunction ");
+const normalizedTargetKeySource = section("function normalizedTransferLabel(", "\nfunction transferFactors(");
+const transferToSource = transitionTransactionStub + normalizedTargetKeySource + section("function transferTo(){", "\nfunction ");
 const maybeOfferTransferSource = section("function maybeOfferTransfer(){", "\nfunction transferTo(){");
 const legacyMigrationSource = section("function migrateLegacyPendingTransferOffer(", "\nfunction reconcileTransferNegotiation(");
 const reconciliationSource = section("function reconcileTransferNegotiation(", "\nfunction dedupeTransferOffersForWindow(");
 const dedupeOffersSource = section("function dedupeTransferOffersForWindow(", "\nfunction ensureTransferOffers(){");
-const normalizedTargetKeySource = section("function normalizedTargetKey(", "\nfunction transferFactors(");
 const transferFactorsSource = section("function transferFactors(", "\nfunction transferAverageRating(");
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
 const requestLoanSource = section("function requestLoan(){", "\nfunction loanTo(");
@@ -410,6 +410,69 @@ assert.equal(sameNameDifferentCountry.state.money, 700,
   "the accepted destination signing bonus must still be credited");
 assert.equal(sameNameDifferentCountry.state.transferHistory.length, 1,
   "the cross-country transfer must be recorded exactly once");
+
+// Pending contract identity must survive harmless formatting changes in club/country/league labels.
+const normalizedDestinationTransfer = {
+  ...sameNameDifferentCountry,
+  state: {
+    ...sameNameDifferentCountry.state,
+    clubName: "نادي أ", leagueCountry: "مصر",
+    pendingTransfer: {
+      ...sameNameDifferentCountry.state.pendingTransfer,
+      club: "Real Betis", country: "España", league: "LaLiga",
+      windowId: "summer-0", signingBonus: 250
+    },
+    transferOffers: [], transferHistory: [], money: 500
+  },
+  transferTargets: () => [{
+    club: " REAL-BETIS ", country: "ESPAÑA", league: "laliga"
+  }],
+  window: {
+    LWAgentRuntime: null,
+    LWWorldDB: {
+      normalize: value => String(value || "").normalize("NFD")
+        .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
+        .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
+        .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "")
+    }
+  }
+};
+vm.createContext(normalizedDestinationTransfer);
+vm.runInContext(
+  transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  normalizedDestinationTransfer,
+  { filename: "normalized-pending-transfer-identity" }
+);
+assert.doesNotThrow(() => normalizedDestinationTransfer.transferTo(),
+  "format-only club/country/league differences must not invalidate a saved accepted destination");
+assert.equal(normalizedDestinationTransfer.state.clubName, "Real Betis");
+assert.equal(normalizedDestinationTransfer.state.leagueCountry, "España");
+assert.equal(normalizedDestinationTransfer.state.pendingTransfer, null);
+assert.equal(normalizedDestinationTransfer.state.transferHistory.length, 1);
+
+// A formatting variant of the player's own club is still the current club, not a new destination.
+const normalizedSelfTransfer = {
+  state: {
+    retired: false, age: 24, loan: null, clubName: "Al Ahly", leagueCountry: "مصر",
+    freeAgent: false, lastOfferWindow: "",
+    pendingTransfer: { club: "AL-AHLY", country: "مِصْر", windowId: "summer-0" }
+  },
+  canAccessTransferMarket: () => true,
+  transferWindow: () => ({ open: true, id: "summer-0", name: "الانتقالات الصيفية", days: 20 }),
+  transferTargets: () => [{ club: "AL-AHLY", country: "مِصْر", league: "الدوري المصري" }],
+  seasonMatchTotal: () => { throw new Error("self-transfer must exit before mutating season state"); }
+};
+vm.createContext(normalizedSelfTransfer);
+vm.runInContext(
+  transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  normalizedSelfTransfer,
+  { filename: "normalized-self-transfer-guard" }
+);
+assert.doesNotThrow(() => normalizedSelfTransfer.transferTo(),
+  "a case/spacing/diacritic variant of the current club must be rejected as a self-transfer");
+assert.equal(normalizedSelfTransfer.state.clubName, "Al Ahly");
+assert.ok(normalizedSelfTransfer.state.pendingTransfer,
+  "the guard must not discard the pending state when it recognizes a self-transfer");
 
 // Free-agent offers are valid only in the matching rolling 14-day window.
  const freeAgentWindowState = {
@@ -1396,6 +1459,8 @@ assert.equal(cleanRetirement.counts.persistence, 1);
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v451";'),
+  "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=23"),

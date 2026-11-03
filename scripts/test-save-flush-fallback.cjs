@@ -218,6 +218,7 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
     flush: async snapshot => {
       flushSnapshots.push(JSON.parse(JSON.stringify(snapshot)));
       if (flushSnapshots.length === 1) await firstGate;
+      return true;
     }
   });
   const firstFlush = concurrent.sandbox.runQueuedFlush();

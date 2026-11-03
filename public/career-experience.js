@@ -100,6 +100,21 @@
 
   var financeMutationPending = false;
 
+  function acquireSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (!coordinator || typeof coordinator !== "object") {
+      coordinator = { owner: "" };
+      window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
+    }
+    if (coordinator.owner) return false;
+    coordinator.owner = String(owner || "");
+    return !!coordinator.owner;
+  }
+  function releaseSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (coordinator && coordinator.owner === owner) coordinator.owner = "";
+  }
+
   function safeWholeMoney(value) {
     if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return null;
     var amount = Number(value);
@@ -146,8 +161,13 @@
     if (!state || typeof operation !== "function" || !api || typeof api.save !== "function") {
       return { ok: false, reason: isFinance ? "finance-persistence-unavailable" : "career-persistence-unavailable" };
     }
+    if (!acquireSharedMutationLock("career-experience")) {
+      if (api && api.toast) api.toast("فيه تغيير تاني في المسيرة بيتحفظ دلوقتي. استنى لحظة.");
+      return { ok: false, reason: isFinance ? "finance-mutation-pending" : "career-mutation-pending" };
+    }
     var snapshot = cloneFinanceState(state);
     if (!snapshot) {
+      releaseSharedMutationLock("career-experience");
       if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ " + label + ".");
       return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
     }
@@ -185,6 +205,7 @@
       return { ok: false, reason: message, rollbackPersisted: rollbackPersisted };
     } finally {
       financeMutationPending = false;
+      releaseSharedMutationLock("career-experience");
     }
     try { if (api.render) api.render(); } catch (renderError) {}
     try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}

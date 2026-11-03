@@ -57,6 +57,7 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
       }
     },
     console: { warn(...args) { warnings.push(args); } },
+    toast() {},
     persistGame() { return true; }
   };
   vm.createContext(sandbox);

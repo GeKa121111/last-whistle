@@ -5,6 +5,7 @@ var stateRef = null;
 var previousSnapshot = "";
 var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
+var storyMutationPending = false;
 var storyTickScheduled = false;
 var eventDefs = [
   {
@@ -186,6 +187,66 @@ function escapeHTML(value){
 }
 function storyFlags(s){if(!s.storyFlags||typeof s.storyFlags!=="object")s.storyFlags={};return s.storyFlags;}
 function history(s){if(!Array.isArray(s.storyHistory))s.storyHistory=[];return s.storyHistory;}
+function cloneStoryState(state){
+  try{if(window&&typeof window.structuredClone==="function")return window.structuredClone(state);}catch(error){}
+  try{return JSON.parse(JSON.stringify(state));}catch(error){return null;}
+}
+function restoreStoryState(target,snapshot){
+  Object.keys(target).forEach(function(key){if(!Object.prototype.hasOwnProperty.call(snapshot,key))delete target[key];});
+  Object.keys(snapshot).forEach(function(key){target[key]=snapshot[key];});
+}
+async function flushStoryState(api,state){
+  var queued=api.save();
+  if(queued&&typeof queued.then==="function")queued=await queued;
+  if(queued===false)return false;
+  var pending=null;
+  if(typeof window.flushQueuedSave==="function")pending=window.flushQueuedSave({backupFirst:true});
+  else if(window.LWStateStore&&typeof window.LWStateStore.flush==="function")pending=window.LWStateStore.flush(state);
+  else return false;
+  return await Promise.resolve(pending)===true;
+}
+async function runStoryMutation(state,operation){
+  var api=API();
+  if(storyMutationPending){
+    if(api&&api.toast)api.toast("فيه قرار قصصي تاني بيتحفظ دلوقتي. استنى لحظة.");
+    return {ok:false,reason:"story-mutation-pending"};
+  }
+  if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
+    return {ok:false,reason:"story-persistence-unavailable"};
+  var snapshot=cloneStoryState(state);
+  if(!snapshot){
+    if(api.toast)api.toast("تعذر تأمين نسخة من المسيرة؛ القرار ما اتطبقش.");
+    return {ok:false,reason:"story-snapshot-unavailable"};
+  }
+  storyMutationPending=true;
+  var payload=null;
+  try{
+    payload=operation();
+    if(payload===false||payload==null)throw new Error("story choice rejected");
+    if(!(await flushStoryState(api,state)))throw new Error("story save not confirmed");
+  }catch(error){
+    try{restoreStoryState(state,snapshot);}
+    catch(restoreError){
+      try{if(api.toast)api.toast("تعذر استعادة بيانات القرار القصصي. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
+      try{if(api.render)api.render();}catch(renderError){}
+      return {ok:false,reason:"story-rollback-restore-failed",rollbackPersisted:false};
+    }
+    var rollbackPersisted=false;
+    try{rollbackPersisted=await flushStoryState(api,state)===true;}
+    catch(rollbackError){if(window.console&&window.console.warn)window.console.warn("Story rollback persistence failed",rollbackError);}
+    try{if(api.render)api.render();}catch(renderError){}
+    var message=rollbackPersisted
+      ?"تعذر تأكيد حفظ القرار؛ رجّعنا تأثيره وسجلّه وحفظنا الحالة السابقة. تقدر تختار تاني."
+      :"رجّعنا القرار داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
+    try{if(api.toast)api.toast(message);}catch(toastError){}
+    if(window.console&&window.console.warn)window.console.warn("Story mutation rolled back",error);
+    return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
+  }finally{
+    storyMutationPending=false;
+  }
+  try{if(api.render)api.render();}catch(renderError){}
+  return Object.assign({ok:true},payload&&typeof payload==="object"?payload:{});
+}
 function actualEvent(def,s){
   var event={id:def.id,chapter:def.chapter,title:def.title,tag:def.tag,body:typeof def.body==="function"?def.body(s):def.body,consequence:def.consequence,choices:def.choices};
   return event;
@@ -300,12 +361,12 @@ function bindNewControls(){
       var button=e.target.closest("[data-story-choice]");
       if(!button)return;
       var api=API();if(!api)return;
-      chooseStory(button.getAttribute("data-story-id"),Number(button.getAttribute("data-story-choice")));
+      return chooseStory(button.getAttribute("data-story-id"),Number(button.getAttribute("data-story-choice")));
     });
     panel.dataset.lwBound="1";
   }
 }
-function checkTriggers(s,api){
+function checkTriggers(s,api,options){
   if(!s||!s.careerStarted)return;
   storyFlags(s);history(s);
   if(s.storyPendingId){
@@ -316,9 +377,11 @@ function checkTriggers(s,api){
     var candidates=eligibleEvents(s);
     if(candidates.length){
       s.storyPendingId=candidates[0].id;
-      if(lastPending!==s.storyPendingId&&api&&api.toast)api.toast("فيه قرار مصيري جديد مستنيك في شاشة المسيرة.");
-      lastPending=s.storyPendingId;
-      if(api&&api.save)api.save();
+      if(!(options&&options.suppressToast)&&lastPending!==s.storyPendingId&&api&&api.toast)api.toast("فيه قرار مصيري جديد مستنيك في شاشة المسيرة.");
+      if(!(options&&options.deferSave)){
+        lastPending=s.storyPendingId;
+        if(api&&api.save)api.save();
+      }
     }
   }
 }
@@ -376,32 +439,44 @@ function renderStoryPanel(s,api){
     }).join("");
   }
 }
-function chooseStory(id,index){
-  var api=API();if(!api)return;
-  var s=api.getState();if(!s||s.storyPendingId!==id)return;
-  var event=eligibleEvents(s).find(function(e){return e.id===id;});
-  if(!event)return;
-  var choice=event.choices[index];if(!choice)return;
-  Object.keys(choice.effects||{}).forEach(function(key){normaliseStat(s,key,choice.effects[key]);});
-  Object.keys(choice.set||{}).forEach(function(key){s[key]=choice.set[key];});
-  s.storyFlags[id]=true;
-  s.storyPendingId="";
-  var entry={id:id,title:event.title,choice:choice.label,outcome:choice.outcome,season:Number(s.season)||1,day:Number(s.day)||1};
-  s.storyHistory.unshift(entry);s.storyHistory=s.storyHistory.slice(0,40);
-  s.storyTitle=event.title;
-  s.storyText=choice.outcome+" القرار اتحفظ في سجل مسيرتك، وتأثيره اتطبق على حالتك الحالية.";
-  if(Array.isArray(s.diary)){
-    s.diary.unshift({season:Number(s.season)||1,day:Number(s.day)||1,type:"قرار قصصي",text:event.title+" — "+choice.label+". "+choice.outcome});
-    s.diary=s.diary.slice(0,40);
+async function chooseStory(id,index){
+  var api=API();if(!api)return {ok:false,reason:"story-runtime-unavailable"};
+  var s=api.getState();if(!s||s.storyPendingId!==id)return {ok:false,reason:"story-event-not-pending"};
+  var availableEvent=eligibleEvents(s).find(function(e){return e.id===id;});
+  if(!availableEvent||!availableEvent.choices[index])return {ok:false,reason:"story-choice-unavailable"};
+  var result=await runStoryMutation(s,function(){
+    if(s.storyPendingId!==id)return false;
+    var event=eligibleEvents(s).find(function(e){return e.id===id;});
+    if(!event||!event.choices[index])return false;
+    var choice=event.choices[index];
+    var flags=storyFlags(s),entries=history(s);
+    Object.keys(choice.effects||{}).forEach(function(key){normaliseStat(s,key,choice.effects[key]);});
+    Object.keys(choice.set||{}).forEach(function(key){s[key]=choice.set[key];});
+    flags[id]=true;
+    s.storyPendingId="";
+    var entry={id:id,title:event.title,choice:choice.label,outcome:choice.outcome,season:Number(s.season)||1,day:Number(s.day)||1};
+    entries.unshift(entry);s.storyHistory=entries.slice(0,40);
+    s.storyTitle=event.title;
+    s.storyText=choice.outcome+" القرار اتحفظ في سجل مسيرتك، وتأثيره اتطبق على حالتك الحالية.";
+    if(Array.isArray(s.diary)){
+      s.diary.unshift({season:Number(s.season)||1,day:Number(s.day)||1,type:"قرار قصصي",text:event.title+" — "+choice.label+". "+choice.outcome});
+      s.diary=s.diary.slice(0,40);
+    }
+    syncMatchContext(s,{deferSave:true});
+    checkTriggers(s,api,{deferSave:true,suppressToast:true});
+    return {entry:entry};
+  });
+  if(!result.ok){
+    lastPending=s.storyPendingId||"";
+    renderOverview(s);renderStoryPanel(s,api);
+    return result;
   }
-  if(api.log)api.log("قرار مصيري — "+event.title+": "+choice.label+". "+choice.outcome);
-  if(api.save)api.save();
-  if(api.render)api.render();
+  var entry=result.entry;
+  if(api.log)api.log("قرار مصيري — "+entry.title+": "+entry.choice+". "+entry.outcome);
   if(api.toast)api.toast("اتسجل قرارك واتطبقت نتائجه على المسيرة.");
-  syncMatchContext(s);
-  checkTriggers(s,api);
-  renderOverview(s);
-  renderStoryPanel(s,api);
+  lastPending=s.storyPendingId||"";
+  renderOverview(s);renderStoryPanel(s,api);
+  return result;
 }
 function renderOverview(s){
   var api=API();if(!s)return;
@@ -456,7 +531,7 @@ function matchNarrativeSummary(report){
   return {outcome:outcome,score:{for:gf,against:ga},minutes:minutes,rating:rating,goals:goals,assists:assists,tackles:tackles,interceptions:interceptions,saves:saves,cleanSheet:cleanSheet,performance:performance,
     key:[Number(report.season)||0,Number(report.week||report.day)||0,gf,ga,minutes,rating,goals,assists,tackles,interceptions,saves,cleanSheet?1:0].join(":")};
 }
-function acceptMatchReport(report){
+function acceptMatchReport(report,options){
   var api=API(),s=api&&api.getState?api.getState():null;if(!s||!report)return {ok:false,reason:"career-state-unavailable"};
   var summary=matchNarrativeSummary(report);
   if(s.lastStoryMatchKey===summary.key)return {ok:true,duplicate:true,summary:summary};
@@ -480,12 +555,12 @@ function acceptMatchReport(report){
   if(!Array.isArray(s.inbox))s.inbox=[];
   s.inbox.unshift({id:"match-report-"+summary.key,title:title,body:body,category:"match",day:Number(s.day)||1,season:Number(s.season)||1,read:false});
   s.inbox=s.inbox.slice(0,80);
-  if(api.save)api.save();return {ok:true,summary:summary};
+  if(api.save&&!(options&&options.deferSave))api.save();return {ok:true,summary:summary};
 }
-function syncMatchContext(s){
+function syncMatchContext(s,options){
   if(!s)return;
   var report=s.lastMatchReportRaw||s.matchResult||s.lastMatch;
-  if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)acceptMatchReport(report);
+  if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)acceptMatchReport(report,options);
 }
 function tick(){
   if(document.hidden)return;

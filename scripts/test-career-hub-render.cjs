@@ -37,7 +37,8 @@ const vm = require("node:vm");
     careerMatchHistory: [
       firstRow,
       { minutes: 90, scope: "international", goals: 0, assists: 0 }
-    ]
+    ],
+    seasonLog: []
   };
   const coachButton = { disabled: false };
   const document = {
@@ -124,11 +125,43 @@ const vm = require("node:vm");
   assert.match(centralMidfieldContext, /ربط الدفاع بالهجوم/,
     "central midfield must receive role-specific performance guidance");
 
+  const legacySeasonRow = {
+    id: "legacy-season-match-1", competition: "Premier League", season: 1,
+    club: "Test FC", opponent: "Opponent FC", day: 10, matchday: 1,
+    minutes: 90, goals: 1, assists: 1
+  };
+  state.careerMatchHistory = [];
+  state.seasonLog = [legacySeasonRow];
+  state.apps = 1; state.totalCareerAppearances = 1; state.goals = 1; state.assists = 1;
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(queryCalls, 6, "legacy season-log changes must invalidate the cached career statistics");
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.00",
+    "legacy saves with seasonLog but no careerMatchHistory must still show their recorded goal rate");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "1.00",
+    "legacy season-log assists must be included in career rates");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
+    "legacy season-log minutes must be used when the newer career ledger is absent");
+
+  state.careerMatchHistory = [{ ...legacySeasonRow, scope: "league" }];
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(queryCalls, 7, "the career hub must refresh when the canonical history ledger is restored");
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.00",
+    "the same fixture in seasonLog and careerMatchHistory must be counted only once");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
+    "merging legacy and canonical histories must not double-count appearances");
+
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
   require("./assert-static-cache-version.cjs")(sw, 175);
   assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
+  assert.match(sw, /last-whistle-static-v454/, "legacy-history rendering must invalidate the PWA shell cache");
+  assert.match(sw, /url\.indexOf\("career-hub\.js\?"\) >= 0/,
+    "the updated career hub must be fetched fresh during service-worker installation");
   console.log("PASS: career hub responds to state events, coalesces duplicate saves, caches history summaries, and skips unchanged work.");
 })().catch(error => {
   console.error(error);

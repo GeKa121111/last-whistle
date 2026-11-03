@@ -4975,9 +4975,17 @@ function transferTargets(){
  }
  return Array.from(list.values()).sort((a,b)=>b.power-a.power||a.club.localeCompare(b.club,"ar"));
 }
+function normalizedTransferLabel(value){
+ const worldNormalizer=typeof window!=="undefined"&&window.LWWorldDB
+  &&typeof window.LWWorldDB.normalize==="function"?window.LWWorldDB.normalize:null;
+ const normalizer=worldNormalizer||(value=>String(value||"").normalize("NFD")
+  .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g,"")
+  .replace(/[إأآ]/g,"ا").replace(/ى/g,"ي")
+  .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu,""));
+ return normalizer(value);
+}
 function normalizedTargetKey(target){
- const normalizer=window.LWWorldDB?.normalize||((value)=>String(value||"").toLocaleLowerCase());
- return normalizer(target.country)+"|"+normalizer(target.club);
+ return normalizedTransferLabel(target.country)+"|"+normalizedTransferLabel(target.club);
 }
 function transferFactors(target){
  const age=Number(state.age)||18;const contractYears=Math.max(0,Number(state.contractSeasons)||0);const currentRole=String(state.role||"");
@@ -7905,7 +7913,9 @@ function transferTo(){
  if(!canAccessTransferMarket()){toast("انتقالات الفريق الأول متاحة من سن 18 وبعد التخرج والتصعيد المناسب.");return;}
  if(state.retired){toast("المسيرة انتهت بالاعتزال؛ لا يمكن الانتقال.");return;}
  if(state.loan){toast("مينفعش تنتقل انتقالًا دائمًا أثناء الإعارة؛ ارجع لناديك الأصلي الأول.");return;}
-  const p=state.pendingTransfer;if(!p||!p.club||!p.country||(p.club===state.clubName&&p.country===state.leagueCountry))return;
+  const p=state.pendingTransfer;if(!p||!p.club||!p.country)return;
+ const pendingTargetKey=normalizedTargetKey(p);
+ if(pendingTargetKey===normalizedTargetKey({club:state.clubName,country:state.leagueCountry}))return;
  const currentWindow=transferWindow();
  const offerWindowId=String(p.windowId||state.lastOfferWindow||"");
  // Use the same compatibility-aware validator as the negotiation UI. Legacy winter-season-N IDs
@@ -7915,7 +7925,8 @@ function transferTo(){
  if(offerWindowId&&!offerWindowMatches){
   state.pendingTransfer=null;toast("العرض انتهت صلاحيته مع إغلاق نافذة الانتقالات.");saveGame(true);render();return;
  }
- const stillListed=transferTargets().some(t=>t.club===p.club&&t.country===p.country&&(!p.league||t.league===p.league));
+ const stillListed=transferTargets().some(t=>normalizedTargetKey(t)===pendingTargetKey
+  &&(!p.league||normalizedTransferLabel(t.league)===normalizedTransferLabel(p.league)));
  if(!stillListed){state.pendingTransfer=null;toast("العرض لم يعد متاحًا في بيانات الأندية الحالية؛ اعمل بحث جديد في السوق.");saveGame(true);render();return;}
  const previousTarget=seasonMatchTotal(),matchesAlreadyPlayed=Number(state.seasonApps)||0;
  const wasSecondHalf=state.seasonPhase==="secondHalf"||state.seasonPhase==="winterBreak"||!!state.winterBreakPending||matchesAlreadyPlayed>=Math.ceil(previousTarget/2);

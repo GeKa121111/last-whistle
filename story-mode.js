@@ -192,6 +192,22 @@ function cloneStoryState(state){
   try{if(window&&typeof window.structuredClone==="function")return window.structuredClone(state);}catch(error){}
   try{return JSON.parse(JSON.stringify(state));}catch(error){return null;}
 }
+
+function acquireSharedMutationLock(owner) {
+  var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+  if (!coordinator || typeof coordinator !== "object") {
+    coordinator = { owner: "" };
+    window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
+  }
+  if (coordinator.owner) return false;
+  coordinator.owner = String(owner || "");
+  return !!coordinator.owner;
+}
+function releaseSharedMutationLock(owner) {
+  var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+  if (coordinator && coordinator.owner === owner) coordinator.owner = "";
+}
+
 function restoreStoryState(target,snapshot){
   Object.keys(target).forEach(function(key){if(!Object.prototype.hasOwnProperty.call(snapshot,key))delete target[key];});
   Object.keys(snapshot).forEach(function(key){target[key]=snapshot[key];});
@@ -214,8 +230,13 @@ async function runStoryMutation(state,operation){
   }
   if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
     return {ok:false,reason:"story-persistence-unavailable"};
+  if(!acquireSharedMutationLock("story-mode")){
+    if(api&&api.toast)api.toast("فيه تغيير تاني في المسيرة بيتحفظ دلوقتي. استنى لحظة.");
+    return {ok:false,reason:"story-mutation-pending"};
+  }
   var snapshot=cloneStoryState(state);
   if(!snapshot){
+    releaseSharedMutationLock("story-mode");
     if(api.toast)api.toast("تعذر تأمين نسخة من المسيرة؛ القرار ما اتطبقش.");
     return {ok:false,reason:"story-snapshot-unavailable"};
   }
@@ -244,6 +265,7 @@ async function runStoryMutation(state,operation){
     return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
   }finally{
     storyMutationPending=false;
+    releaseSharedMutationLock("story-mode");
   }
   try{if(api.render)api.render();}catch(renderError){}
   return Object.assign({ok:true},payload&&typeof payload==="object"?payload:{});

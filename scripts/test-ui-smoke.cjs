@@ -715,10 +715,14 @@ assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-go
 const focusedTrainingMessages = [];
 const focusedTrainingHarness = {
   currentView: "",
+  financeMutationPending: false,
   API: () => ({ toast: message => focusedTrainingMessages.push(String(message)) }),
+  safeWholeMoney: value => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= Number.MAX_SAFE_INTEGER
+    ? Math.floor(Number(value)) : null,
+  world: state => state.careerWorld || (state.careerWorld = { investments: [], history: [], investmentSequence: 1, mentorSessions: 0 }),
+  runFinanceMutation: (state, operation) => Promise.resolve(Object.assign({ ok: true }, operation() || {})),
   stat: (state, key, delta) => { state[key] = (Number(state[key]) || 0) + Number(delta || 0); },
   record: () => {},
-  save: () => {},
   renderFinance: () => {}
 };
 vm.createContext(focusedTrainingHarness);

@@ -38,6 +38,8 @@ const publications = [];
 
 class FakeWorldWorker {
   static mismatchNextResponse = false;
+  static holdNextResponse = false;
+  static heldResponse = null;
   constructor(url) {
     this.url = url;
     this.messages = [];
@@ -60,9 +62,15 @@ class FakeWorldWorker {
       result: { command: message.command, sequence: inputCount + 1 },
       save: message.save
     };
-    setImmediate(() => {
+    const deliver = () => {
       if (!this.terminated && typeof this.onmessage === "function") this.onmessage({ data: response });
-    });
+    };
+    if (FakeWorldWorker.holdNextResponse) {
+      FakeWorldWorker.holdNextResponse = false;
+      FakeWorldWorker.heldResponse = deliver;
+    } else {
+      setImmediate(deliver);
+    }
   }
   terminate() {
     this.terminateCalls++;
@@ -71,15 +79,23 @@ class FakeWorldWorker {
 }
 
 async function main() {
+  let currentState = null;
+  let storeRevision = 0;
+  const stateStore = {
+    getState() { return currentState; },
+    getRevision() { return storeRevision; },
+    publish(save, metadata) {
+      currentState = save;
+      storeRevision++;
+      if (metadata && metadata.source === "world-worker")
+        publications.push({ name: save.name, source: metadata.source, command: metadata.command });
+    }
+  };
   const sandbox = {
     window: {
       LWFootballSquadData: fixture,
       Worker: FakeWorldWorker,
-      LWStateStore: {
-        publish(save, metadata) {
-          publications.push({ name: save.name, source: metadata.source, command: metadata.command });
-        }
-      }
+      LWStateStore: stateStore
     },
     console
   };
@@ -158,7 +174,26 @@ async function main() {
   assert.equal(mismatchSave.workerRoundTrips, 0, "an uncorrelated worker snapshot must never overwrite the live save");
   assert.equal(publications.length, 3, "the rejected response must not publish uncorrelated state");
 
-  console.log("PASS: world simulation reuses one worker, serializes saves, and recovers safely from response-ID mismatches.");
+  // A worker response must never overwrite a purchase made while that worker was running.
+  const staleSave = { name: "worker stale purchase regression", season: 1, money: 3000, xpMultiplier: false, workerRoundTrips: 0 };
+  stateStore.publish(staleSave, { source: "test-seed" });
+  FakeWorldWorker.holdNextResponse = true;
+  const staleJob = ai.dashboardAsync(staleSave, {});
+  assert.equal(typeof FakeWorldWorker.heldResponse, "function", "the worker response should be held for the race test");
+  staleSave.money = 600;
+  staleSave.xpMultiplier = true;
+  stateStore.publish(staleSave, { source: "store-purchase" });
+  const deliverStaleResponse = FakeWorldWorker.heldResponse;
+  FakeWorldWorker.heldResponse = null;
+  deliverStaleResponse();
+  const staleResult = await staleJob;
+  assert.ok(staleResult && typeof staleResult === "object", "a stale worker result should recover through the latest-state fallback");
+  assert.equal(staleSave.money, 600, "a stale worker snapshot must not restore the pre-purchase balance");
+  assert.equal(staleSave.xpMultiplier, true, "a stale worker snapshot must not remove newly purchased ownership");
+  assert.equal(staleSave.workerRoundTrips, 0, "the stale worker payload must not be merged into the live save");
+  assert.equal(publications.length, 3, "a stale worker response must not publish an old career snapshot");
+
+  console.log("PASS: world simulation reuses one worker, serializes saves, rejects stale worker snapshots, and recovers safely from response-ID mismatches.");
 }
 
 main().catch(error => {

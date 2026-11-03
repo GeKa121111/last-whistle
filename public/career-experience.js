@@ -160,25 +160,23 @@
         return stableKeys[i] + ":" + String(stableValue);
       }
     }
-    var descriptiveKeys = ["type", "title", "text", "season", "day"];
-    if (descriptiveKeys.some(function (key) { return item[key] !== undefined && item[key] !== null; })) {
-      return "record:" + JSON.stringify(descriptiveKeys.map(function (key) {
-        return item[key] === undefined ? null : item[key];
-      }));
-    }
+    // Descriptive fields are not unique: two events can share a title, body,
+    // season and day. Without a stable ID, only exact object equality is safe.
     return null;
   }
 
   function findFinanceArrayItem(array, item, used) {
     if (!Array.isArray(array)) return -1;
+    // Prefer exact equality before stable IDs. A descriptive or duplicate ID
+    // match must never steal a different row when an exact copy is available.
+    for (var j = 0; j < array.length; j++) {
+      if ((!used || !used[j]) && financeValueEquals(array[j], item)) return j;
+    }
     var identity = financeArrayItemIdentity(item);
     if (identity !== null) {
       for (var i = 0; i < array.length; i++) {
         if ((!used || !used[i]) && financeArrayItemIdentity(array[i]) === identity) return i;
       }
-    }
-    for (var j = 0; j < array.length; j++) {
-      if ((!used || !used[j]) && financeValueEquals(array[j], item)) return j;
     }
     return -1;
   }

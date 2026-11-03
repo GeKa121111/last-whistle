@@ -219,6 +219,18 @@ function dueState() {
   assert.equal(unsafeTraining.state.shooting, 50);
   assert.equal(unsafeTraining.saveCalls, 0);
 
+  let releaseAlreadyRestored;
+  const alreadyRestoredBalance = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseAlreadyRestored = resolve; }), true
+  ]);
+  const pendingAlreadyRestoredInvestment = alreadyRestoredBalance.click("invest-safe");
+  alreadyRestoredBalance.state.money = 1000;
+  releaseAlreadyRestored(false);
+  const alreadyRestoredResult = await pendingAlreadyRestoredInvestment;
+  assert.equal(alreadyRestoredResult.ok, false);
+  assert.equal(alreadyRestoredBalance.state.money, 1000,
+    "rollback must not double-credit a balance that a newer update has already restored to its pre-transaction value");
+
   console.log("PASS: career-experience finance actions are durable, rollback-safe, serialized, and idempotent.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);

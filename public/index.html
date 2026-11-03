@@ -7085,9 +7085,9 @@ function simulateSeasonBlock(targetApps){
   {label:state.winterBreakPending?"كمّل النصف التاني":"تمام",className:"primary",action:()=>{if(state.winterBreakPending)simulateSeasonBlock(seasonMatchTotal());else closeModal();}}
  ]);
 }
-function persistRollbackSnapshot(context){
+function persistRollbackSnapshot(context,warningMessage){
  const label=String(context||"استعادة المباراة");
- const warning="تمت استعادة بيانات المسيرة داخل اللعبة، لكن تعذر تأكيد حفظ النسخة. صدّر نسخة احتياطية قبل المتابعة.";
+ const warning=String(warningMessage||"تمت استعادة بيانات المسيرة داخل اللعبة، لكن تعذر تأكيد حفظ النسخة. صدّر نسخة احتياطية قبل المتابعة.");
  const reportFailure=error=>{
   try{console.warn("Rollback snapshot persistence failed ("+label+")",error||"save queue or flush returned false");}catch(logError){}
   try{toast(warning);}catch(toastError){}
@@ -7372,12 +7372,12 @@ function retireCareer(){
   });
  }
  if(state.retired&&state.retirementRecord){
-  if(hadTransferState)saveGame(true);
+  if(hadTransferState)persistRollbackSnapshot("career retirement legacy cleanup","تعذر تأكيد حفظ إصلاح سجل الاعتزال. صدّر نسخة احتياطية قبل المتابعة.");
   openPostCareerMenu();return;
  }
  state.retired=true;state.retirementRecord={season:Number(state.season)||1,age:Number(state.age)||40,club:club().name,overall:overall(),apps:Number(state.apps)||0,goals:Number(state.goals)||0,assists:Number(state.assists)||0,trophies:Number(state.trophies)||0,retiredAtDay:Number(state.day)||0};
- state.seasonFinished=true;log(`اعتزلت في سن ${state.age} بعد موسم ${state.season}. إجمالي المشاركات ${state.apps}، الأهداف ${state.goals}، الصناعات ${state.assists}.`);saveGame(true);render();
- openModal("أسطورة انتهت مسيرتها",`اعتزل ${state.name} في سن ${state.age}.\nالنادي الأخير: ${club().name}\nالتقييم: ${overall()}\nالمشاركات: ${state.apps} • الأهداف: ${state.goals} • الصناعات: ${state.assists} • البطولات: ${state.trophies}.\nتم حفظ سجل الاعتزال في المسيرة.`,[{label:"مسار ما بعد الاعتزال",className:"primary",action:()=>openPostCareerMenu()},{label:"عرض المذكرات",action:()=>showPage("diary")},{label:"مسيرة جديدة",action:newCareer}]);
+ state.seasonFinished=true;log(`اعتزلت في سن ${state.age} بعد موسم ${state.season}. إجمالي المشاركات ${state.apps}، الأهداف ${state.goals}، الصناعات ${state.assists}.`);persistRollbackSnapshot("career retirement","تعذر تأكيد حفظ سجل الاعتزال. صدّر نسخة احتياطية قبل المتابعة.");render();
+ openModal("أسطورة انتهت مسيرتها",`اعتزل ${state.name} في سن ${state.age}.\nالنادي الأخير: ${club().name}\nالتقييم: ${overall()}\nالمشاركات: ${state.apps} • الأهداف: ${state.goals} • الصناعات: ${state.assists} • البطولات: ${state.trophies}.\nتم تسجيل سجل الاعتزال في المسيرة.`,[{label:"مسار ما بعد الاعتزال",className:"primary",action:()=>openPostCareerMenu()},{label:"عرض المذكرات",action:()=>showPage("diary")},{label:"مسيرة جديدة",action:newCareer}]);
 }
 function startPostCareerPath(path){
  if(!state.retired||!state.retirementRecord){toast("مسارات ما بعد الاعتزال بتبدأ بعد تسجيل الاعتزال.");return;}

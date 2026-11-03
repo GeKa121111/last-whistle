@@ -47,6 +47,8 @@ const freeAgentEligibilitySource = section("function careerMatchPlayerEligible("
 const careerMatchSimulationSource = section("function simulateCareerMatch(", "\nfunction matchCleanSheetContractBonus(");
 const applyMatchResultSource = section("function applyMatchResultUnsafe(", "\nfunction applyMatchResult(");
 const retirementSource = section("function retireCareer(){", "\nfunction ");
+const retirementPersistenceSource = section("function persistRollbackSnapshot(", "\nfunction withCareerStateTransaction(");
+assert.match(retirementPersistenceSource, /warningMessage/, "retirement persistence must support context-specific warnings");
 
 function runLegacyLeagueArchive(rows, seasonRows = []) {
   const archiveState = { season: 4, day: 20, leagueCountry: "مصر", leagueCompetition: "الدوري الممتاز",
@@ -1293,13 +1295,14 @@ expiryTest();
 
 // Retirement is terminal for transfer activity, but completed historical contracts stay intact.
 function runRetirementScenario(state) {
-  const counts = { saves: 0, renders: 0, modals: 0, menus: 0 };
+  const counts = { saves: 0, persistence: 0, persistenceContexts: [], persistenceWarnings: [], renders: 0, modals: 0, menus: 0 };
   const sandbox = {
     state,
     club: () => ({ name: "Club A" }),
     overall: () => 71,
     log: () => {},
     saveGame: () => { counts.saves++; return true; },
+    persistRollbackSnapshot: (context, warning) => { counts.persistence++; counts.persistenceContexts.push(String(context)); counts.persistenceWarnings.push(String(warning)); return true; },
     render: () => { counts.renders++; },
     openModal: () => { counts.modals++; },
     openPostCareerMenu: () => { counts.menus++; },
@@ -1346,8 +1349,10 @@ assert.deepEqual(Array.from(retirementTransferAudit.expiredOffers, row => row.id
   ["pending-current", "accepted-current"]);
 assert.equal(activeRetirement.state.transferHistory.length, 2,
   "retirement cleanup must preserve the existing transfer history");
-assert.equal(activeRetirement.counts.saves, 1,
-  "the normal retirement save must also persist the transfer cleanup");
+assert.equal(activeRetirement.counts.persistence, 1,
+  "retirement must use the backup-first persistence helper");
+assert.deepEqual(activeRetirement.counts.persistenceContexts, ["career retirement"]);
+assert.match(activeRetirement.counts.persistenceWarnings[0], /سجل الاعتزال/);
 assert.equal(activeRetirement.counts.renders, 1);
 assert.equal(activeRetirement.counts.modals, 1);
 
@@ -1363,14 +1368,16 @@ assert.equal(legacyRetiredCleanup.state.pendingTransfer, null,
 assert.equal(legacyRetiredCleanup.state.transferNegotiation, null,
   "an already-retired legacy save must also clear stale negotiations");
 assert.equal(legacyRetiredCleanup.state.transferOffers[0].status, "expired");
-assert.equal(legacyRetiredCleanup.counts.saves, 1,
-  "cleaning a previously retired save must persist the repair");
+assert.equal(legacyRetiredCleanup.counts.persistence, 1,
+  "cleaning a previously retired save must use durable persistence");
+assert.deepEqual(legacyRetiredCleanup.counts.persistenceContexts, ["career retirement legacy cleanup"]);
+assert.match(legacyRetiredCleanup.counts.persistenceWarnings[0], /إصلاح سجل الاعتزال/);
 assert.equal(legacyRetiredCleanup.counts.menus, 1);
 legacyRetiredCleanup.retireCareer();
 assert.equal(legacyRetiredCleanup.state.transferHistory.length, 1,
   "reopening an already-cleaned retirement must not duplicate the audit event");
-assert.equal(legacyRetiredCleanup.counts.saves, 1,
-  "an idempotent retirement revisit must not write another cleanup save");
+assert.equal(legacyRetiredCleanup.counts.persistence, 1,
+  "an idempotent retirement revisit must not persist another cleanup");
 assert.equal(legacyRetiredCleanup.counts.menus, 2);
 
 const cleanRetirement = runRetirementScenario({
@@ -1380,12 +1387,16 @@ const cleanRetirement = runRetirementScenario({
 });
 assert.equal(cleanRetirement.state.transferHistory.length, 0,
   "retirement without active transfer state must not add a synthetic transfer record");
-assert.equal(cleanRetirement.counts.saves, 1);
+assert.match(retirementSource, /persistRollbackSnapshot\("career retirement"/,
+  "new retirement must use durable backup-first persistence");
+assert.doesNotMatch(retirementSource, /saveGame\(true\)/,
+  "retirement must not bypass durable persistence confirmation");
+assert.equal(cleanRetirement.counts.persistence, 1);
 
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-require("./assert-static-cache-version.cjs")(sw, 427);
+require("./assert-static-cache-version.cjs")(sw, 428);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
 assert.ok(sw.includes("transfer-awards-engine.js?v=17"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");

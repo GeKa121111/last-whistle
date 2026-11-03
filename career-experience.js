@@ -136,17 +136,172 @@
   }
 
   function cloneFinanceState(state) {
-    if (!state || typeof state !== "object") return null;
+    if (state === undefined || state === null || typeof state !== "object") return state;
     try { if (typeof window.structuredClone === "function") return window.structuredClone(state); } catch (error) {}
     try { return JSON.parse(JSON.stringify(state)); } catch (error) { return null; }
   }
 
-  function restoreFinanceState(target, snapshot) {
-    if (!target || !snapshot || typeof snapshot !== "object") throw new Error("invalid-finance-snapshot");
-    Object.keys(target).forEach(function (key) {
-      if (!Object.prototype.hasOwnProperty.call(snapshot, key)) delete target[key];
+  function financeValueEquals(left, right) {
+    if (Object.is(left, right)) return true;
+    if (left == null || right == null || typeof left !== "object" || typeof right !== "object") return false;
+    try { return JSON.stringify(left) === JSON.stringify(right); } catch (error) { return false; }
+  }
+
+  function financeRecord(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function financeArrayItemIdentity(item) {
+    if (!item || typeof item !== "object") return typeof item + ":" + String(item);
+    var stableKeys = ["id", "key", "investmentId", "playerId"];
+    for (var i = 0; i < stableKeys.length; i++) {
+      var stableValue = item[stableKeys[i]];
+      if (stableValue !== undefined && stableValue !== null && String(stableValue) !== "") {
+        return stableKeys[i] + ":" + String(stableValue);
+      }
+    }
+    // Descriptive fields are not unique: two events can share a title, body,
+    // season and day. Without a stable ID, only exact object equality is safe.
+    return null;
+  }
+
+  function findFinanceArrayItem(array, item, used) {
+    if (!Array.isArray(array)) return -1;
+    // Prefer exact equality before stable IDs. A descriptive or duplicate ID
+    // match must never steal a different row when an exact copy is available.
+    for (var j = 0; j < array.length; j++) {
+      if ((!used || !used[j]) && financeValueEquals(array[j], item)) return j;
+    }
+    var identity = financeArrayItemIdentity(item);
+    if (identity !== null) {
+      for (var i = 0; i < array.length; i++) {
+        if ((!used || !used[i]) && financeArrayItemIdentity(array[i]) === identity) return i;
+      }
+    }
+    return -1;
+  }
+
+  function restoreFinanceArray(target, before, applied, path, conflicts) {
+    if (financeValueEquals(target, before)) return target;
+    if (financeValueEquals(target, applied)) return cloneFinanceState(before);
+    if (!Array.isArray(target) || !Array.isArray(before) || !Array.isArray(applied)) {
+      conflicts.push(path);
+      return target;
+    }
+    var beforeUsed = [], targetUsed = [], additions = [], pairs = [];
+    applied.forEach(function (afterItem) {
+      var beforeIndex = findFinanceArrayItem(before, afterItem, beforeUsed);
+      if (beforeIndex < 0) {
+        additions.push(afterItem);
+        return;
+      }
+      beforeUsed[beforeIndex] = true;
+      pairs.push({ before: before[beforeIndex], after: afterItem });
     });
-    Object.keys(snapshot).forEach(function (key) { target[key] = snapshot[key]; });
+    pairs.forEach(function (pair) {
+      if (financeValueEquals(pair.before, pair.after)) return;
+      var targetIndex = findFinanceArrayItem(target, pair.after, targetUsed);
+      if (targetIndex < 0) {
+        conflicts.push(path + "[" + (financeArrayItemIdentity(pair.after) || "item") + "]");
+        return;
+      }
+      targetUsed[targetIndex] = true;
+      var currentItem = target[targetIndex];
+      if (financeValueEquals(currentItem, pair.after)) {
+        target[targetIndex] = cloneFinanceState(pair.before);
+      } else if (financeRecord(pair.before) && financeRecord(pair.after) && financeRecord(currentItem)) {
+        restoreFinanceObject(currentItem, pair.before, pair.after, path + "[" + (financeArrayItemIdentity(pair.after) || targetIndex) + "]", conflicts);
+      } else if (Array.isArray(pair.before) && Array.isArray(pair.after) && Array.isArray(currentItem)) {
+        target[targetIndex] = restoreFinanceArray(currentItem, pair.before, pair.after, path + "[" + targetIndex + "]", conflicts);
+      } else if (typeof pair.before === "number" && typeof pair.after === "number" && typeof currentItem === "number"
+        && Number.isFinite(pair.before) && Number.isFinite(pair.after) && Number.isFinite(currentItem)) {
+        target[targetIndex] = currentItem - (pair.after - pair.before);
+      } else {
+        conflicts.push(path + "[" + (financeArrayItemIdentity(pair.after) || targetIndex) + "]");
+      }
+    });
+    additions.forEach(function (addedItem) {
+      var targetIndex = findFinanceArrayItem(target, addedItem);
+      if (targetIndex < 0) return;
+      if (financeValueEquals(target[targetIndex], addedItem)) {
+        target.splice(targetIndex, 1);
+      } else {
+        conflicts.push(path + "[" + (financeArrayItemIdentity(addedItem) || "new-item") + "]");
+      }
+    });
+    before.forEach(function (beforeItem, index) {
+      if (beforeUsed[index]) return;
+      if (findFinanceArrayItem(target, beforeItem) < 0) {
+        target.splice(Math.min(index, target.length), 0, cloneFinanceState(beforeItem));
+      }
+    });
+    return target;
+  }
+
+  function restoreFinanceObject(target, before, applied, path, conflicts) {
+    var keys = Object.keys(before || {}).concat(Object.keys(applied || {}).filter(function (key) {
+      return !Object.prototype.hasOwnProperty.call(before || {}, key);
+    }));
+    keys.forEach(function (key) {
+      var beforeHas = Object.prototype.hasOwnProperty.call(before || {}, key);
+      var appliedHas = Object.prototype.hasOwnProperty.call(applied || {}, key);
+      var beforeValue = beforeHas ? before[key] : undefined;
+      var appliedValue = appliedHas ? applied[key] : undefined;
+      if (beforeHas === appliedHas && (!beforeHas || financeValueEquals(beforeValue, appliedValue))) return;
+      var currentHas = Object.prototype.hasOwnProperty.call(target, key);
+      var currentValue = currentHas ? target[key] : undefined;
+      var fieldPath = path ? path + "." + key : key;
+      if (currentHas === beforeHas && (!beforeHas || financeValueEquals(currentValue, beforeValue))) return;
+
+      if (!beforeHas && appliedHas && financeRecord(appliedValue) && currentHas && financeRecord(currentValue)) {
+        restoreFinanceObject(currentValue, {}, appliedValue, fieldPath, conflicts);
+        if (Object.keys(currentValue).length === 0) delete target[key];
+        return;
+      }
+      if (!beforeHas && appliedHas && Array.isArray(appliedValue) && currentHas && Array.isArray(currentValue)) {
+        var restoredNewArray = restoreFinanceArray(currentValue, [], appliedValue, fieldPath, conflicts);
+        if (restoredNewArray.length) target[key] = restoredNewArray;
+        else delete target[key];
+        return;
+      }
+      if (beforeHas && appliedHas && financeRecord(beforeValue) && financeRecord(appliedValue)
+        && currentHas && financeRecord(currentValue)) {
+        restoreFinanceObject(currentValue, beforeValue, appliedValue, fieldPath, conflicts);
+        return;
+      }
+      if (beforeHas && appliedHas && Array.isArray(beforeValue) && Array.isArray(appliedValue)
+        && currentHas && Array.isArray(currentValue)) {
+        target[key] = restoreFinanceArray(currentValue, beforeValue, appliedValue, fieldPath, conflicts);
+        return;
+      }
+      if (beforeHas && appliedHas && typeof beforeValue === "number" && typeof appliedValue === "number"
+        && currentHas && typeof currentValue === "number"
+        && Number.isFinite(beforeValue) && Number.isFinite(appliedValue) && Number.isFinite(currentValue)) {
+        if (financeValueEquals(currentValue, appliedValue)) target[key] = beforeValue;
+        else if (!financeValueEquals(currentValue, beforeValue)) target[key] = currentValue - (appliedValue - beforeValue);
+        return;
+      }
+      if (currentHas === appliedHas && (!appliedHas || financeValueEquals(currentValue, appliedValue))) {
+        if (beforeHas) target[key] = cloneFinanceState(beforeValue);
+        else delete target[key];
+        return;
+      }
+      conflicts.push(fieldPath);
+    });
+  }
+
+  function restoreFinanceState(target, snapshot, appliedSnapshot) {
+    if (!target || !snapshot || typeof snapshot !== "object") throw new Error("invalid-finance-snapshot");
+    if (!appliedSnapshot || typeof appliedSnapshot !== "object") {
+      Object.keys(target).forEach(function (key) {
+        if (!Object.prototype.hasOwnProperty.call(snapshot, key)) delete target[key];
+      });
+      Object.keys(snapshot).forEach(function (key) { target[key] = cloneFinanceState(snapshot[key]); });
+      return [];
+    }
+    var conflicts = [];
+    restoreFinanceObject(target, snapshot, appliedSnapshot, "", conflicts);
+    return conflicts;
   }
 
   async function flushFinanceState(api, state) {
@@ -184,12 +339,21 @@
       return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
     }
     var payload = null;
+    var appliedSnapshot = null;
     try {
       payload = operation();
       if (payload === false || payload == null) throw new Error("career mutation rejected");
+      appliedSnapshot = cloneFinanceState(state);
+      if (!appliedSnapshot) throw new Error("career post-mutation snapshot unavailable");
       if (!(await flushFinanceState(api, state))) throw new Error("career save not confirmed");
     } catch (error) {
-      try { restoreFinanceState(state, snapshot); }
+      var rollbackTarget = state;
+      try {
+        var latestState = api && typeof api.getState === "function" ? api.getState() : null;
+        if (latestState && typeof latestState === "object") rollbackTarget = latestState;
+      } catch (stateReadError) {}
+      var rollbackConflicts = [];
+      try { rollbackConflicts = restoreFinanceState(rollbackTarget, snapshot, appliedSnapshot); }
       catch (restoreError) {
         try {
           if (api.toast) api.toast(isFinance
@@ -200,20 +364,26 @@
         return { ok: false, reason: "career-rollback-restore-failed", rollbackPersisted: false };
       }
       var rollbackPersisted = false;
-      try { rollbackPersisted = await flushFinanceState(api, state) === true; }
+      try { rollbackPersisted = await flushFinanceState(api, rollbackTarget) === true; }
       catch (rollbackError) {
         if (window.console && window.console.warn) window.console.warn("Career rollback persistence failed", rollbackError);
       }
       try { if (api.render) api.render(); } catch (renderError) {}
-      try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
+      try { renderPanel(rollbackTarget, rollbackTarget.careerWorld && typeof rollbackTarget.careerWorld === "object" ? rollbackTarget.careerWorld : null); } catch (panelError) {}
+      var conflictNote = rollbackConflicts.length
+        ? (isFinance
+          ? " حصلت تغييرات أحدث أثناء الحفظ، واحتفظنا بيها بدل ما نمسحها. راجع الرصيد والمحفظة قبل إعادة المحاولة."
+          : " حصلت تغييرات أحدث أثناء الحفظ، واحتفظنا بيها بدل ما نمسحها. راجع بيانات المسيرة قبل إعادة المحاولة.")
+        : "";
       var message = rollbackPersisted
         ? (isFinance
-          ? "تعذر تأكيد العملية المالية؛ رجّعنا الرصيد والمحفظة وحفظنا النسخة السابقة. تقدر تحاول تاني."
-          : "تعذر تأكيد حفظ النشاط؛ رجّعنا الحالة السابقة وحفظناها. تقدر تحاول تاني.")
-        : "رجّعنا الحالة السابقة داخل اللعبة، لكن تعذر تأكيد حفظها. صدّر نسخة احتياطية قبل المتابعة.";
+          ? "تعذر تأكيد العملية المالية؛ رجّعنا التغييرات غير المتعارضة وحفظنا الحالة السابقة. تقدر تحاول تاني."
+          : "تعذر تأكيد حفظ النشاط؛ رجّعنا تأثيره غير المتعارض وحفظنا الحالة السابقة. تقدر تحاول تاني.")
+          + conflictNote
+        : "رجّعنا تأثير العملية داخل اللعبة، لكن تعذر تأكيد حفظ الحالة. صدّر نسخة احتياطية قبل المتابعة." + conflictNote;
       try { if (api.toast) api.toast(message); } catch (toastError) {}
       if (window.console && window.console.warn) window.console.warn("Career mutation rolled back", error);
-      return { ok: false, reason: message, rollbackPersisted: rollbackPersisted };
+      return { ok: false, reason: message, rollbackPersisted: rollbackPersisted, rollbackConflicts: rollbackConflicts };
     } finally {
       financeMutationPending = false;
       releaseSharedMutationLock("career-experience");

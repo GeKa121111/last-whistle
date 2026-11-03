@@ -86,6 +86,35 @@ async function playPenalty(h) {
   assert.equal(failedPenalty.flushCalls, 2);
   assert.match(failedPenalty.overlay.innerHTML, /النتيجة ما اتحفظتش/);
 
+  let releaseConcurrentActivity;
+  const concurrentActivity = makeHarness({ energy: 10, careerXP: 0, shooting: 50 }, [
+    () => new Promise(resolve => { releaseConcurrentActivity = resolve; }), true
+  ]);
+  const pendingConcurrentActivity = playPenalty(concurrentActivity);
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  assert.equal(concurrentActivity.state.energy, 6);
+  concurrentActivity.state.age = 18;
+  concurrentActivity.state.calendarDay = 15;
+  concurrentActivity.state.academyGraduated = true;
+  concurrentActivity.state.careerWorld.matchReport = { id: "newer-match-report" };
+  releaseConcurrentActivity(false);
+  const concurrentActivityResult = await pendingConcurrentActivity;
+  assert.equal(concurrentActivityResult.ok, false);
+  assert.equal(concurrentActivity.state.energy, 10, "failed activity rollback must refund only its own energy cost");
+  assert.equal(concurrentActivity.state.careerXP, 0);
+  assert.equal(concurrentActivity.state.shooting, 50);
+  assert.equal(concurrentActivity.state.age, 18,
+    "activity rollback must preserve a newer player-age update");
+  assert.equal(concurrentActivity.state.calendarDay, 15,
+    "activity rollback must preserve a newer calendar update");
+  assert.equal(concurrentActivity.state.academyGraduated, true,
+    "activity rollback must preserve newer transfer-eligibility changes");
+  assert.deepEqual(concurrentActivity.state.careerWorld.matchReport, { id: "newer-match-report" },
+    "activity rollback must preserve a newer nested match report");
+  assert.equal(concurrentActivity.state.careerWorld.challengeCount, 0);
+  assert.equal(concurrentActivity.state.careerWorld.practiceAttempts, 0);
+  assert.equal(concurrentActivity.state.careerWorld.history.length, 0);
+
   const successfulPenalty = makeHarness({ energy: 10, careerXP: 0, shooting: 50 }, [true]);
   const successfulPenaltyResult = await playPenalty(successfulPenalty);
   assert.equal(successfulPenaltyResult.ok, true);

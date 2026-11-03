@@ -139,6 +139,83 @@ function dueState() {
   releaseFirstFlush(true);
   assert.equal((await firstInvestment).ok, true);
 
+  let releaseConcurrentRollback;
+  const concurrentRollback = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseConcurrentRollback = resolve; }), true
+  ]);
+  const pendingConcurrentInvestment = concurrentRollback.click("invest-safe");
+  assert.equal(concurrentRollback.state.money, 900);
+  concurrentRollback.state.apps = 1;
+  concurrentRollback.state.goals = 1;
+  concurrentRollback.state.age = 22;
+  concurrentRollback.state.calendarDay = 15;
+  concurrentRollback.state.careerWorld.challengeCount = 4;
+  concurrentRollback.state.careerWorld.history.unshift({
+    title: "تقرير مباراة أحدث", text: "تحديث أحدث أثناء حفظ الاستثمار", season: 1, day: 2
+  });
+  releaseConcurrentRollback(false);
+  const concurrentRollbackResult = await pendingConcurrentInvestment;
+  assert.equal(concurrentRollbackResult.ok, false);
+  assert.equal(concurrentRollback.state.money, 1000, "a failed investment must reverse its own balance delta");
+  assert.equal(concurrentRollback.state.careerWorld.investments.length, 0,
+    "a failed investment must remove its own portfolio entry even when another history event arrives");
+  assert.equal(concurrentRollback.state.careerWorld.investmentSequence, 1);
+  assert.equal(concurrentRollback.state.careerWorld.challengeCount, 4,
+    "finance rollback must preserve newer career-world counters outside the failed transaction");
+  assert.equal(concurrentRollback.state.careerWorld.history.length, 1,
+    "finance rollback must remove its own history row without deleting a newer match report");
+  assert.equal(concurrentRollback.state.careerWorld.history[0].title, "تقرير مباراة أحدث");
+  assert.equal(concurrentRollback.state.apps, 1);
+  assert.equal(concurrentRollback.state.goals, 1);
+  assert.equal(concurrentRollback.state.age, 22);
+  assert.equal(concurrentRollback.state.calendarDay, 15);
+
+  let releaseDuplicateHistoryRollback;
+  const duplicateHistoryRollback = makeHarness({
+    money: 1000,
+    careerWorld: {
+      version: 1, challengeCount: 0, challengeWins: 0, practiceAttempts: 0,
+      memoryWins: 0, timingWins: 0, mentorSessions: 0,
+      investments: [], investmentSequence: 1,
+      history: [{
+        title: "ادخار آمن",
+        text: "حجزت 100 جنيه داخل اللعبة؛ الاستحقاق بعد 7 أيام.",
+        season: 1, day: 1, source: "existing-same-day-event"
+      }]
+    }
+  }, [
+    () => new Promise(resolve => { releaseDuplicateHistoryRollback = resolve; }),
+    true
+  ]);
+  const pendingDuplicateHistoryInvestment = duplicateHistoryRollback.click("invest-safe");
+  duplicateHistoryRollback.state.careerWorld.history.unshift({
+    title: "ادخار آمن",
+    text: "حجزت 100 جنيه داخل اللعبة؛ الاستحقاق بعد 7 أيام.",
+    season: 1, day: 1, source: "newer-similar-event"
+  });
+  releaseDuplicateHistoryRollback(false);
+  const duplicateHistoryResult = await pendingDuplicateHistoryInvestment;
+  assert.equal(duplicateHistoryResult.ok, false);
+  assert.equal(duplicateHistoryRollback.state.money, 1000);
+  assert.equal(duplicateHistoryRollback.state.careerWorld.investments.length, 0);
+  assert.equal(duplicateHistoryRollback.state.careerWorld.history.length, 2,
+    "rollback must remove only its exact transaction row when other events share the same title, text, season and day");
+  assert.deepEqual(duplicateHistoryRollback.state.careerWorld.history.map(row => row.source).sort(),
+    ["existing-same-day-event", "newer-similar-event"],
+    "descriptively similar but distinct history events must both survive rollback");
+
+  let releaseSameBalance;
+  const sameBalanceUpdate = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseSameBalance = resolve; }), true
+  ]);
+  const pendingSameBalanceInvestment = sameBalanceUpdate.click("invest-safe");
+  sameBalanceUpdate.state.money = 1250;
+  releaseSameBalance(false);
+  const sameBalanceResult = await pendingSameBalanceInvestment;
+  assert.equal(sameBalanceResult.ok, false);
+  assert.equal(sameBalanceUpdate.state.money, 1350,
+    "rollback must reverse only the failed investment debit while preserving a newer balance credit");
+
   const training = makeHarness({ money: 1000, energy: 10, shooting: 50 });
   const trained = await training.click("skill-shooting");
   assert.equal(trained.ok, true);
@@ -175,6 +252,18 @@ function dueState() {
   assert.equal(unsafeTraining.state.money, Number.MAX_SAFE_INTEGER + 1);
   assert.equal(unsafeTraining.state.shooting, 50);
   assert.equal(unsafeTraining.saveCalls, 0);
+
+  let releaseAlreadyRestored;
+  const alreadyRestoredBalance = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseAlreadyRestored = resolve; }), true
+  ]);
+  const pendingAlreadyRestoredInvestment = alreadyRestoredBalance.click("invest-safe");
+  alreadyRestoredBalance.state.money = 1000;
+  releaseAlreadyRestored(false);
+  const alreadyRestoredResult = await pendingAlreadyRestoredInvestment;
+  assert.equal(alreadyRestoredResult.ok, false);
+  assert.equal(alreadyRestoredBalance.state.money, 1000,
+    "rollback must not double-credit a balance that a newer update has already restored to its pre-transaction value");
 
   console.log("PASS: career-experience finance actions are durable, rollback-safe, serialized, and idempotent.");
 })().catch(error => {

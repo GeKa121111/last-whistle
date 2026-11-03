@@ -103,16 +103,28 @@
   function acquireSharedMutationLock(owner) {
     var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
     if (!coordinator || typeof coordinator !== "object") {
-      coordinator = { owner: "" };
+      coordinator = { owner: "", queue: [] };
       window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
     }
-    if (coordinator.owner) return false;
-    coordinator.owner = String(owner || "");
-    return !!coordinator.owner;
+    if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
+    owner = String(owner || "");
+    if (!owner) return Promise.resolve(false);
+    if (!coordinator.owner) {
+      coordinator.owner = owner;
+      return Promise.resolve(true);
+    }
+    return new Promise(function(resolve) { coordinator.queue.push({ owner: owner, resolve: resolve }); });
   }
   function releaseSharedMutationLock(owner) {
     var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
-    if (coordinator && coordinator.owner === owner) coordinator.owner = "";
+    if (!coordinator || coordinator.owner !== owner) return;
+    var next = Array.isArray(coordinator.queue) ? coordinator.queue.shift() : null;
+    if (next && next.owner) {
+      coordinator.owner = next.owner;
+      next.resolve(true);
+    } else {
+      coordinator.owner = "";
+    }
   }
 
   function safeWholeMoney(value) {
@@ -161,17 +173,15 @@
     if (!state || typeof operation !== "function" || !api || typeof api.save !== "function") {
       return { ok: false, reason: isFinance ? "finance-persistence-unavailable" : "career-persistence-unavailable" };
     }
-    if (!acquireSharedMutationLock("career-experience")) {
-      if (api && api.toast) api.toast("فيه تغيير تاني في المسيرة بيتحفظ دلوقتي. استنى لحظة.");
-      return { ok: false, reason: isFinance ? "finance-mutation-pending" : "career-mutation-pending" };
-    }
+    financeMutationPending = true;
+    await acquireSharedMutationLock("career-experience");
     var snapshot = cloneFinanceState(state);
     if (!snapshot) {
+      financeMutationPending = false;
       releaseSharedMutationLock("career-experience");
       if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ " + label + ".");
       return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
     }
-    financeMutationPending = true;
     var payload = null;
     try {
       payload = operation();

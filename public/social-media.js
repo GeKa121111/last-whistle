@@ -747,69 +747,31 @@
     var status = document.getElementById("lw-social-status");
     if (status) status.textContent = canPost ? "الأخبار مبنية على أدائك ودورك وعروض السوق الفعلية — وردك ممكن يغيّر علاقتك بالنادي." : "ابدأ مسيرتك عشان تفتح حسابك على دوشة الملاعب.";
     if (!rows.length) {
-      feed.innerHTML = '<div class="lws  function boot() {
-    refresh();
-    var store = window.LWStateStore;
-    if (store && typeof store.subscribe === "function") store.subscribe(refresh);
-    if (!refreshTimer) refreshTimer = window.setInterval(refresh, 2500);
-    window.addEventListener("pageshow", refresh);
-    window.addEventListener("storage", refresh);
-    document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); });
-    document.addEventListener("input", function (event) {
-      if (event.target && event.target.id === "lw-social-composer") {
-        draft = String(event.target.value || "").slice(0, 240);
-        var counter = document.getElementById("lw-social-counter");
-        if (counter) counter.textContent = String(draft.length) + "/240";
-        var submit = document.getElementById("lw-social-submit");
-        if (submit) submit.disabled = socialMutationPending || !draft.trim();
-      }
-    });
-    document.addEventListener("click", function (event) {
-      var target = event.target && event.target.closest ? event.target.closest("[data-sm-filter], [data-sm-quick], [data-sm-like], [data-sm-reply], #lw-social-submit") : null;
-      if (!target) return;
-      var runtime = api();
-      var state = runtime && runtime.getState ? runtime.getState() : null;
-      if (!state) return;
-      if (target.hasAttribute("data-sm-filter")) {
-        activeFilter = target.getAttribute("data-sm-filter") || "all";
-        lastRenderedSignature = "";
-        render(state);
-      } else if (target.hasAttribute("data-sm-quick")) {
-        draft = target.getAttribute("data-sm-quick") || "";
-        var composer = document.getElementById("lw-social-composer");
-        if (composer) { composer.value = draft; composer.focus(); }
-        var counter = document.getElementById("lw-social-counter");
-        if (counter) counter.textContent = String(draft.length) + "/240";
-        render(state);
-      } else if (target.hasAttribute("data-sm-like")) {
-        commitSocialAction(state, function () {
-          return respond(state, target.getAttribute("data-sm-like"), "like");
-        });
-      } else if (target.hasAttribute("data-sm-reply")) {
-        commitSocialAction(state, function () {
-          return respond(state, target.getAttribute("data-sm-post"), target.getAttribute("data-sm-reply"));
-        }, function (replyResult) {
-          notify(replyResult && replyResult.message ? replyResult.message : "تم حفظ ردك.");
-        }, function (reason) {
-          return reason === "daily-reply-limit" ? "استخدمت ردك اليوم؛ خليك ذكي واختار كلامك."
-            : reason === "post-already-answered" ? "رديت على المنشور ده قبل كده." : "الرد ده مش متاح للمنشور.";
-        });
-      } else if (target.id === "lw-social-submit") {
-        var postText = draft;
-        commitSocialAction(state, function () {
-          return createPlayerPost(state, postText);
-        }, function () {
-          draft = "";
-          notify("البوست نزل — شوف رد فعل الجمهور والإعلام.");
-        }, function (reason) {
-          return reason === "daily-post-limit" ? "بوستين كفاية النهارده؛ خليك مستني تفاعل الناس."
-            : "اكتب بوست من 3 إلى 240 حرف.";
-        });
-      }
-    });
-  }
-
-ل ردك") + '</span>';
+      feed.innerHTML = '<div class="lwsocial-empty"><span>📱</span><strong>لسه مفيش دوشة هنا</strong><p>انشر أول بوست، أو العب مباراة عشان تشوف الجمهور والإعلام بيتكلموا عنك.</p></div>';
+      return;
+    }
+    feed.innerHTML = rows.map(function (post) {
+      var comments = (Array.isArray(post.comments) ? post.comments : []).slice(0, MAX_COMMENTS).map(function (comment) {
+        return '<div class="lwsocial-comment"><span class="lwsocial-comment-avatar">' + esc(comment.avatar || "💬") + '</span><div><strong>' + esc(comment.author || "متابع") + ' <small>' + esc(comment.role || "متابع") + '</small></strong><p>' + esc(comment.body || "") + '</p><span class="lwsocial-comment-likes">♥ ' + clamp(comment.likes, 0, 999999) + '</span></div></div>';
+      }).join("");
+      var authorType = post.authorType === "player" ? "حساب اللاعب" : "حساب كروي";
+      var badge = post.verified ? '<span class="lwsocial-verified">✓</span>' : "";
+      var kindLabels = { match: "بعد المباراة", player: "بوست جديد", press: "تصريح", transfer: "انتقالات", rumor: "شائعة انتقال", role: "دورك في الفريق", bench: "دقائق اللعب", conflict: "غرفة الملابس", relationship: "داخل النادي", award: "إنجاز" };
+      var kindClass = "lwsocial-kind-" + String(post.kind || "news").replace(/[^a-z0-9-]/gi, "");
+      var actionHtml = '<div class="lwsocial-actions"><button type="button" data-sm-like="' + esc(post.id) + '">' + (post.liked ? "♥ أعجبني" : "♡ إعجاب") + '</button>';
+      if (!post.playerResponse) {
+        if (post.kind === "rumor" || post.kind === "transfer") {
+          actionHtml += '<button type="button" data-sm-reply="deny-rumor" data-sm-post="' + esc(post.id) + '">أنفي الشائعة</button><button type="button" data-sm-reply="fuel-rumor" data-sm-post="' + esc(post.id) + '">ألمّح للرحيل</button>';
+        } else if (post.kind === "conflict") {
+          actionHtml += '<button type="button" data-sm-reply="support-team" data-sm-post="' + esc(post.id) + '">أهدي الأجواء</button><button type="button" data-sm-reply="fuel-conflict" data-sm-post="' + esc(post.id) + '">أصعّد الخلاف</button>';
+        } else if (post.kind === "role" || post.kind === "bench") {
+          actionHtml += '<button type="button" data-sm-reply="support-team" data-sm-post="' + esc(post.id) + '">أركز في الملعب</button><button type="button" data-sm-reply="fuel-conflict" data-sm-post="' + esc(post.id) + '">أرد بعصبية</button>';
+        } else {
+          actionHtml += '<button type="button" data-sm-reply="respect" data-sm-post="' + esc(post.id) + '">رد باحترام</button><button type="button" data-sm-reply="bold" data-sm-post="' + esc(post.id) + '">رد بثقة</button>';
+        }
+      } else {
+        var responseLabels = { respect: "رددت باحترام", bold: "رديت بثقة", "deny-rumor": "نفيت الشائعة", "fuel-rumor": "لمّحت للرحيل", "support-team": "اخترت تهدئة الأجواء", "fuel-conflict": "صعّدت الخلاف" };
+        actionHtml += '<span class="lwsocial-response">' + esc(responseLabels[post.playerResponse] || "تم تسجيل ردك") + '</span>';
       }
       actionHtml += '</div>';
       return '<article class="lwsocial-post">' +
@@ -882,7 +844,7 @@
         var counter = document.getElementById("lw-social-counter");
         if (counter) counter.textContent = String(draft.length) + "/240";
         var submit = document.getElementById("lw-social-submit");
-        if (submit) submit.disabled = !draft.trim();
+        if (submit) submit.disabled = socialMutationPending || !draft.trim();
       }
     });
     document.addEventListener("click", function (event) {
@@ -903,23 +865,29 @@
         if (counter) counter.textContent = String(draft.length) + "/240";
         render(state);
       } else if (target.hasAttribute("data-sm-like")) {
-        var likeResult = respond(state, target.getAttribute("data-sm-like"), "like");
-        if (likeResult.ok) { save(); lastRenderedSignature = ""; render(state); }
+        commitSocialAction(state, function () {
+          return respond(state, target.getAttribute("data-sm-like"), "like");
+        });
       } else if (target.hasAttribute("data-sm-reply")) {
-        var replyResult = respond(state, target.getAttribute("data-sm-post"), target.getAttribute("data-sm-reply"));
-        notify(replyResult.ok ? replyResult.message : "استخدمت ردك اليوم؛ خليك ذكي واختار كلامك.");
-        if (replyResult.ok) { save(); lastRenderedSignature = ""; render(state); }
+        commitSocialAction(state, function () {
+          return respond(state, target.getAttribute("data-sm-post"), target.getAttribute("data-sm-reply"));
+        }, function (replyResult) {
+          notify(replyResult && replyResult.message ? replyResult.message : "تم حفظ ردك.");
+        }, function (reason) {
+          return reason === "daily-reply-limit" ? "استخدمت ردك اليوم؛ خليك ذكي واختار كلامك."
+            : reason === "post-already-answered" ? "رديت على المنشور ده قبل كده." : "الرد ده مش متاح للمنشور.";
+        });
       } else if (target.id === "lw-social-submit") {
-        var result = createPlayerPost(state, draft);
-        if (!result.ok) {
-          notify(result.reason === "daily-post-limit" ? "بوستين كفاية النهارده؛ خليك مستني تفاعل الناس." : "اكتب بوست من 3 إلى 240 حرف.");
-          return;
-        }
-        draft = "";
-        save();
-        notify("البوست نزل — شوف رد فعل الجمهور والإعلام.");
-        lastRenderedSignature = "";
-        render(state);
+        var postText = draft;
+        commitSocialAction(state, function () {
+          return createPlayerPost(state, postText);
+        }, function () {
+          draft = "";
+          notify("البوست نزل — شوف رد فعل الجمهور والإعلام.");
+        }, function (reason) {
+          return reason === "daily-post-limit" ? "بوستين كفاية النهارده؛ خليك مستني تفاعل الناس."
+            : "اكتب بوست من 3 إلى 240 حرف.";
+        });
       }
     });
   }

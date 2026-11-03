@@ -139,6 +139,49 @@ function dueState() {
   releaseFirstFlush(true);
   assert.equal((await firstInvestment).ok, true);
 
+  let releaseConcurrentRollback;
+  const concurrentRollback = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseConcurrentRollback = resolve; }), true
+  ]);
+  const pendingConcurrentInvestment = concurrentRollback.click("invest-safe");
+  assert.equal(concurrentRollback.state.money, 900);
+  concurrentRollback.state.apps = 1;
+  concurrentRollback.state.goals = 1;
+  concurrentRollback.state.age = 22;
+  concurrentRollback.state.calendarDay = 15;
+  concurrentRollback.state.careerWorld.challengeCount = 4;
+  concurrentRollback.state.careerWorld.history.unshift({
+    title: "تقرير مباراة أحدث", text: "تحديث أحدث أثناء حفظ الاستثمار", season: 1, day: 2
+  });
+  releaseConcurrentRollback(false);
+  const concurrentRollbackResult = await pendingConcurrentInvestment;
+  assert.equal(concurrentRollbackResult.ok, false);
+  assert.equal(concurrentRollback.state.money, 1000, "a failed investment must reverse its own balance delta");
+  assert.equal(concurrentRollback.state.careerWorld.investments.length, 0,
+    "a failed investment must remove its own portfolio entry even when another history event arrives");
+  assert.equal(concurrentRollback.state.careerWorld.investmentSequence, 1);
+  assert.equal(concurrentRollback.state.careerWorld.challengeCount, 4,
+    "finance rollback must preserve newer career-world counters outside the failed transaction");
+  assert.equal(concurrentRollback.state.careerWorld.history.length, 1,
+    "finance rollback must remove its own history row without deleting a newer match report");
+  assert.equal(concurrentRollback.state.careerWorld.history[0].title, "تقرير مباراة أحدث");
+  assert.equal(concurrentRollback.state.apps, 1);
+  assert.equal(concurrentRollback.state.goals, 1);
+  assert.equal(concurrentRollback.state.age, 22);
+  assert.equal(concurrentRollback.state.calendarDay, 15);
+
+  let releaseSameBalance;
+  const sameBalanceUpdate = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseSameBalance = resolve; }), true
+  ]);
+  const pendingSameBalanceInvestment = sameBalanceUpdate.click("invest-safe");
+  sameBalanceUpdate.state.money = 1250;
+  releaseSameBalance(false);
+  const sameBalanceResult = await pendingSameBalanceInvestment;
+  assert.equal(sameBalanceResult.ok, false);
+  assert.equal(sameBalanceUpdate.state.money, 1350,
+    "rollback must reverse only the failed investment debit while preserving a newer balance credit");
+
   const training = makeHarness({ money: 1000, energy: 10, shooting: 50 });
   const trained = await training.click("skill-shooting");
   assert.equal(trained.ok, true);

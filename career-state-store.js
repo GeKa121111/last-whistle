@@ -141,6 +141,15 @@
     if (source === "load" || source === "import" || source === "migration") startupSave = state;
     revision += 1; notify(meta); return revision;
   }
+  // Invalidate in-flight worker snapshots as soon as an in-memory career mutation
+  // is queued, without notifying render subscribers before the durable write.
+  function markDirty(state) {
+    if (!state || typeof state !== "object") return revision;
+    abortPendingDefaultWrite();
+    currentState = state;
+    revision += 1;
+    return revision;
+  }
   function save(state, options) {
     options = typeof options === "string" ? { slotId: options } : (options || {});
     const id = String(options.slotId || DEFAULT_SLOT);
@@ -299,7 +308,7 @@
     return function () { listeners.delete(wrapped); };
   }
   global.LWStateStore = Object.freeze({
-    version: 3, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, normalizePosition,
+    version: 3, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, markDirty, normalizePosition,
     getState: () => currentState, getStartupSave: () => startupSave, getRevision: () => revision,
     subscribe: function (listener) { if (typeof listener !== "function") return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
     subscribeSelector, save, load, listSaves, deleteSave, flush, openDatabase

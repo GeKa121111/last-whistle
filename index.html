@@ -19,7 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LAST WHISTLE | مسيرة لاعب</title>
 <script src="./lz-string.min.js?v=1"></script>
-<script src="./career-state-store.js?v=6"></script>
+<script src="./career-state-store.js?v=7"></script>
 <link rel="stylesheet" href="./story-ui.css?v=1">
 <link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=2">
@@ -4449,6 +4449,11 @@ function saveGame(silent=false){
   return persistGame(false,saveRevision);
  }
  saveQueued=true;
+ // A queued persistence write must still invalidate world-worker snapshots now.
+ // Waiting for the idle flush leaves a window where an older worker result can
+ // overwrite a just-made in-memory career change.
+ if(window.LWStateStore&&typeof window.LWStateStore.markDirty==="function")
+  window.LWStateStore.markDirty(state);
  scheduleQueuedSaveFlush();
  return true;
 }

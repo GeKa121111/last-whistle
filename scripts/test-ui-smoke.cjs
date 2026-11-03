@@ -77,6 +77,26 @@ if (directoryOccurrences !== 1 || !html.includes('id="page-europe"') || !html.in
   console.error("Global football directory must exist once on the dedicated World Football page.");
   process.exit(1);
 }
+
+// Keep the world simulation's detailed KPIs in one destination. Home is a
+// concise status/shortcut panel; the World Football page owns the full metrics.
+const homePageStart = uiNavAuditMarkup.indexOf('id="page-home"');
+const homePageEnd = uiNavAuditMarkup.indexOf('<section class="page"', homePageStart + 1);
+const worldPageStart = uiNavAuditMarkup.indexOf('id="page-europe"');
+const worldPageEnd = uiNavAuditMarkup.indexOf('<section class="page"', worldPageStart + 1);
+const homeWorldMarkup = homePageStart >= 0 && homePageEnd > homePageStart
+  ? uiNavAuditMarkup.slice(homePageStart, homePageEnd) : "";
+const worldPageMarkup = worldPageStart >= 0
+  ? uiNavAuditMarkup.slice(worldPageStart, worldPageEnd > worldPageStart ? worldPageEnd : undefined) : "";
+const homeWorldMetricIds = ["worldAIHomeMoves", "worldAIHomeTeams", "worldAIHomePlayers"];
+const worldDetailMetricIds = ["worldAIMarketMoves", "worldAITotalClubs", "worldAITotalPlayers", "worldAICompletedSeasons"];
+if (!homeWorldMarkup.includes('id="worldAIHomeStatus"')
+  || !homeWorldMarkup.includes('id="worldAIHomePulse"')
+  || homeWorldMetricIds.some(id => homeWorldMarkup.includes('id="' + id + '"'))
+  || worldDetailMetricIds.some(id => !worldPageMarkup.includes('id="' + id + '"'))) {
+  console.error("World AI KPI placement regression: detailed world metrics must appear only on the dedicated World Football page.");
+  process.exit(1);
+}
 if (!redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page{display:none!important;width:100%;max-width:100%;min-width:0}")
   || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>.page.active{display:block!important;width:100%;max-width:100%;min-width:0}")
   || !redesign.includes("body.lw-rebuild .app.hasSidebar>main>#page-europe>.grid")

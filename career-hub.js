@@ -2,6 +2,7 @@
   "use strict";
   var timer=null,lastSnapshot="",lastRuntime=null;
   var lastHistoryRef=null,lastHistoryLength=-1,lastHistoryTail="",lastHistoryRevision=null,lastHistorySignature="";
+  var lastSeasonLogRef=null,lastSeasonLogLength=-1,lastSeasonLogTail="",lastSeasonLogSignature="";
   var refreshScheduled=false,queuedForce=false;
   var api=function(){return window.LWStoryRuntime||null;};
   var $=function(id){return document.getElementById(id);};
@@ -52,23 +53,32 @@
   }
   function stateSignature(s,revision,force){
     var history=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
+    var seasonLog=Array.isArray(s.seasonLog)?s.seasonLog:[];
     var tail=historyTailSignature(history);
-    if(force||revision===null||history!==lastHistoryRef||history.length!==lastHistoryLength||tail!==lastHistoryTail||revision!==lastHistoryRevision){
+    var seasonTail=historyTailSignature(seasonLog);
+    if(force||revision===null||history!==lastHistoryRef||history.length!==lastHistoryLength||tail!==lastHistoryTail
+      ||seasonLog!==lastSeasonLogRef||seasonLog.length!==lastSeasonLogLength||seasonTail!==lastSeasonLogTail
+      ||revision!==lastHistoryRevision){
       lastHistorySignature=history.map(function(row){
         return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
       }).join(",");
-      lastHistoryRef=history;lastHistoryLength=history.length;lastHistoryTail=tail;lastHistoryRevision=revision;
+      lastSeasonLogSignature=seasonLog.map(function(row){
+        return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
+      }).join(",");
+      lastHistoryRef=history;lastHistoryLength=history.length;lastHistoryTail=tail;
+      lastSeasonLogRef=seasonLog;lastSeasonLogLength=seasonLog.length;lastSeasonLogTail=seasonTail;
+      lastHistoryRevision=revision;
     }
     return JSON.stringify([
       s.careerStarted,s.retired,s.winterBreakPending,s.injuryDays,s.injuryName,
       s.energy,s.morale,s.fatigue,s.trust,s.coachRelationship,s.playedToday,s.trainedToday,
       s.dailyActionUsed,s.dailyActionDay,s.dailyActionType,s.day,s.season,
-      s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,lastHistorySignature
+      s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,lastHistorySignature,lastSeasonLogSignature
     ]);
   }
   function render(force){
     var runtime=api(),s=runtime&&runtime.getState?runtime.getState():null;
-    if(!s){lastSnapshot="";lastRuntime=null;lastHistoryRef=null;lastHistoryLength=-1;lastHistoryTail="";lastHistoryRevision=null;lastHistorySignature="";return;}
+    if(!s){lastSnapshot="";lastRuntime=null;lastHistoryRef=null;lastHistoryLength=-1;lastHistoryTail="";lastHistoryRevision=null;lastHistorySignature="";lastSeasonLogRef=null;lastSeasonLogLength=-1;lastSeasonLogTail="";lastSeasonLogSignature="";return;}
     var store=window.LWStateStore;
     var revision=store&&typeof store.getRevision==="function"?Number(store.getRevision()):null;
     if(!Number.isFinite(revision))revision=null;
@@ -103,7 +113,12 @@
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
     document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});
     var historyRows=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
-    var uniqueHistoryRows=window.LWCareer&&typeof window.LWCareer.uniqueMatchRows==="function"?window.LWCareer.uniqueMatchRows(historyRows):historyRows;
+    var legacySeasonRows=Array.isArray(s.seasonLog)?s.seasonLog.filter(function(row){return row&&typeof row==="object";}).map(function(row){
+      return Object.assign({},row,{scope:row.scope||"league"});
+    }):[];
+    var combinedHistoryRows=legacySeasonRows.concat(historyRows);
+    var uniqueHistoryRows=window.LWCareer&&typeof window.LWCareer.uniqueMatchRows==="function"
+      ?window.LWCareer.uniqueMatchRows(combinedHistoryRows):combinedHistoryRows;
     var careerRows=uniqueHistoryRows.filter(function(row){return row&&Number(row.minutes)>0&&row.scope!=="international";});
     var careerMinutes=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.minutes)||0);},0);
     var loggedGoals=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.goals)||0);},0);

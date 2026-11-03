@@ -14,7 +14,7 @@ assert.equal(source, deployed, "root/public career experience scripts must stay 
 assert.equal(html, publicHtml, "root/public app shells must stay identical");
 assert.equal(sw, publicSw, "root/public service workers must stay identical");
 assert.match(html, /career-experience\.js\?v=9/);
-assert.match(sw, /last-whistle-static-v453/);
+assert.match(sw, /last-whistle-static-v454/);
 assert.match(sw, /career-experience\.js\?v=9/);
 require("./assert-static-cache-version.cjs")(sw, 445);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);

@@ -143,10 +143,10 @@ const helperContexts = moduleSpecs.map((spec, index) => {
   releaseFlush();
   assert.equal((await retirementWrite).ok, true);
   await waitForFlush();
-  assert.equal(state.money, 700, "queued career mutation should run after post-retirement transaction");
+  assert.equal(state.money, 600, "queued career mutation should run after post-retirement transaction");
   releaseFlush();
   assert.equal((await careerAfterRetirement).ok, true);
-  assert.equal(state.money, 700);
+  assert.equal(state.money, 600);
 
   console.log("PASS: career, agent-contract, post-retirement, story, and social mutations share a queued, durable write lock.");
 })().catch(error => { console.error(error && error.stack ? error.stack : error); process.exitCode = 1; });

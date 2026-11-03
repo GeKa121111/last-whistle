@@ -166,6 +166,34 @@ function createHarness() {
   assert.deepEqual(JSON.parse(JSON.stringify(flushRace.store.getStartupSave())), latestImportedCareer,
     "the successful retry must become the startup save");
 
+  const concurrentFlush = createHarness();
+  await concurrentFlush.resolveStartupRead(null);
+  const concurrentCareer = { name: "Purchase while a flush is pending", money: 3000, xpMultiplier: false };
+  concurrentFlush.store.publish(concurrentCareer, { source: "import" });
+  const firstFlush = concurrentFlush.store.flush(concurrentCareer);
+  await concurrentFlush.waitForWrite(0);
+  concurrentCareer.money = 600;
+  concurrentCareer.xpMultiplier = true;
+  concurrentFlush.store.markDirty(concurrentCareer);
+  const overlappingFlush = concurrentFlush.store.flush({
+    name: "Detached stale caller", money: 3000, xpMultiplier: false
+  });
+  assert.strictEqual(overlappingFlush, firstFlush,
+    "overlapping default-slot flushes must share one in-flight writer instead of superseding each other");
+  assert.equal(concurrentFlush.writeTransactions[0].aborted, true,
+    "a mutation during the first write must abort its stale snapshot");
+  await concurrentFlush.waitForWrite(1);
+  assert.equal(concurrentFlush.writes.length, 2,
+    "the single flush queue must retry once with the latest live career");
+  assert.deepEqual(JSON.parse(JSON.stringify(concurrentFlush.writes[1].state)), concurrentCareer,
+    "the retry must persist the post-purchase balance and ownership flag");
+  assert.equal(concurrentFlush.completeWrite(1), true);
+  assert.equal(await firstFlush, true);
+  assert.equal(await overlappingFlush, true);
+  assert.equal(concurrentFlush.committedWrites.length, 1,
+    "only the latest career snapshot may commit after concurrent flush requests");
+  assert.deepEqual(JSON.parse(JSON.stringify(concurrentFlush.committedWrites[0].state)), concurrentCareer);
+
   const delayedWrite = createHarness();
   await delayedWrite.resolveStartupRead(null);
   const olderCareer = { name: "Older Save In Flight", money: 700 };

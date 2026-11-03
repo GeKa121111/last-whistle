@@ -4363,9 +4363,17 @@ function persistGame(silent=false,revision=saveRevision){
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
    const writePromise=window.LWStateStore.save(state,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")});
    saveWriteInFlight++;
-   Promise.resolve(writePromise).then(result=>{
-    if(result&&result.superseded)return;
-    clearFallbackAfterIndexedDBSave(snapshot,revision);
+   Promise.resolve(writePromise).then(async result=>{
+    let persistedSnapshot=snapshot;
+    if(result&&result.superseded){
+     const latestState=window.LWStateStore&&typeof window.LWStateStore.getState==="function"
+      ?window.LWStateStore.getState()||state:state;
+     const flushed=window.LWStateStore&&typeof window.LWStateStore.flush==="function"
+      ?await window.LWStateStore.flush(latestState):false;
+     if(flushed!==true)throw new Error("Superseded IndexedDB save could not flush the latest career");
+     persistedSnapshot=structuredCloneSafe(latestState);
+    }
+    clearFallbackAfterIndexedDBSave(persistedSnapshot,revision);
     if(!silent)toast("اتحفظت مسيرتك بنجاح في قاعدة بيانات الجهاز.");
    }).catch(err=>{
     const fallbackSnapshot=revision===saveRevision?snapshot:structuredCloneSafe(state);
@@ -4412,7 +4420,8 @@ async function flushQueuedSave(options={}){
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
   const pending=(async()=>{
    try{
-    await window.LWStateStore.flush(state);
+    const flushed=await window.LWStateStore.flush(state);
+    if(flushed!==true)throw new Error("IndexedDB flush did not confirm the latest career snapshot");
     clearFallbackAfterIndexedDBSave(snapshot,revision);
     return true;
    }catch(err){

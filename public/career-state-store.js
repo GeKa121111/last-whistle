@@ -38,7 +38,7 @@
     return POSITION_ALIASES[key] || raw;
   }
   const listeners = new Set();
-  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null;
+  let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null, activeDefaultFlush = null;
   function safeClone(value) {
     if (!value || typeof value !== "object") return value;
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
@@ -255,24 +255,45 @@
     if (id === DEFAULT_SLOT) throw new Error("The default career slot cannot be deleted");
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }
-  async function flush(state) {
-    let target = state && typeof state === "object" ? state : currentState;
-    if (!target || typeof target !== "object") {
-      await lastWrite;
-      return true;
-    }
-    // A publish/import can supersede a save while IndexedDB is still opening.
-    // Retry once with the newest live state instead of reporting the stale flush as successful.
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = await save(target, { slotId: DEFAULT_SLOT });
-      if (!result || result.superseded !== true) {
+  function flush(state) {
+    // Coalesce overlapping default-slot flushes. Without a single writer, two
+    // callers can repeatedly supersede one another's IndexedDB transactions and
+    // both return before either has committed the latest career.
+    if (activeDefaultFlush) return activeDefaultFlush;
+    const requested = state && typeof state === "object" ? state : null;
+    const work = Promise.resolve().then(async function () {
+      let target = currentState && typeof currentState === "object" ? currentState : requested;
+      if (!target || typeof target !== "object") {
         await lastWrite;
         return true;
       }
-      target = currentState;
-      if (!target || typeof target !== "object") return false;
-    }
-    return false;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const result = await save(target, { slotId: DEFAULT_SLOT });
+        if (!result || result.superseded === true) {
+          target = currentState;
+          if (!target || typeof target !== "object") return false;
+          continue;
+        }
+        // A mutation may land just after the IndexedDB transaction completes but
+        // before this continuation runs. Compare revisions as well as references.
+        if (Number.isFinite(Number(result.revision)) && Number(result.revision) !== revision) {
+          target = currentState;
+          if (!target || typeof target !== "object") return false;
+          continue;
+        }
+        if (currentState && currentState !== target) {
+          target = currentState;
+          continue;
+        }
+        return true;
+      }
+      return false;
+    });
+    const active = work.finally(function () {
+      if (activeDefaultFlush === active) activeDefaultFlush = null;
+    });
+    activeDefaultFlush = active;
+    return active;
   }
   function selectorSignature(value) {
     if (value === undefined) return "undefined";
@@ -308,7 +329,7 @@
     return function () { listeners.delete(wrapped); };
   }
   global.LWStateStore = Object.freeze({
-    version: 3, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, markDirty, normalizePosition,
+    version: 4, defaultSlot: DEFAULT_SLOT, ready: () => ready, publish, markDirty, normalizePosition,
     getState: () => currentState, getStartupSave: () => startupSave, getRevision: () => revision,
     subscribe: function (listener) { if (typeof listener !== "function") return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
     subscribeSelector, save, load, listSaves, deleteSave, flush, openDatabase

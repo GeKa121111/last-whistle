@@ -388,8 +388,10 @@ async function main() {
       const saved = window.LWStoryRuntime.save();
       const revisionAfterSave = window.LWStateStore.getRevision();
       if (!saved) throw new Error("could not queue the adult transfer-eligibility test state");
-      if (window.LWStateStore && typeof window.LWStateStore.flush === "function")
-        await window.LWStateStore.flush(state);
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") {
+        const flushed = await window.LWStateStore.flush(state);
+        if (flushed !== true) throw new Error("could not durably flush the adult transfer-eligibility test state");
+      }
       const live = window.LWStoryRuntime.getState();
       window.LWStoryRuntime.render();
       const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
@@ -615,7 +617,10 @@ async function main() {
       state.money = 3000;
       const saved = window.LWStoryRuntime.save();
       if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
-      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function") {
+        const flushed = await window.LWStateStore.flush(state);
+        if (flushed !== true) throw new Error("could not durably flush the XP multiplier purchase seed");
+      }
       const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
         ? window.LWStateStore.getState() : null;
       return {
@@ -738,8 +743,9 @@ async function main() {
       const stateChars = JSON.stringify(state).length;
       const worldChars = JSON.stringify(state.worldSimulation || {}).length;
       const saveSucceeded = window.LWStoryRuntime.save();
+      let flushResult = false;
       if (window.LWStateStore && typeof window.LWStateStore.flush === "function") {
-        await window.LWStateStore.flush(state);
+        flushResult = await window.LWStateStore.flush(state);
       }
       let afterSave = null;
       if (window.LWStateStore && typeof window.LWStateStore.load === "function") {
@@ -752,7 +758,7 @@ async function main() {
         worldPlayers: Object.keys(state.worldSimulation?.players || {}).length,
         worldClubs: Object.keys(state.worldSimulation?.clubs || {}).length,
         worldProperties: Object.entries(state.worldSimulation || {}).map(([key, value]) => ({ key, chars: (() => { try { return JSON.stringify(value).length; } catch { return -1; } })(), count: Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value).length : null })).sort((a,b) => b.chars-a.chars).slice(0,12),
-        saveSucceeded, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
+        saveSucceeded, flushResult, afterSavedMoney: afterSave ? Number(afterSave.money) : null,
         afterSavedXPMultiplier: afterSave ? !!afterSave.xpMultiplier : null,
         afterSavedChars: afterSave ? JSON.stringify(afterSave).length : raw.length,
         storageBackend: afterSave ? "IndexedDB" : "legacy-fallback"
@@ -761,6 +767,8 @@ async function main() {
     console.log("PURCHASE_SAVE_QUEUE_DIAGNOSTICS " + JSON.stringify(saveDiagnostic));
     assert.equal(saveDiagnostic.saveSucceeded, true,
       "saving after purchase must succeed; diagnostic=" + JSON.stringify(saveDiagnostic));
+    assert.equal(saveDiagnostic.flushResult, true,
+      "the shared IndexedDB flush must confirm the latest purchase snapshot; diagnostic=" + JSON.stringify(saveDiagnostic));
     assert.equal(saveDiagnostic.afterSavedMoney, 600, "IndexedDB must persist the post-purchase balance");
     assert.equal(saveDiagnostic.afterSavedXPMultiplier, true, "IndexedDB must persist store ownership");
     const persistedPurchase = {

@@ -184,6 +184,7 @@
   }
 
   function restoreFinanceArray(target, before, applied, path, conflicts) {
+    if (financeValueEquals(target, before)) return target;
     if (financeValueEquals(target, applied)) return cloneFinanceState(before);
     if (!Array.isArray(target) || !Array.isArray(before) || !Array.isArray(applied)) {
       conflicts.push(path);
@@ -252,6 +253,7 @@
       var currentHas = Object.prototype.hasOwnProperty.call(target, key);
       var currentValue = currentHas ? target[key] : undefined;
       var fieldPath = path ? path + "." + key : key;
+      if (currentHas === beforeHas && (!beforeHas || financeValueEquals(currentValue, beforeValue))) return;
 
       if (!beforeHas && appliedHas && financeRecord(appliedValue) && currentHas && financeRecord(currentValue)) {
         restoreFinanceObject(currentValue, {}, appliedValue, fieldPath, conflicts);
@@ -278,7 +280,7 @@
         && currentHas && typeof currentValue === "number"
         && Number.isFinite(beforeValue) && Number.isFinite(appliedValue) && Number.isFinite(currentValue)) {
         if (financeValueEquals(currentValue, appliedValue)) target[key] = beforeValue;
-        else target[key] = currentValue - (appliedValue - beforeValue);
+        else if (!financeValueEquals(currentValue, beforeValue)) target[key] = currentValue - (appliedValue - beforeValue);
         return;
       }
       if (currentHas === appliedHas && (!appliedHas || financeValueEquals(currentValue, appliedValue))) {

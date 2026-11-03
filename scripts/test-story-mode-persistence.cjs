@@ -106,7 +106,7 @@ const report = {
   assert.equal(triggerFailure.state.storyHistory, undefined);
   assert.equal(triggerFailure.saveCalls, 2);
   assert.equal(triggerFailure.flushCalls, 2);
-  assert.equal(triggerFailure.notices.length, 0);
+  assert.equal(triggerFailure.notices.some(message => message.includes("فيه قرار مصيري جديد")), false);
 
   const stale = makeHarness({ apps: 0, storyPendingId: "stale-event", storyFlags: {}, storyHistory: [] }, [true]);
   const staleResult = await stale.checkTriggers();

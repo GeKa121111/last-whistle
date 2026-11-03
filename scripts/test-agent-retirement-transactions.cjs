@@ -15,8 +15,9 @@ require("./assert-static-cache-version.cjs")(sw, 430);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
-  const start = source.indexOf(marker);
-  assert.ok(start >= 0, "missing agent function: " + name);
+  const functionStart = source.indexOf(marker);
+  assert.ok(functionStart >= 0, "missing agent function: " + name);
+  const start = source.slice(0, functionStart).endsWith("async ") ? functionStart - 6 : functionStart;
   const brace = source.indexOf("{", start);
   let depth = 0, quote = null, escaped = false, lineComment = false, blockComment = false;
   for (let i = brace; i < source.length; i++) {

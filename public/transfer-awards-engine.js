@@ -674,10 +674,34 @@
 
 
   // Stage 2: shared performance-led valuation and competition-aware wage guardrails.
+  function seasonAppearanceCount(player) {
+    player = player || {};
+    const rawAppearances = player.appearances;
+    const hasAppearances = rawAppearances !== undefined && rawAppearances !== null && rawAppearances !== "";
+    const parsedAppearances = Number(rawAppearances);
+    const legacyApps = Number(player.apps);
+    const appearances = hasAppearances && Number.isFinite(parsedAppearances)
+      ? parsedAppearances
+      : Number.isFinite(legacyApps) ? legacyApps : 0;
+    return Math.max(0, appearances);
+  }
+
+  function seasonMinutes(player, appearances) {
+    if (appearances <= 0) return 0;
+    const rawMinutes = player && player.minutes;
+    const hasMinutes = rawMinutes !== undefined && rawMinutes !== null && rawMinutes !== "";
+    const parsedMinutes = Number(rawMinutes);
+    const minutes = hasMinutes && Number.isFinite(parsedMinutes) ? parsedMinutes : appearances * 65;
+    return Math.max(0, minutes);
+  }
+
   function performanceIndex(player) {
     player = player || {};
-    const apps = Math.max(0, Number(player.appearances || player.apps) || 0);
-    const minutes = Math.max(0, Number(player.minutes) || apps * 65);
+    const apps = seasonAppearanceCount(player);
+    const minutes = seasonMinutes(player, apps);
+    // A saved zero is meaningful: do not fall back to career totals or stale
+    // minutes when the current season has no actual appearances.
+    if (apps <= 0 || minutes <= 0) return 0;
     const rating = clamp(player.averageRating || player.form || 0, 0, 10);
     const goals = Math.max(0, Number(player.goals) || 0);
     const assists = Math.max(0, Number(player.assists) || 0);
@@ -738,14 +762,16 @@
 
   function evaluateSeasonPerformance(player) {
     player = player || {};
-    const score = performanceIndex(player);
-    const apps = Math.max(0, Number(player.appearances || player.apps) || 0);
-    const minutes = Math.max(0, Number(player.minutes) || apps * 65);
+    const apps = seasonAppearanceCount(player);
+    const minutes = seasonMinutes(player, apps);
+    const hasSeasonPerformance = apps > 0 && minutes > 0;
+    const score = hasSeasonPerformance ? performanceIndex(player) : 0;
     const ovr = clamp(player.ovr || player.power || 50, 35, 99);
     const age = Math.max(16, Number(player.age) || 24);
     const development = age < 23 ? Math.max(0, 23 - age) * .55 : age > 30 ? -(age - 30) * .7 : 0;
+    const seasonScore = hasSeasonPerformance ? score + development + Math.min(5, minutes / 900) : 0;
     return {
-      score: Number(clamp(score + development + Math.min(5, minutes / 900), 0, 100).toFixed(2)),
+      score: Number(clamp(seasonScore, 0, 100).toFixed(2)),
       marketValueMultiplier: Number(clamp(.55 + score / 85 + development / 100, .45, 1.9).toFixed(3)),
       transferReadiness: clamp((score * .62) + Math.min(18, apps * .45) + Math.max(0, ovr - 60) * .18, 0, 100),
       performanceSample: apps,
@@ -754,7 +780,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 12,
+    version: 13,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

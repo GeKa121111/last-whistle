@@ -24,7 +24,41 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 12);
+assert.equal(engine.version, 13);
+
+const zeroAppearanceSeason = {
+  name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
+  appearances: 0, apps: 24, minutes: 0, averageRating: 9.8,
+  goals: 35, assists: 22, cleanSheets: 0, leagueStrength: 98
+};
+assert.equal(engine.performanceIndex(zeroAppearanceSeason), 0,
+  "an explicit zero current-season appearance count must not fall back to career apps or stale contributions");
+const zeroAppearanceEvaluation = engine.evaluateSeasonPerformance(zeroAppearanceSeason);
+assert.equal(zeroAppearanceEvaluation.score, 0);
+assert.equal(zeroAppearanceEvaluation.performanceSample, 0);
+assert.equal(zeroAppearanceEvaluation.minutes, 0);
+
+const zeroMinuteSeason = {
+  name: "لاعب بلا دقائق", position: "مهاجم", age: 25, ovr: 80,
+  appearances: 8, apps: 20, minutes: 0, averageRating: 9.4,
+  goals: 14, assists: 9, leagueStrength: 75
+};
+assert.equal(engine.performanceIndex(zeroMinuteSeason), 0,
+  "explicit zero minutes must not be replaced with the legacy 65-minute appearance estimate");
+const zeroMinuteEvaluation = engine.evaluateSeasonPerformance(zeroMinuteSeason);
+assert.equal(zeroMinuteEvaluation.score, 0);
+assert.equal(zeroMinuteEvaluation.performanceSample, 8);
+assert.equal(zeroMinuteEvaluation.minutes, 0);
+
+const legacyPerformance = {
+  name: "Legacy performance row", position: "مهاجم", age: 24, ovr: 70,
+  apps: 10, averageRating: 7.2, goals: 5, assists: 3, leagueStrength: 60
+};
+const legacyEvaluation = engine.evaluateSeasonPerformance(legacyPerformance);
+assert.equal(legacyEvaluation.performanceSample, 10);
+assert.equal(legacyEvaluation.minutes, 650);
+assert.ok(engine.performanceIndex(legacyPerformance) > 0);
+
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.

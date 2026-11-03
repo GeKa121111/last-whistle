@@ -98,7 +98,7 @@
     if (message && api && api.toast) api.toast(message);
   }
 
-  var financeMutationPending = false;
+  var careerMutationPending = false;
 
   function safeWholeMoney(value) {
     if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return null;
@@ -133,53 +133,67 @@
     return await Promise.resolve(pending) === true;
   }
 
-  async function runFinanceMutation(state, operation, successMessage) {
+  async function runCareerMutation(state, operation, successMessage, category) {
     var api = API();
-    if (financeMutationPending) {
-      if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
-      return { ok: false, reason: "finance-mutation-pending" };
+    var isFinance = category === "finance";
+    var label = isFinance ? "العملية المالية" : "النشاط";
+    if (careerMutationPending) {
+      if (api && api.toast) api.toast(isFinance
+        ? "فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة."
+        : "فيه نشاط تاني بيتأكد حفظه دلوقتي. استنى لحظة.");
+      return { ok: false, reason: isFinance ? "finance-mutation-pending" : "career-mutation-pending" };
     }
     if (!state || typeof operation !== "function" || !api || typeof api.save !== "function") {
-      return { ok: false, reason: "finance-persistence-unavailable" };
+      return { ok: false, reason: isFinance ? "finance-persistence-unavailable" : "career-persistence-unavailable" };
     }
     var snapshot = cloneFinanceState(state);
     if (!snapshot) {
-      if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ العملية المالية.");
-      return { ok: false, reason: "finance-snapshot-unavailable" };
+      if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ " + label + ".");
+      return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
     }
-    financeMutationPending = true;
+    careerMutationPending = true;
     var payload = null;
     try {
       payload = operation();
-      if (payload === false || payload == null) throw new Error("finance mutation rejected");
-      if (!(await flushFinanceState(api, state))) throw new Error("finance save not confirmed");
+      if (payload === false || payload == null) throw new Error("career mutation rejected");
+      if (!(await flushFinanceState(api, state))) throw new Error("career save not confirmed");
     } catch (error) {
       try { restoreFinanceState(state, snapshot); }
       catch (restoreError) {
-        try { if (api.toast) api.toast("تعذر استعادة بيانات العملية المالية. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة."); } catch (toastError) {}
+        try {
+          if (api.toast) api.toast(isFinance
+            ? "تعذر استعادة بيانات العملية المالية. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة."
+            : "تعذر استعادة بيانات النشاط. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");
+        } catch (toastError) {}
         try { if (api.render) api.render(); } catch (renderError) {}
-        return { ok: false, reason: "finance-rollback-restore-failed", rollbackPersisted: false };
+        return { ok: false, reason: "career-rollback-restore-failed", rollbackPersisted: false };
       }
       var rollbackPersisted = false;
       try { rollbackPersisted = await flushFinanceState(api, state) === true; }
       catch (rollbackError) {
-        if (window.console && window.console.warn) window.console.warn("Career finance rollback persistence failed", rollbackError);
+        if (window.console && window.console.warn) window.console.warn("Career rollback persistence failed", rollbackError);
       }
       try { if (api.render) api.render(); } catch (renderError) {}
       try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
       var message = rollbackPersisted
-        ? "تعذر تأكيد العملية المالية؛ رجّعنا الرصيد والمحفظة وحفظنا النسخة السابقة. تقدر تحاول تاني."
-        : "رجّعنا البيانات داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
+        ? (isFinance
+          ? "تعذر تأكيد العملية المالية؛ رجّعنا الرصيد والمحفظة وحفظنا النسخة السابقة. تقدر تحاول تاني."
+          : "تعذر تأكيد حفظ النشاط؛ رجّعنا الحالة السابقة وحفظناها. تقدر تحاول تاني.")
+        : "رجّعنا الحالة السابقة داخل اللعبة، لكن تعذر تأكيد حفظها. صدّر نسخة احتياطية قبل المتابعة.";
       try { if (api.toast) api.toast(message); } catch (toastError) {}
-      if (window.console && window.console.warn) window.console.warn("Career finance mutation rolled back", error);
+      if (window.console && window.console.warn) window.console.warn("Career mutation rolled back", error);
       return { ok: false, reason: message, rollbackPersisted: rollbackPersisted };
     } finally {
-      financeMutationPending = false;
+      careerMutationPending = false;
     }
     try { if (api.render) api.render(); } catch (renderError) {}
     try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
     try { if (successMessage && api.toast) api.toast(successMessage); } catch (toastError) {}
     return Object.assign({ ok: true }, payload && typeof payload === "object" ? payload : {});
+  }
+
+  function runFinanceMutation(state, operation, successMessage) {
+    return runCareerMutation(state, operation, successMessage, "finance");
   }
 
   function ensurePanel() {
@@ -345,35 +359,53 @@
     return true;
   }
 
-  function finishChallenge(s, title, message, won, skill, amount, energyCost) {
+  async function finishChallenge(s, title, message, won, skill, amount, energyCost, successCounter) {
     if (!canPractice(s, energyCost)) {
       closeModal();
-      return false;
+      return { ok: false, reason: "practice-unavailable" };
+    }
+    var result = await runCareerMutation(s, function () {
+      if (!s || !s.careerStarted || s.retired || Number(s.injuryDays) > 0
+        || (Number(s.energy) || 0) < Math.max(0, Number(energyCost) || 0)) return false;
+      var w = world(s);
+      w.challengeCount++;
+      w.practiceAttempts++;
+      if (won) {
+        w.challengeWins++;
+        if (successCounter === "timingWins" || successCounter === "memoryWins") w[successCounter]++;
+      }
+      if (skill && amount) stat(s, skill, amount);
+      stat(s, "energy", -Math.abs(Number(energyCost) || 0));
+      stat(s, "careerXP", won ? 8 : 3);
+      if (won) {
+        stat(s, "morale", 2);
+        stat(s, "trust", 1);
+      } else {
+        stat(s, "composure", 1);
+      }
+      record(s, title, message + (won ? " نجحت في التحدي، واتسجل التطور في قدراتك." : " النتيجة دي تدريب، وتقدر تحاول تاني في يوم لاحق."), w);
+      return { challengeWins: w.challengeWins, challengeCount: w.challengeCount };
+    }, won ? "ممتاز! التحدي اتسجل واتأكد حفظه." : "المحاولة اتحفظت واتأكد حفظها.", "activity");
+    if (!result.ok) {
+      if (result.reason === "career-mutation-pending" || result.reason === "finance-mutation-pending") return result;
+      currentView = "challenge-save-failed";
+      frame("النتيجة ما اتحفظتش", "SAVE NOT CONFIRMED",
+        '<p class="lwcx-intro">تعذر تأكيد حفظ نتيجة التحدي. رجّعنا الطاقة والخبرة والمهارات وسجل المحاولات للحالة السابقة.</p>' +
+        '<div class="lwcx-modal-actions"><button type="button" class="lwcx-button lwcx-button-primary" data-lwcx-action="open-challenges">الرجوع للتحديات</button><button type="button" class="lwcx-button" data-lwcx-action="close">إغلاق</button></div>',
+        "لم يتم تسجيل مكافأة أو خصم طاقة؛ ابدأ محاولة جديدة بعد التأكد من الحفظ.");
+      return result;
     }
     var w = world(s);
-    w.challengeCount++;
-    w.practiceAttempts++;
-    if (won) w.challengeWins++;
-    if (skill && amount) stat(s, skill, amount);
-    stat(s, "energy", -Math.abs(Number(energyCost) || 0));
-    stat(s, "careerXP", won ? 8 : 3);
-    if (won) {
-      stat(s, "morale", 2);
-      stat(s, "trust", 1);
-    } else {
-      stat(s, "composure", 1);
-    }
-    record(s, title, message + (won ? " نجحت في التحدي، واتسجل التطور في قدراتك." : " النتيجة دي تدريب، وتقدر تحاول تاني في يوم لاحق."));
-    save(s, won ? "ممتاز! التحدي اتسجل ونتيجته اتطبقت." : "المحاولة اتحفظت. كمل تدريبك وجرّب تاني.");
     currentView = "challenge-result";
     frame(won ? "نجحت في التحدي" : "المحاولة خلصت", "TRAINING RESULT",
       '<div class="lwcx-result ' + (won ? "success" : "miss") + '"><div class="lwcx-result-mark">' + (won ? "✓" : "↻") + '</div><h3>' + esc(title) + '</h3><p>' + esc(message) + '</p><div class="lwcx-result-stats"><span>طاقة <b>-' + Math.abs(Number(energyCost) || 0) + '</b></span><span>خبرة <b>+' + (won ? 8 : 3) + '</b></span><span>التحديات الناجحة <b>' + w.challengeWins + '</b></span></div></div>' +
       '<div class="lwcx-modal-actions"><button type="button" class="lwcx-button lwcx-button-primary" data-lwcx-action="open-challenges">تحدي تاني</button><button type="button" class="lwcx-button" data-lwcx-action="close">إنهاء</button></div>');
+    return result;
   }
 
-  function shootPenalty(s) {
-    if (!canPractice(s, 4)) return;
-    if (!penalty.direction) return;
+  async function shootPenalty(s) {
+    if (!canPractice(s, 4)) return { ok: false, reason: "practice-unavailable" };
+    if (!penalty.direction) return { ok: false, reason: "penalty-direction-required" };
     var keeper = ["left", "center", "right"][Math.floor(Math.random() * 3)];
     var power = cap(penalty.power, 25, 95);
     var accuracyPenalty = Math.abs(power - 68) * 0.48;
@@ -383,9 +415,12 @@
     var message = goal
       ? "التسديدة دخلت " + dirLabel[penalty.direction] + " المرمى بقوة " + power + "%. الحارس توقّع " + dirLabel[keeper] + "."
       : (keeper === penalty.direction ? "الحارس توقّع اتجاهك وصدّ الكرة عند " + dirLabel[keeper] + "." : "الكرة راحت خارج المرمى؛ القوة أو التحكم محتاجين شغل أكتر.");
-    finishChallenge(s, "ركلة جزاء تدريبية", message, goal, goal ? "shooting" : "composure", 1, 4);
-    penalty.direction = "";
-    penalty.power = 68;
+    var result = await finishChallenge(s, "ركلة جزاء تدريبية", message, goal, goal ? "shooting" : "composure", 1, 4);
+    if (result && result.ok) {
+      penalty.direction = "";
+      penalty.power = 68;
+    }
+    return result;
   }
 
   function openTiming(s) {
@@ -431,8 +466,7 @@
     timing.running = false;
     var distance = Math.abs(timing.value - 70);
     var won = distance <= 11;
-    if (won) world(s).timingWins++;
-    finishChallenge(s, "اختبار التوقيت", "وقفت المؤشر عند " + Math.round(timing.value) + "%. المنطقة المثالية تبدأ من 59% لحد 81%.", won, "composure", won ? 2 : 1, 3);
+    return finishChallenge(s, "اختبار التوقيت", "وقفت المؤشر عند " + Math.round(timing.value) + "%. المنطقة المثالية تبدأ من 59% لحد 81%.", won, "composure", won ? 2 : 1, 3, "timingWins");
   }
 
   function createMemorySequence(s) {
@@ -495,8 +529,7 @@
       return;
     }
     var won = memory.answers.every(function (value, index) { return value === memory.sequence[index]; });
-    if (won) world(s).memoryWins++;
-    finishChallenge(s, "اختبار التركيز", won ? "افتكرت الاتجاهات الأربعة بالترتيب الصحيح." : "السلسلة الصحيحة كانت " + memory.sequence.join(" ") + ". التركيز بيتحسن بالممارسة.", won, "vision", won ? 2 : 1, 1);
+    return finishChallenge(s, "اختبار التركيز", won ? "افتكرت الاتجاهات الأربعة بالترتيب الصحيح." : "السلسلة الصحيحة كانت " + memory.sequence.join(" ") + ". التركيز بيتحسن بالممارسة.", won, "vision", won ? 2 : 1, 1, "memoryWins");
   }
 
   function renderFinance() {
@@ -521,7 +554,7 @@
   function makeInvestment(s, risky) {
     if (!s) return Promise.resolve({ ok: false, reason: "career-state-unavailable" });
     var api = API();
-    if (financeMutationPending) {
+    if (careerMutationPending) {
       if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
       return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
     }
@@ -594,7 +627,7 @@
       return Promise.resolve({ ok: false, reason: "invalid-training-skill" });
     }
     var api = API();
-    if (financeMutationPending) {
+    if (careerMutationPending) {
       if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
       return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
     }
@@ -626,7 +659,7 @@
     var due = w.investments.filter(function (item) { return item && !item.settled && today >= Number(item.dueDay); });
     if (!due.length) return false;
     var api = API();
-    if (financeMutationPending) return Promise.resolve({ ok: false, changed: false, reason: "finance-mutation-pending" });
+    if (careerMutationPending) return Promise.resolve({ ok: false, changed: false, reason: "finance-mutation-pending" });
     if (safeWholeMoney(s.money) === null) {
       if (api && api.toast) api.toast("فيه رصيد غير صالح؛ استحقاق الاستثمار متوقف لحد ما تراجع الحفظ.");
       return Promise.resolve({ ok: false, changed: false, reason: "invalid-balance" });
@@ -684,58 +717,65 @@
       used ? "استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد قبل جلسة تانية." : "النشاط بيستهلك فرصة النشاط الجانبي لليوم؛ مش هتقدر تكرر الجلسات في نفس اليوم.");
   }
 
-  function doMentor(s, kind) {
+  async function doMentor(s, kind) {
     var api = API();
     if (!s || !s.careerStarted || s.retired) {
       if (api && api.toast) api.toast(s && s.retired
         ? "المسيرة انتهت بالاعتزال؛ أنشطة المسيرة اليومية مش متاحة."
         : "ابدأ مسيرتك الأول علشان تستخدم أنشطة العلاقات.");
       closeModal();
-      return;
+      return { ok: false, reason: "career-unavailable" };
     }
     if (["coach", "teammate", "reset"].indexOf(kind) < 0) {
       if (api && api.toast) api.toast("النشاط ده مش متاح.");
-      return;
+      return { ok: false, reason: "invalid-mentor-action" };
     }
     var currentDay = Number(s.day) || 1;
     if (s.dailyActionUsed && Number(s.dailyActionDay) === currentDay) {
-      var api = API();
       if (api && api.toast) api.toast("استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد.");
       openMentor();
-      return;
+      return { ok: false, reason: "daily-action-used" };
     }
     var requiredEnergy = kind === "coach" ? 3 : kind === "teammate" ? 1 : 0;
     if ((Number(s.energy) || 0) < requiredEnergy) {
       if (api && api.toast) api.toast("طاقتك مش كفاية للنشاط ده. ارتاح الأول أو اختار الراحة الذهنية.");
       openMentor();
-      return;
+      return { ok: false, reason: "insufficient-energy" };
     }
-    if (kind === "coach") {
-      stat(s, "coachRelationship", 5);
-      stat(s, "trust", 2);
-      stat(s, "professionalism", 3);
-      stat(s, "energy", -3);
-      record(s, "جلسة مع المدرب", "اتكلمت مع المدرب عن دورك وخطة تطويرك. الثقة والاحترافية اتحسنوا.");
-    } else if (kind === "teammate") {
-      stat(s, "teamChemistry", 5);
-      stat(s, "morale", 3);
-      stat(s, "professionalism", 1);
-      stat(s, "energy", -1);
-      record(s, "دعم لاعب أصغر", "خصصت وقت للاعب أصغر وشاركت معاه خبرتك. انسجام الفريق اتحسن.");
-    } else {
-      stat(s, "morale", 5);
-      stat(s, "energy", 7);
-      stat(s, "fatigue", -4);
-      record(s, "راحة ذهنية", "اخدت وقت تهدّي فيه الضغط وتراجع أولوياتك. معنوياتك وتعافيك اتحسنوا.");
+    var result = await runCareerMutation(s, function () {
+      var actionDay = Number(s.day) || 1;
+      if (!s.careerStarted || s.retired || (s.dailyActionUsed && Number(s.dailyActionDay) === actionDay)
+        || (Number(s.energy) || 0) < requiredEnergy) return false;
+      if (kind === "coach") {
+        stat(s, "coachRelationship", 5);
+        stat(s, "trust", 2);
+        stat(s, "professionalism", 3);
+        stat(s, "energy", -3);
+        record(s, "جلسة مع المدرب", "اتكلمت مع المدرب عن دورك وخطة تطويرك. الثقة والاحترافية اتحسنوا.");
+      } else if (kind === "teammate") {
+        stat(s, "teamChemistry", 5);
+        stat(s, "morale", 3);
+        stat(s, "professionalism", 1);
+        stat(s, "energy", -1);
+        record(s, "دعم لاعب أصغر", "خصصت وقت للاعب أصغر وشاركت معاه خبرتك. انسجام الفريق اتحسن.");
+      } else {
+        stat(s, "morale", 5);
+        stat(s, "energy", 7);
+        stat(s, "fatigue", -4);
+        record(s, "راحة ذهنية", "اخدت وقت تهدّي فيه الضغط وتراجع أولوياتك. معنوياتك وتعافيك اتحسنوا.");
+      }
+      s.dailyActionUsed = true;
+      s.dailyActionType = kind === "coach" ? "جلسة توجيه" : kind === "teammate" ? "دعم زميل" : "راحة ذهنية";
+      s.dailyActionDay = actionDay;
+      s.nightToday = true;
+      world(s).mentorSessions++;
+      return { kind: kind, day: actionDay };
+    }, "النشاط اتسجل واتأكد حفظه على المسيرة.", "activity");
+    if (result.ok) {
+      currentView = "mentor";
+      openMentor();
     }
-    s.dailyActionUsed = true;
-    s.dailyActionType = kind === "coach" ? "جلسة توجيه" : kind === "teammate" ? "دعم زميل" : "راحة ذهنية";
-    s.dailyActionDay = currentDay;
-    s.nightToday = true;
-    world(s).mentorSessions++;
-    save(s, "النشاط اتسجل واتطبقت نتائجه على المسيرة.");
-    currentView = "mentor";
-    openMentor();
+    return result;
   }
 
   function legacyData(s) {
@@ -796,18 +836,18 @@
     if (action === "open-legacy") { openLegacy(); return; }
     if (action === "open-penalty") { penalty = { direction: "", power: 68 }; openPenalty(s); return; }
     if (action === "penalty-target") { penalty.direction = element.getAttribute("data-dir") || ""; openPenalty(s); return; }
-    if (action === "penalty-shoot") { penalty.power = cap((document.getElementById("lwcx-power") || {}).value || penalty.power, 25, 95); shootPenalty(s); return; }
+    if (action === "penalty-shoot") { penalty.power = cap((document.getElementById("lwcx-power") || {}).value || penalty.power, 25, 95); return shootPenalty(s); }
     if (action === "open-timing") { openTiming(s); return; }
     if (action === "timing-start") { startTiming(s); return; }
-    if (action === "timing-stop") { stopTiming(s); return; }
+    if (action === "timing-stop") { return stopTiming(s); }
     if (action === "open-memory") { openMemory(s); return; }
-    if (action === "memory-answer") { answerMemory(s, element.getAttribute("data-arrow") || ""); return; }
+    if (action === "memory-answer") { return answerMemory(s, element.getAttribute("data-arrow") || ""); }
     if (action === "memory-reset") { openMemory(s); return; }
     if (action === "invest-safe") { return makeInvestment(s, false); }
     if (action === "invest-risky") { return makeInvestment(s, true); }
     if (action === "training-skill") { openTrainingSkill(); return; }
     if (action.indexOf("skill-") === 0) { return applyFocusedTraining(s, action.slice(6)); }
-    if (action.indexOf("mentor-") === 0) { doMentor(s, action.slice(7)); return; }
+    if (action.indexOf("mentor-") === 0) { return doMentor(s, action.slice(7)); }
   }
 
   function pendingInvestmentCount(w, revision, force) {

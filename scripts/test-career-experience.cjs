@@ -83,16 +83,17 @@ function makeHarness(overrides = {}) {
       }
     };
     const event = { target: { closest: () => button }, preventDefault() {} };
-    listeners.click[0](event);
+    return listeners.click[0](event);
   }
   return { state, notices, overlay, click, get overlayCount() { return overlayCount; }, get saveCount() { return saveCount; } };
 }
 
+(async function runCareerExperienceRegressions() {
 const emptyEnergy = makeHarness({ energy: 0 });
-emptyEnergy.click("open-challenges");
+await emptyEnergy.click("open-challenges");
 assert.match(emptyEnergy.overlay.innerHTML, /data-lwcx-action="open-timing" disabled/,
   "timing challenge should be disabled in the menu when energy is insufficient");
-emptyEnergy.click("open-timing");
+await emptyEnergy.click("open-timing");
 assert.equal(emptyEnergy.state.careerWorld.challengeCount, 0,
   "a timing challenge with zero energy must not count an attempt");
 assert.equal(emptyEnergy.state.careerXP, 0,
@@ -103,7 +104,7 @@ assert.ok(emptyEnergy.notices.some(message => message.includes("طاقتك مش 
   "the player should be told why the challenge is blocked");
 
 const injured = makeHarness({ energy: 90, injuryDays: 2 });
-injured.click("open-memory");
+await injured.click("open-memory");
 assert.equal(injured.state.careerWorld.challengeCount, 0,
   "an injured player must not start the memory challenge");
 assert.equal(injured.state.careerXP, 0,
@@ -112,10 +113,10 @@ assert.equal(injured.overlayCount, 0,
   "the memory challenge should not open while the player is injured");
 
 const drainedDuringTiming = makeHarness({ energy: 3 });
-drainedDuringTiming.click("open-timing");
-drainedDuringTiming.click("timing-start");
+await drainedDuringTiming.click("open-timing");
+await drainedDuringTiming.click("timing-start");
 drainedDuringTiming.state.energy = 0;
-drainedDuringTiming.click("timing-stop");
+await drainedDuringTiming.click("timing-stop");
 assert.equal(drainedDuringTiming.state.careerWorld.challengeCount, 0,
   "a challenge that loses its required energy before completion must not count");
 assert.equal(drainedDuringTiming.state.careerXP, 0,
@@ -126,19 +127,19 @@ assert.equal(drainedDuringTiming.saveCount, 0,
   "a blocked timing completion must not save a fake reward");
 
 const injuredDuringTiming = makeHarness({ energy: 3 });
-injuredDuringTiming.click("open-timing");
-injuredDuringTiming.click("timing-start");
+await injuredDuringTiming.click("open-timing");
+await injuredDuringTiming.click("timing-start");
 injuredDuringTiming.state.injuryDays = 1;
-injuredDuringTiming.click("timing-stop");
+await injuredDuringTiming.click("timing-stop");
 assert.equal(injuredDuringTiming.state.careerWorld.challengeCount, 0,
   "an injury acquired during a challenge must block completion rewards");
 assert.equal(injuredDuringTiming.state.careerXP, 0,
   "an injured challenge completion must not grant XP");
 
 const valid = makeHarness({ energy: 10 });
-valid.click("open-timing");
-valid.click("timing-start");
-valid.click("timing-stop");
+await valid.click("open-timing");
+await valid.click("timing-start");
+await valid.click("timing-stop");
 assert.equal(valid.state.careerWorld.challengeCount, 1,
   "a valid timing challenge should still count once");
 assert.equal(valid.state.careerWorld.practiceAttempts, 1);
@@ -153,8 +154,8 @@ const fullPortfolio = makeHarness({
   money: 1000,
   careerWorld: { investments: makeOpenInvestments(5), investmentSequence: 1 }
 });
-fullPortfolio.click("open-finance");
-fullPortfolio.click("invest-safe");
+await fullPortfolio.click("open-finance");
+await fullPortfolio.click("invest-safe");
 assert.equal(fullPortfolio.state.money, 1000,
   "the sixth open investment must not charge the player");
 assert.equal(fullPortfolio.state.careerWorld.investments.length, 5,
@@ -168,8 +169,8 @@ const availablePortfolio = makeHarness({
   money: 1000,
   careerWorld: { investments: makeOpenInvestments(4), investmentSequence: 1 }
 });
-availablePortfolio.click("open-finance");
-availablePortfolio.click("invest-safe");
+await availablePortfolio.click("open-finance");
+await availablePortfolio.click("invest-safe");
 assert.equal(availablePortfolio.state.money, 900,
   "a player with fewer than five open investments should still be able to invest");
 assert.equal(availablePortfolio.state.careerWorld.investments.length, 5);
@@ -179,7 +180,7 @@ assert.equal(availablePortfolio.state.careerWorld.investments.at(-1).id, 5,
 const lowEnergyCoach = makeHarness({
   energy: 2, coachRelationship: 40, trust: 50, professionalism: 60, dailyActionUsed: false
 });
-lowEnergyCoach.click("mentor-coach");
+await lowEnergyCoach.click("mentor-coach");
 assert.equal(lowEnergyCoach.state.coachRelationship, 40,
   "a coach session must not grant relationship points without its three-energy cost");
 assert.equal(lowEnergyCoach.state.trust, 50);
@@ -191,7 +192,7 @@ assert.equal(lowEnergyCoach.state.careerWorld.mentorSessions, 0);
 assert.ok(lowEnergyCoach.notices.some(message => message.includes("طاقتك مش كفاية")));
 
 const lowEnergyTeammate = makeHarness({ energy: 0, teamChemistry: 50, morale: 50, dailyActionUsed: false });
-lowEnergyTeammate.click("mentor-teammate");
+await lowEnergyTeammate.click("mentor-teammate");
 assert.equal(lowEnergyTeammate.state.teamChemistry, 50,
   "supporting a teammate must not grant free chemistry without one energy");
 assert.equal(lowEnergyTeammate.state.morale, 50);
@@ -200,7 +201,7 @@ assert.equal(lowEnergyTeammate.state.dailyActionUsed, false);
 const validCoach = makeHarness({
   energy: 3, coachRelationship: 40, trust: 50, professionalism: 60, dailyActionUsed: false
 });
-validCoach.click("mentor-coach");
+await validCoach.click("mentor-coach");
 assert.equal(validCoach.state.coachRelationship, 45);
 assert.equal(validCoach.state.trust, 52);
 assert.equal(validCoach.state.professionalism, 63);
@@ -210,7 +211,7 @@ assert.equal(validCoach.state.careerWorld.mentorSessions, 1,
   "a valid coach session should retain its intended daily reward");
 
 const restAtZero = makeHarness({ energy: 0, morale: 50, fatigue: 20, dailyActionUsed: false });
-restAtZero.click("mentor-reset");
+await restAtZero.click("mentor-reset");
 assert.equal(restAtZero.state.energy, 7,
   "mental rest must remain available when the player has no energy");
 assert.equal(restAtZero.state.morale, 55);
@@ -218,7 +219,7 @@ assert.equal(restAtZero.state.fatigue, 16);
 assert.equal(restAtZero.state.dailyActionUsed, true);
 
 const invalidMentorAction = makeHarness({ energy: 0, morale: 50, dailyActionUsed: false });
-invalidMentorAction.click("mentor-hack");
+await invalidMentorAction.click("mentor-hack");
 assert.equal(invalidMentorAction.state.energy, 0,
   "unknown mentor action IDs must not fall through to mental rest");
 assert.equal(invalidMentorAction.state.morale, 50);
@@ -226,3 +227,7 @@ assert.equal(invalidMentorAction.state.dailyActionUsed, false);
 assert.ok(invalidMentorAction.notices.some(message => message.includes("النشاط ده مش متاح")));
 
 console.log("PASS: challenge energy, investment limits, and daily mentor eligibility are enforced.");
+})().catch(error => {
+  console.error(error && error.stack ? error.stack : error);
+  process.exitCode = 1;
+});

@@ -98,7 +98,7 @@
     if (message && api && api.toast) api.toast(message);
   }
 
-  var careerMutationPending = false;
+  var financeMutationPending = false;
 
   function safeWholeMoney(value) {
     if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return null;
@@ -137,7 +137,7 @@
     var api = API();
     var isFinance = category === "finance";
     var label = isFinance ? "العملية المالية" : "النشاط";
-    if (careerMutationPending) {
+    if (financeMutationPending) {
       if (api && api.toast) api.toast(isFinance
         ? "فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة."
         : "فيه نشاط تاني بيتأكد حفظه دلوقتي. استنى لحظة.");
@@ -151,7 +151,7 @@
       if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ " + label + ".");
       return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
     }
-    careerMutationPending = true;
+    financeMutationPending = true;
     var payload = null;
     try {
       payload = operation();
@@ -184,7 +184,7 @@
       if (window.console && window.console.warn) window.console.warn("Career mutation rolled back", error);
       return { ok: false, reason: message, rollbackPersisted: rollbackPersisted };
     } finally {
-      careerMutationPending = false;
+      financeMutationPending = false;
     }
     try { if (api.render) api.render(); } catch (renderError) {}
     try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
@@ -554,7 +554,7 @@
   function makeInvestment(s, risky) {
     if (!s) return Promise.resolve({ ok: false, reason: "career-state-unavailable" });
     var api = API();
-    if (careerMutationPending) {
+    if (financeMutationPending) {
       if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
       return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
     }
@@ -627,7 +627,7 @@
       return Promise.resolve({ ok: false, reason: "invalid-training-skill" });
     }
     var api = API();
-    if (careerMutationPending) {
+    if (financeMutationPending) {
       if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
       return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
     }
@@ -659,7 +659,7 @@
     var due = w.investments.filter(function (item) { return item && !item.settled && today >= Number(item.dueDay); });
     if (!due.length) return false;
     var api = API();
-    if (careerMutationPending) return Promise.resolve({ ok: false, changed: false, reason: "finance-mutation-pending" });
+    if (financeMutationPending) return Promise.resolve({ ok: false, changed: false, reason: "finance-mutation-pending" });
     if (safeWholeMoney(s.money) === null) {
       if (api && api.toast) api.toast("فيه رصيد غير صالح؛ استحقاق الاستثمار متوقف لحد ما تراجع الحفظ.");
       return Promise.resolve({ ok: false, changed: false, reason: "invalid-balance" });

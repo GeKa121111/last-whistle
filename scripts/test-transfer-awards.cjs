@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 16);
+assert.equal(engine.version, 17);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -378,6 +378,43 @@ assert.ok(youthOffers.every(offer => offer.power < 70), "a 58 OVR academy player
 assert.ok(!youthOffers.some(offer => offer.club === "ريال مدريد" || offer.club === "نادي قوي"));
 assert.ok(youthOffers.every(offer => offer.role && offer.stars && offer.signingBonus >= 0 && offer.goalBonus >= 0 && offer.cleanSheetBonus >= 0));
 assert.ok(youthOffers.every(offer => ["نجم الفريق", "أساسي", "تناوب", "لاعب بديل", "لاعب ناشئ"].includes(offer.role)));
+
+const normalizedIdentityPlayer = {
+  ...youthPlayer, name: "حارس انتقالات", age: 24, position: "GK",
+  currentClub: "Real Madrid", country: "Spain", currentClubPower: 70,
+  ovr: 80, potential: 82, form: 7.2, appearances: 10, goals: 2, assists: 1
+};
+const normalizedIdentityOffers = engine.generateOffers({
+  player: normalizedIdentityPlayer,
+  windowId: "normalized-transfer-identity",
+  currentClubPower: 70,
+  targets: [{
+    club: "REAL MADRID", country: "spain", power: 70, prestige: 80, division: 1,
+    players: [{ name: "حارس النادي الحالي", position: "حارس مرمى", ovr: 90 }]
+  }, {
+    club: "نادي جديد", country: "Spain", power: 72, prestige: 80, division: 1,
+    players: [
+      { name: "حارس منافس", position: "حارس مرمى", ovr: 88 },
+      { name: "مهاجم منافس", position: "مهاجم", ovr: 95 }
+    ]
+  }]
+});
+assert.equal(normalizedIdentityOffers.length, 1,
+  "a case/spacing variant of the player's current club must not generate a self-transfer offer");
+assert.equal(normalizedIdentityOffers[0].club, "نادي جديد");
+assert.deepEqual(normalizedIdentityOffers[0].positionRivals, ["حارس منافس"],
+  "English position codes must match Arabic roster positions through the shared role mapping");
+const unknownRoleOffers = engine.generateOffers({
+  player: { ...normalizedIdentityPlayer, position: "unmapped role" },
+  windowId: "unknown-role-transfer",
+  currentClubPower: 70,
+  targets: [{
+    club: "نادي جديد", country: "Spain", power: 72, prestige: 80, division: 1,
+    players: [{ name: "لاعب بمركز آخر", position: "different unmapped role" }]
+  }]
+});
+assert.deepEqual(unknownRoleOffers[0].positionRivals, [],
+  "unknown position labels must not all collapse into the default midfielder role when discovering rivals");
 
 const invalidOfferCases = [
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },

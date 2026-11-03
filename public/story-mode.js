@@ -201,10 +201,10 @@ function acquireSharedMutationLock(owner) {
   }
   if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
   owner = String(owner || "");
-  if (!owner) return Promise.resolve(false);
+  if (!owner) return false;
   if (!coordinator.owner) {
     coordinator.owner = owner;
-    return Promise.resolve(true);
+    return true;
   }
   return new Promise(function(resolve) { coordinator.queue.push({ owner: owner, resolve: resolve }); });
 }
@@ -243,7 +243,8 @@ async function runStoryMutation(state,operation){
   if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
     return {ok:false,reason:"story-persistence-unavailable"};
   storyMutationPending=true;
-  await acquireSharedMutationLock("story-mode");
+  var mutationLock = acquireSharedMutationLock("story-mode");
+  if(mutationLock && typeof mutationLock.then === "function") await mutationLock;
   var snapshot=cloneStoryState(state);
   if(!snapshot){
     storyMutationPending=false;

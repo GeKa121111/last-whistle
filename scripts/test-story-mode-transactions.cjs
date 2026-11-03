@@ -15,7 +15,7 @@ assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
 assert.match(html, /story-mode\.js\?v=14/);
 assert.match(sw, /story-mode\.js\?v=14/);
-assert.match(sw, /last-whistle-static-v455/);
+assert.match(sw, /last-whistle-static-v456/);
 require("./assert-static-cache-version.cjs")(sw, 445);
 
 const helperStart = source.indexOf("function cloneStoryState(");

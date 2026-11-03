@@ -292,7 +292,35 @@ function createHarness() {
   assert.equal(await currentFlush, true);
   assert.deepEqual(JSON.parse(JSON.stringify(queuedMutation.committedWrites[0].state)), editedQueuedState);
 
-  console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; normal startup/save/load remain intact.");
+  const completionBoundary = createHarness();
+  await completionBoundary.resolveStartupRead(null);
+  const boundaryCareer = { name: "Career updated at flush completion", money: 1200 };
+  completionBoundary.store.publish(boundaryCareer, { source: "import" });
+  const boundaryFlush = completionBoundary.store.flush(boundaryCareer);
+  await completionBoundary.waitForWrite(0);
+  let boundaryOverlap = null;
+  completionBoundary.completeWrite(0);
+  queueMicrotask(() => {
+    boundaryCareer.money = 975;
+    completionBoundary.store.markDirty(boundaryCareer);
+    boundaryOverlap = completionBoundary.store.flush({ name: "Detached stale caller", money: 1200 });
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.strictEqual(boundaryOverlap, boundaryFlush,
+    "a flush requested between transaction completion and writer release must join the same durable operation");
+  await completionBoundary.waitForWrite(1);
+  assert.equal(completionBoundary.writes.length, 2,
+    "a completion-boundary flush request must trigger a follow-up write");
+  assert.deepEqual(JSON.parse(JSON.stringify(completionBoundary.writes[1].state)), boundaryCareer,
+    "the follow-up write must persist the newest live career, not the detached caller snapshot");
+  assert.equal(completionBoundary.completeWrite(1), true);
+  assert.equal(await boundaryFlush, true,
+    "the shared flush promise must remain pending until the completion-boundary update is committed");
+  assert.equal(await boundaryOverlap, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(completionBoundary.committedWrites.at(-1).state)), boundaryCareer,
+    "the final committed default-slot record must contain the newest career state");
+
+  console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

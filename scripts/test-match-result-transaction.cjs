@@ -414,6 +414,8 @@ sandbox.state.apps = 0;
 sandbox.state.careerAppearances = 0;
 sandbox.state.careerMinutes = 0;
 sandbox.state.competitionStats = {};
+sandbox.state.pos = "مهاجم";
+sandbox.state.age = 22;
 const cupResult = {
   ...result,
   player: { ...result.player, minutes: 45, goals: 1, assists: 1, rating: 7 },

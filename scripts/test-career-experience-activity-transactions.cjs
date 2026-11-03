@@ -14,9 +14,9 @@ assert.equal(source, deployed, "root/public career experience scripts must stay 
 assert.equal(html, publicHtml, "root/public app shells must stay identical");
 assert.equal(sw, publicSw, "root/public service workers must stay identical");
 assert.match(html, /career-experience\.js\?v=9/);
-assert.match(sw, /last-whistle-static-v442/);
+assert.match(sw, /last-whistle-static-v443/);
 assert.match(sw, /career-experience\.js\?v=9/);
-require("./assert-static-cache-version.cjs")(sw, 442);
+require("./assert-static-cache-version.cjs")(sw, 443);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
 
 function makeHarness(overrides = {}, flushQueue = []) {

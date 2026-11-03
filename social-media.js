@@ -108,6 +108,22 @@
     try { return JSON.stringify(state); } catch (error) { return null; }
   }
 
+  function acquireSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (!coordinator || typeof coordinator !== "object") {
+      coordinator = { owner: "" };
+      window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
+    }
+    if (coordinator.owner) return false;
+    coordinator.owner = String(owner || "");
+    return !!coordinator.owner;
+  }
+  function releaseSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (coordinator && coordinator.owner === owner) coordinator.owner = "";
+  }
+
+
   async function flushSocialState(runtime, state) {
     var queued = runtime.save();
     if (queued && typeof queued.then === "function") queued = await queued;
@@ -131,6 +147,9 @@
       && !(window.LWStateStore && typeof window.LWStateStore.flush === "function")) {
       return { ok: false, reason: "social-persistence-unavailable" };
     }
+    if (!acquireSharedMutationLock("social-media")) {
+      return { ok: false, reason: "social-mutation-pending" };
+    }
     var hadSocialState = socialOnly && Object.prototype.hasOwnProperty.call(state, "socialMedia");
     var rawSocialState = socialOnly ? state.socialMedia : null;
     var snapshot = socialOnly
@@ -138,12 +157,16 @@
       : cloneSocialState(state);
     if ((!socialOnly && !snapshot) || (socialOnly && hadSocialState && rawSocialState
       && typeof rawSocialState === "object" && !snapshot)) {
+      releaseSharedMutationLock("social-media");
       return { ok: false, reason: "social-snapshot-unavailable" };
     }
     var before = socialOnly
       ? socialStateSignature({ present: hadSocialState, value: snapshot })
       : socialStateSignature(snapshot);
-    if (before === null) return { ok: false, reason: "social-snapshot-unavailable" };
+    if (before === null) {
+      releaseSharedMutationLock("social-media");
+      return { ok: false, reason: "social-snapshot-unavailable" };
+    }
     function restoreSnapshot() {
       if (!socialOnly) return restoreSocialState(state, snapshot);
       if (hadSocialState) state.socialMedia = snapshot;
@@ -186,6 +209,7 @@
       return { ok: false, reason: "social-save-failed", rollbackPersisted: rollbackPersisted, error: error };
     } finally {
       socialMutationPending = false;
+      releaseSharedMutationLock("social-media");
     }
   }
 

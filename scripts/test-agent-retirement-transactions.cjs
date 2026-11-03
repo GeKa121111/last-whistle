@@ -35,6 +35,8 @@ function extractFunction(name) {
 }
 
 const names = [
+  "acquireSharedMutationLock",
+  "releaseSharedMutationLock",
   "safeWholeAmount",
   "postRetirementOptions",
   "clonePostRetirementMutationState",

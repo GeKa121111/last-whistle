@@ -335,13 +335,16 @@
     const minPower = Math.max(38, currentPower - (playerOvr < 62 ? 9 : 14));
     const seen = new Set();
     const candidates = [];
+    const playerPosition = normalized(player.position);
+    const playerRole = roleType(player.position);
 
     for (const raw of targets) {
       if (!raw || !raw.club || !raw.country) continue;
       const key = normalized(raw.country) + "|" + normalized(raw.club);
       if (seen.has(key)) continue;
       seen.add(key);
-      if (raw.club === player.currentClub && raw.country === player.country) continue;
+      if (normalized(raw.club) === normalized(player.currentClub)
+        && normalized(raw.country) === normalized(player.country)) continue;
       const power = clamp(raw.power || raw.ovr || 50, 35, 99);
       if (power < minPower || power > maxPower) continue;
       if (playerOvr < 60 && power >= 70) continue;
@@ -349,7 +352,8 @@
       const roleGap = playerOvr - power;
       const role = roleGap >= 9 ? "نجم الفريق" : roleGap >= 4 ? "أساسي" : roleGap >= -1 ? "تناوب" : Number(player.age) <= 21 && Number(player.potential) >= 78 ? "لاعب ناشئ" : "لاعب بديل";
       const positionRivals = (Array.isArray(raw.players) ? raw.players : [])
-        .filter(item => item && item.name && normalized(item.position) === normalized(player.position))
+        .filter(item => item && item.name && playerPosition && normalized(item.position)
+          && roleType(item.position) === playerRole)
         .sort((a, b) => Number(b.ovr || 0) - Number(a.ovr || 0))
         .slice(0, 3).map(item => item.name);
       const stars = (positionRivals.length ? positionRivals : (Array.isArray(raw.stars) ? raw.stars : []))
@@ -808,7 +812,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 16,
+    version: 17,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

@@ -127,9 +127,9 @@ requireBefore("./career-state-store.js?v=8", "./football-world-ai.js?v=74",
   "the shared state bus must load before the world engine");
 requireBefore("./football-world-rosters.js?v=6", "./football-world-db.js?v=9",
   "sourced rosters must load before the world database");
-requireBefore("./football-world-db.js?v=9", "./transfer-awards-engine.js?v=21",
+requireBefore("./football-world-db.js?v=9", "./transfer-awards-engine.js?v=22",
   "the world database must load before transfer/award integration");
-requireBefore("./transfer-awards-engine.js?v=21", "./story-mode.js?v=14",
+requireBefore("./transfer-awards-engine.js?v=22", "./story-mode.js?v=14",
   "the award engine and inline career/match engines must load before feature modules");
 
 const workerSource = read("football-world-worker.js");

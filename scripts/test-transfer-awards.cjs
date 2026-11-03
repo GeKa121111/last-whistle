@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 17);
+assert.equal(engine.version, 18);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -415,6 +415,19 @@ const unknownRoleOffers = engine.generateOffers({
 });
 assert.deepEqual(unknownRoleOffers[0].positionRivals, [],
   "unknown position labels must not all collapse into the default midfielder role when discovering rivals");
+
+const fallbackCurrencyOffers = engine.generateOffers({
+  player: normalizedIdentityPlayer,
+  windowId: "fallback-currency",
+  currentClubPower: 70,
+  targets: [{ club: "نادي بلا عملة", country: "مصر", power: 72, prestige: 80, division: 1 }]
+});
+assert.equal(fallbackCurrencyOffers.length, 1,
+  "a transfer target with no currency metadata must still produce an offer");
+assert.equal(fallbackCurrencyOffers[0].currency, "ج.م",
+  "a missing target currency must use the Egyptian-pound display fallback");
+assert.equal(fallbackCurrencyOffers[0].wage, 350 + 72 * 28 + 80 * 12,
+  "the wage formula must use the same Egyptian-pound fallback as the displayed currency");
 
 const invalidOfferCases = [
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },

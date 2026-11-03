@@ -140,7 +140,7 @@ const helperContexts = moduleSpecs.map((spec, index) => {
   await waitForFlush();
   const careerAfterRetirement = careerSandbox.runCareerMutation(state, function () { state.money -= 100; return true; }, null, "finance");
   await Promise.resolve();
-  assert.equal(state.money, 800, "career mutation must wait for post-retirement save");
+  assert.equal(state.money, 700, "only the post-retirement debit may apply before its save is released");
   releaseFlush();
   assert.equal((await retirementWrite).ok, true);
   await waitForFlush();

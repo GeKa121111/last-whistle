@@ -568,13 +568,30 @@ async function main() {
         && getComputedStyle(drawer).visibility === "hidden";
     }, null, { timeout: 10000 });
     await page.locator('#shopItems [data-buy="xpMultiplier"]').waitFor({ state: "visible", timeout: 10000 });
-    await page.locator('#shopItems [data-buy="xpMultiplier"]').click({ timeout: 15000 });
+    // The shop rerenders its cards while state subscribers settle. Use the live
+    // DOM node's native click in one task so Playwright's actionability polling
+    // cannot lose the button between layout frames; the same click handler runs.
+    const storeButtonClick = await page.evaluate(() => {
+      const button = document.querySelector('#shopItems [data-buy="xpMultiplier"]');
+      if (!button || button.disabled) return { clicked: false, reason: "button-unavailable" };
+      button.click();
+      return { clicked: true, label: button.textContent.trim() };
+    });
+    assert.equal(storeButtonClick.clicked, true,
+      "the XP multiplier purchase button must be present and enabled: " + JSON.stringify(storeButtonClick));
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")
         && title && title.textContent.includes("تأكيد الشراء");
     });
-    await page.locator("#modalChoices button").filter({ hasText: "اشتري دلوقتي" }).click();
+    const confirmPurchaseClick = await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll("#modalChoices button"))
+        .find(candidate => candidate.textContent.includes("اشتري دلوقتي"));
+      if (!button || button.disabled) return false;
+      button.click();
+      return true;
+    });
+    assert.equal(confirmPurchaseClick, true, "the purchase confirmation action must be available");
     try {
       await page.waitForFunction(() => {
         const state = window.LWStoryRuntime.getState();

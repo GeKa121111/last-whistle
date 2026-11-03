@@ -415,9 +415,31 @@ async function main() {
       "the shared store must retain the adult eligibility state: " + JSON.stringify(adultTransitionDiagnostic));
     assert.equal(adultTransitionDiagnostic.sameState, true,
       "the runtime and store must still share one career object after the adult transition");
-    assert.equal(adultTransitionDiagnostic.transferHidden, false,
-      "an adult professional player during the summer window must see the transfer action: " + JSON.stringify(adultTransitionDiagnostic));
-    await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
+    try {
+      await page.waitForFunction(() => {
+        const button = document.querySelector("#lw-cta-transfers");
+        return !!button && !button.hidden && getComputedStyle(button).display !== "none";
+      }, null, { timeout: 10000 });
+    } catch (error) {
+      const current = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+          ? window.LWStateStore.getState() : null;
+        const button = document.querySelector("#lw-cta-transfers");
+        return {
+          age: Number(state.age), storeAge: stored ? Number(stored.age) : null,
+          sameState: stored === state, calendarDay: Number(state.calendarDay),
+          academyCareer: !!state.academyCareer, academyGraduated: !!state.academyGraduated,
+          academyReserve: !!state.academyReserve, academyGraduationPending: !!state.academyGraduationPending,
+          retired: !!state.retired, careerStarted: !!state.careerStarted,
+          transferHidden: !!button?.hidden, transferDisabled: !!button?.disabled,
+          transferDisplay: button ? getComputedStyle(button).display : "missing",
+          transferLabel: button?.textContent || ""
+        };
+      });
+      throw new Error("adult transfer action did not become visible: "
+        + JSON.stringify(current) + "; " + error.message);
+    }
     await page.waitForFunction(() => {
       const season = document.querySelector("#lw-cta-season");
       const transfers = document.querySelector("#lw-cta-transfers");

@@ -157,7 +157,7 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   assert.equal(fallbackFailed.saveQueued, true, "failed fallback storage must retain the queue for a later retry");
 
   const supersededFlush = await runFlush({
-    initialFallback: "LWIDB1:{\\"name\\":\\"older fallback\\",\\"money\\":3000}",
+    initialFallback: 'LWIDB1:{"name":"older fallback","money":3000}',
     flush: async () => false
   });
   assert.equal(supersededFlush.result, true,

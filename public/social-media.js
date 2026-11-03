@@ -9,6 +9,8 @@
   var draft = "";
   var refreshTimer = 0;
   var lastRenderedSignature = "";
+  var socialMutationPending = false;
+  var socialPersistenceWarningShown = false;
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
@@ -86,6 +88,87 @@
     }).slice(0, MAX_POSTS);
     social.lastReplyDay = String(social.lastReplyDay || "");
     return social;
+  }
+
+  function cloneSocialState(state) {
+    if (!state || typeof state !== "object") return null;
+    try { if (typeof window.structuredClone === "function") return window.structuredClone(state); } catch (error) {}
+    try { return JSON.parse(JSON.stringify(state)); } catch (error) { return null; }
+  }
+
+  function restoreSocialState(target, snapshot) {
+    if (!target || !snapshot || typeof snapshot !== "object") throw new Error("invalid-social-snapshot");
+    Object.keys(target).forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(snapshot, key)) delete target[key];
+    });
+    Object.keys(snapshot).forEach(function (key) { target[key] = snapshot[key]; });
+  }
+
+  function socialStateSignature(state) {
+    try { return JSON.stringify(state); } catch (error) { return null; }
+  }
+
+  async function flushSocialState(runtime, state) {
+    var queued = runtime.save();
+    if (queued && typeof queued.then === "function") queued = await queued;
+    if (queued === false) return false;
+    var pending;
+    if (typeof window.flushQueuedSave === "function") pending = window.flushQueuedSave({ backupFirst: true });
+    else if (window.LWStateStore && typeof window.LWStateStore.flush === "function") pending = window.LWStateStore.flush(state);
+    else return false;
+    return await Promise.resolve(pending) === true;
+  }
+
+  async function runSocialMutation(state, operation) {
+    var runtime = api();
+    if (socialMutationPending) return { ok: false, reason: "social-mutation-pending" };
+    if (!state || typeof operation !== "function" || !runtime || typeof runtime.save !== "function") {
+      return { ok: false, reason: "social-persistence-unavailable" };
+    }
+    if (typeof window.flushQueuedSave !== "function"
+      && !(window.LWStateStore && typeof window.LWStateStore.flush === "function")) {
+      return { ok: false, reason: "social-persistence-unavailable" };
+    }
+    var snapshot = cloneSocialState(state);
+    if (!snapshot) return { ok: false, reason: "social-snapshot-unavailable" };
+    var before = socialStateSignature(snapshot);
+    if (before === null) return { ok: false, reason: "social-snapshot-unavailable" };
+    socialMutationPending = true;
+    try {
+      var value = operation();
+      if (value && typeof value.then === "function") value = await value;
+      if (value && value.ok === false) {
+        restoreSocialState(state, snapshot);
+        return { ok: false, reason: value.reason || "social-operation-rejected", value: value };
+      }
+      var after = socialStateSignature(state);
+      if (after === null) throw new Error("social-state-not-serializable");
+      if (after === before) return { ok: true, changed: false, value: value };
+      if (!(await flushSocialState(runtime, state))) throw new Error("social-save-not-confirmed");
+      socialPersistenceWarningShown = false;
+      return { ok: true, changed: true, value: value };
+    } catch (error) {
+      try { restoreSocialState(state, snapshot); }
+      catch (restoreError) {
+        if (window.console && window.console.warn) window.console.warn("Social media rollback restore failed", restoreError);
+        return { ok: false, reason: "social-rollback-restore-failed", rollbackPersisted: false, error: error };
+      }
+      var rollbackPersisted = false;
+      try { rollbackPersisted = await flushSocialState(runtime, state) === true; }
+      catch (rollbackError) {
+        if (window.console && window.console.warn) window.console.warn("Social media rollback persistence failed", rollbackError);
+      }
+      if (window.console && window.console.warn) window.console.warn("Social media mutation rolled back", error);
+      return { ok: false, reason: "social-save-failed", rollbackPersisted: rollbackPersisted, error: error };
+    } finally {
+      socialMutationPending = false;
+    }
+  }
+
+  function readSocialState(state) {
+    var social = state && state.socialMedia;
+    if (!social || typeof social !== "object" || Array.isArray(social)) return { posts: [], lastReplyDay: "", nextId: 1 };
+    return Array.isArray(social.posts) ? social : Object.assign({}, social, { posts: [] });
   }
 
   function matchKey(match) {
@@ -619,7 +702,7 @@
   }
 
   function visiblePosts(state) {
-    var social = ensureState(state);
+    var social = readSocialState(state);
     if (activeFilter === "fans") return social.posts.filter(function (post) {
       return ["match", "relationship", "role", "bench", "conflict"].indexOf(post.kind) >= 0;
     });
@@ -635,9 +718,12 @@
     if (typeof document === "undefined") return;
     var feed = document.getElementById("lw-social-feed");
     if (!feed || !state) return;
-    var social = ensureState(state);
+    var social = readSocialState(state);
     var rows = visiblePosts(state);
-    var signature = [social.posts.length, social.posts[0] && social.posts[0].id, activeFilter, state.followers, state.mediaReputation, state.teamChemistry, state.coachRelationship, state.role, social.lastReplyDay, draft].join("|");
+    var signature = [social.posts.length, social.posts[0] && social.posts[0].id,
+      social.posts[0] && social.posts[0].liked, social.posts[0] && social.posts[0].likes,
+      activeFilter, state.followers, state.mediaReputation, state.teamChemistry,
+      state.coachRelationship, state.role, social.lastReplyDay, draft, socialMutationPending].join("|");
     if (signature === lastRenderedSignature && feed.dataset.ready === "true") return;
     lastRenderedSignature = signature;
     feed.dataset.ready = "true";
@@ -657,35 +743,73 @@
     if (composer && composer.value !== draft) composer.value = draft;
     var canPost = !!state.careerStarted && !state.retired;
     var postButton = document.getElementById("lw-social-submit");
-    if (postButton) postButton.disabled = !canPost || !draft.trim() || draft.trim().length > 240;
+    if (postButton) postButton.disabled = socialMutationPending || !canPost || !draft.trim() || draft.trim().length > 240;
     var status = document.getElementById("lw-social-status");
     if (status) status.textContent = canPost ? "الأخبار مبنية على أدائك ودورك وعروض السوق الفعلية — وردك ممكن يغيّر علاقتك بالنادي." : "ابدأ مسيرتك عشان تفتح حسابك على دوشة الملاعب.";
     if (!rows.length) {
-      feed.innerHTML = '<div class="lwsocial-empty"><span>📱</span><strong>لسه مفيش دوشة هنا</strong><p>انشر أول بوست، أو العب مباراة عشان تشوف الجمهور والإعلام بيتكلموا عنك.</p></div>';
-      return;
-    }
-    feed.innerHTML = rows.map(function (post) {
-      var comments = (Array.isArray(post.comments) ? post.comments : []).slice(0, MAX_COMMENTS).map(function (comment) {
-        return '<div class="lwsocial-comment"><span class="lwsocial-comment-avatar">' + esc(comment.avatar || "💬") + '</span><div><strong>' + esc(comment.author || "متابع") + ' <small>' + esc(comment.role || "متابع") + '</small></strong><p>' + esc(comment.body || "") + '</p><span class="lwsocial-comment-likes">♥ ' + clamp(comment.likes, 0, 999999) + '</span></div></div>';
-      }).join("");
-      var authorType = post.authorType === "player" ? "حساب اللاعب" : "حساب كروي";
-      var badge = post.verified ? '<span class="lwsocial-verified">✓</span>' : "";
-      var kindLabels = { match: "بعد المباراة", player: "بوست جديد", press: "تصريح", transfer: "انتقالات", rumor: "شائعة انتقال", role: "دورك في الفريق", bench: "دقائق اللعب", conflict: "غرفة الملابس", relationship: "داخل النادي", award: "إنجاز" };
-      var kindClass = "lwsocial-kind-" + String(post.kind || "news").replace(/[^a-z0-9-]/gi, "");
-      var actionHtml = '<div class="lwsocial-actions"><button type="button" data-sm-like="' + esc(post.id) + '">' + (post.liked ? "♥ أعجبني" : "♡ إعجاب") + '</button>';
-      if (!post.playerResponse) {
-        if (post.kind === "rumor" || post.kind === "transfer") {
-          actionHtml += '<button type="button" data-sm-reply="deny-rumor" data-sm-post="' + esc(post.id) + '">أنفي الشائعة</button><button type="button" data-sm-reply="fuel-rumor" data-sm-post="' + esc(post.id) + '">ألمّح للرحيل</button>';
-        } else if (post.kind === "conflict") {
-          actionHtml += '<button type="button" data-sm-reply="support-team" data-sm-post="' + esc(post.id) + '">أهدي الأجواء</button><button type="button" data-sm-reply="fuel-conflict" data-sm-post="' + esc(post.id) + '">أصعّد الخلاف</button>';
-        } else if (post.kind === "role" || post.kind === "bench") {
-          actionHtml += '<button type="button" data-sm-reply="support-team" data-sm-post="' + esc(post.id) + '">أركز في الملعب</button><button type="button" data-sm-reply="fuel-conflict" data-sm-post="' + esc(post.id) + '">أرد بعصبية</button>';
-        } else {
-          actionHtml += '<button type="button" data-sm-reply="respect" data-sm-post="' + esc(post.id) + '">رد باحترام</button><button type="button" data-sm-reply="bold" data-sm-post="' + esc(post.id) + '">رد بثقة</button>';
-        }
-      } else {
-        var responseLabels = { respect: "رددت باحترام", bold: "رديت بثقة", "deny-rumor": "نفيت الشائعة", "fuel-rumor": "لمّحت للرحيل", "support-team": "اخترت تهدئة الأجواء", "fuel-conflict": "صعّدت الخلاف" };
-        actionHtml += '<span class="lwsocial-response">' + esc(responseLabels[post.playerResponse] || "تم تسجيل ردك") + '</span>';
+      feed.innerHTML = '<div class="lws  function boot() {
+    refresh();
+    var store = window.LWStateStore;
+    if (store && typeof store.subscribe === "function") store.subscribe(refresh);
+    if (!refreshTimer) refreshTimer = window.setInterval(refresh, 2500);
+    window.addEventListener("pageshow", refresh);
+    window.addEventListener("storage", refresh);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); });
+    document.addEventListener("input", function (event) {
+      if (event.target && event.target.id === "lw-social-composer") {
+        draft = String(event.target.value || "").slice(0, 240);
+        var counter = document.getElementById("lw-social-counter");
+        if (counter) counter.textContent = String(draft.length) + "/240";
+        var submit = document.getElementById("lw-social-submit");
+        if (submit) submit.disabled = socialMutationPending || !draft.trim();
+      }
+    });
+    document.addEventListener("click", function (event) {
+      var target = event.target && event.target.closest ? event.target.closest("[data-sm-filter], [data-sm-quick], [data-sm-like], [data-sm-reply], #lw-social-submit") : null;
+      if (!target) return;
+      var runtime = api();
+      var state = runtime && runtime.getState ? runtime.getState() : null;
+      if (!state) return;
+      if (target.hasAttribute("data-sm-filter")) {
+        activeFilter = target.getAttribute("data-sm-filter") || "all";
+        lastRenderedSignature = "";
+        render(state);
+      } else if (target.hasAttribute("data-sm-quick")) {
+        draft = target.getAttribute("data-sm-quick") || "";
+        var composer = document.getElementById("lw-social-composer");
+        if (composer) { composer.value = draft; composer.focus(); }
+        var counter = document.getElementById("lw-social-counter");
+        if (counter) counter.textContent = String(draft.length) + "/240";
+        render(state);
+      } else if (target.hasAttribute("data-sm-like")) {
+        commitSocialAction(state, function () {
+          return respond(state, target.getAttribute("data-sm-like"), "like");
+        });
+      } else if (target.hasAttribute("data-sm-reply")) {
+        commitSocialAction(state, function () {
+          return respond(state, target.getAttribute("data-sm-post"), target.getAttribute("data-sm-reply"));
+        }, function (replyResult) {
+          notify(replyResult && replyResult.message ? replyResult.message : "تم حفظ ردك.");
+        }, function (reason) {
+          return reason === "daily-reply-limit" ? "استخدمت ردك اليوم؛ خليك ذكي واختار كلامك."
+            : reason === "post-already-answered" ? "رديت على المنشور ده قبل كده." : "الرد ده مش متاح للمنشور.";
+        });
+      } else if (target.id === "lw-social-submit") {
+        var postText = draft;
+        commitSocialAction(state, function () {
+          return createPlayerPost(state, postText);
+        }, function () {
+          draft = "";
+          notify("البوست نزل — شوف رد فعل الجمهور والإعلام.");
+        }, function (reason) {
+          return reason === "daily-post-limit" ? "بوستين كفاية النهارده؛ خليك مستني تفاعل الناس."
+            : "اكتب بوست من 3 إلى 240 حرف.";
+        });
+      }
+    });
+  }
+
+ل ردك") + '</span>';
       }
       actionHtml += '</div>';
       return '<article class="lwsocial-post">' +
@@ -703,19 +827,45 @@
     if (runtime && typeof runtime.toast === "function") runtime.toast(message);
   }
 
-  function save() {
-    var runtime = api();
-    if (runtime && typeof runtime.save === "function") runtime.save();
+  function notifyPersistenceFailure(result) {
+    if (socialPersistenceWarningShown) return;
+    socialPersistenceWarningShown = true;
+    notify(result && result.rollbackPersisted
+      ? "تعذر تأكيد حفظ التفاعل؛ رجّعنا الحالة السابقة وحفظناها. جرّب مرة تانية."
+      : "تعذر تأكيد الحفظ واستعادة النسخة السابقة. صدّر نسخة احتياطية قبل متابعة اللعب.");
+  }
+
+  function commitSocialAction(state, operation, onSuccess, onInvalid) {
+    return runSocialMutation(state, operation).then(function (result) {
+      if (!result.ok) {
+        if (result.reason === "social-mutation-pending") return result;
+        if (["social-save-failed", "social-persistence-unavailable", "social-snapshot-unavailable",
+          "social-rollback-restore-failed"].indexOf(result.reason) >= 0) notifyPersistenceFailure(result);
+        else if (typeof onInvalid === "function") notify(onInvalid(result.reason));
+        lastRenderedSignature = "";
+        render(state);
+        return result;
+      }
+      socialPersistenceWarningShown = false;
+      if (typeof onSuccess === "function") onSuccess(result.value);
+      lastRenderedSignature = "";
+      render(state);
+      return result;
+    });
   }
 
   function refresh() {
     var runtime = api();
-    if (!runtime || typeof runtime.getState !== "function") return;
+    if (!runtime || typeof runtime.getState !== "function") return Promise.resolve({ ok: false, reason: "social-runtime-unavailable" });
     var state = runtime.getState();
-    if (!state) return;
-    var created = syncState(state);
-    if (created) save();
-    render(state);
+    if (!state) return Promise.resolve({ ok: false, reason: "social-state-unavailable" });
+    if (socialMutationPending) return Promise.resolve({ ok: false, reason: "social-mutation-pending" });
+    return runSocialMutation(state, function () { return syncState(state); }).then(function (result) {
+      if (result.ok) socialPersistenceWarningShown = false;
+      else if (result.reason !== "social-mutation-pending") notifyPersistenceFailure(result);
+      render(state);
+      return result;
+    });
   }
 
   function boot() {
@@ -786,7 +936,8 @@
     respond: respond,
     visiblePosts: visiblePosts,
     render: render,
-    refresh: refresh
+    refresh: refresh,
+    runMutation: runSocialMutation
   });
 
   if (typeof document !== "undefined") {

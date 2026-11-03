@@ -235,7 +235,36 @@ function createHarness() {
   assert.strictEqual(delayedLoad.store.getStartupSave(), newerImportedDuringLoad,
     "a delayed explicit load must not replace the newer startup save");
 
-  console.log("PASS: delayed hydration and superseded IndexedDB writes cannot overwrite a newer import or explicitly loaded career; normal startup/save/load remain intact.");
+  const queuedMutation = createHarness();
+  await queuedMutation.resolveStartupRead(null);
+  const originalQueuedState = { name: "Career before queued mutation", money: 700, age: 17 };
+  const olderQueuedWrite = queuedMutation.store.save(originalQueuedState);
+  const olderQueuedTransaction = await queuedMutation.waitForWrite();
+  const observedEvents = [];
+  queuedMutation.store.subscribe(event => observedEvents.push(event));
+  const editedQueuedState = { name: "Career after queued mutation", money: 700, age: 18 };
+  const revisionBeforeDirty = queuedMutation.store.getRevision();
+  const dirtyRevision = queuedMutation.store.markDirty(editedQueuedState);
+  assert.equal(dirtyRevision, revisionBeforeDirty + 1,
+    "markDirty must advance the shared revision synchronously");
+  assert.strictEqual(queuedMutation.store.getState(), editedQueuedState,
+    "markDirty must make the edited in-memory career the authoritative state");
+  assert.equal(olderQueuedTransaction.aborted, true,
+    "markDirty must abort an older IndexedDB write before it can commit stale career data");
+  assert.equal(observedEvents.length, 0,
+    "markDirty must not notify render subscribers before the queued durable save");
+  await olderQueuedWrite;
+  assert.equal(queuedMutation.committedWrites.length, 0,
+    "the older queued snapshot must never commit after markDirty");
+  const currentFlush = queuedMutation.store.flush(editedQueuedState);
+  const currentTransaction = await queuedMutation.waitForWrite(1);
+  assert.deepEqual(JSON.parse(JSON.stringify(queuedMutation.writes[1].state)), editedQueuedState,
+    "the eventual flush must persist the edited authoritative career");
+  assert.equal(queuedMutation.completeWrite(1), true);
+  assert.equal(await currentFlush, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(queuedMutation.committedWrites[0].state)), editedQueuedState);
+
+  console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; normal startup/save/load remain intact.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

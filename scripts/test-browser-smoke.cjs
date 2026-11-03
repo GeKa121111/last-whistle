@@ -371,10 +371,12 @@ async function main() {
       const transfers = document.querySelector("#lw-cta-transfers");
       return !!transfers && (transfers.hidden || getComputedStyle(transfers).display === "none");
     }, null, { timeout: 10000 });
-    await page.evaluate(() => {
+    const adultTransitionDiagnostic = await page.evaluate(async () => {
       const state = window.LWStoryRuntime.getState();
       window.__transferEligibilityTestBackup = JSON.parse(JSON.stringify(state));
       state.age = 18;
+      state.retired = false;
+      state.careerStarted = true;
       state.academyCareer = false;
       state.academyReserve = false;
       state.academyGraduationPending = false;
@@ -382,10 +384,69 @@ async function main() {
       state.freeAgent = false;
       state.winterBreakPending = false;
       state.calendarDay = 15;
-      window.LWStoryRuntime.save();
+      const revisionBeforeSave = window.LWStateStore.getRevision();
+      const saved = window.LWStoryRuntime.save();
+      const revisionAfterSave = window.LWStateStore.getRevision();
+      if (!saved) throw new Error("could not queue the adult transfer-eligibility test state");
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function")
+        await window.LWStateStore.flush(state);
+      const live = window.LWStoryRuntime.getState();
       window.LWStoryRuntime.render();
+      const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+        ? window.LWStateStore.getState() : null;
+      const transferButton = document.querySelector("#lw-cta-transfers");
+      return {
+        age: Number(live.age),
+        storeAge: stored ? Number(stored.age) : null,
+        revisionBeforeSave: Number(revisionBeforeSave),
+        revisionAfterSave: Number(revisionAfterSave),
+        sameState: stored === live,
+        calendarDay: Number(live.calendarDay),
+        retired: !!live.retired,
+        careerStarted: !!live.careerStarted,
+        academyCareer: !!live.academyCareer,
+        academyGraduated: !!live.academyGraduated,
+        academyReserve: !!live.academyReserve,
+        academyGraduationPending: !!live.academyGraduationPending,
+        transferHidden: !!transferButton?.hidden,
+        transferDisabled: !!transferButton?.disabled,
+        transferLabel: transferButton?.textContent || ""
+      };
     });
-    await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
+    assert.equal(adultTransitionDiagnostic.age, 18,
+      "the adult eligibility test state must remain live after a durable save: " + JSON.stringify(adultTransitionDiagnostic));
+    assert.equal(adultTransitionDiagnostic.storeAge, 18,
+      "the shared store must retain the adult eligibility state: " + JSON.stringify(adultTransitionDiagnostic));
+    assert.ok(adultTransitionDiagnostic.revisionAfterSave > adultTransitionDiagnostic.revisionBeforeSave,
+      "saveGame(true) must invalidate active worker snapshots synchronously before the durable flush: "
+        + JSON.stringify(adultTransitionDiagnostic));
+    assert.equal(adultTransitionDiagnostic.sameState, true,
+      "the runtime and store must still share one career object after the adult transition");
+    try {
+      await page.waitForFunction(() => {
+        const button = document.querySelector("#lw-cta-transfers");
+        return !!button && !button.hidden && getComputedStyle(button).display !== "none";
+      }, null, { timeout: 10000 });
+    } catch (error) {
+      const current = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+          ? window.LWStateStore.getState() : null;
+        const button = document.querySelector("#lw-cta-transfers");
+        return {
+          age: Number(state.age), storeAge: stored ? Number(stored.age) : null,
+          sameState: stored === state, calendarDay: Number(state.calendarDay),
+          academyCareer: !!state.academyCareer, academyGraduated: !!state.academyGraduated,
+          academyReserve: !!state.academyReserve, academyGraduationPending: !!state.academyGraduationPending,
+          retired: !!state.retired, careerStarted: !!state.careerStarted,
+          transferHidden: !!button?.hidden, transferDisabled: !!button?.disabled,
+          transferDisplay: button ? getComputedStyle(button).display : "missing",
+          transferLabel: button?.textContent || ""
+        };
+      });
+      throw new Error("adult transfer action did not become visible: "
+        + JSON.stringify(current) + "; " + error.message);
+    }
     await page.waitForFunction(() => {
       const season = document.querySelector("#lw-cta-season");
       const transfers = document.querySelector("#lw-cta-transfers");
@@ -549,27 +610,127 @@ async function main() {
     results.push("embedded career engine blocks unknown store IDs");
     results.push("11-section navigation and store rendering");
 
-    await page.evaluate(async () => {
+    const seedDiagnostic = await page.evaluate(async () => {
       const state = window.LWStoryRuntime.getState();
       state.money = 3000;
       const saved = window.LWStoryRuntime.save();
       if (!saved) throw new Error("could not seed funds for XP multiplier purchase test");
       if (window.LWStateStore && typeof window.LWStateStore.flush === "function") await window.LWStateStore.flush(state);
+      const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+        ? window.LWStateStore.getState() : null;
+      return {
+        stateMoney: Number(state.money),
+        storeMoney: stored ? Number(stored.money) : null,
+        sameState: stored === state,
+        revision: window.LWStateStore && typeof window.LWStateStore.getRevision === "function"
+          ? window.LWStateStore.getRevision() : null
+      };
     });
+    assert.equal(seedDiagnostic.stateMoney, 3000,
+      "the browser smoke test must seed the live career balance before opening the shop: " + JSON.stringify(seedDiagnostic));
+    assert.equal(seedDiagnostic.storeMoney, 3000,
+      "the shared store must persist the seeded balance before shop navigation: " + JSON.stringify(seedDiagnostic));
+    assert.equal(seedDiagnostic.sameState, true,
+      "the shared store and player runtime must reference the same career object after seeding");
     await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
-    await page.locator('#shopItems [data-buy="xpMultiplier"]').click();
+    // Wait for the destination and drawer transition; the shop card can be transiently
+    // attached during navigation and detached again before the page becomes active.
     await page.waitForFunction(() => {
-      const title = document.querySelector("#modalTitle");
-      return document.querySelector("#modalShade").classList.contains("open")
-        && title && title.textContent.includes("تأكيد الشراء");
-    });
-    await page.locator("#modalChoices button").filter({ hasText: "اشتري دلوقتي" }).click();
-    await page.waitForFunction(() => {
+      const active = document.querySelector(".page.active");
+      const drawer = document.querySelector("#drawer");
+      return active && active.id === "page-shop"
+        && drawer && !drawer.classList.contains("open")
+        && getComputedStyle(drawer).visibility === "hidden";
+    }, null, { timeout: 10000 });
+    await page.locator('#shopItems [data-buy="xpMultiplier"]').waitFor({ state: "visible", timeout: 10000 });
+    const shopSeedDiagnostic = await page.evaluate(() => {
       const state = window.LWStoryRuntime.getState();
-      return state.xpMultiplier === true && Number(state.money) === 600
-        && document.querySelector("#inventory").textContent.includes("مضاعف خبرة المسيرة");
-    }, null, { timeout: 15000 });
+      const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+        ? window.LWStateStore.getState() : null;
+      return {
+        money: Number(state.money),
+        storeMoney: stored ? Number(stored.money) : null,
+        sameState: stored === state,
+        revision: window.LWStateStore && typeof window.LWStateStore.getRevision === "function"
+          ? window.LWStateStore.getRevision() : null,
+        toast: document.querySelector(".toast")?.textContent || ""
+      };
+    });
+    assert.equal(shopSeedDiagnostic.money, 3000,
+      "a background world update must not restore the pre-seed balance before purchase: " + JSON.stringify(shopSeedDiagnostic));
+    assert.equal(shopSeedDiagnostic.storeMoney, 3000,
+      "the store's authoritative balance must remain seeded during shop navigation: " + JSON.stringify(shopSeedDiagnostic));
+    assert.equal(shopSeedDiagnostic.sameState, true,
+      "the player runtime must keep the authoritative state object while the shop is open");
+    // The shop rerenders its cards while state subscribers settle. Use the live
+    // DOM node's native click in one task so Playwright's actionability polling
+    // cannot lose the button between layout frames; the same click handler runs.
+    const storeButtonClick = await page.evaluate(() => {
+      const button = document.querySelector('#shopItems [data-buy="xpMultiplier"]');
+      if (!button || button.disabled) return { clicked: false, reason: "button-unavailable" };
+      button.click();
+      return { clicked: true, label: button.textContent.trim() };
+    });
+    assert.equal(storeButtonClick.clicked, true,
+      "the XP multiplier purchase button must be present and enabled: " + JSON.stringify(storeButtonClick));
+    try {
+      await page.waitForFunction(() => {
+        const title = document.querySelector("#modalTitle");
+        return document.querySelector("#modalShade").classList.contains("open")
+          && title && title.textContent.includes("تأكيد الشراء");
+      }, null, { timeout: 10000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+          ? window.LWStateStore.getState() : null;
+        return {
+          money: Number(state.money),
+          storeMoney: stored ? Number(stored.money) : null,
+          xpMultiplier: !!state.xpMultiplier,
+          sameState: stored === state,
+          revision: window.LWStateStore && typeof window.LWStateStore.getRevision === "function"
+            ? window.LWStateStore.getRevision() : null,
+          toast: document.querySelector(".toast")?.textContent || "",
+          modalOpen: document.querySelector("#modalShade")?.classList.contains("open"),
+          modalTitle: document.querySelector("#modalTitle")?.textContent || ""
+        };
+      });
+      throw new Error("purchase confirmation modal did not open: "
+        + JSON.stringify({ ...diagnostic, pageErrors: pageErrors.slice() })
+        + "; " + error.message);
+    }
+    const confirmPurchaseClick = await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll("#modalChoices button"))
+        .find(candidate => candidate.textContent.includes("اشتري دلوقتي"));
+      if (!button || button.disabled) return false;
+      button.click();
+      return true;
+    });
+    assert.equal(confirmPurchaseClick, true, "the purchase confirmation action must be available");
+    try {
+      await page.waitForFunction(() => {
+        const state = window.LWStoryRuntime.getState();
+        return state.xpMultiplier === true && Number(state.money) === 600
+          && document.querySelector("#inventory").textContent.includes("مضاعف خبرة المسيرة");
+      }, null, { timeout: 15000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        return {
+          money: state.money, xpMultiplier: state.xpMultiplier, retired: state.retired,
+          inventory: document.querySelector("#inventory")?.textContent || "",
+          toast: document.querySelector(".toast")?.textContent || "",
+          modalOpen: document.querySelector("#modalShade")?.classList.contains("open"),
+          modalTitle: document.querySelector("#modalTitle")?.textContent || "",
+          page: document.querySelector(".page.active")?.id || "",
+          pageErrors: window.__lwBrowserSmokePageErrors || []
+        };
+      });
+      diagnostic.pageErrors = pageErrors.slice();
+      throw new Error("store purchase did not settle: " + JSON.stringify(diagnostic) + "; " + error.message);
+    }
     results.push("store purchase changes balance and inventory");
 
     const saveDiagnostic = await page.evaluate(async () => {

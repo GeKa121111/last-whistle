@@ -123,13 +123,13 @@ const requireBefore = (first, second, reason) => {
   const a = scriptIndex(first), b = scriptIndex(second);
   assert.ok(a >= 0 && b >= 0 && a < b, reason);
 };
-requireBefore("./career-state-store.js?v=6", "./football-world-ai.js?v=72",
+requireBefore("./career-state-store.js?v=7", "./football-world-ai.js?v=73",
   "the shared state bus must load before the world engine");
 requireBefore("./football-world-rosters.js?v=6", "./football-world-db.js?v=9",
   "sourced rosters must load before the world database");
 requireBefore("./football-world-db.js?v=9", "./transfer-awards-engine.js?v=17",
   "the world database must load before transfer/award integration");
-requireBefore("./transfer-awards-engine.js?v=17", "./story-mode.js?v=12",
+requireBefore("./transfer-awards-engine.js?v=17", "./story-mode.js?v=14",
   "the award engine and inline career/match engines must load before feature modules");
 
 const workerSource = read("football-world-worker.js");

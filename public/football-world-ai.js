@@ -2737,6 +2737,16 @@
     Object.keys(target).forEach(key => { if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key]; });
     Object.keys(source).forEach(key => { target[key] = source[key]; });
   }
+  function getStateStoreRevision() {
+    const store = global.LWStateStore;
+    if (!store || typeof store.getRevision !== "function") return null;
+    const revision = Number(store.getRevision());
+    return Number.isFinite(revision) ? revision : null;
+  }
+  function getCurrentCareerState() {
+    const store = global.LWStateStore;
+    return store && typeof store.getState === "function" ? store.getState() : null;
+  }
   // Keep one world worker alive for the lifetime of the page. Recreating it after
   // every dashboard/season request re-imports the multi-megabyte roster bundle and
   // makes repeated career actions needlessly expensive on mobile devices.
@@ -2756,12 +2766,23 @@
     }
     if (worldWorkerQueue.length) failed.push.apply(failed, worldWorkerQueue);
     worldWorkerQueue = [];
-    failed.forEach(request => request.reject(error));
+    failed.forEach(request => {
+      const currentRevision = getStateStoreRevision();
+      const revisionChanged = request.revision !== currentRevision
+        && (request.revision !== null || currentRevision !== null);
+      if (revisionChanged) {
+        const staleError = new Error("World worker failed after the career state changed");
+        staleError.code = "LW_WORLD_WORKER_STALE_SAVE";
+        request.reject(staleError);
+      } else {
+        request.reject(error);
+      }
+    });
   }
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=61");
+    const worker = new global.Worker("./football-world-worker.js?v=62");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;
@@ -2774,7 +2795,14 @@
       }
       activeWorldWorkerRequest = null;
       try {
-        if (!msg.ok) {
+        const currentRevision = getStateStoreRevision();
+        const revisionChanged = request.revision !== currentRevision
+          && (request.revision !== null || currentRevision !== null);
+        if (revisionChanged) {
+          const staleError = new Error("World worker result superseded by a newer career state");
+          staleError.code = "LW_WORLD_WORKER_STALE_SAVE";
+          request.reject(staleError);
+        } else if (!msg.ok) {
           request.reject(new Error(msg.error || "World worker failed"));
         } else {
           applySaveResult(request.save, msg.save);
@@ -2807,6 +2835,12 @@
       return;
     }
     const request = worldWorkerQueue.shift();
+    const currentRevision = getStateStoreRevision();
+    const latestState = getCurrentCareerState();
+    // The shared store is the authoritative career object. A caller may still hold
+    // an older object even when its captured revision happens to match the store.
+    if (latestState && typeof latestState === "object") request.save = latestState;
+    request.revision = currentRevision;
     request.id = "lw-world-" + Date.now() + "-" + (++worldWorkerSequence);
     activeWorldWorkerRequest = request;
     try {
@@ -2825,7 +2859,7 @@
   function workerRequest(command, save, data) {
     if (typeof global.Worker !== "function") return Promise.reject(new Error("Web Worker is not supported"));
     return new Promise((resolve, reject) => {
-      worldWorkerQueue.push({ command, save, data: data || {}, resolve, reject });
+      worldWorkerQueue.push({ command, save, data: data || {}, resolve, reject, revision: getStateStoreRevision() });
       pumpWorldWorkerQueue();
     });
   }
@@ -2837,7 +2871,25 @@
     });
   }
   function worldJob(command, save, data, db) {
-    return workerRequest(command, save, data || {}).catch(() => asyncFallback(command, save, data || {}, db));
+    const payload = data || {};
+    return workerRequest(command, save, payload).catch(error => {
+      const store = global.LWStateStore;
+      const latestState = getCurrentCareerState();
+      const target = latestState && typeof latestState === "object" ? latestState : save;
+      // Worker failures are not proof that the input snapshot is still current.
+      // Always recover against the store's latest career object when one exists.
+      return asyncFallback(command, target, payload, db).then(result => {
+        if (store && typeof store.publish === "function"
+          && (!store.getState || store.getState() === target)) {
+          store.publish(target, {
+            source: "world-worker-fallback",
+            command,
+            stale: !!(error && error.code === "LW_WORLD_WORKER_STALE_SAVE")
+          });
+        }
+        return result;
+      });
+    });
   }
   global.LWWorldAI = Object.freeze(Object.assign({}, base, {
     version: base.version,

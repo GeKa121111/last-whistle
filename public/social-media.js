@@ -108,6 +108,34 @@
     try { return JSON.stringify(state); } catch (error) { return null; }
   }
 
+  function acquireSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (!coordinator || typeof coordinator !== "object") {
+      coordinator = { owner: "", queue: [] };
+      window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
+    }
+    if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
+    owner = String(owner || "");
+    if (!owner) return false;
+    if (!coordinator.owner) {
+      coordinator.owner = owner;
+      return true;
+    }
+    return new Promise(function(resolve) { coordinator.queue.push({ owner: owner, resolve: resolve }); });
+  }
+  function releaseSharedMutationLock(owner) {
+    var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
+    if (!coordinator || coordinator.owner !== owner) return;
+    var next = Array.isArray(coordinator.queue) ? coordinator.queue.shift() : null;
+    if (next && next.owner) {
+      coordinator.owner = next.owner;
+      next.resolve(true);
+    } else {
+      coordinator.owner = "";
+    }
+  }
+
+
   async function flushSocialState(runtime, state) {
     var queued = runtime.save();
     if (queued && typeof queued.then === "function") queued = await queued;
@@ -131,6 +159,9 @@
       && !(window.LWStateStore && typeof window.LWStateStore.flush === "function")) {
       return { ok: false, reason: "social-persistence-unavailable" };
     }
+    socialMutationPending = true;
+    var mutationLock = acquireSharedMutationLock("social-media");
+    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
     var hadSocialState = socialOnly && Object.prototype.hasOwnProperty.call(state, "socialMedia");
     var rawSocialState = socialOnly ? state.socialMedia : null;
     var snapshot = socialOnly
@@ -138,12 +169,18 @@
       : cloneSocialState(state);
     if ((!socialOnly && !snapshot) || (socialOnly && hadSocialState && rawSocialState
       && typeof rawSocialState === "object" && !snapshot)) {
+      socialMutationPending = false;
+      releaseSharedMutationLock("social-media");
       return { ok: false, reason: "social-snapshot-unavailable" };
     }
     var before = socialOnly
       ? socialStateSignature({ present: hadSocialState, value: snapshot })
       : socialStateSignature(snapshot);
-    if (before === null) return { ok: false, reason: "social-snapshot-unavailable" };
+    if (before === null) {
+      socialMutationPending = false;
+      releaseSharedMutationLock("social-media");
+      return { ok: false, reason: "social-snapshot-unavailable" };
+    }
     function restoreSnapshot() {
       if (!socialOnly) return restoreSocialState(state, snapshot);
       if (hadSocialState) state.socialMedia = snapshot;
@@ -157,7 +194,6 @@
         })
         : socialStateSignature(state);
     }
-    socialMutationPending = true;
     try {
       var value = operation();
       if (value && typeof value.then === "function") value = await value;
@@ -186,6 +222,7 @@
       return { ok: false, reason: "social-save-failed", rollbackPersisted: rollbackPersisted, error: error };
     } finally {
       socialMutationPending = false;
+      releaseSharedMutationLock("social-media");
     }
   }
 

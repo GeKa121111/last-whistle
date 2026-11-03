@@ -32,6 +32,7 @@ function extract(name) {
   throw new Error("unterminated " + name);
 }
 const names = [
+  "acquireSharedMutationLock", "releaseSharedMutationLock",
   "availableAgentBalance", "pendingAgentFeeQuote", "ensureState", "clonePostRetirementMutationState",
   "restorePostRetirementMutationState", "flushPostRetirementMutation", "runAgentContractMutation",
   "openMeeting", "negotiateFee", "applyAgentSigning", "signAgent"

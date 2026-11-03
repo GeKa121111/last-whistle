@@ -26,7 +26,7 @@ function extractFunction(name) {
     if (quote) { if (escaped) { escaped = false; continue; } if (c === "\\") { escaped = true; continue; } if (c === quote) quote = null; continue; }
     if (c === "/" && n === "/") { lineComment = true; i++; continue; }
     if (c === "/" && n === "*") { blockComment = true; i++; continue; }
-    if (c === "'" || c === '"' || c === "\`") { quote = c; continue; }
+    if (c === "'" || c === '"' || c.charCodeAt(0) === 96) { quote = c; continue; }
     if (c === "{") depth++;
     else if (c === "}" && --depth === 0) return source.slice(start, i + 1);
   }

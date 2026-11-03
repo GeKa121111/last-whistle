@@ -635,35 +635,112 @@
       clubOwner:{available:wealth>=5000000,minimumCapital:5000000,requiredShare:51,academyBudget:Math.round(wealth*.08)}
     };
   }
-  function startPostRetirementAgency(s,capital){
-    var options=postRetirementOptions(s),amount=Math.max(0,Math.round(Number(capital)||250000));
+  var postRetirementMutationPending = false;
+  function clonePostRetirementMutationState(state){
+    if(!state||typeof state!=="object")return null;
+    try{if(typeof window.structuredClone==="function")return window.structuredClone(state);}catch(error){}
+    try{return JSON.parse(JSON.stringify(state));}catch(error){return null;}
+  }
+  function restorePostRetirementMutationState(target,snapshot){
+    if(!target||!snapshot||typeof snapshot!=="object")throw new Error("invalid-retirement-snapshot");
+    Object.keys(target).forEach(function(key){if(!Object.prototype.hasOwnProperty.call(snapshot,key))delete target[key];});
+    Object.keys(snapshot).forEach(function(key){target[key]=snapshot[key];});
+  }
+  async function flushPostRetirementMutation(api,state){
+    var queued=api.save();
+    if(queued&&typeof queued.then==="function")queued=await queued;
+    if(queued===false)return false;
+    var pending;
+    if(typeof window.flushQueuedSave==="function")pending=window.flushQueuedSave({backupFirst:true});
+    else if(window.LWStateStore&&typeof window.LWStateStore.flush==="function")pending=window.LWStateStore.flush(state);
+    else return false;
+    return await Promise.resolve(pending)===true;
+  }
+  async function runPostRetirementMutation(state,operation){
+    if(postRetirementMutationPending)return {ok:false,reason:"فيه عملية ما بعد الاعتزال بيتحفظ بالفعل. استنى تأكيد الحفظ."};
+    if(!state||typeof operation!=="function")return {ok:false,reason:"بيانات مسار ما بعد الاعتزال غير متاحة."};
+    var api=API();
+    if(!api||typeof api.save!=="function")return {ok:false,reason:"الحفظ غير متاح؛ لم يتم تنفيذ العملية."};
+    var snapshot=clonePostRetirementMutationState(state);
+    if(!snapshot)return {ok:false,reason:"تعذر تأمين بيانات المسيرة قبل العملية؛ لم يتم خصم أي أموال."};
+    postRetirementMutationPending=true;
+    var payload=null;
+    try{
+      payload=operation();
+      if(payload===false||payload==null)throw new Error("retirement mutation rejected");
+      if(!(await flushPostRetirementMutation(api,state)))throw new Error("durable save not confirmed");
+    }catch(error){
+      try{restorePostRetirementMutationState(state,snapshot);}
+      catch(restoreError){
+        try{if(api.toast)api.toast("تعذر استعادة بيانات ما بعد الاعتزال. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
+        try{if(api.render)api.render();}catch(renderError){}
+        return {ok:false,reason:"تعذر استعادة بيانات المسيرة.",rollbackPersisted:false};
+      }
+      var rollbackPersisted=false;
+      try{rollbackPersisted=await flushPostRetirementMutation(api,state)===true;}
+      catch(rollbackError){if(window.console&&window.console.warn)window.console.warn("Post-retirement rollback persistence failed",rollbackError);}
+      try{if(api.render)api.render();}catch(renderError){if(window.console&&window.console.warn)window.console.warn("Post-retirement rollback render failed",renderError);}
+      var message=rollbackPersisted
+        ?"تعذر حفظ العملية؛ تمت استعادة بيانات المسيرة وحفظ النسخة السابقة. تقدر تحاول مرة تانية."
+        :"تمت استعادة بيانات المسيرة داخل اللعبة، لكن تعذر تأكيد حفظ النسخة. صدّر نسخة احتياطية قبل المتابعة.";
+      try{if(api.toast)api.toast(message);}catch(toastError){}
+      if(window.console&&window.console.warn)window.console.warn("Post-retirement mutation rolled back",error);
+      return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
+    }finally{
+      postRetirementMutationPending=false;
+    }
+    try{if(api.render)api.render();}
+    catch(renderError){try{if(api.toast)api.toast("تم حفظ العملية، لكن تعذر تحديث الواجهة. افتح المسار مرة أخرى.");}catch(toastError){}}
+    return Object.assign({ok:true},payload&&typeof payload==="object"?payload:{});
+  }
+  async function startPostRetirementAgency(s,capital){
+    if(!s||!s.retired)return {ok:false,reason:"لازم تعتزل الأول."};
+    if(s.retirementCareer)return {ok:false,reason:"مسار ما بعد الاعتزال بدأ بالفعل؛ لا يمكن استبداله وفقدان سجله."};
+    var options=postRetirementOptions(s),rawAmount=capital==null?250000:Number(capital);
+    if(rawAmount===0)rawAmount=250000;
+    if(!Number.isFinite(rawAmount))return {ok:false,reason:"قيمة رأس المال غير صالحة."};
+    var amount=Math.round(rawAmount);
     if(!options.available||!options.agent.available||amount<250000||amount>Math.max(0,Number(s.money)||0))return {ok:false,reason:"رأس المال غير كافٍ أو المسيرة لم تنتهِ."};
-    s.money=Math.max(0,Number(s.money||0)-amount);
-    s.retirementCareer={type:"agency",capital:amount,players:[],reputation:Math.round(Math.min(100,(Number(s.mediaReputation)||0)*.55+amount/500000)),season:Number(s.season)||1,history:[]};
-    if(!Array.isArray(s.retirementCareer.history))s.retirementCareer.history=[];
-    s.retirementCareer.history.push({type:"founded",season:s.retirementCareer.season,capital:amount});
-    var api=API();if(api&&api.save)api.save();if(api&&api.render)api.render();
-    return {ok:true,career:s.retirementCareer};
+    return runPostRetirementMutation(s,function(){
+      s.money=Math.max(0,Number(s.money||0)-amount);
+      s.retirementCareer={type:"agency",capital:amount,players:[],reputation:Math.round(Math.min(100,(Number(s.mediaReputation)||0)*.55+amount/500000)),season:Number(s.season)||1,history:[]};
+      s.retirementCareer.history.push({type:"founded",season:s.retirementCareer.season,capital:amount});
+      return {career:s.retirementCareer};
+    });
   }
-  function acquireClubControl(s,club,clubValue,share){
-    var options=postRetirementOptions(s),value=Math.max(1,Number(clubValue)||0),portion=Math.max(51,Math.min(100,Number(share)||51));
+  async function acquireClubControl(s,club,clubValue,share){
+    if(!s||!s.retired)return {ok:false,reason:"لازم تعتزل الأول."};
+    if(s.retirementCareer)return {ok:false,reason:"مسار ما بعد الاعتزال بدأ بالفعل؛ لا يمكن استبداله وفقدان سجله."};
+    var options=postRetirementOptions(s),clubName=String(club==null?"":club).trim(),rawValue=Number(clubValue);
+    if(!options.available||!options.clubOwner.available||!clubName||!Number.isFinite(rawValue)||rawValue<=0)return {ok:false,reason:"قيمة النادي أو بيانات الملكية غير صالحة."};
+    var value=Math.ceil(rawValue),rawShare=Number(share),portion=Math.max(51,Math.min(100,Number.isFinite(rawShare)&&rawShare!==0?rawShare:51));
     var cost=Math.ceil(value*portion/100);
-    if(!options.available||!options.clubOwner.available||!club||cost>Math.max(0,Number(s.money)||0))return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
-    s.money=Math.max(0,Number(s.money||0)-cost);
-    s.retirementCareer={type:"club-owner",club:String(club),share:portion,investment:cost,academyBudget:Math.round(cost*.08),season:Number(s.season)||1,history:[{type:"acquisition",club:String(club),share:portion,cost:cost}]};
-    var api=API();if(api&&api.save)api.save();if(api&&api.render)api.render();
-    return {ok:true,career:s.retirementCareer};
+    if(cost>Math.max(0,Number(s.money)||0))return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
+    return runPostRetirementMutation(s,function(){
+      s.money=Math.max(0,Number(s.money||0)-cost);
+      s.retirementCareer={type:"club-owner",club:clubName,share:portion,investment:cost,academyBudget:Math.round(cost*.08),season:Number(s.season)||1,history:[{type:"acquisition",club:clubName,share:portion,cost:cost}]};
+      return {career:s.retirementCareer};
+    });
   }
-  function registerAgencyPlayer(s,player){
-    if(!s||!s.retirementCareer||s.retirementCareer.type!=="agency"||!player||!player.id)return {ok:false,reason:"مسار الوكالة غير متاح أو بيانات اللاعب ناقصة."};
-    var career=s.retirementCareer;career.players=Array.isArray(career.players)?career.players:[];
-    if(career.players.some(function(p){return String(p.id)===String(player.id);}))return {ok:false,reason:"اللاعب مسجل بالفعل."};
-    career.players.push({id:String(player.id),name:String(player.name||"لاعب جديد"),club:String(player.club||""),joinedSeason:Number(s.season)||1,appearancesAtSigning:Math.max(0,Number(player.appearances)||0)});
-    career.reputation=Math.min(100,(Number(career.reputation)||0)+1);
-    if(Array.isArray(career.history))career.history.unshift({type:"player-signed",playerId:String(player.id),season:Number(s.season)||1});
-    var api=API();if(api&&api.save)api.save();
-    return {ok:true,player:career.players[career.players.length-1]};
+  async function registerAgencyPlayer(s,player){
+    if(!s||!s.retired||!s.retirementCareer||s.retirementCareer.type!=="agency"||!player||player.id==null)return {ok:false,reason:"مسار الوكالة غير متاح أو بيانات اللاعب ناقصة."};
+    var playerId=String(player.id).trim();
+    if(!playerId)return {ok:false,reason:"معرّف اللاعب غير صالح."};
+    var career=s.retirementCareer,players=Array.isArray(career.players)?career.players:[];
+    if(players.some(function(p){return String(p&&p.id)===playerId;}))return {ok:false,reason:"اللاعب مسجل بالفعل."};
+    return runPostRetirementMutation(s,function(){
+      var current=s.retirementCareer;
+      current.players=Array.isArray(current.players)?current.players:[];
+      if(current.players.some(function(p){return String(p&&p.id)===playerId;}))return false;
+      var registered={id:playerId,name:String(player.name||"لاعب جديد"),club:String(player.club||""),joinedSeason:Number(s.season)||1,appearancesAtSigning:Math.max(0,Number(player.appearances)||0)};
+      current.players.push(registered);
+      current.reputation=Math.min(100,(Number(current.reputation)||0)+1);
+      current.history=Array.isArray(current.history)?current.history:[];
+      current.history.unshift({type:"player-signed",playerId:playerId,season:Number(s.season)||1});
+      return {career:current,player:registered};
+    });
   }
+
   window.LWAgentRuntime={getAgents:currentAgentData,ensureState:ensureState,current:current,contractTerms:contractTerms,
     negotiationChanceBonus:negotiationChanceBonus,transferOfferChance:transferOfferChance,prioritizeTargets:prioritizeTargets,
     adjustTransferWage:adjustTransferWage,chargeFee:chargeFee,commissionRate:feeRate,

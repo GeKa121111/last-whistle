@@ -406,7 +406,8 @@
     return selected.map((candidate, index) => {
       const target = candidate.target;
       const power = candidate.power;
-      const wage = target.currency === "ج.م"
+      const currency = String(target.currency || "ج.م");
+      const wage = currency === "ج.م"
         ? Math.round(350 + power * 28 + playerOvr * 12)
         : Math.round(80 + power * 18 + playerOvr * 10);
       const sign = Math.round(wage * (4 + (Number(target.prestige) || 60) / 50));
@@ -425,7 +426,7 @@
         division: Math.max(1, Number(target.division) || 1),
         power: power,
         prestige: clamp(target.prestige || power, 1, 100),
-        currency: target.currency || "ج.م",
+        currency: currency,
         confederation: target.confederation || "",
         stars: candidate.stars,
         positionRivals: candidate.positionRivals,
@@ -831,7 +832,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 17,
+    version: 18,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

@@ -26,14 +26,14 @@ const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
 assert.equal(engine.version, 13);
 
-const zeroAppearanceTransferRow = {
+const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
   appearances: 0, apps: 24, minutes: 0, averageRating: 9.8,
   goals: 35, assists: 22, cleanSheets: 0, leagueStrength: 98
 };
-assert.equal(engine.performanceIndex(zeroAppearanceTransferRow), 0,
+assert.equal(engine.performanceIndex(zeroAppearanceSeasonStats), 0,
   "an explicit zero current-season appearance count must not fall back to career apps or stale contributions");
-const zeroAppearanceEvaluation = engine.evaluateSeasonPerformance(zeroAppearanceTransferRow);
+const zeroAppearanceEvaluation = engine.evaluateSeasonPerformance(zeroAppearanceSeasonStats);
 assert.equal(zeroAppearanceEvaluation.score, 0);
 assert.equal(zeroAppearanceEvaluation.performanceSample, 0);
 assert.equal(zeroAppearanceEvaluation.minutes, 0);

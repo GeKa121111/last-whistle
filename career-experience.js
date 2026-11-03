@@ -136,7 +136,7 @@
   }
 
   function cloneFinanceState(state) {
-    if (!state || typeof state !== "object") return null;
+    if (state === undefined || state === null || typeof state !== "object") return state;
     try { if (typeof window.structuredClone === "function") return window.structuredClone(state); } catch (error) {}
     try { return JSON.parse(JSON.stringify(state)); } catch (error) { return null; }
   }
@@ -373,7 +373,9 @@
       try { if (api.render) api.render(); } catch (renderError) {}
       try { renderPanel(rollbackTarget, rollbackTarget.careerWorld && typeof rollbackTarget.careerWorld === "object" ? rollbackTarget.careerWorld : null); } catch (panelError) {}
       var conflictNote = rollbackConflicts.length
-        ? " حصلت تغييرات أحدث أثناء الحفظ، واحتفظنا بيها بدل ما نمسحها. راجع الرصيد والمحفظة قبل إعادة المحاولة."
+        ? (isFinance
+          ? " حصلت تغييرات أحدث أثناء الحفظ، واحتفظنا بيها بدل ما نمسحها. راجع الرصيد والمحفظة قبل إعادة المحاولة."
+          : " حصلت تغييرات أحدث أثناء الحفظ، واحتفظنا بيها بدل ما نمسحها. راجع بيانات المسيرة قبل إعادة المحاولة.")
         : "";
       var message = rollbackPersisted
         ? (isFinance

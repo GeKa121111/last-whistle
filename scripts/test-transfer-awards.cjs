@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 15);
+assert.equal(engine.version, 16);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -73,6 +73,24 @@ const legacyLoan = engine.buildLoanProposal({
 });
 assert.equal(legacyLoan.developmentPriority, false,
   "legacy loan rows without season appearances must continue to use their apps fallback");
+
+for (const malformedAppearances of ["Infinity", "not-a-number"]) {
+  const invalidSeasonPerformance = engine.evaluateSeasonPerformance({
+    age: 24, appearances: malformedAppearances, apps: 25, minutes: 1625,
+    goals: 12, assists: 7, averageRating: 8.1, leagueStrength: 80
+  });
+  assert.equal(invalidSeasonPerformance.performanceSample, 0,
+    "an explicit malformed season appearance count must not fall back to career-wide apps");
+  assert.equal(invalidSeasonPerformance.minutes, 0);
+  assert.equal(invalidSeasonPerformance.score, 0);
+
+  const invalidSeasonLoan = engine.buildLoanProposal({
+    player: { age: 20, appearances: malformedAppearances, apps: 25 },
+    durationMonths: 12
+  });
+  assert.equal(invalidSeasonLoan.developmentPriority, true,
+    "a youth with malformed explicit season appearances must be treated as lacking current-season minutes");
+}
 const lowAppearanceLoan = engine.buildLoanProposal({
   player: { age: 20, appearances: 11, apps: 24 }, durationMonths: 12
 });

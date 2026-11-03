@@ -442,6 +442,8 @@ function renderStoryPanel(s,api){
 async function chooseStory(id,index){
   var api=API();if(!api)return {ok:false,reason:"story-runtime-unavailable"};
   var s=api.getState();if(!s||s.storyPendingId!==id)return {ok:false,reason:"story-event-not-pending"};
+  var availableEvent=eligibleEvents(s).find(function(e){return e.id===id;});
+  if(!availableEvent||!availableEvent.choices[index])return {ok:false,reason:"story-choice-unavailable"};
   var result=await runStoryMutation(s,function(){
     if(s.storyPendingId!==id)return false;
     var event=eligibleEvents(s).find(function(e){return e.id===id;});

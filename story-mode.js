@@ -220,9 +220,36 @@ function releaseSharedMutationLock(owner) {
   }
 }
 
-function restoreStoryState(target,snapshot){
-  Object.keys(target).forEach(function(key){if(!Object.prototype.hasOwnProperty.call(snapshot,key))delete target[key];});
-  Object.keys(snapshot).forEach(function(key){target[key]=snapshot[key];});
+function storyPropertyEquals(left,right,key){
+  var leftHas=Object.prototype.hasOwnProperty.call(left,key);
+  var rightHas=Object.prototype.hasOwnProperty.call(right,key);
+  if(leftHas!==rightHas)return false;
+  if(!leftHas)return true;
+  try{return JSON.stringify(left[key])===JSON.stringify(right[key]);}
+  catch(error){return left[key]===right[key];}
+}
+function restoreStoryState(target,snapshot,appliedSnapshot){
+  if(!target||!snapshot||!appliedSnapshot)throw new Error("invalid-story-rollback-snapshot");
+  var keys=Object.keys(snapshot).concat(Object.keys(appliedSnapshot).filter(function(key){
+    return !Object.prototype.hasOwnProperty.call(snapshot,key);
+  }));
+  var conflicts=[];
+  keys.forEach(function(key){
+    // Restore only fields changed by this story operation. A normal match, training,
+    // transfer or calendar action may update the same career while IndexedDB is pending.
+    if(storyPropertyEquals(snapshot,appliedSnapshot,key))return;
+    // If a newer writer has changed this field since our operation, keep its value.
+    if(!storyPropertyEquals(target,appliedSnapshot,key)){conflicts.push(key);return;}
+    if(Object.prototype.hasOwnProperty.call(snapshot,key)){
+      var value=snapshot[key];
+      if(value&&typeof value==="object"){
+        var restored=cloneStoryState(value);
+        if(!restored)throw new Error("story-rollback-value-unavailable");
+        target[key]=restored;
+      }else target[key]=value;
+    }else delete target[key];
+  });
+  return {conflicts:conflicts};
 }
 async function flushStoryState(api,state){
   var queued=api.save();
@@ -252,14 +279,20 @@ async function runStoryMutation(state,operation){
     if(api.toast)api.toast("تعذر تأمين نسخة من المسيرة؛ القرار ما اتطبقش.");
     return {ok:false,reason:"story-snapshot-unavailable"};
   }
-  var payload=null;
+  var payload=null,appliedSnapshot=null;
   try{
     payload=operation();
+    appliedSnapshot=cloneStoryState(state);
+    if(!appliedSnapshot)throw new Error("story-post-mutation-snapshot-unavailable");
     if(payload===false||payload==null)throw new Error("story choice rejected");
     if(!(await flushStoryState(api,state)))throw new Error("story save not confirmed");
   }catch(error){
-    try{restoreStoryState(state,snapshot);}
-    catch(restoreError){
+    if(!appliedSnapshot)appliedSnapshot=cloneStoryState(state);
+    var rollbackResult=null;
+    try{
+      if(!appliedSnapshot)throw new Error("story-rollback-snapshot-unavailable");
+      rollbackResult=restoreStoryState(state,snapshot,appliedSnapshot);
+    }catch(restoreError){
       try{if(api.toast)api.toast("تعذر استعادة بيانات القرار القصصي. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
       try{if(api.render)api.render();}catch(renderError){}
       return {ok:false,reason:"story-rollback-restore-failed",rollbackPersisted:false};
@@ -268,8 +301,11 @@ async function runStoryMutation(state,operation){
     try{rollbackPersisted=await flushStoryState(api,state)===true;}
     catch(rollbackError){if(window.console&&window.console.warn)window.console.warn("Story rollback persistence failed",rollbackError);}
     try{if(api.render)api.render();}catch(renderError){}
+    var hasConcurrentChanges=!!(rollbackResult&&rollbackResult.conflicts&&rollbackResult.conflicts.length);
     var message=rollbackPersisted
-      ?"تعذر تأكيد حفظ القرار؛ رجّعنا تأثيره وسجلّه وحفظنا الحالة السابقة. تقدر تختار تاني."
+      ?(hasConcurrentChanges
+        ?"تعذر تأكيد حفظ القرار؛ احتفظنا بالتغييرات الأحدث التي حصلت أثناء الحفظ وحفظنا الحالة الحالية. راجع المسيرة قبل المحاولة مجددًا."
+        :"تعذر تأكيد حفظ القرار؛ رجّعنا تأثيره وسجلّه وحفظنا الحالة السابقة. تقدر تختار تاني.")
       :"رجّعنا القرار داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
     try{if(api.toast)api.toast(message);}catch(toastError){}
     if(window.console&&window.console.warn)window.console.warn("Story mutation rolled back",error);

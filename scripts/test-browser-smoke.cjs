@@ -575,11 +575,27 @@ async function main() {
         && title && title.textContent.includes("تأكيد الشراء");
     });
     await page.locator("#modalChoices button").filter({ hasText: "اشتري دلوقتي" }).click();
-    await page.waitForFunction(() => {
-      const state = window.LWStoryRuntime.getState();
-      return state.xpMultiplier === true && Number(state.money) === 600
-        && document.querySelector("#inventory").textContent.includes("مضاعف خبرة المسيرة");
-    }, null, { timeout: 15000 });
+    try {
+      await page.waitForFunction(() => {
+        const state = window.LWStoryRuntime.getState();
+        return state.xpMultiplier === true && Number(state.money) === 600
+          && document.querySelector("#inventory").textContent.includes("مضاعف خبرة المسيرة");
+      }, null, { timeout: 15000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => {
+        const state = window.LWStoryRuntime.getState();
+        return {
+          money: state.money, xpMultiplier: state.xpMultiplier, retired: state.retired,
+          inventory: document.querySelector("#inventory")?.textContent || "",
+          toast: document.querySelector(".toast")?.textContent || "",
+          modalOpen: document.querySelector("#modalShade")?.classList.contains("open"),
+          modalTitle: document.querySelector("#modalTitle")?.textContent || "",
+          page: document.querySelector(".page.active")?.id || "",
+          pageErrors: window.__lwBrowserSmokePageErrors || []
+        };
+      });
+      throw new Error("store purchase did not settle: " + JSON.stringify(diagnostic) + "; " + error.message);
+    }
     results.push("store purchase changes balance and inventory");
 
     const saveDiagnostic = await page.evaluate(async () => {

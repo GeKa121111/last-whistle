@@ -10,7 +10,7 @@ const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "
 assert.equal(source, deployed, "root/public agent runtimes must stay identical");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 431);
+require("./assert-static-cache-version.cjs")(sw, 432);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
@@ -34,7 +34,7 @@ function extractFunction(name) {
 }
 
 const names = [
-  "clonePostRetirementMutationState", "restorePostRetirementMutationState",
+  "availableAgentBalance", "pendingAgentFeeQuote", "clonePostRetirementMutationState", "restorePostRetirementMutationState",
   "flushPostRetirementMutation", "runAgentContractMutation", "applyAgentSigning",
   "signAgent", "switchAgent", "confirmEnd", "finishStory"
 ];
@@ -69,6 +69,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
     window, console: window.console, API: () => api,
     postRetirementMutationPending: false, agentContractMutationPending: false,
     renderPanel: () => { events.panels++; },
+    BY_ID: { old: { id: "old", feeRate: .06 }, new: { id: "new", feeRate: .06 } },
     LEGACY_AGENT: { name: "Legacy Agent", exitFeeWeeks: .25 },
     agentConfig: s => ({ name: s.agentProfile && (s.agentProfile.agentName || s.agentProfile.id) || "Old Agent", exitFeeWeeks: .25, chapters: [{}] }),
     candidate: id => ({ id, name: id === "new" ? "New Agent" : id, pitch: "pitch", style: "direct", voice: "voice" }),
@@ -147,6 +148,24 @@ function makeHarness(overrides = {}, flushQueue = []) {
   assert.equal(concurrent.events.saves, 1);
   release(true);
   assert.equal((await first).ok, true);
+
+
+  for (const invalidBalance of [undefined, NaN, Infinity, -1]) {
+    const blockedEnd = makeHarness({ money: invalidBalance });
+    const end = await blockedEnd.runtime.confirmEnd();
+    assert.equal(end.ok, false, "missing, non-finite, or negative balances must not waive an exit fee");
+    assert.equal(blockedEnd.state.agent, true);
+    assert.equal(blockedEnd.state.agentProfile.id, "old");
+    assert.equal(blockedEnd.state.money, invalidBalance);
+    assert.equal(blockedEnd.events.saves, 0);
+
+    const blockedSwitch = makeHarness({ money: invalidBalance });
+    const switched = await blockedSwitch.runtime.switchAgent("new");
+    assert.equal(switched.ok, false, "switching representatives must reject malformed balances");
+    assert.equal(blockedSwitch.state.agentProfile.id, "old");
+    assert.equal(blockedSwitch.state.money, invalidBalance);
+    assert.equal(blockedSwitch.events.saves, 0);
+  }
 
   const sameAgent = makeHarness();
   const same = await sameAgent.runtime.signAgent("old", .06, false);

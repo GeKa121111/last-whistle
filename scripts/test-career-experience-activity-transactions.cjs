@@ -14,7 +14,7 @@ assert.equal(source, deployed, "root/public career experience scripts must stay 
 assert.equal(html, publicHtml, "root/public app shells must stay identical");
 assert.equal(sw, publicSw, "root/public service workers must stay identical");
 assert.match(html, /career-experience\.js\?v=9/);
-assert.match(sw, /last-whistle-static-v449/);
+assert.match(sw, /last-whistle-static-v450/);
 assert.match(sw, /career-experience\.js\?v=9/);
 require("./assert-static-cache-version.cjs")(sw, 445);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
@@ -85,6 +85,35 @@ async function playPenalty(h) {
   assert.equal(failedPenalty.saveCalls, 2);
   assert.equal(failedPenalty.flushCalls, 2);
   assert.match(failedPenalty.overlay.innerHTML, /النتيجة ما اتحفظتش/);
+
+  let releaseConcurrentActivity;
+  const concurrentActivity = makeHarness({ energy: 10, careerXP: 0, shooting: 50 }, [
+    () => new Promise(resolve => { releaseConcurrentActivity = resolve; }), true
+  ]);
+  const pendingConcurrentActivity = playPenalty(concurrentActivity);
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  assert.equal(concurrentActivity.state.energy, 6);
+  concurrentActivity.state.age = 18;
+  concurrentActivity.state.calendarDay = 15;
+  concurrentActivity.state.academyGraduated = true;
+  concurrentActivity.state.careerWorld.matchReport = { id: "newer-match-report" };
+  releaseConcurrentActivity(false);
+  const concurrentActivityResult = await pendingConcurrentActivity;
+  assert.equal(concurrentActivityResult.ok, false);
+  assert.equal(concurrentActivity.state.energy, 10, "failed activity rollback must refund only its own energy cost");
+  assert.equal(concurrentActivity.state.careerXP, 0);
+  assert.equal(concurrentActivity.state.shooting, 50);
+  assert.equal(concurrentActivity.state.age, 18,
+    "activity rollback must preserve a newer player-age update");
+  assert.equal(concurrentActivity.state.calendarDay, 15,
+    "activity rollback must preserve a newer calendar update");
+  assert.equal(concurrentActivity.state.academyGraduated, true,
+    "activity rollback must preserve newer transfer-eligibility changes");
+  assert.deepEqual(concurrentActivity.state.careerWorld.matchReport, { id: "newer-match-report" },
+    "activity rollback must preserve a newer nested match report");
+  assert.equal(concurrentActivity.state.careerWorld.challengeCount, 0);
+  assert.equal(concurrentActivity.state.careerWorld.practiceAttempts, 0);
+  assert.equal(concurrentActivity.state.careerWorld.history.length, 0);
 
   const successfulPenalty = makeHarness({ energy: 10, careerXP: 0, shooting: 50 }, [true]);
   const successfulPenaltyResult = await playPenalty(successfulPenalty);

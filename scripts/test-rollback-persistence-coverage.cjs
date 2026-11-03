@@ -95,5 +95,11 @@ function makeHarness(saveGame, flushQueuedSave) {
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(h.events.toasts.length, 0);
   }
-  console.log("PASS: manual, cup, and generic match rollbacks verify queued saves and warn when durable fallback cannot be confirmed.");
+  {
+    const customWarning = "تعذر تأكيد حفظ سجل الاعتزال. صدّر نسخة احتياطية قبل المتابعة.";
+    const h = makeHarness(() => true, () => false);
+    assert.equal(h.sandbox.persist("career retirement", customWarning), false);
+    assert.deepEqual(h.events.toasts, [customWarning], "retirement save failures must use a retirement-specific warning");
+  }
+  console.log("PASS: manual, cup, and generic match rollbacks verify queued saves and warn when durable fallback cannot be confirmed; retirement supports a context-specific warning.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -594,6 +594,7 @@ async function main() {
           pageErrors: window.__lwBrowserSmokePageErrors || []
         };
       });
+      diagnostic.pageErrors = pageErrors.slice();
       throw new Error("store purchase did not settle: " + JSON.stringify(diagnostic) + "; " + error.message);
     }
     results.push("store purchase changes balance and inventory");

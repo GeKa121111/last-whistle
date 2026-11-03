@@ -558,7 +558,17 @@ async function main() {
     });
     await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="shop"]').click();
-    await page.locator('#shopItems [data-buy="xpMultiplier"]').click();
+    // Wait for the destination and drawer transition; the shop card can be transiently
+    // attached during navigation and detached again before the page becomes active.
+    await page.waitForFunction(() => {
+      const active = document.querySelector(".page.active");
+      const drawer = document.querySelector("#drawer");
+      return active && active.id === "page-shop"
+        && drawer && !drawer.classList.contains("open")
+        && getComputedStyle(drawer).visibility === "hidden";
+    }, null, { timeout: 10000 });
+    await page.locator('#shopItems [data-buy="xpMultiplier"]').waitFor({ state: "visible", timeout: 10000 });
+    await page.locator('#shopItems [data-buy="xpMultiplier"]').click({ timeout: 15000 });
     await page.waitForFunction(() => {
       const title = document.querySelector("#modalTitle");
       return document.querySelector("#modalShade").classList.contains("open")

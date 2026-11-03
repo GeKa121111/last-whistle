@@ -11,7 +11,7 @@ assert.equal(source, deployed, "root and deployed agent-system.js must stay sync
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 433);
+require("./assert-static-cache-version.cjs")(sw, 434);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
@@ -35,6 +35,7 @@ function extractFunction(name) {
 }
 
 const names = [
+  "safeWholeAmount",
   "postRetirementOptions",
   "clonePostRetirementMutationState",
   "restorePostRetirementMutationState",
@@ -127,6 +128,45 @@ function makeHarness(stateOverrides = {}, options = {}) {
   assert.equal(investor.state.retirementCareer.club, "Test FC");
   assert.equal(investor.state.retirementCareer.investment, 2550000);
   assert.equal(investor.state.money, 3450000);
+
+  for (const invalidBalance of [undefined, NaN, Infinity, -1, "not-a-number"]) {
+    const invalid = makeHarness({ money: invalidBalance });
+    const options = invalid.runtime.postRetirementOptions(invalid.state);
+    assert.equal(options.agent.available, false, "malformed balances must not unlock agency capital");
+    assert.equal(options.clubOwner.available, false, "malformed balances must not unlock club ownership");
+    assert.ok(Number.isFinite(options.agent.networkScore), "agency score must remain finite for malformed money");
+    assert.ok(Number.isFinite(options.clubOwner.academyBudget), "academy budget must remain finite for malformed money");
+    const agencyResult = await invalid.runtime.startPostRetirementAgency(invalid.state, 250000);
+    assert.equal(agencyResult.ok, false, "agency funding must reject missing, negative, or non-finite balances");
+    assert.equal(invalid.state.money, invalidBalance, "rejected agency funding must preserve the original legacy balance");
+    assert.equal(invalid.state.retirementCareer, undefined);
+    assert.equal(invalid.events.saves, 0, "invalid agency funding must not start a save transaction");
+    const clubResult = await invalid.runtime.acquireClubControl(invalid.state, "Test FC", 5000000, 51);
+    assert.equal(clubResult.ok, false, "club acquisition must reject malformed balances");
+    assert.equal(invalid.state.money, invalidBalance, "rejected club acquisition must preserve the original legacy balance");
+    assert.equal(invalid.state.retirementCareer, undefined);
+    assert.equal(invalid.events.saves, 0, "invalid club acquisition must not start a save transaction");
+  }
+
+  const invalidFame = makeHarness({ money: 500000, mediaReputation: Infinity });
+  assert.ok(Number.isFinite(invalidFame.runtime.postRetirementOptions(invalidFame.state).agent.networkScore),
+    "non-finite reputation must not leak into the agency network score");
+
+  const unsafeCapital = makeHarness({ money: Number.MAX_SAFE_INTEGER });
+  const unsafeCapitalResult = await unsafeCapital.runtime.startPostRetirementAgency(
+    unsafeCapital.state, Number.MAX_SAFE_INTEGER + 1
+  );
+  assert.equal(unsafeCapitalResult.ok, false, "unsafe capital values must not be rounded into a spendable transaction");
+  assert.equal(unsafeCapital.state.money, Number.MAX_SAFE_INTEGER);
+  assert.equal(unsafeCapital.events.saves, 0);
+
+  const unsafeClubValue = makeHarness({ money: Number.MAX_SAFE_INTEGER });
+  const unsafeClubResult = await unsafeClubValue.runtime.acquireClubControl(
+    unsafeClubValue.state, "Test FC", Number.MAX_SAFE_INTEGER + 1, 51
+  );
+  assert.equal(unsafeClubResult.ok, false, "unsafe club valuations must be rejected before purchase");
+  assert.equal(unsafeClubValue.state.money, Number.MAX_SAFE_INTEGER);
+  assert.equal(unsafeClubValue.events.saves, 0);
 
   for (const invalidValue of [0, -1, NaN, "not-a-value", null]) {
     const invalid = makeHarness({ money: 6000000 });

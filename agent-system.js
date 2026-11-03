@@ -703,7 +703,7 @@ function availableAgentBalance(s){
   // Stage 2: post-retirement career paths. Actions are deterministic and persist in the career state.
   function postRetirementOptions(s){
     if(!s||!s.retired)return {available:false,reason:"لازم تعتزل الأول."};
-    var wealth=Math.max(0,Number(s.money)||0),fame=Math.max(0,Number(s.mediaReputation)||0);
+    var wealth=safeWholeAmount(s.money),rawFame=Number(s.mediaReputation),fame=Number.isFinite(rawFame)?Math.max(0,rawFame):0;
     return {
       available:true,
       agent:{available:wealth>=250000,minimumCapital:250000,networkScore:Math.round(Math.min(100,fame*.55+wealth/500000))},
@@ -817,10 +817,10 @@ function availableAgentBalance(s){
     var options=postRetirementOptions(s),rawAmount=capital==null?250000:Number(capital);
     if(rawAmount===0)rawAmount=250000;
     if(!Number.isFinite(rawAmount))return {ok:false,reason:"قيمة رأس المال غير صالحة."};
-    var amount=Math.round(rawAmount);
-    if(!options.available||!options.agent.available||amount<250000||amount>Math.max(0,Number(s.money)||0))return {ok:false,reason:"رأس المال غير كافٍ أو المسيرة لم تنتهِ."};
+    var amount=Math.round(rawAmount),available=safeWholeAmount(s.money);
+    if(!options.available||!options.agent.available||!Number.isSafeInteger(amount)||amount<250000||amount>available)return {ok:false,reason:"رأس المال غير كافٍ أو المسيرة لم تنتهِ."};
     return runPostRetirementMutation(s,function(){
-      s.money=Math.max(0,Number(s.money||0)-amount);
+      s.money=available-amount;
       s.retirementCareer={type:"agency",capital:amount,players:[],reputation:Math.round(Math.min(100,(Number(s.mediaReputation)||0)*.55+amount/500000)),season:Number(s.season)||1,history:[]};
       s.retirementCareer.history.push({type:"founded",season:s.retirementCareer.season,capital:amount});
       return {career:s.retirementCareer};
@@ -832,10 +832,10 @@ function availableAgentBalance(s){
     var options=postRetirementOptions(s),clubName=String(club==null?"":club).trim(),rawValue=Number(clubValue);
     if(!options.available||!options.clubOwner.available||!clubName||!Number.isFinite(rawValue)||rawValue<=0)return {ok:false,reason:"قيمة النادي أو بيانات الملكية غير صالحة."};
     var value=Math.ceil(rawValue),rawShare=Number(share),portion=Math.max(51,Math.min(100,Number.isFinite(rawShare)&&rawShare!==0?rawShare:51));
-    var cost=Math.ceil(value*portion/100);
-    if(cost>Math.max(0,Number(s.money)||0))return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
+    var cost=Math.ceil(value*portion/100),available=safeWholeAmount(s.money);
+    if(!Number.isSafeInteger(value)||!Number.isSafeInteger(cost)||cost<=0||cost>available)return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
     return runPostRetirementMutation(s,function(){
-      s.money=Math.max(0,Number(s.money||0)-cost);
+      s.money=available-cost;
       s.retirementCareer={type:"club-owner",club:clubName,share:portion,investment:cost,academyBudget:Math.round(cost*.08),season:Number(s.season)||1,history:[{type:"acquisition",club:clubName,share:portion,cost:cost}]};
       return {career:s.retirementCareer};
     });

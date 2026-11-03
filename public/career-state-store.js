@@ -256,7 +256,12 @@
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }
   async function flush(state) {
-    let target = state && typeof state === "object" ? state : currentState;
+    // The default slot has one authoritative live career. A caller may still hold
+    // an older object after another module publishes a newer state; never let that
+    // stale argument roll the shared store backwards during a flush.
+    let target = currentState && typeof currentState === "object"
+      ? currentState
+      : (state && typeof state === "object" ? state : null);
     if (!target || typeof target !== "object") {
       await lastWrite;
       return true;

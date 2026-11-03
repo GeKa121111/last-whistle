@@ -24,24 +24,78 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 12);
+assert.equal(engine.version, 13);
+
+const zeroAppearanceSeasonStats = {
+  name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
+  appearances: 0, apps: 24, minutes: 0, averageRating: 9.8,
+  goals: 35, assists: 22, cleanSheets: 0, leagueStrength: 98
+};
+assert.equal(engine.performanceIndex(zeroAppearanceSeasonStats), 0,
+  "an explicit zero current-season appearance count must not fall back to career apps or stale contributions");
+const zeroAppearanceEvaluation = engine.evaluateSeasonPerformance(zeroAppearanceSeasonStats);
+assert.equal(zeroAppearanceEvaluation.score, 0);
+assert.equal(zeroAppearanceEvaluation.performanceSample, 0);
+assert.equal(zeroAppearanceEvaluation.minutes, 0);
+
+const zeroMinuteSeason = {
+  name: "لاعب بلا دقائق", position: "مهاجم", age: 25, ovr: 80,
+  appearances: 8, apps: 20, minutes: 0, averageRating: 9.4,
+  goals: 14, assists: 9, leagueStrength: 75
+};
+assert.equal(engine.performanceIndex(zeroMinuteSeason), 0,
+  "explicit zero minutes must not be replaced with the legacy 65-minute appearance estimate");
+const zeroMinuteEvaluation = engine.evaluateSeasonPerformance(zeroMinuteSeason);
+assert.equal(zeroMinuteEvaluation.score, 0);
+assert.equal(zeroMinuteEvaluation.performanceSample, 8);
+assert.equal(zeroMinuteEvaluation.minutes, 0);
+
+const legacyPerformance = {
+  name: "Legacy performance row", position: "مهاجم", age: 24, ovr: 70,
+  apps: 10, averageRating: 7.2, goals: 5, assists: 3, leagueStrength: 60
+};
+const legacyEvaluation = engine.evaluateSeasonPerformance(legacyPerformance);
+assert.equal(legacyEvaluation.performanceSample, 10);
+assert.equal(legacyEvaluation.minutes, 650);
+assert.ok(engine.performanceIndex(legacyPerformance) > 0);
+
+const noAppearanceLoan = engine.buildLoanProposal({
+  player: { age: 20, appearances: 0, apps: 24 }, durationMonths: 12
+});
+assert.equal(noAppearanceLoan.developmentPriority, true,
+  "a youth with zero current-season appearances must receive a development-focused loan even if career apps are nonzero");
+const legacyLoan = engine.buildLoanProposal({
+  player: { age: 20, apps: 24 }, durationMonths: 12
+});
+assert.equal(legacyLoan.developmentPriority, false,
+  "legacy loan rows without season appearances must continue to use their apps fallback");
+const lowAppearanceLoan = engine.buildLoanProposal({
+  player: { age: 20, appearances: 11, apps: 24 }, durationMonths: 12
+});
+assert.equal(lowAppearanceLoan.developmentPriority, true);
+const thresholdLoan = engine.buildLoanProposal({
+  player: { age: 20, appearances: 12, apps: 24 }, durationMonths: 12
+});
+assert.equal(thresholdLoan.developmentPriority, false);
+
+
 
 // Estimated ages for players without a sourced age must be deterministic and
 // advance one year per simulated season instead of jumping randomly each season.
-const zeroAppearanceSeason = engine.simulatePlayerSeason({
+const zeroAppearanceTransferRow = engine.simulatePlayerSeason({
   name: "لاعب بلا ظهور", clubName: "نادي اختبار", position: "مهاجم",
   ovr: 99, prestige: 100, leagueStrength: 98,
   seasonStats: { season: 4, appearances: 0, goals: 50, assists: 25, averageRating: 9.8 }
 }, 4, 1);
-assert.equal(zeroAppearanceSeason.appearances, 0);
-assert.equal(zeroAppearanceSeason.goals, 0,
+assert.equal(zeroAppearanceTransferRow.appearances, 0);
+assert.equal(zeroAppearanceTransferRow.goals, 0,
   "saved goals must be discarded when a season records zero appearances");
-assert.equal(zeroAppearanceSeason.assists, 0,
+assert.equal(zeroAppearanceTransferRow.assists, 0,
   "saved assists must be discarded when a season records zero appearances");
-assert.equal(zeroAppearanceSeason.averageRating, 0);
-assert.equal(zeroAppearanceSeason.score, 0,
+assert.equal(zeroAppearanceTransferRow.averageRating, 0);
+assert.equal(zeroAppearanceTransferRow.score, 0,
   "a zero-appearance season must not earn leaderboard performance points from OVR or league strength");
-assert.equal(zeroAppearanceSeason.weightedGoals, 0);
+assert.equal(zeroAppearanceTransferRow.weightedGoals, 0);
 
 const ageProgressionFixture = {
   name: "لاعب عمره ثابت", clubName: "نادي اختبار", position: "مهاجم",

@@ -404,6 +404,17 @@ assert.equal(normalizedIdentityOffers.length, 1,
 assert.equal(normalizedIdentityOffers[0].club, "نادي جديد");
 assert.deepEqual(normalizedIdentityOffers[0].positionRivals, ["حارس منافس"],
   "English position codes must match Arabic roster positions through the shared role mapping");
+const unknownRoleOffers = engine.generateOffers({
+  player: { ...normalizedIdentityPlayer, position: "unmapped role" },
+  windowId: "unknown-role-transfer",
+  currentClubPower: 70,
+  targets: [{
+    club: "نادي جديد", country: "Spain", power: 72, prestige: 80, division: 1,
+    players: [{ name: "لاعب بمركز آخر", position: "different unmapped role" }]
+  }]
+});
+assert.deepEqual(unknownRoleOffers[0].positionRivals, [],
+  "unknown position labels must not all collapse into the default midfielder role when discovering rivals");
 
 const invalidOfferCases = [
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },

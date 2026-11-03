@@ -54,6 +54,7 @@ function makeHarness(overrides = {}) {
   };
   const fakeWindow = {
     LWStoryRuntime: api,
+    flushQueuedSave() { return Promise.resolve(true); },
     setInterval(fn) { const id = nextTimer++; callbacks.set(id, fn); return id; },
     clearInterval(id) { callbacks.delete(id); },
     setTimeout(fn) { const id = nextTimer++; callbacks.set(id, fn); return id; },

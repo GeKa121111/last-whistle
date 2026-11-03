@@ -15,11 +15,11 @@ const vm = require("node:vm");
   assert.equal(source, deployed, "career-experience source and deployed copies must match");
   assert.equal(html, publicHtml, "root and public HTML must match");
   assert.equal(sw, publicSw, "root and public service workers must match");
-  assert.match(html, /career-experience\.js\?v=7/, "page should load the updated life-system script");
+  assert.match(html, /career-experience\.js\?v=8/, "page should load the updated life-system script");
   assert.match(html, /id="lifePageGrid"/, "career experience must have a dedicated life-page mount point");
   assert.match(source, /host\.insertBefore\(panel, host\.firstElementChild\)/, "career experience must lead the life-page content grid");
-  require("./assert-static-cache-version.cjs")(sw, 175);
-  assert.match(sw, /career-experience\.js\?v=7/, "service worker shell should cache the updated life-system script");
+  require("./assert-static-cache-version.cjs")(sw, 435);
+  assert.match(sw, /career-experience\.js\?v=8/, "service worker shell should cache the updated life-system script");
 
   let intervalCallback = null;
   let intervalMs = 0;
@@ -103,6 +103,7 @@ const vm = require("node:vm");
   const window = {
     LWStoryRuntime: api,
     LWStateStore: store,
+    flushQueuedSave() { return Promise.resolve(true); },
     setInterval(callback, ms) { intervalCallback = callback; intervalMs = ms; return 1; },
     clearInterval() {},
     setTimeout() { return 1; },
@@ -113,6 +114,11 @@ const vm = require("node:vm");
   vm.runInNewContext(source, { window, document, Math, Number, String, JSON, Array, Promise, console }, {
     filename: "career-experience.js"
   });
+
+  async function settleAsyncWork() {
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
 
   assert.equal(panel.parentElement, host, "an existing career panel should be moved into the life-page grid");
   assert.equal(host.firstElementChild, panel, "the career panel should be first in the life-page grid");
@@ -128,7 +134,7 @@ const vm = require("node:vm");
   state.money = 1250;
   subscriber({ source: "save" });
   subscriber({ source: "publish" });
-  await Promise.resolve();
+  await settleAsyncWork();
   assert.equal(panelRefreshes, 2, "duplicate state notifications should coalesce into one render");
   assert.equal(nodes["lwcx-status"].textContent, "إنجازاتك واستثماراتك محفوظة مع بيانات مسيرتك على نفس الجهاز.", "wallet changes should not duplicate the header balance in the life panel");
   assert.equal(reduceCalls, initialReduceCalls, "a visible-value update should reuse the existing world summary");
@@ -136,7 +142,7 @@ const vm = require("node:vm");
   document.hidden = true;
   state.energy = 22;
   subscriber({ source: "save" });
-  await Promise.resolve();
+  await settleAsyncWork();
   assert.equal(panelRefreshes, 2, "background state updates should not mutate the panel DOM");
   document.hidden = false;
   documentListeners.visibilitychange[0]();
@@ -147,7 +153,7 @@ const vm = require("node:vm");
   const beforeFirstSettlementScans = reduceCalls;
   state.calendarDay = 30;
   subscriber({ source: "save" });
-  await Promise.resolve();
+  await settleAsyncWork();
   assert.equal(investments[0].settled, true, "the older investment should settle when its due day arrives");
   assert.equal(investments[1].settled, false, "the newest investment should remain open until its own due day");
   assert.equal(state.money, 1368, "settling the first due investment must credit its payout exactly once");
@@ -160,7 +166,7 @@ const vm = require("node:vm");
   const beforeSecondSettlementScans = reduceCalls;
   state.calendarDay = 60;
   subscriber({ source: "save" });
-  await Promise.resolve();
+  await settleAsyncWork();
   assert.equal(investments[1].settled, true, "the newest investment should settle at its own due day");
   assert.equal(state.money, 1488, "each due investment payout should be applied exactly once");
   assert.equal(saveCalls, 2, "each settlement day should persist one payout batch");

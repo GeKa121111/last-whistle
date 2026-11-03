@@ -375,7 +375,7 @@ const required = [
   "renderPositionDevelopment",
   "story-ui.css?v=1",
   "story-mode.js?v=12",
-  "career-experience.js?v=7",
+  "career-experience.js?v=8",
   "career-experience.css?v=2",
   "career-hub.css?v=1",
   "career-hub.js?v=3",
@@ -675,11 +675,11 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=2", "career-experience.js?v=7", "agent-system.css?v=1", "agent-system.js?v=8", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=72", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=6", "ai-career-ui.js?v=1", "football-world-worker.js?v=61", "world-roster-audit.json", "redesign.css?v=17"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=12", "career-experience.css?v=2", "career-experience.js?v=8", "agent-system.css?v=1", "agent-system.js?v=8", "career-hub.css?v=1", "career-hub.js?v=3", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=72", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=6", "ai-career-ui.js?v=1", "football-world-worker.js?v=61", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.js", 7);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.js", 8);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.css", 2);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/career-engine.js", 71);
 const experienceSource = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
@@ -715,10 +715,14 @@ assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-go
 const focusedTrainingMessages = [];
 const focusedTrainingHarness = {
   currentView: "",
+  financeMutationPending: false,
   API: () => ({ toast: message => focusedTrainingMessages.push(String(message)) }),
+  safeWholeMoney: value => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= Number.MAX_SAFE_INTEGER
+    ? Math.floor(Number(value)) : null,
+  world: state => state.careerWorld || (state.careerWorld = { investments: [], history: [], investmentSequence: 1, mentorSessions: 0 }),
+  runFinanceMutation: (state, operation) => Promise.resolve(Object.assign({ ok: true }, operation() || {})),
   stat: (state, key, delta) => { state[key] = (Number(state[key]) || 0) + Number(delta || 0); },
   record: () => {},
-  save: () => {},
   renderFinance: () => {}
 };
 vm.createContext(focusedTrainingHarness);

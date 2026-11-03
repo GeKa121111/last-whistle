@@ -98,6 +98,90 @@
     if (message && api && api.toast) api.toast(message);
   }
 
+  var financeMutationPending = false;
+
+  function safeWholeMoney(value) {
+    if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return null;
+    var amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0 || amount > Number.MAX_SAFE_INTEGER) return null;
+    var whole = Math.floor(amount);
+    return Number.isSafeInteger(whole) ? whole : null;
+  }
+
+  function cloneFinanceState(state) {
+    if (!state || typeof state !== "object") return null;
+    try { if (typeof window.structuredClone === "function") return window.structuredClone(state); } catch (error) {}
+    try { return JSON.parse(JSON.stringify(state)); } catch (error) { return null; }
+  }
+
+  function restoreFinanceState(target, snapshot) {
+    if (!target || !snapshot || typeof snapshot !== "object") throw new Error("invalid-finance-snapshot");
+    Object.keys(target).forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(snapshot, key)) delete target[key];
+    });
+    Object.keys(snapshot).forEach(function (key) { target[key] = snapshot[key]; });
+  }
+
+  async function flushFinanceState(api, state) {
+    var queued = api.save();
+    if (queued && typeof queued.then === "function") queued = await queued;
+    if (queued === false) return false;
+    var pending;
+    if (typeof window.flushQueuedSave === "function") pending = window.flushQueuedSave({ backupFirst: true });
+    else if (window.LWStateStore && typeof window.LWStateStore.flush === "function") pending = window.LWStateStore.flush(state);
+    else return false;
+    return await Promise.resolve(pending) === true;
+  }
+
+  async function runFinanceMutation(state, operation, successMessage) {
+    var api = API();
+    if (financeMutationPending) {
+      if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
+      return { ok: false, reason: "finance-mutation-pending" };
+    }
+    if (!state || typeof operation !== "function" || !api || typeof api.save !== "function") {
+      return { ok: false, reason: "finance-persistence-unavailable" };
+    }
+    var snapshot = cloneFinanceState(state);
+    if (!snapshot) {
+      if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ العملية المالية.");
+      return { ok: false, reason: "finance-snapshot-unavailable" };
+    }
+    financeMutationPending = true;
+    var payload = null;
+    try {
+      payload = operation();
+      if (payload === false || payload == null) throw new Error("finance mutation rejected");
+      if (!(await flushFinanceState(api, state))) throw new Error("finance save not confirmed");
+    } catch (error) {
+      try { restoreFinanceState(state, snapshot); }
+      catch (restoreError) {
+        try { if (api.toast) api.toast("تعذر استعادة بيانات العملية المالية. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة."); } catch (toastError) {}
+        try { if (api.render) api.render(); } catch (renderError) {}
+        return { ok: false, reason: "finance-rollback-restore-failed", rollbackPersisted: false };
+      }
+      var rollbackPersisted = false;
+      try { rollbackPersisted = await flushFinanceState(api, state) === true; }
+      catch (rollbackError) {
+        if (window.console && window.console.warn) window.console.warn("Career finance rollback persistence failed", rollbackError);
+      }
+      try { if (api.render) api.render(); } catch (renderError) {}
+      try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
+      var message = rollbackPersisted
+        ? "تعذر تأكيد العملية المالية؛ رجّعنا الرصيد والمحفظة وحفظنا النسخة السابقة. تقدر تحاول تاني."
+        : "رجّعنا البيانات داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
+      try { if (api.toast) api.toast(message); } catch (toastError) {}
+      if (window.console && window.console.warn) window.console.warn("Career finance mutation rolled back", error);
+      return { ok: false, reason: message, rollbackPersisted: rollbackPersisted };
+    } finally {
+      financeMutationPending = false;
+    }
+    try { if (api.render) api.render(); } catch (renderError) {}
+    try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
+    try { if (successMessage && api.toast) api.toast(successMessage); } catch (toastError) {}
+    return Object.assign({ ok: true }, payload && typeof payload === "object" ? payload : {});
+  }
+
   function ensurePanel() {
     var host = document.getElementById("lifePageGrid");
     if (!host) {
@@ -435,40 +519,53 @@
   }
 
   function makeInvestment(s, risky) {
-    if (!s) return;
-    var w = world(s);
-    var amount = risky ? 200 : 100;
+    if (!s) return Promise.resolve({ ok: false, reason: "career-state-unavailable" });
     var api = API();
-    var openCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
-    if (!s.careerStarted || s.retired) {
-      if (api && api.toast) api.toast(s.retired
-        ? "المسيرة انتهت بالاعتزال؛ مش متاح تبدأ استثمارات جديدة."
-        : "ابدأ مسيرتك الأول علشان تستخدم الاستثمار.");
-      return;
+    if (financeMutationPending) {
+      if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
+      return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
     }
+    var amount = risky ? 200 : 100;
+    if (!s.careerStarted || s.retired) {
+      if (api && api.toast) api.toast(s.retired ? "المسيرة انتهت بالاعتزال؛ مش متاح تبدأ استثمارات جديدة." : "ابدأ مسيرتك الأول علشان تستخدم الاستثمار.");
+      return Promise.resolve({ ok: false, reason: "investment-unavailable" });
+    }
+    var balance = safeWholeMoney(s.money);
+    if (balance === null) {
+      if (api && api.toast) api.toast("رصيدك غير صالح؛ راجع الحفظ قبل أي عملية مالية.");
+      return Promise.resolve({ ok: false, reason: "invalid-balance" });
+    }
+    var w = world(s);
+    var openCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
     if (openCount >= 5) {
       if (api && api.toast) api.toast("عندك 5 عمليات استثمار مفتوحة بالفعل. استنى استحقاق واحدة قبل ما تبدأ غيرها.");
-      return;
+      return Promise.resolve({ ok: false, reason: "investment-limit" });
     }
-    if ((Number(s.money) || 0) < amount) {
+    if (balance < amount) {
       if (api && api.toast) api.toast("رصيدك مش كفاية للعملية دي.");
-      return;
+      return Promise.resolve({ ok: false, reason: "insufficient-balance" });
     }
-    s.money = Math.max(0, Number(s.money) - amount);
-    var successful = !risky || Math.random() < 0.54;
-    var payout = risky ? (successful ? 340 : 55) : 118;
-    var item = {
-      id: w.investmentSequence++, kind: risky ? "risky" : "safe",
-      label: risky ? "استثمار عالي المخاطرة" : "ادخار آمن",
-      amount: amount, payout: payout, dueDay: dayNumber(s) + (risky ? 10 : 7),
-      settled: false, successful: successful
-    };
-    w.investments.push(item);
-    w.investments = w.investments.slice(-30);
-    record(s, item.label, "حجزت " + amount + " جنيه داخل اللعبة؛ الاستحقاق بعد " + (risky ? 10 : 7) + " أيام.");
-    save(s, "اتسجلت العملية. راجعها تاني بعد مرور أيام اللعبة.");
-    currentView = "finance";
-    renderFinance();
+    return runFinanceMutation(s, function () {
+      var currentBalance = safeWholeMoney(s.money);
+      var currentOpenCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
+      if (currentBalance === null || currentBalance < amount || currentOpenCount >= 5) return false;
+      s.money = currentBalance - amount;
+      var successful = !risky || Math.random() < 0.54;
+      var payout = risky ? (successful ? 340 : 55) : 118;
+      var item = {
+        id: w.investmentSequence++, kind: risky ? "risky" : "safe",
+        label: risky ? "استثمار عالي المخاطرة" : "ادخار آمن",
+        amount: amount, payout: payout, dueDay: dayNumber(s) + (risky ? 10 : 7),
+        settled: false, successful: successful
+      };
+      w.investments.push(item);
+      w.investments = w.investments.slice(-30);
+      record(s, item.label, "حجزت " + amount + " جنيه داخل اللعبة؛ الاستحقاق بعد " + (risky ? 10 : 7) + " أيام.", w);
+      return { investment: item };
+    }, "اتسجلت العملية واتأكد حفظ الرصيد والمحفظة. راجعها تاني بعد مرور أيام اللعبة.").then(function (result) {
+      if (result.ok) { currentView = "finance"; renderFinance(); }
+      return result;
+    });
   }
 
   function openTrainingSkill() {
@@ -488,48 +585,84 @@
   }
 
   function applyFocusedTraining(s, skill) {
-    if (!s) return;
+    if (!s) return Promise.resolve({ ok: false, reason: "career-state-unavailable" });
     var allowedSkills = ["shooting", "passing", "dribbling", "speed", "fitness", "composure"];
     if (s.pos === "حارس مرمى") allowedSkills.push("goalkeeping");
     if (allowedSkills.indexOf(skill) < 0) {
       var rejectedApi = API();
       if (rejectedApi && rejectedApi.toast) rejectedApi.toast("المهارة دي مش متاحة لمركزك.");
-      return;
+      return Promise.resolve({ ok: false, reason: "invalid-training-skill" });
     }
-    if (s.retired || Number(s.injuryDays) > 0 || Number(s.money) < 180 || Number(s.energy) < 8) {
-      var api = API();
+    var api = API();
+    if (financeMutationPending) {
+      if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
+      return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
+    }
+    var balance = safeWholeMoney(s.money), energy = Number(s.energy);
+    if (s.retired || Number(s.injuryDays) > 0 || balance === null || balance < 180 || !Number.isFinite(energy) || energy < 8) {
       if (api && api.toast) api.toast("راجع الرصيد والطاقة والإصابة قبل التمرين.");
-      return;
+      return Promise.resolve({ ok: false, reason: "training-requirements-not-met" });
     }
     var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء", goalkeeping: "حراسة المرمى" };
-    s.money = Math.max(0, Number(s.money) - 180);
-    stat(s, skill, 2);
-    stat(s, "energy", -8);
-    stat(s, "careerXP", 10);
-    record(s, "حصة مدرب متخصص", "دفعت 180 جنيهًا داخل اللعبة وطوّرت مهارة " + labels[skill] + " بنقطتين.");
-    save(s, "التدريب المتخصص اتسجل. المهارة اتطورت والطاقة اتخصمت.");
-    currentView = "finance";
-    renderFinance();
+    var w = world(s);
+    return runFinanceMutation(s, function () {
+      var currentBalance = safeWholeMoney(s.money), currentEnergy = Number(s.energy);
+      if (s.retired || Number(s.injuryDays) > 0 || currentBalance === null || currentBalance < 180 || !Number.isFinite(currentEnergy) || currentEnergy < 8) return false;
+      s.money = currentBalance - 180;
+      stat(s, skill, 2);
+      stat(s, "energy", -8);
+      stat(s, "careerXP", 10);
+      record(s, "حصة مدرب متخصص", "دفعت 180 جنيهًا داخل اللعبة وطوّرت مهارة " + labels[skill] + " بنقطتين.", w);
+      return { skill: skill };
+    }, "التدريب المتخصص اتسجل واتأكد حفظ الرصيد والتطور والطاقة.").then(function (result) {
+      if (result.ok) { currentView = "finance"; renderFinance(); }
+      return result;
+    });
   }
 
   function settleInvestments(s, cachedWorld) {
     var w = cachedWorld || world(s);
     var today = dayNumber(s);
-    var changed = false;
-    w.investments.forEach(function (item) {
-      if (item.settled || today < Number(item.dueDay)) return;
-      item.settled = true;
-      s.money = Math.max(0, Number(s.money) || 0) + Math.max(0, Number(item.payout) || 0);
-      item.result = item.successful ? "نجحت العملية" : "خسارة استثمارية";
-      record(s, "استحقاق استثمار", item.label + ": رجع لحسابك " + item.payout + " جنيه داخل اللعبة (" + item.result + ").", w);
-      changed = true;
-    });
-    if (changed) {
-      var api = API();
-      if (api && api.save) api.save();
-      if (api && api.toast) api.toast("وصل تاريخ استحقاق استثمار؛ رصيدك اتحدّث.");
+    var due = w.investments.filter(function (item) { return item && !item.settled && today >= Number(item.dueDay); });
+    if (!due.length) return false;
+    var api = API();
+    if (financeMutationPending) return Promise.resolve({ ok: false, changed: false, reason: "finance-mutation-pending" });
+    if (safeWholeMoney(s.money) === null) {
+      if (api && api.toast) api.toast("فيه رصيد غير صالح؛ استحقاق الاستثمار متوقف لحد ما تراجع الحفظ.");
+      return Promise.resolve({ ok: false, changed: false, reason: "invalid-balance" });
     }
-    return changed;
+    return runFinanceMutation(s, function () {
+      var currentBalance = safeWholeMoney(s.money);
+      if (currentBalance === null) return false;
+      var dueNow = w.investments.filter(function (item) { return item && !item.settled && today >= Number(item.dueDay); });
+      if (!dueNow.length) return { changed: false, settledCount: 0 };
+      var nextBalance = currentBalance, settledCount = 0;
+      dueNow.forEach(function (item) {
+        var normalizedPayout = safeWholeMoney(item.payout);
+        var payout = normalizedPayout === null ? 0 : normalizedPayout;
+        if (normalizedPayout === null) {
+          item.payout = 0;
+          item.result = "تم رفض العائد غير الصالح";
+        } else {
+          item.result = item.successful ? "نجحت العملية" : "خسارة استثمارية";
+        }
+        var credited = Math.min(payout, Number.MAX_SAFE_INTEGER - nextBalance);
+        nextBalance += credited;
+        if (credited < payout) item.result = "تم تحديد العائد عند الحد الآمن";
+        item.settled = true;
+        record(s, "استحقاق استثمار", item.label + ": رجع لحسابك " + credited + " جنيه داخل اللعبة (" + item.result + ").", w);
+        settledCount++;
+      });
+      s.money = nextBalance;
+      return { changed: settledCount > 0, settledCount: settledCount };
+    }, null).then(function (result) {
+      if (result.ok && result.changed) {
+        var currentApi = API();
+        if (currentApi && currentApi.toast) currentApi.toast("وصل تاريخ استحقاق استثمار؛ رصيدك اتحدّث واتحفظ.");
+        return { ok: true, changed: true };
+      }
+      return { ok: result.ok, changed: false, reason: result.reason };
+    });
   }
 
   function openMentor() {
@@ -670,10 +803,10 @@
     if (action === "open-memory") { openMemory(s); return; }
     if (action === "memory-answer") { answerMemory(s, element.getAttribute("data-arrow") || ""); return; }
     if (action === "memory-reset") { openMemory(s); return; }
-    if (action === "invest-safe") { makeInvestment(s, false); return; }
-    if (action === "invest-risky") { makeInvestment(s, true); return; }
+    if (action === "invest-safe") { return makeInvestment(s, false); }
+    if (action === "invest-risky") { return makeInvestment(s, true); }
     if (action === "training-skill") { openTrainingSkill(); return; }
-    if (action.indexOf("skill-") === 0) { applyFocusedTraining(s, action.slice(6)); return; }
+    if (action.indexOf("skill-") === 0) { return applyFocusedTraining(s, action.slice(6)); }
     if (action.indexOf("mentor-") === 0) { doMentor(s, action.slice(7)); return; }
   }
 
@@ -735,7 +868,17 @@
       lastSettledDay = today;
       var settledInvestments = settleInvestments(s, w);
       w = s.careerWorld || w;
-      if (settledInvestments) pendingInvestmentsWorld = null;
+      if (settledInvestments && typeof settledInvestments.then === "function") {
+        settledInvestments.then(function (result) {
+          if (result && result.changed) pendingInvestmentsWorld = null;
+          if (result && result.ok === false && lastSettledDay === today) lastSettledDay = null;
+        }).catch(function (error) {
+          if (window.console && window.console.warn) window.console.warn("Career investment settlement failed", error);
+          if (lastSettledDay === today) lastSettledDay = null;
+        });
+      } else if (settledInvestments) {
+        pendingInvestmentsWorld = null;
+      }
     }
 
     if (!ensurePanel()) {
@@ -773,7 +916,7 @@
     if (!button) return;
     if (button.disabled) return;
     event.preventDefault();
-    handleAction(button.getAttribute("data-lwcx-action") || "", button);
+    return handleAction(button.getAttribute("data-lwcx-action") || "", button);
   });
 
   document.addEventListener("input", function (event) {

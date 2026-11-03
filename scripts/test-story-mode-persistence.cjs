@@ -114,6 +114,13 @@ const report = {
   assert.equal(stale.state.storyPendingId, "");
   assert.equal(stale.saveCalls, 1);
 
+  const deferredTrigger = makeHarness({}, []);
+  const deferredTriggerResult = deferredTrigger.sandbox.checkTriggers(deferredTrigger.state, deferredTrigger.api, { deferSave: true, suppressToast: true });
+  assert.equal(deferredTriggerResult.ok, true);
+  assert.equal(deferredTrigger.state.storyPendingId, "debut");
+  assert.equal(deferredTrigger.sandbox.lastPending, "", "outer transaction owns the pending-event notification state");
+  assert.equal(deferredTrigger.saveCalls, 0);
+
   const unchanged = makeHarness({ storyPendingId: "debut", storyFlags: {}, storyHistory: [] }, [true]);
   const unchangedResult = await unchanged.checkTriggers();
   assert.equal(unchangedResult.ok, true);

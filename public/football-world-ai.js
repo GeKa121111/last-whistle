@@ -2737,6 +2737,16 @@
     Object.keys(target).forEach(key => { if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key]; });
     Object.keys(source).forEach(key => { target[key] = source[key]; });
   }
+  function getStateStoreRevision() {
+    const store = global.LWStateStore;
+    if (!store || typeof store.getRevision !== "function") return null;
+    const revision = Number(store.getRevision());
+    return Number.isFinite(revision) ? revision : null;
+  }
+  function getCurrentCareerState() {
+    const store = global.LWStateStore;
+    return store && typeof store.getState === "function" ? store.getState() : null;
+  }
   // Keep one world worker alive for the lifetime of the page. Recreating it after
   // every dashboard/season request re-imports the multi-megabyte roster bundle and
   // makes repeated career actions needlessly expensive on mobile devices.
@@ -2776,6 +2786,11 @@
       try {
         if (!msg.ok) {
           request.reject(new Error(msg.error || "World worker failed"));
+        } else if (request.revision !== null && getStateStoreRevision() !== null
+          && getStateStoreRevision() !== request.revision) {
+          const staleError = new Error("World worker result superseded by a newer career state");
+          staleError.code = "LW_WORLD_WORKER_STALE_SAVE";
+          request.reject(staleError);
         } else {
           applySaveResult(request.save, msg.save);
           if (global.LWStateStore && typeof global.LWStateStore.publish === "function")
@@ -2807,6 +2822,12 @@
       return;
     }
     const request = worldWorkerQueue.shift();
+    const currentRevision = getStateStoreRevision();
+    if (currentRevision !== null && request.revision !== currentRevision) {
+      const latestState = getCurrentCareerState();
+      if (latestState && typeof latestState === "object") request.save = latestState;
+      request.revision = currentRevision;
+    }
     request.id = "lw-world-" + Date.now() + "-" + (++worldWorkerSequence);
     activeWorldWorkerRequest = request;
     try {
@@ -2825,7 +2846,7 @@
   function workerRequest(command, save, data) {
     if (typeof global.Worker !== "function") return Promise.reject(new Error("Web Worker is not supported"));
     return new Promise((resolve, reject) => {
-      worldWorkerQueue.push({ command, save, data: data || {}, resolve, reject });
+      worldWorkerQueue.push({ command, save, data: data || {}, resolve, reject, revision: getStateStoreRevision() });
       pumpWorldWorkerQueue();
     });
   }
@@ -2837,7 +2858,20 @@
     });
   }
   function worldJob(command, save, data, db) {
-    return workerRequest(command, save, data || {}).catch(() => asyncFallback(command, save, data || {}, db));
+    const payload = data || {};
+    return workerRequest(command, save, payload).catch(error => {
+      if (error && error.code === "LW_WORLD_WORKER_STALE_SAVE") {
+        const latestState = getCurrentCareerState();
+        const target = latestState && typeof latestState === "object" ? latestState : save;
+        const store = global.LWStateStore;
+        return asyncFallback(command, target, payload, db).then(result => {
+          if (store && typeof store.publish === "function" && store.getState() === target)
+            store.publish(target, { source: "world-worker-fallback", command });
+          return result;
+        });
+      }
+      return asyncFallback(command, save, payload, db);
+    });
   }
   global.LWWorldAI = Object.freeze(Object.assign({}, base, {
     version: base.version,

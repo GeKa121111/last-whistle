@@ -196,16 +196,28 @@ function cloneStoryState(state){
 function acquireSharedMutationLock(owner) {
   var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
   if (!coordinator || typeof coordinator !== "object") {
-    coordinator = { owner: "" };
+    coordinator = { owner: "", queue: [] };
     window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
   }
-  if (coordinator.owner) return false;
-  coordinator.owner = String(owner || "");
-  return !!coordinator.owner;
+  if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
+  owner = String(owner || "");
+  if (!owner) return Promise.resolve(false);
+  if (!coordinator.owner) {
+    coordinator.owner = owner;
+    return Promise.resolve(true);
+  }
+  return new Promise(function(resolve) { coordinator.queue.push({ owner: owner, resolve: resolve }); });
 }
 function releaseSharedMutationLock(owner) {
   var coordinator = window.__LW_DURABLE_MUTATION_LOCK__;
-  if (coordinator && coordinator.owner === owner) coordinator.owner = "";
+  if (!coordinator || coordinator.owner !== owner) return;
+  var next = Array.isArray(coordinator.queue) ? coordinator.queue.shift() : null;
+  if (next && next.owner) {
+    coordinator.owner = next.owner;
+    next.resolve(true);
+  } else {
+    coordinator.owner = "";
+  }
 }
 
 function restoreStoryState(target,snapshot){
@@ -230,17 +242,15 @@ async function runStoryMutation(state,operation){
   }
   if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
     return {ok:false,reason:"story-persistence-unavailable"};
-  if(!acquireSharedMutationLock("story-mode")){
-    if(api&&api.toast)api.toast("فيه تغيير تاني في المسيرة بيتحفظ دلوقتي. استنى لحظة.");
-    return {ok:false,reason:"story-mutation-pending"};
-  }
+  storyMutationPending=true;
+  await acquireSharedMutationLock("story-mode");
   var snapshot=cloneStoryState(state);
   if(!snapshot){
+    storyMutationPending=false;
     releaseSharedMutationLock("story-mode");
     if(api.toast)api.toast("تعذر تأمين نسخة من المسيرة؛ القرار ما اتطبقش.");
     return {ok:false,reason:"story-snapshot-unavailable"};
   }
-  storyMutationPending=true;
   var payload=null;
   try{
     payload=operation();

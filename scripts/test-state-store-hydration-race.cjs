@@ -146,6 +146,21 @@ function createHarness() {
   assert.equal(JSON.stringify(normalWrite.store.getStartupSave()), JSON.stringify(savedCareer),
     "a successful current save must still become the startup save");
 
+  const staleArgumentFlush = createHarness();
+  await staleArgumentFlush.resolveStartupRead(null);
+  const authoritativeCareer = { name: "Latest authoritative career", money: 4700, age: 21 };
+  const staleFlushArgument = { name: "Detached stale career", money: 700, age: 18 };
+  staleArgumentFlush.store.publish(authoritativeCareer, { source: "import" });
+  const staleArgumentFlushPromise = staleArgumentFlush.store.flush(staleFlushArgument);
+  await staleArgumentFlush.waitForWrite();
+  assert.equal(staleArgumentFlush.writes.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(staleArgumentFlush.writes[0].state)), authoritativeCareer,
+    "flush must persist the store's latest published career, never a stale detached argument");
+  assert.equal(staleArgumentFlush.completeWrite(), true);
+  assert.equal(await staleArgumentFlushPromise, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(staleArgumentFlush.committedWrites[0].state)), authoritativeCareer,
+    "a stale flush caller must not roll back the committed default career");
+
   const flushRace = createHarness();
   const staleFlushCareer = { name: "Career queued before import", money: 700 };
   const flushRacePromise = flushRace.store.flush(staleFlushCareer);

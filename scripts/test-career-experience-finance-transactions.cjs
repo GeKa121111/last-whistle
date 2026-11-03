@@ -170,6 +170,40 @@ function dueState() {
   assert.equal(concurrentRollback.state.age, 22);
   assert.equal(concurrentRollback.state.calendarDay, 15);
 
+  let releaseDuplicateHistoryRollback;
+  const duplicateHistoryRollback = makeHarness({
+    money: 1000,
+    careerWorld: {
+      version: 1, challengeCount: 0, challengeWins: 0, practiceAttempts: 0,
+      memoryWins: 0, timingWins: 0, mentorSessions: 0,
+      investments: [], investmentSequence: 1,
+      history: [{
+        title: "ادخار آمن",
+        text: "حجزت 100 جنيه داخل اللعبة؛ الاستحقاق بعد 7 أيام.",
+        season: 1, day: 1, source: "existing-same-day-event"
+      }]
+    }
+  }, [
+    () => new Promise(resolve => { releaseDuplicateHistoryRollback = resolve; }),
+    true
+  ]);
+  const pendingDuplicateHistoryInvestment = duplicateHistoryRollback.click("invest-safe");
+  duplicateHistoryRollback.state.careerWorld.history.unshift({
+    title: "ادخار آمن",
+    text: "حجزت 100 جنيه داخل اللعبة؛ الاستحقاق بعد 7 أيام.",
+    season: 1, day: 1, source: "newer-similar-event"
+  });
+  releaseDuplicateHistoryRollback(false);
+  const duplicateHistoryResult = await pendingDuplicateHistoryInvestment;
+  assert.equal(duplicateHistoryResult.ok, false);
+  assert.equal(duplicateHistoryRollback.state.money, 1000);
+  assert.equal(duplicateHistoryRollback.state.careerWorld.investments.length, 0);
+  assert.equal(duplicateHistoryRollback.state.careerWorld.history.length, 2,
+    "rollback must remove only its exact transaction row when other events share the same title, text, season and day");
+  assert.deepEqual(duplicateHistoryRollback.state.careerWorld.history.map(row => row.source).sort(),
+    ["existing-same-day-event", "newer-similar-event"],
+    "descriptively similar but distinct history events must both survive rollback");
+
   let releaseSameBalance;
   const sameBalanceUpdate = makeHarness({ money: 1000 }, [
     () => new Promise(resolve => { releaseSameBalance = resolve; }), true

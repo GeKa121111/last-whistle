@@ -14,21 +14,25 @@ assert.equal(source, deployed, "root/public story runtimes must match");
 assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
 assert.match(sw, /last-whistle-static-v438/);
-assert.match(sw, /story-mode\\.js\\?v=13/);
+assert.match(sw, /story-mode\.js\?v=13/);
 require("./assert-static-cache-version.cjs")(sw, 438);
 
 const helperStart = source.indexOf("function cloneStoryState(");
-const helperEnd = source.indexOf("\\nfunction actualEvent(", helperStart);
+const helperEnd = source.indexOf("\nfunction actualEvent(", helperStart);
 const triggerStart = source.indexOf("function applyStoryTriggers(");
-const triggerEnd = source.indexOf("\\nfunction renderStoryPanel(", triggerStart);
+const triggerEnd = source.indexOf("\nfunction renderStoryPanel(", triggerStart);
 const matchStart = source.indexOf("function finiteNumber(");
-const matchEnd = source.indexOf("\\nfunction tick()", matchStart);
+const matchEnd = source.indexOf("\nfunction tick()", matchStart);
+const tickStart = matchEnd;
+const tickEnd = source.indexOf("\nfunction scheduleTick(", tickStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart);
 assert.ok(triggerStart >= 0 && triggerEnd > triggerStart);
 assert.ok(matchStart >= 0 && matchEnd > matchStart);
+assert.ok(tickStart >= 0 && tickEnd > tickStart);
 const helpers = source.slice(helperStart, helperEnd);
 const triggers = source.slice(triggerStart, triggerEnd);
 const matchFunctions = source.slice(matchStart, matchEnd);
+const tickFunction = source.slice(tickStart, tickEnd);
 
 function makeHarness(stateOverrides, flushQueue) {
   const state = Object.assign({
@@ -66,7 +70,7 @@ function makeHarness(stateOverrides, flushQueue) {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(helpers + "\\n" + triggers + "\\n" + matchFunctions, sandbox, { filename: "story-mode.persistence" });
+  vm.runInContext(helpers + "\n" + triggers + "\n" + matchFunctions, sandbox, { filename: "story-mode.persistence" });
   return {
     state, notices, warnings, api, sandbox,
     checkTriggers: () => sandbox.checkTriggers(state, api),
@@ -89,7 +93,7 @@ const report = {
   const triggerResult = await triggerSuccess.checkTriggers();
   assert.equal(triggerResult.ok, true);
   assert.equal(triggerSuccess.state.storyPendingId, "debut");
-  assert.deepEqual(triggerSuccess.state.storyHistory, []);
+  assert.equal(triggerSuccess.state.storyHistory.length, 0);
   assert.equal(triggerSuccess.saveCalls, 1);
   assert.equal(triggerSuccess.flushCalls, 1);
   assert.equal(triggerSuccess.notices.length, 1);
@@ -126,6 +130,28 @@ const report = {
   assert.equal((await pendingTrigger).ok, true);
   assert.equal(delayedTrigger.notices.length, 1);
 
+  let releaseTick;
+  let overviewRenders = 0, panelRenders = 0;
+  const tickState = { careerStarted: true, apps: 1, day: 4 };
+  const tickSandbox = {
+    document: { hidden: false },
+    window: { console: { warn() {} } },
+    Promise, API: () => ({ getState: () => tickState }),
+    storyTickRunning: false, storyMutationPending: false,
+    stateRef: null, previousSnapshot: "", lastPending: "",
+    ensureShell() {},
+    checkTriggers() { return new Promise(resolve => { releaseTick = resolve; }); },
+    renderOverview() { overviewRenders++; },
+    renderStoryPanel() {}
+  };
+  vm.createContext(tickSandbox);
+  vm.runInContext(tickFunction, tickSandbox, { filename: "story-mode.tick.persistence" });
+  const tickPromise = tickSandbox.tick();
+  assert.equal(overviewRenders, 0, "the story panel must not render before trigger persistence finishes");
+  releaseTick({ ok: true });
+  await tickPromise;
+  assert.equal(overviewRenders, 1);
+
   const matchSuccess = makeHarness({}, [true]);
   const accepted = await matchSuccess.accept(report);
   assert.equal(accepted.ok, true);
@@ -147,6 +173,14 @@ const report = {
   const legacyDuplicate = await legacy.accept(report);
   assert.equal(legacyDuplicate.duplicate, true);
   assert.equal(legacy.saveCalls, 0);
+
+  const ledgerDuplicate = makeHarness({
+    lastStoryMatchKey: "another-match",
+    matchNarrativeLedger: [{ key: legacySummary.legacyKey }]
+  }, []);
+  const oldLedgerDuplicate = await ledgerDuplicate.accept(report);
+  assert.equal(oldLedgerDuplicate.duplicate, true);
+  assert.equal(ledgerDuplicate.saveCalls, 0);
 
   const matchFailure = makeHarness({}, [false, true]);
   const failedMatch = await matchFailure.accept(report);

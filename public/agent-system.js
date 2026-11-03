@@ -662,18 +662,25 @@ function availableAgentBalance(s){
   function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
     if(agentContractMutationPending||postRetirementMutationPending)return;
-    var preview=cloneAgentMaintenancePreview(s);if(!preview)return;
-    var changed=ensureState(preview);
-    if(preview.agent&&renewRelationship(preview,true))changed=true;
-    if(changed){
-      return runAgentContractMutation(s,function(){
-        ensureState(s);
-        if(s.agent)renewRelationship(s,false);
-        return true;
-      },null,{renderOnSuccess:false,renderOnFailure:true}).then(function(result){
-        if(result.ok)scheduleTick(force);
-        return result;
-      });
+    var hasAgentState=!!s.agent||!!(s.agentProfile&&typeof s.agentProfile==="object")
+      ||(Array.isArray(s.agentHistory)&&s.agentHistory.length>0)
+      ||!!s.agentFeeDebtLedger||!!s.agentNegotiationQuote
+      ||Number(s.agentFeeDebtSequence)>0||Number(s.agentDebtPaid)>0
+      ||Number(s.agentCommissionPaid)>0;
+    if(hasAgentState){
+      var preview=cloneAgentMaintenancePreview(s);if(!preview)return;
+      var changed=ensureState(preview);
+      if(preview.agent&&renewRelationship(preview,true))changed=true;
+      if(changed){
+        return runAgentContractMutation(s,function(){
+          ensureState(s);
+          if(s.agent)renewRelationship(s,false);
+          return true;
+        },null,{renderOnSuccess:false,renderOnFailure:true}).then(function(result){
+          if(result.ok)scheduleTick(force);
+          return result;
+        });
+      }
     }
     var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
     var lead=s.agentLead&&typeof s.agentLead==="object"?{id:s.agentLead.id,agentId:s.agentLead.agentId,status:s.agentLead.status,season:s.agentLead.season,day:s.agentLead.day}:s.agentLead;

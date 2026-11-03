@@ -315,11 +315,11 @@ function availableAgentBalance(s){
     if(ensureFeeDebtLedger(s))changed=true;
     return changed;
   }
-  function record(s,title,text){
+  function record(s,title,text,silent){
     if(!Array.isArray(s.agentHistory))s.agentHistory=[];
     var e={season:Number(s.season)||1,day:Number(s.day)||1,title:String(title||"حدث مع الوكيل"),text:String(text||"")};
     s.agentHistory.unshift(e);s.agentHistory=s.agentHistory.slice(0,40);
-    var api=API();if(api&&api.log)api.log(e.title+": "+e.text);
+    if(!silent){var api=API();if(api&&api.log)api.log(e.title+": "+e.text);}
   }
   function save(s,message){
     var api=API();if(api&&api.save)api.save();if(api&&api.render)api.render();renderPanel(s);
@@ -621,13 +621,13 @@ function availableAgentBalance(s){
   function sponsorshipMultiplier(s){if(!s||!s.agent||!s.agentProfile)return 1;return Math.max(1,Math.min(1.45,1+profileValue(s,"sponsorshipBonus",.1)+(rel(s)-50)*.001));}
   function matchPayMultiplier(s){if(!s||!s.agent||!s.agentProfile)return 1;return Math.max(1,Math.min(1.15,1+profileValue(s,"matchPayBonus",.02)));}
   function dailyRecoveryBonus(s){return s&&s.agent&&s.agentProfile&&s.agentProfile.perks&&s.agentProfile.perks.recovery?3:0;}
-  function renewRelationship(s){
+  function renewRelationship(s,silent){
     if(!s||!s.agent||!s.agentProfile)return false;var cfg=agentConfig(s);if(!cfg)return false;
     var p=s.agentProfile,milestone=Math.floor((Number(s.apps)||0)/5);if(milestone<=Number(p.lastPerformanceMilestone||0))return false;
     p.lastPerformanceMilestone=milestone;var rating=Number(s.lastRating)||0,delta=rating>=7.5?3:rating>=6.5?1:rating>0?-2:0;
     if(delta)addTrust(s,delta);
-    if(delta>=3)record(s,"ثقة الوكيل زادت","أداؤك الأخير خلّى "+cfg.name+" أكثر ثقة في خطتك.");
-    else if(delta<0)record(s,"الوكيل قلق من الأداء",cfg.name+" طلب منك تراجع مستواك وتحدد الخطوة الجاية.");
+    if(delta>=3)record(s,"ثقة الوكيل زادت","أداؤك الأخير خلّى "+cfg.name+" أكثر ثقة في خطتك.",silent);
+    else if(delta<0)record(s,"الوكيل قلق من الأداء",cfg.name+" طلب منك تراجع مستواك وتحدد الخطوة الجاية.",silent);
     return true;
   }
   function currentAgentData(){return AGENTS.map(function(a){return {id:a.id,name:a.name,title:a.title,style:a.style,feeRate:a.feeRate,strength:a.strength,weakness:a.weakness};});}
@@ -645,10 +645,43 @@ function availableAgentBalance(s){
     if(action==="agent-end-current"){endCurrent();return;}
     if(action==="agent-confirm-end"){return confirmEnd();}
   }
+  function cloneAgentMaintenancePreview(state){
+    if(!state||typeof state!=="object")return null;
+    var preview=Object.assign({},state),failed=false;
+    // Only agent-owned state is cloned here; the multi-megabyte world database is read-only for this maintenance pass.
+    Object.keys(state).forEach(function(key){
+      if(failed||key.indexOf("agent")!==0)return;
+      var value=state[key];
+      if(!value||typeof value!=="object"){preview[key]=value;return;}
+      var cloned=clonePostRetirementMutationState(value);
+      if(!cloned){failed=true;return;}
+      preview[key]=cloned;
+    });
+    return failed?null:preview;
+  }
   function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
-    var changed=ensureState(s);
-    if(s.agent&&renewRelationship(s))changed=true;
+    if(agentContractMutationPending||postRetirementMutationPending)return;
+    var hasAgentState=!!s.agent||!!(s.agentProfile&&typeof s.agentProfile==="object")
+      ||(Array.isArray(s.agentHistory)&&s.agentHistory.length>0)
+      ||!!s.agentFeeDebtLedger||!!s.agentNegotiationQuote
+      ||Number(s.agentFeeDebtSequence)>0||Number(s.agentDebtPaid)>0
+      ||Number(s.agentCommissionPaid)>0;
+    if(hasAgentState){
+      var preview=cloneAgentMaintenancePreview(s);if(!preview)return;
+      var changed=ensureState(preview);
+      if(preview.agent&&renewRelationship(preview,true))changed=true;
+      if(changed){
+        return runAgentContractMutation(s,function(){
+          ensureState(s);
+          if(s.agent)renewRelationship(s,false);
+          return true;
+        },null,{renderOnSuccess:false,renderOnFailure:true}).then(function(result){
+          if(result.ok)scheduleTick(force);
+          return result;
+        });
+      }
+    }
     var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
     var lead=s.agentLead&&typeof s.agentLead==="object"?{id:s.agentLead.id,agentId:s.agentLead.agentId,status:s.agentLead.status,season:s.agentLead.season,day:s.agentLead.day}:s.agentLead;
     var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+String(p.perks[key]);}).join(","):"";
@@ -668,7 +701,6 @@ function availableAgentBalance(s){
     }else if(!ready){
       panelWasRendered=false;
     }
-    if(changed&&api.save)api.save();
     lastSnapshot=snapshot;
   }
   function scheduleTick(force){
@@ -732,7 +764,10 @@ function availableAgentBalance(s){
     return await Promise.resolve(pending)===true;
   }
   var agentContractMutationPending = false;
-  async function runAgentContractMutation(state,operation,successMessage){
+  async function runAgentContractMutation(state,operation,successMessage,options){
+    options=options||{};
+    var renderOnSuccess=options.renderOnSuccess!==false;
+    var renderOnFailure=options.renderOnFailure!==false;
     var api=API();
     if(agentContractMutationPending||postRetirementMutationPending){
       if(api&&api.toast)api.toast("فيه تغيير تاني بيتحفظ دلوقتي. استنى تأكيد الحفظ.");
@@ -752,14 +787,19 @@ function availableAgentBalance(s){
       try{restorePostRetirementMutationState(state,snapshot);}
       catch(restoreError){
         try{if(api.toast)api.toast("تعذر استعادة اتفاق الوكيل. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
-        try{if(api.render)api.render();}catch(renderError){}
+        if(renderOnFailure){
+          try{if(api.render)api.render();}catch(renderError){}
+          try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+        }
         return {ok:false,reason:"agent-rollback-restore-failed",rollbackPersisted:false};
       }
       var rollbackPersisted=false;
       try{rollbackPersisted=await flushPostRetirementMutation(api,state)===true;}
       catch(rollbackError){if(window.console&&window.console.warn)window.console.warn("Agent contract rollback persistence failed",rollbackError);}
-      try{if(api.render)api.render();}catch(renderError){}
-      try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+      if(renderOnFailure){
+        try{if(api.render)api.render();}catch(renderError){}
+        try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+      }
       var message=rollbackPersisted
         ?"تعذر حفظ تغيير الوكيل؛ تمت استعادة الاتفاق السابق وحفظه. تقدر تحاول مرة تانية."
         :"تمت استعادة الاتفاق داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
@@ -769,13 +809,15 @@ function availableAgentBalance(s){
     }finally{
       agentContractMutationPending=false;
     }
-    try{if(api.render)api.render();}catch(renderError){}
-    try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+    if(renderOnSuccess){
+      try{if(api.render)api.render();}catch(renderError){}
+      try{if(typeof renderPanel==="function")renderPanel(state);}catch(panelError){}
+    }
     try{if(successMessage&&api.toast)api.toast(successMessage);}catch(toastError){}
     return Object.assign({ok:true},payload&&typeof payload==="object"?payload:{});
   }
   async function runPostRetirementMutation(state,operation){
-    if(postRetirementMutationPending)return {ok:false,reason:"فيه عملية ما بعد الاعتزال بيتحفظ بالفعل. استنى تأكيد الحفظ."};
+    if(postRetirementMutationPending||agentContractMutationPending)return {ok:false,reason:"فيه عملية وكيل تانية بيتحفظ بالفعل. استنى تأكيد الحفظ."};
     if(!state||typeof operation!=="function")return {ok:false,reason:"بيانات مسار ما بعد الاعتزال غير متاحة."};
     var api=API();
     if(!api||typeof api.save!=="function")return {ok:false,reason:"الحفظ غير متاح؛ لم يتم تنفيذ العملية."};

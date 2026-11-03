@@ -98,7 +98,7 @@ function makeHarness(stateOverrides = {}, options = {}) {
     postRetirementMutationPending: false
   };
   vm.createContext(sandbox);
-  vm.runInContext("var postRetirementMutationPending=false;\n" + extracted +
+  vm.runInContext("var postRetirementMutationPending=false; var agentContractMutationPending=false;\n" + extracted +
     "\nglobalThis.runtime={postRetirementOptions,startPostRetirementAgency,acquireClubControl,registerAgencyPlayer};",
     sandbox, { filename: "agent-post-retirement-transactions" });
   return { runtime: sandbox.runtime, state, events, flushResults };

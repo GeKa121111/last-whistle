@@ -48,6 +48,11 @@ const sandbox = {
   API: () => api,
   ensureState: () => false,
   renewRelationship: () => false,
+  cloneAgentMaintenancePreview: value => Object.assign({}, value),
+  runAgentContractMutation: (value, operation) => { operation(); return Promise.resolve({ ok: true }); },
+  agentContractMutationPending: false,
+  postRetirementMutationPending: false,
+  scheduleTick: () => {},
   ensurePanel: () => ready,
   renderPanel: () => { renders++; },
   lastSnapshot: "",
@@ -55,6 +60,7 @@ const sandbox = {
   document: { hidden: false }
 };
 vm.createContext(sandbox);
+vm.runInContext("var agentContractMutationPending=false; var postRetirementMutationPending=false;", sandbox);
 vm.runInContext(tickSource, sandbox, { filename: "agent-system.tick" });
 
 sandbox.tick();

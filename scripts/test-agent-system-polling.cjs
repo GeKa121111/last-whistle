@@ -26,6 +26,10 @@ const startEnd = source.indexOf("\n\n  // Stage 2: post-retirement career paths"
 assert.ok(tickStart >= 0 && tickEnd > tickStart, "event-driven tick block must exist");
 assert.ok(startStart > tickEnd && startEnd > startStart, "start block must be extractable");
 const tickSource = source.slice(tickStart, tickEnd);
+assert.match(tickSource, /runAgentContractMutation\(s,/,
+  "agent maintenance changes must use the durable transaction helper");
+assert.doesNotMatch(tickSource, /api\.save\(/,
+  "periodic agent maintenance must not fire-and-forget save");
 const startSource = source.slice(startStart, startEnd);
 
 function makeHarness(withStore = true) {
@@ -53,6 +57,10 @@ function makeHarness(withStore = true) {
   };
   const sandbox = {
     API: () => api, ensureState: () => false, renewRelationship: () => false,
+    cloneAgentMaintenancePreview: state => Object.assign({}, state),
+    runAgentContractMutation: (state, operation) => { operation(); return Promise.resolve({ ok: true }); },
+    agentContractMutationPending: false, postRetirementMutationPending: false,
+    scheduleTick: () => {},
     ensurePanel: () => true, renderPanel: () => { renders++; },
     lastSnapshot: "", panelWasRendered: false, tickScheduled: false, tickForceQueued: false, window, document, Promise
   };

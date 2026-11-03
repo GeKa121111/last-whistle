@@ -1,0 +1,182 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const root = path.resolve(__dirname, "..");
+const source = fs.readFileSync(path.join(root, "career-experience.js"), "utf8");
+const deployed = fs.readFileSync(path.join(root, "public", "career-experience.js"), "utf8");
+assert.equal(source, deployed, "root/public career experience scripts must stay identical");
+const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"));
+const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
+require("./assert-static-cache-version.cjs")(sw, 435);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 8);
+
+function makeHarness(overrides = {}, flushQueue = []) {
+  const listeners = Object.create(null);
+  const notices = [];
+  let saveCalls = 0;
+  let flushCalls = 0;
+  let intervalCallback = null;
+  const state = Object.assign({
+    careerStarted: true, retired: false, injuryDays: 0, energy: 12,
+    careerXP: 0, shooting: 50, composure: 50, money: 1000,
+    day: 1, calendarDay: 1, season: 1, apps: 0, pos: "مهاجم"
+  }, overrides);
+  const overlay = {
+    hidden: true, innerHTML: "",
+    addEventListener() {},
+    querySelector() { return { focus() {} }; }
+  };
+  const api = {
+    getState: () => state,
+    save() { saveCalls++; return true; },
+    render() {},
+    toast(message) { notices.push(String(message)); }
+  };
+  const document = {
+    readyState: "loading", hidden: false,
+    addEventListener(type, callback) { (listeners[type] ||= []).push(callback); },
+    createElement() { return overlay; },
+    body: { appendChild() {} },
+    getElementById() { return null; }
+  };
+  const window = {
+    LWStoryRuntime: api,
+    console,
+    flushQueuedSave(options) {
+      assert.equal(options && options.backupFirst, true, "finance changes must flush a backup-first save");
+      flushCalls++;
+      const next = flushQueue.length ? flushQueue.shift() : true;
+      return typeof next === "function" ? next() : Promise.resolve(next);
+    },
+    setInterval(callback) { intervalCallback = callback; return 1; },
+    clearInterval() {},
+    setTimeout() { return 1; },
+    clearTimeout() {},
+    addEventListener() {}
+  };
+  vm.runInNewContext(source, { window, document, Math, Number, String, JSON, Array, Promise, console }, {
+    filename: "career-experience.js"
+  });
+  for (const callback of listeners.DOMContentLoaded || []) callback();
+  async function click(action, attrs = {}) {
+    const button = {
+      disabled: false,
+      getAttribute(name) {
+        if (name === "data-lwcx-action") return action;
+        return Object.prototype.hasOwnProperty.call(attrs, name) ? attrs[name] : null;
+      }
+    };
+    const event = { target: { closest: () => button }, preventDefault() {} };
+    return await Promise.resolve(listeners.click[0](event));
+  }
+  async function settleMicrotasks() {
+    for (let i = 0; i < 7; i++) await Promise.resolve();
+  }
+  return {
+    state, notices, click, settleMicrotasks,
+    get saveCalls() { return saveCalls; },
+    get flushCalls() { return flushCalls; },
+    runInterval() { if (intervalCallback) intervalCallback(); }
+  };
+}
+function dueState() {
+  return {
+    careerStarted: true, retired: false, injuryDays: 0, energy: 60,
+    careerXP: 0, shooting: 50, money: 1000, day: 7, calendarDay: 7,
+    season: 1, apps: 0,
+    careerWorld: {
+      version: 1, challengeCount: 0, challengeWins: 0, practiceAttempts: 0,
+      memoryWins: 0, timingWins: 0, mentorSessions: 0, investments: [
+        { id: 1, kind: "safe", label: "ادخار آمن", amount: 100, payout: 118, dueDay: 7, settled: false, successful: true }
+      ], history: [], investmentSequence: 2
+    }
+  };
+}
+
+(async function runCareerExperienceFinanceRegressions() {
+  const successful = makeHarness({ money: 1000 });
+  const invested = await successful.click("invest-safe");
+  assert.equal(invested.ok, true);
+  assert.equal(successful.state.money, 900);
+  assert.equal(successful.state.careerWorld.investments.length, 1);
+  assert.equal(successful.state.careerWorld.investments[0].id, 1);
+  assert.equal(successful.saveCalls, 1);
+  assert.equal(successful.flushCalls, 1);
+
+  const invalid = makeHarness({ money: Infinity });
+  const invalidResult = await invalid.click("invest-safe");
+  assert.equal(invalidResult.ok, false, "non-finite balances must not fund an investment");
+  assert.equal(invalid.state.money, Infinity);
+  assert.equal(invalid.state.careerWorld, undefined, "rejected investment must not create a partial portfolio");
+  assert.equal(invalid.saveCalls, 0);
+
+  const rollback = makeHarness({ money: 1000 }, [false, true]);
+  const rollbackResult = await rollback.click("invest-risky");
+  assert.equal(rollbackResult.ok, false);
+  assert.equal(rollback.state.money, 1000, "failed investment persistence must refund the stake");
+  assert.equal(rollback.state.careerWorld.investments.length, 0, "failed investment persistence must restore the portfolio");
+  assert.equal(rollback.state.careerWorld.investmentSequence, 1);
+  assert.equal(rollback.saveCalls, 2);
+  assert.equal(rollback.flushCalls, 2);
+
+  let releaseFirstFlush;
+  const concurrent = makeHarness({ money: 1000 }, [
+    () => new Promise(resolve => { releaseFirstFlush = resolve; })
+  ]);
+  const firstInvestment = concurrent.click("invest-safe");
+  assert.equal(concurrent.state.money, 900);
+  const secondInvestment = await concurrent.click("invest-risky");
+  assert.equal(secondInvestment.ok, false, "a second financial click must be rejected during persistence");
+  assert.equal(concurrent.state.money, 900);
+  assert.equal(concurrent.state.careerWorld.investments.length, 1);
+  assert.equal(concurrent.saveCalls, 1);
+  releaseFirstFlush(true);
+  assert.equal((await firstInvestment).ok, true);
+
+  const training = makeHarness({ money: 1000, energy: 10, shooting: 50 });
+  const trained = await training.click("skill-shooting");
+  assert.equal(trained.ok, true);
+  assert.equal(training.state.money, 820);
+  assert.equal(training.state.shooting, 52);
+  assert.equal(training.state.energy, 2);
+  assert.equal(training.state.careerXP, 10);
+  assert.equal(training.saveCalls, 1);
+
+  const settlement = makeHarness(dueState());
+  await settlement.settleMicrotasks();
+  assert.equal(settlement.state.money, 1118);
+  assert.equal(settlement.state.careerWorld.investments[0].settled, true);
+  assert.equal(settlement.saveCalls, 1);
+  settlement.runInterval();
+  await settlement.settleMicrotasks();
+  assert.equal(settlement.state.money, 1118, "same-day polls must not pay the same investment twice");
+  assert.equal(settlement.saveCalls, 1);
+
+  const retry = makeHarness(dueState(), [false, true, true]);
+  await retry.settleMicrotasks();
+  assert.equal(retry.state.money, 1000, "failed settlement persistence must restore the pre-payout balance");
+  assert.equal(retry.state.careerWorld.investments[0].settled, false, "failed settlement must remain retryable");
+  assert.equal(retry.saveCalls, 2);
+  retry.runInterval();
+  await retry.settleMicrotasks();
+  assert.equal(retry.state.money, 1118, "a failed due payout must retry after rollback is confirmed");
+  assert.equal(retry.state.careerWorld.investments[0].settled, true);
+  assert.equal(retry.saveCalls, 3);
+
+  const unsafeTraining = makeHarness({ money: Number.MAX_SAFE_INTEGER + 1, energy: 20 });
+  const unsafeResult = await unsafeTraining.click("skill-shooting");
+  assert.equal(unsafeResult.ok, false, "unsafe integer balances must not fund paid training");
+  assert.equal(unsafeTraining.state.money, Number.MAX_SAFE_INTEGER + 1);
+  assert.equal(unsafeTraining.state.shooting, 50);
+  assert.equal(unsafeTraining.saveCalls, 0);
+
+  console.log("PASS: career-experience finance actions are durable, rollback-safe, serialized, and idempotent.");
+})().catch(error => {
+  console.error(error && error.stack ? error.stack : error);
+  process.exitCode = 1;
+});

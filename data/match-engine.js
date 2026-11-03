@@ -689,10 +689,15 @@
     const shotsOnTargetLedgerConsistent = result.player.shotsOnTarget == null || !shotTargetMetadataPresent
       || (playerShotEvents.every(event => typeof event.onTarget === "boolean")
         && Number(result.player.shotsOnTarget) === playerShotEvents.filter(event => event.onTarget === true).length);
+    // In modern match records, every player shot is also recorded as a chance.
+    // Keep older ledgers compatible when they predate per-shot target metadata.
+    const chancesLedgerConsistent = result.player.chances == null || !modernShotMetadataPresent
+      || Number(result.player.chances) === playerShotEvents.length;
     if (!playerStatsValid || !shotsOnTargetValid) return { ok: false, reason: "invalid-player-stats" };
     if (!shotTargetMetadataConsistent) return { ok: false, reason: "invalid-shot-target-metadata", shotTargetMetadataConsistent };
     if (!shotAttributionConsistent) return { ok: false, reason: "invalid-shot-attribution", shotAttributionConsistent };
     if (!shotsOnTargetLedgerConsistent) return { ok: false, reason: "inconsistent-shot-on-target-ledger" };
+    if (!chancesLedgerConsistent) return { ok: false, reason: "inconsistent-chances-ledger", chancesLedgerConsistent };
     const goalEvents = result.events.filter(event => event.type === "goal");
     // Goal/assist IDs and scorer labels form a modern attribution ledger independently of shot flags.
     const modernGoalMetadataPresent = goalEvents.some(goal =>
@@ -1106,6 +1111,7 @@
       && Number(result.player.goals) <= shots && Number(result.player.assists) <= teamGoals
       && (!positionProfile(result.metadata?.position || "").goalkeeper || Number(result.player.goals) === 0)
       && result.player.shots != null && Number(result.player.shots) === shots
+      && chancesLedgerConsistent
       && tackles === Number(result.player.tackles || 0)
       && interceptions === Number(result.player.interceptions || 0)
       && fouls === Number(result.player.fouls || 0)
@@ -1126,7 +1132,7 @@
         : !extraTimeEventSeedConsistent ? "invalid-extra-time-event-seed"
           : !playerMinutesLedgerConsistent ? "invalid-player-minutes-ledger"
             : valid ? "" : "inconsistent-match-ledger";
-    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, playerMinutesLedgerConsistent, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+    return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, playerMinutesLedgerConsistent, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, chancesLedgerConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
   }
 
   function buildStoryReport(result, context) {

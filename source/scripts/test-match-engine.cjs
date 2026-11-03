@@ -1906,6 +1906,22 @@ function makeShotOnTargetLedgerMatch(targetEngine, seed) {
   return match;
 }
 for (const [targetEngine, seed, label] of [[engine, 8136, "source"], [browserEngine, 8137, "browser"]]) {
+  const inconsistentChances = makeShotOnTargetLedgerMatch(targetEngine, seed);
+  inconsistentChances.player.chances += 1;
+  const invalidChancesValidation = targetEngine.validateResult(inconsistentChances);
+  assert.equal(invalidChancesValidation.ok, false,
+    label + " validator must reject chances counts that disagree with player-shot events");
+  assert.equal(invalidChancesValidation.reason, "inconsistent-chances-ledger",
+    label + " validator must return a stable chances-ledger reason");
+
+  const legacyChances = makeShotOnTargetLedgerMatch(targetEngine, seed);
+  for (const event of legacyChances.events) {
+    if (event.type === "shot") delete event.onTarget;
+  }
+  legacyChances.player.chances += 1;
+  assert.equal(targetEngine.validateResult(legacyChances).ok, true,
+    label + " validator must preserve legacy shot ledgers without per-shot target metadata");
+
   const inconsistentShotTarget = makeShotOnTargetLedgerMatch(targetEngine, seed);
   inconsistentShotTarget.player.shotsOnTarget -= 1;
   const invalidShotTargetValidation = targetEngine.validateResult(inconsistentShotTarget);

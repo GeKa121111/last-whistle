@@ -27,7 +27,7 @@ function makeHarness(flush) {
   let saves = 0, flushes = 0, renders = 0;
   const notices = [];
   const api = {
-    save() { saves += 1; return Promise.resolve(true); },
+    save() { saves += 1; return true; },
     render() { renders += 1; },
     toast(message) { notices.push(String(message)); }
   };
@@ -88,10 +88,7 @@ function stateFixture() {
     agentState.agentProfile.relationship += 5;
     return true;
   }, null, { renderOnSuccess: false });
-  for (let attempt = 0; attempt < 20 && typeof releaseAgent !== "function"; attempt++) {
-    await new Promise(resolve => setImmediate(resolve));
-  }
-  assert.equal(typeof releaseAgent, "function", "agent transaction must reach its pending durable flush: " + JSON.stringify({ counts: agentFirst.counts(), notices: agentFirst.notices }));
+  assert.equal(typeof releaseAgent, "function", "agent transaction must reach its pending durable flush");
   const blockedPostCareer = await agentFirst.sandbox.runPostRetirementMutation(agentState, function () {
     agentState.money -= 250;
     return true;
@@ -108,10 +105,7 @@ function stateFixture() {
     retirementState.money -= 100;
     return true;
   });
-  for (let attempt = 0; attempt < 20 && typeof releaseRetirement !== "function"; attempt++) {
-    await new Promise(resolve => setImmediate(resolve));
-  }
-  assert.equal(typeof releaseRetirement, "function", "post-retirement transaction must reach its pending durable flush: " + JSON.stringify({ counts: retirementFirst.counts(), notices: retirementFirst.notices }));
+  assert.equal(typeof releaseRetirement, "function", "post-retirement transaction must reach its pending durable flush");
   const blockedAgent = await retirementFirst.sandbox.runAgentContractMutation(retirementState, function () {
     retirementState.agentProfile.relationship += 10;
     return true;

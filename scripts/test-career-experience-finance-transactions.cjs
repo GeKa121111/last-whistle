@@ -76,6 +76,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
   }
   async function settleMicrotasks() {
     for (let i = 0; i < 7; i++) await Promise.resolve();
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
   return {
     state, notices, click, settleMicrotasks,

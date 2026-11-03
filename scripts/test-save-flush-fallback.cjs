@@ -21,7 +21,7 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
   const flushCalls = [];
   const saveCalls = [];
   const publishCalls = [];
-  const flushImpl = flush || (async () => {});
+  const flushImpl = flush || (async () => true);
   const saveImpl = save || (async () => {});
   let storedValue = initialFallback;
   const sandbox = {
@@ -52,10 +52,12 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
       LWStateStore: {
         flush(value) { flushCalls.push(value); return flushImpl(value); },
         save(value) { saveCalls.push(value); return saveImpl(value); },
+        getState() { return sandbox.state; },
         publish(value, meta) { publishCalls.push({ value, meta }); }
       }
     },
     console: { warn(...args) { warnings.push(args); } },
+    toast() {},
     persistGame() { return true; }
   };
   vm.createContext(sandbox);
@@ -122,7 +124,7 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   let successfulFlushCalls = 0;
   const successful = await runFlush({
     initialFallback: "LWIDB1:{\"name\":\"older fallback\"}",
-    flush: async snapshot => { successfulFlushCalls += 1; assert.equal(snapshot.money, 1250); }
+    flush: async snapshot => { successfulFlushCalls += 1; assert.equal(snapshot.money, 1250); return true; }
   });
   assert.equal(successful.result, true, "a successful IndexedDB flush should complete");
   assert.equal(successfulFlushCalls, 1, "the queued state must be flushed exactly once");
@@ -155,10 +157,22 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
   assert.equal(fallbackFailed.result, false, "both storage failures must be reported as an unsuccessful flush");
   assert.equal(fallbackFailed.saveQueued, true, "failed fallback storage must retain the queue for a later retry");
 
+  const supersededFlush = await runFlush({
+    initialFallback: 'LWIDB1:{"name":"older fallback","money":3000}',
+    flush: async () => false
+  });
+  assert.equal(supersededFlush.result, true,
+    "a superseded IndexedDB flush must use the durable fallback instead of being reported as success");
+  assert.equal(supersededFlush.writes.length, 1);
+  assert.deepEqual(JSON.parse(supersededFlush.writes[0].value.slice("LWIDB1:".length)), supersededFlush.state);
+  assert.equal(supersededFlush.saveQueued, false);
+
+
+
   const cleanupBlocked = await runFlush({
     initialFallback: "LWIDB1:{\"name\":\"stale fallback\",\"money\":10}",
     removeFails: true,
-    flush: async () => {}
+    flush: async () => true
   });
   assert.equal(cleanupBlocked.result, true, "an IndexedDB success remains successful when fallback cleanup is blocked");
   assert.ok(cleanupBlocked.storedValue.startsWith("LWIDB1:"),
@@ -205,6 +219,7 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
     flush: async snapshot => {
       flushSnapshots.push(JSON.parse(JSON.stringify(snapshot)));
       if (flushSnapshots.length === 1) await firstGate;
+      return true;
     }
   });
   const firstFlush = concurrent.sandbox.runQueuedFlush();
@@ -262,6 +277,19 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
     "queued flushes must publish the live career object to state subscribers");
   assert.ok(!rootHtml.includes('window.LWStateStore.publish(state,{source:"save"});'),
     "direct persistence must not double-publish a live state followed by a detached clone");
+
+
+  const supersededManualSave = makeSandbox({
+    queued: false,
+    save: async () => ({ superseded: true }),
+    flush: async latest => { assert.equal(latest.money, 1250); return true; }
+  });
+  assert.equal(supersededManualSave.sandbox.runPersistGame(false, 1), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(supersededManualSave.flushCalls.length, 1,
+    "a superseded manual save must flush the newest authoritative career instead of silently returning");
+  assert.equal(supersededManualSave.writes.length, 0,
+    "a successful latest-state retry must not create an unnecessary fallback write");
 
   console.log("PASS: save flushes are ordered, page-hide backups are synchronous, and stale fallbacks cannot overwrite newer career data.");
 })().catch(error => {

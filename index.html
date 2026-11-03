@@ -19,7 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LAST WHISTLE | مسيرة لاعب</title>
 <script src="./lz-string.min.js?v=1"></script>
-<script src="./career-state-store.js?v=7"></script>
+<script src="./career-state-store.js?v=8"></script>
 <link rel="stylesheet" href="./story-ui.css?v=1">
 <link rel="stylesheet" href="./agent-system.css?v=1">
 <link rel="stylesheet" href="./career-experience.css?v=2">
@@ -799,7 +799,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
-<script src="./football-world-ai.js?v=73"></script>
+<script src="./football-world-ai.js?v=74"></script>
   <link rel="stylesheet" href="./social-media.css?v=2">
 </head>
 <body>
@@ -4363,9 +4363,17 @@ function persistGame(silent=false,revision=saveRevision){
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
    const writePromise=window.LWStateStore.save(state,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")});
    saveWriteInFlight++;
-   Promise.resolve(writePromise).then(result=>{
-    if(result&&result.superseded)return;
-    clearFallbackAfterIndexedDBSave(snapshot,revision);
+   Promise.resolve(writePromise).then(async result=>{
+    let persistedSnapshot=snapshot;
+    if(result&&result.superseded){
+     const latestState=window.LWStateStore&&typeof window.LWStateStore.getState==="function"
+      ?window.LWStateStore.getState()||state:state;
+     const flushed=window.LWStateStore&&typeof window.LWStateStore.flush==="function"
+      ?await window.LWStateStore.flush(latestState):false;
+     if(flushed!==true)throw new Error("Superseded IndexedDB save could not flush the latest career");
+     persistedSnapshot=structuredCloneSafe(latestState);
+    }
+    clearFallbackAfterIndexedDBSave(persistedSnapshot,revision);
     if(!silent)toast("اتحفظت مسيرتك بنجاح في قاعدة بيانات الجهاز.");
    }).catch(err=>{
     const fallbackSnapshot=revision===saveRevision?snapshot:structuredCloneSafe(state);
@@ -4412,7 +4420,8 @@ async function flushQueuedSave(options={}){
  if(window.LWStateStore&&typeof window.LWStateStore.flush==="function"){
   const pending=(async()=>{
    try{
-    await window.LWStateStore.flush(state);
+    const flushed=await window.LWStateStore.flush(state);
+    if(flushed!==true)throw new Error("IndexedDB flush did not confirm the latest career snapshot");
     clearFallbackAfterIndexedDBSave(snapshot,revision);
     return true;
    }catch(err){

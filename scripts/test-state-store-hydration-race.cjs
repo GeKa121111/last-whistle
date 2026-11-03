@@ -146,21 +146,6 @@ function createHarness() {
   assert.equal(JSON.stringify(normalWrite.store.getStartupSave()), JSON.stringify(savedCareer),
     "a successful current save must still become the startup save");
 
-  const staleArgumentFlush = createHarness();
-  await staleArgumentFlush.resolveStartupRead(null);
-  const authoritativeCareer = { name: "Latest authoritative career", money: 4700, age: 21 };
-  const staleFlushArgument = { name: "Detached stale career", money: 700, age: 18 };
-  staleArgumentFlush.store.publish(authoritativeCareer, { source: "import" });
-  const staleArgumentFlushPromise = staleArgumentFlush.store.flush(staleFlushArgument);
-  await staleArgumentFlush.waitForWrite();
-  assert.equal(staleArgumentFlush.writes.length, 1);
-  assert.deepEqual(JSON.parse(JSON.stringify(staleArgumentFlush.writes[0].state)), authoritativeCareer,
-    "flush must persist the store's latest published career, never a stale detached argument");
-  assert.equal(staleArgumentFlush.completeWrite(), true);
-  assert.equal(await staleArgumentFlushPromise, true);
-  assert.deepEqual(JSON.parse(JSON.stringify(staleArgumentFlush.committedWrites[0].state)), authoritativeCareer,
-    "a stale flush caller must not roll back the committed default career");
-
   const flushRace = createHarness();
   const staleFlushCareer = { name: "Career queued before import", money: 700 };
   const flushRacePromise = flushRace.store.flush(staleFlushCareer);
@@ -180,6 +165,34 @@ function createHarness() {
     "the committed default-slot record must be the imported career, never the stale queued state");
   assert.deepEqual(JSON.parse(JSON.stringify(flushRace.store.getStartupSave())), latestImportedCareer,
     "the successful retry must become the startup save");
+
+  const concurrentFlush = createHarness();
+  await concurrentFlush.resolveStartupRead(null);
+  const concurrentCareer = { name: "Purchase while a flush is pending", money: 3000, xpMultiplier: false };
+  concurrentFlush.store.publish(concurrentCareer, { source: "import" });
+  const firstFlush = concurrentFlush.store.flush(concurrentCareer);
+  await concurrentFlush.waitForWrite(0);
+  concurrentCareer.money = 600;
+  concurrentCareer.xpMultiplier = true;
+  concurrentFlush.store.markDirty(concurrentCareer);
+  const overlappingFlush = concurrentFlush.store.flush({
+    name: "Detached stale caller", money: 3000, xpMultiplier: false
+  });
+  assert.strictEqual(overlappingFlush, firstFlush,
+    "overlapping default-slot flushes must share one in-flight writer instead of superseding each other");
+  assert.equal(concurrentFlush.writeTransactions[0].aborted, true,
+    "a mutation during the first write must abort its stale snapshot");
+  await concurrentFlush.waitForWrite(1);
+  assert.equal(concurrentFlush.writes.length, 2,
+    "the single flush queue must retry once with the latest live career");
+  assert.deepEqual(JSON.parse(JSON.stringify(concurrentFlush.writes[1].state)), concurrentCareer,
+    "the retry must persist the post-purchase balance and ownership flag");
+  assert.equal(concurrentFlush.completeWrite(1), true);
+  assert.equal(await firstFlush, true);
+  assert.equal(await overlappingFlush, true);
+  assert.equal(concurrentFlush.committedWrites.length, 1,
+    "only the latest career snapshot may commit after concurrent flush requests");
+  assert.deepEqual(JSON.parse(JSON.stringify(concurrentFlush.committedWrites[0].state)), concurrentCareer);
 
   const delayedWrite = createHarness();
   await delayedWrite.resolveStartupRead(null);

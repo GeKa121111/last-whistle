@@ -72,7 +72,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
     BY_ID: { old: { id: "old", feeRate: .06 }, new: { id: "new", feeRate: .06 } },
     LEGACY_AGENT: { name: "Legacy Agent", exitFeeWeeks: .25 },
     agentConfig: s => ({ name: s.agentProfile && (s.agentProfile.agentName || s.agentProfile.id) || "Old Agent", exitFeeWeeks: .25, chapters: [{}] }),
-    candidate: id => ({ id, name: id === "new" ? "New Agent" : id, pitch: "pitch", style: "direct", voice: "voice" }),
+    candidate: id => ({ id, name: id === "new" ? "New Agent" : id, feeRate: .06, counterDifficulty: 1, pitch: "pitch", style: "direct", voice: "voice" }),
     canUseAgent: s => !!s && !!s.careerStarted && !s.retired,
     record: (s, title, description) => { s.agentHistory = Array.isArray(s.agentHistory) ? s.agentHistory : []; s.agentHistory.push({ title, description }); },
     makeProfile: id => ({ id, agentName: id === "new" ? "New Agent" : id, customFeeRate: .06, feeRate: .06, relationship: 0, perks: {} }),

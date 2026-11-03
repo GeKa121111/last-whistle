@@ -79,8 +79,7 @@ function stateFixture() {
   assert.equal(failed.ok, false);
   assert.equal(failed.rollbackPersisted, true);
   assert.equal(JSON.stringify(failedState), before, "failed maintenance save must restore the full career snapshot");
-  assert.deepEqual(failedHarness.counts().slice ? failedHarness.counts().slice() : failedHarness.counts(),
-    { saves: 2, flushes: 2, renders: 2 });
+  assert.deepEqual(failedHarness.counts(), { saves: 2, flushes: 2, renders: 2 });
 
   let releaseAgent;
   const agentFirst = makeHarness(() => new Promise(resolve => { releaseAgent = resolve; }));
@@ -89,8 +88,9 @@ function stateFixture() {
     agentState.agentProfile.relationship += 5;
     return true;
   }, null, { renderOnSuccess: false });
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let attempt = 0; attempt < 20 && typeof releaseAgent !== "function"; attempt++) {
+    await new Promise(resolve => setImmediate(resolve));
+  }
   assert.equal(typeof releaseAgent, "function", "agent transaction must reach its pending durable flush");
   const blockedPostCareer = await agentFirst.sandbox.runPostRetirementMutation(agentState, function () {
     agentState.money -= 250;
@@ -108,8 +108,9 @@ function stateFixture() {
     retirementState.money -= 100;
     return true;
   });
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let attempt = 0; attempt < 20 && typeof releaseRetirement !== "function"; attempt++) {
+    await new Promise(resolve => setImmediate(resolve));
+  }
   assert.equal(typeof releaseRetirement, "function", "post-retirement transaction must reach its pending durable flush");
   const blockedAgent = await retirementFirst.sandbox.runAgentContractMutation(retirementState, function () {
     retirementState.agentProfile.relationship += 10;

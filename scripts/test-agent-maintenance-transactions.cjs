@@ -91,7 +91,7 @@ function stateFixture() {
   for (let attempt = 0; attempt < 20 && typeof releaseAgent !== "function"; attempt++) {
     await new Promise(resolve => setImmediate(resolve));
   }
-  assert.equal(typeof releaseAgent, "function", "agent transaction must reach its pending durable flush");
+  assert.equal(typeof releaseAgent, "function", "agent transaction must reach its pending durable flush: " + JSON.stringify({ counts: agentFirst.counts(), notices: agentFirst.notices }));
   const blockedPostCareer = await agentFirst.sandbox.runPostRetirementMutation(agentState, function () {
     agentState.money -= 250;
     return true;
@@ -111,7 +111,7 @@ function stateFixture() {
   for (let attempt = 0; attempt < 20 && typeof releaseRetirement !== "function"; attempt++) {
     await new Promise(resolve => setImmediate(resolve));
   }
-  assert.equal(typeof releaseRetirement, "function", "post-retirement transaction must reach its pending durable flush");
+  assert.equal(typeof releaseRetirement, "function", "post-retirement transaction must reach its pending durable flush: " + JSON.stringify({ counts: retirementFirst.counts(), notices: retirementFirst.notices }));
   const blockedAgent = await retirementFirst.sandbox.runAgentContractMutation(retirementState, function () {
     retirementState.agentProfile.relationship += 10;
     return true;

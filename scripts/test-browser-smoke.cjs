@@ -610,7 +610,7 @@ async function main() {
     results.push("embedded career engine blocks unknown store IDs");
     results.push("11-section navigation and store rendering");
 
-    await page.evaluate(async () => {
+    const seedDiagnostic = await page.evaluate(async () => {
       const state = window.LWStoryRuntime.getState();
       state.money = 3000;
       const saved = window.LWStoryRuntime.save();

@@ -15,11 +15,11 @@ const vm = require("node:vm");
   assert.equal(source, deployed, "career-experience source and deployed copies must match");
   assert.equal(html, publicHtml, "root and public HTML must match");
   assert.equal(sw, publicSw, "root and public service workers must match");
-  assert.match(html, /career-experience\.js\?v=8/, "page should load the updated life-system script");
+  assert.match(html, /career-experience\.js\?v=9/, "page should load the updated life-system script");
   assert.match(html, /id="lifePageGrid"/, "career experience must have a dedicated life-page mount point");
   assert.match(source, /host\.insertBefore\(panel, host\.firstElementChild\)/, "career experience must lead the life-page content grid");
-  require("./assert-static-cache-version.cjs")(sw, 435);
-  assert.match(sw, /career-experience\.js\?v=8/, "service worker shell should cache the updated life-system script");
+  require("./assert-static-cache-version.cjs")(sw, 436);
+  assert.match(sw, /career-experience\.js\?v=9/, "service worker shell should cache the updated life-system script");
 
   let intervalCallback = null;
   let intervalMs = 0;

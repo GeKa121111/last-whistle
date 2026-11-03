@@ -12,8 +12,8 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"));
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 435);
-require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 8);
+require("./assert-static-cache-version.cjs")(sw, 436);
+require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
 
 function makeHarness(overrides = {}, flushQueue = []) {
   const listeners = Object.create(null);

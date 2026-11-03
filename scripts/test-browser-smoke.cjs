@@ -371,10 +371,12 @@ async function main() {
       const transfers = document.querySelector("#lw-cta-transfers");
       return !!transfers && (transfers.hidden || getComputedStyle(transfers).display === "none");
     }, null, { timeout: 10000 });
-    await page.evaluate(() => {
+    const adultTransitionDiagnostic = await page.evaluate(async () => {
       const state = window.LWStoryRuntime.getState();
       window.__transferEligibilityTestBackup = JSON.parse(JSON.stringify(state));
       state.age = 18;
+      state.retired = false;
+      state.careerStarted = true;
       state.academyCareer = false;
       state.academyReserve = false;
       state.academyGraduationPending = false;
@@ -382,9 +384,39 @@ async function main() {
       state.freeAgent = false;
       state.winterBreakPending = false;
       state.calendarDay = 15;
-      window.LWStoryRuntime.save();
+      const saved = window.LWStoryRuntime.save();
+      if (!saved) throw new Error("could not queue the adult transfer-eligibility test state");
+      if (window.LWStateStore && typeof window.LWStateStore.flush === "function")
+        await window.LWStateStore.flush(state);
+      const live = window.LWStoryRuntime.getState();
       window.LWStoryRuntime.render();
+      const stored = window.LWStateStore && typeof window.LWStateStore.getState === "function"
+        ? window.LWStateStore.getState() : null;
+      const transferButton = document.querySelector("#lw-cta-transfers");
+      return {
+        age: Number(live.age),
+        storeAge: stored ? Number(stored.age) : null,
+        sameState: stored === live,
+        calendarDay: Number(live.calendarDay),
+        retired: !!live.retired,
+        careerStarted: !!live.careerStarted,
+        academyCareer: !!live.academyCareer,
+        academyGraduated: !!live.academyGraduated,
+        academyReserve: !!live.academyReserve,
+        academyGraduationPending: !!live.academyGraduationPending,
+        transferHidden: !!transferButton?.hidden,
+        transferDisabled: !!transferButton?.disabled,
+        transferLabel: transferButton?.textContent || ""
+      };
     });
+    assert.equal(adultTransitionDiagnostic.age, 18,
+      "the adult eligibility test state must remain live after a durable save: " + JSON.stringify(adultTransitionDiagnostic));
+    assert.equal(adultTransitionDiagnostic.storeAge, 18,
+      "the shared store must retain the adult eligibility state: " + JSON.stringify(adultTransitionDiagnostic));
+    assert.equal(adultTransitionDiagnostic.sameState, true,
+      "the runtime and store must still share one career object after the adult transition");
+    assert.equal(adultTransitionDiagnostic.transferHidden, false,
+      "an adult professional player during the summer window must see the transfer action: " + JSON.stringify(adultTransitionDiagnostic));
     await page.locator("#lw-cta-transfers").waitFor({ state: "visible", timeout: 10000 });
     await page.waitForFunction(() => {
       const season = document.querySelector("#lw-cta-season");

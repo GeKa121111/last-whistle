@@ -116,10 +116,10 @@
     }
     if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
     owner = String(owner || "");
-    if (!owner) return Promise.resolve(false);
+    if (!owner) return false;
     if (!coordinator.owner) {
       coordinator.owner = owner;
-      return Promise.resolve(true);
+      return true;
     }
     return new Promise(function(resolve) { coordinator.queue.push({ owner: owner, resolve: resolve }); });
   }
@@ -160,7 +160,8 @@
       return { ok: false, reason: "social-persistence-unavailable" };
     }
     socialMutationPending = true;
-    await acquireSharedMutationLock("social-media");
+    var mutationLock = acquireSharedMutationLock("social-media");
+    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
     var hadSocialState = socialOnly && Object.prototype.hasOwnProperty.call(state, "socialMedia");
     var rawSocialState = socialOnly ? state.socialMedia : null;
     var snapshot = socialOnly

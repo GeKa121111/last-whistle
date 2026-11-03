@@ -154,12 +154,28 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
     "merging legacy and canonical histories must not double-count appearances");
 
+  const sparseLegacyRow = {
+    id: "legacy-sparse-match-1", minutes: 90, goals: 1, assists: 1
+  };
+  state.seasonLog = [sparseLegacyRow];
+  state.careerMatchHistory = [{ ...sparseLegacyRow }];
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(queryCalls, 8, "sparse legacy history updates must refresh career statistics");
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.00",
+    "matching sparse legacy/canonical rows without an explicit scope must be counted once");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "1.00",
+    "missing legacy scope metadata must not duplicate assists in per-90 rates");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
+    "sparse duplicate rows must represent one appearance, not two");
+
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
   require("./assert-static-cache-version.cjs")(sw, 175);
   assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
-  assert.match(sw, /last-whistle-static-v454/, "legacy-history rendering must invalidate the PWA shell cache");
+  assert.match(sw, /last-whistle-static-v455/, "legacy-history rendering must invalidate the PWA shell cache");
   assert.match(sw, /url\.indexOf\("career-hub\.js\?"\) >= 0/,
     "the updated career hub must be fetched fresh during service-worker installation");
   console.log("PASS: career hub responds to state events, coalesces duplicate saves, caches history summaries, and skips unchanged work.");

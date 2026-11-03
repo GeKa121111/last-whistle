@@ -112,10 +112,15 @@
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
     document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});
-    var historyRows=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
-    var legacySeasonRows=Array.isArray(s.seasonLog)?s.seasonLog.filter(function(row){return row&&typeof row==="object";}).map(function(row){
-      return Object.assign({},row,{scope:row.scope||"league"});
-    }):[];
+    var normalizeHistoryRows=function(rows){
+      return (Array.isArray(rows)?rows:[]).filter(function(row){
+        return row&&typeof row==="object"&&!Array.isArray(row);
+      }).map(function(row){
+        return Object.assign({},row,{scope:row.scope||"league"});
+      });
+    };
+    var legacySeasonRows=normalizeHistoryRows(s.seasonLog);
+    var historyRows=normalizeHistoryRows(s.careerMatchHistory);
     var combinedHistoryRows=legacySeasonRows.concat(historyRows);
     var uniqueHistoryRows=window.LWCareer&&typeof window.LWCareer.uniqueMatchRows==="function"
       ?window.LWCareer.uniqueMatchRows(combinedHistoryRows):combinedHistoryRows;

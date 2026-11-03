@@ -41,79 +41,112 @@ for (let i = 0; i < moduleSpecs.length; i++) {
   assert.match(source, /window\.__LW_DURABLE_MUTATION_LOCK__/);
   for (const name of spec.transactions) {
     const fn = extractFunction(source, name);
-    assert.ok(fn.includes('acquireSharedMutationLock("' + spec.owner + '")'), spec.file + " " + name + " must acquire the shared lock");
+    assert.ok(fn.includes('await acquireSharedMutationLock("' + spec.owner + '")'), spec.file + " " + name + " must await the shared lock");
     assert.ok(fn.includes('releaseSharedMutationLock("' + spec.owner + '")'), spec.file + " " + name + " must release the shared lock");
   }
 }
 const sharedWindow = { structuredClone, console: { warn() {} } };
 const helperContexts = moduleSpecs.map((spec, index) => {
-  const sandbox = { window: sharedWindow };
+  const sandbox = { window: sharedWindow, Promise };
   vm.createContext(sandbox);
   vm.runInContext(extractFunction(sources[index], "acquireSharedMutationLock") + "\n" +
     extractFunction(sources[index], "releaseSharedMutationLock"), sandbox);
   return { acquire: sandbox.acquireSharedMutationLock, release: sandbox.releaseSharedMutationLock };
 });
-assert.equal(helperContexts[0].acquire("career-experience"), true);
-assert.equal(helperContexts[1].acquire("agent-system"), false);
-assert.equal(helperContexts[2].acquire("story-mode"), false);
-assert.equal(helperContexts[3].acquire("social-media"), false);
-helperContexts[1].release("agent-system");
-assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "career-experience");
-helperContexts[0].release("career-experience");
-assert.equal(helperContexts[1].acquire("agent-system"), true);
-helperContexts[1].release("agent-system");
-assert.equal(helperContexts[2].acquire("story-mode"), true);
-helperContexts[2].release("story-mode");
-assert.equal(helperContexts[3].acquire("social-media"), true);
-helperContexts[3].release("social-media");
-
-const api = { save() { return true; }, render() {}, toast() {} };
-const careerFunctions = [
-  "acquireSharedMutationLock", "releaseSharedMutationLock",
-  "cloneFinanceState", "restoreFinanceState", "flushFinanceState", "runCareerMutation"
-].map(name => extractFunction(sources[0], name)).join("\n");
-const careerSandbox = { window: sharedWindow, API: () => api, Promise, console: sharedWindow.console, renderPanel() {} };
-vm.createContext(careerSandbox);
-vm.runInContext("var financeMutationPending = false;\n" + careerFunctions, careerSandbox);
-const agentFunctions = [
-  "acquireSharedMutationLock", "releaseSharedMutationLock",
-  "clonePostRetirementMutationState", "restorePostRetirementMutationState",
-  "flushPostRetirementMutation", "runAgentContractMutation", "runPostRetirementMutation"
-].map(name => extractFunction(sources[1], name)).join("\n");
-const agentSandbox = { window: sharedWindow, API: () => api, Promise, console: sharedWindow.console, renderPanel() {} };
-vm.createContext(agentSandbox);
-vm.runInContext("var agentContractMutationPending = false; var postRetirementMutationPending = false;\n" + agentFunctions, agentSandbox);
-
 (async function run() {
-  const state = { money: 1000, agentProfile: { relationship: 50 }, agentHistory: [] };
-  let releaseCareer;
-  sharedWindow.flushQueuedSave = () => new Promise(resolve => { releaseCareer = resolve; });
-  const careerWrite = careerSandbox.runCareerMutation(state, function () { state.money = 900; return true; }, null, "finance");
-  assert.equal(typeof releaseCareer, "function");
-  const blockedAgent = await agentSandbox.runAgentContractMutation(state, function () { state.agentProfile.relationship = 99; return true; }, null);
-  assert.equal(blockedAgent.ok, false);
-  assert.equal(state.agentProfile.relationship, 50);
-  releaseCareer(true);
-  assert.equal((await careerWrite).ok, true);
+  await helperContexts[0].acquire("career-experience");
+  let agentLockGranted = false;
+  const queuedAgentLock = helperContexts[1].acquire("agent-system").then(() => { agentLockGranted = true; });
+  await Promise.resolve();
+  assert.equal(agentLockGranted, false, "a competing module should queue instead of entering concurrently");
+  helperContexts[1].release("agent-system");
+  assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "career-experience",
+    "a different module must not release another module's lock");
+  helperContexts[0].release("career-experience");
+  await queuedAgentLock;
+  assert.equal(agentLockGranted, true);
+  assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "agent-system");
+  helperContexts[1].release("agent-system");
+  await helperContexts[2].acquire("story-mode");
+  helperContexts[2].release("story-mode");
+  await helperContexts[3].acquire("social-media");
+  helperContexts[3].release("social-media");
 
-  let releaseAgent;
-  sharedWindow.flushQueuedSave = () => new Promise(resolve => { releaseAgent = resolve; });
-  const agentWrite = agentSandbox.runAgentContractMutation(state, function () { state.agentProfile.relationship = 55; return true; }, null);
-  assert.equal(typeof releaseAgent, "function");
-  const blockedCareer = await careerSandbox.runCareerMutation(state, function () { state.money = 0; return true; }, null, "finance");
-  assert.equal(blockedCareer.ok, false);
-  assert.equal(state.money, 900);
-  releaseAgent(true);
+  const api = { save() { return true; }, render() {}, toast() {} };
+  const careerFunctions = [
+    "acquireSharedMutationLock", "releaseSharedMutationLock",
+    "cloneFinanceState", "restoreFinanceState", "flushFinanceState", "runCareerMutation"
+  ].map(name => extractFunction(sources[0], name)).join("\n");
+  const careerSandbox = { window: sharedWindow, API: () => api, Promise, console: sharedWindow.console, renderPanel() {} };
+  vm.createContext(careerSandbox);
+  vm.runInContext("var financeMutationPending = false;\n" + careerFunctions, careerSandbox);
+  const agentFunctions = [
+    "acquireSharedMutationLock", "releaseSharedMutationLock",
+    "clonePostRetirementMutationState", "restorePostRetirementMutationState",
+    "flushPostRetirementMutation", "runAgentContractMutation", "runPostRetirementMutation"
+  ].map(name => extractFunction(sources[1], name)).join("\n");
+  const agentSandbox = { window: sharedWindow, API: () => api, Promise, console: sharedWindow.console, renderPanel() {} };
+  vm.createContext(agentSandbox);
+  vm.runInContext("var agentContractMutationPending = false; var postRetirementMutationPending = false;\n" + agentFunctions, agentSandbox);
+
+  const flushQueue = [];
+  sharedWindow.flushQueuedSave = () => new Promise(resolve => flushQueue.push(resolve));
+  async function waitForFlush() {
+    await Promise.resolve();
+    assert.equal(flushQueue.length, 1, "the active transaction should be waiting for its durable save");
+  }
+  function releaseFlush() {
+    const resolve = flushQueue.shift();
+    assert.equal(typeof resolve, "function");
+    resolve(true);
+  }
+  const state = { money: 1000, agentProfile: { relationship: 50 }, agentHistory: [] };
+
+  const careerWrite = careerSandbox.runCareerMutation(state, function () { state.money -= 100; return true; }, null, "finance");
+  await waitForFlush();
+  let agentStarted = false;
+  const agentWrite = agentSandbox.runAgentContractMutation(state, function () {
+    agentStarted = true;
+    state.agentProfile.relationship = 99;
+    return true;
+  }, null);
+  await Promise.resolve();
+  assert.equal(agentStarted, false, "agent mutation must wait while the career save is pending");
+  assert.equal(state.agentProfile.relationship, 50);
+  releaseFlush();
+  assert.equal((await careerWrite).ok, true);
+  await waitForFlush();
+  assert.equal(agentStarted, true, "queued agent mutation should run after the career transaction releases the lock");
+  releaseFlush();
   assert.equal((await agentWrite).ok, true);
 
-  let releaseRetirement;
-  sharedWindow.flushQueuedSave = () => new Promise(resolve => { releaseRetirement = resolve; });
+  const secondAgentWrite = agentSandbox.runAgentContractMutation(state, function () {
+    state.agentProfile.relationship = 55;
+    return true;
+  }, null);
+  await waitForFlush();
+  const secondCareerWrite = careerSandbox.runCareerMutation(state, function () { state.money -= 100; return true; }, null, "finance");
+  await Promise.resolve();
+  assert.equal(state.money, 900, "career mutation must wait for the agent save");
+  releaseFlush();
+  assert.equal((await secondAgentWrite).ok, true);
+  await waitForFlush();
+  assert.equal(state.money, 800, "queued career mutation should run after the agent transaction");
+  releaseFlush();
+  assert.equal((await secondCareerWrite).ok, true);
+
   const retirementWrite = agentSandbox.runPostRetirementMutation(state, function () { state.money -= 100; return true; });
-  assert.equal(typeof releaseRetirement, "function");
-  const blockedCareerByRetirement = await careerSandbox.runCareerMutation(state, function () { state.money = 0; return true; }, null, "finance");
-  assert.equal(blockedCareerByRetirement.ok, false);
-  assert.equal(state.money, 800);
-  releaseRetirement(true);
+  await waitForFlush();
+  const careerAfterRetirement = careerSandbox.runCareerMutation(state, function () { state.money -= 100; return true; }, null, "finance");
+  await Promise.resolve();
+  assert.equal(state.money, 800, "career mutation must wait for post-retirement save");
+  releaseFlush();
   assert.equal((await retirementWrite).ok, true);
-  console.log("PASS: career, agent-contract, post-retirement, story, and social durable mutations share one serialized write lock.");
+  await waitForFlush();
+  assert.equal(state.money, 700, "queued career mutation should run after post-retirement transaction");
+  releaseFlush();
+  assert.equal((await careerAfterRetirement).ok, true);
+  assert.equal(state.money, 700);
+
+  console.log("PASS: career, agent-contract, post-retirement, story, and social mutations share a queued, durable write lock.");
 })().catch(error => { console.error(error && error.stack ? error.stack : error); process.exitCode = 1; });

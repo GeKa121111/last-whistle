@@ -706,8 +706,10 @@
     const hasAppearances = rawAppearances !== undefined && rawAppearances !== null && rawAppearances !== "";
     const parsedAppearances = Number(rawAppearances);
     const legacyApps = Number(player.apps);
-    const appearances = hasAppearances && Number.isFinite(parsedAppearances)
-      ? parsedAppearances
+    // Use the legacy career alias only when the current-season field is absent.
+    // An explicit malformed value must not resurrect stale career-wide appearances.
+    const appearances = hasAppearances
+      ? (Number.isFinite(parsedAppearances) ? parsedAppearances : 0)
       : Number.isFinite(legacyApps) ? legacyApps : 0;
     return Math.max(0, appearances);
   }
@@ -806,7 +808,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 15,
+    version: 16,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

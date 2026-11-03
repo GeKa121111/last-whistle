@@ -166,7 +166,7 @@
         if (window.console && window.console.warn) window.console.warn("Career finance rollback persistence failed", rollbackError);
       }
       try { if (api.render) api.render(); } catch (renderError) {}
-      try { renderPanel(state); } catch (panelError) {}
+      try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
       var message = rollbackPersisted
         ? "تعذر تأكيد العملية المالية؛ رجّعنا الرصيد والمحفظة وحفظنا النسخة السابقة. تقدر تحاول تاني."
         : "رجّعنا البيانات داخل اللعبة، لكن تعذر تأكيد حفظ النسخة السابقة. صدّر نسخة احتياطية قبل المتابعة.";
@@ -177,7 +177,7 @@
       financeMutationPending = false;
     }
     try { if (api.render) api.render(); } catch (renderError) {}
-    try { renderPanel(state); } catch (panelError) {}
+    try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}
     try { if (successMessage && api.toast) api.toast(successMessage); } catch (toastError) {}
     return Object.assign({ ok: true }, payload && typeof payload === "object" ? payload : {});
   }

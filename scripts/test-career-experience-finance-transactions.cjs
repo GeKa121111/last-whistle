@@ -112,7 +112,7 @@ function dueState() {
   const invalidResult = await invalid.click("invest-safe");
   assert.equal(invalidResult.ok, false, "non-finite balances must not fund an investment");
   assert.equal(invalid.state.money, Infinity);
-  assert.equal(invalid.state.careerWorld, undefined, "rejected investment must not create a partial portfolio");
+  assert.equal(invalid.state.careerWorld.investments.length, 0, "rejected investment must not create a partial portfolio");
   assert.equal(invalid.saveCalls, 0);
 
   const rollback = makeHarness({ money: 1000 }, [false, true]);

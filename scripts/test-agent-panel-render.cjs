@@ -60,6 +60,7 @@ const sandbox = {
   document: { hidden: false }
 };
 vm.createContext(sandbox);
+vm.runInContext("var agentContractMutationPending=false; var postRetirementMutationPending=false;", sandbox);
 vm.runInContext(tickSource, sandbox, { filename: "agent-system.tick" });
 
 sandbox.tick();

@@ -384,7 +384,9 @@ async function main() {
       state.freeAgent = false;
       state.winterBreakPending = false;
       state.calendarDay = 15;
+      const revisionBeforeSave = window.LWStateStore.getRevision();
       const saved = window.LWStoryRuntime.save();
+      const revisionAfterSave = window.LWStateStore.getRevision();
       if (!saved) throw new Error("could not queue the adult transfer-eligibility test state");
       if (window.LWStateStore && typeof window.LWStateStore.flush === "function")
         await window.LWStateStore.flush(state);
@@ -396,6 +398,8 @@ async function main() {
       return {
         age: Number(live.age),
         storeAge: stored ? Number(stored.age) : null,
+        revisionBeforeSave: Number(revisionBeforeSave),
+        revisionAfterSave: Number(revisionAfterSave),
         sameState: stored === live,
         calendarDay: Number(live.calendarDay),
         retired: !!live.retired,
@@ -413,6 +417,9 @@ async function main() {
       "the adult eligibility test state must remain live after a durable save: " + JSON.stringify(adultTransitionDiagnostic));
     assert.equal(adultTransitionDiagnostic.storeAge, 18,
       "the shared store must retain the adult eligibility state: " + JSON.stringify(adultTransitionDiagnostic));
+    assert.ok(adultTransitionDiagnostic.revisionAfterSave > adultTransitionDiagnostic.revisionBeforeSave,
+      "saveGame(true) must invalidate active worker snapshots synchronously before the durable flush: "
+        + JSON.stringify(adultTransitionDiagnostic));
     assert.equal(adultTransitionDiagnostic.sameState, true,
       "the runtime and store must still share one career object after the adult transition");
     try {

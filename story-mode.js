@@ -389,7 +389,6 @@ function checkTriggers(s,api,options){
   if(options&&options.deferSave){
     var deferred=applyStoryTriggers(s);
     if(deferred.changed){
-      lastPending=deferred.pendingId;
       if(deferred.pendingId&&deferred.pendingId!==deferred.previousPending&&!(options&&options.suppressToast)&&api&&api.toast)
         api.toast("فيه قرار مصيري جديد مستنيك في شاشة المسيرة.");
     }

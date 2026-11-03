@@ -67,7 +67,8 @@ const api = {
 const window = {
   LWStoryRuntime: api,
   addEventListener(type, callback) { windowListeners[type] = callback; },
-  setInterval() { return 1; }
+  setInterval() { return 1; },
+  flushQueuedSave(opts) { assert.equal(opts && opts.backupFirst, true); return Promise.resolve(true); }
 };
 const context = { window, document, console };
 vm.createContext(context);
@@ -75,7 +76,7 @@ vm.runInContext(source, context, { filename: "agent-system.js" });
 assert.ok(window.LWAgentRuntime, "agent runtime must initialize");
 for (const callback of documentListeners.DOMContentLoaded || []) callback();
 
-function click(action, agentId) {
+async function click(action, agentId) {
   const button = {
     disabled: false,
     getAttribute(name) {
@@ -85,13 +86,17 @@ function click(action, agentId) {
       return null;
     }
   };
+  const pending = [];
   for (const callback of documentListeners.click || []) {
-    callback({ target: { closest: () => button }, preventDefault() {} });
+    const result = callback({ target: { closest: () => button }, preventDefault() {} });
+    if (result && typeof result.then === "function") pending.push(result);
   }
+  await Promise.all(pending);
 }
 
+(async function runAgentContractRegression(){
 // Signing creates an open-ended contract rather than a two-season deal.
-click("agent-sign", "hossam");
+await click("agent-sign", "hossam");
 assert.equal(state.agent, true, "signing must activate the agent");
 assert.equal(state.agentProfile.id, "hossam", "the signed representative must be persisted");
 assert.equal(state.agentProfile.contractMode, "open-ended");
@@ -193,33 +198,33 @@ assert.equal(state.agentHistory.some(event => event.title === "انتهاء عق
   "season progression must not auto-terminate an open-ended contract");
 
 // A termination dialog opened before retirement must not charge or end the agreement afterward.
-click("agent-active", "hossam");
-click("agent-end-current", "hossam");
+await click("agent-active", "hossam");
+await click("agent-end-current", "hossam");
 const moneyBeforeRetiredTermination = state.money;
 state.retired = true;
-click("agent-confirm-end", "hossam");
+await click("agent-confirm-end", "hossam");
 assert.equal(state.agent, true, "a stale termination confirmation must not remove the representative after retirement");
 assert.equal(state.agentProfile.id, "hossam", "a stale termination confirmation must preserve the active representative");
 assert.equal(state.money, moneyBeforeRetiredTermination, "a stale termination confirmation must not charge an exit fee");
 assert.equal(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"), false,
   "a blocked post-retirement termination must not create a termination record");
-click("agent-end-current", "hossam");
+await click("agent-end-current", "hossam");
 assert.equal(state.agent, true, "opening a termination dialog after retirement must be blocked");
 assert.equal(state.money, moneyBeforeRetiredTermination, "blocked post-retirement actions must not change the balance");
 state.retired = false;
 
 // A stale switch dialog must not charge or remove the agent after the career becomes ineligible.
-click("agent-meet", "nadine");
+await click("agent-meet", "nadine");
 const moneyBeforeBlockedSwitch = state.money;
 state.retired = true;
-click("agent-switch-sign", "nadine");
+await click("agent-switch-sign", "nadine");
 assert.equal(state.agent, true, "a blocked stale switch must preserve the current representative");
 assert.equal(state.agentProfile.id, "hossam", "a blocked stale switch must not replace the current agent");
 assert.equal(state.money, moneyBeforeBlockedSwitch, "a blocked stale switch must not charge the exit fee");
 state.retired = false;
 
 // The player can switch directly from the current representative to another one.
-click("agent-switch-sign", "nadine");
+await click("agent-switch-sign", "nadine");
 assert.equal(state.agent, true, "switching agents should leave representation active");
 assert.equal(state.agentProfile.id, "nadine", "switching must sign the newly selected agent");
 assert.ok(state.agentHistory.some(event => event.title === "تغيير الوكيل"),
@@ -259,15 +264,15 @@ state.money = 50000;
 
 // The player can also end the current agreement, then sign a different agent later.
 const moneyBeforeTermination = state.money;
-click("agent-active", "nadine");
-click("agent-end-current", "nadine");
-click("agent-confirm-end", "nadine");
+await click("agent-active", "nadine");
+await click("agent-end-current", "nadine");
+await click("agent-confirm-end", "nadine");
 assert.equal(state.agent, false, "confirmed termination should remove the current representative");
 assert.equal(state.agentProfile, null, "confirmed termination should clear the current profile");
 assert.ok(state.money < moneyBeforeTermination, "the configured in-game exit fee should be charged on termination");
 assert.equal(window.LWAgentRuntime.outstandingFeeDebt(state), 170,
   "ending the agreement must preserve the former agent's debt");
-click("agent-sign", "karim");
+await click("agent-sign", "karim");
 assert.equal(state.agent, true, "the player can sign another representative after termination");
 assert.equal(state.agentProfile.id, "karim", "the new representative must become active");
 assert.ok(state.agentHistory.some(event => event.title === "إنهاء اتفاق الوكالة"),
@@ -300,3 +305,4 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
   "no debt may be collected when no contracted wage is paid");
 
 console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, and no salary for unsigned free agents.");
+})().catch(error => { console.error(error); process.exitCode = 1; });

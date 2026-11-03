@@ -233,6 +233,13 @@
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
       const appearances = Math.round(safeCount(saved.appearances) * scale);
+      const savedMinutesValue = saved.minutes;
+      const hasSavedMinutes = savedMinutesValue !== undefined && savedMinutesValue !== null && savedMinutesValue !== "";
+      const savedMinutes = hasSavedMinutes
+        ? safeCount(savedMinutesValue)
+        : safeCount(saved.appearances) * projectedMinutesPerAppearance(player);
+      const minutes = appearances > 0
+        ? Math.round(Math.min(savedMinutes, safeCount(saved.appearances) * 120) * scale) : 0;
       const goals = appearances > 0 ? Math.round(safeCount(saved.goals) * scale) : 0;
       const assists = appearances > 0 ? Math.round(safeCount(saved.assists) * scale) : 0;
       const averageRating = appearances > 0 ? safeRating(saved.averageRating) : 0;
@@ -240,7 +247,7 @@
       return {
         name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
-        age: estimatedAge(player, season), ovr, appearances, goals, assists,
+        age: estimatedAge(player, season), ovr, appearances, minutes, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
         score: appearances > 0 ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)) : 0,
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
@@ -780,7 +787,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 13,
+    version: 14,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

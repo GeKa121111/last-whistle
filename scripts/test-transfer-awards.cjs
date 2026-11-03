@@ -24,7 +24,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 13);
+assert.equal(engine.version, 14);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -281,10 +281,30 @@ assert.equal(sameStrikerHalfSeason.goals, Math.round(sameStrikerStarter.goals * 
 assert.equal(sameStrikerHalfSeason.assists, Math.round(sameStrikerStarter.assists * 0.5));
 const savedSeasonStatsRemainAuthoritative = engine.simulatePlayerSeason({
   ...sameForward, position: "رأس حربة", role: "لاعب بديل",
-  seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }
+  seasonStats: { season: 5, appearances: 20, minutes: 560, goals: 8, assists: 3, averageRating: 7.2 }
 }, 5, 1);
 assert.equal(savedSeasonStatsRemainAuthoritative.goals, 8);
 assert.equal(savedSeasonStatsRemainAuthoritative.assists, 3);
+assert.equal(savedSeasonStatsRemainAuthoritative.minutes, 560,
+  "saved current-season match minutes must be preserved for real roster players");
+const savedSeasonHalfProgress = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, minutes: 560, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 0.5);
+assert.equal(savedSeasonHalfProgress.minutes, 280,
+  "saved minutes must scale once with the same season progress as appearances and contributions");
+const legacySavedMinutes = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 1);
+assert.equal(legacySavedMinutes.minutes, 560,
+  "legacy saved seasons without a minutes field must use the role-based substitute estimate");
+const explicitZeroSavedMinutes = engine.simulatePlayerSeason({
+  ...sameForward, position: "رأس حربة", role: "لاعب بديل",
+  seasonStats: { season: 5, appearances: 20, minutes: 0, goals: 8, assists: 3, averageRating: 7.2 }
+}, 5, 1);
+assert.equal(explicitZeroSavedMinutes.minutes, 0,
+  "an explicit zero-minute season must not be replaced with an estimated appearance duration");
 
 const malformedSavedSeason = engine.simulatePlayerSeason({
   ...sameForward, position: "رأس حربة", leagueStrength: "Infinity",

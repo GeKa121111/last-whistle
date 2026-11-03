@@ -7,6 +7,7 @@ var lastRenderedStoryPanelSignature = "";
 var lastPending = "";
 var storyMutationPending = false;
 var storyTickScheduled = false;
+var storyTickRunning = false;
 var eventDefs = [
   {
     id:"family-pressure",chapter:"01 / THE BEGINNING",title:"مكالمة آخر الليل",tag:"أول قرار في المسيرة",
@@ -366,24 +367,49 @@ function bindNewControls(){
     panel.dataset.lwBound="1";
   }
 }
-function checkTriggers(s,api,options){
-  if(!s||!s.careerStarted)return;
-  storyFlags(s);history(s);
+function applyStoryTriggers(s){
+  var changed=false;
+  if(!s.storyFlags||typeof s.storyFlags!=="object"){storyFlags(s);changed=true;}
+  else storyFlags(s);
+  if(!Array.isArray(s.storyHistory)){history(s);changed=true;}
+  else history(s);
+  var previousPending=String(s.storyPendingId||"");
   if(s.storyPendingId){
     var stillValid=eligibleEvents(s).some(function(e){return e.id===s.storyPendingId;});
-    if(!stillValid){s.storyPendingId="";}
+    if(!stillValid){s.storyPendingId="";changed=true;}
   }
   if(!s.storyPendingId){
     var candidates=eligibleEvents(s);
-    if(candidates.length){
-      s.storyPendingId=candidates[0].id;
-      if(!(options&&options.suppressToast)&&lastPending!==s.storyPendingId&&api&&api.toast)api.toast("فيه قرار مصيري جديد مستنيك في شاشة المسيرة.");
-      if(!(options&&options.deferSave)){
-        lastPending=s.storyPendingId;
-        if(api&&api.save)api.save();
-      }
-    }
+    if(candidates.length){s.storyPendingId=candidates[0].id;changed=true;}
   }
+  return {changed:changed,previousPending:previousPending,pendingId:String(s.storyPendingId||"")};
+}
+function checkTriggers(s,api,options){
+  if(!s||!s.careerStarted)return {ok:false,reason:"career-not-started"};
+  if(options&&options.deferSave){
+    var deferred=applyStoryTriggers(s);
+    if(deferred.changed){
+      lastPending=deferred.pendingId;
+      if(deferred.pendingId&&deferred.pendingId!==deferred.previousPending&&!(options&&options.suppressToast)&&api&&api.toast)
+        api.toast("فيه قرار مصيري جديد مستنيك في شاشة المسيرة.");
+    }
+    return {ok:true,changed:deferred.changed,pendingId:deferred.pendingId};
+  }
+  if(storyMutationPending)return Promise.resolve({ok:false,reason:"story-mutation-pending"});
+  var preview=cloneStoryState(s);
+  if(!preview)return Promise.resolve({ok:false,reason:"story-snapshot-unavailable"});
+  var previewResult=applyStoryTriggers(preview);
+  if(!previewResult.changed)return Promise.resolve({ok:true,changed:false,pendingId:previewResult.pendingId});
+  var previousPending=String(s.storyPendingId||"");
+  return runStoryMutation(s,function(){return applyStoryTriggers(s);}).then(function(result){
+    if(result.ok&&result.changed){
+      var pendingId=String(s.storyPendingId||"");
+      if(pendingId&&pendingId!==previousPending&&!(options&&options.suppressToast)&&lastPending!==pendingId&&api&&api.toast)
+        api.toast("فيه قرار مصيري جديد مستنيك في شاشة المسيرة.");
+      lastPending=pendingId;
+    }
+    return result;
+  });
 }
 function renderStoryPanel(s,api){
   var panel=document.getElementById("lw-story-panel");
@@ -528,13 +554,21 @@ function matchNarrativeSummary(report){
   var tackles=finiteNumber(p.tackles),interceptions=finiteNumber(p.interceptions),saves=finiteNumber(p.saves),cleanSheet=p.cleanSheet===true;
   var outcome=gf>ga?"win":gf<ga?"loss":"draw";
   var performance=rating>=7.5?"excellent":rating>0&&rating<6.2?"poor":"steady";
-  return {outcome:outcome,score:{for:gf,against:ga},minutes:minutes,rating:rating,goals:goals,assists:assists,tackles:tackles,interceptions:interceptions,saves:saves,cleanSheet:cleanSheet,performance:performance,
-    key:[Number(report.season)||0,Number(report.week||report.day)||0,gf,ga,minutes,rating,goals,assists,tackles,interceptions,saves,cleanSheet?1:0].join(":")};
+  var legacyKey=[Number(report.season)||0,Number(report.week||report.day)||0,gf,ga,minutes,rating,goals,assists,tackles,interceptions,saves,cleanSheet?1:0].join(":");
+  var identity=[report.matchId,report.fixtureId,report.gameId,report.id,report.competitionId,report.competition,report.opponentId,report.opponentName,report.matchType,report.type]
+    .map(function(value){return value==null?"":String(value).trim().slice(0,80);}).filter(Boolean).join("|");
+  var key=identity?"match:"+identity+":"+legacyKey:legacyKey;
+  return {outcome:outcome,score:{for:gf,against:ga},minutes:minutes,rating:rating,goals:goals,assists:assists,tackles:tackles,interceptions:interceptions,saves:saves,cleanSheet:cleanSheet,performance:performance,key:key,legacyKey:legacyKey};
 }
-function acceptMatchReport(report,options){
-  var api=API(),s=api&&api.getState?api.getState():null;if(!s||!report)return {ok:false,reason:"career-state-unavailable"};
-  var summary=matchNarrativeSummary(report);
-  if(s.lastStoryMatchKey===summary.key)return {ok:true,duplicate:true,summary:summary};
+function matchReportAlreadyRecorded(s,summary){
+  var keys=[summary.key,summary.legacyKey];
+  if(s.lastStoryMatchKey&&keys.indexOf(String(s.lastStoryMatchKey))>=0)return true;
+  if(Array.isArray(s.matchNarrativeLedger)&&s.matchNarrativeLedger.some(function(item){return item&&keys.indexOf(String(item.key||""))>=0;}))return true;
+  if(Array.isArray(s.inbox)&&s.inbox.some(function(item){return item&&keys.some(function(key){return item.id==="match-report-"+key;});}))return true;
+  return false;
+}
+function applyMatchReport(s,summary){
+  if(matchReportAlreadyRecorded(s,summary))return {duplicate:true,summary:summary};
   s.lastStoryMatchKey=summary.key;s.lastMatchReport=summary;
   if(!Array.isArray(s.matchNarrativeLedger))s.matchNarrativeLedger=[];
   s.matchNarrativeLedger.unshift({key:summary.key,season:Number(s.season)||1,day:Number(s.day)||1,summary:summary});
@@ -555,25 +589,48 @@ function acceptMatchReport(report,options){
   if(!Array.isArray(s.inbox))s.inbox=[];
   s.inbox.unshift({id:"match-report-"+summary.key,title:title,body:body,category:"match",day:Number(s.day)||1,season:Number(s.season)||1,read:false});
   s.inbox=s.inbox.slice(0,80);
-  if(api.save&&!(options&&options.deferSave))api.save();return {ok:true,summary:summary};
+  return {summary:summary,reportId:"match-report-"+summary.key};
+}
+function acceptMatchReport(report,options){
+  var api=API(),s=api&&api.getState?api.getState():null;
+  if(!s||!report)return options&&options.deferSave?{ok:false,reason:"career-state-unavailable"}:Promise.resolve({ok:false,reason:"career-state-unavailable"});
+  var summary=matchNarrativeSummary(report);
+  if(matchReportAlreadyRecorded(s,summary)){
+    var duplicate={ok:true,duplicate:true,summary:summary};
+    return options&&options.deferSave?duplicate:Promise.resolve(duplicate);
+  }
+  if(options&&options.deferSave)return Object.assign({ok:true},applyMatchReport(s,summary));
+  return runStoryMutation(s,function(){return applyMatchReport(s,summary);});
 }
 function syncMatchContext(s,options){
-  if(!s)return;
+  if(!s)return {ok:false,reason:"career-state-unavailable"};
   var report=s.lastMatchReportRaw||s.matchResult||s.lastMatch;
-  if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)acceptMatchReport(report,options);
+  if(report&&report!==s.lastMatchReportRaw&&report!==s.lastMatchReport&&report.score)return acceptMatchReport(report,options);
+  return {ok:true,unchanged:true};
 }
 function tick(){
-  if(document.hidden)return;
+  if(document.hidden||storyTickRunning||storyMutationPending)return;
   var api=API();if(!api)return;
   var s=api.getState();if(!s)return;
   if(!stateRef){stateRef=s;}
   ensureShell();
-  checkTriggers(s,api);
-  renderOverview(s);
-  renderStoryPanel(s,api);
-  var snapshot=[s.careerStarted,s.apps,s.goals,s.assists,s.nationalCalled,s.nationalCaps,s.injuryDays,s.injuryName,s.contractSeasons,s.freeAgent,s.seasonFinished,s.trophies,s.trust,s.mediaReputation,s.professionalism,s.seasonApps,s.day].join("|");
-  if(snapshot!==previousSnapshot){previousSnapshot=snapshot;}
-  if(lastPending!==s.storyPendingId)lastPending=s.storyPendingId||"";
+  var render=function(){
+    if(document.hidden)return;
+    renderOverview(s);
+    renderStoryPanel(s,api);
+    var snapshot=[s.careerStarted,s.apps,s.goals,s.assists,s.nationalCalled,s.nationalCaps,s.injuryDays,s.injuryName,s.contractSeasons,s.freeAgent,s.seasonFinished,s.trophies,s.trust,s.mediaReputation,s.professionalism,s.seasonApps,s.day].join("|");
+    if(snapshot!==previousSnapshot){previousSnapshot=snapshot;}
+    if(lastPending!==s.storyPendingId)lastPending=s.storyPendingId||"";
+  };
+  var triggerResult=checkTriggers(s,api);
+  if(triggerResult&&typeof triggerResult.then==="function"){
+    storyTickRunning=true;
+    return Promise.resolve(triggerResult).then(function(){render();}).catch(function(error){
+      if(window.console&&window.console.warn)window.console.warn("Story trigger persistence failed",error);
+      render();
+    }).finally(function(){storyTickRunning=false;});
+  }
+  render();
 }
 function scheduleTick(){
   if(storyTickScheduled)return;

@@ -6830,20 +6830,17 @@ function applyMatchResultUnsafe(result,meta){
  const outcome=matchOutcomeForCareerRecord(result,meta),participated=minutes>0;
  let matchPay=0;
  if(participated){
+  const development=window.LWCareer?.matchDevelopment(state,{matchId:id,minutes,rating,goals,assists,tackles:m.tackles,tacklesWon:m.tacklesWon,interceptions:m.interceptions,saves:m.saves,penaltiesSaved:m.penaltiesSaved,clearances:m.clearances,ballRecoveries:m.ballRecoveries,passAttempts:m.passAttempts,passesCompleted:m.passesCompleted,passingAccuracy:m.passingAccuracy,keyPasses:m.keyPasses,cleanSheet:!!m.cleanSheet,competitionKey:`${scope}|${country}|${competition}`})||{};
+  if(development.levels)log(`ارتقيت إلى مستوى المسيرة ${state.careerLevel} بعد المباراة.`);
+  for(const milestone of development.milestones||[])log(`معلم تطور جديد: ${milestone.appearances} مشاركة مؤهلة (20 دقيقة أو أكثر) • ${SKILL_AR[milestone.skill]||milestone.skill}${milestone.gained?` +${milestone.gained}`:" • خبرة متراكمة"}.`);
   if(scope==="international"){
    state.nationalCaps=(Number(state.nationalCaps)||0)+1;state.nationalGoals=(Number(state.nationalGoals)||0)+goals;state.totalCareerAppearances=(Number(state.totalCareerAppearances)||0)+1;
    const ns=state.nationalSeasonStats||(state.nationalSeasonStats={});const yr=String(state.season);const row=ns[yr]||(ns[yr]={apps:0,goals:0,assists:0,minutes:0});row.apps++;row.goals+=goals;row.assists+=assists;row.minutes+=minutes;
   }else{
    state.apps=(Number(state.apps)||0)+1;state.goals=(Number(state.goals)||0)+goals;state.assists=(Number(state.assists)||0)+assists;state.totalCareerAppearances=(Number(state.totalCareerAppearances)||0)+1;
    if(scope==="league"){state.seasonGoals=(Number(state.seasonGoals)||0)+goals;state.seasonAssists=(Number(state.seasonAssists)||0)+assists;}
-   const seasonCompetition=state.competitionStats||(state.competitionStats={});
-   const careerKey=`${scope}|${country}|${competition}`;const comp=seasonCompetition[careerKey]||(seasonCompetition[careerKey]={appearances:0,qualifyingAppearances:0,minutes:0,goals:0,assists:0});
-   if(scope!=="league"){comp.appearances++;comp.qualifyingAppearances+=minutes>=20?1:0;comp.minutes+=minutes;comp.goals+=goals;comp.assists+=assists;}
   }
   state.lastRating=rating;state.averageRatingSum=(Number(state.averageRatingSum)||0)+rating;state.averageRatingCount=(Number(state.averageRatingCount)||0)+1;if(scope==="league"){state.leagueRatingSum=(Number(state.leagueRatingSum)||0)+rating;state.leagueRatingCount=(Number(state.leagueRatingCount)||0)+1;}
-  const development=window.LWCareer?.matchDevelopment(state,{matchId:id,minutes,rating,goals,assists,tackles:m.tackles,tacklesWon:m.tacklesWon,interceptions:m.interceptions,saves:m.saves,penaltiesSaved:m.penaltiesSaved,clearances:m.clearances,ballRecoveries:m.ballRecoveries,passAttempts:m.passAttempts,passesCompleted:m.passesCompleted,passingAccuracy:m.passingAccuracy,keyPasses:m.keyPasses,cleanSheet:!!m.cleanSheet,competitionKey:`${scope}|${country}|${competition}`})||{};
-  if(development.levels)log(`ارتقيت إلى مستوى المسيرة ${state.careerLevel} بعد المباراة.`);
-  for(const milestone of development.milestones||[])log(`معلم تطور جديد: ${milestone.appearances} مشاركة مؤهلة (20 دقيقة أو أكثر) • ${SKILL_AR[milestone.skill]||milestone.skill}${milestone.gained?` +${milestone.gained}`:" • خبرة متراكمة"}.`);
   state.energy=clamp(state.energy-Math.round(10+minutes*.24+(meta.tactic==="attack"?3:0)+(Number(state.fatigue)||0)/20));
   state.fatigue=clamp((Number(state.fatigue)||0)+Math.round(minutes*.19));
   const resultDelta=outcome==="فوز"?4:outcome==="تعادل"?1:-3;

@@ -401,4 +401,47 @@ assert.deepEqual({
   played: 2, minutes: 135, goals: 1, assists: 1, averageRating: 7
 }, "archived player participation stats must count only valid appearances and average only played-match ratings");
 
+
+const realCareerContext = { window: {} };
+vm.createContext(realCareerContext);
+const realCareerBundle = fs.readFileSync(path.join(root, "source", "public", "data", "career-engine.js"), "utf8");
+vm.runInContext(realCareerBundle, realCareerContext, { filename: "career-engine.js" });
+const previousCareerRuntime = sandbox.window.LWCareer;
+sandbox.window.LWCareer = realCareerContext.window.LWCareer;
+events.failCalendar = false;
+sandbox.state = JSON.parse(JSON.stringify(initialState));
+sandbox.state.apps = 0;
+sandbox.state.careerAppearances = 0;
+sandbox.state.careerMinutes = 0;
+sandbox.state.competitionStats = {};
+sandbox.state.pos = "مهاجم";
+sandbox.state.age = 22;
+const cupResult = {
+  ...result,
+  player: { ...result.player, minutes: 45, goals: 1, assists: 1, rating: 7 },
+  score: { for: 2, against: 1 }, outcome: "فوز", opponentName: "خصم الكأس"
+};
+const cupMeta = {
+  ...meta, id: "cup-progression-once", scope: "cup", competition: "كأس الاختبار",
+  opponent: "خصم الكأس", matchday: 1
+};
+const cupSettlement = sandbox.settleMatch(cupResult, cupMeta);
+assert.ok(cupSettlement && cupSettlement.record,
+  "a cup appearance must settle with the real career-development engine");
+const cupCompetitionStats = sandbox.state.competitionStats["cup|مصر|كأس الاختبار"];
+assert.deepEqual({
+  appearances: cupCompetitionStats.appearances,
+  qualifyingAppearances: cupCompetitionStats.qualifyingAppearances,
+  minutes: cupCompetitionStats.minutes,
+  goals: cupCompetitionStats.goals,
+  assists: cupCompetitionStats.assists
+}, {
+  appearances: 1, qualifyingAppearances: 1, minutes: 45, goals: 1, assists: 1
+}, "cup competition totals must be written exactly once by match development");
+assert.equal(sandbox.state.careerAppearances, 1,
+  "the first settled appearance must not be counted twice when legacy apps is synchronized");
+assert.equal(sandbox.state.careerMinutes, 45,
+  "career development must credit the exact minutes from the settled cup match");
+sandbox.window.LWCareer = previousCareerRuntime;
+
 console.log("PASS: match settlement is atomic, segment IDs stay distinct, and archived participation stats exclude non-appearances.");

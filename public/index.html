@@ -5929,8 +5929,9 @@ function supercupParticipants(comp,currentClub){
   });
   const currentIsLeagueChampion=currentClubId
    ?String(leagueChampion.id)===String(currentClubId):previousSeasonLeagueRank()===1;
+  const currentWonAnyCupByHistory=hasPreviousSeasonClubTitle(qualifierNames);
   const currentWonPrimaryCup=currentClubId
-   ?String(cupChampion.id)===String(currentClubId):hasPreviousSeasonClubTitle(qualifierNames.slice(0,1));
+   ?String(cupChampion.id)===String(currentClubId):currentWonAnyCupByHistory;
   const currentWonAnyCup=currentWonPrimaryCup;
   const currentIsRunnerUp=isSupercupRunnerUp(comp);
   if(!currentIsLeagueChampion&&!currentWonAnyCup&&!currentIsRunnerUp)return [];

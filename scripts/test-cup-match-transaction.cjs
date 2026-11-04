@@ -72,11 +72,24 @@ cupHistoryLookupSandbox.state.cupHistory = [
 ];
 assert.equal(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }), undefined,
   "a foreign club's cup win must not appear in the current club's competition list");
-cupHistoryLookupSandbox.state.cupHistory = [
+const unidentifiedLegacyClubHistory = [
   { name: "National Cup", season: 5, club: "United FC", eliminated: true }
 ];
-assert.ok(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }),
-  "legacy cup records without country metadata must remain readable");
+cupHistoryLookupSandbox.state.cupHistory = unidentifiedLegacyClubHistory;
+assert.equal(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }), undefined,
+  "legacy cup rows without country metadata must not be attributed to the current club");
+assert.deepEqual(cupHistoryLookupSandbox.state.cupHistory, unidentifiedLegacyClubHistory,
+  "unidentified legacy cup history must remain saved and unchanged");
+cupHistoryLookupSandbox.state.cupHistory = [
+  { name: "National Cup", season: 5, country: "England", champion: true }
+];
+assert.equal(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }), undefined,
+  "legacy cup rows without club identity must not be attributed to the current club");
+cupHistoryLookupSandbox.state.cupHistory = [
+  { name: "National Cup", season: 5, champion: true }
+];
+assert.equal(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }), undefined,
+  "legacy cup rows without either identity field must not be treated as a club trophy");
 
 const competitionRendererSandbox = {
   state: {
@@ -109,6 +122,23 @@ competitionRendererSandbox.state.cupState.createdSeason = 6;
 competitionRendererSandbox.renderCompetitionsForTest();
 assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /أُغلقت البطولة دون اكتمالها/,
   "an abandoned cup from the current season must still be shown as closed");
+competitionRendererSandbox.state.cupState.createdSeason = 5;
+competitionRendererSandbox.state.cupHistory = [
+  { name: "National Cup", season: 6, club: "United FC", champion: true }
+];
+competitionRendererSandbox.renderCompetitionsForTest();
+assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /سجل قديم غير محدد النادي أو الدولة/,
+  "unidentified legacy trophy rows must be shown as unknown rather than assigned to the current club");
+assert.doesNotMatch(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /بطل البطولة|انتهى المشوار/,
+  "unidentified legacy rows must not fabricate a current club's cup outcome");
+competitionRendererSandbox.state.cupHistory[0].country = "England";
+competitionRendererSandbox.renderCompetitionsForTest();
+assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /بطل البطولة/,
+  "a history row with matching club, country and season must still show the correct club trophy");
+competitionRendererSandbox.state.cupHistory[0].country = "Scotland";
+competitionRendererSandbox.renderCompetitionsForTest();
+assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /مجدولة/,
+  "a same-name result from a different country must not affect the current club");
 
 const activeCupRenderer = extractFunction(html, "renderActiveCup");
 const activeCupBox = { innerHTML: "" };
@@ -299,6 +329,6 @@ for (const phase of ["league", "groups"]) {
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 314);
+require("./assert-static-cache-version.cjs")(sw, 466);
 
 console.log("PASS: cup matches commit atomically; failed settlement and post-settlement errors restore the full career.");

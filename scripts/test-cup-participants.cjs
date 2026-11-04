@@ -384,6 +384,7 @@ secondTierCupWinnerWorld.competitionsBySeason["1"] = [
     championId: egyptSecondTierClub.id, runnerUpId: egyptLeagueChampion.id }
 ];
 const secondTierCupWinnerSandbox = scopedCupSandbox(egyptProfile.country, egyptSecondTierClub.name);
+secondTierCupWinnerSandbox.state.careerStarted = true;
 secondTierCupWinnerSandbox.state.leagueDivision = 2;
 secondTierCupWinnerSandbox.state.worldSimulation = secondTierCupWinnerWorld;
 secondTierCupWinnerSandbox.state.cupHistory = [

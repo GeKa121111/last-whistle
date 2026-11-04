@@ -459,31 +459,54 @@
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
     for (const player of Object.values(world.players || {})) {
-      // Retired players and unattached free agents are both authoritative saved
-      // identities. A catalogue refresh must not recreate either at a former club
-      // simply because the source row now has a changed age/position-derived ID.
-      if (!player || (!isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent))) continue;
-      const identityKey = rosterIdentityKey(player);
-      if (!identityKey) continue;
-      const clubIds = new Set([
-        String(player.previousClubId || ""),
-        String(player.retiredFromClubId || ""),
-        String(player.clubId || "")
-      ].filter(Boolean));
+      if (!player) continue;
+      const isDetachedPlayer = isTrueFlag(player.retired) || isTrueFlag(player.freeAgent);
+      const currentClubId = String(player.clubId || "").trim();
       const history = world.playerHistory && Array.isArray(world.playerHistory[player.id])
         ? world.playerHistory[player.id] : [];
+      const hasFormerClubTrail = isDetachedPlayer
+        || !!String(player.previousClubId || "").trim()
+        || !!String(player.retiredFromClubId || "").trim()
+        || history.some(entry => !!String(entry && entry.fromClubId || "").trim());
+      if (!hasFormerClubTrail) continue;
+      const identityKey = rosterIdentityKey(player);
+      if (!identityKey) continue;
+      const clubIds = new Set();
+      const addFormerClubId = value => {
+        const id = String(value || "").trim();
+        if (id && id !== currentClubId) clubIds.add(id);
+      };
+      addFormerClubId(player.previousClubId);
+      addFormerClubId(player.retiredFromClubId);
       for (const entry of history) {
-        const clubName = String(entry && entry.club || "").trim();
-        if (!clubName) continue;
-        const country = String(entry.country || "").trim();
-        const matches = allClubs.filter(club =>
-          normalize(club.name) === normalize(clubName)
-          && (!country || normalize(club.country) === normalize(country)));
-        if (matches.length) matches.forEach(club => clubIds.add(String(club.id)));
-        else if (country) clubIds.add(clubKey(clubName, country));
+        if (!entry) continue;
+        // Normal transfers retain both endpoints in player history. Protect only
+        // the former club; never hide the player from the club they currently join.
+        addFormerClubId(entry.fromClubId);
+        const historyClubId = String(entry.clubId || "").trim();
+        addFormerClubId(historyClubId);
+        const clubName = String(entry.club || "").trim();
+        if (clubName && (isDetachedPlayer || (historyClubId && historyClubId !== currentClubId))) {
+          const country = String(entry.country || "").trim();
+          const matches = allClubs.filter(club =>
+            normalize(club.name) === normalize(clubName)
+            && (!country || normalize(club.country) === normalize(country)));
+          if (matches.length) matches.forEach(club => addFormerClubId(club.id));
+          else if (country) addFormerClubId(clubKey(clubName, country));
+        }
+        // Older history rows may have a textual origin but no fromClubId. Resolve
+        // it only when the country/name combination identifies a former club.
+        const fromName = String(entry.from || "").trim();
+        const fromCountry = String(entry.fromCountry || "").trim();
+        if (fromName && !String(entry.fromClubId || "").trim()) {
+          const matches = allClubs.filter(club =>
+            normalize(club.name) === normalize(fromName)
+            && (!fromCountry || normalize(club.country) === normalize(fromCountry)));
+          if (matches.length) matches.forEach(club => addFormerClubId(club.id));
+          else if (fromCountry) addFormerClubId(clubKey(fromName, fromCountry));
+        }
       }
       for (const clubId of clubIds) {
-        if (!clubId) continue;
         if (!unavailableIdentitiesByClub.has(clubId)) unavailableIdentitiesByClub.set(clubId, new Set());
         unavailableIdentitiesByClub.get(clubId).add(identityKey);
       }

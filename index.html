@@ -5929,9 +5929,8 @@ function supercupParticipants(comp,currentClub){
   });
   const currentIsLeagueChampion=currentClubId
    ?String(leagueChampion.id)===String(currentClubId):previousSeasonLeagueRank()===1;
-  const currentWonAnyCupByHistory=hasPreviousSeasonClubTitle(qualifierNames);
-  const currentWonPrimaryCup=currentClubId
-   ?String(cupChampion.id)===String(currentClubId):currentWonAnyCupByHistory;
+  // The player career history is authoritative for the controlled club; world results supply its opponents.
+  const currentWonPrimaryCup=hasPreviousSeasonClubTitle(qualifierNames.slice(0,1));
   const currentWonAnyCup=currentWonPrimaryCup;
   const currentIsRunnerUp=isSupercupRunnerUp(comp);
   if(!currentIsLeagueChampion&&!currentWonAnyCup&&!currentIsRunnerUp)return [];

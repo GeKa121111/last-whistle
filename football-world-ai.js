@@ -180,7 +180,8 @@
   function emptyWorld() {
     return {
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
-      lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, transferClubHistoryByPlayer: {},
+      lastAdvancedTo: 0, lastDevelopedSeason: 0, lastFreeAgentMarketSeason: 0,
+      clubs: {}, players: {}, playerHistory: {}, transferClubHistoryByPlayer: {},
       transferClubHistorySchemaVersion: 1, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
       nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive(),
@@ -694,6 +695,17 @@
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
+    world.lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    if (!Object.prototype.hasOwnProperty.call(world, "lastDevelopedSeason")) {
+      world.lastDevelopedSeason = Math.max(0, world.lastAdvancedTo - 1);
+    } else {
+      world.lastDevelopedSeason = Math.max(0, int(world.lastDevelopedSeason, 0));
+    }
+    if (!Object.prototype.hasOwnProperty.call(world, "lastFreeAgentMarketSeason")) {
+      world.lastFreeAgentMarketSeason = world.lastAdvancedTo;
+    } else {
+      world.lastFreeAgentMarketSeason = Math.max(0, int(world.lastFreeAgentMarketSeason, 0));
+    }
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0));
     // reconcileDatabase scans the global club/player catalogue and repairs squads.
     // Running it for every dashboard render caused severe avoidable CPU work.
@@ -1428,6 +1440,8 @@
     world.notes = world.notes.slice(0, 30);
   }
   function developPlayers(world, season) {
+    const developmentSeason = Math.max(1, int(season, 1));
+    if (Math.max(0, int(world.lastDevelopedSeason, 0)) >= developmentSeason) return false;
     const stats = world.seasonStats[String(season)] || [];
     const byId = new Map(stats.map(row => [row.id, row]));
     const seasonAges = new Map();
@@ -1518,7 +1532,8 @@
       }
     });
     world.notes = world.notes.slice(0, 30);
-
+    world.lastDevelopedSeason = developmentSeason;
+    return true;
   }
   function advanceToSeason(save, nextSeason, db) {
     const world = ensureState(save, db);
@@ -2831,22 +2846,41 @@
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
     const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
     const currentSeason = Math.max(1, int(world.currentSeason, 1));
-    // A stale request must exit before completing an older season or applying promotion/relegation.
-    if (lastAdvancedTo >= next || currentSeason > next) return base.advanceToSeason(save, next, db);
+    // A stale request must never replay a market for an older season.
+    if (lastAdvancedTo > next || currentSeason > next) return base.advanceToSeason(save, next, db);
+
+    const alreadyAdvancedToNext = lastAdvancedTo === next;
     const previous = Math.max(1, next - 1);
-    completeSeason(save, previous, db);
-    const promotions = applyPromotionRelegation(world, previous, db);
+    let promotions = [];
+    if (!alreadyAdvancedToNext) {
+      completeSeason(save, previous, db);
+      promotions = applyPromotionRelegation(world, previous, db);
+    }
+
     const transition = base.advanceToSeason(save, next, db);
-    if (!transition.alreadyAdvanced) {
-      const freeAgentMoves = signFreeAgents(world, next, transition.moves || []);
-      transition.moves = (transition.moves || []).concat(freeAgentMoves);
-      if (world.marketReports && world.marketReports[0] && Number(world.marketReports[0].season) === next) {
-        world.marketReports[0].moves = transition.moves.length;
-        world.marketReports[0].transferIds = transition.moves.map(row => row.id);
+    if (promotions.length) transition.promotions = promotions;
+
+    // The paid market commits before free-agent recruitment. If the latter fails,
+    // the world season is already advanced; retry that unfinished phase from the
+    // saved paid-move IDs instead of silently treating the whole transition as done.
+    const lastFreeAgentMarketSeason = Math.max(0, int(world.lastFreeAgentMarketSeason, 0));
+    if (lastFreeAgentMarketSeason < next) {
+      let paidMoves = Array.isArray(transition.moves) ? transition.moves.slice() : [];
+      if (transition.alreadyAdvanced) {
+        const report = (world.marketReports || []).find(row => Number(row && row.season) === next);
+        const paidIds = new Set(Array.isArray(report && report.transferIds)
+          ? report.transferIds.map(id => String(id || "")) : []);
+        paidMoves = (world.transfers || []).filter(move => move
+          && Number(move.season) === next && paidIds.has(String(move.id || "")));
       }
-      if (promotions.length) transition.promotions = promotions;
-      if (freeAgentMoves.length) world.notes.unshift({ season: next, type: "free-agent-market",
-        text: "وقّعت الأندية مع " + freeAgentMoves.length + " لاعبًا حرًا بعد انتهاء عقودهم." });
+      const freeAgentMoves = signFreeAgents(world, next, paidMoves);
+      world.lastFreeAgentMarketSeason = next;
+      transition.moves = paidMoves.concat(freeAgentMoves);
+      if (freeAgentMoves.length) {
+        world.notes = Array.isArray(world.notes) ? world.notes : [];
+        world.notes.unshift({ season: next, type: "free-agent-market",
+          text: "وقّعت الأندية مع " + freeAgentMoves.length + " لاعبًا حرًا بعد انتهاء عقودهم." });
+      }
       world.notes = (world.notes || []).slice(0, 30);
     }
     return transition;

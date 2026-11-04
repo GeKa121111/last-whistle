@@ -467,7 +467,7 @@
       const hasFormerClubTrail = isDetachedPlayer
         || !!String(player.previousClubId || "").trim()
         || !!String(player.retiredFromClubId || "").trim()
-        || history.some(entry => !!String(entry && entry.fromClubId || "").trim());
+        || history.some(entry => !!String(entry && (entry.fromClubId || entry.from) || "").trim());
       if (!hasFormerClubTrail) continue;
       const identityKey = rosterIdentityKey(player);
       if (!identityKey) continue;
@@ -502,8 +502,9 @@
           const matches = allClubs.filter(club =>
             normalize(club.name) === normalize(fromName)
             && (!fromCountry || normalize(club.country) === normalize(fromCountry)));
-          if (matches.length) matches.forEach(club => addFormerClubId(club.id));
-          else if (fromCountry) addFormerClubId(clubKey(fromName, fromCountry));
+          // Do not block every club with the same name when a legacy row lacks country data.
+          if (matches.length === 1) addFormerClubId(matches[0].id);
+          else if (matches.length === 0 && fromCountry) addFormerClubId(clubKey(fromName, fromCountry));
         }
       }
       for (const clubId of clubIds) {

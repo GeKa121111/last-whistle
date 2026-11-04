@@ -1128,6 +1128,33 @@ assert.equal(transferReconcileWorld.seasonStats["5"][0].goals, 8,
 assert.equal(transferReconcileWorld.transfers[0].id, "transfer-reconcile-ledger",
   "catalogue reconciliation must not rewrite the saved transfer ledger");
 
+// Older active saves can retain the transfer origin as text without a fromClubId.
+const legacyTransferReconcileWorld = JSON.parse(JSON.stringify(transferReconcileWorld));
+legacyTransferReconcileWorld.playerHistory[transferReconcilePlayerId] = [{
+  season: 5, clubId: transferReconcileDestinationId,
+  club: transferReconcileDestinationName, country: transferReconcileCountry,
+  from: transferReconcileOriginName, type: "transfer-in"
+}];
+sandbox.window.__lwTestReconcileDatabase(legacyTransferReconcileWorld, transferReconcileDb);
+const legacyDuplicateOriginPlayers = Object.values(legacyTransferReconcileWorld.players).filter(player =>
+  player && player.name === transferReconcilePlayerName
+  && String(player.clubId || "") === transferReconcileOriginId
+  && !player.retired && !player.freeAgent);
+assert.equal(legacyDuplicateOriginPlayers.length, 0,
+  "a legacy textual transfer origin must prevent reimporting the active player at the former club");
+assert.equal(legacyTransferReconcileWorld.players[transferReconcilePlayerId].clubId, transferReconcileDestinationId,
+  "legacy history reconciliation must keep the current destination club authoritative");
+assert.ok(legacyTransferReconcileWorld.clubs[transferReconcileDestinationId].roster.includes(transferReconcilePlayerId),
+  "the destination club must retain the original player when legacy transfer history is reconciled");
+assert.ok(!legacyTransferReconcileWorld.clubs[transferReconcileOriginId].roster.includes(transferReconcilePlayerId),
+  "the former club must not regain the original player's saved ID from a legacy source row");
+assert.equal(legacyTransferReconcileWorld.playerHistory[transferReconcilePlayerId][0].from,
+  transferReconcileOriginName, "legacy textual transfer history must remain intact");
+assert.equal(legacyTransferReconcileWorld.seasonStats["5"][0].goals, 8,
+  "legacy transfer reconciliation must preserve saved season statistics");
+assert.equal(legacyTransferReconcileWorld.transfers[0].id, "transfer-reconcile-ledger",
+  "legacy transfer reconciliation must preserve the saved transfer ledger");
+
 
 // Promotion history records the destination season: a record for season 2 must prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];

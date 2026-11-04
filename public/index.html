@@ -6004,9 +6004,12 @@ function renderLeaderboardTable(rows,kind){
 function cupHistoryForCompetition(comp){
  if(!comp)return undefined;
  const history=Array.isArray(state.cupHistory)?state.cupHistory:[];
+ const clubName=String(state.clubName||"").trim(),country=String(state.leagueCountry||"").trim();
+ // Missing legacy identity fields are unknown, not wildcards: never attribute an old trophy to another club.
+ if(!clubName||!country)return undefined;
  return history.find(row=>row&&row.name===comp.name&&Number(row.season)===Number(state.season)
-  &&(!row.club||row.club===state.clubName)
-  &&(!row.country||row.country===state.leagueCountry));
+  &&String(row.club||"").trim()===clubName
+  &&String(row.country||"").trim()===country);
 }
 function renderCurrentCompetitions(){
  const box=$("currentCompetitions");if(!box)return;
@@ -6018,8 +6021,9 @@ function renderCurrentCompetitions(){
  for(const comp of eligible){
   if(!comp||comp.kind==="world"&&comp.id!=="fifa-club-world-cup")continue;
   const history=cupHistoryForCompetition(comp);
+  const hasUnidentifiedLegacyHistory=!history&&Array.isArray(state.cupHistory)&&state.cupHistory.some(row=>row&&row.name===comp.name&&Number(row.season)===Number(state.season)&&(!String(row.club||"").trim()||!String(row.country||"").trim()));
   const isActive=state.cupState&&state.cupState.name===comp.name&&!state.cupState.eliminated&&!state.cupState.champion&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)===Number(state.season);
-  let status=history?(history.champion?"بطل البطولة":history.eliminated?"انتهى المشوار":"انتهت البطولة"):"مجدولة";
+  let status=history?(history.champion?"بطل البطولة":history.eliminated?"انتهى المشوار":"انتهت البطولة"):hasUnidentifiedLegacyHistory?"سجل قديم غير محدد النادي أو الدولة":"مجدولة";
   if(isActive)status=state.cupState.phase==="league"?"مرحلة الدوري • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):state.cupState.phase==="groups"?"دور المجموعات • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):"نشطة • "+String((state.cupState.rounds||[])[state.cupState.stage]||"الدور الحالي");
   else if(!history&&state.cupState&&state.cupState.name===comp.name&&state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)===Number(state.season))status="أُغلقت البطولة دون اكتمالها";
   else if(!history&&typeof competitionLockReason==="function"){

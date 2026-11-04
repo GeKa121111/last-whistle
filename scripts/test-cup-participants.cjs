@@ -361,12 +361,12 @@ const invalidTableRunnerUp = scopedCupSandbox("إنجلترا", "ليفربول"
 invalidTableRunnerUp.state.careerStarted = true;
 invalidTableRunnerUp.state.previousSeasonRank = 2;
 invalidTableRunnerUp.state.worldSimulation = invalidOnlyWorld;
-assert.match(invalidTableRunnerUp.competitionLockReason(communityShield), /السوبر بطولة مشروطة/,
+assert.match(invalidTableRunnerUp.competitionLockReason(communityShield), /بيانات التأهل للسوبر المحلي غير مكتملة/,
   "a foreign club cannot satisfy the domestic league-champion requirement when no valid rank-one club exists");
 const cupWinnerWithInvalidTable = scopedCupSandbox("إنجلترا", "تشيلسي");
 cupWinnerWithInvalidTable.state.worldSimulation = invalidOnlyWorld;
-assert.deepEqual(Array.from(cupWinnerWithInvalidTable.cupParticipants(communityShield, 2)), ["تشيلسي", "ليفربول"],
-  "when the league-table champion is invalid, the cup winner must use the valid cup runner-up rather than the foreign club");
+assert.equal(Array.from(cupWinnerWithInvalidTable.cupParticipants(communityShield, 2)).length, 0,
+  "a domestic supercup must not be generated when the league-table champion is invalid");
 
 const wrongLeagueCupRowWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));
 wrongLeagueCupRowWorld.competitionsBySeason["1"][0].leagueId = "spain";
@@ -374,7 +374,7 @@ const wrongLeagueCupRowRunnerUp = scopedCupSandbox("إنجلترا", "ليفرب
 wrongLeagueCupRowRunnerUp.state.careerStarted = true;
 wrongLeagueCupRowRunnerUp.state.previousSeasonRank = 2;
 wrongLeagueCupRowRunnerUp.state.worldSimulation = wrongLeagueCupRowWorld;
-assert.match(wrongLeagueCupRowRunnerUp.competitionLockReason(communityShield), /السوبر بطولة مشروطة/,
+assert.match(wrongLeagueCupRowRunnerUp.competitionLockReason(communityShield), /بيانات التأهل للسوبر المحلي غير مكتملة/,
   "a domestic cup result carrying a different league ID must not qualify its runner-up");
 
 const foreignCupRunnerUpWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));

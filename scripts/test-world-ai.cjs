@@ -2351,13 +2351,8 @@ function assertDomesticSupercupRejectsInvalidLeagueRow(season, invalidRow, label
   ];
   const supercup = ai.seasonCompetitions(cupSave, season, cupDb)
     .find(row => row.id === "test-domestic-supercup");
-  assert.ok(supercup, label + ": valid domestic cup history must still produce a supercup");
-  assert.ok(!supercup.participants.includes(invalidRow.clubId),
-    label + ": the invalid league-table club must not enter the domestic supercup");
-  assert.ok(supercup.participants.every(id => {
-    const club = cupWorld.clubs[id];
-    return club && String(club.leagueId || "") === "test-cup-league" && Number(club.division || 1) === 1;
-  }), label + ": every domestic supercup participant must belong to the configured top-flight league");
+  assert.equal(supercup, undefined,
+    label + ": a domestic supercup must not be created without a verified top-flight league champion");
 }
 assertDomesticSupercupRejectsInvalidLeagueRow(4, {
   clubId: "cup-foreign-supercup", leagueId: "test-cup-league", division: 1, rank: 1

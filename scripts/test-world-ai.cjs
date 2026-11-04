@@ -2382,6 +2382,55 @@ assert.ok(legacyRanklessSupercup && legacyRanklessSupercup.participants.includes
   "rankless legacy tables must still resolve their first valid top-flight club");
 
 
+// A domestic cup runner-up must belong to the same league; a valid lower-tier cup runner-up remains eligible.
+cupWorld.clubs["cup-foreign-supercup"].confederation = "UEFA";
+cupWorld.clubs["cup-caf-supercup-1"] = {
+  id: "cup-caf-supercup-1", name: "CAF Super Cup Club 1", country: "CAFland",
+  leagueId: "caf-test-league", confederation: "CAF", division: 1, power: 75, roster: []
+};
+cupWorld.clubs["cup-caf-supercup-2"] = {
+  id: "cup-caf-supercup-2", name: "CAF Super Cup Club 2", country: "CAFland",
+  leagueId: "caf-test-league-2", confederation: "CAF", division: 1, power: 73, roster: []
+};
+cupWorld.leagueTables["8"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["8"] = [
+  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-foreign-supercup" },
+  { id: "foreign-confederation-record", kind: "continental", confederation: "CAF", championId: "cup-foreign-supercup" },
+  { id: "valid-caf-champion-1", kind: "continental", confederation: "CAF", championId: "cup-caf-supercup-1" },
+  { id: "valid-caf-champion-2", kind: "continental", confederation: "CAF", championId: "cup-caf-supercup-2" }
+];
+const identityCheckedSupercups = ai.seasonCompetitions(cupSave, 9, cupDb);
+const domesticRunnerUpFallback = identityCheckedSupercups.find(row => row.id === "test-domestic-supercup");
+assert.deepEqual([...domesticRunnerUpFallback.participants].sort(), ["cup-first-01", "cup-first-02"],
+  "a foreign cup runner-up must be rejected and the verified league runner-up used instead");
+const continentalIdentitySupercup = identityCheckedSupercups.find(row => row.id === "test-continental-supercup");
+assert.ok(continentalIdentitySupercup, "two verified continental champions must still produce their supercup");
+assert.deepEqual([...continentalIdentitySupercup.participants].sort(),
+  ["cup-caf-supercup-1", "cup-caf-supercup-2"],
+  "a continental supercup must validate each champion's canonical confederation, not trust the history row alone");
+
+// The runner-up of a lower-tier-inclusive domestic cup may legitimately be a second-division club.
+cupWorld.leagueTables["9"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["9"] = [
+  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-second-01" }
+];
+const lowerTierCupRunnerUpSupercup = ai.seasonCompetitions(cupSave, 10, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.ok(lowerTierCupRunnerUpSupercup && lowerTierCupRunnerUpSupercup.participants.includes("cup-second-01"),
+  "same-league lower-tier cup runners-up must remain eligible when the cup admits lower divisions");
+
+
+
 
 
 // Continental tournaments must use the previous completed domestic standings and the

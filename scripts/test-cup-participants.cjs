@@ -342,6 +342,76 @@ assert.match(secondaryCupWinner.competitionLockReason(communityShield), /الس�
 assert.equal(Array.from(secondaryCupWinner.cupParticipants(communityShield, 2)).length, 0,
   "a secondary cup winner must not be inserted into the primary domestic supercup");
 
+// Domestic supercup UI must apply the primary cup's division rules just like the world simulator.
+const egyptProfile = db.leagueById("egypt");
+const egyptClubs = db.clubs().filter(club => club && String(club.leagueId || "") === "egypt");
+const egyptTopFlight = egyptClubs.filter(club => Number(club.division || 1) === 1);
+const egyptSecondTier = egyptClubs.filter(club => Number(club.division) === 2);
+assert.ok(egyptProfile && egyptTopFlight.length >= 2 && egyptSecondTier.length >= 1,
+  "Egyptian top-flight and second-division club records must be available for supercup eligibility tests");
+const egyptLeagueChampion = egyptTopFlight[0];
+const egyptLeagueRunnerUp = egyptTopFlight[1];
+const egyptSecondTierClub = egyptSecondTier[0];
+const egyptBaseWorld = {
+  clubs: Object.fromEntries([egyptLeagueChampion, egyptLeagueRunnerUp, egyptSecondTierClub].map(club => [club.id, club])),
+  leagueTables: { "1": { egypt: [
+    { clubId: egyptLeagueChampion.id, leagueId: "egypt", division: 1, rank: 1 },
+    { clubId: egyptLeagueRunnerUp.id, leagueId: "egypt", division: 1, rank: 2 }
+  ] } },
+  competitionsBySeason: { "1": [] }
+};
+const firstTierOnlyEgyptWorld = JSON.parse(JSON.stringify(egyptBaseWorld));
+firstTierOnlyEgyptWorld.competitionsBySeason["1"] = [
+  { id: "egypt-league-cup", kind: "domestic-cup", name: "كأس الرابطة المصرية", leagueId: "egypt",
+    championId: egyptLeagueChampion.id, runnerUpId: egyptSecondTierClub.id }
+];
+const firstTierOnlyEgyptSandbox = scopedCupSandbox(egyptProfile.country, egyptLeagueChampion.name);
+firstTierOnlyEgyptSandbox.state.worldSimulation = firstTierOnlyEgyptWorld;
+firstTierOnlyEgyptSandbox.state.previousSeasonRank = 1;
+firstTierOnlyEgyptSandbox.state.cupHistory = [
+  { name: "كأس الرابطة المصرية", season: 1, champion: true, club: egyptLeagueChampion.name, country: egyptProfile.country }
+];
+const firstTierOnlyEgyptSupercup = {
+  id: "test-egyptian-league-cup-supercup", kind: "supercup", countries: ["egypt"], qualifierCupId: "egypt-league-cup"
+};
+assert.deepEqual(Array.from(firstTierOnlyEgyptSandbox.cupParticipants(firstTierOnlyEgyptSupercup, 2)),
+  [egyptLeagueChampion.name, egyptLeagueRunnerUp.name],
+  "the local supercup UI must skip a second-division runner-up when the configured primary cup is first-tier-only");
+
+const secondTierCupWinnerWorld = JSON.parse(JSON.stringify(egyptBaseWorld));
+secondTierCupWinnerWorld.competitionsBySeason["1"] = [
+  { id: "egypt-league-cup", kind: "domestic-cup", name: "كأس الرابطة المصرية", leagueId: "egypt",
+    championId: egyptSecondTierClub.id, runnerUpId: egyptLeagueChampion.id }
+];
+const secondTierCupWinnerSandbox = scopedCupSandbox(egyptProfile.country, egyptSecondTierClub.name);
+secondTierCupWinnerSandbox.state.leagueDivision = 2;
+secondTierCupWinnerSandbox.state.worldSimulation = secondTierCupWinnerWorld;
+secondTierCupWinnerSandbox.state.cupHistory = [
+  { name: "كأس الرابطة المصرية", season: 1, champion: true, club: egyptSecondTierClub.name, country: egyptProfile.country }
+];
+assert.match(secondTierCupWinnerSandbox.competitionLockReason(firstTierOnlyEgyptSupercup), /بيانات التأهل للسوبر المحلي غير مكتملة/,
+  "a second-division cup winner must not qualify through a first-tier-only primary cup");
+assert.equal(Array.from(secondTierCupWinnerSandbox.cupParticipants(firstTierOnlyEgyptSupercup, 2)).length, 0,
+  "the local supercup UI must not launch with an ineligible second-division cup champion");
+
+const allTierEgyptWorld = JSON.parse(JSON.stringify(egyptBaseWorld));
+allTierEgyptWorld.competitionsBySeason["1"] = [
+  { id: "egypt-cup", kind: "domestic-cup", name: "كأس مصر", leagueId: "egypt",
+    championId: egyptLeagueChampion.id, runnerUpId: egyptSecondTierClub.id }
+];
+const allTierEgyptSandbox = scopedCupSandbox(egyptProfile.country, egyptLeagueChampion.name);
+allTierEgyptSandbox.state.worldSimulation = allTierEgyptWorld;
+allTierEgyptSandbox.state.previousSeasonRank = 1;
+allTierEgyptSandbox.state.cupHistory = [
+  { name: "كأس مصر", season: 1, champion: true, club: egyptLeagueChampion.name, country: egyptProfile.country }
+];
+const allTierEgyptSupercup = {
+  id: "egyptian-super-cup", kind: "supercup", countries: ["egypt"], qualifierCupId: "egypt-cup"
+};
+assert.deepEqual(Array.from(allTierEgyptSandbox.cupParticipants(allTierEgyptSupercup, 2)),
+  [egyptLeagueChampion.name, egyptSecondTierClub.name],
+  "a same-league second-division runner-up remains eligible when the configured primary cup admits lower divisions");
+
 const invalidLeadingRowWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));
 invalidLeadingRowWorld.clubs.foreign = {
   id: "foreign", name: "نادي أجنبي", leagueId: "spain", country: "إسبانيا", division: 1

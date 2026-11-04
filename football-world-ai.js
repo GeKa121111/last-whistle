@@ -2984,6 +2984,7 @@
       Object.keys(world.clubs || {}).length,
       Object.keys(world.players || {}).length, (world.completedSeasons || []).length,
       Object.keys(matchesBySeason).length, Array.isArray(currentMatches) ? currentMatches.length : -1,
+      Array.isArray(currentCompetitions) ? currentCompetitions.length : -1,
       hasStats ? statsSeason : 0, (statsBySeason[String(statsSeason)] || []).length,
       (world.transfers || []).length, int(world.transferSequence, 0), String(lastTransfer.id || ""),
       int(lastMarket.season, 0), int(lastMarket.moves, 0)

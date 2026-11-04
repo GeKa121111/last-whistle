@@ -45,16 +45,16 @@ assert.ok(duplicateNamePlayers.every(player => player.isRealPlayer === true),
 // identity rule, while staying conservative when a source does not identify roles.
 const egyptRefreshSource = fs.readFileSync(path.join(root, "scripts", "refresh-egyptian-pro-league.cjs"), "utf8");
 const egyptNormalizeStart = egyptRefreshSource.indexOf("function normalize(");
-const egyptNormalizeEnd = egyptRefreshSource.indexOf("\\nfunction linesFromHtml(", egyptNormalizeStart);
+const egyptNormalizeEnd = egyptRefreshSource.indexOf("\nfunction linesFromHtml(", egyptNormalizeStart);
 const egyptParserStart = egyptRefreshSource.indexOf("const POSITION_HEADINGS = [");
-const egyptParserEnd = egyptRefreshSource.indexOf("\\nasync function fetchHtml(", egyptParserStart);
+const egyptParserEnd = egyptRefreshSource.indexOf("\nasync function fetchHtml(", egyptParserStart);
 assert.ok(egyptNormalizeStart >= 0 && egyptNormalizeEnd > egyptNormalizeStart
   && egyptParserStart >= 0 && egyptParserEnd > egyptParserStart,
   "Egyptian source parser identity helpers must remain available for regression testing");
 const egyptParserSandbox = {};
 vm.createContext(egyptParserSandbox);
 vm.runInContext(egyptRefreshSource.slice(egyptNormalizeStart, egyptNormalizeEnd)
-  + "\\n" + egyptRefreshSource.slice(egyptParserStart, egyptParserEnd),
+  + "\n" + egyptRefreshSource.slice(egyptParserStart, egyptParserEnd),
   egyptParserSandbox, { filename: "egyptian-roster-identity-parser" });
 const egyptSameNamePlayers = egyptParserSandbox.parsePlayerLines([
   "حراسة المرمى", "1 أحمد لاعب",

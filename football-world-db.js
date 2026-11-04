@@ -4,7 +4,7 @@
  */
 (function () {
   "use strict";
-  var VERSION = 4;
+  var VERSION = 5;
   var SEASON = "2026/27";
   var RATINGS_NOTE = "قوة الأندية والتقييمات تقديرات توازن داخل اللعبة. الأسماء من قوائم أندية 2026/27 المتاحة موثقة بمصدرها؛ أي اسم ناشئ مولّد موسوم داخل البيانات وليس لاعبًا حقيقيًا.";
   var LEAGUES = [
@@ -196,6 +196,14 @@
     }, 5381) % 11) - 5);
     return Math.max(42, Math.min(88, base + stableNoise));
   }
+  function sourcePlayerIdentityKey(player) {
+    var name = normalize(player && player.name);
+    if (!name) return "";
+    var sourceId = String(player && (player.sourcePlayerId || player.sourceId || player.playerId || player.externalId) || "").trim();
+    if (sourceId) return "source|" + normalize(sourceId);
+    var age = Math.max(0, Math.floor(Number(player && player.age) || 0));
+    return [name, normalize(player && player.position), age].join("|");
+  }
   function estimateImportedPlayer(player, club, index) {
     var base = Number(club.ovr) || 58;
     var age = Number(player.age) || 23;
@@ -208,8 +216,10 @@
     }, 2166136261);
     var ageAdjust = age <= 21 ? 2 : age >= 31 ? -3 : age >= 28 ? -1 : 0;
     var ovr = Math.max(40, Math.min(92, Math.round(base - 3 + roleAdjust + ageAdjust + ((nameHash + index * 7) % 9) - 4)));
+    var clubIdentity = [club.leagueId, normalize(club.country), normalize(club.name)].join("-");
+    var playerIdentity = sourcePlayerIdentityKey(player).replace(/\|/g, "-");
     return {
-      id: club.leagueId + "-" + normalize(player.name),
+      id: clubIdentity + "-" + playerIdentity,
       name: player.name,
       clubName: club.name,
       country: club.country,
@@ -440,7 +450,7 @@
         var rosterSeen = new Set();
         var fullRoster = sourceClub.players.map(function (player, playerIndex) {
           if (!player || !player.name) return null;
-          var key = normalize(player.name);
+          var key = sourcePlayerIdentityKey(player);
           if (!key || rosterSeen.has(key)) return null;
           rosterSeen.add(key);
           return estimateImportedPlayer(player, found, playerIndex);

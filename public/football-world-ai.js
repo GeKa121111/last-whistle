@@ -2191,18 +2191,43 @@
           };
           const leagueChampion = leagueClubAtRank(1);
           const leagueRunnerUp = leagueClubAtRank(2);
-          const domesticCup = previous.find(row => row && row.kind === "domestic-cup" && row.championId
-            && world.clubs[row.championId] && String(world.clubs[row.championId].leagueId) === leagueId);
+          const domesticCup = previous.find(row => {
+            const champion = row && row.championId && world.clubs && world.clubs[row.championId];
+            const rowLeagueId = String(row && row.leagueId || "").trim();
+            return row && row.kind === "domestic-cup" && champion
+              && String(champion.leagueId || "") === leagueId
+              && (!rowLeagueId || rowLeagueId === leagueId);
+          });
+          const cupRunnerUp = domesticCup && world.clubs && world.clubs[domesticCup.runnerUpId];
+          const eligibleCupRunnerUp = cupRunnerUp && String(cupRunnerUp.leagueId || "") === leagueId
+            ? cupRunnerUp : null;
           addParticipant(leagueChampion);
           addParticipant(domesticCup && world.clubs[domesticCup.championId]);
           if (participants.length < 2) {
-            addParticipant(domesticCup && world.clubs[domesticCup.runnerUpId]);
+            // A cup runner-up may come from a lower tier, but it must remain in this league.
+            addParticipant(eligibleCupRunnerUp);
             if (participants.length < 2) addParticipant(leagueRunnerUp);
           }
         } else {
           // Continental supercups may only use winners of continental competitions.
-          const eligible = previous.filter(row => row && row.kind === "continental" && row.championId
-            && (!def.confederation || row.confederation === def.confederation));
+          const confederation = String(def.confederation || "").trim();
+          const confederationForClub = club => {
+            if (!club) return "";
+            let value = String(club.confederation || "").trim();
+            if (!value && db && typeof db.leagueById === "function") {
+              try {
+                const profile = db.leagueById(club.leagueId);
+                value = String(profile && profile.confederation || "").trim();
+              } catch (_) { /* An unknown club confederation is not a verified qualifier. */ }
+            }
+            return value;
+          };
+          const eligible = previous.filter(row => {
+            if (!row || row.kind !== "continental" || !row.championId) return false;
+            if (confederation && String(row.confederation || "").trim() !== confederation) return false;
+            const club = world.clubs && world.clubs[row.championId];
+            return !!club && (!confederation || confederationForClub(club) === confederation);
+          });
           eligible.slice(0, 2).forEach(row => addParticipant(world.clubs[row.championId]));
         }
       } else {

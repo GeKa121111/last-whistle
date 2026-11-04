@@ -1974,6 +1974,33 @@ const unidentifiedClubDashboard = ai.dashboard(dashboardIdentitySave, db);
 assert.equal(unidentifiedClubDashboard.leagueTable.length, 0,
   "a missing club identity must not display an arbitrary league table from the same country");
 
+// A world mutation can change persisted dashboard rows without changing any collection
+// counts. projectionRevision is the explicit invalidation signal and must be part of the
+// dashboard cache key, otherwise the previous table remains visible until another field changes.
+const dashboardRevisionSave = {
+  ...dashboardIdentitySave,
+  clubName: "Dashboard First Tier FC",
+  leagueDivision: 1,
+  worldSimulation: JSON.parse(JSON.stringify(dashboardIdentityWorld))
+};
+const dashboardRevisionWorld = dashboardRevisionSave.worldSimulation;
+const dashboardRevisionRows = dashboardRevisionWorld.leagueTables[dashboardYear][dashboardLeagueId];
+const firstRevisionDashboard = ai.dashboard(dashboardRevisionSave, db);
+assert.equal(firstRevisionDashboard.leagueTable[0]?.club, "DASHBOARD-FIRST-DIVISION",
+  "the revision-cache fixture must start with the persisted first-division row");
+const dashboardRevisionBefore = Number(dashboardRevisionWorld.projectionRevision) || 0;
+dashboardRevisionRows[0] = {
+  ...dashboardRevisionRows[0],
+  club: "DASHBOARD-FIRST-DIVISION-UPDATED"
+};
+dashboardRevisionWorld.projectionRevision = dashboardRevisionBefore + 1;
+const updatedRevisionDashboard = ai.dashboard(dashboardRevisionSave, db);
+assert.notStrictEqual(updatedRevisionDashboard, firstRevisionDashboard,
+  "a changed world projection revision must rebuild the dashboard instead of returning the cached object");
+assert.equal(updatedRevisionDashboard.leagueTable[0]?.club, "DASHBOARD-FIRST-DIVISION-UPDATED",
+  "dashboard rows must refresh after a projection revision even when collection sizes are unchanged");
+
+
 // Older saved worlds may still contain Japan/AFC data. Keep it out of active simulation,
 // but archive the club, player history, statistics and competition records without data loss.
 const legacyClubId = "legacy-japan-club";

@@ -2978,7 +2978,10 @@
     const cacheKey = [
       season, int(save.season, 1), int(save.seasonAppsTarget, 0),
       String(save.leagueCountry || ""), String(save.clubName || ""), int(save.leagueDivision, 0),
-      int(world.dbVersion, 0), Object.keys(world.clubs || {}).length,
+      int(world.dbVersion, 0), int(world.projectionRevision, 0),
+      int(world.rosterSchemaVersion, 0), int(world.rosterMembershipSchemaVersion, 0),
+      int(world.lastAdvancedTo, 0), int(world.lastCompletedSeason, 0),
+      Object.keys(world.clubs || {}).length,
       Object.keys(world.players || {}).length, (world.completedSeasons || []).length,
       Object.keys(matchesBySeason).length, Array.isArray(currentMatches) ? currentMatches.length : -1,
       hasStats ? statsSeason : 0, (statsBySeason[String(statsSeason)] || []).length,

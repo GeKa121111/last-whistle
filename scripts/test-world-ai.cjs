@@ -2000,6 +2000,16 @@ assert.notStrictEqual(updatedRevisionDashboard, firstRevisionDashboard,
 assert.equal(updatedRevisionDashboard.leagueTable[0]?.club, "DASHBOARD-FIRST-DIVISION-UPDATED",
   "dashboard rows must refresh after a projection revision even when collection sizes are unchanged");
 
+// Competition summaries are also part of the cached dashboard contract. They can be
+// restored or refreshed independently of the fixture count in older persisted saves.
+dashboardRevisionWorld.competitionsBySeason = dashboardRevisionWorld.competitionsBySeason || {};
+dashboardRevisionWorld.competitionsBySeason[dashboardYear] = [{ id: "dashboard-competition-cache-regression" }];
+const updatedCompetitionDashboard = ai.dashboard(dashboardRevisionSave, db);
+assert.notStrictEqual(updatedCompetitionDashboard, updatedRevisionDashboard,
+  "adding current-season competitions must invalidate the cached dashboard summary");
+assert.equal(updatedCompetitionDashboard.competitionsSimulated, 1,
+  "the dashboard must report newly restored current-season competitions");
+
 
 // Older saved worlds may still contain Japan/AFC data. Keep it out of active simulation,
 // but archive the club, player history, statistics and competition records without data loss.

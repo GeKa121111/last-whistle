@@ -2260,6 +2260,137 @@ assert.equal(duplicateAdvance.alreadyAdvanced, true, "the same season transition
 assert.equal(duplicateAdvance.moves.length, 0);
 assert.equal(world.transfers.length, oldTransferCount + transition.moves.length, "reopening the same market must not duplicate deals");
 
+// A failed paid market can be retried after player development has already run.
+// The same season must not age players or decrement their contracts a second time.
+const developmentRetryPlayerId = "development-retry-player";
+const developmentRetryWorld = {
+  players: {
+    [developmentRetryPlayerId]: {
+      id: developmentRetryPlayerId, name: "Development Retry Player",
+      clubId: "development-retry-club", age: 22, contractSeasons: 3,
+      ovr: 70, potential: 80, position: "ST", group: "attacker",
+      retired: false, freeAgent: false, transferListed: false, lastRating: 0
+    }
+  },
+  clubs: {
+    "development-retry-club": {
+      id: "development-retry-club", name: "Development Retry Club",
+      power: 70, roster: [developmentRetryPlayerId]
+    }
+  },
+  seasonStats: { "4": [{ id: developmentRetryPlayerId, appearances: 20, averageRating: 7.5 }] },
+  notes: [], lastDevelopedSeason: 0
+};
+sandbox.window.__lwTestDevelopPlayers(developmentRetryWorld, 4);
+const developmentRetryFirstResult = JSON.stringify(developmentRetryWorld);
+assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].age, 23);
+assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].contractSeasons, 2);
+assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].ovr, 72);
+sandbox.window.__lwTestDevelopPlayers(developmentRetryWorld, 4);
+assert.equal(JSON.stringify(developmentRetryWorld), developmentRetryFirstResult,
+  "retrying a failed season transition must not repeat player aging, development, or contract deductions");
+sandbox.window.__lwTestDevelopPlayers(developmentRetryWorld, 5);
+assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].age, 24,
+  "the development marker must still allow the following season to progress");
+assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].contractSeasons, 1);
+
+// A free-agent history write can fail after the paid market has advanced the world.
+// The failed free-agent phase must be retryable without replaying player development.
+const retrySeasonClubId = "retry-season-recovery-club";
+const retrySeasonCountry = String(rosterMigrationLeague.country || "Testland");
+const retrySeasonPlayers = {};
+const retrySeasonRoster = [];
+const retrySeasonRoles = [
+  { id: "retry-season-keeper", group: "goalkeeper", position: "حارس مرمى", age: 22 },
+  ...Array.from({ length: 6 }, (_, i) => ({ id: "retry-season-def-" + i, group: "defender", position: "قلب دفاع", age: 24 })),
+  ...Array.from({ length: 5 }, (_, i) => ({ id: "retry-season-mid-" + i, group: "midfielder", position: "وسط مهاجم", age: 24 })),
+  ...Array.from({ length: 5 }, (_, i) => ({ id: "retry-season-att-" + i, group: "attacker", position: "رأس حربة", age: 24 }))
+];
+retrySeasonRoles.forEach((row, index) => {
+  retrySeasonPlayers[row.id] = {
+    id: row.id, name: "Retry Season Player " + index, clubId: retrySeasonClubId,
+    country: retrySeasonCountry, leagueId: rosterMigrationLeagueId, division: 1,
+    position: row.position, group: row.group, ovr: 60 + (index % 5),
+    potential: 72 + (index % 5), age: row.age, contractSeasons: 3,
+    retired: false, freeAgent: false, transferListed: false, isGenerated: true
+  };
+  retrySeasonRoster.push(row.id);
+});
+const retryFreeAgentId = "retry-season-free-agent";
+retrySeasonPlayers[retryFreeAgentId] = {
+  id: retryFreeAgentId, name: "Retry Season Free Agent", clubId: "",
+  country: retrySeasonCountry, leagueId: "", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 70,
+  age: 25, contractSeasons: 0, retired: false, freeAgent: true,
+  freeAgentSince: 1, previousClubId: "missing-former-club", transferListed: false
+};
+let failRetryFreeAgentHistoryWrite = true;
+const retryTransferHistoryBacking = {};
+const retryTransferHistory = new Proxy(retryTransferHistoryBacking, {
+  set(target, key, value) {
+    target[key] = value;
+    if (failRetryFreeAgentHistoryWrite) {
+      failRetryFreeAgentHistoryWrite = false;
+      throw new Error("forced retry free-agent history failure");
+    }
+    return true;
+  }
+});
+const retrySeasonWorld = {
+  schemaVersion: ai.version, dbVersion: Number(db.version) || 0,
+  currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0,
+  lastDevelopedSeason: 0, lastFreeAgentMarketSeason: 0,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  clubs: {
+    [retrySeasonClubId]: {
+      id: retrySeasonClubId, name: "Retry Season Recovery Club",
+      country: retrySeasonCountry, leagueId: rosterMigrationLeagueId,
+      division: 1, leagueName: String(rosterMigrationLeague.name || "Retry League"),
+      leagueEnglish: String(rosterMigrationLeague.englishName || rosterMigrationLeague.name || "Retry League"),
+      matchesPerSeason: 30, power: 60, basePower: 60, prestige: 50,
+      budget: 0, currency: "€", updatedSeason: 1, roster: retrySeasonRoster
+    }
+  },
+  players: retrySeasonPlayers, playerHistory: {},
+  transferClubHistoryByPlayer: retryTransferHistory, transferClubHistorySchemaVersion: 1,
+  seasonStats: {}, leagueTables: {}, completedSeasons: [],
+  matchesBySeason: {}, competitionsBySeason: {}, promotionHistory: [],
+  transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+};
+const retrySeasonSave = { season: 1, worldSimulation: retrySeasonWorld };
+const retrySeasonKeeper = retrySeasonWorld.players["retry-season-keeper"];
+assert.throws(() => ai.advanceToSeason(retrySeasonSave, 2, db),
+  /forced retry free-agent history failure/,
+  "a failed free-agent endpoint write must surface instead of silently losing the signing phase");
+assert.equal(retrySeasonWorld.currentSeason, 2,
+  "the paid market may already have advanced the world before free-agent recruitment fails");
+assert.equal(retrySeasonWorld.lastDevelopedSeason, 1,
+  "the completed player-development phase must be recorded before the market retry");
+assert.equal(retrySeasonKeeper.age, 23);
+assert.equal(retrySeasonKeeper.contractSeasons, 2);
+assert.equal(retrySeasonWorld.lastFreeAgentMarketSeason, 0,
+  "a failed free-agent phase must remain marked as pending");
+assert.equal(retrySeasonWorld.players[retryFreeAgentId].clubId, "",
+  "a failed free-agent transaction must restore the unattached player");
+const retriedSeasonTransition = ai.advanceToSeason(retrySeasonSave, 2, db);
+assert.equal(retriedSeasonTransition.alreadyAdvanced, true,
+  "retrying the same season must resume the unfinished free-agent phase without replaying the paid market");
+assert.equal(retrySeasonWorld.lastFreeAgentMarketSeason, 2);
+assert.equal(retrySeasonWorld.players[retryFreeAgentId].clubId, retrySeasonClubId,
+  "the free agent must sign successfully when the failed phase is retried");
+assert.equal(retrySeasonKeeper.age, 23,
+  "retrying the free-agent phase must not age already-developed players again");
+assert.equal(retrySeasonKeeper.contractSeasons, 2,
+  "retrying the free-agent phase must not deduct another contract season");
+assert.equal(retrySeasonWorld.transfers.filter(move => move.playerId === retryFreeAgentId).length, 1,
+  "the retried free-agent signing must be recorded exactly once");
+const completedRetrySeason = ai.advanceToSeason(retrySeasonSave, 2, db);
+assert.equal(completedRetrySeason.alreadyAdvanced, true);
+assert.equal(retrySeasonWorld.transfers.filter(move => move.playerId === retryFreeAgentId).length, 1,
+  "reopening a completed market must not sign the same free agent twice");
+
+
 // LocalStorage round-trip must preserve transfer logs, player history, and both
 // season snapshots. Re-opening the same season after reload must remain idempotent.
 const reloadedSave = JSON.parse(JSON.stringify(save));

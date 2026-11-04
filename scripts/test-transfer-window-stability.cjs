@@ -319,6 +319,34 @@ vm.runInContext(
   sameNameDifferentCountry,
   { filename: "same-name-cross-country-transfer" }
 );
+// A new club's contract must not inherit the old club's renewal decision for this season.
+const oneSeasonContractTransferScenario = {
+  ...sameNameDifferentCountry,
+  state: {
+    ...sameNameDifferentCountry.state,
+    contractDecisionSeason: 4,
+    pendingTransfer: {
+      ...sameNameDifferentCountry.state.pendingTransfer,
+      contractSeasons: 1
+    },
+    transferOffers: [], transferHistory: []
+  }
+};
+vm.createContext(oneSeasonContractTransferScenario);
+vm.runInContext(
+  transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n" + transferToSource,
+  oneSeasonContractTransferScenario,
+  { filename: "one-season-transfer-renewal-reset" }
+);
+oneSeasonContractTransferScenario.transferTo();
+assert.equal(oneSeasonContractTransferScenario.state.contractSeasons, 1,
+  "the destination's one-season contract must remain intact after signing");
+assert.equal(oneSeasonContractTransferScenario.state.contractDecisionSeason, 0,
+  "a permanent transfer must clear the previous club's same-season renewal decision");
+assert.notEqual(Number(oneSeasonContractTransferScenario.state.contractDecisionSeason),
+  Number(oneSeasonContractTransferScenario.state.season),
+  "the destination club must be allowed to offer renewal at the end of the current season");
+
 // A negotiated zero signing bonus is a real contract term, not a request for the
 // legacy two-week-wage fallback. Missing legacy values must still retain that fallback.
 const zeroSigningBonusScenario = {
@@ -1462,7 +1490,7 @@ assert.equal(cleanRetirement.counts.persistence, 1);
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v461";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v462";'),
   "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");

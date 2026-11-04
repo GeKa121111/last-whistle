@@ -5997,6 +5997,13 @@ function renderLeaderboardTable(rows,kind){
   sorted.slice(0,10).map((row,index)=>'<tr class="'+(row.isUser?"me":"")+'"><td>'+(index+1)+'</td><td>'+safeHTML(row.name)+(row.isUser?' <span class="pill">أنت</span>':"")+'</td><td>'+safeHTML(row.club||"")+'</td><td><b>'+Number(row.goals||0)+'</b></td><td>'+Number(row.assists||0)+'</td><td>'+Number(row.averageRating||0).toFixed(2)+'</td></tr>').join("")+
   '</tbody></table></div>';
 }
+function cupHistoryForCompetition(comp){
+ if(!comp)return undefined;
+ const history=Array.isArray(state.cupHistory)?state.cupHistory:[];
+ return history.find(row=>row&&row.name===comp.name&&Number(row.season)===Number(state.season)
+  &&(!row.club||row.club===state.clubName)
+  &&(!row.country||row.country===state.leagueCountry));
+}
 function renderCurrentCompetitions(){
  const box=$("currentCompetitions");if(!box)return;
  const sorted=[...(Array.isArray(state.league)?state.league:[])].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
@@ -6006,7 +6013,7 @@ function renderCurrentCompetitions(){
  const eligible=typeof competitionsForCurrentClub==="function"?(competitionsForCurrentClub()||[]):[];
  for(const comp of eligible){
   if(!comp||comp.kind==="world"&&comp.id!=="fifa-club-world-cup")continue;
-  const history=(Array.isArray(state.cupHistory)?state.cupHistory:[]).find(row=>row&&row.name===comp.name&&Number(row.season)===Number(state.season)&&(!row.club||row.club===state.clubName));
+  const history=cupHistoryForCompetition(comp);
   const isActive=state.cupState&&state.cupState.name===comp.name&&!state.cupState.eliminated&&!state.cupState.champion&&!state.cupState.abandoned&&Number(state.cupState.createdSeason||state.season)===Number(state.season);
   let status=history?(history.champion?"بطل البطولة":history.eliminated?"انتهى المشوار":"انتهت البطولة"):"مجدولة";
   if(isActive)status=state.cupState.phase==="league"?"مرحلة الدوري • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):state.cupState.phase==="groups"?"دور المجموعات • "+Number(state.cupState.phasePlayed||0)+"/"+Number(state.cupState.phaseGames||0):"نشطة • "+String((state.cupState.rounds||[])[state.cupState.stage]||"الدور الحالي");

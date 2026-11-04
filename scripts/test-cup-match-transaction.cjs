@@ -50,6 +50,34 @@ const restore = extractFunction(html, "restoreSeasonTransitionState");
 const persistRollback = extractFunction(html, "persistRollbackSnapshot");
 const unsafe = extractFunction(html, "playCupMatchUnsafe");
 const wrapper = extractFunction(html, "playCupMatch");
+
+const cupHistoryLookup = extractFunction(html, "cupHistoryForCompetition");
+const competitionRenderer = extractFunction(html, "renderCurrentCompetitions");
+assert.match(competitionRenderer, /const history=cupHistoryForCompetition\\(comp\\);/,
+  "competition cards must use the club-and-country-aware cup history lookup");
+const cupHistoryLookupSandbox = {
+  state: { season: 5, clubName: "United FC", leagueCountry: "England", cupHistory: [] }
+};
+vm.createContext(cupHistoryLookupSandbox);
+vm.runInContext(cupHistoryLookup + "\\nglobalThis.findCupHistoryForTest = cupHistoryForCompetition;",
+  cupHistoryLookupSandbox, { filename: "cup-history-country-identity.js" });
+cupHistoryLookupSandbox.state.cupHistory = [
+  { name: "National Cup", season: 5, club: "United FC", country: "Scotland", champion: true },
+  { name: "National Cup", season: 5, club: "United FC", country: "England", eliminated: true }
+];
+assert.equal(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }).country, "England",
+  "a same-named club in another country must not supply this club's cup outcome");
+cupHistoryLookupSandbox.state.cupHistory = [
+  { name: "National Cup", season: 5, club: "United FC", country: "Scotland", champion: true }
+];
+assert.equal(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }), undefined,
+  "a foreign club's cup win must not appear in the current club's competition list");
+cupHistoryLookupSandbox.state.cupHistory = [
+  { name: "National Cup", season: 5, club: "United FC", eliminated: true }
+];
+assert.ok(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }),
+  "legacy cup records without country metadata must remain readable");
+
 assert.match(wrapper, /cloneSeasonTransitionState\(state\)/,
   "cup settlement must snapshot the complete career before it starts");
 assert.match(wrapper, /restoreSeasonTransitionState\(snapshot\)/,

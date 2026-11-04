@@ -82,13 +82,22 @@
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
   }
 
+  // Keep every supported legacy ID form when rows are projected and deduplicated.
+  function stablePlayerId(player) {
+    player = player || {};
+    for (const value of [player.id, player.playerId, player.uid]) {
+      if (value === undefined || value === null) continue;
+      const id = String(value).trim();
+      if (id) return id;
+    }
+    return "";
+  }
+
   // Player names and club names are not globally unique. Prefer the stable player
   // ID; legacy rows fall back to country, position, age and shirt/birth details.
   function playerIdentityKey(player) {
     player = player || {};
-    const rawId = player.id != null && player.id !== "" ? player.id
-      : player.playerId != null && player.playerId !== "" ? player.playerId : player.uid;
-    const id = String(rawId == null ? "" : rawId).trim();
+    const id = stablePlayerId(player);
     if (id) return "id|" + normalized(id);
     const ageValue = Number(player.age);
     const age = Number.isFinite(ageValue) && ageValue > 0 ? String(Math.floor(ageValue)) : "";
@@ -108,9 +117,7 @@
   // role production rates still distinguish strikers, mobile forwards and midfielders.
   function playerProjectionKey(player) {
     player = player || {};
-    const rawId = player.id != null && player.id !== "" ? player.id
-      : player.playerId != null && player.playerId !== "" ? player.playerId : player.uid;
-    const id = String(rawId == null ? "" : rawId).trim();
+    const id = stablePlayerId(player);
     if (id) return "id|" + normalized(id);
     const ageValue = Number(player.age);
     const age = Number.isFinite(ageValue) && ageValue > 0 ? String(Math.floor(ageValue)) : "";
@@ -324,7 +331,7 @@
       const averageRating = hasPlayingTime ? safeRating(saved.averageRating) : 0;
       const leagueStrength = safeStrength(player.leagueStrength);
       return {
-        id: String(player.id || player.playerId || ""),
+        id: stablePlayerId(player),
         name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
         age: estimatedAge(player, season), ovr, appearances, minutes, goals, assists,
@@ -361,7 +368,7 @@
       ? rating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + competitionStrength * 0.035 + prestige * 0.018
       : 0;
     return {
-      id: String(player.id || player.playerId || ""),
+      id: stablePlayerId(player),
       name: player.name,
       club: player.clubName || player.club || "نادي غير محدد",
       country: player.country || "",
@@ -657,7 +664,7 @@
     const userAssists = hasUserPlayingTime ? safeCount(player.assists) : 0;
     const userAverageRating = hasUserPlayingTime ? safeRating(player.averageRating) : 0;
     const user = {
-      id: String(player.id || player.playerId || ""),
+      id: stablePlayerId(player),
       name: String(player.name || "لاعب المسيرة"),
       club: String(player.club || "نادي غير محدد"),
       country: String(player.country || ""),
@@ -884,7 +891,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 20,
+    version: 21,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

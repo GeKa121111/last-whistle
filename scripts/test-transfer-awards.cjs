@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 20);
+assert.equal(engine.version, 21);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -572,6 +572,23 @@ assert.equal(duplicateIdentityLeaderboard.filter(row => row.name === "No ID Shar
   "legacy rows without IDs must use country and position to avoid collapsing distinct players");
 assert.ok(duplicateIdentityLeaderboard.some(row => row.id === "shared-player-gk" && row.position === "GK"));
 assert.ok(duplicateIdentityLeaderboard.some(row => row.id === "shared-player-st" && row.position === "ST"));
+
+const uidIdentityLeaderboard = engine.buildLeagueLeaderboard({
+  season: 6,
+  progress: 1,
+  players: [
+    { uid: "legacy-uid-one", name: "UID Shared Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", ovr: 82, age: 25 },
+    { uid: "legacy-uid-two", name: "UID Shared Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", ovr: 82, age: 25 }
+  ]
+});
+assert.equal(uidIdentityLeaderboard.length, 2,
+  "UID-backed players with otherwise identical legacy fields must survive the leaderboard's second deduplication pass");
+assert.equal(new Set(uidIdentityLeaderboard.map(row => row.id)).size, 2,
+  "the leaderboard must preserve UID-backed stable identities in its output rows");
+assert.ok(uidIdentityLeaderboard.some(row => row.id === "legacy-uid-one"));
+assert.ok(uidIdentityLeaderboard.some(row => row.id === "legacy-uid-two"));
 const zeroAppearanceLeaderboard = engine.buildLeagueLeaderboard({
   season: 4,
   progress: 1,
@@ -694,6 +711,26 @@ assert.ok(duplicateAwardRows.some(row => row.position === "GK"));
 assert.ok(duplicateAwardRows.some(row => row.position === "ST"));
 assert.equal(new Set(duplicateAwardRows.map(row => row.id)).size, 3,
   "award output must retain stable player IDs when available and distinct fallback rows otherwise");
+
+const uidIdentityCeremony = engine.buildSeasonAwardCeremony({
+  season: 11,
+  player: { name: "مسيرة UID", club: "فريقي", country: "مصر", position: "مهاجم",
+    age: 23, ovr: 70, appearances: 0, minutes: 0 },
+  realPlayers: [
+    { uid: "uid-award-one", name: "UID Award Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", age: 25, ovr: 82,
+      seasonStats: { season: 11, appearances: 20, minutes: 1800, goals: 12, assists: 4, averageRating: 8 } },
+    { uid: "uid-award-two", name: "UID Award Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", age: 25, ovr: 82,
+      seasonStats: { season: 11, appearances: 20, minutes: 1800, goals: 10, assists: 3, averageRating: 7.9 } }
+  ]
+});
+const uidAwardRows = uidIdentityCeremony.ballonDor.topFive
+  .filter(row => row.name === "UID Award Player");
+assert.equal(uidAwardRows.length, 2,
+  "end-of-season awards must keep distinct UID-backed players with identical legacy identity fields");
+assert.equal(new Set(uidAwardRows.map(row => row.id)).size, 2,
+  "award output must expose each UID-backed player's stable identity");
 const zeroMinuteCeremony = engine.buildSeasonAwardCeremony({
   season: 9,
   player: {

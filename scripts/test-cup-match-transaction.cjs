@@ -78,6 +78,44 @@ cupHistoryLookupSandbox.state.cupHistory = [
 assert.ok(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }),
   "legacy cup records without country metadata must remain readable");
 
+const closeCupFunction = extractFunction(html, "closeUnfinishedCupAtSeasonEnd");
+function runSeasonEndCupClosure(existingHistory) {
+  const sandbox = {
+    state: {
+      season: 5, clubName: "United FC", leagueCountry: "England", leagueDivision: 1,
+      cupHistory: existingHistory,
+      cupState: {
+        name: "National Cup", createdSeason: 5, champion: false,
+        eliminated: false, abandoned: false, matchesPlayed: 4, history: []
+      }
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(closeCupFunction + "\\nglobalThis.closeCupForTest = closeUnfinishedCupAtSeasonEnd;",
+    sandbox, { filename: "season-end-cup-history-identity.js" });
+  assert.equal(sandbox.closeCupForTest(), true);
+  return sandbox.state.cupHistory;
+}
+const foreignSeasonEndCup = runSeasonEndCupClosure([
+  { name: "National Cup", season: 5, club: "United FC", country: "Scotland", champion: true }
+]);
+assert.equal(foreignSeasonEndCup.length, 2,
+  "a same-named cup record from another country must not suppress the current club's season-end record");
+assert.equal(foreignSeasonEndCup[0].club, "United FC");
+assert.equal(foreignSeasonEndCup[0].country, "England");
+assert.equal(foreignSeasonEndCup[0].division, 1);
+const sameSeasonEndCup = runSeasonEndCupClosure([
+  { name: "National Cup", season: 5, club: "United FC", country: "England", eliminated: true }
+]);
+assert.equal(sameSeasonEndCup.length, 1,
+  "season-end cup closure must remain idempotent for the same club and country");
+const legacySeasonEndCup = runSeasonEndCupClosure([
+  { name: "National Cup", season: 5, eliminated: true }
+]);
+assert.equal(legacySeasonEndCup.length, 2,
+  "an unidentified legacy row must not be treated as proof that this club's cup was archived");
+
+
 assert.match(wrapper, /cloneSeasonTransitionState\(state\)/,
   "cup settlement must snapshot the complete career before it starts");
 assert.match(wrapper, /restoreSeasonTransitionState\(snapshot\)/,

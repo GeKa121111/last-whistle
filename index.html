@@ -5367,9 +5367,13 @@ function activeCupInProgress(){return !!(state.cupState&&!state.cupState.champio
 function closeUnfinishedCupAtSeasonEnd(){
  const c=state.cupState;if(!c||c.champion||c.eliminated||c.abandoned)return false;
  const cupSeason=Number(c.createdSeason)||Number(state.season);
+ const clubName=String(state.clubName||"").trim(),country=String(state.leagueCountry||"").trim();
  c.eliminated=true;c.abandoned=true;c.closedReason="season-end";c.history=Array.isArray(c.history)?c.history:[];c.history.push("أُغلقت البطولة مع نهاية الموسم قبل استكمالها.");
  state.cupHistory=Array.isArray(state.cupHistory)?state.cupHistory:[];
- if(!state.cupHistory.some(row=>row&&row.name===c.name&&Number(row.season)===cupSeason))state.cupHistory.unshift({name:c.name,season:cupSeason,champion:false,eliminated:true,abandoned:true,matches:Number(c.matchesPlayed)||0,reason:"انتهاء الموسم قبل إكمال البطولة"});
+ const sameCupIdentity=row=>!!row&&row.name===c.name&&Number(row.season)===cupSeason
+  &&!!clubName&&!!country&&String(row.club||"").trim()===clubName
+  &&String(row.country||"").trim()===country;
+ if(!state.cupHistory.some(sameCupIdentity))state.cupHistory.unshift({name:c.name,season:cupSeason,champion:false,eliminated:true,abandoned:true,matches:Number(c.matchesPlayed)||0,club:clubName,country,division:Number(state.leagueDivision)||1,reason:"انتهاء الموسم قبل إكمال البطولة"});
  state.cupHistory=state.cupHistory.slice(0,100);return true;
 }
 function archiveCupForTransfer(){

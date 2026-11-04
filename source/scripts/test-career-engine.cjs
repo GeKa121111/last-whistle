@@ -2510,6 +2510,38 @@ const contractDecisionCases = [
     offer: { club: "Test FC", season: 5, wage: 650, seasons: 3 }
   },
   {
+    name: "partial offer missing pending season",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", wage: 650, seasons: 3 }
+  },
+  {
+    name: "partial offer missing pending duration",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 650, seasons: 5 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, wage: 650 }
+  },
+  {
+    name: "partial offer missing pending wage",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { club: "Test FC", season: 5, seasons: 3 }
+  },
+  {
+    name: "partial offer missing pending club",
+    expected: "stale-offer",
+    state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5,
+      contractOffer: { club: "Test FC", season: 5, wage: 650, seasons: 3 } },
+    decision: "accept",
+    offer: { season: 5, wage: 650, seasons: 3 }
+  },
+  {
     name: "missing accepted wage",
     expected: "invalid-offer",
     state: { freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500, clubName: "Test FC", season: 5 },
@@ -2527,6 +2559,18 @@ for (const engine of [career, deployedCareer]) {
     assert.equal(result.ok, false, testCase.name + " must not be accepted");
     assert.equal(JSON.stringify(state), before, testCase.name + " must not mutate the saved contract");
   }
+}
+for (const engine of [career, deployedCareer]) {
+  const savedOffer = { club: "Test FC", season: 5, wage: 650, seasons: 3 };
+  const clonedOfferState = {
+    freeAgent: false, retired: false, contractSeasons: 1, weeklyWage: 500,
+    clubName: "Test FC", season: 5, contractOffer: savedOffer
+  };
+  const clonedOfferResult = engine.resolveContractDecision(clonedOfferState, "accept", { ...savedOffer });
+  assert.equal(clonedOfferResult.status, "renewed",
+    "a complete cloned copy of the current saved contract offer must remain acceptable");
+  assert.equal(clonedOfferState.weeklyWage, 650);
+  assert.equal(clonedOfferState.contractSeasons, 4);
 }
 for (const engine of [career, deployedCareer]) {
   const zeroTermRenewal = { weeklyWage: 500, contractSeasons: 0, freeAgent: false, clubName: "Test FC" };

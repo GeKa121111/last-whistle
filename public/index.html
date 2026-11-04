@@ -2480,8 +2480,8 @@ function seasonAwards(state, league, teamRank) {
       const keys = ["club", "season", "wage", "seasons"];
       const matchesPending = keys.every(key => {
         const pendingValue = pendingOffer[key], suppliedValue = offer[key];
-        if (pendingValue === undefined || pendingValue === null || pendingValue === ""
-          || suppliedValue === undefined || suppliedValue === null || suppliedValue === "") return true;
+        if (pendingValue === undefined || pendingValue === null || pendingValue === "") return true;
+        if (suppliedValue === undefined || suppliedValue === null || suppliedValue === "") return false;
         return key === "club"
           ? String(pendingValue).trim() === String(suppliedValue).trim()
           : Number(pendingValue) === Number(suppliedValue);

@@ -1386,9 +1386,13 @@ assert.deepEqual(archiveReplaceWorld.archive.playerHistory[archiveReplacePlayerI
   "career history must be archived when its generated player is replaced");
 assert.ok(!Object.prototype.hasOwnProperty.call(archiveReplaceWorld.playerHistory, archiveReplacePlayerId),
   "archived career history must not remain duplicated in the active player-history map");
-assert.deepEqual(archiveReplaceWorld.archive.seasonStats["5"], [archiveReplaceSeasonRow],
+assert.equal(archiveReplaceWorld.archive.seasonStats["5"].length, 1,
   "all saved season statistics for the replaced player must be archived");
-assert.deepEqual(archiveReplaceWorld.seasonStats["5"], [],
+assert.equal(archiveReplaceWorld.archive.seasonStats["5"][0].id, archiveReplacePlayerId,
+  "the archived season row must retain its original player ID");
+assert.equal(archiveReplaceWorld.archive.seasonStats["5"][0].goals, 7,
+  "the archived season row must retain its original performance totals");
+assert.equal(archiveReplaceWorld.seasonStats["5"].length, 0,
   "replaced-player statistics must leave the active season table after being archived");
 assert.ok(archiveReplaceWorld.transfers.some(row => row.playerId === archiveReplacePlayerId),
   "the existing transfer ledger must remain intact after a generated player is archived");

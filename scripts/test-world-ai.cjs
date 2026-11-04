@@ -53,6 +53,7 @@ const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress 
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
 const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
 const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
+const knockoutMarker = "  function knockout(world, season, def, participants) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
@@ -65,6 +66,7 @@ assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain pr
 assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(matchSeasonMarker), "AI engine must retain the match-based season simulator for division-status regression coverage");
 assert.ok(aiSourceRaw.includes(competitionHistoryMarker), "AI engine must retain four seasons of continental qualification history");
+assert.ok(aiSourceRaw.includes(knockoutMarker), "AI engine must retain the knockout resolver for fair cup tiebreak regression coverage");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 const aiSource = aiSourceRaw
@@ -85,6 +87,7 @@ const aiSource = aiSourceRaw
   .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
   .replace(matchSeasonMarker, "  global.__lwTestSimulateLeagueSeason = simulateLeagueSeason;\n" + matchSeasonMarker)
   .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
+  .replace(knockoutMarker, "  global.__lwTestKnockout = knockout;\n" + knockoutMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
   .replace(projectionCacheMarker, projectionCacheMarker)
   .replace("    if (!cached.rows.has(targetSeason)) {", "    if (!cached.rows.has(targetSeason)) {\n      global.__lwSeasonProjectionBuilds = (global.__lwSeasonProjectionBuilds || 0) + 1;");
@@ -3315,6 +3318,25 @@ assert.ok(firstTierCup.participants.every(id => id.startsWith("cup-first-")),
 
 assert.equal(Object.keys(cupWorld.players).length, 0,
   "cup participant selection must not fabricate player records");
+
+// A seeded 1-1 cup final (season 14) exposed a chained-random-draw bias:
+// the old resolver awarded the home side about 70% of tied knockout matches.
+const tieBreakClubA = { id: "testland|a", name: "Tie Break A", power: 70 };
+const tieBreakClubB = { id: "testland|b", name: "Tie Break B", power: 70 };
+const tieBreakWorld = { clubs: {
+  [tieBreakClubA.id]: tieBreakClubA,
+  [tieBreakClubB.id]: tieBreakClubB
+} };
+const tieBreakCup = sandbox.window.__lwTestKnockout(tieBreakWorld, 14, {
+  id: "test-tie-break", name: "Tie Break Cup", kind: "domestic-cup"
+}, [tieBreakClubA, tieBreakClubB]);
+const tieBreakFinal = tieBreakCup.matches[0];
+assert.equal(tieBreakFinal.homeGoals, 1,
+  "the deterministic tiebreak fixture must preserve the tied home score");
+assert.equal(tieBreakFinal.awayGoals, 2,
+  "one fair tiebreak draw must award the away side for the seeded 0.9366 result");
+assert.equal(tieBreakFinal.winnerId, tieBreakFinal.awayClubId,
+  "a tied knockout final must follow one unbiased tiebreak draw, not a home-favouring chain");
 
 const legacyCupWorld = JSON.parse(JSON.stringify(cupWorld));
 delete legacyCupWorld.clubs["cup-first-01"].division;

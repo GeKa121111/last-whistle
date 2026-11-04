@@ -110,6 +110,40 @@ competitionRendererSandbox.renderCompetitionsForTest();
 assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /أُغلقت البطولة دون اكتمالها/,
   "an abandoned cup from the current season must still be shown as closed");
 
+const activeCupRenderer = extractFunction(html, "renderActiveCup");
+const activeCupBox = { innerHTML: "" };
+const activeCupSandbox = {
+  state: {
+    season: 6, calendarEvents: [],
+    cupState: {
+      name: "National Cup", createdSeason: 5, champion: false,
+      eliminated: false, abandoned: true, phase: "knockout",
+      rounds: ["Final"], stage: 0, history: [], points: 0, gf: 0, gd: 0
+    }
+  },
+  activeCupBox,
+  $: id => id === "cupActive" ? activeCupBox : null,
+  calendarDateLabel: () => "2026-11-04"
+};
+vm.createContext(activeCupSandbox);
+vm.runInContext(activeCupRenderer + "\\nglobalThis.renderActiveCupForTest = renderActiveCup;",
+  activeCupSandbox, { filename: "season-scoped-active-cup-panel.js" });
+activeCupSandbox.renderActiveCupForTest();
+assert.match(activeCupBox.innerHTML, /لا توجد بطولة نشطة في الموسم الحالي/,
+  "the active-cup panel must not present a previous-season cup as the current cup");
+assert.doesNotMatch(activeCupBox.innerHTML, /بطولتك الحالية|data-play-cup/,
+  "a stale previous-season cup must not expose current-cup details or a match action");
+activeCupSandbox.state.cupState.createdSeason = 6;
+activeCupSandbox.renderActiveCupForTest();
+assert.match(activeCupBox.innerHTML, /بطولتك الحالية/,
+  "a current-season cup must remain visible in the active-cup panel");
+assert.match(activeCupBox.innerHTML, /أُغلقت البطولة دون اكتمالها/,
+  "a current-season abandoned cup must retain its closed status");
+activeCupSandbox.state.cupState.abandoned = false;
+activeCupSandbox.renderActiveCupForTest();
+assert.match(activeCupBox.innerHTML, /data-play-cup/,
+  "a current-season active cup must retain its playable match action");
+
 const closeCupFunction = extractFunction(html, "closeUnfinishedCupAtSeasonEnd");
 function runSeasonEndCupClosure(existingHistory) {
   const sandbox = {

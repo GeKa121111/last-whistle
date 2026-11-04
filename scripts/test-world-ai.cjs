@@ -2296,6 +2296,8 @@ cupDb.simulationCupDefinitions = () => [
     countries: ["test-cup-league"], lower: false },
   { id: "test-domestic-supercup", name: "Test Domestic Super Cup", kind: "supercup",
     confederation: "CAF", countries: ["test-cup-league"], qualifierCupId: "test-first-tier-cup" },
+  { id: "test-domestic-all-tier-supercup", name: "Test All-Tier Domestic Super Cup", kind: "supercup",
+    confederation: "CAF", countries: ["test-cup-league"], qualifierCupId: "test-all-tier-cup" },
   { id: "test-continental-supercup", name: "Test Continental Super Cup", kind: "supercup",
     confederation: "CAF", qualifierCompetitionIds: ["valid-caf-champion-1", "valid-caf-champion-2"] }
 ];
@@ -2333,8 +2335,8 @@ cupWorld.competitionsBySeason["2"] = [
 const yearThreeCompetitions = ai.seasonCompetitions(cupSave, 3, cupDb);
 const doubleWinnerSupercup = yearThreeCompetitions.find(row => row.id === "test-domestic-supercup");
 assert.ok(doubleWinnerSupercup, "a domestic double winner must still produce a two-club supercup");
-assert.deepEqual([...doubleWinnerSupercup.participants].sort(), ["cup-first-01", "cup-second-05"],
-  "a domestic double winner must be paired with the domestic cup runner-up");
+assert.deepEqual([...doubleWinnerSupercup.participants].sort(), ["cup-first-01", "cup-first-02"],
+  "a first-tier-only cup must reject a lower-division runner-up and use the verified league runner-up instead");
 
 
 // A malformed prior-season table must not inject a foreign or lower-division club into a domestic supercup.
@@ -2428,12 +2430,16 @@ cupWorld.leagueTables["9"] = {
   ]
 };
 cupWorld.competitionsBySeason["9"] = [
-  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-second-01" }
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-second-01" },
+  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-second-01" }
 ];
-const lowerTierCupRunnerUpSupercup = ai.seasonCompetitions(cupSave, 10, cupDb)
-  .find(row => row.id === "test-domestic-supercup");
+const tierEligibilitySupercups = ai.seasonCompetitions(cupSave, 10, cupDb);
+const firstTierCupRunnerUpSupercup = tierEligibilitySupercups.find(row => row.id === "test-domestic-supercup");
+assert.deepEqual([...firstTierCupRunnerUpSupercup.participants].sort(), ["cup-first-01", "cup-first-02"],
+  "a first-tier-only cup must not qualify its second-division runner-up");
+const lowerTierCupRunnerUpSupercup = tierEligibilitySupercups.find(row => row.id === "test-domestic-all-tier-supercup");
 assert.ok(lowerTierCupRunnerUpSupercup && lowerTierCupRunnerUpSupercup.participants.includes("cup-second-01"),
-  "same-league lower-tier cup runners-up must remain eligible when the cup admits lower divisions");
+  "same-league lower-tier cup runners-up remain eligible when the configured cup admits lower divisions");
 
 // A missing domestic-cup result must not be replaced with the league runner-up.
 cupWorld.leagueTables["10"] = {
@@ -2449,6 +2455,21 @@ const missingCupHistorySupercup = ai.seasonCompetitions(cupSave, 11, cupDb)
   .find(row => row.id === "test-domestic-supercup");
 assert.equal(missingCupHistorySupercup, undefined,
   "a domestic supercup must not be fabricated from the league champion and runner-up when only a secondary cup result exists");
+
+// A lower-division winner cannot qualify through a primary cup restricted to the top flight.
+cupWorld.leagueTables["11"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["11"] = [
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-second-01", runnerUpId: "cup-first-02" }
+];
+const invalidFirstTierCupWinnerSupercup = ai.seasonCompetitions(cupSave, 12, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.equal(invalidFirstTierCupWinnerSupercup, undefined,
+  "a second-division club must not qualify as champion of a first-tier-only primary cup");
 
 
 

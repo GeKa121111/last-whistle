@@ -1016,7 +1016,7 @@ const supercupFixtureWorld = {
 };
 const supercupSandbox = {
   state: { season: 2, worldSimulation: supercupFixtureWorld },
-  window: { LWWorldDB: { simulationCupDefinitions: () => [{ id: "egypt-cup", name: "كأس مصر" }] } }
+  window: { LWWorldDB: { simulationCupDefinitions: () => [{ id: "egypt-cup", name: "كأس مصر", kind: "domestic-cup", lower: true }] } }
 };
 vm.createContext(supercupSandbox);
 vm.runInContext(supercupHelperSource, supercupSandbox, { filename: "supercup-qualification-ui" });

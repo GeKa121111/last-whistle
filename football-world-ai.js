@@ -5,7 +5,7 @@
 (function (global) {
   "use strict";
   const VERSION = 1;
-  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 4;
+  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 5;
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -221,6 +221,14 @@
       return true;
     });
   }
+  function syncPlayerClubMetadata(player, club) {
+    if (!player || !club) return;
+    const country = String(club.country || "").trim();
+    const leagueId = String(club.leagueId || "").trim();
+    if (country) player.country = country;
+    if (leagueId) player.leagueId = leagueId;
+    player.division = divisionForClub(club);
+  }
   function normalizeRosterMembership(world) {
     if (!world || !world.clubs || !world.players) return world;
     const memberships = new Map();
@@ -269,14 +277,13 @@
         if (!owner.roster.some(rosterId => String(rosterId) === String(id))) {
           owner.roster.push(String(id));
         }
+        syncPlayerClubMetadata(player, owner);
         return;
       }
       if (candidates.length === 1) {
         const clubId = candidates[0], club = world.clubs[clubId];
         player.clubId = clubId;
-        if (!String(player.country || "").trim()) player.country = String(club.country || "");
-        if (!String(player.leagueId || "").trim()) player.leagueId = String(club.leagueId || "");
-        if (!(Number(player.division) > 0)) player.division = divisionForClub(club);
+        syncPlayerClubMetadata(player, club);
       } else if (candidates.length > 1) {
         // Keep the player record, but do not assign an ambiguous legacy player to two clubs.
         ambiguous.add(String(id));

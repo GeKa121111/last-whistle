@@ -143,7 +143,18 @@ function scopedCupSandbox(country, clubName) {
     clubNameForLeague: () => clubName
   };
   context.previousSeasonLeagueRank = () => Number(context.state.previousSeasonRank) || null;
-  context.hasPreviousSeasonClubTitle = () => false;
+  context.hasPreviousSeasonClubTitle = names => {
+    const previousSeason = (Number(context.state.season) || 1) - 1;
+    if (previousSeason < 1) return false;
+    const currentClub = String(context.clubNameForLeague() || "").trim();
+    const currentCountry = String(context.state.leagueCountry || "").trim();
+    if (!currentClub || !currentCountry) return false;
+    const wanted = Array.isArray(names) ? names : [];
+    return context.state.cupHistory.some(row =>
+      row && row.champion === true && Number(row.season) === previousSeason && wanted.includes(row.name) &&
+      String(row.club || "").trim() === currentClub && String(row.country || "").trim() === currentCountry
+    );
+  };
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "cup-participants-scoped" });
   return context;

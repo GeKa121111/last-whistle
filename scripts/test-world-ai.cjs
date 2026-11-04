@@ -77,7 +77,7 @@ const aiSource = aiSourceRaw
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
   .replace(competitionsMarker, "  global.__lwTestSimulateCompetitions = simulateCompetitions;\n" + competitionsMarker)
-  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\\n  global.__lwTestRememberTransferClubEndpoints = rememberTransferClubEndpoints;\\n" + reconcileMarker)
+  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n  global.__lwTestRememberTransferClubEndpoints = rememberTransferClubEndpoints;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
   .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
   .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker)

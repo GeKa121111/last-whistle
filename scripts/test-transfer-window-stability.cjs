@@ -41,6 +41,7 @@ const transferFactorsSource = section("function transferFactors(", "\nfunction t
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
 const requestLoanSource = section("function requestLoan(){", "\nfunction loanTo(");
 const loanToSource = transitionTransactionStub + section("function loanTo(target){", "\nfunction returnFromLoan()");
+const returnFromLoanSource = transitionTransactionStub + section("function returnFromLoan()", "\nfunction renderContract()");
 const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
 const renderTransferMarketSource = section("function renderTransferMarket(){", "\nfunction renderSquadCompetition()");
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
@@ -861,7 +862,10 @@ assert.match(validNegotiationLoanScenario.toastMessage || "", /مفاوضات ا
   "the active negotiation must keep its clear loan-blocking explanation");
 
 const loanToScenario = {
-  state: makeStaleLoanState(),
+  state: Object.assign(makeStaleLoanState(), {
+    cupState: { name: "كأس النادي الأصلي", createdSeason: 4, matchesPlayed: 4, champion: true },
+    cupHistory: []
+  }),
   window: { LWCareer: {
     loanRequestStatus: careerEngine.loanRequestStatus,
     loanTargetStatus: careerEngine.loanTargetStatus,
@@ -884,7 +888,7 @@ const loanToScenario = {
   showPage: () => {}, toast: () => {}
 };
 vm.createContext(loanToScenario);
-vm.runInContext(legacyMigrationSource + "\n" + reconciliationSource + "\n" + loanToSource, loanToScenario,
+vm.runInContext(cupArchiveSource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + loanToSource, loanToScenario,
   { filename: "reconcile-stale-negotiation-before-loan-confirmation" });
 loanToScenario.loanTo(staleLoanTarget);
 assert.equal(loanToScenario.state.pendingTransfer, null,
@@ -899,6 +903,49 @@ assert.equal(loanToScenario.state.transferNegotiation, null,
 assert.equal(loanToScenario.state.transferHistory.find(row => row && row.legacyTransferNegotiation)
   ?.legacyTransferNegotiation?.offerId, "missing-loan-offer",
   "the final loan confirmation must preserve the stale negotiation in career history");
+assert.equal(loanToScenario.state.cupState, null,
+  "a completed parent-club cup must be archived and cleared before the player joins the loan club");
+assert.equal(loanToScenario.state.cupHistory.length, 1,
+  "loan departure must preserve the parent club cup record without dropping it");
+assert.equal(loanToScenario.state.cupHistory[0].club, "نادي أ");
+assert.equal(loanToScenario.state.cupHistory[0].champion, true,
+  "the completed parent-club trophy must remain attributed to the parent club after loan");
+
+const loanReturnCupScenario = {
+  state: Object.assign(makeStaleLoanState(), {
+    clubName: "نادي ب", leagueCountry: "مصر", weeklyWage: 1500,
+    loan: {
+      parentClub: "نادي أ", parentCountry: "مصر", parentDivision: 1,
+      parentCompetition: "الدوري المصري", parentSource: "بيانات النادي الأصلي",
+      parentPower: 60, parentTier: 1, parentIndex: 1, parentWage: 1000,
+      parentContractSeasons: 2, parentFreeAgent: false,
+      parentContractType: "professional", parentRole: "أساسي"
+    },
+    cupState: { name: "كأس النادي المضيف", createdSeason: 4, matchesPlayed: 3, champion: true },
+    cupHistory: []
+  }),
+  archiveReasons: [],
+  withCareerStateTransaction: (_label, operation) => operation(),
+  archiveLeagueSegment: reason => loanReturnCupScenario.archiveReasons.push(reason),
+  normalizeSavedBooleanFlag: value => value === true || value === 1 || ["true", "1", "yes", "on"].includes(String(value).trim().toLowerCase()),
+  clubPowerFor: () => 60,
+  clubTierForPower: () => 1,
+  log: () => {}
+};
+vm.createContext(loanReturnCupScenario);
+vm.runInContext(cupArchiveSource + "\n" + returnFromLoanSource + "\nthis.returnLoanForTest = returnFromLoan;", loanReturnCupScenario,
+  { filename: "archive-host-cup-before-loan-return" });
+assert.equal(loanReturnCupScenario.returnLoanForTest(), true);
+assert.equal(loanReturnCupScenario.state.clubName, "نادي أ",
+  "loan return must restore the parent club after archiving the host cup");
+assert.equal(loanReturnCupScenario.state.cupState, null,
+  "the host club cup state must not follow the player back to the parent club");
+assert.equal(loanReturnCupScenario.state.cupHistory.length, 1,
+  "the host club cup outcome must remain in career history after loan return");
+assert.equal(loanReturnCupScenario.state.cupHistory[0].club, "نادي ب");
+assert.equal(loanReturnCupScenario.state.cupHistory[0].champion, true,
+  "a host-club trophy earned during the loan must remain attributed to the host club");
+assert.deepEqual(loanReturnCupScenario.archiveReasons, ["loan-return"]);
 
 const underageLoanState = makeStaleLoanState();
 underageLoanState.age = 17;
@@ -1490,7 +1537,7 @@ assert.equal(cleanRetirement.counts.persistence, 1);
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v462";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v463";'),
   "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");

@@ -77,6 +77,7 @@ function runLoanDivisionCase(division) {
     activeCupInProgress: () => false,
     transferWindow: () => ({ open: true }),
     seasonMatchTotal: () => 30,
+    archiveCupForTransfer: () => {},
     archiveLeagueSegment: () => {},
     clamp: value => Math.max(0, Math.min(100, Number(value) || 0)),
     clubPowerFor: () => 55,
@@ -704,6 +705,7 @@ function runBrowserLoanReturnCase(loanOverrides, stateOverrides = {}) {
   const sandbox = {
     state: current,
     withCareerStateTransaction: (_label, operation) => operation(),
+    archiveCupForTransfer: () => {},
     archiveLeagueSegment: reason => archiveReasons.push(reason),
     normalizeSavedBooleanFlag: value => value === true || value === 1
       || String(value).trim().toLowerCase() === "true" || String(value).trim() === "1",
@@ -1651,6 +1653,7 @@ function runBrowserLoanReturn(parentWage, parentContractSeasons, parentRole = "Ø
   const sandbox = {
     state,
     withCareerStateTransaction: (_label, operation) => operation(),
+    archiveCupForTransfer: () => {},
     archiveLeagueSegment: () => {},
     clubPowerFor: () => 52,
     clubTierForPower: () => 1,

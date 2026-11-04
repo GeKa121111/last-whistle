@@ -458,16 +458,28 @@
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
+    // Player history is intentionally bounded for save size, but the transfer ledger
+    // can still retain older club endpoints. Use it to keep long-career former clubs
+    // out of stale roster imports after those rows leave playerHistory.
+    const transferRowsByPlayer = new Map();
+    for (const transfer of Array.isArray(world.transfers) ? world.transfers : []) {
+      const playerId = String(transfer && transfer.playerId || "").trim();
+      if (!playerId) continue;
+      if (!transferRowsByPlayer.has(playerId)) transferRowsByPlayer.set(playerId, []);
+      transferRowsByPlayer.get(playerId).push(transfer);
+    }
     for (const player of Object.values(world.players || {})) {
       if (!player) continue;
       const isDetachedPlayer = isTrueFlag(player.retired) || isTrueFlag(player.freeAgent);
       const currentClubId = String(player.clubId || "").trim();
       const history = world.playerHistory && Array.isArray(world.playerHistory[player.id])
         ? world.playerHistory[player.id] : [];
+      const transferRows = transferRowsByPlayer.get(String(player.id || "")) || [];
       const hasFormerClubTrail = isDetachedPlayer
         || !!String(player.previousClubId || "").trim()
         || !!String(player.retiredFromClubId || "").trim()
-        || history.some(entry => !!String(entry && (entry.fromClubId || entry.from) || "").trim());
+        || history.some(entry => !!String(entry && (entry.fromClubId || entry.from) || "").trim())
+        || transferRows.some(entry => !!String(entry && (entry.fromClubId || entry.toClubId || entry.from || entry.to) || "").trim());
       if (!hasFormerClubTrail) continue;
       const identityKey = rosterIdentityKey(player);
       if (!identityKey) continue;
@@ -506,6 +518,23 @@
           if (matches.length === 1) addFormerClubId(matches[0].id);
           else if (matches.length === 0 && fromCountry) addFormerClubId(clubKey(fromName, fromCountry));
         }
+      }
+      for (const transfer of transferRows) {
+        if (!transfer) continue;
+        addFormerClubId(transfer.fromClubId);
+        addFormerClubId(transfer.toClubId);
+        const resolveFormerClubName = (name, country) => {
+          const clubName = String(name || "").trim();
+          if (!clubName) return;
+          const countryName = String(country || "").trim();
+          const matches = allClubs.filter(club =>
+            normalize(club.name) === normalize(clubName)
+            && (!countryName || normalize(club.country) === normalize(countryName)));
+          if (matches.length === 1) addFormerClubId(matches[0].id);
+          else if (matches.length === 0 && countryName) addFormerClubId(clubKey(clubName, countryName));
+        };
+        if (!String(transfer.fromClubId || "").trim()) resolveFormerClubName(transfer.from, transfer.fromCountry);
+        if (!String(transfer.toClubId || "").trim()) resolveFormerClubName(transfer.to, transfer.toCountry);
       }
       for (const clubId of clubIds) {
         if (!unavailableIdentitiesByClub.has(clubId)) unavailableIdentitiesByClub.set(clubId, new Set());

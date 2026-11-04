@@ -427,6 +427,7 @@ assert.equal(Array.from(continentalNonQualifier.cupParticipants(uefaSuperCup, 2)
 const wrongConfederationChampionWorld = JSON.parse(JSON.stringify(supercupWorld));
 wrongConfederationChampionWorld.clubs.sevilla.confederation = "CAF";
 const wrongConfederationChampion = scopedCupSandbox("إسبانيا", "ريال مدريد");
+wrongConfederationChampion.state.careerStarted = true;
 wrongConfederationChampion.state.worldSimulation = wrongConfederationChampionWorld;
 wrongConfederationChampion.state.cupHistory = [
   { name: "UEFA Champions League", season: 1, champion: true, club: "ريال مدريد", country: "إسبانيا" }

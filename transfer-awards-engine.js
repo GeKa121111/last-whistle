@@ -104,6 +104,28 @@
     ].join("|");
   }
 
+  // Statistical projections use the player's canonical role rather than the
+  // literal position label, so equivalent wording does not change a season.
+  function playerProjectionKey(player) {
+    player = player || {};
+    const rawId = player.id != null && player.id !== "" ? player.id
+      : player.playerId != null && player.playerId !== "" ? player.playerId : player.uid;
+    const id = String(rawId == null ? "" : rawId).trim();
+    if (id) return "id|" + normalized(id);
+    const ageValue = Number(player.age);
+    const age = Number.isFinite(ageValue) && ageValue > 0 ? String(Math.floor(ageValue)) : "";
+    return [
+      "fallback",
+      normalized(player.name || ""),
+      normalized(player.clubName || player.club || ""),
+      normalized(player.country || ""),
+      roleType(player.position),
+      normalized(player.birthDate || player.dateOfBirth || player.dob || ""),
+      age,
+      normalized(player.shirtNumber || player.jerseyNumber || player.number || "")
+    ].join("|");
+  }
+
   // Keep award projections consistent with the career/match engines when a
   // roster stores an English position abbreviation instead of its Arabic label.
   const POSITION_ROLE_ALIASES = Object.freeze({
@@ -230,7 +252,7 @@
     }
     const ovr = clamp(row.ovr || player.ovr || 60, 35, 99);
     const strength = safeStrength(row.leagueStrength || player.leagueStrength);
-    const random = seeded(stableHash("defense|" + season + "|" + playerIdentityKey(Object.assign({}, player, row))));
+    const random = seeded(stableHash("defense|" + season + "|" + playerProjectionKey(Object.assign({}, player, row))));
     const cleanRate = type === "keeper"
       ? clamp(0.25 + (ovr - 60) * 0.006 + (strength - 60) * 0.002 + (random() - 0.5) * 0.08, 0.12, 0.68)
       : type === "defender"
@@ -277,7 +299,7 @@
       ? Math.floor(sourcedAge)
       : Object.prototype.hasOwnProperty.call(knownYoung, name)
         ? knownYoung[name]
-        : 24 + (stableHash(playerIdentityKey(player)) % 10);
+        : 24 + (stableHash(playerProjectionKey(player)) % 10);
     const seasonNumber = Math.max(1, Math.floor(Number(season) || 1));
     // Sourced age, known-player baseline, or fallback estimate all describe the
     // player's age in season one. Advance the same baseline once per season.
@@ -316,7 +338,7 @@
     }
     const ovr = clamp(player.ovr || player.power || 60, 35, 99);
     const type = roleType(player.position);
-    const random = seeded(stableHash(season + "|" + playerIdentityKey(player)));
+    const random = seeded(stableHash(season + "|" + playerProjectionKey(player)));
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);

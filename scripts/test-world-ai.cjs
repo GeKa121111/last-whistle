@@ -2447,12 +2447,28 @@ assert.equal(retrySeasonWorld.lastFreeAgentMarketSeason, 0,
   "a failed free-agent phase must remain marked as pending");
 assert.equal(retrySeasonWorld.players[retryFreeAgentId].clubId, "",
   "a failed free-agent transaction must restore the unattached player");
+const earlyRetrySeason = sandbox.window.__lwTestSimulateLeagueSeason(retrySeasonSave, 2, db);
+assert.ok(!earlyRetrySeason.rows.some(row => row.id === retryFreeAgentId),
+  "an unattached free agent must not appear in a season snapshot generated before the market retry");
+assert.ok(Object.prototype.hasOwnProperty.call(retrySeasonWorld.matchesBySeason, "2"),
+  "the recovery fixture must materialize the pending season snapshot before retry");
+const projectionRevisionBeforeFreeAgentRetry = retrySeasonWorld.projectionRevision;
 const retriedSeasonTransition = ai.advanceToSeason(retrySeasonSave, 2, db);
 assert.equal(retriedSeasonTransition.alreadyAdvanced, true,
   "retrying the same season must resume the unfinished free-agent phase without replaying the paid market");
 assert.equal(retrySeasonWorld.lastFreeAgentMarketSeason, 2);
 assert.equal(retrySeasonWorld.players[retryFreeAgentId].clubId, retrySeasonClubId,
   "the free agent must sign successfully when the failed phase is retried");
+assert.ok(retrySeasonWorld.projectionRevision > projectionRevisionBeforeFreeAgentRetry,
+  "a retried free-agent signing must invalidate cached world-season projections");
+assert.equal(Object.prototype.hasOwnProperty.call(retrySeasonWorld.matchesBySeason, "2"), false,
+  "a retried free-agent signing must discard stale fixtures from the still-uncompleted season");
+assert.equal(Object.prototype.hasOwnProperty.call(retrySeasonWorld.seasonStats, "2"), false,
+  "a retried free-agent signing must discard stale player statistics from the still-uncompleted season");
+const refreshedRetrySeason = sandbox.window.__lwTestSimulateLeagueSeason(retrySeasonSave, 2, db);
+const refreshedFreeAgentRow = refreshedRetrySeason.rows.find(row => row.id === retryFreeAgentId);
+assert.ok(refreshedFreeAgentRow && refreshedFreeAgentRow.clubId === retrySeasonClubId,
+  "regenerating the pending season must include the newly signed free agent at the destination club");
 assert.equal(retrySeasonKeeper.age, 23,
   "retrying the free-agent phase must not age already-developed players again");
 assert.equal(retrySeasonKeeper.contractSeasons, 2,

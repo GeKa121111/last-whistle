@@ -1591,7 +1591,8 @@
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
-    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction, isTrueFlag
+    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
+    rememberTransferClubEndpoints, isTrueFlag
   });
 })(window);
 
@@ -2690,7 +2691,7 @@
         report.summary += " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";
       }
     }
-    signed.forEach(move => rememberTransferClubEndpoints(world, move));
+    signed.forEach(move => base.rememberTransferClubEndpoints(world, move));
     return signed;
     });
   }

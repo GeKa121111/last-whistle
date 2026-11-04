@@ -64,10 +64,15 @@
   });
   function recentRows(state) {
     const careerRows = Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [];
-    // Modern history is newest-first; legacy seasonLog is oldest-first.
-    // Fall back only when modern history is absent/empty to avoid mixing duplicate records.
-    const rows = careerRows.length ? careerRows :
-      Array.isArray(state && state.seasonLog) ? state.seasonLog.slice().reverse() : [];
+    const legacyRows = Array.isArray(state && state.seasonLog) ? state.seasonLog.slice().reverse()
+      .map(row => row && typeof row === "object" && !Array.isArray(row)
+        ? { ...row, scope: row.scope || "league" } : row) : [];
+    // Both sources are newest-first after reversing the legacy log. Merge them and
+    // collapse mirrored league fixtures instead of dropping legacy rows whenever a
+    // partially migrated save already contains one modern cup or international match.
+    const combinedRows = careerRows.concat(legacyRows);
+    const rows = global.LWCareer && typeof global.LWCareer.uniqueMatchRows === "function"
+      ? global.LWCareer.uniqueMatchRows(combinedRows) : combinedRows;
     return rows.filter(row => {
       if (!row) return false;
       // A zero-minute bench/suspension row is not a performance rating.
@@ -371,10 +376,13 @@
   function contextSnapshot(state, overall) {
     state = state || {};
     const careerHistory = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [];
-    // New match history is stored newest-first. Legacy seasonLog is appended oldest-first,
-    // so use it only when the newer history has no records and reverse it before slicing.
-    const raw = careerHistory.length ? careerHistory :
-      Array.isArray(state.seasonLog) ? state.seasonLog.slice().reverse() : [];
+    const legacyHistory = Array.isArray(state.seasonLog) ? state.seasonLog.slice().reverse()
+      .map(row => row && typeof row === "object" && !Array.isArray(row)
+        ? { ...row, scope: row.scope || "league" } : row) : [];
+    // Keep the modern newest-first order, then append legacy rows in reverse order.
+    // The shared career deduplicator removes mirrored fixtures while retaining older
+    // league matches that are missing from partially migrated modern histories.
+    const raw = careerHistory.concat(legacyHistory);
     const uniqueHistory = global.LWCareer && typeof global.LWCareer.uniqueMatchRows === "function"
       ? global.LWCareer.uniqueMatchRows(raw) : raw;
     const played = uniqueHistory.filter(row => row && (row.minutes == null ? num(row.rating, 0) > 0 : num(row.minutes, 0) > 0)).slice(0, 5);

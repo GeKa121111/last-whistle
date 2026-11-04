@@ -698,6 +698,9 @@ if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDecla
 for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=14", "career-experience.css?v=2", "career-experience.js?v=9", "agent-system.css?v=1", "agent-system.js?v=9", "career-hub.css?v=1", "career-hub.js?v=4", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=74", "football-world-rosters.js?v=6", "football-world-db.js?v=9", "lz-string.min.js?v=1", "career-state-store.js?v=8", "ai-career-ui.js?v=1", "football-world-worker.js?v=63", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
+if (!workerSource.includes('url.indexOf("ai-career-engine.js?") >= 0')) {
+  console.error("Updated career AI must be fetched fresh when the new PWA shell is installed."); process.exit(1);
+}
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.js", 8);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.css", 2);

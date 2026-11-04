@@ -924,6 +924,26 @@ if (!html.includes('$("seasonStageAction").addEventListener("click",()=>runSeaso
   || !html.includes('$("seasonTransferAction").addEventListener("click",()=>runSeasonJourneyAction($("seasonTransferAction").dataset.seasonAction||"transfer-review"))')) {
   console.error("Journey interaction test failed: stable button listeners are not registered."); process.exit(1);
 }
+const homeActionsIndex = html.indexOf('class="hub-home-season-actions"');
+const playerSummaryIndex = html.indexOf('class="card span5 hub-player-card"');
+const storyCardIndex = html.indexOf("<h2>حكاية اليوم</h2>");
+const seasonMapIndex = html.indexOf('class="card span12 seasonJourneyCard"');
+const transferActionIndex = html.indexOf('id="seasonTransferAction"');
+const seasonActionIndex = html.indexOf('id="seasonStageAction"');
+if (homeActionsIndex < 0 || playerSummaryIndex < 0 || seasonMapIndex < 0
+  || homeActionsIndex > playerSummaryIndex || homeActionsIndex > seasonMapIndex
+  || (storyCardIndex >= 0 && homeActionsIndex > storyCardIndex)) {
+  console.error("Home action layout failed: both season actions must stay above the player summary, daily story, and season map."); process.exit(1);
+}
+if (transferActionIndex < homeActionsIndex || seasonActionIndex < transferActionIndex
+  || (html.match(/id="seasonTransferAction"/g) || []).length !== 1
+  || (html.match(/id="seasonStageAction"/g) || []).length !== 1) {
+  console.error("Home action layout failed: show one transfer-review button before one season-stage button."); process.exit(1);
+}
+const homeActionLayoutRule = html.match(/\.hub-home-season-actions-buttons\{[^}]*\}/);
+if (!homeActionLayoutRule || !/grid-template-columns:(?:1fr|minmax\(0,1fr\))/.test(homeActionLayoutRule[0])) {
+  console.error("Home action layout failed: the two actions must stack vertically at every screen width."); process.exit(1);
+}
 if (!html.includes("const transferLockDescription=state.retired?") || !html.includes("وصلت لسن 18. اختار عقد الفريق الأول أو موسم الرديف") || !html.includes("أنت في موسم الرديف.")) {
   console.error("Transfer eligibility UI must explain the exact age, graduation, or reserve lock."); process.exit(1);
 }

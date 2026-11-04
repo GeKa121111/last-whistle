@@ -13,6 +13,46 @@ assert.ok(summaryStart >= 0 && summaryEnd > summaryStart, "cup result summary he
 const summarySource = html.slice(summaryStart, summaryEnd) + "\nthis.cupLegResultSummary = cupLegResultSummary;";
 assert.ok(html.includes("cupLegResultSummary(result,opponent,isTwoLegTie&&tieLegAtKickoff===2)"),
   "the cup flow must explain the actual leg result and aggregate result separately");
+const titleStart = html.indexOf("function hasPreviousSeasonClubTitle(names) {");
+const titleEnd = html.indexOf("\nfunction competitionLockReason", titleStart);
+assert.ok(titleStart >= 0 && titleEnd > titleStart,
+  "supercup qualification identity helper must exist");
+const titleSource = html.slice(titleStart, titleEnd)
+  + "\nthis.hasPreviousSeasonClubTitle = hasPreviousSeasonClubTitle;";
+assert.ok(html.includes("hasPreviousSeasonClubTitle(winners[comp.id] || [])"),
+  "supercup eligibility must use the club-and-country-aware title identity helper");
+const titleSandbox = {
+  state: { season: 6, leagueCountry: "Spain", cupHistory: [] },
+  clubNameForLeague: () => "United FC"
+};
+vm.createContext(titleSandbox);
+vm.runInContext(titleSource, titleSandbox, { filename: "supercup-club-country-identity" });
+const foreignCountryTitle = [
+  { name: "Copa del Rey", season: 5, club: "United FC", country: "England", champion: true }
+];
+titleSandbox.state.cupHistory = foreignCountryTitle;
+assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["Copa del Rey"]), false,
+  "a same-named club's English cup win must not qualify its Spanish club for a supercup");
+assert.deepEqual(titleSandbox.state.cupHistory, foreignCountryTitle,
+  "rejecting an ambiguous qualification must not mutate legacy cup history");
+titleSandbox.state.cupHistory = [
+  { name: "Copa del Rey", season: 5, club: "United FC", champion: true }
+];
+assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["Copa del Rey"]), false,
+  "a legacy trophy row without country metadata must not grant supercup qualification");
+titleSandbox.state.cupHistory = [
+  { name: "Copa del Rey", season: 5, country: "Spain", champion: true }
+];
+assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["Copa del Rey"]), false,
+  "a legacy trophy row without club identity must not grant supercup qualification");
+titleSandbox.state.cupHistory = [
+  { name: "Copa del Rey", season: 5, club: "United FC", country: "Spain", champion: true }
+];
+assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["Copa del Rey"]), true,
+  "the exact club, country, and season champion must retain supercup qualification");
+assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["FA Cup"]), false,
+  "a different competition must not grant supercup qualification");
+
 const start = html.indexOf("function cupParticipants(comp,count){");
 const end = html.indexOf("\nfunction cupConfig", start);
 assert.ok(start >= 0 && end > start, "cup participant builder must exist");

@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 19);
+assert.equal(engine.version, 21);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -444,6 +444,38 @@ assert.equal(regionalIdentityOffers.length, 2,
 assert.equal(regionalIdentityOffers[0].club, "نادي محلي",
   "a country label that normalizes to the player's country must receive the regional scouting advantage");
 
+const sameNameOfferBase = {
+  name: "Same Offer Player", age: 25, currentClub: "Shared FC", country: "England",
+  currentClubPower: 70, ovr: 80, potential: 82, form: 7.2,
+  appearances: 10, goals: 2, assists: 1
+};
+const sameNameOfferTargets = [
+  { club: "Target One", country: "France", power: 72, prestige: 80, division: 1 },
+  { club: "Target Two", country: "Germany", power: 74, prestige: 80, division: 1 }
+];
+const keeperIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, id: "same-offer-keeper", position: "GK" },
+  windowId: "same-name-offer-identity", targets: sameNameOfferTargets
+});
+const strikerIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, id: "same-offer-striker", position: "ST" },
+  windowId: "same-name-offer-identity", targets: sameNameOfferTargets
+});
+assert.equal(keeperIdentityOffers.length, 2);
+assert.equal(strikerIdentityOffers.length, 2);
+assert.equal(new Set([...keeperIdentityOffers, ...strikerIdentityOffers].map(offer => offer.id)).size, 4,
+  "same-name players must not receive colliding transfer-offer IDs");
+const legacyKeeperIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, position: "GK" },
+  windowId: "legacy-same-name-offer-identity", targets: sameNameOfferTargets
+});
+const legacyStrikerIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, position: "ST" },
+  windowId: "legacy-same-name-offer-identity", targets: sameNameOfferTargets
+});
+assert.notEqual(legacyKeeperIdentityOffers[0].id, legacyStrikerIdentityOffers[0].id,
+  "legacy offer rows without player IDs must still use position-aware identity keys");
+
 const invalidOfferCases = [
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },
   { label: "infinite-string appearances", player: { ...youthPlayer, appearances: "Infinity" } },
@@ -513,6 +545,50 @@ const leaderboard = engine.buildLeagueLeaderboard({
 assert.ok(leaderboard.some(row => row.isUser && row.name === "أنا"));
 assert.ok(leaderboard.some(row => row.name === "مهاجم حقيقي"));
 assert.ok(leaderboard.every(row => Number.isFinite(row.goals) && Number.isFinite(row.assists)));
+
+const duplicateIdentityLeaderboard = engine.buildLeagueLeaderboard({
+  season: 6,
+  progress: 1,
+  players: [
+    { id: "shared-player-gk", name: "Shared Identity Player", clubName: "Shared Identity FC",
+      country: "England", position: "GK", ovr: 84, age: 25 },
+    { id: "shared-player-st", name: "Shared Identity Player", clubName: "Shared Identity FC",
+      country: "England", position: "ST", ovr: 84, age: 25 },
+    { name: "No ID Shared Player", clubName: "Shared Identity FC",
+      country: "England", position: "GK", ovr: 80, age: 24 },
+    { name: "No ID Shared Player", clubName: "Shared Identity FC",
+      country: "England", position: "ST", ovr: 80, age: 24 }
+  ],
+  userLine: {
+    name: "No ID Shared Player", club: "Shared Identity FC", country: "Scotland",
+    position: "GK", ovr: 80, age: 24, appearances: 20, goals: 1, assists: 2,
+    averageRating: 7.5, leagueStrength: 70
+  }
+});
+assert.equal(duplicateIdentityLeaderboard.length, 5,
+  "same-name players must remain separate when their IDs, countries or positions differ");
+assert.equal(duplicateIdentityLeaderboard.filter(row => row.name === "Shared Identity Player").length, 2);
+assert.equal(duplicateIdentityLeaderboard.filter(row => row.name === "No ID Shared Player").length, 3,
+  "legacy rows without IDs must use country and position to avoid collapsing distinct players");
+assert.ok(duplicateIdentityLeaderboard.some(row => row.id === "shared-player-gk" && row.position === "GK"));
+assert.ok(duplicateIdentityLeaderboard.some(row => row.id === "shared-player-st" && row.position === "ST"));
+
+const uidIdentityLeaderboard = engine.buildLeagueLeaderboard({
+  season: 6,
+  progress: 1,
+  players: [
+    { uid: "legacy-uid-one", name: "UID Shared Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", ovr: 82, age: 25 },
+    { uid: "legacy-uid-two", name: "UID Shared Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", ovr: 82, age: 25 }
+  ]
+});
+assert.equal(uidIdentityLeaderboard.length, 2,
+  "UID-backed players with otherwise identical legacy fields must survive the leaderboard's second deduplication pass");
+assert.equal(new Set(uidIdentityLeaderboard.map(row => row.id)).size, 2,
+  "the leaderboard must preserve UID-backed stable identities in its output rows");
+assert.ok(uidIdentityLeaderboard.some(row => row.id === "legacy-uid-one"));
+assert.ok(uidIdentityLeaderboard.some(row => row.id === "legacy-uid-two"));
 const zeroAppearanceLeaderboard = engine.buildLeagueLeaderboard({
   season: 4,
   progress: 1,
@@ -598,6 +674,63 @@ const ceremony = engine.buildSeasonAwardCeremony({
   player: { name: "أنا", club: "فريقي", country: "مصر", position: "مهاجم", ovr: 99, age: 23, appearances: 38, goals: 52, assists: 28, averageRating: 9.4, trophies: 3, professionalism: 90, confederation: "CAF", originConfederation: "CAF", leagueStrength: 78 },
   realPlayers
 });
+
+const duplicateIdentityCeremony = engine.buildSeasonAwardCeremony({
+  season: 10,
+  player: {
+    name: "مسيرة اختبار", club: "فريقي", country: "مصر", position: "مهاجم",
+    age: 23, ovr: 70, appearances: 0, minutes: 0
+  },
+  realPlayers: [
+    {
+      id: "award-shared-gk", name: "Award Shared Player", clubName: "Shared Identity FC",
+      country: "England", position: "GK", age: 25, ovr: 82,
+      seasonStats: { season: 10, appearances: 20, minutes: 1800, goals: 0, assists: 0,
+        averageRating: 8, cleanSheets: 12, saves: 70 }
+    },
+    {
+      id: "award-shared-st", name: "Award Shared Player", clubName: "Shared Identity FC",
+      country: "England", position: "ST", age: 25, ovr: 82,
+      seasonStats: { season: 10, appearances: 20, minutes: 1800, goals: 12, assists: 4,
+        averageRating: 8 }
+    },
+    {
+      name: "Award Shared Player", clubName: "Shared Identity FC",
+      country: "Scotland", position: "ST", age: 25, ovr: 82,
+      seasonStats: { season: 10, appearances: 20, minutes: 1800, goals: 10, assists: 3,
+        averageRating: 7.8 }
+    }
+  ]
+});
+const duplicateAwardRows = duplicateIdentityCeremony.ballonDor.topFive
+  .filter(row => row.name === "Award Shared Player");
+assert.equal(duplicateAwardRows.length, 3,
+  "the end-of-season awards must retain same-name players across positions and countries");
+assert.equal(new Set(duplicateAwardRows.map(row => row.country)).size, 2);
+assert.ok(duplicateAwardRows.some(row => row.position === "GK"));
+assert.ok(duplicateAwardRows.some(row => row.position === "ST"));
+assert.equal(new Set(duplicateAwardRows.map(row => row.id)).size, 3,
+  "award output must retain stable player IDs when available and distinct fallback rows otherwise");
+
+const uidIdentityCeremony = engine.buildSeasonAwardCeremony({
+  season: 11,
+  player: { name: "مسيرة UID", club: "فريقي", country: "مصر", position: "مهاجم",
+    age: 23, ovr: 70, appearances: 0, minutes: 0 },
+  realPlayers: [
+    { uid: "uid-award-one", name: "UID Award Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", age: 25, ovr: 82,
+      seasonStats: { season: 11, appearances: 20, minutes: 1800, goals: 12, assists: 4, averageRating: 8 } },
+    { uid: "uid-award-two", name: "UID Award Player", clubName: "UID Shared FC",
+      country: "England", position: "ST", age: 25, ovr: 82,
+      seasonStats: { season: 11, appearances: 20, minutes: 1800, goals: 10, assists: 3, averageRating: 7.9 } }
+  ]
+});
+const uidAwardRows = uidIdentityCeremony.ballonDor.topFive
+  .filter(row => row.name === "UID Award Player");
+assert.equal(uidAwardRows.length, 2,
+  "end-of-season awards must keep distinct UID-backed players with identical legacy identity fields");
+assert.equal(new Set(uidAwardRows.map(row => row.id)).size, 2,
+  "award output must expose each UID-backed player's stable identity");
 const zeroMinuteCeremony = engine.buildSeasonAwardCeremony({
   season: 9,
   player: {

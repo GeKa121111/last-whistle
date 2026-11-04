@@ -2900,6 +2900,24 @@
           && Number(move.season) === next && paidIds.has(String(move.id || "")));
       }
       const freeAgentMoves = signFreeAgents(world, next, paidMoves);
+      if (freeAgentMoves.length) {
+        world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
+        const nextKey = String(next);
+        const nextSeasonAlreadyCompleted = (Array.isArray(world.completedSeasons)
+          && world.completedSeasons.some(value => Number(value) === next))
+          || Math.max(0, int(world.lastCompletedSeason, 0)) >= next;
+        if (!nextSeasonAlreadyCompleted) {
+          // A dashboard can materialize the new season while a failed free-agent phase
+          // is awaiting retry. Discard only that unfinished snapshot so signings enter
+          // the regenerated fixtures, tables, competitions, and player statistics.
+          ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"].forEach(field => {
+            const collection = world[field];
+            if (collection && typeof collection === "object" && !Array.isArray(collection)) {
+              delete collection[nextKey];
+            }
+          });
+        }
+      }
       world.lastFreeAgentMarketSeason = next;
       transition.moves = paidMoves.concat(freeAgentMoves);
       if (freeAgentMoves.length) {

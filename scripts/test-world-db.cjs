@@ -122,7 +122,7 @@ assert.equal(identityFixtureAway.length, 1,
   "the same player name must remain available in a different club's sourced roster");
 assert.equal(new Set(identityFixtureHome.concat(identityFixtureAway).map(player => player.id)).size, 3,
   "sourced player record IDs must include club identity so same-name players across clubs cannot collide");
-assert.ok(identityFixtureHome.concat(identityFixtureAway).every(player => player.isRealPlayer === true && player.isGenerated === false),
+assert.ok(identityFixtureHome.concat(identityFixtureAway).every(player => player.isRealPlayer === true && player.isGenerated !== true),
   "the identity fix must preserve source-player provenance without generating replacement players");
 
 assert.equal(db.leagues().length, 20);

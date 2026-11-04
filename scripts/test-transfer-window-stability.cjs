@@ -41,6 +41,7 @@ const transferFactorsSource = section("function transferFactors(", "\nfunction t
 const beginNegotiationSource = section("function beginTransferNegotiation(", "\nfunction negotiationTermsFromDom(");
 const requestLoanSource = section("function requestLoan(){", "\nfunction loanTo(");
 const loanToSource = transitionTransactionStub + section("function loanTo(target){", "\nfunction returnFromLoan()");
+const returnFromLoanSource = transitionTransactionStub + section("function returnFromLoan()", "\nfunction renderContract()");
 const submitNegotiationSource = section("function submitTransferNegotiation(){", "\nfunction rejectTransferOffer(");
 const renderTransferMarketSource = section("function renderTransferMarket(){", "\nfunction renderSquadCompetition()");
 const freeAgentEligibilitySource = section("function careerMatchPlayerEligible(", "\nfunction simulateCareerMatch(");
@@ -909,6 +910,42 @@ assert.equal(loanToScenario.state.cupHistory.length, 1,
 assert.equal(loanToScenario.state.cupHistory[0].club, "نادي أ");
 assert.equal(loanToScenario.state.cupHistory[0].champion, true,
   "the completed parent-club trophy must remain attributed to the parent club after loan");
+
+const loanReturnCupScenario = {
+  state: Object.assign(makeStaleLoanState(), {
+    clubName: "نادي ب", leagueCountry: "مصر", weeklyWage: 1500,
+    loan: {
+      parentClub: "نادي أ", parentCountry: "مصر", parentDivision: 1,
+      parentCompetition: "الدوري المصري", parentSource: "بيانات النادي الأصلي",
+      parentPower: 60, parentTier: 1, parentIndex: 1, parentWage: 1000,
+      parentContractSeasons: 2, parentFreeAgent: false,
+      parentContractType: "professional", parentRole: "أساسي"
+    },
+    cupState: { name: "كأس النادي المضيف", createdSeason: 4, matchesPlayed: 3, champion: true },
+    cupHistory: []
+  }),
+  archiveReasons: [],
+  withCareerStateTransaction: (_label, operation) => operation(),
+  archiveLeagueSegment: reason => loanReturnCupScenario.archiveReasons.push(reason),
+  normalizeSavedBooleanFlag: value => value === true || value === 1 || ["true", "1", "yes", "on"].includes(String(value).trim().toLowerCase()),
+  clubPowerFor: () => 60,
+  clubTierForPower: () => 1,
+  log: () => {}
+};
+vm.createContext(loanReturnCupScenario);
+vm.runInContext(cupArchiveSource + "\\n" + returnFromLoanSource + "\\nthis.returnLoanForTest = returnFromLoan;", loanReturnCupScenario,
+  { filename: "archive-host-cup-before-loan-return" });
+assert.equal(loanReturnCupScenario.returnLoanForTest(), true);
+assert.equal(loanReturnCupScenario.state.clubName, "نادي أ",
+  "loan return must restore the parent club after archiving the host cup");
+assert.equal(loanReturnCupScenario.state.cupState, null,
+  "the host club cup state must not follow the player back to the parent club");
+assert.equal(loanReturnCupScenario.state.cupHistory.length, 1,
+  "the host club cup outcome must remain in career history after loan return");
+assert.equal(loanReturnCupScenario.state.cupHistory[0].club, "نادي ب");
+assert.equal(loanReturnCupScenario.state.cupHistory[0].champion, true,
+  "a host-club trophy earned during the loan must remain attributed to the host club");
+assert.deepEqual(loanReturnCupScenario.archiveReasons, ["loan-return"]);
 
 const underageLoanState = makeStaleLoanState();
 underageLoanState.age = 17;

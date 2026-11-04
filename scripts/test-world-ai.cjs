@@ -77,7 +77,7 @@ const aiSource = aiSourceRaw
   .replace(advanceMarker, "  global.__lwTestDevelopPlayers = developPlayers;\n" + advanceMarker)
   .replace(promotionMarker, "  global.__lwTestApplyPromotionRelegation = applyPromotionRelegation;\n" + promotionMarker)
   .replace(competitionsMarker, "  global.__lwTestSimulateCompetitions = simulateCompetitions;\n" + competitionsMarker)
-  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n" + reconcileMarker)
+  .replace(reconcileMarker, "  global.__lwTestReconcileDatabase = reconcileDatabase;\n  global.__lwTestRememberTransferClubEndpoints = rememberTransferClubEndpoints;\n" + reconcileMarker)
   .replace(transferMarker, "  global.__lwTestRunTransferWindow = runTransferWindow;\n" + transferMarker)
   .replace(freeAgentMarker, "  global.__lwTestSignFreeAgents = signFreeAgents;\n" + freeAgentMarker)
   .replace(fillRosterMarker, "  global.__lwTestFillRoster = fillRoster;\n" + fillRosterMarker)
@@ -170,6 +170,8 @@ const rosterMigrationSave = { season: 1, worldSimulation: {
 const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
 assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 5,
   "legacy saves must run the one-time roster ownership migration");
+assert.equal(rosterMigrationWorld.transferClubHistorySchemaVersion, 1,
+  "legacy saves must migrate the compact per-player transfer-club history");
 assert.deepEqual(rosterMigrationWorld.clubs["membership-origin"].roster,
   ["membership-origin-player", "membership-legacy-unique"],
   "the former club must drop transferred and duplicate IDs while retaining its unique legacy player");
@@ -1186,6 +1188,66 @@ assert.equal(longHistoryTransferWorld.playerHistory[transferReconcilePlayerId].l
 assert.equal(longHistoryTransferWorld.transfers[0].fromClubId, transferReconcileOriginId,
   "long-career reconciliation must preserve the historical transfer ledger");
 
+// The recent transfer feed is capped at 300 rows. Former-club protection must survive
+// after an older player's transfer falls out of that feed and their visible history is bounded.
+const prunedTransferLedgerWorld = JSON.parse(JSON.stringify(transferReconcileWorld));
+prunedTransferLedgerWorld.playerHistory[transferReconcilePlayerId] = Array.from({ length: 12 }, (_, index) => ({
+  season: 20 + index, clubId: "later-club-" + index, club: "Later Club " + index,
+  country: "Testland", fromClubId: "later-former-club-" + index,
+  from: "Later Former Club " + index, type: "transfer-in"
+}));
+prunedTransferLedgerWorld.transfers = [];
+prunedTransferLedgerWorld.transferClubHistoryByPlayer = {};
+delete prunedTransferLedgerWorld.transferClubHistorySchemaVersion;
+const sameNameClubHistoryWorld = { transferClubHistoryByPlayer: {}, transferClubHistorySchemaVersion: 1 };
+sandbox.window.__lwTestRememberTransferClubEndpoints(sameNameClubHistoryWorld, {
+  playerId: "same-name-club-player",
+  from: "Shared Club Name", fromCountry: "Testland", fromClubId: "shared-club-id-a",
+  to: "Shared Club Name", toCountry: "Testland", toClubId: "shared-club-id-b"
+});
+assert.equal(sameNameClubHistoryWorld.transferClubHistoryByPlayer["same-name-club-player"].length, 2,
+  "distinct club IDs must remain distinct even when their normalized names and countries match");
+const enrichedClubHistoryWorld = {
+  transferClubHistoryByPlayer: {
+    "legacy-text-club-player": [{ clubId: "", name: "Legacy Text Club", country: "Testland" }]
+  },
+  transferClubHistorySchemaVersion: 1
+};
+sandbox.window.__lwTestRememberTransferClubEndpoints(enrichedClubHistoryWorld, {
+  playerId: "legacy-text-club-player", from: "Legacy Text Club",
+  fromCountry: "Testland", fromClubId: "legacy-text-club-stable-id"
+});
+assert.equal(enrichedClubHistoryWorld.transferClubHistoryByPlayer["legacy-text-club-player"][0].clubId,
+  "legacy-text-club-stable-id",
+  "a newly available stable club ID must enrich an existing text-only endpoint instead of being discarded");
+sandbox.window.__lwTestRememberTransferClubEndpoints(prunedTransferLedgerWorld, {
+  id: "old-transfer-before-pruning", playerId: transferReconcilePlayerId,
+  from: transferReconcileOriginName, fromCountry: transferReconcileCountry,
+  fromClubId: transferReconcileOriginId,
+  to: transferReconcileDestinationName, toCountry: transferReconcileCountry,
+  toClubId: transferReconcileDestinationId
+});
+prunedTransferLedgerWorld.transfers = Array.from({ length: 300 }, (_, index) => ({
+  id: "recent-transfer-" + index, playerId: "recent-player-" + index,
+  fromClubId: "recent-former-club-" + index, toClubId: "recent-current-club-" + index
+}));
+sandbox.window.__lwTestReconcileDatabase(prunedTransferLedgerWorld, transferReconcileDb);
+const retainedFormerClubs = prunedTransferLedgerWorld.transferClubHistoryByPlayer[transferReconcilePlayerId] || [];
+assert.ok(retainedFormerClubs.some(row => row.clubId === transferReconcileOriginId),
+  "the compact player club history must retain a former club after its transfer row is pruned from the 300-row feed");
+const prunedLedgerDuplicates = Object.values(prunedTransferLedgerWorld.players).filter(player =>
+  player && player.name === transferReconcilePlayerName
+  && String(player.clubId || "") === transferReconcileOriginId
+  && !player.retired && !player.freeAgent);
+assert.equal(prunedLedgerDuplicates.length, 0,
+  "a transfer older than the rolling ledger and player-history windows must still prevent former-club re-import");
+assert.equal(prunedTransferLedgerWorld.players[transferReconcilePlayerId].clubId, transferReconcileDestinationId,
+  "pruned-ledger reconciliation must keep the player's current club authoritative");
+assert.equal(prunedTransferLedgerWorld.playerHistory[transferReconcilePlayerId].length, 12,
+  "pruned-ledger reconciliation must preserve the bounded visible history");
+assert.equal(prunedTransferLedgerWorld.transfers.length, 300,
+  "the compact former-club index must not require expanding the rolling transfer feed");
+
 
 // Promotion history records the destination season: a record for season 2 must prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];
@@ -2090,6 +2152,11 @@ for (const move of transition.moves) {
   const player = world.players[move.playerId];
   assert.ok(player, "every transfer must map to a persistent player record");
   assert.equal(world.clubs[player.clubId].name, move.to, "the player's new club must be changed in the active world");
+  const retainedClubHistory = world.transferClubHistoryByPlayer[move.playerId] || [];
+  assert.ok(retainedClubHistory.some(row => String(row.clubId || "") === String(move.toClubId || player.clubId)),
+    "each completed transfer must persist its destination independently of the rolling ledger");
+  if (move.fromClubId) assert.ok(retainedClubHistory.some(row => String(row.clubId || "") === String(move.fromClubId)),
+    "each completed transfer must persist its former club independently of the rolling ledger");
 }
 
  // A transfer must not rewrite the season that just ended; next-season stats must

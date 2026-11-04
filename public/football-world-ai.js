@@ -180,11 +180,79 @@
   function emptyWorld() {
     return {
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
-      lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
+      lastAdvancedTo: 0, clubs: {}, players: {}, playerHistory: {}, transferClubHistoryByPlayer: {},
+      transferClubHistorySchemaVersion: 1, seasonStats: {},
       leagueTables: {}, completedSeasons: [], transfers: [], marketReports: [],
       nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0, notes: [], archive: emptyArchive(),
       rosterMembershipSchemaVersion: ROSTER_MEMBERSHIP_SCHEMA_VERSION
     };
+  }
+  // Keep compact per-player club endpoints independently of the rolling 300-row transfer feed.
+  // This preserves long-career former-club identity without retaining every full transfer record.
+  function addTransferClubHistoryEndpoint(world, playerId, clubId, name, country) {
+    const key = String(playerId || "").trim();
+    if (!world || !key) return;
+    const endpointId = String(clubId || "").trim();
+    const clubName = String(name || "").trim();
+    const countryName = String(country || "").trim();
+    if (!endpointId && !clubName) return;
+    const history = world.transferClubHistoryByPlayer && typeof world.transferClubHistoryByPlayer === "object"
+      && !Array.isArray(world.transferClubHistoryByPlayer)
+      ? world.transferClubHistoryByPlayer : (world.transferClubHistoryByPlayer = {});
+    const rows = Array.isArray(history[key]) ? history[key] : (history[key] = []);
+    const duplicate = rows.find(row => {
+      if (!row) return false;
+      const existingId = String(row.clubId || "").trim();
+      if (endpointId && existingId) return existingId === endpointId;
+      return clubName && normalize(row.name) === normalize(clubName)
+        && normalize(row.country) === normalize(countryName);
+    });
+    if (duplicate) {
+      if (endpointId && !String(duplicate.clubId || "").trim()) duplicate.clubId = endpointId;
+      if (clubName && !String(duplicate.name || "").trim()) duplicate.name = clubName;
+      if (countryName && !String(duplicate.country || "").trim()) duplicate.country = countryName;
+      return;
+    }
+    rows.push({ clubId: endpointId, name: clubName, country: countryName });
+  }
+  function ensureTransferClubHistory(world) {
+    if (!world || typeof world !== "object") return {};
+    const hasHistory = world.transferClubHistoryByPlayer
+      && typeof world.transferClubHistoryByPlayer === "object"
+      && !Array.isArray(world.transferClubHistoryByPlayer);
+    const history = hasHistory ? world.transferClubHistoryByPlayer : {};
+    world.transferClubHistoryByPlayer = history;
+    if (hasHistory && Number(world.transferClubHistorySchemaVersion) >= 1) return history;
+
+    const importTransfer = transfer => {
+      if (!transfer) return;
+      const playerId = String(transfer.playerId || "").trim();
+      if (!playerId) return;
+      addTransferClubHistoryEndpoint(world, playerId, transfer.fromClubId, transfer.from, transfer.fromCountry);
+      addTransferClubHistoryEndpoint(world, playerId, transfer.toClubId, transfer.to, transfer.toCountry);
+    };
+    (Array.isArray(world.transfers) ? world.transfers : []).forEach(importTransfer);
+    const importPlayerHistory = playerHistory => {
+      Object.entries(playerHistory && typeof playerHistory === "object" ? playerHistory : {}).forEach(([playerId, entries]) => {
+        (Array.isArray(entries) ? entries : []).forEach(entry => {
+          if (!entry) return;
+          addTransferClubHistoryEndpoint(world, playerId, entry.fromClubId, entry.from, entry.fromCountry);
+          addTransferClubHistoryEndpoint(world, playerId, entry.clubId, entry.club, entry.country);
+        });
+      });
+    };
+    importPlayerHistory(world.playerHistory);
+    importPlayerHistory(world.archive && world.archive.playerHistory);
+    world.transferClubHistorySchemaVersion = 1;
+    return history;
+  }
+  function rememberTransferClubEndpoints(world, transfer) {
+    if (!world || !transfer) return;
+    ensureTransferClubHistory(world);
+    const playerId = String(transfer.playerId || "").trim();
+    if (!playerId) return;
+    addTransferClubHistoryEndpoint(world, playerId, transfer.fromClubId, transfer.from, transfer.fromCountry);
+    addTransferClubHistoryEndpoint(world, playerId, transfer.toClubId, transfer.to, transfer.toCountry);
   }
   function addClub(world, row, db) {
     const id = clubKey(row.name, row.country);
@@ -363,6 +431,7 @@
     world.players = world.players && typeof world.players === "object" ? world.players : {};
     world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
     const archive = ensureArchive(world);
+    const transferClubHistoryByPlayer = ensureTransferClubHistory(world);
     // Unsupported competitions leave the active simulation, but their saved data is archived rather than destroyed.
     const supportedLeagueIds = new Set(db && typeof db.leagues === "function"
       ? db.leagues().map(profile => String(profile && profile.id || "")).filter(Boolean) : []);
@@ -458,28 +527,19 @@
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
-    // Player history is intentionally bounded for save size, but the transfer ledger
-    // can still retain older club endpoints. Use it to keep long-career former clubs
-    // out of stale roster imports after those rows leave playerHistory.
-    const transferRowsByPlayer = new Map();
-    for (const transfer of Array.isArray(world.transfers) ? world.transfers : []) {
-      const playerId = String(transfer && transfer.playerId || "").trim();
-      if (!playerId) continue;
-      if (!transferRowsByPlayer.has(playerId)) transferRowsByPlayer.set(playerId, []);
-      transferRowsByPlayer.get(playerId).push(transfer);
-    }
     for (const player of Object.values(world.players || {})) {
       if (!player) continue;
       const isDetachedPlayer = isTrueFlag(player.retired) || isTrueFlag(player.freeAgent);
       const currentClubId = String(player.clubId || "").trim();
       const history = world.playerHistory && Array.isArray(world.playerHistory[player.id])
         ? world.playerHistory[player.id] : [];
-      const transferRows = transferRowsByPlayer.get(String(player.id || "")) || [];
+      const transferClubRows = Array.isArray(transferClubHistoryByPlayer[String(player.id || "")])
+        ? transferClubHistoryByPlayer[String(player.id || "")] : [];
       const hasFormerClubTrail = isDetachedPlayer
         || !!String(player.previousClubId || "").trim()
         || !!String(player.retiredFromClubId || "").trim()
         || history.some(entry => !!String(entry && (entry.fromClubId || entry.from) || "").trim())
-        || transferRows.some(entry => !!String(entry && (entry.fromClubId || entry.toClubId || entry.from || entry.to) || "").trim());
+        || transferClubRows.length > 0;
       if (!hasFormerClubTrail) continue;
       const identityKey = rosterIdentityKey(player);
       if (!identityKey) continue;
@@ -519,22 +579,18 @@
           else if (matches.length === 0 && fromCountry) addFormerClubId(clubKey(fromName, fromCountry));
         }
       }
-      for (const transfer of transferRows) {
-        if (!transfer) continue;
-        addFormerClubId(transfer.fromClubId);
-        addFormerClubId(transfer.toClubId);
-        const resolveFormerClubName = (name, country) => {
-          const clubName = String(name || "").trim();
-          if (!clubName) return;
-          const countryName = String(country || "").trim();
-          const matches = allClubs.filter(club =>
-            normalize(club.name) === normalize(clubName)
-            && (!countryName || normalize(club.country) === normalize(countryName)));
-          if (matches.length === 1) addFormerClubId(matches[0].id);
-          else if (matches.length === 0 && countryName) addFormerClubId(clubKey(clubName, countryName));
-        };
-        if (!String(transfer.fromClubId || "").trim()) resolveFormerClubName(transfer.from, transfer.fromCountry);
-        if (!String(transfer.toClubId || "").trim()) resolveFormerClubName(transfer.to, transfer.toCountry);
+      for (const endpoint of transferClubRows) {
+        if (!endpoint) continue;
+        const endpointId = String(endpoint.clubId || "").trim();
+        if (endpointId) addFormerClubId(endpointId);
+        const clubName = String(endpoint.name || "").trim();
+        if (!clubName || (endpointId && allClubs.some(club => String(club.id || "") === endpointId))) continue;
+        const countryName = String(endpoint.country || "").trim();
+        const matches = allClubs.filter(club =>
+          normalize(club.name) === normalize(clubName)
+          && (!countryName || normalize(club.country) === normalize(countryName)));
+        if (matches.length === 1) addFormerClubId(matches[0].id);
+        else if (matches.length === 0 && countryName) addFormerClubId(clubKey(clubName, countryName));
       }
       for (const clubId of clubIds) {
         if (!unavailableIdentitiesByClub.has(clubId)) unavailableIdentitiesByClub.set(clubId, new Set());
@@ -634,6 +690,7 @@
     world.marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
     world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
     ensureArchive(world);
+    ensureTransferClubHistory(world);
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
@@ -1268,6 +1325,7 @@
       transferIds: moves.map(item => item.id)
     });
     world.marketReports = world.marketReports.slice(0, 12);
+    moves.forEach(move => rememberTransferClubEndpoints(world, move));
     return moves;
     });
   }
@@ -1539,7 +1597,8 @@
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
-    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction, isTrueFlag
+    getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
+    rememberTransferClubEndpoints, isTrueFlag
   });
 })(window);
 
@@ -2638,6 +2697,7 @@
         report.summary += " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";
       }
     }
+    signed.forEach(move => base.rememberTransferClubEndpoints(world, move));
     return signed;
     });
   }

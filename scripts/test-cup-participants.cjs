@@ -521,6 +521,7 @@ const europaResult = doubleContinentalWorld.competitionsBySeason["1"]
   .find(row => row.name === "UEFA Europa League");
 europaResult.championId = "madrid";
 europaResult.runnerUpId = "liverpool";
+europaResult.participants = ["madrid", "liverpool"];
 const continentalRunnerUp = scopedCupSandbox("إنجلترا", "ليفربول");
 continentalRunnerUp.state.careerStarted = true;
 continentalRunnerUp.state.previousSeasonRank = 2;

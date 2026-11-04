@@ -53,13 +53,13 @@ const wrapper = extractFunction(html, "playCupMatch");
 
 const cupHistoryLookup = extractFunction(html, "cupHistoryForCompetition");
 const competitionRenderer = extractFunction(html, "renderCurrentCompetitions");
-assert.match(competitionRenderer, /const history=cupHistoryForCompetition\\(comp\\);/,
+assert.match(competitionRenderer, /const history=cupHistoryForCompetition\(comp\);/,
   "competition cards must use the club-and-country-aware cup history lookup");
 const cupHistoryLookupSandbox = {
   state: { season: 5, clubName: "United FC", leagueCountry: "England", cupHistory: [] }
 };
 vm.createContext(cupHistoryLookupSandbox);
-vm.runInContext(cupHistoryLookup + "\\nglobalThis.findCupHistoryForTest = cupHistoryForCompetition;",
+vm.runInContext(cupHistoryLookup + "\nglobalThis.findCupHistoryForTest = cupHistoryForCompetition;",
   cupHistoryLookupSandbox, { filename: "cup-history-country-identity.js" });
 cupHistoryLookupSandbox.state.cupHistory = [
   { name: "National Cup", season: 5, club: "United FC", country: "Scotland", champion: true },

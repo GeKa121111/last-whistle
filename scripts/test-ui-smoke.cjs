@@ -402,7 +402,7 @@ const required = [
   "player-store.css?v=2",
   "ai-career-engine.js?v=7",
   "football-world-ai.css?v=2",
-  "football-world-ai.js?v=75",
+  "football-world-ai.js?v=77",
   'id="worldAISimulationDashboard"',
   "window.LWWorldAI.advanceToSeasonAsync",
   "window.LWWorldAI?.completeSeason",
@@ -695,7 +695,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=14", "career-experience.css?v=2", "career-experience.js?v=9", "agent-system.css?v=1", "agent-system.js?v=9", "career-hub.css?v=1", "career-hub.js?v=4", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=75", "football-world-rosters.js?v=6", "football-world-db.js?v=10", "lz-string.min.js?v=1", "career-state-store.js?v=8", "ai-career-ui.js?v=1", "football-world-worker.js?v=63", "world-roster-audit.json", "redesign.css?v=17"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=14", "career-experience.css?v=2", "career-experience.js?v=9", "agent-system.css?v=1", "agent-system.js?v=9", "career-hub.css?v=1", "career-hub.js?v=4", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=77", "football-world-rosters.js?v=6", "football-world-db.js?v=11", "lz-string.min.js?v=1", "career-state-store.js?v=8", "ai-career-ui.js?v=1", "football-world-worker.js?v=65", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 if (!workerSource.includes('url.indexOf("ai-career-engine.js?") >= 0')) {
@@ -976,6 +976,44 @@ const extractTopLevelFunction = (source, functionName) => {
   const next = source.indexOf("\nfunction ", start + 1);
   return source.slice(start, next < 0 ? source.length : next);
 };
+const supercupHelperSource = [
+  "supercupQualifierCupNames", "worldLeagueClubAtRank", "domesticSupercupQualifiers"
+].map(name => extractTopLevelFunction(html, name)).join("\n");
+const supercupFixtureWorld = {
+  clubs: {
+    "league-champion": { id: "league-champion", leagueId: "egypt", division: 1 },
+    "league-runner-up": { id: "league-runner-up", leagueId: "egypt", division: 1 },
+    "secondary-cup-winner": { id: "secondary-cup-winner", leagueId: "egypt", division: 1 },
+    "primary-cup-winner": { id: "primary-cup-winner", leagueId: "egypt", division: 1 }
+  },
+  leagueTables: { "1": { egypt: [
+    { clubId: "league-champion", rank: 1 }, { clubId: "league-runner-up", rank: 2 }
+  ] } },
+  competitionsBySeason: { "1": [
+    { id: "egypt-league-cup", name: "كأس الرابطة المصرية", kind: "domestic-cup", championId: "secondary-cup-winner" },
+    { id: "egypt-cup", name: "كأس مصر", kind: "domestic-cup", championId: "primary-cup-winner" }
+  ] }
+};
+const supercupSandbox = {
+  state: { season: 2, worldSimulation: supercupFixtureWorld },
+  window: { LWWorldDB: { simulationCupDefinitions: () => [{ id: "egypt-cup", name: "كأس مصر" }] } }
+};
+vm.createContext(supercupSandbox);
+vm.runInContext(supercupHelperSource, supercupSandbox, { filename: "supercup-qualification-ui" });
+const egyptianSupercupDefinition = {
+  id: "egyptian-super-cup", countries: ["egypt"], qualifierCupId: "egypt-cup"
+};
+const selectedPrimaryCup = supercupSandbox.domesticSupercupQualifiers(egyptianSupercupDefinition);
+assert.ok(selectedPrimaryCup, "the UI must resolve a domestic supercup when its primary cup is present");
+assert.equal(selectedPrimaryCup.domesticCup.id, "egypt-cup",
+  "career eligibility must select the configured primary cup, not the first domestic cup in history");
+assert.equal(selectedPrimaryCup.cupChampion.id, "primary-cup-winner");
+supercupSandbox.state.worldSimulation.competitionsBySeason["1"] = [
+  { id: "egypt-league-cup", name: "كأس الرابطة المصرية", kind: "domestic-cup", championId: "secondary-cup-winner" }
+];
+assert.equal(supercupSandbox.domesticSupercupQualifiers(egyptianSupercupDefinition), null,
+  "a secondary cup winner must not qualify when the configured primary cup result is missing");
+
 const transferJourneyFunctions = [
   "setJourneyAction", "canAccessTransferMarket", "runSeasonJourneyAction", "seasonCareerChallenge", "renderSeasonJourney", "openTransferMarketPage"
 ].map((name) => extractTopLevelFunction(html, name)).join("\n");

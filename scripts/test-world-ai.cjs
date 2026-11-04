@@ -2295,7 +2295,7 @@ cupDb.simulationCupDefinitions = () => [
   { id: "test-first-tier-cup", name: "Test First-Tier Cup", kind: "domestic-cup",
     countries: ["test-cup-league"], lower: false },
   { id: "test-domestic-supercup", name: "Test Domestic Super Cup", kind: "supercup",
-    confederation: "CAF", countries: ["test-cup-league"] },
+    confederation: "CAF", countries: ["test-cup-league"], qualifierCupId: "test-first-tier-cup" },
   { id: "test-continental-supercup", name: "Test Continental Super Cup", kind: "supercup",
     confederation: "CAF", qualifierCompetitionIds: ["valid-caf-champion-1", "valid-caf-champion-2"] }
 ];
@@ -2306,13 +2306,15 @@ cupWorld.competitionsBySeason["1"] = [
   { id: "test-continental-winner", kind: "continental", confederation: "CAF",
     championId: "cup-second-05" },
   { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
-    championId: "cup-first-03", runnerUpId: "cup-first-04" }
+    championId: "cup-first-03", runnerUpId: "cup-first-04" },
+  { id: "test-first-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-04", runnerUpId: "cup-first-05" }
 ];
 const yearTwoCompetitions = ai.seasonCompetitions(cupSave, 2, cupDb);
 const domesticSupercup = yearTwoCompetitions.find(row => row.id === "test-domestic-supercup");
 assert.ok(domesticSupercup, "the domestic supercup must be simulated when prior domestic winners exist");
-assert.deepEqual([...domesticSupercup.participants].sort(), ["cup-first-01", "cup-first-03"],
-  "a domestic supercup must pair the previous league champion with the previous domestic-cup champion");
+assert.deepEqual([...domesticSupercup.participants].sort(), ["cup-first-01", "cup-first-04"],
+  "a domestic supercup must use its configured primary cup, not the first secondary cup in history");
 assert.ok(!domesticSupercup.participants.includes("cup-second-05"),
   "a continental champion must never replace a domestic supercup participant");
 assert.ok(!yearTwoCompetitions.some(row => row.id === "test-continental-supercup"),
@@ -2324,6 +2326,8 @@ cupWorld.leagueTables["2"]["test-cup-league"] = [
 ];
 cupWorld.competitionsBySeason["2"] = [
   { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-03", runnerUpId: "cup-first-04" },
+  { id: "test-first-tier-cup", kind: "domestic-cup", confederation: "CAF",
     championId: "cup-first-01", runnerUpId: "cup-second-05" }
 ];
 const yearThreeCompetitions = ai.seasonCompetitions(cupSave, 3, cupDb);
@@ -2347,7 +2351,8 @@ function assertDomesticSupercupRejectsInvalidLeagueRow(season, invalidRow, label
     ]
   };
   cupWorld.competitionsBySeason[previousSeason] = [
-    { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" }
+    { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" },
+    { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-04", runnerUpId: "cup-first-05" }
   ];
   const supercup = ai.seasonCompetitions(cupSave, season, cupDb)
     .find(row => row.id === "test-domestic-supercup");
@@ -2369,7 +2374,7 @@ cupWorld.leagueTables["6"] = {
   "test-cup-league": [{ clubId: "cup-first-01" }, { clubId: "cup-first-02" }]
 };
 cupWorld.competitionsBySeason["6"] = [
-  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" }
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" }
 ];
 const legacyRanklessSupercup = ai.seasonCompetitions(cupSave, 7, cupDb)
   .find(row => row.id === "test-domestic-supercup");
@@ -2398,7 +2403,8 @@ cupWorld.leagueTables["8"] = {
   ]
 };
 cupWorld.competitionsBySeason["8"] = [
-  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-foreign-supercup" },
+  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" },
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-foreign-supercup" },
   { id: "foreign-confederation-record", kind: "continental", confederation: "CAF", championId: "cup-foreign-supercup" },
   { id: "secondary-caf-competition", kind: "continental", confederation: "CAF", championId: "cup-caf-supercup-3" },
   { id: "valid-caf-champion-1", kind: "continental", confederation: "CAF", championId: "cup-caf-supercup-1" },
@@ -2422,7 +2428,7 @@ cupWorld.leagueTables["9"] = {
   ]
 };
 cupWorld.competitionsBySeason["9"] = [
-  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-second-01" }
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-second-01" }
 ];
 const lowerTierCupRunnerUpSupercup = ai.seasonCompetitions(cupSave, 10, cupDb)
   .find(row => row.id === "test-domestic-supercup");
@@ -2436,11 +2442,13 @@ cupWorld.leagueTables["10"] = {
     { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
   ]
 };
-cupWorld.competitionsBySeason["10"] = [];
+cupWorld.competitionsBySeason["10"] = [
+  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" }
+];
 const missingCupHistorySupercup = ai.seasonCompetitions(cupSave, 11, cupDb)
   .find(row => row.id === "test-domestic-supercup");
 assert.equal(missingCupHistorySupercup, undefined,
-  "a domestic supercup must not be fabricated from the league champion and runner-up when cup history is missing");
+  "a domestic supercup must not be fabricated from the league champion and runner-up when only a secondary cup result exists");
 
 
 

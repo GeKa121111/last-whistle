@@ -4296,7 +4296,7 @@ function isSupercupRunnerUp(comp){
  if(!currentClubId)return false;
  if(Array.isArray(comp.countries)&&comp.countries.length){
   const qualifiers=domesticSupercupQualifiers(comp);
-  if(!qualifiers)return false;
+  if(!qualifiers||String(qualifiers.cupChampion.id)!==String(qualifiers.leagueChampion.id))return false;
   if(qualifiers.cupRunnerUp&&String(qualifiers.cupRunnerUp.id)===String(currentClubId))return true;
   return !qualifiers.cupRunnerUp&&!!qualifiers.leagueRunnerUp
    &&String(qualifiers.leagueRunnerUp.id)===String(currentClubId);

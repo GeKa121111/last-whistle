@@ -212,7 +212,6 @@ const supercupWorld = {
     arsenal: { id: "arsenal", name: "أرسنال", leagueId: "england", country: "إنجلترا" },
     chelsea: { id: "chelsea", name: "تشيلسي", leagueId: "england", country: "إنجلترا" },
     liverpool: { id: "liverpool", name: "ليفربول", leagueId: "england", country: "إنجلترا" },
-    mancity: { id: "mancity", name: "مانشستر سيتي", leagueId: "england", country: "إنجلترا" },
     madrid: { id: "madrid", name: "ريال مدريد", leagueId: "spain", country: "إسبانيا" },
     sevilla: { id: "sevilla", name: "إشبيلية", leagueId: "spain", country: "إسبانيا" },
     ahly: { id: "ahly", name: "الأهلي", leagueId: "egypt", country: "مصر" },
@@ -228,8 +227,8 @@ const supercupWorld = {
   },
   competitionsBySeason: {
     "1": [
-      { id: "fa-cup", kind: "domestic-cup", name: "FA Cup", championId: "chelsea", runnerUpId: "mancity",
-        participants: ["chelsea", "arsenal", "mancity"] },
+      { id: "fa-cup", kind: "domestic-cup", name: "FA Cup", championId: "chelsea", runnerUpId: "liverpool",
+        participants: ["chelsea", "arsenal", "liverpool"] },
       { id: "ucl", kind: "continental", name: "UEFA Champions League", confederation: "UEFA",
         championId: "madrid", runnerUpId: "arsenal", participants: ["madrid", "arsenal"] },
       { id: "uel", kind: "continental", name: "UEFA Europa League", confederation: "UEFA",

@@ -5935,8 +5935,8 @@ function supercupParticipants(comp,currentClub){
   const currentIsRunnerUp=isSupercupRunnerUp(comp);
   if(!currentIsLeagueChampion&&!currentWonAnyCup&&!currentIsRunnerUp)return [];
   const candidates=currentIsLeagueChampion
-   // When the league and primary cup have the same champion, the league runner-up takes the vacant place first.
-   ?(currentWonPrimaryCup?[leagueRunnerUp,cupRunnerUp,cupChampion,leagueChampion]:[cupChampion,cupRunnerUp,leagueRunnerUp,leagueChampion])
+   // When the league and primary cup have the same champion, the cup runner-up fills the vacant place when eligible.
+   ?(currentWonPrimaryCup?[cupRunnerUp,leagueRunnerUp,cupChampion,leagueChampion]:[cupChampion,cupRunnerUp,leagueRunnerUp,leagueChampion])
    :currentWonAnyCup?[leagueChampion,leagueRunnerUp,cupRunnerUp,cupChampion]
    :[leagueChampion,cupChampion,cupRunnerUp,leagueRunnerUp];
   const opponent=candidates.find(team=>team&&team.name&&team.name!==currentClub&&String(team.leagueId||"")===leagueId);

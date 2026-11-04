@@ -2010,6 +2010,15 @@ assert.notStrictEqual(updatedCompetitionDashboard, updatedRevisionDashboard,
 assert.equal(updatedCompetitionDashboard.competitionsSimulated, 1,
   "the dashboard must report newly restored current-season competitions");
 
+dashboardRevisionWorld.competitionsBySeason[dashboardYear].push({
+  id: "dashboard-competition-cache-regression-second"
+});
+const secondCompetitionDashboard = ai.dashboard(dashboardRevisionSave, db);
+assert.notStrictEqual(secondCompetitionDashboard, updatedCompetitionDashboard,
+  "a second current-season competition update must also invalidate the cached summary");
+assert.equal(secondCompetitionDashboard.competitionsSimulated, 2,
+  "the dashboard must report the latest current-season competition count");
+
 
 // Older saved worlds may still contain Japan/AFC data. Keep it out of active simulation,
 // but archive the club, player history, statistics and competition records without data loss.

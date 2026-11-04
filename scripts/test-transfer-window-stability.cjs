@@ -933,7 +933,7 @@ const loanReturnCupScenario = {
   log: () => {}
 };
 vm.createContext(loanReturnCupScenario);
-vm.runInContext(cupArchiveSource + "\\n" + returnFromLoanSource + "\\nthis.returnLoanForTest = returnFromLoan;", loanReturnCupScenario,
+vm.runInContext(cupArchiveSource + "\n" + returnFromLoanSource + "\nthis.returnLoanForTest = returnFromLoan;", loanReturnCupScenario,
   { filename: "archive-host-cup-before-loan-return" });
 assert.equal(loanReturnCupScenario.returnLoanForTest(), true);
 assert.equal(loanReturnCupScenario.state.clubName, "نادي أ",

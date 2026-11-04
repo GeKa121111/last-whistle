@@ -1207,6 +1207,19 @@ sandbox.window.__lwTestRememberTransferClubEndpoints(sameNameClubHistoryWorld, {
 });
 assert.equal(sameNameClubHistoryWorld.transferClubHistoryByPlayer["same-name-club-player"].length, 2,
   "distinct club IDs must remain distinct even when their normalized names and countries match");
+const enrichedClubHistoryWorld = {
+  transferClubHistoryByPlayer: {
+    "legacy-text-club-player": [{ clubId: "", name: "Legacy Text Club", country: "Testland" }]
+  },
+  transferClubHistorySchemaVersion: 1
+};
+sandbox.window.__lwTestRememberTransferClubEndpoints(enrichedClubHistoryWorld, {
+  playerId: "legacy-text-club-player", from: "Legacy Text Club",
+  fromCountry: "Testland", fromClubId: "legacy-text-club-stable-id"
+});
+assert.equal(enrichedClubHistoryWorld.transferClubHistoryByPlayer["legacy-text-club-player"][0].clubId,
+  "legacy-text-club-stable-id",
+  "a newly available stable club ID must enrich an existing text-only endpoint instead of being discarded");
 sandbox.window.__lwTestRememberTransferClubEndpoints(prunedTransferLedgerWorld, {
   id: "old-transfer-before-pruning", playerId: transferReconcilePlayerId,
   from: transferReconcileOriginName, fromCountry: transferReconcileCountry,

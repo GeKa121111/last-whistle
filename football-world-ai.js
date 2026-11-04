@@ -200,14 +200,20 @@
       && !Array.isArray(world.transferClubHistoryByPlayer)
       ? world.transferClubHistoryByPlayer : (world.transferClubHistoryByPlayer = {});
     const rows = Array.isArray(history[key]) ? history[key] : (history[key] = []);
-    const duplicate = rows.some(row => {
+    const duplicate = rows.find(row => {
       if (!row) return false;
       const existingId = String(row.clubId || "").trim();
       if (endpointId && existingId) return existingId === endpointId;
       return clubName && normalize(row.name) === normalize(clubName)
         && normalize(row.country) === normalize(countryName);
     });
-    if (!duplicate) rows.push({ clubId: endpointId, name: clubName, country: countryName });
+    if (duplicate) {
+      if (endpointId && !String(duplicate.clubId || "").trim()) duplicate.clubId = endpointId;
+      if (clubName && !String(duplicate.name || "").trim()) duplicate.name = clubName;
+      if (countryName && !String(duplicate.country || "").trim()) duplicate.country = countryName;
+      return;
+    }
+    rows.push({ clubId: endpointId, name: clubName, country: countryName });
   }
   function ensureTransferClubHistory(world) {
     if (!world || typeof world !== "object") return {};

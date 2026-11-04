@@ -101,6 +101,20 @@
   function clubKey(name, country) {
     return normalize(country) + "|" + normalize(name);
   }
+  function findClubByIdentity(world, name, country) {
+    const normalizedName = normalize(name);
+    if (!normalizedName || !world || !world.clubs || typeof world.clubs !== "object") return null;
+    const normalizedCountry = normalize(country);
+    const keyed = world.clubs[clubKey(name, country)];
+    if (normalizedCountry && keyed && normalize(keyed.name) === normalizedName
+      && normalize(keyed.country) === normalizedCountry) return keyed;
+    const matches = Object.values(world.clubs).filter(club => club
+      && normalize(club.name) === normalizedName
+      && (!normalizedCountry || normalize(club.country) === normalizedCountry));
+    // Legacy callers may omit country only when the club name is globally unique.
+    // Never let a same-name club in another country supply the wrong match profile.
+    return matches.length === 1 ? matches[0] : null;
+  }
   function syncClubDivisionMetadata(world, club, division, db, sourceRow) {
     if (!club) return null;
     const tier = Math.max(1, int(division, int(club.division, 1)));
@@ -1560,7 +1574,7 @@
   }
   function getClubMatchProfile(save, name, country, db) {
     const world = ensureState(save, db);
-    const club = world.clubs[clubKey(name, country)] || Object.values(world.clubs).find(item => normalize(item.name) === normalize(name));
+    const club = findClubByIdentity(world, name, country);
     if (!club) return null;
     const goalkeepers = rosterPlayers(world, club)
       .filter(player => (String(player.position || "").trim()
@@ -1574,7 +1588,7 @@
   }
   function getClubPower(save, name, country, db) {
     const world = ensureState(save, db);
-    const club = world.clubs[clubKey(name, country)] || Object.values(world.clubs).find(item => normalize(item.name) === normalize(name));
+    const club = findClubByIdentity(world, name, country);
     return club ? Number(club.power) || Number(club.basePower) || null : null;
   }
   function transferTargets(save, db) {

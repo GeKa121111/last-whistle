@@ -24,6 +24,53 @@ assert.equal(roleFor("DM"), "وسط دفاعي", "defensive midfielders must not
 assert.equal(roleFor("AM"), "وسط مهاجم", "attacking midfielders must retain the attacking-midfield role");
 assert.equal(roleFor("WF"), "جناح", "wing-forwards must retain the winger role");
 
+// The source scraper must preserve two real players with the same name when
+// their verified positions differ, while still removing an exact repeated row.
+const rosterRefresh = require(path.join(root, "scripts", "refresh-world-squads.cjs"));
+const duplicateNameSquadHtml = [
+  "<tr><td>1</td><td>Test Shared Player</td><td>ENG</td><td>GK</td><td>Club</td><td>-</td><td>01-01-2002</td></tr>",
+  "<tr><td>5</td><td>Test Shared Player</td><td>ENG</td><td>CB</td><td>Club</td><td>-</td><td>01-01-2002</td></tr>",
+  "<tr><td>5</td><td>Test Shared Player</td><td>ENG</td><td>CB</td><td>Club</td><td>-</td><td>01-01-2002</td></tr>"
+].join("");
+const duplicateNamePlayers = rosterRefresh.parsePlayers(duplicateNameSquadHtml);
+assert.equal(duplicateNamePlayers.length, 2,
+  "source roster parsing must not discard a same-name player in a different position");
+assert.deepEqual(Array.from(duplicateNamePlayers.map(player => player.position)).sort(),
+  ["حارس مرمى", "قلب دفاع"],
+  "same-name source players must retain both independently verified positions");
+assert.ok(duplicateNamePlayers.every(player => player.isRealPlayer === true),
+  "preserving duplicate names must keep source provenance and must not generate player records");
+
+// The Egyptian importer uses heading-based positions. It must apply the same
+// identity rule, while staying conservative when a source does not identify roles.
+const egyptRefreshSource = fs.readFileSync(path.join(root, "scripts", "refresh-egyptian-pro-league.cjs"), "utf8");
+const egyptNormalizeStart = egyptRefreshSource.indexOf("function normalize(");
+const egyptNormalizeEnd = egyptRefreshSource.indexOf("\nfunction linesFromHtml(", egyptNormalizeStart);
+const egyptParserStart = egyptRefreshSource.indexOf("const POSITION_HEADINGS = [");
+const egyptParserEnd = egyptRefreshSource.indexOf("\nasync function fetchHtml(", egyptParserStart);
+assert.ok(egyptNormalizeStart >= 0 && egyptNormalizeEnd > egyptNormalizeStart
+  && egyptParserStart >= 0 && egyptParserEnd > egyptParserStart,
+  "Egyptian source parser identity helpers must remain available for regression testing");
+const egyptParserSandbox = {};
+vm.createContext(egyptParserSandbox);
+vm.runInContext(egyptRefreshSource.slice(egyptNormalizeStart, egyptNormalizeEnd)
+  + "\n" + egyptRefreshSource.slice(egyptParserStart, egyptParserEnd),
+  egyptParserSandbox, { filename: "egyptian-roster-identity-parser" });
+const egyptSameNamePlayers = egyptParserSandbox.parsePlayerLines([
+  "حراسة المرمى", "1 أحمد لاعب",
+  "خط الدفاع", "5 أحمد لاعب", "5 أحمد لاعب"
+], "Egyptian roster identity fixture");
+assert.equal(egyptSameNamePlayers.length, 2,
+  "Egyptian source parsing must preserve a same-name player with another verified position");
+assert.deepEqual(Array.from(egyptSameNamePlayers.map(player => player.position)).sort(),
+  ["حارس مرمى", "قلب دفاع"],
+  "Egyptian roster records must retain their source position headings");
+const egyptUnknownPositionPlayers = egyptParserSandbox.parsePlayerLines([
+  "قائمة اللاعبين", "أحمد لاعب", "أحمد لاعب"
+], "Egyptian unknown-position fixture");
+assert.equal(egyptUnknownPositionPlayers.length, 1,
+  "unknown-position source rows must keep conservative name-only deduplication");
+
 const rosterSource = fs.readFileSync(path.join(root, "public", "football-world-rosters.js"), "utf8");
 const audit = JSON.parse(fs.readFileSync(path.join(root, "public", "world-roster-audit.json"), "utf8"));
 const source = fs.readFileSync(path.join(root, "public", "football-world-db.js"), "utf8");

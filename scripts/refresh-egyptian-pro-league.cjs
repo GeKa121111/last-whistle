@@ -191,9 +191,11 @@ function parsePlayerLines(lines, sourceLabel) {
     if (!isPlayerName(line)) continue;
     if (/^(?:الرئيسية|بطولات|الأخبار|عن الرابطة|صور|فيديوهات|المركز الإعلامي|نظرة عامة|الرعاة|روابط سريعة|ترتيب|المباريات|الإحصائيات)$/i.test(line)) continue;
     if (/ينافس نادي|يلعب نادي|هذا الموقع جزء|قائمة الفريق|قائمة اللاعبين|قائمة الفريق الأول/i.test(line)) continue;
-    const key = normalize(line);
-    if (!key || seen.has(key)) continue;
     const positionKnown = currentPosition !== "غير محدد";
+    // Preserve a same-name player in a different verified role. When the source
+    // cannot identify a role, keep the conservative name-only deduplication.
+    const key = normalize(line) + "|" + (positionKnown ? normalize(currentPosition) : "غيرمحدد");
+    if (!key || seen.has(key)) continue;
     const player = {
       name: line,
       position: currentPosition,

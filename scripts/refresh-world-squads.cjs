@@ -254,7 +254,10 @@ function parsePlayers(teamHtml, referenceDate = seasonReferenceDate(SEASON)) {
     const position = roleFor(cells[3]);
     if (!name || !position || /^(name|player|number)$/i.test(name)) continue;
     if (/players no longer|previous club|official name|formed:/i.test(name)) continue;
-    const key = normalized(name);
+    // A name alone is not a roster identity: a club may have two players
+    // with the same name in different positions. Match the AI engine's
+    // name/position identity while still collapsing repeated source rows.
+    const key = normalized(name) + "|" + String(position).trim();
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const shirt = Number.parseInt(cells[0], 10);
@@ -377,4 +380,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseAge, seasonReferenceDate, roleFor, parseTeamLinks, fetchHtml };
+module.exports = { parseAge, seasonReferenceDate, roleFor, parsePlayers, parseTeamLinks, fetchHtml };

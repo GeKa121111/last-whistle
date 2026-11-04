@@ -895,8 +895,9 @@
   function getSeasonLines(save, season, progress = 1, db) {
     const world = ensureState(save, db);
     const targetSeason = Math.max(1, int(season, int(save.season, 1)));
-    const scale = clamp(progress, 0, 1);
     const completed = world.seasonStats[String(targetSeason)];
+    // Completed snapshots are final; only live projections should scale with season progress.
+    const scale = Array.isArray(completed) ? 1 : clamp(progress, 0, 1);
     const fullRows = Array.isArray(completed) ? completed : getProjectedSeasonRows(world, targetSeason, db);
     return fullRows.map(row => {
       const rawAppearances = row.appearances !== undefined && row.appearances !== null

@@ -349,9 +349,9 @@ const egyptTopFlight = egyptClubs.filter(club => Number(club.division || 1) === 
 const egyptSecondTier = egyptClubs.filter(club => Number(club.division) === 2);
 assert.ok(egyptProfile && egyptTopFlight.length >= 2 && egyptSecondTier.length >= 1,
   "Egyptian top-flight and second-division club records must be available for supercup eligibility tests");
-const egyptLeagueChampion = egyptTopFlight[0];
-const egyptLeagueRunnerUp = egyptTopFlight[1];
-const egyptSecondTierClub = egyptSecondTier[0];
+const egyptLeagueChampion = { ...egyptTopFlight[0], id: "egypt-test-champion" };
+const egyptLeagueRunnerUp = { ...egyptTopFlight[1], id: "egypt-test-runner-up" };
+const egyptSecondTierClub = { ...egyptSecondTier[0], id: "egypt-test-second-tier" };
 const egyptBaseWorld = {
   clubs: Object.fromEntries([egyptLeagueChampion, egyptLeagueRunnerUp, egyptSecondTierClub].map(club => [club.id, club])),
   leagueTables: { "1": { egypt: [

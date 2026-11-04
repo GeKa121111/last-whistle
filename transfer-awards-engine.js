@@ -459,7 +459,7 @@
       const cleanSheet = Math.max(10, Math.round(wage * 0.12));
       const releaseClause = Math.round(wage * 52 * (1.9 + power / 100));
       return {
-        id: "offer-" + String(input.windowId) + "-" + stableHash(target.country + "|" + target.club + "|" + player.name).toString(36),
+        id: "offer-" + String(input.windowId) + "-" + stableHash(target.country + "|" + target.club + "|" + playerIdentityKey(player)).toString(36),
         windowId: String(input.windowId),
         club: target.club,
         country: target.country,
@@ -645,7 +645,7 @@
         + row.ovr * 0.08 + row.trophyBonus + row.leagueStrength * 0.04
         + safePrestige(realPlayer.prestige) * 0.025 + row.defensiveBonus;
       row.theBestScore = row.ballonScore + row.averageRating * 0.22
-        + (stableHash(row.name + "|" + season + "|best") % 17) / 10;
+        + (stableHash(playerIdentityKey(row) + "|" + season + "|best") % 17) / 10;
       row.originConfederation = realPlayer.originConfederation || realPlayer.confederation || "";
       candidates.push(row);
     }

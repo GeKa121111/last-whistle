@@ -5695,8 +5695,79 @@ function activateMidSeasonBreakIfDue(){
  saveGame(true);
  return true;
 }
+function supercupParticipants(comp,currentClub){
+ const previousSeason=Math.max(0,(Number(state.season)||1)-1);
+ if(!previousSeason||!currentClub)return [];
+ const world=state.worldSimulation;
+ const clubs=world&&world.clubs&&typeof world.clubs==="object"?world.clubs:{};
+ const previous=world&&world.competitionsBySeason&&world.competitionsBySeason[String(previousSeason)];
+ if(!Array.isArray(previous)||!previous.length)return [];
+ const clubFor=id=>id&&clubs[id]&&clubs[id].name?clubs[id]:null;
+ const qualifierNamesById={
+  "community-shield":["FA Cup"],"spanish-super-cup":["Copa del Rey"],"german-super-cup":["DFB-Pokal"],
+  "italian-super-cup":["Coppa Italia"],"trophee-des-champions":["Coupe de France"],
+  "portuguese-super-cup":["Taça de Portugal"],"egyptian-super-cup":["كأس مصر","كأس الرابطة المصرية"],
+  "morocco-super-cup":["كأس العرش المغربي"],"tunisia-super-cup":["كأس تونس"],"algeria-super-cup":["كأس الجزائر"],
+  "nigeria-super-cup":["Nigeria Federation Cup"],"ghana-super-cup":["MTN FA Cup"],
+  "brazilian-super-cup":["Copa do Brasil"],"argentina-super-cup":["Copa Argentina"],
+  "uefa-super-cup":["UEFA Champions League","UEFA Europa League"],
+  "caf-super-cup":["CAF Champions League","CAF Confederation Cup"]
+ };
+ const qualifierNames=qualifierNamesById[comp.id]||[];
+ const localCupWins=(Array.isArray(state.cupHistory)?state.cupHistory:[])
+  .filter(row=>row&&Number(row.season)===previousSeason&&row.champion===true
+   &&String(row.club||"").trim()===currentClub
+   &&String(row.country||"").trim()===String(state.leagueCountry||"").trim()
+   &&qualifierNames.includes(row.name))
+  .map(row=>String(row.name));
+ if(Array.isArray(comp.countries)&&comp.countries.length){
+  const leagueId=String(comp.countries[0]||"");
+  const previousTables=world.leagueTables&&world.leagueTables[String(previousSeason)]||{};
+  const leagueRows=Array.isArray(previousTables[leagueId])?previousTables[leagueId]:[];
+  const leagueChampionRow=leagueRows.find(row=>Number(row&&row.rank)===1)||leagueRows[0];
+  const leagueRunnerUpRow=leagueRows.find(row=>Number(row&&row.rank)===2)||leagueRows[1];
+  const domesticCups=previous.filter(row=>row&&row.kind==="domestic-cup"&&row.championId
+   &&String(clubFor(row.championId)?.leagueId||"")===leagueId);
+  const domesticCup=qualifierNames.map(name=>domesticCups.find(row=>row.name===name)).find(Boolean)
+   ||domesticCups[0]||null;
+  const leagueChampion=clubFor(leagueChampionRow&&leagueChampionRow.clubId);
+  const leagueRunnerUp=clubFor(leagueRunnerUpRow&&leagueRunnerUpRow.clubId);
+  const cupChampion=clubFor(domesticCup&&domesticCup.championId);
+  const cupRunnerUp=clubFor(domesticCup&&domesticCup.runnerUpId);
+  const currentIsLeagueChampion=previousSeasonLeagueRank()===1;
+  const currentWonPrimaryCup=!!qualifierNames[0]&&localCupWins.includes(qualifierNames[0]);
+  const currentWonAnyCup=localCupWins.length>0;
+  const candidates=currentIsLeagueChampion
+   ?(currentWonPrimaryCup?[cupRunnerUp,leagueRunnerUp,cupChampion,leagueChampion]:[cupChampion,cupRunnerUp,leagueRunnerUp,leagueChampion])
+   :currentWonAnyCup?[leagueChampion,leagueRunnerUp,cupRunnerUp,cupChampion]
+   :[leagueChampion,cupChampion,cupRunnerUp,leagueRunnerUp];
+  const opponent=candidates.find(team=>team&&team.name&&team.name!==currentClub&&String(team.leagueId||"")===leagueId);
+  return opponent?[currentClub,opponent.name]:[];
+ }
+ const eligible=qualifierNames.map(name=>previous.find(row=>row&&row.kind==="continental"
+  &&row.name===name&&row.championId
+  &&(!comp.confederation||String(row.confederation||"")===String(comp.confederation))))
+  .filter(Boolean);
+ if(!eligible.length)return [];
+ const otherResult=eligible.find(row=>!localCupWins.includes(String(row.name||"")));
+ let opponent=otherResult?clubFor(otherResult.championId):null;
+ if(!opponent||opponent.name===currentClub)opponent=otherResult?clubFor(otherResult.runnerUpId):null;
+ if(!opponent||opponent.name===currentClub){
+  const fallbackResult=eligible.find(row=>row&&row.runnerUpId);
+  opponent=fallbackResult?clubFor(fallbackResult.runnerUpId):null;
+ }
+ if(!opponent||opponent.name===currentClub){
+  opponent=eligible.map(row=>clubFor(row.championId)).find(team=>team&&team.name!==currentClub)||null;
+ }
+ return opponent&&opponent.name?[currentClub,opponent.name]:[];
+}
 function cupParticipants(comp,count){
  comp=comp||{};
+ const currentClub=String(clubNameForLeague()||"").trim();
+ if(comp.kind==="supercup"){
+  const dynamicParticipants=supercupParticipants(comp,currentClub);
+  if(dynamicParticipants.length>=2)return dynamicParticipants.slice(0,Math.max(0,Number(count)||0));
+ }
  const db=window.LWWorldDB;
  const worldClubs=db&&typeof db.clubNames==="function"?db.clubNames():[];
  const countryIds=Array.isArray(comp.countries)?comp.countries.map(id=>String(id||"").trim()).filter(Boolean):[];
@@ -5731,7 +5802,6 @@ function cupParticipants(comp,count){
   return divisionKeys.flatMap(division=>Array.isArray(divisions?.[division])?divisions[division]:[]);
  });
  const worldTeams=worldClubs.filter(allowClub).map(club=>club.name);
- const currentClub=String(clubNameForLeague()||"").trim();
  const base=[...configuredTeams,...rosterTeams,...worldTeams];
  const unique=[...new Set(base.filter(name=>name&&name!==currentClub))];
  return [currentClub,...unique].filter(Boolean).slice(0,Math.max(0,Number(count)||0));

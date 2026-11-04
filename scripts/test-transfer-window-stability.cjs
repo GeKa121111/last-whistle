@@ -215,6 +215,7 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
    pendingTransfer: { club: "نادي ب", country: "مصر", league: "الدوري المصري", division: 1,
     source: "LWWorldDB", season: "2026/27", windowId: "winter-season-4",
     power: 65, wage: 700, contractSeasons: 3, role: "أساسي", currency: "ج.م", signingBonus: 120 },
+   contractOffer: { club: "نادي أ", season: 4, wage: 300, seasons: 3 },
    lastOfferWindow: "", seasonApps: 12, seasonPhase: "secondHalf", winterBreakPending: false,
    trust: 55, followers: 100, money: 500, weeklyWage: 250, contractSeasons: 2,
    currentReleaseClause: 0, goalBonusPerGoal: 0, cleanSheetBonus: 0, transferCooldown: 0,
@@ -262,6 +263,8 @@ assert.equal(sandbox.transferOfferMatchesCurrentWindow(state.transferOffers[0], 
 }, "league"), false, "a loan must still respect the parent contract type when the parent is a free agent");
  assert.equal(legacyWinterCompletion.state.pendingTransfer, null,
   "a completed transfer must clear its pending offer");
+assert.equal(legacyWinterCompletion.state.contractOffer, null,
+  "a permanent transfer must discard the previous club's pending renewal offer");
  assert.equal(legacyWinterCompletion.state.transferCooldown, 14,
   "a completed transfer must apply the normal transfer cooldown");
  assert.equal(legacyWinterCompletion.state.transferHistory.length, 1,
@@ -1459,7 +1462,7 @@ assert.equal(cleanRetirement.counts.persistence, 1);
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v460";'),
+assert.ok(sw.includes('const CACHE_NAME = "last-whistle-static-v461";'),
   "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");

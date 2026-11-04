@@ -5902,7 +5902,7 @@ function supercupParticipants(comp,currentClub){
   const champion=clubFor(row.championId);
   return !!champion&&(!comp.confederation||supercupClubConfederation(champion)===String(comp.confederation));
  })).filter(Boolean);
- if(!eligible.length)return [];
+ if(eligible.length!==qualifierNames.length)return [];
  const currentWonAnyCup=hasPreviousSeasonClubTitle(qualifierNames);
  const currentIsRunnerUp=isSupercupRunnerUp(comp);
  if(!currentWonAnyCup&&!currentIsRunnerUp)return [];

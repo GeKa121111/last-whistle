@@ -431,8 +431,24 @@ wrongConfederationChampion.state.worldSimulation = wrongConfederationChampionWor
 wrongConfederationChampion.state.cupHistory = [
   { name: "UEFA Champions League", season: 1, champion: true, club: "ريال مدريد", country: "إسبانيا" }
 ];
-assert.deepEqual(Array.from(wrongConfederationChampion.cupParticipants(uefaSuperCup, 2)), ["ريال مدريد", "أرسنال"],
-  "a continental supercup must reject a history row whose champion club belongs to another confederation");
+assert.match(wrongConfederationChampion.competitionLockReason(uefaSuperCup), /السوبر بطولة مشروطة/,
+  "a continental supercup must remain locked when one of its primary winners belongs to another confederation");
+assert.equal(Array.from(wrongConfederationChampion.cupParticipants(uefaSuperCup, 2)).length, 0,
+  "a continental supercup must not substitute a runner-up from the wrong confederation");
+
+const missingEuropaWorld = JSON.parse(JSON.stringify(supercupWorld));
+missingEuropaWorld.competitionsBySeason["1"] = missingEuropaWorld.competitionsBySeason["1"]
+  .filter(row => row.name !== "UEFA Europa League");
+const missingEuropaWinner = scopedCupSandbox("إسبانيا", "ريال مدريد");
+missingEuropaWinner.state.careerStarted = true;
+missingEuropaWinner.state.worldSimulation = missingEuropaWorld;
+missingEuropaWinner.state.cupHistory = [
+  { name: "UEFA Champions League", season: 1, champion: true, club: "ريال مدريد", country: "إسبانيا" }
+];
+assert.match(missingEuropaWinner.competitionLockReason(uefaSuperCup), /السوبر بطولة مشروطة/,
+  "a continental supercup must require both primary competition results");
+assert.equal(Array.from(missingEuropaWinner.cupParticipants(uefaSuperCup, 2)).length, 0,
+  "a missing Europa League result must not be replaced with the Champions League runner-up");
 
 const wrongConfederationClub = scopedCupSandbox("مصر", "الأهلي");
 wrongConfederationClub.state.careerStarted = true;

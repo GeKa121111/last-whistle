@@ -3320,7 +3320,7 @@ assert.equal(Object.keys(cupWorld.players).length, 0,
   "cup participant selection must not fabricate player records");
 
 // A seeded 1-1 cup final (season 14) exposed a chained-random-draw bias:
-// the old resolver awarded the home side about 70% of tied knockout matches.
+// the old resolver gave the home side a 52.645% win probability (47.355% away) on tied knockout matches.
 const tieBreakClubA = { id: "testland|a", name: "Tie Break A", power: 70 };
 const tieBreakClubB = { id: "testland|b", name: "Tie Break B", power: 70 };
 const tieBreakWorld = { clubs: {

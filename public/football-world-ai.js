@@ -1497,12 +1497,16 @@
     .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
   function groupRows(world) {
     const groups = new Map();
-    Object.values(world.clubs).filter(club => club && club.leagueId && Number(club.division) >= 1 && Number(club.division) <= 2)
-      .forEach(club => {
-        const key = String(club.leagueId) + ":" + String(club.division || 1);
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(club);
-      });
+    Object.values(world.clubs || {}).forEach(club => {
+      if (!club || !club.leagueId) return;
+      // Keep legacy saves consistent with addClub and simulateLeagueTables:
+      // an absent/invalid division is the first tier, not a reason to omit the club.
+      const division = Math.max(1, int(club.division, 1));
+      if (division > 2) return;
+      const key = String(club.leagueId) + ":" + String(division);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(club);
+    });
     return groups;
   }
   function playersForClub(world, club) {
@@ -2317,7 +2321,7 @@
         if (!clubId || seen.has(clubId)) continue;
         const club = world.clubs && world.clubs[clubId];
         if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
-        const clubDivision = Number(club.division);
+        const clubDivision = Math.max(1, int(club.division, 1));
         if (!Number.isInteger(clubDivision) || clubDivision !== expectedDivision) continue;
         const rowLeagueId = String(row.leagueId || "").trim();
         if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
@@ -2886,7 +2890,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=68");
+    const worker = new global.Worker("./football-world-worker.js?v=69");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

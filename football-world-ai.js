@@ -441,6 +441,25 @@
     world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
     return world;
   }
+  function invalidateUnfinishedSeasonProjection(world) {
+    if (!world || typeof world !== "object") return false;
+    const season = Math.max(1, int(world.currentSeason, int(world.lastAdvancedTo, 1)),
+      int(world.lastAdvancedTo, 0));
+    const completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
+    if (completedSeasons.some(value => Number(value) === season)
+      || Math.max(0, int(world.lastCompletedSeason, 0)) >= season) return false;
+    const key = String(season);
+    let invalidated = false;
+    ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"].forEach(field => {
+      const collection = world[field];
+      if (!collection || typeof collection !== "object" || Array.isArray(collection)) return;
+      if (Object.prototype.hasOwnProperty.call(collection, key)) {
+        delete collection[key];
+        invalidated = true;
+      }
+    });
+    return invalidated;
+  }
   function reconcileDatabase(world, db) {
     if (!world || !world.clubs) return seedWorld(db);
     world.players = world.players && typeof world.players === "object" ? world.players : {};
@@ -687,6 +706,7 @@
     world.rosterSchemaVersion = 3;
     world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
+    invalidateUnfinishedSeasonProjection(world);
     return world;
   }
   function ensureState(save, db) {
@@ -736,6 +756,7 @@
       normalizeRosterMembership(world);
       world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
+      invalidateUnfinishedSeasonProjection(world);
     }
     // The world-simulation season is independent of the player's career season.
     // Never rewind completed global seasons just because save.season has not caught up.

@@ -68,7 +68,7 @@ const source = html.slice(worldHelperStart, worldHelperEnd) + "\n" + html.slice(
   + "\n" + html.slice(supercupStart, start) + "\n" + html.slice(start, end)
   + "\nthis.cupParticipants = cupParticipants;";
 assert.ok(!source.includes("نادي مشارك"), "cup generation must not invent placeholder clubs");
-assert.ok(html.includes('<script src="./football-world-db.js?v=9"></script>'), "world database script must be cache-busted when its public API changes");
+assert.ok(html.includes('<script src="./football-world-db.js?v=10"></script>'), "world database script must be cache-busted when its public API changes");
 assert.ok(html.includes('if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}'),
   "a cup must be blocked rather than started with fabricated participants");
 

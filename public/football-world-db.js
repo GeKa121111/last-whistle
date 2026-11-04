@@ -199,8 +199,6 @@
   function sourcePlayerIdentityKey(player) {
     var name = normalize(player && player.name);
     if (!name) return "";
-    var sourceId = String(player && (player.sourcePlayerId || player.sourceId || player.playerId || player.externalId) || "").trim();
-    if (sourceId) return "source|" + normalize(sourceId);
     var age = Math.max(0, Math.floor(Number(player && player.age) || 0));
     return [name, normalize(player && player.position), age].join("|");
   }

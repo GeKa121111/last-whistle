@@ -1150,7 +1150,7 @@
       seller.budget = Math.max(0, Number(seller.budget) || 0) + fee;
       buyer.budget = Math.max(0, buyer.budget - fee);
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
-      player.division = buyer.division; player.contractSeasons = 2 + (hash(player.id + "|" + season + "|contract") % 4);
+      player.division = divisionForClub(buyer); player.contractSeasons = 2 + (hash(player.id + "|" + season + "|contract") % 4);
       player.transferListed = false;
       alreadyUsedClubs.add(seller.id); alreadyUsedClubs.add(buyer.id); alreadyUsedPlayers.add(player.id);
       const transfer = {
@@ -2518,7 +2518,7 @@
       const previousClub = player.previousClubId && world.clubs[player.previousClubId];
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
-      player.division = buyer.division; player.freeAgent = false;
+      player.division = divisionForClub(buyer); player.freeAgent = false;
       player.freeAgentSince = 0;
       player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
       buyer.roster.push(String(player.id));
@@ -2891,7 +2891,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=70");
+    const worker = new global.Worker("./football-world-worker.js?v=71");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

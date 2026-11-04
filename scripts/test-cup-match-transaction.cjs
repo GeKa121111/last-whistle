@@ -91,7 +91,7 @@ function runSeasonEndCupClosure(existingHistory) {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(closeCupFunction + "\\nglobalThis.closeCupForTest = closeUnfinishedCupAtSeasonEnd;",
+  vm.runInContext(closeCupFunction + "\nglobalThis.closeCupForTest = closeUnfinishedCupAtSeasonEnd;",
     sandbox, { filename: "season-end-cup-history-identity.js" });
   assert.equal(sandbox.closeCupForTest(), true);
   return sandbox.state.cupHistory;

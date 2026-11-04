@@ -27,9 +27,12 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 491
-  assert.ok(/url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker),
-    "the updated world AI module must bypass the browser HTTP cache during a new static-cache install");
+  const minimumCacheVersion = 492;
+  assert.ok(
+    /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
+      && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
+      && /url\.indexOf\("football-world-worker\.js\?"\)\s*>=\s*0/.test(serviceWorker),
+    "updated world AI, database, and worker modules must bypass the browser HTTP cache during a new static-cache install");
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
     ["career-state-store.js", 8],
@@ -38,7 +41,7 @@ if (require.main === module) {
     ["data/match-engine.js", 78],
     ["football-world-ai.js", 83],
     ["football-world-db.js", 11],
-    ["football-world-worker.js", 71],
+    ["football-world-worker.js", 72],
     ["transfer-awards-engine.js", 18],
     ["ui-organization.css", 5],
     ["career-experience.js", 9],
@@ -49,7 +52,7 @@ if (require.main === module) {
   requiredAssets.forEach(([asset, minimum]) => {
     const assetSource = asset === "football-world-worker.js"
       ? fs.readFileSync(path.join(root, "football-world-ai.js"), "utf8")
-      : asset === "data/career-engine.js" || asset === "data/match-engine.js" ? serviceWorker : html;
+      : asset === "football-world-db.js" || asset === "data/career-engine.js" || asset === "data/match-engine.js" ? serviceWorker : html;
     module.exports.assertAssetVersionAtLeast(assetSource, asset, minimum);
   });
   console.log("Static cache v" + cacheVersion + " and " + requiredAssets.length + " versioned app assets verified.");

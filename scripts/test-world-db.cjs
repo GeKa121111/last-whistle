@@ -71,8 +71,60 @@ assert.ok(Array.isArray(egyptSupplement.skippedPages)
   "current promoted-club rosters must not be recorded as skipped");
 const db = sandbox.window.LWWorldDB;
 assert.ok(db);
-assert.equal(db.version, 4);
+assert.equal(db.version, 5);
 assert.equal(db.season, "2026/27");
+ 
+// Same-name sourced players in different positions are distinct roster records.
+// Exact duplicate source rows are still collapsed, and IDs remain club-scoped.
+const identityFixtureSandbox = {
+  window: {
+    LWFootballSquadData: {
+      season: "2026/27",
+      source: "isolated identity regression fixture",
+      leagues: [{
+        leagueId: "england",
+        country: "إنجلترا",
+        division: 1,
+        clubs: [
+          {
+            name: "Identity Fixture FC",
+            players: [
+              { name: "Test Shared Player", age: 24, position: "قلب دفاع", isRealPlayer: true, isGenerated: false },
+              { name: "Test Shared Player", age: 24, position: "حارس مرمى", isRealPlayer: true, isGenerated: false },
+              { name: "Test Shared Player", age: 24, position: "قلب دفاع", isRealPlayer: true, isGenerated: false }
+            ]
+          },
+          {
+            name: "Identity Fixture United",
+            players: [
+              { name: "Test Shared Player", age: 24, position: "قلب دفاع", isRealPlayer: true, isGenerated: false }
+            ]
+          }
+        ]
+      }]
+    }
+  },
+  console
+};
+vm.createContext(identityFixtureSandbox);
+vm.runInContext(source, identityFixtureSandbox, { filename: "football-world-db-identity-fixture.js" });
+const identityFixtureDb = identityFixtureSandbox.window.LWWorldDB;
+const identityFixtureHome = identityFixtureDb.playerRecordsForClub("Identity Fixture FC", "إنجلترا")
+  .filter(player => player.name === "Test Shared Player");
+const identityFixtureAway = identityFixtureDb.playerRecordsForClub("Identity Fixture United", "إنجلترا")
+  .filter(player => player.name === "Test Shared Player");
+assert.equal(identityFixtureHome.length, 2,
+  "same-name players in different positions must both survive source-roster import while exact duplicate rows remain deduplicated");
+assert.deepEqual(Array.from(new Set(identityFixtureHome.map(player => player.position))).sort(),
+  ["حارس مرمى", "قلب دفاع"],
+  "the imported same-name players must retain their distinct source positions");
+assert.equal(identityFixtureAway.length, 1,
+  "the same player name must remain available in a different club's sourced roster");
+assert.equal(new Set(identityFixtureHome.concat(identityFixtureAway).map(player => player.id)).size, 3,
+  "sourced player record IDs must include club identity so same-name players across clubs cannot collide");
+assert.ok(identityFixtureHome.concat(identityFixtureAway).every(player => player.isRealPlayer === true && player.isGenerated !== true),
+  "the identity fix must preserve source-player provenance without generating replacement players");
+
 assert.equal(db.leagues().length, 20);
 assert.equal(db.leagueById("japan"), null, "Japan must not be a selectable league outside the supported continental competitions");
 assert.equal(db.leagueFor("اليابان", 1), null, "removed leagues must not resolve through the country/league lookup");

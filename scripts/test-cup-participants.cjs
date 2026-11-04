@@ -331,6 +331,27 @@ cupWinnerWithInvalidTable.state.worldSimulation = invalidOnlyWorld;
 assert.deepEqual(Array.from(cupWinnerWithInvalidTable.cupParticipants(communityShield, 2)), ["تشيلسي", "ليفربول"],
   "when the league-table champion is invalid, the cup winner must use the valid cup runner-up rather than the foreign club");
 
+const wrongLeagueCupRowWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));
+wrongLeagueCupRowWorld.competitionsBySeason["1"][0].leagueId = "spain";
+const wrongLeagueCupRowRunnerUp = scopedCupSandbox("إنجلترا", "ليفربول");
+wrongLeagueCupRowRunnerUp.state.careerStarted = true;
+wrongLeagueCupRowRunnerUp.state.previousSeasonRank = 2;
+wrongLeagueCupRowRunnerUp.state.worldSimulation = wrongLeagueCupRowWorld;
+assert.match(wrongLeagueCupRowRunnerUp.competitionLockReason(communityShield), /السوبر بطولة مشروطة/,
+  "a domestic cup result carrying a different league ID must not qualify its runner-up");
+
+const foreignCupRunnerUpWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));
+foreignCupRunnerUpWorld.clubs.foreign = invalidLeadingRowWorld.clubs.foreign;
+foreignCupRunnerUpWorld.competitionsBySeason["1"][0].runnerUpId = "foreign";
+const fallbackLeagueRunnerUp = scopedCupSandbox("إنجلترا", "ليفربول");
+fallbackLeagueRunnerUp.state.careerStarted = true;
+fallbackLeagueRunnerUp.state.previousSeasonRank = 2;
+fallbackLeagueRunnerUp.state.worldSimulation = foreignCupRunnerUpWorld;
+assert.equal(fallbackLeagueRunnerUp.competitionLockReason(communityShield), "",
+  "the verified league runner-up must qualify when the cup runner-up belongs to another league");
+assert.deepEqual(Array.from(fallbackLeagueRunnerUp.cupParticipants(communityShield, 2)), ["ليفربول", "أرسنال"],
+  "a foreign cup runner-up must be replaced by the valid same-league runner-up");
+
 const doubleContinentalWorld = JSON.parse(JSON.stringify(supercupWorld));
 const europaResult = doubleContinentalWorld.competitionsBySeason["1"]
   .find(row => row.name === "UEFA Europa League");
@@ -345,6 +366,16 @@ assert.equal(continentalRunnerUp.competitionLockReason(uefaSuperCup), "",
   "a continental runner-up must qualify when the same club won both supercup feeder competitions");
 assert.deepEqual(Array.from(continentalRunnerUp.cupParticipants(uefaSuperCup, 2)), ["ليفربول", "ريال مدريد"],
   "the continental runner-up must face the shared Champions League and Europa League winner");
+
+const wrongConfederationChampionWorld = JSON.parse(JSON.stringify(supercupWorld));
+wrongConfederationChampionWorld.clubs.sevilla.confederation = "CAF";
+const wrongConfederationChampion = scopedCupSandbox("إسبانيا", "ريال مدريد");
+wrongConfederationChampion.state.worldSimulation = wrongConfederationChampionWorld;
+wrongConfederationChampion.state.cupHistory = [
+  { name: "UEFA Champions League", season: 1, champion: true, club: "ريال مدريد", country: "إسبانيا" }
+];
+assert.deepEqual(Array.from(wrongConfederationChampion.cupParticipants(uefaSuperCup, 2)), ["ريال مدريد", "أرسنال"],
+  "a continental supercup must reject a history row whose champion club belongs to another confederation");
 
 const wrongConfederationClub = scopedCupSandbox("مصر", "الأهلي");
 wrongConfederationClub.state.careerStarted = true;

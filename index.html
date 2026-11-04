@@ -4143,6 +4143,67 @@ function hasPreviousSeasonClubTitle(names) {
   String(row.club || "").trim() === clubName && String(row.country || "").trim() === country
  );
 }
+function hasWorldClubCupTitle(currentClub,season){
+ const currentSeason=Math.max(1,Math.floor(Number(season)||1));
+ const firstSeason=Math.max(1,currentSeason-4);
+ const qualifyingTitles=new Set(["UEFA Champions League","Copa Libertadores","CAF Champions League"]);
+ const country=String(state.leagueCountry||"").trim();
+ return (Array.isArray(state.cupHistory)?state.cupHistory:[]).some(row=>
+  row&&row.champion===true&&Number(row.season)>=firstSeason&&Number(row.season)<currentSeason
+  &&String(row.club||"").trim()===String(currentClub||"").trim()
+  &&String(row.country||"").trim()===country
+  &&qualifyingTitles.has(String(row.name||"").trim()));
+}
+function worldCupQualification(comp){
+ const season=Math.max(1,Math.floor(Number(state.season)||1));
+ const cycleYears=4;
+ const result={cycle:season>cycleYears&&(season-1)%cycleYears===0,complete:false,currentClubQualified:false,names:[]};
+ if(!result.cycle||!comp||String(comp.system||"")!=="world32")return result;
+ const world=state.worldSimulation;
+ const clubs=world&&world.clubs&&typeof world.clubs==="object"?world.clubs:{};
+ const seasonResults=world&&world.competitionsBySeason&&world.competitionsBySeason[String(season)];
+ if(!Array.isArray(seasonResults))return result;
+ const tournament=seasonResults.find(row=>row&&row.id===comp.id&&row.kind==="world"&&Array.isArray(row.participants));
+ if(!tournament)return result;
+ const participantIds=Array.from(new Set(tournament.participants.map(id=>String(id||"").trim()).filter(Boolean)));
+ const names=[];
+ const seen=new Set();
+ participantIds.forEach(id=>{
+  const club=clubs[id];
+  const name=String(club&&club.name||"").trim();
+  if(name&&!seen.has(name)){seen.add(name);names.push(name);}
+ });
+ if(names.length!==32)return result;
+ const currentClub=String(clubNameForLeague()||"").trim();
+ const currentCountry=String(state.leagueCountry||"").trim();
+ const profile=window.LWWorldDB?.leagueByCountry?.(currentCountry)||null;
+ const currentClubId=Object.keys(clubs).find(id=>{
+  const club=clubs[id];
+  return club&&String(club.name||"").trim()===currentClub
+   &&String(club.country||"").trim()===currentCountry
+   &&(!profile||String(club.leagueId||"")===String(profile.id||""));
+ });
+ const currentIncluded=currentClubId
+  ?participantIds.includes(String(currentClubId))
+  :participantIds.some(id=>{
+    const club=clubs[id];
+    return club&&String(club.name||"").trim()===currentClub
+     &&String(club.country||"").trim()===currentCountry;
+  });
+ const localQualified=hasWorldClubCupTitle(currentClub,season);
+ if(localQualified&&!currentIncluded&&currentClub){
+  const duplicateIndex=names.indexOf(currentClub);
+  if(duplicateIndex>=0)names.splice(duplicateIndex,1);
+  if(names.length>=32)names.pop();
+  names.unshift(currentClub);
+  result.currentClubQualified=true;
+ }else{
+  result.currentClubQualified=!!currentIncluded;
+ }
+ result.names=names;
+ result.complete=names.length===32;
+ return result;
+}
 function competitionLockReason(comp) {
  if (!state.careerStarted) return "ابدأ مسيرتك أولًا قبل دخول البطولات.";
  const profile = window.LWWorldDB?.leagueByCountry?.(state.leagueCountry || "مصر");
@@ -4181,8 +4242,11 @@ function competitionLockReason(comp) {
   return "السوبر بطولة مشروطة: لازم تكون بطل الدوري أو أحد البطولات المؤهلة في الموسم السابق.";
  }
  if (comp.kind === "world") {
-  if (hasPreviousSeasonClubTitle(["UEFA Champions League","CAF Champions League","Copa Libertadores"])) return "";
-  return "كأس العالم للأندية مقفولة لحد ما النادي يتأهل ببطولة قارية.";
+  const qualification=worldCupQualification(comp);
+  if(!qualification.cycle)return "كأس العالم للأندية بتتلعب كل أربع مواسم، والموسم الحالي مش موسم البطولة.";
+  if(!qualification.complete)return "بيانات التأهل لكأس العالم للأندية غير مكتملة؛ مش هنضيف أندية بديلة.";
+  if(qualification.currentClubQualified)return "";
+  return "النادي مش ضمن قائمة الـ32 المتأهلة لدورة كأس العالم للأندية الحالية.";
  }
  return "";
 }
@@ -5767,6 +5831,10 @@ function cupParticipants(comp,count){
  if(comp.kind==="supercup"){
   const dynamicParticipants=supercupParticipants(comp,currentClub);
   if(dynamicParticipants.length>=2)return dynamicParticipants.slice(0,Math.max(0,Number(count)||0));
+ }
+ if(comp.kind==="world"&&comp.system==="world32"){
+  const qualification=worldCupQualification(comp);
+  return qualification.complete?qualification.names.slice(0,Math.max(0,Number(count)||0)):[];
  }
  const db=window.LWWorldDB;
  const worldClubs=db&&typeof db.clubNames==="function"?db.clubNames():[];

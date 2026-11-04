@@ -53,12 +53,19 @@ assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["Copa del Rey"]), true,
 assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["FA Cup"]), false,
   "a different competition must not grant supercup qualification");
 
+const worldHelperStart = html.indexOf("function hasWorldClubCupTitle(currentClub,season){");
+const worldHelperEnd = html.indexOf("\nfunction competitionLockReason", worldHelperStart);
+const lockStart = html.indexOf("function competitionLockReason(comp) {", worldHelperStart);
+const lockEnd = html.indexOf("\n\n\nconst LEGACY_REAL_PLAYERS", lockStart);
 const supercupStart = html.indexOf("function supercupParticipants(comp,currentClub){");
 const start = html.indexOf("function cupParticipants(comp,count){");
 const end = html.indexOf("\nfunction cupConfig", start);
-assert.ok(supercupStart >= 0 && start > supercupStart && end > start,
-  "supercup and cup participant builders must exist");
-const source = html.slice(supercupStart, start) + "\n" + html.slice(start, end)
+assert.ok(worldHelperStart >= 0 && worldHelperEnd > worldHelperStart && lockStart > worldHelperEnd
+  && lockEnd > lockStart && supercupStart > lockEnd && start > supercupStart && end > start,
+  "world-cup, supercup, and cup participant builders must exist");
+const source = html.slice(worldHelperStart, worldHelperEnd) + "\n" + html.slice(lockStart, lockEnd)
+  + "\nthis.competitionLockReason = competitionLockReason;"
+  + "\n" + html.slice(supercupStart, start) + "\n" + html.slice(start, end)
   + "\nthis.cupParticipants = cupParticipants;";
 assert.ok(!source.includes("نادي مشارك"), "cup generation must not invent placeholder clubs");
 assert.ok(html.includes('<script src="./football-world-db.js?v=9"></script>'), "world database script must be cache-busted when its public API changes");
@@ -77,6 +84,7 @@ const sandbox = {
   console
 };
 sandbox.previousSeasonLeagueRank = () => Number(sandbox.state.previousSeasonRank) || null;
+sandbox.hasPreviousSeasonClubTitle = () => false;
 vm.createContext(sandbox);
 vm.runInContext(worldDbSource, sandbox, { filename: "football-world-db.js" });
 const db = sandbox.window.LWWorldDB;
@@ -135,6 +143,7 @@ function scopedCupSandbox(country, clubName) {
     clubNameForLeague: () => clubName
   };
   context.previousSeasonLeagueRank = () => Number(context.state.previousSeasonRank) || null;
+  context.hasPreviousSeasonClubTitle = () => false;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "cup-participants-scoped" });
   return context;
@@ -264,6 +273,63 @@ assert.deepEqual(Array.from(cafSandbox.cupParticipants({
   id: "caf-super-cup", kind: "supercup", confederation: "CAF", teams: ["الزمالك"]
 }, 2)), ["الأهلي", "نهضة بركان"],
   "the CAF Super Cup must pair the Champions League winner with the Confederation Cup winner");
+
+const worldCupDefinition = db.simulationCupDefinitions().find(item =>
+  item && item.kind === "world" && item.system === "world32");
+assert.ok(worldCupDefinition, "the world database must expose the 32-team club world cup definition");
+const worldCupClubs = {};
+const worldCupIds = Array.from({ length: 32 }, (_, index) => {
+  const id = "qualified-" + (index + 1);
+  worldCupClubs[id] = {
+    id, name: "نادي متأهل " + (index + 1), leagueId: "england", country: "إنجلترا"
+  };
+  return id;
+});
+worldCupClubs.arsenal = { id: "arsenal", name: "أرسنال", leagueId: "england", country: "إنجلترا" };
+worldCupClubs.liverpool = { id: "liverpool", name: "ليفربول", leagueId: "england", country: "إنجلترا" };
+const worldCupWorld = {
+  clubs: worldCupClubs,
+  competitionsBySeason: {
+    "5": [{ id: worldCupDefinition.id, kind: "world", participants: worldCupIds }]
+  }
+};
+const worldCupSandbox = scopedCupSandbox("إنجلترا", "أرسنال");
+worldCupSandbox.state.careerStarted = true;
+worldCupSandbox.state.season = 5;
+worldCupSandbox.state.worldSimulation = worldCupWorld;
+worldCupSandbox.state.cupHistory = [
+  { name: "UEFA Champions League", season: 4, champion: true, club: "أرسنال", country: "إنجلترا" }
+];
+const worldCupParticipants = Array.from(worldCupSandbox.cupParticipants(worldCupDefinition, 32));
+assert.equal(worldCupParticipants.length, 32,
+  "the club world cup must use the complete 32-club field from the world simulation");
+assert.equal(worldCupParticipants[0], "أرسنال",
+  "a current club that won a top-tier continental title in the four-season cycle must be inserted");
+assert.ok(!worldCupParticipants.includes("نادي متأهل 32"),
+  "inserting a locally qualified club must replace, not expand, the 32-team field");
+assert.equal(worldCupSandbox.competitionLockReason(worldCupDefinition), "",
+  "a top-tier continental champion in the qualification cycle must be allowed into the club world cup");
+
+const worldCupNonQualifier = scopedCupSandbox("إنجلترا", "ليفربول");
+worldCupNonQualifier.state.careerStarted = true;
+worldCupNonQualifier.state.season = 5;
+worldCupNonQualifier.state.worldSimulation = worldCupWorld;
+assert.match(worldCupNonQualifier.competitionLockReason(worldCupDefinition), /مش ضمن قائمة الـ32/,
+  "a club outside the world simulation field without a local continental title must remain locked");
+worldCupNonQualifier.state.season = 6;
+assert.match(worldCupNonQualifier.competitionLockReason(worldCupDefinition), /كل أربع مواسم/,
+  "the club world cup must not be available in non-cycle seasons");
+assert.equal(Array.from(worldCupNonQualifier.cupParticipants(worldCupDefinition, 32)).length, 0,
+  "a non-cycle season must not fall back to an arbitrary global club pool");
+
+const incompleteWorld = JSON.parse(JSON.stringify(worldCupWorld));
+incompleteWorld.competitionsBySeason["5"][0].participants = worldCupIds.slice(0, 31);
+worldCupNonQualifier.state.season = 5;
+worldCupNonQualifier.state.worldSimulation = incompleteWorld;
+assert.match(worldCupNonQualifier.competitionLockReason(worldCupDefinition), /غير مكتملة/,
+  "an incomplete world-simulation field must block the tournament instead of fabricating teams");
+assert.equal(Array.from(worldCupNonQualifier.cupParticipants(worldCupDefinition, 32)).length, 0,
+  "an incomplete world-simulation field must not be padded with arbitrary clubs");
 
 const sparse = {
   window: { LWWorldDB: { clubNames: () => [] } },

@@ -650,6 +650,41 @@ assert.throws(() => sandbox.window.__lwTestSignFreeAgents(freeAgentRollbackWorld
   "a free-agent history write failure must abort the signing");
 assert.equal(JSON.stringify(freeAgentRollbackWorld), freeAgentRollbackBefore,
   "a failed free-agent signing must restore the player, roster, history, market report, and transfer ledger");
+ 
+// A failure after the compact former-club history is partially written must also
+// roll that per-player history back, not just the transfer ledger and playerHistory.
+const transferClubHistoryRollbackWorld = {
+  clubs: {}, players: {}, transfers: [],
+  marketReports: [{ season: 8, moves: 0, transferIds: [], summary: "existing club-history report" }],
+  playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0,
+  transferClubHistoryByPlayer: null, transferClubHistorySchemaVersion: 1
+};
+makeMarketTestClub(transferClubHistoryRollbackWorld, "Club History Rollback Buyer", 2, "goalkeeper");
+transferClubHistoryRollbackWorld.players["club-history-rollback-player"] = {
+  id: "club-history-rollback-player", name: "Club History Rollback Player", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى", group: "goalkeeper",
+  ovr: 60, potential: 66, age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: "", freeAgentSince: 0, transferListed: false
+};
+let failTransferClubHistoryWrite = true;
+const transferClubHistoryBacking = {};
+transferClubHistoryRollbackWorld.transferClubHistoryByPlayer = new Proxy(transferClubHistoryBacking, {
+  set(target, key, value) {
+    target[key] = value;
+    if (failTransferClubHistoryWrite) {
+      failTransferClubHistoryWrite = false;
+      throw new Error("forced transfer-club-history failure");
+    }
+    return true;
+  }
+});
+const transferClubHistoryRollbackBefore = JSON.stringify(transferClubHistoryRollbackWorld);
+assert.throws(() => sandbox.window.__lwTestSignFreeAgents(transferClubHistoryRollbackWorld, 8, []),
+  /forced transfer-club-history failure/,
+  "a partially written compact club-history row must abort the free-agent transaction");
+assert.equal(JSON.stringify(transferClubHistoryRollbackWorld), transferClubHistoryRollbackBefore,
+  "a failed free-agent signing must restore transferClubHistoryByPlayer and its schema marker as well as every other transaction record");
+
 
 // Stale roster references must not make an otherwise eligible club look full to the transfer market.
 const staleTransferWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };

@@ -510,6 +510,10 @@ const expectedSeasonBudget = clubId => {
 const simulatedTransfers = sandbox.window.__lwTestRunTransferWindow(transferWorld, 3);
 assert.ok(simulatedTransfers.length > 0, "lower-division clubs with a role deficit must have access to the world transfer market");
 assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "legacy clubs without a persisted division must remain eligible in the paid transfer market");
+const legacyPaidTransfer = simulatedTransfers.find(move => move.toClubId === "D2 Buyer A" || move.toClubId === "D2 Buyer B");
+assert.ok(legacyPaidTransfer, "a legacy club must receive a paid transfer when it has a compatible vacancy");
+assert.equal(transferWorld.players[legacyPaidTransfer.playerId].division, 1,
+  "a player joining a legacy club without a persisted division must inherit the shared first-tier fallback");
 const budgetedTransfer = simulatedTransfers[0];
 const budgetBuyer = transferWorld.clubs[String(budgetedTransfer.toClubId || "")];
 const budgetSeller = transferWorld.clubs[String(budgetedTransfer.fromClubId || "")];

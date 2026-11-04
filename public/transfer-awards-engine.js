@@ -104,8 +104,8 @@
     ].join("|");
   }
 
-  // Statistical projections use the player's canonical role rather than the
-  // literal position label, so equivalent wording does not change a season.
+  // Projection randomness follows stable player identity, not position wording;
+  // role production rates still distinguish strikers, mobile forwards and midfielders.
   function playerProjectionKey(player) {
     player = player || {};
     const rawId = player.id != null && player.id !== "" ? player.id
@@ -119,7 +119,6 @@
       normalized(player.name || ""),
       normalized(player.clubName || player.club || ""),
       normalized(player.country || ""),
-      roleType(player.position),
       normalized(player.birthDate || player.dateOfBirth || player.dob || ""),
       age,
       normalized(player.shirtNumber || player.jerseyNumber || player.number || "")

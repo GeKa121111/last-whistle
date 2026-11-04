@@ -2196,7 +2196,7 @@
             ? definitions.find(item => item && String(item.id || "") === qualifierCupId && item.kind === "domestic-cup")
             : null;
           const qualifierCupName = String(qualifierCupDefinition && qualifierCupDefinition.name || "").trim();
-          const domesticCup = qualifierCupId ? previous.find(row => {
+          const domesticCup = qualifierCupDefinition ? previous.find(row => {
             const champion = row && row.championId && world.clubs && world.clubs[row.championId];
             const rowLeagueId = String(row && row.leagueId || "").trim();
             const rowId = String(row && (row.id || row.tournamentId) || "").trim();
@@ -2207,17 +2207,23 @@
               && String(champion.leagueId || "") === leagueId
               && (!rowLeagueId || rowLeagueId === leagueId);
           }) : null;
+          const isEligibleForQualifierCup = club => {
+            if (!club || String(club.leagueId || "") !== leagueId) return false;
+            const division = club.division == null || String(club.division).trim() === "" ? 1 : Number(club.division);
+            return Number.isInteger(division) && division >= 1
+              && (!!(qualifierCupDefinition && qualifierCupDefinition.lower) || division === 1);
+          };
           const cupRunnerUp = domesticCup && world.clubs && world.clubs[domesticCup.runnerUpId];
-          const eligibleCupRunnerUp = cupRunnerUp && String(cupRunnerUp.leagueId || "") === leagueId
-            ? cupRunnerUp : null;
+          const eligibleCupRunnerUp = isEligibleForQualifierCup(cupRunnerUp) ? cupRunnerUp : null;
           const domesticCupChampion = domesticCup && world.clubs[domesticCup.championId];
+          const eligibleDomesticCupChampion = isEligibleForQualifierCup(domesticCupChampion) ? domesticCupChampion : null;
           // Both primary qualifiers must be verified. A missing cup result must not
           // silently turn the league runner-up into the cup winner.
-          if (leagueChampion && domesticCupChampion) {
+          if (leagueChampion && eligibleDomesticCupChampion) {
             addParticipant(leagueChampion);
-            addParticipant(domesticCupChampion);
+            addParticipant(eligibleDomesticCupChampion);
             if (participants.length < 2) {
-              // A cup runner-up may come from a lower tier, but it must remain in this league.
+              // A lower-tier cup runner-up is eligible only when the configured cup admits lower divisions.
               addParticipant(eligibleCupRunnerUp);
               if (participants.length < 2) addParticipant(leagueRunnerUp);
             }
@@ -2847,7 +2853,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=65");
+    const worker = new global.Worker("./football-world-worker.js?v=66");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

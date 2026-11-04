@@ -95,7 +95,7 @@
     return [
       "fallback",
       normalized(player.name || ""),
-      normalized(player.clubName || player.club || ""),
+      normalized(player.clubName || player.club || player.currentClub || ""),
       normalized(player.country || ""),
       normalized(player.position || ""),
       normalized(player.birthDate || player.dateOfBirth || player.dob || ""),
@@ -117,7 +117,7 @@
     return [
       "fallback",
       normalized(player.name || ""),
-      normalized(player.clubName || player.club || ""),
+      normalized(player.clubName || player.club || player.currentClub || ""),
       normalized(player.country || ""),
       normalized(player.birthDate || player.dateOfBirth || player.dob || ""),
       age,

@@ -444,6 +444,38 @@ assert.equal(regionalIdentityOffers.length, 2,
 assert.equal(regionalIdentityOffers[0].club, "نادي محلي",
   "a country label that normalizes to the player's country must receive the regional scouting advantage");
 
+const sameNameOfferBase = {
+  name: "Same Offer Player", age: 25, currentClub: "Shared FC", country: "England",
+  currentClubPower: 70, ovr: 80, potential: 82, form: 7.2,
+  appearances: 10, goals: 2, assists: 1
+};
+const sameNameOfferTargets = [
+  { club: "Target One", country: "France", power: 72, prestige: 80, division: 1 },
+  { club: "Target Two", country: "Germany", power: 74, prestige: 80, division: 1 }
+];
+const keeperIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, id: "same-offer-keeper", position: "GK" },
+  windowId: "same-name-offer-identity", targets: sameNameOfferTargets
+});
+const strikerIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, id: "same-offer-striker", position: "ST" },
+  windowId: "same-name-offer-identity", targets: sameNameOfferTargets
+});
+assert.equal(keeperIdentityOffers.length, 2);
+assert.equal(strikerIdentityOffers.length, 2);
+assert.equal(new Set([...keeperIdentityOffers, ...strikerIdentityOffers].map(offer => offer.id)).size, 4,
+  "same-name players must not receive colliding transfer-offer IDs");
+const legacyKeeperIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, position: "GK" },
+  windowId: "legacy-same-name-offer-identity", targets: sameNameOfferTargets
+});
+const legacyStrikerIdentityOffers = engine.generateOffers({
+  player: { ...sameNameOfferBase, position: "ST" },
+  windowId: "legacy-same-name-offer-identity", targets: sameNameOfferTargets
+});
+assert.notEqual(legacyKeeperIdentityOffers[0].id, legacyStrikerIdentityOffers[0].id,
+  "legacy offer rows without player IDs must still use position-aware identity keys");
+
 const invalidOfferCases = [
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },
   { label: "infinite-string appearances", player: { ...youthPlayer, appearances: "Infinity" } },

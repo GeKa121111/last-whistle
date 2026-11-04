@@ -2429,6 +2429,19 @@ const lowerTierCupRunnerUpSupercup = ai.seasonCompetitions(cupSave, 10, cupDb)
 assert.ok(lowerTierCupRunnerUpSupercup && lowerTierCupRunnerUpSupercup.participants.includes("cup-second-01"),
   "same-league lower-tier cup runners-up must remain eligible when the cup admits lower divisions");
 
+// A missing domestic-cup result must not be replaced with the league runner-up.
+cupWorld.leagueTables["10"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["10"] = [];
+const missingCupHistorySupercup = ai.seasonCompetitions(cupSave, 11, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.equal(missingCupHistorySupercup, undefined,
+  "a domestic supercup must not be fabricated from the league champion and runner-up when cup history is missing");
+
 
 
 

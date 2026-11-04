@@ -1066,6 +1066,18 @@ const rankedPromotionDb = {
     ? { name: "Ranked Second Division", englishName: "Ranked Championship", matchesPerSeason: 22 }
     : { name: "Ranked Premier", englishName: "Ranked Premier League", matchesPerSeason: 34 }
 };
+// Legacy top-flight clubs without a persisted division must still be ranked and relegated.
+const legacyDivisionPromotionWorld = JSON.parse(JSON.stringify(rankedPromotionWorld));
+delete legacyDivisionPromotionWorld.clubs["ranked-first-6"].division;
+const legacyDivisionPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  legacyDivisionPromotionWorld, 6, rankedPromotionDb
+);
+assert.equal(legacyDivisionPromotionMoves.length, 1,
+  "a missing legacy club division must use the same first-tier default as the season table");
+assert.equal(legacyDivisionPromotionMoves[0].relegated, "Ranked First 6",
+  "a legacy first-tier club must remain eligible for relegation by its explicit final rank");
+assert.equal(legacyDivisionPromotionWorld.clubs["ranked-first-6"].division, 2,
+  "a legacy club relegated from the first tier must receive the destination division");
 const rankedPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
   rankedPromotionWorld, 6, rankedPromotionDb
 );
@@ -1631,6 +1643,25 @@ assert.equal(incompleteMatchSecond[0].status, "بطل الدرجة الثاني�
 assert.ok(incompleteMatchSecond.every(row => row.status !== "منافس على الصعود — محاكاة"),
   "the match-based simulator must apply the same unavailable-promotion status");
 
+// The legacy stats/table simulator defaults a missing club division to tier one.
+// The match-based simulator must use that same fallback rather than silently
+// dropping the club from every fixture and its final standings.
+const legacyDivisionMatchWorld = JSON.parse(JSON.stringify(incompletePromotionWorld));
+legacyDivisionMatchWorld.completedSeasons = [];
+legacyDivisionMatchWorld.matchesBySeason = {};
+legacyDivisionMatchWorld.leagueTables = {};
+legacyDivisionMatchWorld.seasonStats = {};
+legacyDivisionMatchWorld.competitionsBySeason = {};
+const legacyMissingDivisionClubId = shortFirstTierEntries[0][0];
+delete legacyDivisionMatchWorld.clubs[legacyMissingDivisionClubId].division;
+const legacyDivisionMatchResult = sandbox.window.__lwTestSimulateLeagueSeason(
+  { season: 1, worldSimulation: legacyDivisionMatchWorld }, 1, db
+);
+const legacyDivisionFirstTable = legacyDivisionMatchResult.tables[secondTierLeagueId] || [];
+assert.equal(legacyDivisionFirstTable.length, shortFirstTierEntries.length,
+  "match simulation must retain every first-tier club from a legacy save with a missing division");
+assert.ok(legacyDivisionFirstTable.some(row => row.clubId === legacyMissingDivisionClubId),
+  "a legacy club without division metadata must still appear in the first-tier standings");
 
 const oldTransferCount = world.transfers.length;
 const transition = ai.advanceToSeason(save, 2, db);

@@ -203,9 +203,9 @@
     const duplicate = rows.some(row => {
       if (!row) return false;
       const existingId = String(row.clubId || "").trim();
-      return (endpointId && existingId === endpointId)
-        || (clubName && normalize(row.name) === normalize(clubName)
-          && normalize(row.country) === normalize(countryName));
+      if (endpointId && existingId) return existingId === endpointId;
+      return clubName && normalize(row.name) === normalize(clubName)
+        && normalize(row.country) === normalize(countryName);
     });
     if (!duplicate) rows.push({ clubId: endpointId, name: clubName, country: countryName });
   }

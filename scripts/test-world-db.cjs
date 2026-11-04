@@ -230,6 +230,12 @@ assert.deepEqual(Array.from(uefaSuperCupDefinition.qualifierCompetitionIds), ["u
 assert.deepEqual(Array.from(cafSuperCupDefinition.qualifierCompetitionIds), ["caf-cl", "caf-confed"],
   "the CAF Super Cup must declare the Champions League and Confederation Cup as its exact primary qualifiers");
 const publicUefaSuperCupDefinition = db.allTournaments().find(item => item.id === "uefa-super-cup");
+const egyptianSuperCupDefinition = simulatedCupDefinitions.find(item => item.id === "egyptian-super-cup");
+assert.equal(egyptianSuperCupDefinition && egyptianSuperCupDefinition.qualifierCupId, "egypt-cup",
+  "the Egyptian Super Cup must use the Egyptian Cup, not the Egyptian League Cup");
+const publicEgyptianSuperCupDefinition = db.allTournaments().find(item => item.id === "egyptian-super-cup");
+assert.equal(publicEgyptianSuperCupDefinition && publicEgyptianSuperCupDefinition.qualifierCupId, "egypt-cup",
+  "allTournaments must preserve the configured primary domestic cup");
 assert.deepEqual(Array.from(publicUefaSuperCupDefinition.qualifierCompetitionIds), ["ucl", "uel"],
   "allTournaments must preserve the configured supercup qualifier IDs");
 assert.ok(db.competitionsForCountry("مصر", { division: 1, clubName: "الأهلي", clubPower: 78 })

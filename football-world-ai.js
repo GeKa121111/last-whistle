@@ -2191,13 +2191,22 @@
           };
           const leagueChampion = leagueClubAtRank(1);
           const leagueRunnerUp = leagueClubAtRank(2);
-          const domesticCup = previous.find(row => {
+          const qualifierCupId = String(def.qualifierCupId || "").trim();
+          const qualifierCupDefinition = qualifierCupId
+            ? defs.find(item => item && String(item.id || "") === qualifierCupId && item.kind === "domestic-cup")
+            : null;
+          const qualifierCupName = String(qualifierCupDefinition && qualifierCupDefinition.name || "").trim();
+          const domesticCup = qualifierCupId ? previous.find(row => {
             const champion = row && row.championId && world.clubs && world.clubs[row.championId];
             const rowLeagueId = String(row && row.leagueId || "").trim();
-            return row && row.kind === "domestic-cup" && champion
+            const rowId = String(row && (row.id || row.tournamentId) || "").trim();
+            const matchesPrimaryCup = rowId
+              ? rowId === qualifierCupId
+              : !!qualifierCupName && String(row && row.name || "").trim() === qualifierCupName;
+            return row && row.kind === "domestic-cup" && matchesPrimaryCup && champion
               && String(champion.leagueId || "") === leagueId
               && (!rowLeagueId || rowLeagueId === leagueId);
-          });
+          }) : null;
           const cupRunnerUp = domesticCup && world.clubs && world.clubs[domesticCup.runnerUpId];
           const eligibleCupRunnerUp = cupRunnerUp && String(cupRunnerUp.leagueId || "") === leagueId
             ? cupRunnerUp : null;
@@ -2838,7 +2847,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=63");
+    const worker = new global.Worker("./football-world-worker.js?v=64");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

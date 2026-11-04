@@ -446,6 +446,32 @@ assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared 
  assert.ok(!freeAgentSharedRows.some(row => row.id === freeAgentSeasonPlayer.id),
    "free agents without a club must be omitted from shared match-based season statistics");
 
+const legacyDivisionStatsClubId = "legacy-stats-club";
+const legacyDivisionStatsWorld = {
+  clubs: {
+    [legacyDivisionStatsClubId]: {
+      id: legacyDivisionStatsClubId, name: "Legacy Stats Club", country: "Testland",
+      leagueId: "legacy-stats-league", power: 87, prestige: 58, confederation: "CAF"
+    }
+  },
+  players: {
+    "legacy-stats-player": {
+      id: "legacy-stats-player", name: "Legacy Stats Player", clubId: legacyDivisionStatsClubId,
+      country: "Testland", leagueId: "legacy-stats-league", division: 1,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 72, potential: 80, isGenerated: false
+    }
+  }
+};
+const legacyDivisionStatsRows = sandbox.window.__lwTestBuildPlayerRows(
+  legacyDivisionStatsWorld, 5,
+  new Map([["legacy-stats-player", {
+    appearances: 3, goals: 2, assists: 1, ratingTotal: 21,
+    clubId: legacyDivisionStatsClubId, leagueId: "legacy-stats-league", division: 1
+  }]])
+);
+assert.equal(legacyDivisionStatsRows[0].leagueStrength, 87,
+  "player performance weighting must group a legacy club without division under the first tier");
+
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }
@@ -467,6 +493,8 @@ makeMarketTestClub(transferWorld, "D1 Seller A", 1, null);
 makeMarketTestClub(transferWorld, "D1 Seller B", 1, null);
 makeMarketTestClub(transferWorld, "D2 Buyer A", 2, "defender");
 makeMarketTestClub(transferWorld, "D2 Buyer B", 2, "defender");
+delete transferWorld.clubs["D2 Buyer A"].division;
+delete transferWorld.clubs["D2 Buyer B"].division;
 // Keep seller caps below the high-value test transfer so the accounting assertion exercises the old bug.
 transferWorld.clubs["D1 Seller A"].power = transferWorld.clubs["D1 Seller A"].basePower = 50;
 transferWorld.clubs["D1 Seller B"].power = transferWorld.clubs["D1 Seller B"].basePower = 50;
@@ -481,7 +509,7 @@ const expectedSeasonBudget = clubId => {
 };
 const simulatedTransfers = sandbox.window.__lwTestRunTransferWindow(transferWorld, 3);
 assert.ok(simulatedTransfers.length > 0, "lower-division clubs with a role deficit must have access to the world transfer market");
-assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "the transfer buyer order must not starve second-tier clubs behind first-tier buyers");
+assert.ok(simulatedTransfers.some(move => move.to === "D2 Buyer A" || move.to === "D2 Buyer B"), "legacy clubs without a persisted division must remain eligible in the paid transfer market");
 const budgetedTransfer = simulatedTransfers[0];
 const budgetBuyer = transferWorld.clubs[String(budgetedTransfer.toClubId || "")];
 const budgetSeller = transferWorld.clubs[String(budgetedTransfer.fromClubId || "")];
@@ -594,6 +622,7 @@ assert.ok(staleTransferBuyer.roster.every(id => staleTransferWorld.players[id]
 const freeAgentWorld = { clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0 };
 makeMarketTestClub(freeAgentWorld, "D1 Full Club", 1, null);
 const staleFreeAgentBuyer = makeMarketTestClub(freeAgentWorld, "D2 Keeper Vacancy", 2, "goalkeeper");
+delete staleFreeAgentBuyer.division;
 const staleFreeAgentRetiredId = "stale-free-agent-retired-keeper";
 freeAgentWorld.players[staleFreeAgentRetiredId] = {
   id: staleFreeAgentRetiredId, name: "Retired stale keeper", clubId: staleFreeAgentBuyer.id,
@@ -606,7 +635,7 @@ assert.equal(signedLowerTier.length, 1, "a free agent should sign when a lower-t
 assert.equal(signedLowerTier[0].toClubId, staleFreeAgentBuyer.id,
   "free-agent transfer records must retain the destination club's stable ID");
 assert.equal(freeAgentWorld.players["free-agent-test-keeper"].clubId, "D2 Keeper Vacancy", "free-agent recruitment must include the lower-tier club when higher-tier clubs have no matching vacancy");
-assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 2, "the free agent must inherit the destination club division");
+assert.equal(freeAgentWorld.players["free-agent-test-keeper"].division, 1, "a missing legacy club division must use the shared first-tier fallback for the signed player");
 assert.ok(!staleFreeAgentBuyer.roster.includes(staleFreeAgentRetiredId)
   && !staleFreeAgentBuyer.roster.includes("missing-free-agent-roster-id"),
   "free-agent signing must rebuild the buyer roster from active players and remove stale references");
@@ -2319,6 +2348,17 @@ assert.ok(firstTierCup.participants.every(id => id.startsWith("cup-first-")),
 assert.equal(Object.keys(cupWorld.players).length, 0,
   "cup participant selection must not fabricate player records");
 
+const legacyCupWorld = JSON.parse(JSON.stringify(cupWorld));
+delete legacyCupWorld.clubs["cup-first-01"].division;
+const legacyCups = sandbox.window.__lwTestSimulateCompetitions(legacyCupWorld, 1, cupDb, {});
+const legacyAllTierCup = legacyCups.find(row => row.id === "test-all-tier-cup");
+const legacyFirstTierCup = legacyCups.find(row => row.id === "test-first-tier-cup");
+assert.ok(legacyAllTierCup && legacyFirstTierCup,
+  "domestic cups must still simulate when a top-tier legacy club has no persisted division");
+assert.ok(legacyAllTierCup.participants.includes("cup-first-01")
+  && legacyFirstTierCup.participants.includes("cup-first-01"),
+  "a missing division must default to the first tier for domestic-cup eligibility");
+
 // Domestic and continental supercups must draw from the correct previous-season winners.
 cupDb.simulationCupDefinitions = () => [
   { id: "test-all-tier-cup", name: "Test All-Tier Cup", kind: "domestic-cup",
@@ -2662,6 +2702,15 @@ assert.ok(!qualifiedTournament.participants.includes("qualification-second-tier"
   "a second-tier club must not take a first-tier continental place");
 assert.ok(!qualifiedTournament.participants.includes("qualification-foreign"),
   "a club from another confederation or league must not enter this qualification pool");
+const legacyQualificationWorld = JSON.parse(JSON.stringify(qualificationWorld));
+const legacyQualifiedClubId = expectedContinentalIds[0];
+delete legacyQualificationWorld.clubs[legacyQualifiedClubId].division;
+const legacyQualifiedCompetitions = sandbox.window.__lwTestSimulateCompetitions(
+  legacyQualificationWorld, 5, qualificationDb, currentQualificationStandings
+);
+const legacyQualifiedTournament = legacyQualifiedCompetitions.find(row => row.id === "test-caf-qualification");
+assert.ok(legacyQualifiedTournament && legacyQualifiedTournament.participants.includes(legacyQualifiedClubId),
+  "a recorded first-tier continental qualifier without a persisted division must retain its place");
 assert.equal(Object.keys(qualificationWorld.players).length, 0,
   "continental qualification must not fabricate player records");
  
@@ -2739,6 +2788,20 @@ const worldCupDb = {
     kind: "world", confederation: "FIFA", system: "world32"
   }]
 };
+const legacyWorldCupWorld = {
+  clubs: Object.fromEntries(Object.entries(worldCupClubs).map(([id, club]) => [id, { ...club }])),
+  players: {},
+  competitionsBySeason: JSON.parse(JSON.stringify(worldCupHistory))
+};
+const legacyWorldCupQualifier = worldCupChampions[0];
+delete legacyWorldCupWorld.clubs[legacyWorldCupQualifier].division;
+const legacyWorldCupResults = sandbox.window.__lwTestSimulateCompetitions(
+  legacyWorldCupWorld, 5, worldCupDb, {}
+);
+const legacyWorldCup = legacyWorldCupResults.find(row => row.id === "fifa-club-world-cup");
+assert.ok(legacyWorldCup && legacyWorldCup.participants.includes(legacyWorldCupQualifier),
+  "a recorded top-tier continental champion from a legacy save must remain eligible for the world club tournament");
+
 const worldCupResults = sandbox.window.__lwTestSimulateCompetitions(worldCupWorld, 5, worldCupDb, {});
 const worldCup = worldCupResults.find(row => row.id === "fifa-club-world-cup");
 assert.ok(worldCup, "the world club tournament must run when a complete four-season qualification field exists");

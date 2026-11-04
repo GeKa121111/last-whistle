@@ -19,6 +19,7 @@
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   function isTrueFlag(value) {
     if (value === true || value === 1) return true;
     if (typeof value !== "string") return false;
@@ -275,7 +276,7 @@
         player.clubId = clubId;
         if (!String(player.country || "").trim()) player.country = String(club.country || "");
         if (!String(player.leagueId || "").trim()) player.leagueId = String(club.leagueId || "");
-        if (!(Number(player.division) > 0)) player.division = Number(club.division) || 1;
+        if (!(Number(player.division) > 0)) player.division = divisionForClub(club);
       } else if (candidates.length > 1) {
         // Keep the player record, but do not assign an ambiguous legacy player to two clubs.
         ambiguous.add(String(id));
@@ -598,7 +599,7 @@
     const groups = new Map();
     Object.values(world.clubs || {}).forEach(club => {
       if (!club || !club.leagueId) return;
-      const division = Math.max(1, int(club.division, 1));
+      const division = divisionForClub(club);
       const key = String(club.leagueId) + "|" + division;
       if (!groups.has(key)) groups.set(key, { division, clubs: [] });
       groups.get(key).clubs.push(club);
@@ -677,7 +678,7 @@
     const totals = new Map();
     Object.values(world.clubs || {}).forEach(club => {
       if (!club || !club.leagueId) return;
-      const division = Math.max(1, int(club.division, 1));
+      const division = divisionForClub(club);
       const key = String(club.leagueId) + "|" + division;
       const row = totals.get(key) || { total: 0, count: 0 };
       row.total += Number(club.power) || 55;
@@ -694,13 +695,13 @@
     if (strengthByLeague && strengthByLeague.has(key)) return strengthByLeague.get(key);
     const clubs = Object.values(world.clubs || {}).filter(club =>
       String(club.leagueId || "") === String(leagueId || "")
-      && Math.max(1, int(club.division, 1)) === tier);
+      && divisionForClub(club) === tier);
     if (clubs.length) return Math.round(average(clubs.map(club => Number(club.power) || 55)));
     if (tier !== 1 && strengthByLeague && strengthByLeague.has(String(leagueId || "") + "|1")) {
       return strengthByLeague.get(String(leagueId || "") + "|1");
     }
     return Math.round(average(Object.values(world.clubs || {}).filter(club =>
-      String(club.leagueId || "") === String(leagueId || "") && Math.max(1, int(club.division, 1)) === 1)
+      String(club.leagueId || "") === String(leagueId || "") && divisionForClub(club) === 1)
       .map(club => Number(club.power) || 55)));
   }
   function getProjectedSeasonRows(world, targetSeason, db) {
@@ -759,7 +760,7 @@
     for (const club of Object.values(world.clubs)) {
       if (!club || !club.leagueId) continue;
       const leagueId = String(club.leagueId);
-      const division = Math.max(1, int(club.division, 1));
+      const division = divisionForClub(club);
       const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
       if (!byLeague.has(tableKey)) byLeague.set(tableKey, { leagueId, division, clubs: [] });
       byLeague.get(tableKey).clubs.push(club);
@@ -1058,7 +1059,7 @@
   }
   function runTransferWindow(world, season) {
     return withTransferMarketTransaction(world, function(transaction) {
-      const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division)) && Number(club.division) >= 1);
+      const clubs = Object.values(world.clubs || {}).filter(club => club && divisionForClub(club) >= 1);
       Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     // Apply the new-season operating allocation before deals, while retaining leftover transfer cash.
     // The cap prevents balances from growing without bound over long simulated careers.
@@ -1074,7 +1075,7 @@
     // Interleave divisions so the capped market does not spend every deal on first-tier clubs.
     const buyersByDivision = new Map();
     for (const club of clubs) {
-      const division = Math.max(1, int(club.division, 1));
+      const division = divisionForClub(club);
       if (!buyersByDivision.has(division)) buyersByDivision.set(division, []);
       buyersByDivision.get(division).push(club);
     }
@@ -1382,7 +1383,7 @@
         age: player.age, contractSeasons: player.contractSeasons
       }));
       const stars = players.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 7).map(player => player.name);
-      const division = Math.max(1, int(club.division, 1));
+      const division = divisionForClub(club);
       // League membership can change after promotion/relegation. Resolve the competition
       // from the club's current division instead of reusing the seed-time tier-one label.
       const profile = db && typeof db.leagueFor === "function"
@@ -1476,6 +1477,7 @@
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
   const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   const hash = value => {
     let h = 2166136261;
     for (const char of String(value)) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
@@ -1501,7 +1503,7 @@
       if (!club || !club.leagueId) return;
       // Keep legacy saves consistent with addClub and simulateLeagueTables:
       // an absent/invalid division is the first tier, not a reason to omit the club.
-      const division = Math.max(1, int(club.division, 1));
+      const division = divisionForClub(club);
       if (division > 2) return;
       const key = String(club.leagueId) + ":" + String(division);
       if (!groups.has(key)) groups.set(key, []);
@@ -1589,7 +1591,7 @@
         stat.appearances++;
         stat.clubId = clubId;
         stat.leagueId = String(world.clubs[clubId].leagueId || "");
-        stat.division = Number(world.clubs[clubId].division) || 1;
+        stat.division = divisionForClub(world.clubs[clubId]);
         let rating = 6.12 + (Number(player.ovr || 55) - 65) * 0.012
           + (resultForClub === "win" ? 0.24 : resultForClub === "draw" ? 0.04 : -0.15)
           + (player.group === "goalkeeper" || player.group === "defender" ? (concedingGoals === 0 ? 0.3 : 0) : 0)
@@ -1653,7 +1655,7 @@
     // whenever a complete world season was simulated.
     const powerByLeagueDivision = new Map();
     Object.values(world.clubs).forEach(club => {
-      const key = String(club.leagueId || "") + "|" + Number(club.division);
+      const key = String(club.leagueId || "") + "|" + divisionForClub(club);
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
       summary.total += Number(club.power) || 55;
       summary.count++;
@@ -2011,7 +2013,7 @@
         });
         participantIds.forEach(clubId => {
           const club = clubs[clubId];
-          const division = Number(club && club.division);
+          const division = divisionForClub(club);
           if (!club || !club.leagueId || !Number.isFinite(division) || division < 1
             || String(club.confederation || "") !== confederation) return;
           let entry = candidates.get(clubId);
@@ -2086,7 +2088,7 @@
     if (!db || typeof db.simulationCupDefinitions !== "function") return [];
     let definitions = [];
     try { definitions = db.simulationCupDefinitions() || []; } catch (_) { return []; }
-    const clubs = Object.values(world.clubs).filter(club => club.leagueId && Number(club.division) >= 1);
+    const clubs = Object.values(world.clubs || {}).filter(club => club && club.leagueId && divisionForClub(club) >= 1);
     const results = [];
     const isRecordedParticipant = (row, clubId) => {
       const id = String(clubId || "").trim();
@@ -2100,7 +2102,7 @@
       let participants = [];
       if (def.kind === "domestic-cup") {
         const leagueId = Array.isArray(def.countries) ? def.countries[0] : "";
-        participants = clubs.filter(club => club.leagueId === leagueId && (def.lower || Number(club.division) === 1));
+        participants = clubs.filter(club => club.leagueId === leagueId && (def.lower || divisionForClub(club) === 1));
       } else if (def.kind === "continental") {
         // Continental places come from domestic standings, not raw squad power. A
         // season uses the previous completed table; the current table is only the
@@ -2114,7 +2116,7 @@
         const slotStart = qualificationPlaces[0];
         const slotCount = qualificationPlaces.length;
         const leagueIds = Array.from(new Set(clubs
-          .filter(club => club.confederation === def.confederation && Number(club.division) === 1 && club.leagueId)
+          .filter(club => club.confederation === def.confederation && divisionForClub(club) === 1 && club.leagueId)
           .map(club => String(club.leagueId)))).sort();
         const candidates = [];
         for (const leagueId of leagueIds) {
@@ -2146,7 +2148,7 @@
             const clubId = String(row.clubId || "");
             if (!clubId || seenLeagueClubIds.has(clubId)) continue;
             const club = world.clubs && world.clubs[clubId];
-            if (!club || String(club.leagueId || "") !== leagueId || Number(club.division) !== 1
+            if (!club || String(club.leagueId || "") !== leagueId || divisionForClub(club) !== 1
               || String(club.confederation || "") !== String(def.confederation || "")) continue;
             if (row.leagueId != null && String(row.leagueId).trim() && String(row.leagueId).trim() !== leagueId) continue;
             if (row.division != null && String(row.division).trim() && Number(row.division) !== 1) continue;
@@ -2191,8 +2193,7 @@
             return candidates.map(row => {
               if (!row) return null;
               const club = world.clubs && world.clubs[row.clubId];
-              const clubDivision = club && (club.division == null || String(club.division).trim() === ""
-                ? 1 : Number(club.division));
+              const clubDivision = divisionForClub(club);
               if (!club || String(club.leagueId || "") !== leagueId || clubDivision !== 1) return null;
               const rowLeagueId = String(row.leagueId || "").trim();
               if (rowLeagueId && rowLeagueId !== leagueId) return null;
@@ -2221,7 +2222,7 @@
           }) : null;
           const isEligibleForQualifierCup = club => {
             if (!club || String(club.leagueId || "") !== leagueId) return false;
-            const division = club.division == null || String(club.division).trim() === "" ? 1 : Number(club.division);
+            const division = divisionForClub(club);
             return Number.isInteger(division) && division >= 1
               && (!!(qualifierCupDefinition && qualifierCupDefinition.lower) || division === 1);
           };
@@ -2321,7 +2322,7 @@
         if (!clubId || seen.has(clubId)) continue;
         const club = world.clubs && world.clubs[clubId];
         if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
-        const clubDivision = Math.max(1, int(club.division, 1));
+        const clubDivision = divisionForClub(club);
         if (!Number.isInteger(clubDivision) || clubDivision !== expectedDivision) continue;
         const rowLeagueId = String(row.leagueId || "").trim();
         if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
@@ -2443,8 +2444,8 @@
     return base.withTransferMarketTransaction(world, function(transaction) {
     const freeAgents = Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent) && Number(player.contractSeasons) <= 0)
       .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
-    const clubs = Object.values(world.clubs).filter(club => Number.isFinite(Number(club.division))
-      && Number(club.division) >= 1 && activeRosterIdsForClub(world, club).length < 18)
+    const clubs = Object.values(world.clubs || {}).filter(club => club && divisionForClub(club) >= 1
+      && activeRosterIdsForClub(world, club).length < 18)
       .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
     Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     const roleCountsByClub = new Map();
@@ -2890,7 +2891,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=69");
+    const worker = new global.Worker("./football-world-worker.js?v=70");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

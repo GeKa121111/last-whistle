@@ -126,7 +126,7 @@ const activeCupSandbox = {
   calendarDateLabel: () => "2026-11-04"
 };
 vm.createContext(activeCupSandbox);
-vm.runInContext(activeCupRenderer + "\\nglobalThis.renderActiveCupForTest = renderActiveCup;",
+vm.runInContext(activeCupRenderer + "\nglobalThis.renderActiveCupForTest = renderActiveCup;",
   activeCupSandbox, { filename: "season-scoped-active-cup-panel.js" });
 activeCupSandbox.renderActiveCupForTest();
 assert.match(activeCupBox.innerHTML, /لا توجد بطولة نشطة في الموسم الحالي/,

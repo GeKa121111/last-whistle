@@ -158,6 +158,25 @@
     }
     return world.archive;
   }
+  function archiveGeneratedPlayerBeforeRosterReplacement(world, player) {
+    const playerId = String(player && player.id || "");
+    if (!world || !playerId) return;
+    const archive = ensureArchive(world);
+    archive.players[playerId] = player;
+    if (world.playerHistory && Object.prototype.hasOwnProperty.call(world.playerHistory, playerId)) {
+      archive.playerHistory[playerId] = world.playerHistory[playerId];
+      delete world.playerHistory[playerId];
+    }
+    Object.keys(world.seasonStats || {}).forEach(season => {
+      const rows = Array.isArray(world.seasonStats[season]) ? world.seasonStats[season] : [];
+      const archivedRows = rows.filter(row => row
+        && String(row.id || row.playerId || "") === playerId);
+      if (!archivedRows.length) return;
+      archive.seasonStats[season] = (Array.isArray(archive.seasonStats[season])
+        ? archive.seasonStats[season] : []).concat(archivedRows);
+      world.seasonStats[season] = rows.filter(row => !archivedRows.includes(row));
+    });
+  }
   function emptyWorld() {
     return {
       schemaVersion: VERSION, dbVersion: 0, currentSeason: 1, lastCompletedSeason: 0,
@@ -517,6 +536,7 @@
             if (!generated.length) break;
             const replace = generated[0];
             club.roster = club.roster.filter(playerId => playerId !== replace.id);
+            archiveGeneratedPlayerBeforeRosterReplacement(world, replace);
             delete world.players[replace.id];
             knownForClub.delete(rosterIdentityKey(replace));
           }

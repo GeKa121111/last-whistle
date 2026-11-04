@@ -106,8 +106,8 @@
     if (!normalizedName || !world || !world.clubs || typeof world.clubs !== "object") return null;
     const normalizedCountry = normalize(country);
     const keyed = world.clubs[clubKey(name, country)];
-    if (keyed && normalize(keyed.name) === normalizedName
-      && (!normalizedCountry || normalize(keyed.country) === normalizedCountry)) return keyed;
+    if (normalizedCountry && keyed && normalize(keyed.name) === normalizedName
+      && normalize(keyed.country) === normalizedCountry) return keyed;
     const matches = Object.values(world.clubs).filter(club => club
       && normalize(club.name) === normalizedName
       && (!normalizedCountry || normalize(club.country) === normalizedCountry));

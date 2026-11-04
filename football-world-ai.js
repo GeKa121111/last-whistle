@@ -1657,9 +1657,21 @@
     const rows = leaderboard(save, { season: year, progress }, db);
     const goals = rows.slice().sort((a, b) => b.goals - a.goals || b.averageRating - a.averageRating).slice(0, 5);
     const assists = rows.slice().sort((a, b) => b.assists - a.assists || b.averageRating - a.averageRating).slice(0, 5);
-    const currentClub = Object.values(world.clubs).find(club =>
-      club.leagueId && normalize(club.country) === normalize(save.leagueCountry || "مصر"));
-    const table = currentClub ? getLeagueTable(save, currentClub.leagueId, year, db).slice(0, 5) : [];
+    const currentClub = findClubByIdentity(world, save.clubName, save.leagueCountry || "مصر");
+    const division = currentClub ? divisionForClub(currentClub) : Math.max(1, int(save.leagueDivision, 1));
+    const tableKey = currentClub && currentClub.leagueId
+      ? (division === 1 ? String(currentClub.leagueId) : String(currentClub.leagueId) + ":" + division)
+      : "";
+    const savedTables = world.leagueTables && world.leagueTables[String(year)] || {};
+    const savedTable = tableKey ? savedTables[tableKey] : null;
+    const hasSavedMatches = world.matchesBySeason
+      && Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year));
+    const completedWithoutMatches = Array.isArray(world.completedSeasons)
+      && world.completedSeasons.includes(year) && !hasSavedMatches;
+    const projectedTables = tableKey && !Array.isArray(savedTable) && !completedWithoutMatches
+      ? simulateLeagueTables(world, year, progress, db) : null;
+    const table = Array.isArray(savedTable) ? savedTable.slice(0, 5)
+      : projectedTables ? (projectedTables[tableKey] || []).slice(0, 5) : [];
     const lastMarket = world.marketReports[0] || { season: 0, moves: 0, summary: "تتغير حركة السوق مع تقدم المسيرة للموسم التالي.", transferIds: [] };
     return {
       season: year, clubCount: Object.keys(world.clubs).length, playerCount: Object.keys(world.players).length,
@@ -2923,7 +2935,8 @@
     const lastMarket = (world.marketReports || [])[0] || {};
     const cacheKey = [
       season, int(save.season, 1), int(save.seasonAppsTarget, 0),
-      String(save.leagueCountry || ""), int(world.dbVersion, 0), Object.keys(world.clubs || {}).length,
+      String(save.leagueCountry || ""), String(save.clubName || ""), int(save.leagueDivision, 0),
+      int(world.dbVersion, 0), Object.keys(world.clubs || {}).length,
       Object.keys(world.players || {}).length, (world.completedSeasons || []).length,
       Object.keys(matchesBySeason).length, Array.isArray(currentMatches) ? currentMatches.length : -1,
       hasStats ? statsSeason : 0, (statsBySeason[String(statsSeason)] || []).length,

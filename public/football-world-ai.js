@@ -2316,7 +2316,7 @@
         let awayGoals = poisson(matchRng, clamp(1.20 + (away.power - home.power) * 0.025, 0.2, 2.7));
         // Cup ties cannot end level: simulate extra time and penalties with a deterministic tiebreak.
         if (homeGoals === awayGoals) {
-          // Use one fair draw. Chained conditional draws gave the home club roughly a 70% win rate.
+          // Use one fair draw. Chained conditional draws gave the home club a 52.645% win probability on a neutral tiebreak.
           if (matchRng() < 0.5) homeGoals++;
           else awayGoals++;
         }

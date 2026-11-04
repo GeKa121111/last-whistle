@@ -1125,6 +1125,25 @@
       value: captureTransferValue(target[key])
     }));
   }
+  function captureTransferClubHistoryValue(value) {
+    if (!Array.isArray(value)) return captureTransferValue(value);
+    return {
+      isArray: true,
+      reference: value,
+      items: value.slice(),
+      itemSnapshots: value.map(item => item && typeof item === "object"
+        ? { item, fields: captureTransferFields(item, ["clubId", "name", "country"]) }
+        : null)
+    };
+  }
+  function restoreTransferClubHistoryValue(snapshot) {
+    if (!snapshot || !snapshot.isArray) return snapshot && snapshot.value;
+    snapshot.reference.splice(0, snapshot.reference.length, ...snapshot.items);
+    (snapshot.itemSnapshots || []).forEach(itemSnapshot => {
+      if (itemSnapshot) restoreTransferFields(itemSnapshot.item, itemSnapshot.fields);
+    });
+    return snapshot.reference;
+  }
   function restoreTransferFields(target, snapshots) {
     snapshots.forEach(snapshot => {
       if (snapshot.present) target[snapshot.key] = restoreTransferValue(snapshot.value);
@@ -1140,8 +1159,13 @@
     const historySnapshots = new Map();
     const historyMap = world && world.playerHistory && typeof world.playerHistory === "object"
       ? world.playerHistory : null;
+    const transferClubHistoryMap = world && world.transferClubHistoryByPlayer
+      && typeof world.transferClubHistoryByPlayer === "object" && !Array.isArray(world.transferClubHistoryByPlayer)
+      ? world.transferClubHistoryByPlayer : null;
+    const transferClubHistorySnapshots = new Map();
     const worldSnapshots = captureTransferFields(world, [
-      "transferSequence", "nextGeneratedPlayer", "transfers", "marketReports"
+      "transferSequence", "nextGeneratedPlayer", "transfers", "marketReports",
+      "transferClubHistoryByPlayer", "transferClubHistorySchemaVersion"
     ]);
     const reportSnapshots = (Array.isArray(world.marketReports) ? world.marketReports : [])
       .filter(report => report && typeof report === "object")
@@ -1171,6 +1195,15 @@
           present,
           value: present ? captureTransferValue(historyMap[key]) : null
         });
+      },
+      captureTransferClubHistory(playerId) {
+        const key = String(playerId || "");
+        if (!key || transferClubHistorySnapshots.has(key) || !transferClubHistoryMap) return;
+        const present = Object.prototype.hasOwnProperty.call(transferClubHistoryMap, key);
+        transferClubHistorySnapshots.set(key, {
+          present,
+          value: present ? captureTransferClubHistoryValue(transferClubHistoryMap[key]) : null
+        });
       }
     };
     try {
@@ -1192,6 +1225,16 @@
         historySnapshots.forEach((snapshot, key) => {
           if (snapshot.present) historyMap[key] = restoreTransferValue(snapshot.value);
           else delete historyMap[key];
+        });
+      }
+      if (transferClubHistoryMap && world.transferClubHistoryByPlayer === transferClubHistoryMap) {
+        transferClubHistorySnapshots.forEach((snapshot, key) => {
+          if (!snapshot.present) {
+            delete transferClubHistoryMap[key];
+            return;
+          }
+          const restored = restoreTransferClubHistoryValue(snapshot.value);
+          if (transferClubHistoryMap[key] !== restored) transferClubHistoryMap[key] = restored;
         });
       }
       throw error;
@@ -1325,7 +1368,10 @@
       transferIds: moves.map(item => item.id)
     });
     world.marketReports = world.marketReports.slice(0, 12);
-    moves.forEach(move => rememberTransferClubEndpoints(world, move));
+    moves.forEach(move => {
+      transaction.captureTransferClubHistory(move.playerId);
+      rememberTransferClubEndpoints(world, move);
+    });
     return moves;
     });
   }
@@ -2697,7 +2743,10 @@
         report.summary += " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";
       }
     }
-    signed.forEach(move => base.rememberTransferClubEndpoints(world, move));
+    signed.forEach(move => {
+      transaction.captureTransferClubHistory(move.playerId);
+      base.rememberTransferClubEndpoints(world, move);
+    });
     return signed;
     });
   }

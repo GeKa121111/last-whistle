@@ -2193,7 +2193,7 @@
           const leagueRunnerUp = leagueClubAtRank(2);
           const qualifierCupId = String(def.qualifierCupId || "").trim();
           const qualifierCupDefinition = qualifierCupId
-            ? defs.find(item => item && String(item.id || "") === qualifierCupId && item.kind === "domestic-cup")
+            ? definitions.find(item => item && String(item.id || "") === qualifierCupId && item.kind === "domestic-cup")
             : null;
           const qualifierCupName = String(qualifierCupDefinition && qualifierCupDefinition.name || "").trim();
           const domesticCup = qualifierCupId ? previous.find(row => {
@@ -2847,7 +2847,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=64");
+    const worker = new global.Worker("./football-world-worker.js?v=65");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

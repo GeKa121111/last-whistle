@@ -2046,6 +2046,12 @@ const halfSeasonRows = ai.getSeasonLines(save, 1, 0.5, db);
 assert.ok(halfSeasonRows.length > 0);
 assert.ok(halfSeasonRows.every(row => Number.isFinite(row.goals) && Number.isFinite(row.assists)
   && Number.isFinite(row.appearances) && row.season === 1), "season lines must have coherent numeric stats");
+assert.ok(halfSeasonRows.every(row => {
+  const full = row.seasonStats || {};
+  return row.appearances === (Number(full.appearances) || 0)
+    && row.goals === (Number(full.goals) || 0)
+    && row.assists === (Number(full.assists) || 0);
+}), "completed season snapshots must keep their final totals even when a partial progress value is supplied");
 // Zero progress can round appearances down to zero while stale/high goal totals still round up.
 const zeroAppearanceFixtureIndex = world.seasonStats["1"].findIndex(row => row && row.id);
 assert.ok(zeroAppearanceFixtureIndex >= 0, "a saved player-stat row must be available for the zero-appearance regression");

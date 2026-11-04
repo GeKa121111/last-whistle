@@ -68,7 +68,7 @@ const source = html.slice(worldHelperStart, worldHelperEnd) + "\n" + html.slice(
   + "\n" + html.slice(supercupStart, start) + "\n" + html.slice(start, end)
   + "\nthis.cupParticipants = cupParticipants;";
 assert.ok(!source.includes("نادي مشارك"), "cup generation must not invent placeholder clubs");
-assert.ok(html.includes('<script src="./football-world-db.js?v=10"></script>'), "world database script must be cache-busted when its public API changes");
+assert.ok(html.includes('<script src="./football-world-db.js?v=11"></script>'), "world database script must be cache-busted when its public API changes");
 assert.ok(html.includes('if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}'),
   "a cup must be blocked rather than started with fabricated participants");
 
@@ -227,7 +227,7 @@ const supercupWorld = {
   },
   competitionsBySeason: {
     "1": [
-      { kind: "domestic-cup", name: "FA Cup", championId: "chelsea", runnerUpId: "liverpool" },
+      { id: "fa-cup", kind: "domestic-cup", name: "FA Cup", championId: "chelsea", runnerUpId: "liverpool" },
       { kind: "continental", name: "UEFA Champions League", confederation: "UEFA", championId: "madrid", runnerUpId: "arsenal" },
       { kind: "continental", name: "UEFA Europa League", confederation: "UEFA", championId: "sevilla", runnerUpId: "liverpool" },
       { kind: "continental", name: "CAF Champions League", confederation: "CAF", championId: "ahly", runnerUpId: "berkane" },
@@ -326,8 +326,8 @@ const secondaryCupWorld = JSON.parse(JSON.stringify(supercupWorld));
 const otherSeasonResults = secondaryCupWorld.competitionsBySeason["1"]
   .filter(row => row.kind !== "domestic-cup");
 secondaryCupWorld.competitionsBySeason["1"] = [
-  { id: "primary-fa-cup", kind: "domestic-cup", name: "FA Cup", leagueId: "england", championId: "arsenal", runnerUpId: "liverpool" },
-  { id: "secondary-league-cup", kind: "domestic-cup", name: "League Cup", leagueId: "england", championId: "chelsea", runnerUpId: "liverpool" },
+  { id: "fa-cup", kind: "domestic-cup", name: "FA Cup", leagueId: "england", championId: "arsenal", runnerUpId: "liverpool" },
+  { id: "efl-cup", kind: "domestic-cup", name: "EFL Cup", leagueId: "england", championId: "chelsea", runnerUpId: "liverpool" },
   ...otherSeasonResults
 ];
 const secondaryCupWinner = scopedCupSandbox("إنجلترا", "تشيلسي");
@@ -341,6 +341,23 @@ assert.match(secondaryCupWinner.competitionLockReason(communityShield), /الس�
   "winning a secondary domestic cup must not replace the configured primary supercup qualifier");
 assert.equal(Array.from(secondaryCupWinner.cupParticipants(communityShield, 2)).length, 0,
   "a secondary cup winner must not be inserted into the primary domestic supercup");
+
+const reversedDomesticCupWorld = JSON.parse(JSON.stringify(supercupWorld));
+const otherDomesticResults = reversedDomesticCupWorld.competitionsBySeason["1"]
+  .filter(row => row.kind !== "domestic-cup");
+reversedDomesticCupWorld.competitionsBySeason["1"] = [
+  { id: "efl-cup", kind: "domestic-cup", name: "EFL Cup", leagueId: "england", championId: "arsenal", runnerUpId: "liverpool" },
+  { id: "fa-cup", kind: "domestic-cup", name: "FA Cup", leagueId: "england", championId: "chelsea", runnerUpId: "liverpool" },
+  ...otherDomesticResults
+];
+const reversedPrimaryCup = scopedCupSandbox("إنجلترا", "أرسنال");
+reversedPrimaryCup.state.careerStarted = true;
+reversedPrimaryCup.state.previousSeasonRank = 1;
+reversedPrimaryCup.state.worldSimulation = reversedDomesticCupWorld;
+assert.deepEqual(Array.from(reversedPrimaryCup.cupParticipants(communityShield, 2)), ["أرسنال", "تشيلسي"],
+  "the Community Shield must use the configured FA Cup even when the secondary EFL Cup result appears first");
+assert.equal(reversedPrimaryCup.competitionLockReason(communityShield), "",
+  "a verified league champion must remain eligible when domestic cup result order changes");
 
 const invalidLeadingRowWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));
 invalidLeadingRowWorld.clubs.foreign = {

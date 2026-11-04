@@ -2191,10 +2191,15 @@
           };
           const leagueChampion = leagueClubAtRank(1);
           const leagueRunnerUp = leagueClubAtRank(2);
+          const qualifierIds = Array.isArray(def.qualifierCompetitionIds)
+            ? Array.from(new Set(def.qualifierCompetitionIds.map(id => String(id || "").trim()).filter(Boolean)))
+            : [];
+          if (qualifierIds.length !== 1) return;
           const domesticCup = previous.find(row => {
+            const rowId = String(row && row.id || "").trim();
             const champion = row && row.championId && world.clubs && world.clubs[row.championId];
             const rowLeagueId = String(row && row.leagueId || "").trim();
-            return row && row.kind === "domestic-cup" && champion
+            return row && row.kind === "domestic-cup" && qualifierIds.includes(rowId) && champion
               && String(champion.leagueId || "") === leagueId
               && (!rowLeagueId || rowLeagueId === leagueId);
           });

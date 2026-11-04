@@ -232,6 +232,35 @@ assert.deepEqual(Array.from(cafSuperCupDefinition.qualifierCompetitionIds), ["ca
 const publicUefaSuperCupDefinition = db.allTournaments().find(item => item.id === "uefa-super-cup");
 assert.deepEqual(Array.from(publicUefaSuperCupDefinition.qualifierCompetitionIds), ["ucl", "uel"],
   "allTournaments must preserve the configured supercup qualifier IDs");
+const expectedDomesticSupercupQualifiers = {
+  "community-shield": "fa-cup",
+  "spanish-super-cup": "copa-del-rey",
+  "german-super-cup": "dfb-pokal",
+  "italian-super-cup": "coppa-italia",
+  "trophee-des-champions": "coupe-de-france",
+  "portuguese-super-cup": "taca-portugal",
+  "turkish-super-cup": "turkish-cup",
+  "dutch-super-cup": "dutch-cup",
+  "belgian-super-cup": "belgian-cup",
+  "japanese-super-cup": "japanese-cup",
+  "egyptian-super-cup": "egypt-cup",
+  "morocco-super-cup": "morocco-throne-cup",
+  "tunisia-super-cup": "tunisia-cup",
+  "algeria-super-cup": "algeria-cup",
+  "nigeria-super-cup": "nigeria-cup",
+  "ghana-super-cup": "ghana-fa-cup",
+  "brazilian-super-cup": "copa-do-brasil",
+  "argentina-super-cup": "copa-argentina"
+};
+for (const [supercupId, primaryCupId] of Object.entries(expectedDomesticSupercupQualifiers)) {
+  const supercup = simulatedCupDefinitions.find(item => item.id === supercupId);
+  const primaryCup = simulatedCupDefinitions.find(item => item.id === primaryCupId);
+  assert.ok(supercup && supercup.kind === "supercup", supercupId + " must exist as a supercup");
+  assert.deepEqual(Array.from(supercup.qualifierCompetitionIds), [primaryCupId],
+    supercupId + " must declare its exact primary domestic cup");
+  assert.ok(primaryCup && primaryCup.kind === "domestic-cup",
+    supercupId + " must reference a real domestic-cup competition");
+}
 assert.ok(db.competitionsForCountry("مصر", { division: 1, clubName: "الأهلي", clubPower: 78 })
   .some(item => item.id === "caf-super-cup" && item.kind === "supercup"));
 

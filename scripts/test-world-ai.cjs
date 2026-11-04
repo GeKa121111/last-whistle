@@ -2295,7 +2295,7 @@ cupDb.simulationCupDefinitions = () => [
   { id: "test-first-tier-cup", name: "Test First-Tier Cup", kind: "domestic-cup",
     countries: ["test-cup-league"], lower: false },
   { id: "test-domestic-supercup", name: "Test Domestic Super Cup", kind: "supercup",
-    confederation: "CAF", countries: ["test-cup-league"] },
+    confederation: "CAF", countries: ["test-cup-league"], qualifierCompetitionIds: ["test-all-tier-cup"] },
   { id: "test-continental-supercup", name: "Test Continental Super Cup", kind: "supercup",
     confederation: "CAF", qualifierCompetitionIds: ["valid-caf-champion-1", "valid-caf-champion-2"] }
 ];
@@ -2305,6 +2305,8 @@ cupWorld.leagueTables["1"]["test-cup-league"] = [
 cupWorld.competitionsBySeason["1"] = [
   { id: "test-continental-winner", kind: "continental", confederation: "CAF",
     championId: "cup-second-05" },
+  { id: "test-first-tier-cup", kind: "domestic-cup", confederation: "CAF",
+    championId: "cup-first-02", runnerUpId: "cup-first-01" },
   { id: "test-all-tier-cup", kind: "domestic-cup", confederation: "CAF",
     championId: "cup-first-03", runnerUpId: "cup-first-04" }
 ];

@@ -4134,11 +4134,13 @@ function previousSeasonLeagueRank() {
 function hasPreviousSeasonClubTitle(names) {
  const previousSeason = (Number(state.season) || 1) - 1;
  if (previousSeason < 1) return false;
- const clubName = clubNameForLeague();
- const country = state.leagueCountry || "";
+ const clubName = String(clubNameForLeague() || "").trim();
+ const country = String(state.leagueCountry || "").trim();
+ // Ambiguous legacy trophy rows cannot qualify a club in a different or unknown country.
+ if (!clubName || !country) return false;
  return (Array.isArray(state.cupHistory) ? state.cupHistory : []).some(row =>
   row && row.champion === true && Number(row.season) === previousSeason && names.includes(row.name) &&
-  row.club === clubName && (!row.country || row.country === country)
+  String(row.club || "").trim() === clubName && String(row.country || "").trim() === country
  );
 }
 function competitionLockReason(comp) {

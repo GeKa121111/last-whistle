@@ -2351,13 +2351,8 @@ function assertDomesticSupercupRejectsInvalidLeagueRow(season, invalidRow, label
   ];
   const supercup = ai.seasonCompetitions(cupSave, season, cupDb)
     .find(row => row.id === "test-domestic-supercup");
-  assert.ok(supercup, label + ": valid domestic cup history must still produce a supercup");
-  assert.ok(!supercup.participants.includes(invalidRow.clubId),
-    label + ": the invalid league-table club must not enter the domestic supercup");
-  assert.ok(supercup.participants.every(id => {
-    const club = cupWorld.clubs[id];
-    return club && String(club.leagueId || "") === "test-cup-league" && Number(club.division || 1) === 1;
-  }), label + ": every domestic supercup participant must belong to the configured top-flight league");
+  assert.equal(supercup, undefined,
+    label + ": a domestic supercup must not be created without a verified top-flight league champion");
 }
 assertDomesticSupercupRejectsInvalidLeagueRow(4, {
   clubId: "cup-foreign-supercup", leagueId: "test-cup-league", division: 1, rank: 1
@@ -2428,6 +2423,19 @@ const lowerTierCupRunnerUpSupercup = ai.seasonCompetitions(cupSave, 10, cupDb)
   .find(row => row.id === "test-domestic-supercup");
 assert.ok(lowerTierCupRunnerUpSupercup && lowerTierCupRunnerUpSupercup.participants.includes("cup-second-01"),
   "same-league lower-tier cup runners-up must remain eligible when the cup admits lower divisions");
+
+// A missing domestic-cup result must not be replaced with the league runner-up.
+cupWorld.leagueTables["10"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["10"] = [];
+const missingCupHistorySupercup = ai.seasonCompetitions(cupSave, 11, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.equal(missingCupHistorySupercup, undefined,
+  "a domestic supercup must not be fabricated from the league champion and runner-up when cup history is missing");
 
 
 

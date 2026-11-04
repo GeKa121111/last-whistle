@@ -40,7 +40,7 @@ if (require.main === module) {
     ["ai-career-engine.js", 7],
     ["data/career-engine.js", 72],
     ["data/match-engine.js", 78],
-    ["football-world-ai.js", 84],
+    ["football-world-ai.js", 83],
     ["football-world-db.js", 11],
     ["football-world-worker.js", 72],
     ["transfer-awards-engine.js", 18],

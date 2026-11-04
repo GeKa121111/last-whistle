@@ -2170,15 +2170,34 @@
           const leagueId = String(def.countries[0]);
           const previousTables = world.leagueTables && world.leagueTables[String(season - 1)] || {};
           const leagueRows = Array.isArray(previousTables[leagueId]) ? previousTables[leagueId] : [];
-          const leagueChampionRow = leagueRows.find(row => Number(row && row.rank) === 1) || leagueRows[0];
-          const leagueRunnerUpRow = leagueRows.find(row => Number(row && row.rank) === 2) || leagueRows[1];
+          // Legacy tables may omit rank, but an explicit rank must never let a stale or
+          // cross-league club claim the domestic supercup place.
+          const hasLeagueRowRanks = leagueRows.some(row => row && row.rank != null && String(row.rank).trim() !== "");
+          const leagueClubAtRank = rank => {
+            const candidates = hasLeagueRowRanks
+              ? leagueRows.filter(row => row && Number(row.rank) === rank)
+              : [leagueRows[rank - 1]];
+            return candidates.map(row => {
+              if (!row) return null;
+              const club = world.clubs && world.clubs[row.clubId];
+              const clubDivision = club && (club.division == null || String(club.division).trim() === ""
+                ? 1 : Number(club.division));
+              if (!club || String(club.leagueId || "") !== leagueId || clubDivision !== 1) return null;
+              const rowLeagueId = String(row.leagueId || "").trim();
+              if (rowLeagueId && rowLeagueId !== leagueId) return null;
+              if (row.division != null && String(row.division).trim() !== "" && Number(row.division) !== 1) return null;
+              return club;
+            }).find(Boolean) || null;
+          };
+          const leagueChampion = leagueClubAtRank(1);
+          const leagueRunnerUp = leagueClubAtRank(2);
           const domesticCup = previous.find(row => row && row.kind === "domestic-cup" && row.championId
             && world.clubs[row.championId] && String(world.clubs[row.championId].leagueId) === leagueId);
-          addParticipant(leagueChampionRow && world.clubs[leagueChampionRow.clubId]);
+          addParticipant(leagueChampion);
           addParticipant(domesticCup && world.clubs[domesticCup.championId]);
           if (participants.length < 2) {
             addParticipant(domesticCup && world.clubs[domesticCup.runnerUpId]);
-            if (participants.length < 2) addParticipant(leagueRunnerUpRow && world.clubs[leagueRunnerUpRow.clubId]);
+            if (participants.length < 2) addParticipant(leagueRunnerUp);
           }
         } else {
           // Continental supercups may only use winners of continental competitions.

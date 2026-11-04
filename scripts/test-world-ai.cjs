@@ -2333,6 +2333,56 @@ assert.deepEqual([...doubleWinnerSupercup.participants].sort(), ["cup-first-01",
   "a domestic double winner must be paired with the domestic cup runner-up");
 
 
+// A malformed prior-season table must not inject a foreign or lower-division club into a domestic supercup.
+cupWorld.clubs["cup-foreign-supercup"] = {
+  id: "cup-foreign-supercup", name: "Foreign Super Cup Club", country: "Foreignland",
+  leagueId: "foreign-cup-league", division: 1, power: 90, basePower: 90, prestige: 70, roster: []
+};
+function assertDomesticSupercupRejectsInvalidLeagueRow(season, invalidRow, label) {
+  const previousSeason = String(season - 1);
+  cupWorld.leagueTables[previousSeason] = {
+    "test-cup-league": [
+      invalidRow,
+      { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
+    ]
+  };
+  cupWorld.competitionsBySeason[previousSeason] = [
+    { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" }
+  ];
+  const supercup = ai.seasonCompetitions(cupSave, season, cupDb)
+    .find(row => row.id === "test-domestic-supercup");
+  assert.ok(supercup, label + ": valid domestic cup history must still produce a supercup");
+  assert.ok(!supercup.participants.includes(invalidRow.clubId),
+    label + ": the invalid league-table club must not enter the domestic supercup");
+  assert.ok(supercup.participants.every(id => {
+    const club = cupWorld.clubs[id];
+    return club && String(club.leagueId || "") === "test-cup-league" && Number(club.division || 1) === 1;
+  }), label + ": every domestic supercup participant must belong to the configured top-flight league");
+}
+assertDomesticSupercupRejectsInvalidLeagueRow(4, {
+  clubId: "cup-foreign-supercup", leagueId: "test-cup-league", division: 1, rank: 1
+}, "foreign canonical club identity");
+assertDomesticSupercupRejectsInvalidLeagueRow(5, {
+  clubId: "cup-second-01", leagueId: "test-cup-league", division: 2, rank: 1
+}, "second-division canonical club identity");
+assertDomesticSupercupRejectsInvalidLeagueRow(6, {
+  clubId: "cup-first-01", leagueId: "foreign-cup-league", division: 1, rank: 1
+}, "mismatched saved league identity");
+
+// Rankless legacy tables remain supported when their canonical club membership is valid.
+cupWorld.leagueTables["6"] = {
+  "test-cup-league": [{ clubId: "cup-first-01" }, { clubId: "cup-first-02" }]
+};
+cupWorld.competitionsBySeason["6"] = [
+  { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" }
+];
+const legacyRanklessSupercup = ai.seasonCompetitions(cupSave, 7, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.ok(legacyRanklessSupercup && legacyRanklessSupercup.participants.includes("cup-first-01"),
+  "rankless legacy tables must still resolve their first valid top-flight club");
+
+
+
 
 // Continental tournaments must use the previous completed domestic standings and the
 // tournament's configured places, never the highest raw club power.

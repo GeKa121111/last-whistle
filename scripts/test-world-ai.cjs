@@ -1836,6 +1836,43 @@ assert.equal(Object.prototype.hasOwnProperty.call(world.matchesBySeason || {}, "
 assert.strictEqual(ai.dashboard(save, db), initialDashboard,
   "unchanged dashboard refreshes should reuse the cached result");
 
+const dashboardLeagueId = String((db.leagues().find(row => row && row.id) || {}).id || "");
+assert.ok(dashboardLeagueId, "dashboard division fixture requires a supported league ID");
+const dashboardIdentitySave = {
+  ...save,
+  clubName: "Dashboard Second Tier FC",
+  leagueCountry: "Dashboard Testland",
+  leagueDivision: 2,
+  worldSimulation: JSON.parse(JSON.stringify(world))
+};
+const dashboardIdentityWorld = dashboardIdentitySave.worldSimulation;
+dashboardIdentityWorld.clubs[ai.clubKey("Dashboard First Tier FC", "Dashboard Testland")] = {
+  id: "dashboard-first-tier", name: "Dashboard First Tier FC", country: "Dashboard Testland",
+  leagueId: dashboardLeagueId, division: 1, roster: []
+};
+dashboardIdentityWorld.clubs[ai.clubKey("Dashboard Second Tier FC", "Dashboard Testland")] = {
+  id: "dashboard-second-tier", name: "Dashboard Second Tier FC", country: "Dashboard Testland",
+  leagueId: dashboardLeagueId, division: 2, roster: []
+};
+const dashboardYear = String(Math.max(1, Number(dashboardIdentityWorld.currentSeason) || 1));
+dashboardIdentityWorld.leagueTables[dashboardYear] = {
+  ...(dashboardIdentityWorld.leagueTables[dashboardYear] || {}),
+  [dashboardLeagueId]: [{ club: "DASHBOARD-FIRST-DIVISION", leagueId: dashboardLeagueId, division: 1 }],
+  [dashboardLeagueId + ":2"]: [{ club: "DASHBOARD-SECOND-DIVISION", leagueId: dashboardLeagueId, division: 2 }]
+};
+const secondDivisionDashboard = ai.dashboard(dashboardIdentitySave, db);
+assert.equal(secondDivisionDashboard.leagueTable[0]?.club, "DASHBOARD-SECOND-DIVISION",
+  "the world dashboard must show the current player's actual division, not the country's first tier");
+dashboardIdentitySave.clubName = "Dashboard First Tier FC";
+dashboardIdentitySave.leagueDivision = 1;
+const firstDivisionDashboard = ai.dashboard(dashboardIdentitySave, db);
+assert.equal(firstDivisionDashboard.leagueTable[0]?.club, "DASHBOARD-FIRST-DIVISION",
+  "changing clubs in the same country must refresh the dashboard table instead of reusing a stale cached league");
+dashboardIdentitySave.clubName = "";
+const unidentifiedClubDashboard = ai.dashboard(dashboardIdentitySave, db);
+assert.equal(unidentifiedClubDashboard.leagueTable.length, 0,
+  "a missing club identity must not display an arbitrary league table from the same country");
+
 // Older saved worlds may still contain Japan/AFC data. Keep it out of active simulation,
 // but archive the club, player history, statistics and competition records without data loss.
 const legacyClubId = "legacy-japan-club";

@@ -257,7 +257,7 @@ function parsePlayers(teamHtml, referenceDate = seasonReferenceDate(SEASON)) {
     // A name alone is not a roster identity: a club may have two players
     // with the same name in different positions. Match the AI engine's
     // name/position identity while still collapsing repeated source rows.
-    const key = normalized(name) + "|" + normalized(position);
+    const key = normalized(name) + "|" + String(position).trim();
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const shirt = Number.parseInt(cells[0], 10);

@@ -701,6 +701,9 @@ for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=14", "career-experi
 if (!workerSource.includes('url.indexOf("ai-career-engine.js?") >= 0')) {
   console.error("Updated career AI must be fetched fresh when the new PWA shell is installed."); process.exit(1);
 }
+if (!workerSource.includes('url.indexOf("data/career-engine.js?") >= 0')) {
+  console.error("Updated shared career engine must be fetched fresh when the new PWA shell is installed."); process.exit(1);
+}
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "data/match-engine.js", 69);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.js", 8);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(workerSource, "career-experience.css", 2);

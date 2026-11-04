@@ -2227,13 +2227,20 @@
             }
             return value;
           };
-          const eligible = previous.filter(row => {
-            if (!row || row.kind !== "continental" || !row.championId) return false;
-            if (confederation && String(row.confederation || "").trim() !== confederation) return false;
+          const qualifierIds = Array.isArray(def.qualifierCompetitionIds)
+            ? Array.from(new Set(def.qualifierCompetitionIds.map(id => String(id || "").trim()).filter(Boolean)))
+            : [];
+          const eligibleById = new Map();
+          previous.forEach(row => {
+            const rowId = String(row && row.id || "").trim();
+            if (!row || row.kind !== "continental" || !rowId || !qualifierIds.includes(rowId)) return;
+            if (confederation && String(row.confederation || "").trim() !== confederation) return;
             const club = world.clubs && world.clubs[row.championId];
-            return !!club && (!confederation || confederationForClub(club) === confederation);
+            if (!club || (confederation && confederationForClub(club) !== confederation)) return;
+            if (!eligibleById.has(rowId)) eligibleById.set(rowId, club);
           });
-          eligible.slice(0, 2).forEach(row => addParticipant(world.clubs[row.championId]));
+          if (qualifierIds.length < 2 || qualifierIds.some(id => !eligibleById.has(id))) return;
+          qualifierIds.forEach(id => addParticipant(eligibleById.get(id)));
         }
       } else {
         return;

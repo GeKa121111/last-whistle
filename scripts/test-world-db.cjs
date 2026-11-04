@@ -220,8 +220,18 @@ const brazil = db.competitionsForCountry("البرازيل", { division: 1, club
 assert.ok(brazil.some(item => item.name === "Copa Libertadores"));
 assert.ok(db.simulationCupDefinitions().some(item => item.name === "Copa do Brasil"));
 assert.ok(db.simulationCupDefinitions().some(item => item.name === "Copa Argentina"));
-assert.ok(db.simulationCupDefinitions().some(item => item.id === "uefa-super-cup" && item.system === "supercup"));
-assert.ok(db.simulationCupDefinitions().some(item => item.id === "caf-super-cup" && item.system === "supercup"));
+const simulatedCupDefinitions = db.simulationCupDefinitions();
+const uefaSuperCupDefinition = simulatedCupDefinitions.find(item => item.id === "uefa-super-cup");
+const cafSuperCupDefinition = simulatedCupDefinitions.find(item => item.id === "caf-super-cup");
+assert.ok(uefaSuperCupDefinition && uefaSuperCupDefinition.system === "supercup");
+assert.ok(cafSuperCupDefinition && cafSuperCupDefinition.system === "supercup");
+assert.deepEqual(uefaSuperCupDefinition.qualifierCompetitionIds, ["ucl", "uel"],
+  "the UEFA Super Cup must declare the Champions League and Europa League as its exact primary qualifiers");
+assert.deepEqual(cafSuperCupDefinition.qualifierCompetitionIds, ["caf-cl", "caf-confed"],
+  "the CAF Super Cup must declare the Champions League and Confederation Cup as its exact primary qualifiers");
+const publicUefaSuperCupDefinition = db.allTournaments().find(item => item.id === "uefa-super-cup");
+assert.deepEqual(publicUefaSuperCupDefinition.qualifierCompetitionIds, ["ucl", "uel"],
+  "allTournaments must preserve the configured supercup qualifier IDs");
 assert.ok(db.competitionsForCountry("مصر", { division: 1, clubName: "الأهلي", clubPower: 78 })
   .some(item => item.id === "caf-super-cup" && item.kind === "supercup"));
 

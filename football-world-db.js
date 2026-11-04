@@ -41,8 +41,8 @@
     {id:"ucl",name:"UEFA Champions League",kind:"continental",confederation:"UEFA",system:"uefa36",qualificationPlaces:[1,2,3,4],url:"https://www.uefa.com/uefachampionsleague/",format:"مرحلة دوري من 36 ناديًا ثم ملحق وأدوار إقصائية.",qualification:"التأهل حسب ترتيب الدوري ولوائح UEFA."},
     {id:"uel",name:"UEFA Europa League",kind:"continental",confederation:"UEFA",system:"uefa36",qualificationPlaces:[5,6],url:"https://www.uefa.com/uefaeuropaleague/",format:"مرحلة دوري من 36 ناديًا ثم ملحق وأدوار إقصائية.",qualification:"التأهل حسب ترتيب الدوري والكأس ولوائح UEFA."},
     {id:"uecl",name:"UEFA Conference League",kind:"continental",confederation:"UEFA",system:"uefa36conference",qualificationPlaces:[7],url:"https://www.uefa.com/uefaconferenceleague/",format:"مرحلة دوري من 36 ناديًا ثم أدوار إقصائية.",qualification:"التأهل حسب ترتيب الدوري والكأس ولوائح UEFA."},
-    {id:"uefa-super-cup",name:"UEFA Super Cup",kind:"supercup",confederation:"UEFA",system:"supercup",url:"https://www.uefa.com/uefasupercup/",format:"مباراة واحدة بين بطلي دوري الأبطال والدوري الأوروبي.",qualification:"للبطلين القاريين في الموسم السابق.",teams:["ريال مدريد","باريس سان جيرمان"]},
-    {id:"caf-super-cup",name:"كأس السوبر الأفريقي",kind:"supercup",confederation:"CAF",system:"supercup",url:"https://www.cafonline.com/",format:"مباراة واحدة بين بطلي دوري أبطال أفريقيا والكونفدرالية.",qualification:"للبطلين القاريين في الموسم السابق.",teams:["الأهلي","نهضة بركان"]},
+    {id:"uefa-super-cup",name:"UEFA Super Cup",kind:"supercup",confederation:"UEFA",qualifierCompetitionIds:["ucl","uel"],system:"supercup",url:"https://www.uefa.com/uefasupercup/",format:"مباراة واحدة بين بطلي دوري الأبطال والدوري الأوروبي.",qualification:"للبطلين القاريين في الموسم السابق.",teams:["ريال مدريد","باريس سان جيرمان"]},
+    {id:"caf-super-cup",name:"كأس السوبر الأفريقي",kind:"supercup",confederation:"CAF",qualifierCompetitionIds:["caf-cl","caf-confed"],system:"supercup",url:"https://www.cafonline.com/",format:"مباراة واحدة بين بطلي دوري أبطال أفريقيا والكونفدرالية.",qualification:"للبطلين القاريين في الموسم السابق.",teams:["الأهلي","نهضة بركان"]},
     {id:"fa-cup",name:"FA Cup",kind:"domestic-cup",confederation:"UEFA",system:"knockout",url:"https://www.thefa.com/competitions/thefacup",format:"كأس إنجليزي بخروج المغلوب، وتشارك فيه أندية من درجات متعددة.",qualification:"وفق لائحة الاتحاد الإنجليزي.",countries:["england"],lower:true,teams:["أرسنال","ليفربول","مانشستر سيتي","مانشستر يونايتد","تشيلسي"]},
     {id:"efl-cup",name:"EFL Cup",kind:"domestic-cup",confederation:"UEFA",system:"knockout",url:"https://www.efl.com/competitions/carabao-cup/",format:"كأس رابطة إنجليزي بخروج المغلوب.",qualification:"الأندية المؤهلة من مسابقات الرابطة.",countries:["england"],lower:true,teams:["ليفربول","مانشستر سيتي","أرسنال","نيوكاسل يونايتد"]},
     {id:"community-shield",name:"FA Community Shield",kind:"supercup",confederation:"UEFA",system:"supercup",url:"https://www.thefa.com/competitions/the-fa-community-shield",format:"مباراة السوبر الإنجليزي وفق نتائج الموسم السابق.",qualification:"أبطال الدوري والكأس أو البديل المحدد باللائحة.",countries:["england"]},
@@ -671,7 +671,7 @@
         id:item.id,name:item.name,region:region,format:item.format,system:item.system || (item.kind === "supercup" ? "supercup" : "knockout"),
         teams:(item.teams || []).slice(),countries:countries.slice(),confederation:item.confederation || (league && league.confederation) || "",
         officialUrl:item.url || "",kind:item.kind,qualification:item.qualification || "",
-        qualificationPlaces:(item.qualificationPlaces || []).slice(),lower:!!item.lower,
+        qualificationPlaces:(item.qualificationPlaces || []).slice(),qualifierCompetitionIds:(item.qualifierCompetitionIds || []).slice(),lower:!!item.lower,
         simulationRatingNote:"صيغة محاكاة داخل اللعبة؛ لا تمثل الجدول أو القرعة الرسمية الحية."
       };
     });
@@ -727,7 +727,7 @@
       return normalizeClub(list[0]).players.find(function (row) { return normalize(row.name)===target; }) || null;
     },
     tournamentById:tournamentById,allTournaments:function () { return TOURNAMENTS.map(function (item) {
-      return Object.assign({},item,{teams:(item.teams || []).slice(),countries:(item.countries || []).slice(),qualificationPlaces:(item.qualificationPlaces || []).slice()});
+      return Object.assign({},item,{teams:(item.teams || []).slice(),countries:(item.countries || []).slice(),qualificationPlaces:(item.qualificationPlaces || []).slice(),qualifierCompetitionIds:(item.qualifierCompetitionIds || []).slice()});
     }); },
     competitionsForCountry:competitionsForCountry,simulationCupDefinitions:simulationCupDefinitions,
     profileForClub:function (name) { var item=findClub(name);return item?profileSummary(item.country):null; },

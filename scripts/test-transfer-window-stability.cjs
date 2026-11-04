@@ -1537,7 +1537,7 @@ assert.equal(cleanRetirement.counts.persistence, 1);
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must remain synchronized");
-const cacheVersionMatch = sw.match(/const CACHE_NAME = "last-whistle-static-v(\\d+)";/);
+const cacheVersionMatch = sw.match(/const CACHE_NAME = "last-whistle-static-v(\d+)";/);
 assert.ok(cacheVersionMatch && Number(cacheVersionMatch[1]) >= 471,
   "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);

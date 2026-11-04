@@ -27,12 +27,13 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 496;
+  const minimumCacheVersion = 497;
   assert.ok(
     /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
-      && /url\.indexOf\("football-world-worker\.js\?"\)\s*>=\s*0/.test(serviceWorker),
-    "updated world AI, database, and worker modules must bypass the browser HTTP cache during a new static-cache install");
+      && /url\.indexOf\("football-world-worker\.js\?"\)\s*>=\s*0/.test(serviceWorker)
+      && /url\.indexOf\("transfer-awards-engine\.js\?"\)\s*>=\s*0/.test(serviceWorker),
+    "updated world AI, database, worker, and award engine modules must bypass the browser HTTP cache during a new static-cache install");
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
     ["career-state-store.js", 8],

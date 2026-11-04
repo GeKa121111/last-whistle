@@ -203,12 +203,12 @@ const partiallyMigratedHistory = {
   ]
 };
 const mixedHistoryForm = ai.formRating(partiallyMigratedHistory);
-assert.equal(mixedHistoryForm, 8.74,
+assert.ok(Math.abs(mixedHistoryForm - 8.74) < 1e-9,
   "career AI form must merge partially migrated legacy league rows with newer cup history and deduplicate the shared fixture");
 const mixedHistoryContext = ai.utilityScores(partiallyMigratedHistory, 70).context;
 assert.equal(mixedHistoryContext.recentMatches, 5,
   "context-aware AI must evaluate five unique recent matches across both history stores");
-assert.equal(mixedHistoryContext.averageRating, 8.74,
+assert.ok(Math.abs(mixedHistoryContext.averageRating - 8.74) < 1e-9,
   "context-aware AI must not ignore legacy league form or count a mirrored fixture twice");
 assert.equal(mixedHistoryContext.goalsLastFive, 5,
   "context-aware AI must include each of the five recent mixed-history goals exactly once");

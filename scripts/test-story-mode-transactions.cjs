@@ -15,7 +15,7 @@ assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
 assert.match(html, /story-mode\.js\?v=14/);
 assert.match(sw, /story-mode\.js\?v=14/);
-const storyTransactionCacheVersionMatch = sw.match(/last-whistle-static-v(\\d+)/);
+const storyTransactionCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
 assert.ok(storyTransactionCacheVersionMatch && Number(storyTransactionCacheVersionMatch[1]) >= 471, "story transaction cache invalidation must remain valid after newer cache bumps");
 require("./assert-static-cache-version.cjs")(sw, 445);
 

@@ -175,7 +175,7 @@ const vm = require("node:vm");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
   require("./assert-static-cache-version.cjs")(sw, 175);
   assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
-  assert.match(sw, /last-whistle-static-v466/, "legacy-history rendering must invalidate the PWA shell cache");
+  assert.match(sw, /last-whistle-static-v467/, "legacy-history rendering must invalidate the PWA shell cache");
   assert.match(sw, /url\.indexOf\("career-hub\.js\?"\) >= 0/,
     "the updated career hub must be fetched fresh during service-worker installation");
   console.log("PASS: career hub responds to state events, coalesces duplicate saves, caches history summaries, and skips unchanged work.");

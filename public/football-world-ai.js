@@ -2201,12 +2201,17 @@
           const cupRunnerUp = domesticCup && world.clubs && world.clubs[domesticCup.runnerUpId];
           const eligibleCupRunnerUp = cupRunnerUp && String(cupRunnerUp.leagueId || "") === leagueId
             ? cupRunnerUp : null;
-          addParticipant(leagueChampion);
-          addParticipant(domesticCup && world.clubs[domesticCup.championId]);
-          if (participants.length < 2) {
-            // A cup runner-up may come from a lower tier, but it must remain in this league.
-            addParticipant(eligibleCupRunnerUp);
-            if (participants.length < 2) addParticipant(leagueRunnerUp);
+          const domesticCupChampion = domesticCup && world.clubs[domesticCup.championId];
+          // Both primary qualifiers must be verified. A missing cup result must not
+          // silently turn the league runner-up into the cup winner.
+          if (leagueChampion && domesticCupChampion) {
+            addParticipant(leagueChampion);
+            addParticipant(domesticCupChampion);
+            if (participants.length < 2) {
+              // A cup runner-up may come from a lower tier, but it must remain in this league.
+              addParticipant(eligibleCupRunnerUp);
+              if (participants.length < 2) addParticipant(leagueRunnerUp);
+            }
           }
         } else {
           // Continental supercups may only use winners of continental competitions.

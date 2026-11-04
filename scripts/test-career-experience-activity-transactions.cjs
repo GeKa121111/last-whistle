@@ -14,7 +14,7 @@ assert.equal(source, deployed, "root/public career experience scripts must stay 
 assert.equal(html, publicHtml, "root/public app shells must stay identical");
 assert.equal(sw, publicSw, "root/public service workers must stay identical");
 assert.match(html, /career-experience\.js\?v=9/);
-const experienceCacheVersionMatch = sw.match(/last-whistle-static-v(\\d+)/);
+const experienceCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
 assert.ok(experienceCacheVersionMatch && Number(experienceCacheVersionMatch[1]) >= 471, "career-experience activity cache invalidation must remain valid after newer cache bumps");
 assert.match(sw, /career-experience\.js\?v=9/);
 require("./assert-static-cache-version.cjs")(sw, 445);

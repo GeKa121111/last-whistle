@@ -5696,12 +5696,45 @@ function activateMidSeasonBreakIfDue(){
  return true;
 }
 function cupParticipants(comp,count){
- const worldClubs=window.LWWorldDB&&typeof window.LWWorldDB.clubNames==="function"?window.LWWorldDB.clubNames():[];
- const worldTeams=worldClubs.map(club=>club&&club.name).filter(Boolean);
- const base=[...(comp.teams||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[1]||[]),...(LEAGUE_ROSTERS[state.leagueCountry]?.[2]||[]),...Object.values(LEAGUE_ROSTERS).flatMap(x=>[...(x[1]||[]),...(x[2]||[])]),...worldTeams];
- const currentClub=clubNameForLeague();
- const unique=[...new Set(base.filter(n=>n&&n!==currentClub))];
- return [currentClub,...unique].slice(0,Math.max(0,Number(count)||0));
+ comp=comp||{};
+ const db=window.LWWorldDB;
+ const worldClubs=db&&typeof db.clubNames==="function"?db.clubNames():[];
+ const countryIds=Array.isArray(comp.countries)?comp.countries.map(id=>String(id||"").trim()).filter(Boolean):[];
+ const countryNames=new Set(countryIds.map(id=>db&&typeof db.leagueById==="function"?db.leagueById(id):null)
+  .filter(Boolean).map(profile=>String(profile.country||"").trim()).filter(Boolean));
+ const currentProfile=db&&typeof db.leagueByCountry==="function"?db.leagueByCountry(state.leagueCountry||""):null;
+ const isDomestic=comp.kind==="domestic-cup"||(comp.kind==="supercup"&&countryIds.length>0);
+ const isContinental=!isDomestic&&(comp.kind==="continental"||(comp.kind==="supercup"&&!!comp.confederation));
+ if(isDomestic&&!countryNames.size&&currentProfile?.country)countryNames.add(String(currentProfile.country).trim());
+ const allowClub=club=>{
+  if(!club||!club.name)return false;
+  const division=Math.max(1,Number(club.division)||1);
+  if(isDomestic)return countryNames.has(String(club.country||"").trim())&&(!!comp.lower||division===1);
+  if(isContinental){
+   const league=db&&typeof db.leagueById==="function"?db.leagueById(club.leagueId):null;
+   return !!league&&league.confederation===comp.confederation&&division===1;
+  }
+  return true;
+ };
+ const worldByName=new Map(worldClubs.filter(club=>club&&club.name).map(club=>[club.name,club]));
+ const configuredTeams=(comp.teams||[]).filter(name=>{
+  const metadata=worldByName.get(name);
+  return !metadata||allowClub(metadata);
+ });
+ const rosterTeams=Object.entries(LEAGUE_ROSTERS||{}).flatMap(([country,divisions])=>{
+  if(isDomestic&&!countryNames.has(String(country||"").trim()))return [];
+  if(isContinental){
+   const league=db&&typeof db.leagueByCountry==="function"?db.leagueByCountry(country):null;
+   if(!league||league.confederation!==comp.confederation)return [];
+  }
+  const divisionKeys=isDomestic?(comp.lower?[1,2]:[1]):isContinental?[1]:[1,2];
+  return divisionKeys.flatMap(division=>Array.isArray(divisions?.[division])?divisions[division]:[]);
+ });
+ const worldTeams=worldClubs.filter(allowClub).map(club=>club.name);
+ const currentClub=String(clubNameForLeague()||"").trim();
+ const base=[...configuredTeams,...rosterTeams,...worldTeams];
+ const unique=[...new Set(base.filter(name=>name&&name!==currentClub))];
+ return [currentClub,...unique].filter(Boolean).slice(0,Math.max(0,Number(count)||0));
 }
 function cupConfig(comp){
  if(comp.system==='supercup')return {teams:2,phase:'knockout',phaseGames:0,rounds:['النهائي'],twoLegs:[false]};

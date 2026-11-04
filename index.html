@@ -5738,7 +5738,7 @@ function enterCup(name){
 }
 function renderActiveCup(){
  const box=$('cupActive');if(!box)return;const c=state.cupState;
- if(!c){box.innerHTML='<div class="empty">اختار بطولة من القائمة عشان تدخل منافساتها.</div>';return;}
+ if(!c||Number(c.createdSeason||state.season)!==Number(state.season)){box.innerHTML='<div class="empty">لا توجد بطولة نشطة في الموسم الحالي. اختار بطولة من القائمة عشان تدخل منافساتها.</div>';return;}
  let status=c.champion?'🏆 بطل البطولة':c.abandoned?'أُغلقت البطولة دون اكتمالها':c.eliminated?'خرجت من البطولة':c.phase==='league'?`مرحلة الدوري • ${c.phasePlayed}/${c.phaseGames} مباريات`:c.phase==='groups'?`مرحلة المجموعات • ${c.phasePlayed}/${c.phaseGames} مباريات`:((c.rounds||[])[c.stage]||'انتهت البطولة');
  const roundNow=(c.rounds||[])[c.stage]||'المباراة التالية';const legText=(c.phase==='league'||c.phase==='groups')?'':((c.twoLegs||[])[c.stage]?' • '+(c.tieLeg===2?'الإياب':'الذهاب'):'');const next=c.phase==='league'||c.phase==='groups'?'المباراة التالية':roundNow+legText;const matchDate=calendarDateLabel();
  box.innerHTML=`<div class="feedItem"><b>🏆 بطولتك الحالية: ${c.name}</b><span>${status}</span><span>الموعد داخل المسيرة: ${matchDate}</span><span>النقاط ${c.points||0} • الأهداف ${c.gf||0} • فارق الأهداف ${c.gd||0}</span><span class="muted">${(c.history||[]).slice(-6).join(' • ')||'لسه صافرة البداية'}</span>${!c.champion&&!c.eliminated&&!c.abandoned?`<button class="btn primary" data-play-cup>العب ${next}</button>`:''}<div class="muted small">آخر أحداث التقويم: ${(state.calendarEvents||[]).slice(0,4).map(e=>`${e.date}: ${e.title}`).join(' • ')||'لا توجد أحداث مسجلة'}</div></div>`;

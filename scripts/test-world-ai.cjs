@@ -1033,7 +1033,103 @@ assert.equal(freeAgentReconcileWorld.seasonStats["5"][0].goals, 4,
   "the free agent's saved season statistics must remain intact");
 
 
-// prevent repeating season 1, but must not suppress the independent season 2 table move.
+// An active player moved by the simulation must not be imported again into the
+// selling club when the source catalogue still lists them there after an age update.
+const transferReconcileOriginName = "Transfer Reconcile Origin";
+const transferReconcileDestinationName = "Transfer Reconcile Destination";
+const transferReconcileCountry = "Testland";
+const transferReconcileLeagueId = "transfer-reconcile-league";
+const transferReconcileOriginId = ai.clubKey(transferReconcileOriginName, transferReconcileCountry);
+const transferReconcileDestinationId = ai.clubKey(transferReconcileDestinationName, transferReconcileCountry);
+const transferReconcilePlayerId = "saved-transferred-player";
+const transferReconcilePlayerName = "Transferred Source Identity";
+const transferReconcileWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 5, completedSeasons: [],
+  players: {
+    [transferReconcilePlayerId]: {
+      id: transferReconcilePlayerId, name: transferReconcilePlayerName,
+      clubId: transferReconcileDestinationId, country: transferReconcileCountry,
+      leagueId: transferReconcileLeagueId, division: 1,
+      position: "جناح", group: "attacker", ovr: 70, potential: 80, age: 24,
+      contractSeasons: 3, retired: false, freeAgent: false, isRealPlayer: true, isGenerated: false
+    }
+  },
+  clubs: {
+    [transferReconcileOriginId]: {
+      id: transferReconcileOriginId, name: transferReconcileOriginName,
+      country: transferReconcileCountry, leagueId: transferReconcileLeagueId,
+      division: 1, leagueName: "Transfer Test League", leagueEnglish: "Transfer Test League",
+      matchesPerSeason: 30, power: 64, basePower: 64, prestige: 50, roster: []
+    },
+    [transferReconcileDestinationId]: {
+      id: transferReconcileDestinationId, name: transferReconcileDestinationName,
+      country: transferReconcileCountry, leagueId: transferReconcileLeagueId,
+      division: 1, leagueName: "Transfer Test League", leagueEnglish: "Transfer Test League",
+      matchesPerSeason: 30, power: 66, basePower: 66, prestige: 52, roster: [transferReconcilePlayerId]
+    }
+  },
+  playerHistory: {
+    [transferReconcilePlayerId]: [{
+      season: 5, clubId: transferReconcileDestinationId,
+      club: transferReconcileDestinationName, country: transferReconcileCountry,
+      fromClubId: transferReconcileOriginId, from: transferReconcileOriginName,
+      type: "transfer-in"
+    }]
+  },
+  seasonStats: { "5": [{
+    id: transferReconcilePlayerId, playerId: transferReconcilePlayerId,
+    clubId: transferReconcileDestinationId, season: 5, appearances: 25, goals: 8, assists: 5
+  }] },
+  leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [{ id: "transfer-reconcile-ledger", playerId: transferReconcilePlayerId,
+    fromClubId: transferReconcileOriginId, toClubId: transferReconcileDestinationId, season: 5 }],
+  marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 1, projectionRevision: 9
+};
+const transferReconcileDb = {
+  version: 2,
+  leagues: () => [{ id: transferReconcileLeagueId }],
+  leagueFor: () => ({
+    name: "Transfer Test League", englishName: "Transfer Test League", matchesPerSeason: 30
+  }),
+  clubs: () => [
+    {
+      name: transferReconcileOriginName, country: transferReconcileCountry,
+      leagueId: transferReconcileLeagueId, division: 1,
+      players: [{ name: transferReconcilePlayerName, position: "جناح",
+        age: 25, ovr: 70, potential: 80, isRealPlayer: true }]
+    },
+    {
+      name: transferReconcileDestinationName, country: transferReconcileCountry,
+      leagueId: transferReconcileLeagueId, division: 1, players: []
+    }
+  ]
+};
+sandbox.window.__lwTestReconcileDatabase(transferReconcileWorld, transferReconcileDb);
+const duplicateOriginTransferPlayers = Object.values(transferReconcileWorld.players).filter(player =>
+  player && player.name === transferReconcilePlayerName
+  && String(player.clubId || "") === transferReconcileOriginId
+  && !player.retired && !player.freeAgent);
+assert.equal(duplicateOriginTransferPlayers.length, 0,
+  "a transferred player listed by stale source data must not be recreated at the selling club");
+assert.equal(transferReconcileWorld.players[transferReconcilePlayerId].clubId, transferReconcileDestinationId,
+  "the player's current destination club must remain authoritative");
+assert.ok(transferReconcileWorld.clubs[transferReconcileDestinationId].roster.includes(transferReconcilePlayerId),
+  "the current destination club must retain the original player in its active roster");
+assert.ok(!transferReconcileWorld.clubs[transferReconcileOriginId].roster.includes(transferReconcilePlayerId),
+  "the former selling club must not regain the transferred player's saved ID");
+assert.equal(transferReconcileWorld.playerHistory[transferReconcilePlayerId][0].fromClubId,
+  transferReconcileOriginId,
+  "the transfer origin must remain available as former-club identity metadata");
+assert.equal(transferReconcileWorld.seasonStats["5"][0].goals, 8,
+  "the transferred player's saved season statistics must remain intact");
+assert.equal(transferReconcileWorld.transfers[0].id, "transfer-reconcile-ledger",
+  "catalogue reconciliation must not rewrite the saved transfer ledger");
+
+
+// Promotion history records the destination season: a record for season 2 must prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];
 for (let index = 1; index <= 6; index++) promotionClubs.push({
   id: "promotion-first-" + index, name: "Promotion First " + index,

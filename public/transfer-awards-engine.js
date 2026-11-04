@@ -82,6 +82,28 @@
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
   }
 
+  // Player names and club names are not globally unique. Prefer the stable player
+  // ID; legacy rows fall back to country, position, age and shirt/birth details.
+  function playerIdentityKey(player) {
+    player = player || {};
+    const rawId = player.id != null && player.id !== "" ? player.id
+      : player.playerId != null && player.playerId !== "" ? player.playerId : player.uid;
+    const id = String(rawId == null ? "" : rawId).trim();
+    if (id) return "id|" + normalized(id);
+    const ageValue = Number(player.age);
+    const age = Number.isFinite(ageValue) && ageValue > 0 ? String(Math.floor(ageValue)) : "";
+    return [
+      "fallback",
+      normalized(player.name || ""),
+      normalized(player.clubName || player.club || ""),
+      normalized(player.country || ""),
+      normalized(player.position || ""),
+      normalized(player.birthDate || player.dateOfBirth || player.dob || ""),
+      age,
+      normalized(player.shirtNumber || player.jerseyNumber || player.number || "")
+    ].join("|");
+  }
+
   // Keep award projections consistent with the career/match engines when a
   // roster stores an English position abbreviation instead of its Arabic label.
   const POSITION_ROLE_ALIASES = Object.freeze({
@@ -208,8 +230,7 @@
     }
     const ovr = clamp(row.ovr || player.ovr || 60, 35, 99);
     const strength = safeStrength(row.leagueStrength || player.leagueStrength);
-    const random = seeded(stableHash("defense|" + season + "|" + String(row.club || player.clubName || player.club || "")
-      + "|" + String(row.name || player.name || "")));
+    const random = seeded(stableHash("defense|" + season + "|" + playerIdentityKey(Object.assign({}, player, row))));
     const cleanRate = type === "keeper"
       ? clamp(0.25 + (ovr - 60) * 0.006 + (strength - 60) * 0.002 + (random() - 0.5) * 0.08, 0.12, 0.68)
       : type === "defender"
@@ -256,7 +277,7 @@
       ? Math.floor(sourcedAge)
       : Object.prototype.hasOwnProperty.call(knownYoung, name)
         ? knownYoung[name]
-        : 24 + (stableHash(name) % 10);
+        : 24 + (stableHash(playerIdentityKey(player)) % 10);
     const seasonNumber = Math.max(1, Math.floor(Number(season) || 1));
     // Sourced age, known-player baseline, or fallback estimate all describe the
     // player's age in season one. Advance the same baseline once per season.
@@ -282,6 +303,7 @@
       const averageRating = hasPlayingTime ? safeRating(saved.averageRating) : 0;
       const leagueStrength = safeStrength(player.leagueStrength);
       return {
+        id: String(player.id || player.playerId || ""),
         name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
         country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
         age: estimatedAge(player, season), ovr, appearances, minutes, goals, assists,
@@ -294,7 +316,7 @@
     }
     const ovr = clamp(player.ovr || player.power || 60, 35, 99);
     const type = roleType(player.position);
-    const random = seeded(stableHash(season + "|" + player.clubName + "|" + player.name));
+    const random = seeded(stableHash(season + "|" + playerIdentityKey(player)));
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
@@ -318,6 +340,7 @@
       ? rating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + competitionStrength * 0.035 + prestige * 0.018
       : 0;
     return {
+      id: String(player.id || player.playerId || ""),
       name: player.name,
       club: player.clubName || player.club || "نادي غير محدد",
       country: player.country || "",
@@ -528,7 +551,7 @@
     const seen = new Set();
     for (const player of players) {
       if (!player || !player.name) continue;
-      const key = normalized(player.name) + "|" + normalized(player.clubName || player.club || "");
+      const key = playerIdentityKey(player);
       if (seen.has(key)) continue;
       seen.add(key);
       rows.push(simulatePlayerSeason(player, season, progress));
@@ -573,7 +596,7 @@
     }
     const unique = new Map();
     for (const row of rows) {
-      const key = normalized(row.name) + "|" + normalized(row.club || "");
+      const key = playerIdentityKey(row);
       const old = unique.get(key);
       if (!old || Number(row.isUser) > Number(old.isUser)) unique.set(key, row);
     }
@@ -591,7 +614,7 @@
 
     for (const realPlayer of realPlayers) {
       if (!realPlayer || !realPlayer.name) continue;
-      const key = normalized(realPlayer.name) + "|" + normalized(realPlayer.clubName || realPlayer.club || "");
+      const key = playerIdentityKey(realPlayer);
       if (seen.has(key)) continue;
       seen.add(key);
       const row = applyDefensiveSeasonStats(simulatePlayerSeason(realPlayer, season, 1), realPlayer, season);
@@ -613,6 +636,7 @@
     const userAssists = hasUserPlayingTime ? safeCount(player.assists) : 0;
     const userAverageRating = hasUserPlayingTime ? safeRating(player.averageRating) : 0;
     const user = {
+      id: String(player.id || player.playerId || ""),
       name: String(player.name || "لاعب المسيرة"),
       club: String(player.club || "نادي غير محدد"),
       country: String(player.country || ""),
@@ -648,7 +672,8 @@
         return (Number(b[scoreKey]) || 0) - (Number(a[scoreKey]) || 0)
           || Number(b.goals || 0) - Number(a.goals || 0)
           || Number(b.assists || 0) - Number(a.assists || 0)
-          || String(a.name).localeCompare(String(b.name), "ar");
+          || String(a.name).localeCompare(String(b.name), "ar")
+        || playerIdentityKey(a).localeCompare(playerIdentityKey(b), "en");
       });
     };
     const eligibleCandidates = candidates.filter(row =>
@@ -674,9 +699,11 @@
         id: definition.id,
         title: definition.title,
         winner: {
+          id: String(winner.id || ""),
           name: winner.name,
           club: winner.club,
           country: winner.country,
+          position: winner.position,
           goals: winner.goals,
           assists: winner.assists,
           averageRating: winner.averageRating,
@@ -687,7 +714,8 @@
           isUser: !!winner.isUser
         },
         topThree: ranked.slice(0, 3).map(function (row) {
-          return { name: row.name, club: row.club, score: Number(row[definition.metric]) || 0,
+          return { id: String(row.id || ""), name: row.name, club: row.club,
+            country: row.country, position: row.position, score: Number(row[definition.metric]) || 0,
             cleanSheets: row.cleanSheets, saves: row.saves, penaltiesSaved: row.penaltiesSaved, isUser: !!row.isUser };
         })
       };
@@ -712,9 +740,12 @@
       country: user.country,
       createdAt: String(input.currentDate || (String(2024 + season) + "-07-31T00:00:00.000Z")),
       ballonDor: {
-        winner: { name: ballonWinner.name, club: ballonWinner.club, isUser: !!ballonWinner.isUser },
+        winner: { id: String(ballonWinner.id || ""), name: ballonWinner.name, club: ballonWinner.club,
+          country: ballonWinner.country, position: ballonWinner.position, isUser: !!ballonWinner.isUser },
         topFive: bestFive.map(function (row) {
-          return { name: row.name, club: row.club, goals: row.goals, assists: row.assists, averageRating: row.averageRating, score: Number(row.ballonScore) || 0, isUser: !!row.isUser };
+          return { id: String(row.id || ""), name: row.name, club: row.club, country: row.country,
+            position: row.position, goals: row.goals, assists: row.assists, averageRating: row.averageRating,
+            score: Number(row.ballonScore) || 0, isUser: !!row.isUser };
         })
       },
       awards: awards,
@@ -832,7 +863,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 19,
+    version: 20,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

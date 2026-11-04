@@ -1310,6 +1310,91 @@ assert.equal(restoredDuplicate.clubId, duplicateReconcileClub.id,
   "legacy roster repair must restore the player to the correct club");
 assert.equal(duplicateReconcileSave.worldSimulation.rosterSchemaVersion, 3,
   "the per-club player identity migration must be recorded once");
+// Replacing a generated squad placeholder with a newly sourced player must archive,
+// not discard, the outgoing player's record, career history, and season statistics.
+const archiveReplaceClubName = "Archive Replacement Club";
+const archiveReplaceCountry = "Testland";
+const archiveReplaceLeagueId = "archive-replacement-league";
+const archiveReplaceClubId = ai.clubKey(archiveReplaceClubName, archiveReplaceCountry);
+const archiveReplaceGeneratedIds = Array.from({ length: 16 }, (_, index) =>
+  "archive-generated-player-" + String(index + 1));
+const archiveReplacePlayers = Object.fromEntries(archiveReplaceGeneratedIds.map((id, index) => [id, {
+  id, name: "Archive Academy Placeholder " + (index + 1),
+  clubId: archiveReplaceClubId, country: archiveReplaceCountry, leagueId: archiveReplaceLeagueId,
+  division: 1, position: index < 2 ? "حارس مرمى" : index < 7 ? "قلب دفاع" : index < 12 ? "وسط مهاجم" : "مهاجم",
+  group: index < 2 ? "goalkeeper" : index < 7 ? "defender" : index < 12 ? "midfielder" : "attacker",
+  age: 18 + index, ovr: 35 + index, potential: 60 + index,
+  isGenerated: true, isRealPlayer: false, contractSeasons: 2, retired: false, freeAgent: false
+}]));
+const archiveReplacePlayerId = archiveReplaceGeneratedIds[0];
+const archiveReplaceHistory = [
+  { season: 4, type: "transfer-in", club: archiveReplaceClubName, country: archiveReplaceCountry },
+  { season: 5, type: "development", note: "career history must remain available" }
+];
+const archiveReplaceSeasonRow = {
+  id: archiveReplacePlayerId, playerId: archiveReplacePlayerId,
+  clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+  season: 5, appearances: 24, goals: 7, assists: 3
+};
+const archiveReplaceClub = {
+  id: archiveReplaceClubId, name: archiveReplaceClubName, country: archiveReplaceCountry,
+  leagueId: archiveReplaceLeagueId, division: 1, leagueName: "Archive Test League",
+  leagueEnglish: "Archive Test League", matchesPerSeason: 30,
+  basePower: 60, power: 60, prestige: 50, roster: archiveReplaceGeneratedIds.slice()
+};
+const archiveReplaceDb = {
+  version: 2,
+  leagues: () => [{ id: archiveReplaceLeagueId }],
+  leagueFor: () => ({ name: "Archive Test League", englishName: "Archive Test League", matchesPerSeason: 30 }),
+  clubs: () => [{
+    name: archiveReplaceClubName, country: archiveReplaceCountry,
+    leagueId: archiveReplaceLeagueId, division: 1,
+    players: [{
+      name: "New Officially Sourced Player", position: "مهاجم", age: 23,
+      ovr: 68, potential: 79, isRealPlayer: true
+    }]
+  }]
+};
+const archiveReplaceWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 6, lastCompletedSeason: 5, lastAdvancedTo: 6,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  players: archiveReplacePlayers, clubs: { [archiveReplaceClubId]: archiveReplaceClub },
+  playerHistory: { [archiveReplacePlayerId]: archiveReplaceHistory },
+  seasonStats: { "5": [archiveReplaceSeasonRow] },
+  transfers: [{ id: "archive-replacement-transfer", playerId: archiveReplacePlayerId,
+    player: archiveReplacePlayers[archiveReplacePlayerId].name, season: 4 }],
+  nextGeneratedPlayer: 41, transferSequence: 1, projectionRevision: 7,
+  completedSeasons: [], leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  marketReports: [], notes: []
+};
+sandbox.window.__lwTestReconcileDatabase(archiveReplaceWorld, archiveReplaceDb);
+const archiveReplaceClubAfter = archiveReplaceWorld.clubs[archiveReplaceClubId];
+const sourcedReplacement = archiveReplaceClubAfter.roster
+  .map(id => archiveReplaceWorld.players[id]).find(player => player && player.name === "New Officially Sourced Player");
+assert.ok(sourcedReplacement && sourcedReplacement.isRealPlayer === true,
+  "a newly sourced real player must still replace an available generated squad placeholder");
+assert.equal(archiveReplaceClubAfter.roster.length, 16,
+  "roster reconciliation must keep the club's active squad at its configured size");
+assert.ok(!archiveReplaceClubAfter.roster.includes(archiveReplacePlayerId),
+  "the replaced placeholder must leave the active squad");
+assert.equal(archiveReplaceWorld.players[archiveReplacePlayerId], undefined,
+  "a replaced placeholder must leave the active simulation player map");
+assert.equal(archiveReplaceWorld.archive.players[archiveReplacePlayerId].name,
+  "Archive Academy Placeholder 1",
+  "the full outgoing generated player record must be retained in the archive");
+assert.deepEqual(archiveReplaceWorld.archive.playerHistory[archiveReplacePlayerId], archiveReplaceHistory,
+  "career history must be archived when its generated player is replaced");
+assert.ok(!Object.prototype.hasOwnProperty.call(archiveReplaceWorld.playerHistory, archiveReplacePlayerId),
+  "archived career history must not remain duplicated in the active player-history map");
+assert.deepEqual(archiveReplaceWorld.archive.seasonStats["5"], [archiveReplaceSeasonRow],
+  "all saved season statistics for the replaced player must be archived");
+assert.deepEqual(archiveReplaceWorld.seasonStats["5"], [],
+  "replaced-player statistics must leave the active season table after being archived");
+assert.ok(archiveReplaceWorld.transfers.some(row => row.playerId === archiveReplacePlayerId),
+  "the existing transfer ledger must remain intact after a generated player is archived");
+assert.equal(archiveReplaceWorld.nextGeneratedPlayer, 41,
+  "roster reconciliation must not allocate synthetic players while archiving a replacement");
+
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
   "database reconciliation must be exposed to the isolated regression test");

@@ -19,7 +19,7 @@ assert.ok(titleStart >= 0 && titleEnd > titleStart,
   "supercup qualification identity helper must exist");
 const titleSource = html.slice(titleStart, titleEnd)
   + "\nthis.hasPreviousSeasonClubTitle = hasPreviousSeasonClubTitle;";
-assert.ok(html.includes("hasPreviousSeasonClubTitle(qualifierNames)"),
+assert.ok(html.includes("hasPreviousSeasonClubTitle(qualifierNames.slice(0,1))"),
   "supercup eligibility must use the club-and-country-aware title identity helper");
 const titleSandbox = {
   state: { season: 6, leagueCountry: "Spain", cupHistory: [] },

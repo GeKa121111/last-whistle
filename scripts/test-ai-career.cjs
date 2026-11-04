@@ -162,6 +162,56 @@ const legacyTacticalRead = ai.chooseOpponentTactic({
 assert.equal(legacyTacticalRead.tactic, "compact",
   "opponents should adapt to repeated tactics preserved only in a legacy seasonLog");
 
+const sharedMixedHistoryRow = {
+  id: "mixed-history-shared-league", scope: "league", season: 4, segmentId: "segment-4-a",
+  competition: "Test League", club: "Test FC", opponent: "Shared Rival", day: 22,
+  minutes: 90, rating: 8.9, goals: 1, assists: 0, tactic: "attack", teamGoals: 1, oppGoals: 0
+};
+const partiallyMigratedHistory = {
+  careerMatchHistory: [
+    {
+      id: "mixed-history-new-cup", scope: "cup", season: 4, segmentId: "cup-4",
+      competition: "Test Cup", club: "Test FC", opponent: "Cup Rival", day: 25,
+      minutes: 90, rating: 9, goals: 1, assists: 0, tactic: "attack", teamGoals: 1, oppGoals: 0
+    },
+    sharedMixedHistoryRow
+  ],
+  // Older saves may have newer cup records in careerMatchHistory while league rows
+  // remain only in seasonLog. The shared league row must be counted once.
+  seasonLog: [
+    {
+      id: "mixed-history-old-low", scope: "league", season: 4, segmentId: "segment-4-a",
+      competition: "Test League", club: "Test FC", opponent: "Old Rival", day: 18,
+      minutes: 90, rating: 4, goals: 0, assists: 0, tactic: "balanced", teamGoals: 0, oppGoals: 1
+    },
+    {
+      id: "mixed-history-legacy-1", scope: "league", season: 4, segmentId: "segment-4-a",
+      competition: "Test League", club: "Test FC", opponent: "Legacy Rival 1", day: 19,
+      minutes: 90, rating: 8.5, goals: 1, assists: 0, tactic: "attack", teamGoals: 1, oppGoals: 0
+    },
+    {
+      id: "mixed-history-legacy-2", scope: "league", season: 4, segmentId: "segment-4-a",
+      competition: "Test League", club: "Test FC", opponent: "Legacy Rival 2", day: 20,
+      minutes: 90, rating: 8.6, goals: 1, assists: 0, tactic: "attack", teamGoals: 1, oppGoals: 0
+    },
+    {
+      id: "mixed-history-legacy-3", scope: "league", season: 4, segmentId: "segment-4-a",
+      competition: "Test League", club: "Test FC", opponent: "Legacy Rival 3", day: 21,
+      minutes: 90, rating: 8.7, goals: 1, assists: 0, tactic: "attack", teamGoals: 1, oppGoals: 0
+    },
+    sharedMixedHistoryRow
+  ]
+};
+const mixedHistoryForm = ai.formRating(partiallyMigratedHistory);
+assert.equal(mixedHistoryForm, 8.74,
+  "career AI form must merge partially migrated legacy league rows with newer cup history and deduplicate the shared fixture");
+const mixedHistoryContext = ai.utilityScores(partiallyMigratedHistory, 70).context;
+assert.equal(mixedHistoryContext.recentMatches, 5,
+  "context-aware AI must evaluate five unique recent matches across both history stores");
+assert.equal(mixedHistoryContext.averageRating, 8.74,
+  "context-aware AI must not ignore legacy league form or count a mirrored fixture twice");
+assert.equal(mixedHistoryContext.goalsLastFive, 5,
+  "context-aware AI must include each of the five recent mixed-history goals exactly once");
 
 const playedForm = ai.formRating({
   careerMatchHistory: [

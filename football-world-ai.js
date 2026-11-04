@@ -456,10 +456,13 @@
     // refill a missing squad slot with a generated placeholder.
     normalizeRosterMembership(world);
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
-    const retiredIdentitiesByClub = new Map();
+    const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
     for (const player of Object.values(world.players || {})) {
-      if (!player || !isTrueFlag(player.retired)) continue;
+      // Retired players and unattached free agents are both authoritative saved
+      // identities. A catalogue refresh must not recreate either at a former club
+      // simply because the source row now has a changed age/position-derived ID.
+      if (!player || (!isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent))) continue;
       const identityKey = rosterIdentityKey(player);
       if (!identityKey) continue;
       const clubIds = new Set([
@@ -481,8 +484,8 @@
       }
       for (const clubId of clubIds) {
         if (!clubId) continue;
-        if (!retiredIdentitiesByClub.has(clubId)) retiredIdentitiesByClub.set(clubId, new Set());
-        retiredIdentitiesByClub.get(clubId).add(identityKey);
+        if (!unavailableIdentitiesByClub.has(clubId)) unavailableIdentitiesByClub.set(clubId, new Set());
+        unavailableIdentitiesByClub.get(clubId).add(identityKey);
       }
     }
     const knownPlayersByClub = new Map();
@@ -503,11 +506,11 @@
       if (!world.clubs[id]) {
         const club = addClub(world, row, db);
         const knownForClub = new Set();
-        const retiredForClub = retiredIdentitiesByClub.get(id) || new Set();
+        const unavailableForClub = unavailableIdentitiesByClub.get(id) || new Set();
         let index = 0;
         records.forEach(player => {
           const identityKey = rosterIdentityKey(player);
-          if (!identityKey || knownForClub.has(identityKey) || retiredForClub.has(identityKey)) return;
+          if (!identityKey || knownForClub.has(identityKey) || unavailableForClub.has(identityKey)) return;
           makePlayer(world, player, club, index++, false);
           knownForClub.add(identityKey);
         });
@@ -525,11 +528,11 @@
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.
         const knownForClub = knownPlayersByClub.get(id) || new Set();
-        const retiredForClub = retiredIdentitiesByClub.get(id) || new Set();
+        const unavailableForClub = unavailableIdentitiesByClub.get(id) || new Set();
         let index = 0;
         for (const playerRow of records) {
           const identityKey = rosterIdentityKey(playerRow);
-          if (!identityKey || knownForClub.has(identityKey) || retiredForClub.has(identityKey)) continue;
+          if (!identityKey || knownForClub.has(identityKey) || unavailableForClub.has(identityKey)) continue;
           while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
             const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
               .sort((a, b) => Number(a.ovr || 0) - Number(b.ovr || 0));

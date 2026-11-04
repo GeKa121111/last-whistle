@@ -112,6 +112,76 @@ assert.ok(participants.includes(worldOnly.name), "the real world club database m
 assert.equal(new Set(participants).size, participants.length, "cup participants must be unique");
 assert.ok(!participants.some(name => /^نادي مشارك \d+$/.test(name)), "no placeholder club may enter the cup");
 
+const englandProfile = db.leagueById("england");
+const spainProfile = db.leagueById("spain");
+const englishCurrent = worldClubs.find(club => club && club.leagueId === "england" && Number(club.division || 1) === 1);
+const spanishCurrent = worldClubs.find(club => club && club.leagueId === "spain" && Number(club.division || 1) === 1);
+assert.ok(englandProfile && spainProfile && englishCurrent && spanishCurrent,
+  "scoped cup tests need sourced English and Spanish club metadata");
+const scopedRosters = {
+  "إنجلترا": { 1: ["أرسنال", "ليفربول"], 2: ["كوفنتري سيتي"] },
+  "إسبانيا": { 1: ["ريال مدريد", "برشلونة"], 2: ["ديبورتيفو لاكورونيا"] },
+  "مصر": { 1: ["الأهلي", "الزمالك"], 2: ["نادي مصري 2"] }
+};
+function scopedCupSandbox(country, clubName) {
+  const context = {
+    window: { LWWorldDB: db },
+    state: { leagueCountry: country },
+    LEAGUE_ROSTERS: scopedRosters,
+    clubNameForLeague: () => clubName
+  };
+  vm.createContext(context);
+  vm.runInContext(source, context, { filename: "cup-participants-scoped" });
+  return context;
+}
+const domesticSandbox = scopedCupSandbox(englandProfile.country, englishCurrent.name);
+const domesticLower = Array.from(domesticSandbox.cupParticipants({
+  kind: "domestic-cup", countries: ["england"], lower: true, teams: ["أرسنال"]
+}, 12));
+const englishNames = new Set([
+  ...scopedRosters["إنجلترا"][1],
+  ...scopedRosters["إنجلترا"][2],
+  ...worldClubs.filter(club => club && club.leagueId === "england").map(club => club.name)
+]);
+assert.ok(domesticLower.every(name => name === englishCurrent.name || englishNames.has(name)),
+  "a domestic cup must not import clubs from another country");
+assert.ok(domesticLower.includes("كوفنتري سيتي"),
+  "a domestic cup marked lower must include its configured second-division pool");
+assert.ok(!domesticLower.includes("الأهلي"),
+  "a domestic English cup must exclude Egyptian clubs even when they exist in the world database");
+const domesticTopFlight = Array.from(domesticSandbox.cupParticipants({
+  kind: "domestic-cup", countries: ["england"], lower: false, teams: []
+}, 12));
+assert.ok(!domesticTopFlight.includes("كوفنتري سيتي"),
+  "a domestic cup without lower-division eligibility must exclude second-division clubs");
+assert.ok(domesticTopFlight.every(name => name === englishCurrent.name || !worldClubs.some(club =>
+  club && club.name === name && club.leagueId === "england" && Number(club.division || 1) > 1)),
+  "top-flight-only domestic cups must not import second-division world clubs");
+
+const continentalSandbox = scopedCupSandbox(spainProfile.country, spanishCurrent.name);
+const europeanParticipants = Array.from(continentalSandbox.cupParticipants({
+  kind: "continental", confederation: "UEFA", teams: []
+}, 36));
+const europeanRosterNames = Object.entries(scopedRosters)
+  .filter(([country]) => db.leagueByCountry(country)?.confederation === "UEFA")
+  .flatMap(([, divisions]) => divisions[1] || []);
+const europeanDatabaseNames = worldClubs
+  .filter(club => club && db.leagueById(club.leagueId)?.confederation === "UEFA"
+    && Number(club.division || 1) === 1)
+  .map(club => club.name);
+const europeanNames = new Set([...europeanRosterNames, ...europeanDatabaseNames]);
+assert.ok(europeanParticipants.every(name => name === spanishCurrent.name || europeanNames.has(name)),
+  "continental cups must only draw first-division clubs from their own confederation");
+assert.ok(!europeanParticipants.includes("الأهلي"),
+  "a UEFA competition must not import CAF clubs");
+assert.ok(!europeanParticipants.includes("كوفنتري سيتي"),
+  "continental qualification pools must not import second-division clubs");
+
+const globalSandbox = scopedCupSandbox(spainProfile.country, spanishCurrent.name);
+const globalParticipants = Array.from(globalSandbox.cupParticipants({ kind: "world", teams: [] }, 100));
+assert.ok(globalParticipants.includes("الأهلي") && globalParticipants.includes("كوفنتري سيتي"),
+  "world competitions must retain the global first- and second-division candidate pool");
+
 const sparse = {
   window: { LWWorldDB: { clubNames: () => [] } },
   state: { leagueCountry: "مصر" },

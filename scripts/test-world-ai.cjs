@@ -957,7 +957,82 @@ assert.ok(!retiredReconcileWorld.clubs[retiredReconcileClubId].roster.includes(r
 assert.equal(retiredReconcileWorld.playerHistory[retiredReconcilePlayerId][0].type, "transfer-in",
   "reconciliation must preserve the retired player's existing career history");
 
-// Promotion history records the destination season. A record for season 2 must
+// A catalogue refresh must not re-import a free agent at their former club.
+// Age changes alter the deterministic source ID, while roster identity ignores age.
+const freeAgentReconcileClubName = "Free Agent Reconcile Club";
+const freeAgentReconcileCountry = "Testland";
+const freeAgentReconcileLeagueId = "free-agent-reconcile-league";
+const freeAgentReconcileClubId = ai.clubKey(freeAgentReconcileClubName, freeAgentReconcileCountry);
+const freeAgentReconcilePlayerId = "saved-free-agent-former-club";
+const freeAgentReconcilePlayerName = "Free Agent Source Identity";
+const freeAgentReconcileWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 5, completedSeasons: [],
+  players: {
+    [freeAgentReconcilePlayerId]: {
+      id: freeAgentReconcilePlayerId, name: freeAgentReconcilePlayerName, clubId: "",
+      country: freeAgentReconcileCountry, leagueId: "", division: 0,
+      position: "جناح", group: "attacker", ovr: 66, potential: 76, age: 24,
+      contractSeasons: 0, retired: false, freeAgent: true, freeAgentSince: 6,
+      previousClubId: freeAgentReconcileClubId, isRealPlayer: true, isGenerated: false
+    }
+  },
+  clubs: {
+    [freeAgentReconcileClubId]: {
+      id: freeAgentReconcileClubId, name: freeAgentReconcileClubName,
+      country: freeAgentReconcileCountry, leagueId: freeAgentReconcileLeagueId,
+      division: 1, leagueName: "Free Agent Test League",
+      leagueEnglish: "Free Agent Test League", matchesPerSeason: 30,
+      power: 64, basePower: 64, prestige: 50, roster: []
+    }
+  },
+  playerHistory: { [freeAgentReconcilePlayerId]: [
+    { season: 4, type: "contract-expiry", club: freeAgentReconcileClubName, country: freeAgentReconcileCountry }
+  ] },
+  seasonStats: { "5": [{
+    id: freeAgentReconcilePlayerId, playerId: freeAgentReconcilePlayerId,
+    season: 5, appearances: 18, goals: 4, assists: 2
+  }] },
+  leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 8
+};
+const freeAgentReconcileDb = {
+  version: 2,
+  leagues: () => [{ id: freeAgentReconcileLeagueId }],
+  leagueFor: () => ({
+    name: "Free Agent Test League", englishName: "Free Agent Test League", matchesPerSeason: 30
+  }),
+  clubs: () => [{
+    name: freeAgentReconcileClubName, country: freeAgentReconcileCountry,
+    leagueId: freeAgentReconcileLeagueId, division: 1,
+    players: [{ name: freeAgentReconcilePlayerName, position: "جناح",
+      age: 25, ovr: 68, potential: 79, isRealPlayer: true }]
+  }]
+};
+sandbox.window.__lwTestReconcileDatabase(freeAgentReconcileWorld, freeAgentReconcileDb);
+const savedFreeAgent = freeAgentReconcileWorld.players[freeAgentReconcilePlayerId];
+const duplicateFormerClubPlayers = Object.values(freeAgentReconcileWorld.players).filter(player =>
+  player && player.name === freeAgentReconcilePlayerName
+  && String(player.clubId || "") === freeAgentReconcileClubId
+  && !player.retired && !player.freeAgent);
+assert.equal(savedFreeAgent.freeAgent, true,
+  "a saved free agent must remain unattached after a catalogue refresh");
+assert.equal(savedFreeAgent.clubId, "",
+  "catalogue reconciliation must not silently restore the free agent's former club");
+assert.equal(savedFreeAgent.previousClubId, freeAgentReconcileClubId,
+  "the former club must remain available to the free-agent market");
+assert.equal(duplicateFormerClubPlayers.length, 0,
+  "a changed source age must not create a duplicate player at the former club");
+assert.ok(!freeAgentReconcileWorld.clubs[freeAgentReconcileClubId].roster.includes(freeAgentReconcilePlayerId),
+  "the detached free-agent record must stay out of the former club's active roster");
+assert.equal(freeAgentReconcileWorld.playerHistory[freeAgentReconcilePlayerId].length, 1,
+  "the free agent's career history must remain intact");
+assert.equal(freeAgentReconcileWorld.seasonStats["5"][0].goals, 4,
+  "the free agent's saved season statistics must remain intact");
+
+
 // prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];
 for (let index = 1; index <= 6; index++) promotionClubs.push({

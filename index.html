@@ -5456,7 +5456,7 @@ function returnFromLoan(){
   // There is no reliable parent contract to restore. Preserve the host-stage
   // archive, then clear the temporary loan wage/term instead of inventing a host deal.
   const hostClub=String(state.clubName||"النادي المضيف");
-  archiveLeagueSegment("loan-return-invalid");
+  archiveCupForTransfer();archiveLeagueSegment("loan-return-invalid");
   state.loan=null;state.weeklyWage=0;state.contractSeasons=0;state.freeAgent=true;state.contractType="free-agent";
   state.contractOffer=null;state.pendingTransfer=null;state.transferNegotiation=null;
   state.daysSinceNegotiation=7;state.contractNegotiationWait=0;
@@ -5469,7 +5469,7 @@ function returnFromLoan(){
  }
  // Archive the temporary club's stage before restoring the parent club. Without
  // this, league results earned during the loan vanish when the next season is built.
- archiveLeagueSegment("loan-return");
+ archiveCupForTransfer();archiveLeagueSegment("loan-return");
  const hostClub=state.clubName;
  const parentFreeAgent=normalizeSavedBooleanFlag(l.parentFreeAgent);
  const savedParentContractType=l.parentContractType;

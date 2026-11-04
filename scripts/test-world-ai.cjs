@@ -168,7 +168,7 @@ const rosterMigrationSave = { season: 1, worldSimulation: {
   }
 } };
 const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
-assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 4,
+assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 5,
   "legacy saves must run the one-time roster ownership migration");
 assert.deepEqual(rosterMigrationWorld.clubs["membership-origin"].roster,
   ["membership-origin-player", "membership-legacy-unique"],
@@ -227,7 +227,7 @@ const legacyFlagSave = { season: 1, worldSimulation: {
 } };
 const legacyFlagWorld = ai.ensureState(legacyFlagSave, db);
 const legacyFlagClub = legacyFlagWorld.clubs[legacyFlagClubId];
-assert.equal(legacyFlagWorld.rosterMembershipSchemaVersion, 4,
+assert.equal(legacyFlagWorld.rosterMembershipSchemaVersion, 5,
   "v3 saves must normalize legacy string-valued player status flags once");
 assert.deepEqual(ai.rosterPlayers(legacyFlagWorld, legacyFlagClub).map(player => player.id).sort(),
   ["legacy-flag-false", "legacy-flag-zero"],
@@ -281,7 +281,7 @@ const missingMembershipSave = { season: 1, worldSimulation: {
 const missingMembershipPlayerCount = Object.keys(missingMembershipSave.worldSimulation.players).length;
 const missingMembershipNextGenerated = missingMembershipSave.worldSimulation.nextGeneratedPlayer;
 const missingMembershipWorld = ai.ensureState(missingMembershipSave, db);
-assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 4,
+assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 5,
   "version-one saves must receive the missing-membership repair migration");
 assert.deepEqual(missingMembershipWorld.clubs["membership-gap-origin"].roster,
   ["membership-gap-existing", "membership-gap-unlisted"],
@@ -320,6 +320,56 @@ assert.ok(ai.rosterPlayers(missingMembershipWorld, missingMembershipWorld.clubs[
 assert.ok(sandbox.window.__lwTestMakeLineup(missingMembershipWorld, missingMembershipWorld.clubs["membership-gap-origin"])
   .some(player => player.id === "membership-gap-unlisted"),
   "restored players must be eligible for their club's matchday lineup");
+
+// A v4 save can already have a canonical clubId while retaining stale league metadata.
+// The one-time v5 migration must overwrite stale values from the canonical club in both
+// ownership paths: direct clubId ownership and a single unambiguous legacy roster link.
+const metadataSyncClubId = "metadata-sync-club";
+const metadataSyncSave = { season: 6, worldSimulation: {
+  schemaVersion: 1, dbVersion: Number(db.version) || 0, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 4, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  transfers: [], marketReports: [], playerHistory: {}, notes: [], nextGeneratedPlayer: 1,
+  transferSequence: 0, projectionRevision: 9,
+  clubs: {
+    [metadataSyncClubId]: { id: metadataSyncClubId, name: "Metadata Sync Club",
+      country: "Canonical Country", leagueId: rosterMigrationLeagueId, division: 2,
+      roster: ["metadata-stale-owner", "metadata-stale-inferred"] }
+  },
+  players: {
+    "metadata-stale-owner": { id: "metadata-stale-owner", name: "Stale Owner Metadata",
+      clubId: metadataSyncClubId, country: "Old Country", leagueId: "old-league", division: 1,
+      group: "attacker", position: "ST", ovr: 78, potential: 84, age: 24,
+      contractSeasons: 2, retired: false, freeAgent: false },
+    "metadata-stale-inferred": { id: "metadata-stale-inferred", name: "Stale Inferred Metadata",
+      clubId: "", country: "Wrong Country", leagueId: "wrong-league", division: 8,
+      group: "midfielder", position: "CM", ovr: 72, potential: 79, age: 25,
+      contractSeasons: 2, retired: false, freeAgent: false }
+  }
+} };
+const metadataSyncWorld = ai.ensureState(metadataSyncSave, db);
+const metadataSyncClub = metadataSyncWorld.clubs[metadataSyncClubId];
+assert.equal(metadataSyncWorld.rosterMembershipSchemaVersion, 5,
+  "v4 saves must run the new canonical player-club metadata migration");
+for (const id of ["metadata-stale-owner", "metadata-stale-inferred"]) {
+  const player = metadataSyncWorld.players[id];
+  assert.equal(player.clubId, metadataSyncClubId,
+    "canonical club ownership must be retained or recovered during metadata migration");
+  assert.equal(player.country, metadataSyncClub.country,
+    "player country metadata must be synchronized from the canonical owning club");
+  assert.equal(player.leagueId, metadataSyncClub.leagueId,
+    "stale player league IDs must be replaced with the canonical owning club league");
+  assert.equal(player.division, 2,
+    "stale player divisions must be replaced with the canonical owning club division");
+}
+assert.deepEqual(metadataSyncClub.roster, ["metadata-stale-owner", "metadata-stale-inferred"],
+  "metadata migration must retain each existing player exactly once in the owning club");
+assert.equal(Object.keys(metadataSyncWorld.players).length, 2,
+  "metadata migration must not delete or generate player records");
+assert.equal(metadataSyncWorld.nextGeneratedPlayer, 1,
+  "metadata migration must not allocate generated players");
+assert.equal(metadataSyncWorld.projectionRevision, 10,
+  "the metadata migration must invalidate cached season projections once");
 
 const duplicateFillWorld = { players: {
   "fill-transferred": { id: "fill-transferred", clubId: "fill-destination", group: "attacker", ovr: 95 },
@@ -2310,7 +2360,7 @@ for (let index = 1; index <= 5; index++) cupFixtureClubs.push({
   division: 2, power: 45 + index, basePower: 45 + index, prestige: 40, roster: []
 });
 const cupWorld = {
-  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 4,
+  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
   currentSeason: 1, lastAdvancedTo: 0, lastCompletedSeason: 0, completedSeasons: [],
   players: {}, clubs: Object.fromEntries(cupFixtureClubs.map(club => [club.id, club])),
   playerHistory: {}, seasonStats: {}, leagueTables: {}, matchesBySeason: {},

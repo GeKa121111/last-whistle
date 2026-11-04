@@ -2391,6 +2391,103 @@ assert.equal(retrySeasonWorld.transfers.filter(move => move.playerId === retryFr
   "reopening a completed market must not sign the same free agent twice");
 
 
+
+ // A retry after the paid market committed must reconstruct its saved move IDs.
+ // Both clubs from that paid deal remain reserved, so the free agent can only join
+ // a third eligible club rather than making a second move for either participant.
+const reservedMarketCountry = retrySeasonCountry;
+const reservedMarketClubIds = ["retry-reserved-seller", "retry-reserved-buyer", "retry-unreserved-buyer"];
+const reservedMarketPlayers = {};
+const reservedMarketClubs = {};
+reservedMarketClubIds.forEach((clubId, clubIndex) => {
+  const roster = [];
+  const roleRows = [
+    { group: "goalkeeper", position: "حارس مرمى" },
+    ...Array.from({ length: 6 }, () => ({ group: "defender", position: "قلب دفاع" })),
+    ...Array.from({ length: 5 }, () => ({ group: "midfielder", position: "وسط مهاجم" })),
+    ...Array.from({ length: 5 }, () => ({ group: "attacker", position: "رأس حربة" }))
+  ];
+  roleRows.forEach((row, playerIndex) => {
+    const id = clubId + "-player-" + playerIndex;
+    reservedMarketPlayers[id] = {
+      id, name: clubId + " Player " + playerIndex, clubId,
+      country: reservedMarketCountry, leagueId: rosterMigrationLeagueId, division: 1,
+      group: row.group, position: row.position, ovr: 60 + (playerIndex % 4),
+      potential: 72 + (playerIndex % 4), age: 24, contractSeasons: 3,
+      retired: false, freeAgent: false, transferListed: false
+    };
+    roster.push(id);
+  });
+  reservedMarketClubs[clubId] = {
+    id: clubId, name: ["Reserved Seller", "Reserved Buyer", "Unreserved Buyer"][clubIndex],
+    country: reservedMarketCountry, leagueId: rosterMigrationLeagueId, division: 1,
+    power: 60, basePower: 60, prestige: 50, budget: 0, currency: "€",
+    roster
+  };
+});
+const reservedPaidMoveId = "retry-reserved-paid-move";
+const reservedFreeAgentId = "retry-reserved-free-agent";
+reservedMarketPlayers[reservedFreeAgentId] = {
+  id: reservedFreeAgentId, name: "Reserved Market Free Agent", clubId: "",
+  country: reservedMarketCountry, leagueId: "", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 70,
+  age: 25, contractSeasons: 0, retired: false, freeAgent: true,
+  freeAgentSince: 1, previousClubId: "missing-reserved-former-club", transferListed: false
+};
+let failReservedHistoryWrite = true;
+const reservedHistoryBacking = {};
+const reservedHistory = new Proxy(reservedHistoryBacking, {
+  set(target, key, value) {
+    target[key] = value;
+    if (failReservedHistoryWrite) {
+      failReservedHistoryWrite = false;
+      throw new Error("forced reserved market history failure");
+    }
+    return true;
+  }
+});
+const reservedMarketWorld = {
+  schemaVersion: ai.version, dbVersion: Number(db.version) || 0,
+  currentSeason: 2, lastCompletedSeason: 1, lastAdvancedTo: 2,
+  lastDevelopedSeason: 1, lastFreeAgentMarketSeason: 1,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  clubs: reservedMarketClubs, players: reservedMarketPlayers,
+  playerHistory: {}, transferClubHistoryByPlayer: reservedHistory,
+  transferClubHistorySchemaVersion: 1,
+  seasonStats: { "1": [] }, leagueTables: {}, completedSeasons: [1],
+  matchesBySeason: {}, competitionsBySeason: {}, promotionHistory: [{ season: 2, moves: [] }],
+  transfers: [{
+    id: reservedPaidMoveId, season: 2, playerId: "reserved-paid-player",
+    from: "Reserved Seller", fromCountry: reservedMarketCountry,
+    fromClubId: "retry-reserved-seller",
+    to: "Reserved Buyer", toCountry: reservedMarketCountry,
+    toClubId: "retry-reserved-buyer", kind: "انتقال محاكاة"
+  }],
+  marketReports: [{
+    season: 2, moves: 1, transferIds: [reservedPaidMoveId],
+    summary: "existing paid market report"
+  }],
+  notes: [], nextGeneratedPlayer: 1, transferSequence: 1, projectionRevision: 1
+};
+const reservedMarketSave = { season: 2, worldSimulation: reservedMarketWorld };
+assert.throws(() => ai.advanceToSeason(reservedMarketSave, 2, db),
+  /forced reserved market history failure/,
+  "the saved paid-market recovery fixture must fail once during the free-agent history write");
+assert.equal(reservedMarketWorld.lastFreeAgentMarketSeason, 1);
+const reservedMarketRetry = ai.advanceToSeason(reservedMarketSave, 2, db);
+assert.equal(reservedMarketRetry.alreadyAdvanced, true);
+assert.equal(reservedMarketWorld.players[reservedFreeAgentId].clubId, "retry-unreserved-buyer",
+  "a retried free-agent phase must reserve both clubs from the already-committed paid deal");
+assert.equal(reservedMarketWorld.players[reservedFreeAgentId].clubId === "retry-reserved-seller"
+  || reservedMarketWorld.players[reservedFreeAgentId].clubId === "retry-reserved-buyer", false,
+  "free-agent recovery must not allow a second move for either paid-deal participant");
+assert.ok(reservedMarketWorld.marketReports[0].transferIds.includes(reservedPaidMoveId));
+assert.ok(reservedMarketWorld.marketReports[0].transferIds.includes(
+  reservedMarketWorld.transfers.find(move => move.playerId === reservedFreeAgentId).id
+));
+assert.equal(reservedMarketWorld.transfers.filter(move => move.playerId === reservedFreeAgentId).length, 1,
+  "reconstructed paid moves must not create duplicate free-agent signings");
+
 // LocalStorage round-trip must preserve transfer logs, player history, and both
 // season snapshots. Re-opening the same season after reload must remain idempotent.
 const reloadedSave = JSON.parse(JSON.stringify(save));

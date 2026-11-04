@@ -1199,6 +1199,14 @@ prunedTransferLedgerWorld.playerHistory[transferReconcilePlayerId] = Array.from(
 prunedTransferLedgerWorld.transfers = [];
 prunedTransferLedgerWorld.transferClubHistoryByPlayer = {};
 delete prunedTransferLedgerWorld.transferClubHistorySchemaVersion;
+const sameNameClubHistoryWorld = { transferClubHistoryByPlayer: {}, transferClubHistorySchemaVersion: 1 };
+sandbox.window.__lwTestRememberTransferClubEndpoints(sameNameClubHistoryWorld, {
+  playerId: "same-name-club-player",
+  from: "Shared Club Name", fromCountry: "Testland", fromClubId: "shared-club-id-a",
+  to: "Shared Club Name", toCountry: "Testland", toClubId: "shared-club-id-b"
+});
+assert.equal(sameNameClubHistoryWorld.transferClubHistoryByPlayer["same-name-club-player"].length, 2,
+  "distinct club IDs must remain distinct even when their normalized names and countries match");
 sandbox.window.__lwTestRememberTransferClubEndpoints(prunedTransferLedgerWorld, {
   id: "old-transfer-before-pruning", playerId: transferReconcilePlayerId,
   from: transferReconcileOriginName, fromCountry: transferReconcileCountry,

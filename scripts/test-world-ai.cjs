@@ -1155,6 +1155,37 @@ assert.equal(legacyTransferReconcileWorld.seasonStats["5"][0].goals, 8,
 assert.equal(legacyTransferReconcileWorld.transfers[0].id, "transfer-reconcile-ledger",
   "legacy transfer reconciliation must preserve the saved transfer ledger");
 
+// The visible player-history list is capped at 12 rows. Older transfer endpoints
+// must still protect a former club when the bounded history no longer contains it.
+const longHistoryTransferWorld = JSON.parse(JSON.stringify(transferReconcileWorld));
+longHistoryTransferWorld.playerHistory[transferReconcilePlayerId] = Array.from({ length: 12 }, (_, index) => ({
+  season: 6 + index,
+  clubId: "later-club-" + index,
+  club: "Later Club " + index,
+  country: "Testland",
+  fromClubId: "later-former-club-" + index,
+  from: "Later Former Club " + index,
+  type: "transfer-in"
+}));
+assert.equal(longHistoryTransferWorld.playerHistory[transferReconcilePlayerId].length, 12,
+  "the long-career fixture must model the bounded player-history window");
+assert.ok(longHistoryTransferWorld.transfers.some(row =>
+  row && row.playerId === transferReconcilePlayerId && row.fromClubId === transferReconcileOriginId),
+  "the older former-club endpoint must remain in the transfer ledger");
+sandbox.window.__lwTestReconcileDatabase(longHistoryTransferWorld, transferReconcileDb);
+const longHistoryDuplicateOriginPlayers = Object.values(longHistoryTransferWorld.players).filter(player =>
+  player && player.name === transferReconcilePlayerName
+  && String(player.clubId || "") === transferReconcileOriginId
+  && !player.retired && !player.freeAgent);
+assert.equal(longHistoryDuplicateOriginPlayers.length, 0,
+  "the transfer ledger must prevent stale roster imports after an old transfer leaves the 12-row player history");
+assert.equal(longHistoryTransferWorld.players[transferReconcilePlayerId].clubId, transferReconcileDestinationId,
+  "long-career reconciliation must keep the player's current club authoritative");
+assert.equal(longHistoryTransferWorld.playerHistory[transferReconcilePlayerId].length, 12,
+  "long-career reconciliation must preserve the existing bounded player history");
+assert.equal(longHistoryTransferWorld.transfers[0].fromClubId, transferReconcileOriginId,
+  "long-career reconciliation must preserve the historical transfer ledger");
+
 
 // Promotion history records the destination season: a record for season 2 must prevent repeating season 1, but must not suppress the independent season 2 table move.
 const promotionClubs = [];

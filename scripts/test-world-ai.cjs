@@ -1699,6 +1699,28 @@ const archiveReplaceSeasonRow = {
   clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
   season: 5, appearances: 24, goals: 7, assists: 3
 };
+const archiveReplaceStablePlayerId = archiveReplaceGeneratedIds[1];
+const archiveReplaceStableSeasonRow = {
+  id: archiveReplaceStablePlayerId, playerId: archiveReplaceStablePlayerId,
+  clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+  season: 4, appearances: 18, goals: 4, assists: 2
+};
+const archiveReplaceCurrentSeasonRow = {
+  id: archiveReplaceStablePlayerId, playerId: archiveReplaceStablePlayerId,
+  clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+  season: 6, appearances: 10, goals: 2, assists: 1
+};
+const archiveReplaceTable = season => ({
+  [archiveReplaceLeagueId]: [{
+    clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+    division: 1, rank: 1, pts: season === 5 ? 40 : 0
+  }]
+});
+const archiveReplaceMatches = season => [{
+  season, competitionId: "league", division: 1, matchday: 1,
+  homeClubId: archiveReplaceClubId, awayClubId: "archive-replacement-opponent",
+  homeGoals: 1, awayGoals: 0
+}];
 const archiveReplaceClub = {
   id: archiveReplaceClubId, name: archiveReplaceClubName, country: archiveReplaceCountry,
   leagueId: archiveReplaceLeagueId, division: 1, leagueName: "Archive Test League",
@@ -1723,13 +1745,32 @@ const archiveReplaceWorld = {
   rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
   players: archiveReplacePlayers, clubs: { [archiveReplaceClubId]: archiveReplaceClub },
   playerHistory: { [archiveReplacePlayerId]: archiveReplaceHistory },
-  seasonStats: { "5": [archiveReplaceSeasonRow] },
+  seasonStats: {
+    "4": [archiveReplaceStableSeasonRow],
+    "5": [archiveReplaceSeasonRow],
+    "6": [archiveReplaceCurrentSeasonRow]
+  },
   transfers: [{ id: "archive-replacement-transfer", playerId: archiveReplacePlayerId,
     player: archiveReplacePlayers[archiveReplacePlayerId].name, season: 4 }],
   nextGeneratedPlayer: 41, transferSequence: 1, projectionRevision: 7,
-  completedSeasons: [], leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  completedSeasons: [5],
+  leagueTables: { "5": archiveReplaceTable(5), "6": archiveReplaceTable(6) },
+  matchesBySeason: { "5": archiveReplaceMatches(5), "6": archiveReplaceMatches(6) },
+  competitionsBySeason: {
+    "5": [{ id: "archive-replacement-completed-cup", season: 5 }],
+    "6": [{ id: "archive-replacement-pending-cup", season: 6 }]
+  },
   marketReports: [], notes: []
 };
+const completedProjectionWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+completedProjectionWorld.completedSeasons = [5, 6];
+completedProjectionWorld.lastCompletedSeason = 6;
+const membershipProjectionSave = {
+  season: 6,
+  worldSimulation: JSON.parse(JSON.stringify(archiveReplaceWorld))
+};
+membershipProjectionSave.worldSimulation.dbVersion = Number(archiveReplaceDb.version);
+membershipProjectionSave.worldSimulation.rosterMembershipSchemaVersion = 4;
 sandbox.window.__lwTestReconcileDatabase(archiveReplaceWorld, archiveReplaceDb);
 const archiveReplaceClubAfter = archiveReplaceWorld.clubs[archiveReplaceClubId];
 const sourcedReplacement = archiveReplaceClubAfter.roster
@@ -1761,6 +1802,34 @@ assert.ok(archiveReplaceWorld.transfers.some(row => row.playerId === archiveRepl
   "the existing transfer ledger must remain intact after a generated player is archived");
 assert.equal(archiveReplaceWorld.nextGeneratedPlayer, 41,
   "roster reconciliation must not allocate synthetic players while archiving a replacement");
+assert.deepEqual(archiveReplaceWorld.seasonStats["4"], [archiveReplaceStableSeasonRow],
+  "reconciling a roster must preserve older season statistics that are not tied to the replaced player");
+for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
+  assert.ok(!Object.prototype.hasOwnProperty.call(archiveReplaceWorld[field], "6"),
+    "a roster catalogue refresh must invalidate the unfinished current season's " + field + " snapshot");
+  assert.ok(Object.prototype.hasOwnProperty.call(archiveReplaceWorld[field], "5"),
+    "a roster catalogue refresh must preserve the prior completed season's " + field + " snapshot");
+}
+
+// A completed current season is historical truth and must not be invalidated by a later catalogue refresh.
+sandbox.window.__lwTestReconcileDatabase(completedProjectionWorld, archiveReplaceDb);
+for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
+  assert.ok(Object.prototype.hasOwnProperty.call(completedProjectionWorld[field], "6"),
+    "a completed season's " + field + " snapshot must survive roster reconciliation");
+}
+assert.equal(completedProjectionWorld.seasonStats["6"][0].id, archiveReplaceStablePlayerId,
+  "completed player-season records must remain attached to their original player identity");
+
+// The one-time roster-membership migration also changes active squads, so it must invalidate only an unfinished projection.
+const membershipProjectionWorld = ai.ensureState(membershipProjectionSave, archiveReplaceDb);
+assert.equal(membershipProjectionWorld.rosterMembershipSchemaVersion, 5,
+  "the pending-projection fixture must complete the current roster-membership migration");
+for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
+  assert.ok(!Object.prototype.hasOwnProperty.call(membershipProjectionWorld[field], "6"),
+    "roster-membership migration must invalidate the unfinished current season's " + field + " snapshot");
+  assert.ok(Object.prototype.hasOwnProperty.call(membershipProjectionWorld[field], "5"),
+    "roster-membership migration must preserve the previous completed season's " + field + " snapshot");
+}
 
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
@@ -2904,6 +2973,35 @@ const retentionDb = {
     : { name: "Retention Premier", englishName: "Retention Premier League", matchesPerSeason: 10 },
   simulationCupDefinitions: () => []
 };
+// Advancing a new season changes player ratings/contracts, club tiers and paid-market rosters.
+ // Even with no eligible transfer/free-agent moves, a precomputed future season must be rebuilt.
+const advanceProjectionSave = {
+  season: 1,
+  worldSimulation: JSON.parse(JSON.stringify(retentionWorld))
+};
+advanceProjectionSave.worldSimulation.rosterMembershipSchemaVersion = 5;
+ai.completeSeason(advanceProjectionSave, 1, retentionDb);
+const advanceProjectionWorld = advanceProjectionSave.worldSimulation;
+advanceProjectionWorld.matchesBySeason["2"] = [{
+  season: 2, competitionId: "league", division: 1, matchday: 1,
+  homeClubId: "retention-first-1", awayClubId: "retention-first-2",
+  homeGoals: 0, awayGoals: 0
+}];
+advanceProjectionWorld.seasonStats["2"] = [{ id: "future-projection-sentinel", season: 2 }];
+advanceProjectionWorld.leagueTables["2"] = {
+  "retention-league": [{ clubId: "future-projection-sentinel", rank: 1 }]
+};
+advanceProjectionWorld.competitionsBySeason["2"] = [{ id: "future-projection-cup", season: 2 }];
+const advanceProjectionTransition = ai.advanceToSeason(advanceProjectionSave, 2, retentionDb);
+assert.equal(advanceProjectionTransition.alreadyAdvanced, false,
+  "the pending-projection fixture must execute a new world-season transition");
+assert.equal(advanceProjectionWorld.lastAdvancedTo, 2);
+for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
+  assert.ok(!Object.prototype.hasOwnProperty.call(advanceProjectionWorld[field], "2"),
+    "a new season transition must invalidate a future snapshot built before development/market changes: " + field);
+}
+
+// Continue with the original retention assertions.
 const retentionSeasonOne = ai.completeSeason(retentionSave, 1, retentionDb);
 const retainedFirstTierIds = retentionSeasonOne.tables["retention-league"].map(row => String(row.clubId));
 const retainedSecondTierIds = retentionSeasonOne.tables["retention-league:2"].map(row => String(row.clubId));

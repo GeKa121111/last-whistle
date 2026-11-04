@@ -1607,6 +1607,43 @@ assert.equal(typeof ai.getClubMatchProfile, "function");
 const matchProfile = ai.getClubMatchProfile(matchProfileSave, matchProfileClub.name, matchProfileClub.country, db);
 assert.equal(matchProfile.power, Number(matchProfileClub.power) || Number(matchProfileClub.basePower) || null);
 assert.equal(matchProfile.goalkeeping, 91);
+
+const identityCollisionSave = {
+  ...matchProfileSave,
+  worldSimulation: JSON.parse(JSON.stringify(matchProfileSave.worldSimulation))
+};
+const identityCollisionWorld = identityCollisionSave.worldSimulation;
+const identityCollisionName = "Shared Match Profile FC";
+function addIdentityCollisionClub(id, country, power, keeperRating) {
+  const keeperId = id + "-keeper";
+  identityCollisionWorld.players[keeperId] = {
+    id: keeperId, name: "Keeper " + country, clubId: id,
+    position: "حارس مرمى", group: "goalkeeper", ovr: keeperRating,
+    goalkeeping: keeperRating, freeAgent: false, retired: false
+  };
+  identityCollisionWorld.clubs[ai.clubKey(identityCollisionName, country)] = {
+    id, name: identityCollisionName, country, power, basePower: power, roster: [keeperId]
+  };
+}
+addIdentityCollisionClub("identity-england", "England", 82, 90);
+addIdentityCollisionClub("identity-scotland", "Scotland", 44, 55);
+const englandIdentityProfile = ai.getClubMatchProfile(identityCollisionSave, identityCollisionName, "England", db);
+assert.equal(englandIdentityProfile.power, 82,
+  "an exact club-and-country match must use that club's strength");
+assert.equal(englandIdentityProfile.goalkeeping, 90,
+  "an exact club-and-country match must use that club's goalkeeper depth");
+assert.equal(ai.getClubPower(identityCollisionSave, identityCollisionName, "England", db), 82);
+assert.equal(ai.getClubMatchProfile(identityCollisionSave, identityCollisionName, "Wales", db), null,
+  "a missing club in the requested country must not borrow a same-name club from another country");
+assert.equal(ai.getClubPower(identityCollisionSave, identityCollisionName, "Wales", db), null,
+  "club-power fallback must not cross country boundaries");
+assert.equal(ai.getClubMatchProfile(identityCollisionSave, identityCollisionName, "", db), null,
+  "a country-less lookup must reject ambiguous same-name clubs");
+assert.equal(ai.getClubPower(identityCollisionSave, identityCollisionName, "", db), null,
+  "legacy country-less club-power lookup must reject ambiguous names");
+const uniqueLegacyProfile = ai.getClubMatchProfile(matchProfileSave, matchProfileClub.name, "", db);
+assert.equal(uniqueLegacyProfile.power, Number(matchProfileClub.power) || Number(matchProfileClub.basePower) || null,
+  "a country-less legacy lookup may still resolve a globally unique club name");
 const duplicateSourceName = "Scotland Test Player 1-1";
 const duplicateSourcePlayers = Object.values(world.players).filter(player =>
   player && player.name === duplicateSourceName && player.isRealPlayer === true && player.isGenerated !== true);

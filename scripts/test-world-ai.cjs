@@ -2513,6 +2513,38 @@ const unlistedContinentalWinnerSupercup = ai.seasonCompetitions(cupSave, 23, cup
 assert.equal(unlistedContinentalWinnerSupercup, undefined,
   "a continental champion absent from its recorded participant field must not qualify for a continental supercup");
 
+// When one club wins both configured continental feeder competitions, the
+// supercup must use a verified runner-up rather than collapsing to one participant.
+const sharedContinentalChampionId = "cup-caf-supercup-1";
+cupWorld.competitionsBySeason["23"] = [
+  { id: "valid-caf-champion-1", kind: "continental", confederation: "CAF",
+    championId: sharedContinentalChampionId, runnerUpId: "cup-caf-supercup-2",
+    participants: [sharedContinentalChampionId] },
+  { id: "valid-caf-champion-2", kind: "continental", confederation: "CAF",
+    championId: sharedContinentalChampionId, runnerUpId: "cup-caf-supercup-3",
+    participants: [sharedContinentalChampionId, "cup-caf-supercup-3"] }
+];
+const doubleContinentalWinnerSupercup = ai.seasonCompetitions(cupSave, 24, cupDb)
+  .find(row => row.id === "test-continental-supercup");
+assert.ok(doubleContinentalWinnerSupercup,
+  "a shared continental champion must still produce a two-club supercup when a verified runner-up exists");
+assert.deepEqual([...doubleContinentalWinnerSupercup.participants].sort(),
+  [sharedContinentalChampionId, "cup-caf-supercup-3"].sort(),
+  "the fallback must skip an unrecorded runner-up and use the next eligible feeder runner-up");
+
+cupWorld.competitionsBySeason["24"] = [
+  { id: "valid-caf-champion-1", kind: "continental", confederation: "CAF",
+    championId: sharedContinentalChampionId, runnerUpId: "cup-caf-supercup-2",
+    participants: [sharedContinentalChampionId] },
+  { id: "valid-caf-champion-2", kind: "continental", confederation: "CAF",
+    championId: sharedContinentalChampionId, runnerUpId: "cup-caf-supercup-3",
+    participants: [sharedContinentalChampionId] }
+];
+const missingContinentalRunnerUpSupercup = ai.seasonCompetitions(cupSave, 25, cupDb)
+  .find(row => row.id === "test-continental-supercup");
+assert.equal(missingContinentalRunnerUpSupercup, undefined,
+  "a shared continental champion must not create a one-club supercup when no recorded runner-up is eligible");
+
 
 
 

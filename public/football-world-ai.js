@@ -2266,10 +2266,29 @@
             if (confederation && String(row.confederation || "").trim() !== confederation) return;
             const club = world.clubs && world.clubs[championId];
             if (!club || (confederation && confederationForClub(club) !== confederation)) return;
-            if (!eligibleById.has(rowId)) eligibleById.set(rowId, club);
+            if (!eligibleById.has(rowId)) eligibleById.set(rowId, row);
           });
           if (qualifierIds.length < 2 || qualifierIds.some(id => !eligibleById.has(id))) return;
-          qualifierIds.forEach(id => addParticipant(eligibleById.get(id)));
+          const qualifierRows = qualifierIds.map(id => eligibleById.get(id));
+          const championIds = new Set();
+          qualifierRows.forEach(row => {
+            const championId = String(row && row.championId || "").trim();
+            if (!championId) return;
+            championIds.add(championId);
+            addParticipant(world.clubs && world.clubs[championId]);
+          });
+          // If one club won multiple feeder competitions, fill the vacant place
+          // with the first verified runner-up who actually entered a feeder cup.
+          if (participants.length < 2) {
+            for (const row of qualifierRows) {
+              const runnerUpId = String(row && row.runnerUpId || "").trim();
+              if (!runnerUpId || championIds.has(runnerUpId) || !isRecordedParticipant(row, runnerUpId)) continue;
+              const runnerUp = world.clubs && world.clubs[runnerUpId];
+              if (!runnerUp || (confederation && confederationForClub(runnerUp) !== confederation)) continue;
+              addParticipant(runnerUp);
+              if (participants.length >= 2) break;
+            }
+          }
         }
       } else {
         return;
@@ -2867,7 +2886,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=67");
+    const worker = new global.Worker("./football-world-worker.js?v=68");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -1591,6 +1591,9 @@
       : "انتهت نافذة الانتقالات بمحاولات محدودة؛ الأندية انتظرت لاعبين يناسبوا احتياجاتها." });
     world.notes = world.notes.slice(0, 30);
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
+    // Player development, promotion/relegation and the paid market all run before
+    // the new season becomes active. Discard any projection built against the old squads.
+    invalidateUnfinishedSeasonProjection(world);
     return { season: next, moves, alreadyAdvanced: false };
   }
   function getClubMatchProfile(save, name, country, db) {

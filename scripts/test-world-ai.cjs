@@ -2973,6 +2973,35 @@ const retentionDb = {
     : { name: "Retention Premier", englishName: "Retention Premier League", matchesPerSeason: 10 },
   simulationCupDefinitions: () => []
 };
+// Advancing a new season changes player ratings/contracts, club tiers and paid-market rosters.
+ // Even with no eligible transfer/free-agent moves, a precomputed future season must be rebuilt.
+const advanceProjectionSave = {
+  season: 1,
+  worldSimulation: JSON.parse(JSON.stringify(retentionWorld))
+};
+advanceProjectionSave.worldSimulation.rosterMembershipSchemaVersion = 5;
+ai.completeSeason(advanceProjectionSave, 1, retentionDb);
+const advanceProjectionWorld = advanceProjectionSave.worldSimulation;
+advanceProjectionWorld.matchesBySeason["2"] = [{
+  season: 2, competitionId: "league", division: 1, matchday: 1,
+  homeClubId: "retention-first-1", awayClubId: "retention-first-2",
+  homeGoals: 0, awayGoals: 0
+}];
+advanceProjectionWorld.seasonStats["2"] = [{ id: "future-projection-sentinel", season: 2 }];
+advanceProjectionWorld.leagueTables["2"] = {
+  "retention-league": [{ clubId: "future-projection-sentinel", rank: 1 }]
+};
+advanceProjectionWorld.competitionsBySeason["2"] = [{ id: "future-projection-cup", season: 2 }];
+const advanceProjectionTransition = ai.advanceToSeason(advanceProjectionSave, 2, retentionDb);
+assert.equal(advanceProjectionTransition.alreadyAdvanced, false,
+  "the pending-projection fixture must execute a new world-season transition");
+assert.equal(advanceProjectionWorld.lastAdvancedTo, 2);
+for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
+  assert.ok(!Object.prototype.hasOwnProperty.call(advanceProjectionWorld[field], "2"),
+    "a new season transition must invalidate a future snapshot built before development/market changes: " + field);
+}
+
+// Continue with the original retention assertions.
 const retentionSeasonOne = ai.completeSeason(retentionSave, 1, retentionDb);
 const retainedFirstTierIds = retentionSeasonOne.tables["retention-league"].map(row => String(row.clubId));
 const retainedSecondTierIds = retentionSeasonOne.tables["retention-league:2"].map(row => String(row.clubId));

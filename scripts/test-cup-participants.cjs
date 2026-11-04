@@ -313,6 +313,8 @@ assert.deepEqual(Array.from(validatedRunnerUp.cupParticipants(communityShield, 2
   "domestic supercup participants must use the validated league champion, not a foreign table row");
 
 const invalidOnlyWorld = JSON.parse(JSON.stringify(doubleDomesticWorld));
+invalidOnlyWorld.competitionsBySeason["1"][0].championId = "chelsea";
+invalidOnlyWorld.competitionsBySeason["1"][0].runnerUpId = "liverpool";
 invalidOnlyWorld.clubs.foreign = invalidLeadingRowWorld.clubs.foreign;
 invalidOnlyWorld.leagueTables["1"].england = [
   { clubId: "foreign", rank: 1, leagueId: "england", division: 1 },

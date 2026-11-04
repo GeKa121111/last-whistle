@@ -2471,6 +2471,49 @@ const invalidFirstTierCupWinnerSupercup = ai.seasonCompetitions(cupSave, 12, cup
 assert.equal(invalidFirstTierCupWinnerSupercup, undefined,
   "a second-division club must not qualify as champion of a first-tier-only primary cup");
 
+// Cup winners and runners-up must belong to the saved participant field when it is present.
+cupWorld.leagueTables["20"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-03", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["20"] = [
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-01", runnerUpId: "cup-first-02",
+    participants: ["cup-first-01", "cup-first-03"] }
+];
+const unlistedCupRunnerUpSupercup = ai.seasonCompetitions(cupSave, 21, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.deepEqual([...unlistedCupRunnerUpSupercup.participants].sort(), ["cup-first-01", "cup-first-03"],
+  "a cup runner-up absent from the recorded participant field must be rejected in favor of the verified league runner-up");
+
+cupWorld.leagueTables["21"] = {
+  "test-cup-league": [
+    { clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: 1 },
+    { clubId: "cup-first-03", leagueId: "test-cup-league", division: 1, rank: 2 }
+  ]
+};
+cupWorld.competitionsBySeason["21"] = [
+  { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-02", runnerUpId: "cup-first-03",
+    participants: ["cup-first-01", "cup-first-03"] }
+];
+const unlistedCupWinnerSupercup = ai.seasonCompetitions(cupSave, 22, cupDb)
+  .find(row => row.id === "test-domestic-supercup");
+assert.equal(unlistedCupWinnerSupercup, undefined,
+  "a cup champion absent from the recorded participant field must not qualify even when its league and division match");
+
+cupWorld.competitionsBySeason["22"] = [
+  { id: "valid-caf-champion-1", kind: "continental", confederation: "CAF",
+    championId: "cup-caf-supercup-1", participants: ["cup-caf-supercup-2"] },
+  { id: "valid-caf-champion-2", kind: "continental", confederation: "CAF",
+    championId: "cup-caf-supercup-2", participants: ["cup-caf-supercup-1"] }
+];
+const unlistedContinentalWinnerSupercup = ai.seasonCompetitions(cupSave, 23, cupDb)
+  .find(row => row.id === "test-continental-supercup");
+assert.equal(unlistedContinentalWinnerSupercup, undefined,
+  "a continental champion absent from its recorded participant field must not qualify for a continental supercup");
+
+
 
 
 

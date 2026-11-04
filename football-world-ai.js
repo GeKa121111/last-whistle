@@ -2084,6 +2084,13 @@
     try { definitions = db.simulationCupDefinitions() || []; } catch (_) { return []; }
     const clubs = Object.values(world.clubs).filter(club => club.leagueId && Number(club.division) >= 1);
     const results = [];
+    const isRecordedParticipant = (row, clubId) => {
+      const id = String(clubId || "").trim();
+      if (!row || !id) return false;
+      if (!Object.prototype.hasOwnProperty.call(row, "participants")) return true;
+      if (!Array.isArray(row.participants)) return false;
+      return row.participants.some(participantId => String(participantId || "").trim() === id);
+    };
     definitions.forEach(def => {
       if (!def || !def.id) return;
       let participants = [];
@@ -2205,6 +2212,7 @@
               : !!qualifierCupName && String(row && row.name || "").trim() === qualifierCupName;
             return row && row.kind === "domestic-cup" && matchesPrimaryCup && champion
               && String(champion.leagueId || "") === leagueId
+              && isRecordedParticipant(row, row.championId)
               && (!rowLeagueId || rowLeagueId === leagueId);
           }) : null;
           const isEligibleForQualifierCup = club => {
@@ -2213,8 +2221,12 @@
             return Number.isInteger(division) && division >= 1
               && (!!(qualifierCupDefinition && qualifierCupDefinition.lower) || division === 1);
           };
-          const cupRunnerUp = domesticCup && world.clubs && world.clubs[domesticCup.runnerUpId];
-          const eligibleCupRunnerUp = isEligibleForQualifierCup(cupRunnerUp) ? cupRunnerUp : null;
+          const cupRunnerUpId = String(domesticCup && domesticCup.runnerUpId || "").trim();
+          const cupRunnerUp = cupRunnerUpId && world.clubs && world.clubs[cupRunnerUpId];
+          const runnerUpIsRecorded = !!cupRunnerUpId
+            && cupRunnerUpId !== String(domesticCup && domesticCup.championId || "").trim()
+            && isRecordedParticipant(domesticCup, cupRunnerUpId);
+          const eligibleCupRunnerUp = runnerUpIsRecorded && isEligibleForQualifierCup(cupRunnerUp) ? cupRunnerUp : null;
           const domesticCupChampion = domesticCup && world.clubs[domesticCup.championId];
           const eligibleDomesticCupChampion = isEligibleForQualifierCup(domesticCupChampion) ? domesticCupChampion : null;
           // Both primary qualifiers must be verified. A missing cup result must not
@@ -2248,9 +2260,11 @@
           const eligibleById = new Map();
           previous.forEach(row => {
             const rowId = String(row && row.id || "").trim();
-            if (!row || row.kind !== "continental" || !rowId || !qualifierIds.includes(rowId)) return;
+            const championId = String(row && row.championId || "").trim();
+            if (!row || row.kind !== "continental" || !rowId || !qualifierIds.includes(rowId)
+              || !championId || !isRecordedParticipant(row, championId)) return;
             if (confederation && String(row.confederation || "").trim() !== confederation) return;
-            const club = world.clubs && world.clubs[row.championId];
+            const club = world.clubs && world.clubs[championId];
             if (!club || (confederation && confederationForClub(club) !== confederation)) return;
             if (!eligibleById.has(rowId)) eligibleById.set(rowId, club);
           });
@@ -2853,7 +2867,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=66");
+    const worker = new global.Worker("./football-world-worker.js?v=67");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

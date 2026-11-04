@@ -799,7 +799,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 <style id="lw-no-flash">
   html.lw-rebuild-pending body .app { visibility: hidden !important; }
 </style>
-<script src="./football-world-ai.js?v=78"></script>
+<script src="./football-world-ai.js?v=79"></script>
   <link rel="stylesheet" href="./social-media.css?v=2">
 </head>
 <body>
@@ -4254,6 +4254,13 @@ function supercupClubConfederation(club){
  }
  return value;
 }
+function hasRecordedCompetitionParticipant(row,clubId){
+ const id=String(clubId||"").trim();
+ if(!row||!id)return false;
+ if(!Object.prototype.hasOwnProperty.call(row,"participants"))return true;
+ if(!Array.isArray(row.participants))return false;
+ return row.participants.some(participantId=>String(participantId||"").trim()===id);
+}
 function domesticSupercupQualifiers(comp){
  const previousSeason=Math.max(0,(Number(state.season)||1)-1);
  if(!previousSeason)return null;
@@ -4282,6 +4289,7 @@ function domesticSupercupQualifiers(comp){
   const champion=row&&row.championId&&clubs[row.championId];
   const rowLeagueId=String(row&&row.leagueId||"").trim();
   return row&&row.kind==="domestic-cup"&&isEligibleForPrimaryCup(champion)
+   &&hasRecordedCompetitionParticipant(row,row.championId)
    &&(!rowLeagueId||rowLeagueId===leagueId);
  });
  const domesticCup=domesticCups.find(row=>{
@@ -4291,8 +4299,11 @@ function domesticSupercupQualifiers(comp){
  })||null;
  const cupChampion=domesticCup&&clubs[domesticCup.championId];
  if(!isEligibleForPrimaryCup(cupChampion))return null;
- const cupRunnerUpCandidate=domesticCup.runnerUpId&&clubs[domesticCup.runnerUpId];
- const cupRunnerUp=isEligibleForPrimaryCup(cupRunnerUpCandidate)?cupRunnerUpCandidate:null;
+ const cupRunnerUpId=String(domesticCup&&domesticCup.runnerUpId||"").trim();
+ const cupRunnerUpCandidate=cupRunnerUpId&&clubs[cupRunnerUpId];
+ const cupRunnerUp=cupRunnerUpId&&cupRunnerUpId!==String(domesticCup.championId||"").trim()
+  &&hasRecordedCompetitionParticipant(domesticCup,cupRunnerUpId)
+  &&isEligibleForPrimaryCup(cupRunnerUpCandidate)?cupRunnerUpCandidate:null;
  const leagueRunnerUp=worldLeagueClubAtRank(world,previousSeason,leagueId,2);
  return {leagueId,leagueChampion,leagueRunnerUp,domesticCup,cupChampion,cupRunnerUp};
 }
@@ -4303,8 +4314,6 @@ function isSupercupRunnerUp(comp){
  const clubs=world&&world.clubs&&typeof world.clubs==="object"?world.clubs:{};
  const previous=world&&world.competitionsBySeason&&world.competitionsBySeason[String(previousSeason)];
  if(!Array.isArray(previous)||!previous.length)return false;
- const qualifierNames=supercupQualifierCupNames(comp);
- if(!qualifierNames.length)return false;
  const currentClub=String(clubNameForLeague()||"").trim();
  const currentCountry=String(state.leagueCountry||"").trim();
  if(!currentClub)return false;
@@ -4323,16 +4332,26 @@ function isSupercupRunnerUp(comp){
   return !qualifiers.cupRunnerUp&&!!qualifiers.leagueRunnerUp
    &&String(qualifiers.leagueRunnerUp.id)===String(currentClubId);
  }
- const eligible=qualifierNames.map(name=>previous.find(row=>{
-  if(!row||row.kind!=="continental"||row.name!==name||!row.championId)return false;
+ const qualifierIds=Array.isArray(comp&&comp.qualifierCompetitionIds)
+  ?Array.from(new Set(comp.qualifierCompetitionIds.map(value=>String(value||"").trim()).filter(Boolean))):[];
+ if(qualifierIds.length<2)return false;
+ const eligible=qualifierIds.map(id=>previous.find(row=>{
+  const rowId=String(row&&(row.id||row.tournamentId)||"").trim();
+  const championId=String(row&&row.championId||"").trim();
+  if(!row||row.kind!=="continental"||rowId!==id||!championId
+   ||!hasRecordedCompetitionParticipant(row,championId))return false;
   if(comp.confederation&&String(row.confederation||"").trim()!==String(comp.confederation))return false;
-  const champion=clubs[row.championId];
+  const champion=clubs[championId];
   return !!champion&&(!comp.confederation||supercupClubConfederation(champion)===String(comp.confederation));
  })).filter(Boolean);
- if(eligible.length<2)return false;
+ if(eligible.length!==qualifierIds.length)return false;
  const champions=eligible.map(row=>String(row.championId||"")).filter(Boolean);
  if(!champions.length||!champions.every(id=>id===champions[0]))return false;
- return eligible.some(row=>String(row.runnerUpId||"")===String(currentClubId));
+ return eligible.some(row=>{
+  const runnerUpId=String(row&&row.runnerUpId||"").trim();
+  return !!runnerUpId&&runnerUpId!==String(row.championId||"").trim()
+   &&hasRecordedCompetitionParticipant(row,runnerUpId)&&runnerUpId===String(currentClubId);
+ });
 }
 function competitionLockReason(comp) {
  if (!state.careerStarted) return "ابدأ مسيرتك أولًا قبل دخول البطولات.";
@@ -5896,43 +5915,75 @@ function supercupParticipants(comp,currentClub){
  if(!Array.isArray(previous)||!previous.length)return [];
  const clubFor=id=>id&&clubs[id]&&clubs[id].name?clubs[id]:null;
  const qualifierNames=supercupQualifierCupNames(comp);
- const localCupWins=(Array.isArray(state.cupHistory)?state.cupHistory:[])
-  .filter(row=>row&&Number(row.season)===previousSeason&&row.champion===true
-   &&String(row.club||"").trim()===currentClub
-   &&String(row.country||"").trim()===String(state.leagueCountry||"").trim()
-   &&qualifierNames.includes(row.name))
-  .map(row=>String(row.name));
  if(Array.isArray(comp.countries)&&comp.countries.length){
   const qualifiers=domesticSupercupQualifiers(comp);
   if(!qualifiers)return [];
   const {leagueId,leagueChampion,leagueRunnerUp,cupChampion,cupRunnerUp}=qualifiers;
-  const currentIsLeagueChampion=previousSeasonLeagueRank()===1;
+  const currentCountry=String(state.leagueCountry||"").trim();
+  const profile=window.LWWorldDB?.leagueByCountry?.(currentCountry)||null;
+  const currentClubId=Object.keys(clubs).find(id=>{
+   const club=clubs[id];
+   return club&&String(club.name||"").trim()===currentClub
+    &&String(club.country||"").trim()===currentCountry
+    &&(!profile||String(club.leagueId||"")===String(profile.id||""));
+  });
+  const currentIsLeagueChampion=currentClubId
+   ?String(leagueChampion.id)===String(currentClubId):previousSeasonLeagueRank()===1;
+  // The player career history is authoritative for the controlled club; world results supply its opponents.
   const currentWonPrimaryCup=hasPreviousSeasonClubTitle(qualifierNames.slice(0,1));
-  const currentWonAnyCup=hasPreviousSeasonClubTitle(qualifierNames);
+  const currentWonAnyCup=currentWonPrimaryCup;
   const currentIsRunnerUp=isSupercupRunnerUp(comp);
   if(!currentIsLeagueChampion&&!currentWonAnyCup&&!currentIsRunnerUp)return [];
   const candidates=currentIsLeagueChampion
+   // When the league and primary cup have the same champion, the cup runner-up fills the vacant place when eligible.
    ?(currentWonPrimaryCup?[cupRunnerUp,leagueRunnerUp,cupChampion,leagueChampion]:[cupChampion,cupRunnerUp,leagueRunnerUp,leagueChampion])
    :currentWonAnyCup?[leagueChampion,leagueRunnerUp,cupRunnerUp,cupChampion]
    :[leagueChampion,cupChampion,cupRunnerUp,leagueRunnerUp];
   const opponent=candidates.find(team=>team&&team.name&&team.name!==currentClub&&String(team.leagueId||"")===leagueId);
   return opponent?[currentClub,opponent.name]:[];
  }
- const eligible=qualifierNames.map(name=>previous.find(row=>{
-  if(!row||row.kind!=="continental"||row.name!==name||!row.championId)return false;
+ const qualifierIds=Array.isArray(comp&&comp.qualifierCompetitionIds)
+  ?Array.from(new Set(comp.qualifierCompetitionIds.map(value=>String(value||"").trim()).filter(Boolean))):[];
+ if(qualifierIds.length<2)return [];
+ const eligible=qualifierIds.map(id=>previous.find(row=>{
+  const rowId=String(row&&(row.id||row.tournamentId)||"").trim();
+  const championId=String(row&&row.championId||"").trim();
+  if(!row||row.kind!=="continental"||rowId!==id||!championId
+   ||!hasRecordedCompetitionParticipant(row,championId))return false;
   if(comp.confederation&&String(row.confederation||"").trim()!==String(comp.confederation))return false;
-  const champion=clubFor(row.championId);
+  const champion=clubFor(championId);
   return !!champion&&(!comp.confederation||supercupClubConfederation(champion)===String(comp.confederation));
  })).filter(Boolean);
- if(eligible.length!==qualifierNames.length)return [];
- const currentWonAnyCup=hasPreviousSeasonClubTitle(qualifierNames);
+ if(eligible.length!==qualifierIds.length)return [];
+ const currentCountry=String(state.leagueCountry||"").trim();
+ const profile=window.LWWorldDB?.leagueByCountry?.(currentCountry)||null;
+ const currentClubId=Object.keys(clubs).find(id=>{
+  const club=clubs[id];
+  return club&&String(club.name||"").trim()===currentClub
+   &&String(club.country||"").trim()===currentCountry
+   &&(!profile||String(club.leagueId||"")===String(profile.id||""));
+ });
+ if(!currentClubId)return [];
+ const localCupWins=eligible.filter(row=>String(row.championId||"")===String(currentClubId))
+  .map(row=>String(row.id||row.tournamentId||""));
+ const currentWonAnyCup=localCupWins.length>0;
  const currentIsRunnerUp=isSupercupRunnerUp(comp);
  if(!currentWonAnyCup&&!currentIsRunnerUp)return [];
- const otherResult=eligible.find(row=>!localCupWins.includes(String(row.name||"")));
+ const otherResult=eligible.find(row=>!localCupWins.includes(String(row.id||row.tournamentId||"")));
  let opponent=otherResult?clubFor(otherResult.championId):null;
- if(!opponent||opponent.name===currentClub)opponent=otherResult?clubFor(otherResult.runnerUpId):null;
  if(!opponent||opponent.name===currentClub){
-  const fallbackResult=eligible.find(row=>row&&row.runnerUpId);
+  const runnerUpResult=otherResult&&otherResult.runnerUpId
+   &&String(otherResult.runnerUpId)!==String(otherResult.championId||"")
+   &&hasRecordedCompetitionParticipant(otherResult,otherResult.runnerUpId)
+   ?otherResult:eligible.find(row=>row&&row.runnerUpId
+    &&String(row.runnerUpId)!==String(row.championId||"")
+    &&hasRecordedCompetitionParticipant(row,row.runnerUpId));
+  opponent=runnerUpResult?clubFor(runnerUpResult.runnerUpId):null;
+ }
+ if(!opponent||opponent.name===currentClub){
+  const fallbackResult=eligible.find(row=>row&&row.runnerUpId
+   &&String(row.runnerUpId)!==String(row.championId||"")
+   &&hasRecordedCompetitionParticipant(row,row.runnerUpId));
   opponent=fallbackResult?clubFor(fallbackResult.runnerUpId):null;
  }
  if(!opponent||opponent.name===currentClub){

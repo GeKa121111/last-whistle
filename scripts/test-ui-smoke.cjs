@@ -997,7 +997,7 @@ const extractTopLevelFunction = (source, functionName) => {
   return source.slice(start, next < 0 ? source.length : next);
 };
 const supercupHelperSource = [
-  "supercupQualifierCupNames", "worldLeagueClubAtRank", "domesticSupercupQualifiers"
+  "supercupQualifierCupNames", "worldLeagueClubAtRank", "hasRecordedCompetitionParticipant", "domesticSupercupQualifiers"
 ].map(name => extractTopLevelFunction(html, name)).join("\n");
 const supercupFixtureWorld = {
   clubs: {

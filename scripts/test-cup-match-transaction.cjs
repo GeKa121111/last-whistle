@@ -78,6 +78,38 @@ cupHistoryLookupSandbox.state.cupHistory = [
 assert.ok(cupHistoryLookupSandbox.findCupHistoryForTest({ name: "National Cup" }),
   "legacy cup records without country metadata must remain readable");
 
+const competitionRendererSandbox = {
+  state: {
+    season: 6, seasonFinished: false, league: [], leagueCompetition: "Test League",
+    leagueCountry: "England", leagueDivision: 1, clubName: "United FC", cupHistory: [],
+    cupState: {
+      name: "National Cup", createdSeason: 5, champion: false,
+      eliminated: true, abandoned: true
+    }
+  },
+  currentCompetitionsBox: { innerHTML: "" },
+  $: id => id === "currentCompetitions" ? competitionRendererSandbox.currentCompetitionsBox : null,
+  clubNameForLeague: () => "United FC",
+  competitionsForCurrentClub: () => [{ name: "National Cup", kind: "cup" }],
+  competitionLockReason: () => "",
+  club: () => ({ name: "United FC" }),
+  setText: () => {},
+  safeHTML: value => String(value)
+};
+vm.createContext(competitionRendererSandbox);
+vm.runInContext(cupHistoryLookup + "\n" + competitionRenderer +
+  "\nglobalThis.renderCompetitionsForTest = renderCurrentCompetitions;",
+  competitionRendererSandbox, { filename: "season-scoped-cup-status.js" });
+competitionRendererSandbox.renderCompetitionsForTest();
+assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /مجدولة/,
+  "an abandoned cup from a previous season must not mark the current season's same-named competition as closed");
+assert.doesNotMatch(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /أُغلقت البطولة دون اكتمالها/,
+  "stale previous-season cup state must not leak into the current competition status");
+competitionRendererSandbox.state.cupState.createdSeason = 6;
+competitionRendererSandbox.renderCompetitionsForTest();
+assert.match(competitionRendererSandbox.currentCompetitionsBox.innerHTML, /أُغلقت البطولة دون اكتمالها/,
+  "an abandoned cup from the current season must still be shown as closed");
+
 const closeCupFunction = extractFunction(html, "closeUnfinishedCupAtSeasonEnd");
 function runSeasonEndCupClosure(existingHistory) {
   const sandbox = {

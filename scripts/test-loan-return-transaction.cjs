@@ -36,6 +36,7 @@ const transactionSource = [
   extractByMarker(html, "function cloneSeasonTransitionState("),
   extractByMarker(html, "function restoreSeasonTransitionState("),
   extractByMarker(html, "function withCareerStateTransaction("),
+  extractByMarker(html, "function archiveCupForTransfer("),
   extractByMarker(html, "function returnFromLoan(")
 ].join("\n") + "\nglobalThis.runReturnFromLoan = returnFromLoan;";
 const advanceSource = extractByMarker(html, "function advanceAfterContractDecision(");

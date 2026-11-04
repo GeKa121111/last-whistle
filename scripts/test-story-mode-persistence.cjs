@@ -13,7 +13,7 @@ const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(source, deployed, "root/public story runtimes must match");
 assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
-const storyPersistenceCacheVersionMatch = sw.match(/last-whistle-static-v(\\d+)/);
+const storyPersistenceCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
 assert.ok(storyPersistenceCacheVersionMatch && Number(storyPersistenceCacheVersionMatch[1]) >= 471, "story persistence cache invalidation must remain valid after newer cache bumps");
 assert.match(sw, /story-mode\.js\?v=14/);
 require("./assert-static-cache-version.cjs")(sw, 445);

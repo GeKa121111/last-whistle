@@ -861,7 +861,10 @@ assert.match(validNegotiationLoanScenario.toastMessage || "", /مفاوضات ا
   "the active negotiation must keep its clear loan-blocking explanation");
 
 const loanToScenario = {
-  state: makeStaleLoanState(),
+  state: Object.assign(makeStaleLoanState(), {
+    cupState: { name: "كأس النادي الأصلي", createdSeason: 4, matchesPlayed: 4, champion: true },
+    cupHistory: []
+  }),
   window: { LWCareer: {
     loanRequestStatus: careerEngine.loanRequestStatus,
     loanTargetStatus: careerEngine.loanTargetStatus,
@@ -884,7 +887,7 @@ const loanToScenario = {
   showPage: () => {}, toast: () => {}
 };
 vm.createContext(loanToScenario);
-vm.runInContext(legacyMigrationSource + "\n" + reconciliationSource + "\n" + loanToSource, loanToScenario,
+vm.runInContext(cupArchiveSource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + loanToSource, loanToScenario,
   { filename: "reconcile-stale-negotiation-before-loan-confirmation" });
 loanToScenario.loanTo(staleLoanTarget);
 assert.equal(loanToScenario.state.pendingTransfer, null,
@@ -899,6 +902,13 @@ assert.equal(loanToScenario.state.transferNegotiation, null,
 assert.equal(loanToScenario.state.transferHistory.find(row => row && row.legacyTransferNegotiation)
   ?.legacyTransferNegotiation?.offerId, "missing-loan-offer",
   "the final loan confirmation must preserve the stale negotiation in career history");
+assert.equal(loanToScenario.state.cupState, null,
+  "a completed parent-club cup must be archived and cleared before the player joins the loan club");
+assert.equal(loanToScenario.state.cupHistory.length, 1,
+  "loan departure must preserve the parent club cup record without dropping it");
+assert.equal(loanToScenario.state.cupHistory[0].club, "نادي أ");
+assert.equal(loanToScenario.state.cupHistory[0].champion, true,
+  "the completed parent-club trophy must remain attributed to the parent club after loan");
 
 const underageLoanState = makeStaleLoanState();
 underageLoanState.age = 17;

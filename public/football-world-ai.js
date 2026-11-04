@@ -741,6 +741,13 @@
       world.lastFreeAgentMarketSeason = Math.max(0, int(world.lastFreeAgentMarketSeason, 0));
     }
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0));
+    // Resolve the active world season before any roster migration invalidates cached projections.
+    // Legacy saves can have a newer career season while the world-season marker still lags.
+    if (Number(world.lastAdvancedTo) > 0) {
+      world.currentSeason = Math.max(world.currentSeason, int(world.lastAdvancedTo, world.currentSeason));
+    } else {
+      world.currentSeason = Math.max(world.currentSeason, Math.max(1, int(save.season, 1)));
+    }
     // reconcileDatabase scans the global club/player catalogue and repairs squads.
     // Running it for every dashboard render caused severe avoidable CPU work.
     const catalogueVersion = int(db && db.version, int(world.dbVersion, 0));
@@ -757,13 +764,6 @@
       world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
       invalidateUnfinishedSeasonProjection(world);
-    }
-    // The world-simulation season is independent of the player's career season.
-    // Never rewind completed global seasons just because save.season has not caught up.
-    if (Number(world.lastAdvancedTo) > 0) {
-      world.currentSeason = Math.max(world.currentSeason, int(world.lastAdvancedTo, world.currentSeason));
-    } else {
-      world.currentSeason = Math.max(world.currentSeason, Math.max(1, int(save.season, 1)));
     }
     return world;
   }

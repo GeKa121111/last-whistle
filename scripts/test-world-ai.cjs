@@ -1831,6 +1831,38 @@ for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competit
     "roster-membership migration must preserve the previous completed season's " + field + " snapshot");
 }
 
+// A legacy career save may be several seasons ahead of its world marker. Resolve the
+// effective season before roster migration invalidates projections, or stale current
+// season fixtures survive because the migration only sees the old world.currentSeason.
+const legacyCareerSeasonProjectionSave = {
+  season: 8,
+  worldSimulation: JSON.parse(JSON.stringify(archiveReplaceWorld))
+};
+legacyCareerSeasonProjectionSave.worldSimulation.currentSeason = 6;
+legacyCareerSeasonProjectionSave.worldSimulation.lastAdvancedTo = 0;
+legacyCareerSeasonProjectionSave.worldSimulation.lastCompletedSeason = 5;
+legacyCareerSeasonProjectionSave.worldSimulation.completedSeasons = [5];
+legacyCareerSeasonProjectionSave.worldSimulation.dbVersion = Number(archiveReplaceDb.version);
+legacyCareerSeasonProjectionSave.worldSimulation.rosterMembershipSchemaVersion = 4;
+legacyCareerSeasonProjectionSave.worldSimulation.matchesBySeason["8"] = archiveReplaceMatches(8);
+legacyCareerSeasonProjectionSave.worldSimulation.seasonStats["8"] = [{
+  id: archiveReplaceStablePlayerId, playerId: archiveReplaceStablePlayerId, season: 8,
+  appearances: 2, goals: 1, assists: 0
+}];
+legacyCareerSeasonProjectionSave.worldSimulation.leagueTables["8"] = archiveReplaceTable(8);
+legacyCareerSeasonProjectionSave.worldSimulation.competitionsBySeason["8"] = [
+  { id: "legacy-career-season-pending-cup", season: 8 }
+];
+const legacyCareerSeasonProjectionWorld = ai.ensureState(legacyCareerSeasonProjectionSave, archiveReplaceDb);
+assert.equal(legacyCareerSeasonProjectionWorld.currentSeason, 8,
+  "legacy saves without a world transition marker must resolve the career season before roster migration");
+for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
+  assert.ok(!Object.prototype.hasOwnProperty.call(legacyCareerSeasonProjectionWorld[field], "8"),
+    "roster-membership migration must invalidate the effective current season rather than the stale world marker: " + field);
+  assert.ok(Object.prototype.hasOwnProperty.call(legacyCareerSeasonProjectionWorld[field], "5"),
+    "resolving a legacy career season must preserve completed historical projections: " + field);
+}
+
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
   "database reconciliation must be exposed to the isolated regression test");

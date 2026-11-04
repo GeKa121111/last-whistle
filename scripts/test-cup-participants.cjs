@@ -53,10 +53,13 @@ assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["Copa del Rey"]), true,
 assert.equal(titleSandbox.hasPreviousSeasonClubTitle(["FA Cup"]), false,
   "a different competition must not grant supercup qualification");
 
+const supercupStart = html.indexOf("function supercupParticipants(comp,currentClub){");
 const start = html.indexOf("function cupParticipants(comp,count){");
 const end = html.indexOf("\nfunction cupConfig", start);
-assert.ok(start >= 0 && end > start, "cup participant builder must exist");
-const source = html.slice(start, end) + "\nthis.cupParticipants = cupParticipants;";
+assert.ok(supercupStart >= 0 && start > supercupStart && end > start,
+  "supercup and cup participant builders must exist");
+const source = html.slice(supercupStart, start) + "\n" + html.slice(start, end)
+  + "\nthis.cupParticipants = cupParticipants;";
 assert.ok(!source.includes("نادي مشارك"), "cup generation must not invent placeholder clubs");
 assert.ok(html.includes('<script src="./football-world-db.js?v=9"></script>'), "world database script must be cache-busted when its public API changes");
 assert.ok(html.includes('if(teams.length<cfg.teams){toast("بيانات الأندية الحقيقية المتاحة لا تكفي لإطلاق البطولة. لم تتم إضافة أندية وهمية.");return;}'),
@@ -68,11 +71,12 @@ const rosterLists = {
 };
 const sandbox = {
   window: {},
-  state: { leagueCountry: "مصر" },
+  state: { season: 2, leagueCountry: "مصر", leagueDivision: 1, cupHistory: [], previousSeasonRank: null, worldSimulation: null },
   LEAGUE_ROSTERS: rosterLists,
   clubNameForLeague: () => "النادي الحالي",
   console
 };
+sandbox.previousSeasonLeagueRank = () => Number(sandbox.state.previousSeasonRank) || null;
 vm.createContext(sandbox);
 vm.runInContext(worldDbSource, sandbox, { filename: "football-world-db.js" });
 const db = sandbox.window.LWWorldDB;
@@ -126,10 +130,11 @@ const scopedRosters = {
 function scopedCupSandbox(country, clubName) {
   const context = {
     window: { LWWorldDB: db },
-    state: { leagueCountry: country },
+    state: { season: 2, leagueCountry: country, leagueDivision: 1, cupHistory: [], previousSeasonRank: null, worldSimulation: null },
     LEAGUE_ROSTERS: scopedRosters,
     clubNameForLeague: () => clubName
   };
+  context.previousSeasonLeagueRank = () => Number(context.state.previousSeasonRank) || null;
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "cup-participants-scoped" });
   return context;
@@ -181,6 +186,84 @@ const globalSandbox = scopedCupSandbox(spainProfile.country, spanishCurrent.name
 const globalParticipants = Array.from(globalSandbox.cupParticipants({ kind: "world", teams: [] }, 100));
 assert.ok(globalParticipants.includes("الأهلي") && globalParticipants.includes("كوفنتري سيتي"),
   "world competitions must retain the global first- and second-division candidate pool");
+
+const supercupWorld = {
+  clubs: {
+    arsenal: { id: "arsenal", name: "أرسنال", leagueId: "england", country: "إنجلترا" },
+    chelsea: { id: "chelsea", name: "تشيلسي", leagueId: "england", country: "إنجلترا" },
+    liverpool: { id: "liverpool", name: "ليفربول", leagueId: "england", country: "إنجلترا" },
+    madrid: { id: "madrid", name: "ريال مدريد", leagueId: "spain", country: "إسبانيا" },
+    sevilla: { id: "sevilla", name: "إشبيلية", leagueId: "spain", country: "إسبانيا" },
+    ahly: { id: "ahly", name: "الأهلي", leagueId: "egypt", country: "مصر" },
+    berkane: { id: "berkane", name: "نهضة بركان", leagueId: "morocco", country: "المغرب" }
+  },
+  leagueTables: {
+    "1": {
+      england: [
+        { clubId: "arsenal", rank: 1 },
+        { clubId: "liverpool", rank: 2 }
+      ]
+    }
+  },
+  competitionsBySeason: {
+    "1": [
+      { kind: "domestic-cup", name: "FA Cup", championId: "chelsea", runnerUpId: "liverpool" },
+      { kind: "continental", name: "UEFA Champions League", confederation: "UEFA", championId: "madrid", runnerUpId: "arsenal" },
+      { kind: "continental", name: "UEFA Europa League", confederation: "UEFA", championId: "sevilla", runnerUpId: "liverpool" },
+      { kind: "continental", name: "CAF Champions League", confederation: "CAF", championId: "ahly", runnerUpId: "berkane" },
+      { kind: "continental", name: "CAF Confederation Cup", confederation: "CAF", championId: "berkane", runnerUpId: "ahly" }
+    ]
+  }
+};
+const leagueChampionSandbox = scopedCupSandbox("إنجلترا", "أرسنال");
+leagueChampionSandbox.state.worldSimulation = supercupWorld;
+leagueChampionSandbox.state.previousSeasonRank = 1;
+assert.deepEqual(Array.from(leagueChampionSandbox.cupParticipants({
+  id: "community-shield", kind: "supercup", countries: ["england"], teams: ["مانشستر سيتي"]
+}, 2)), ["أرسنال", "تشيلسي"],
+  "a league champion must face the previous-season domestic cup winner, not a static seed");
+
+const cupWinnerSandbox = scopedCupSandbox("إنجلترا", "تشيلسي");
+cupWinnerSandbox.state.worldSimulation = supercupWorld;
+cupWinnerSandbox.state.previousSeasonRank = 2;
+cupWinnerSandbox.state.cupHistory = [
+  { name: "FA Cup", season: 1, champion: true, club: "تشيلسي", country: "إنجلترا" }
+];
+assert.deepEqual(Array.from(cupWinnerSandbox.cupParticipants({
+  id: "community-shield", kind: "supercup", countries: ["england"], teams: ["مانشستر سيتي"]
+}, 2)), ["تشيلسي", "أرسنال"],
+  "a domestic cup winner must face the previous-season league champion");
+
+const doubleWinnerSandbox = scopedCupSandbox("إنجلترا", "أرسنال");
+doubleWinnerSandbox.state.worldSimulation = supercupWorld;
+doubleWinnerSandbox.state.previousSeasonRank = 1;
+doubleWinnerSandbox.state.cupHistory = [
+  { name: "FA Cup", season: 1, champion: true, club: "أرسنال", country: "إنجلترا" }
+];
+assert.deepEqual(Array.from(doubleWinnerSandbox.cupParticipants({
+  id: "community-shield", kind: "supercup", countries: ["england"], teams: ["مانشستر سيتي"]
+}, 2)), ["أرسنال", "ليفربول"],
+  "when one club wins both domestic titles, the runner-up must fill the second supercup place");
+
+const uefaSandbox = scopedCupSandbox("إسبانيا", "ريال مدريد");
+uefaSandbox.state.worldSimulation = supercupWorld;
+uefaSandbox.state.cupHistory = [
+  { name: "UEFA Champions League", season: 1, champion: true, club: "ريال مدريد", country: "إسبانيا" }
+];
+assert.deepEqual(Array.from(uefaSandbox.cupParticipants({
+  id: "uefa-super-cup", kind: "supercup", confederation: "UEFA", teams: ["باريس سان جيرمان"]
+}, 2)), ["ريال مدريد", "إشبيلية"],
+  "the UEFA Super Cup must pair the UCL winner with the Europa League winner");
+
+const cafSandbox = scopedCupSandbox("مصر", "الأهلي");
+cafSandbox.state.worldSimulation = supercupWorld;
+cafSandbox.state.cupHistory = [
+  { name: "CAF Champions League", season: 1, champion: true, club: "الأهلي", country: "مصر" }
+];
+assert.deepEqual(Array.from(cafSandbox.cupParticipants({
+  id: "caf-super-cup", kind: "supercup", confederation: "CAF", teams: ["الزمالك"]
+}, 2)), ["الأهلي", "نهضة بركان"],
+  "the CAF Super Cup must pair the Champions League winner with the Confederation Cup winner");
 
 const sparse = {
   window: { LWWorldDB: { clubNames: () => [] } },

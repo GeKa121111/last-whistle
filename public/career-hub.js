@@ -15,10 +15,11 @@
   var clamp=function(v,min,max){var parsed=finiteNumber(v);return Math.max(min,Math.min(max,Math.round(parsed===null?0:parsed)));};
   function careerDay(s){
     var day=finiteNumber(s&&s.day);
-    return day!==null&&Number.isSafeInteger(day)&&day>=1?day:1;
+    return day!==null&&Number.isSafeInteger(day)&&day>=1?day:null;
   }
   function dailyActionUsedOnDay(s,today){
     if(!s||!s.dailyActionUsed)return false;
+    if(today===null)return true;
     var rawDay=s.dailyActionDay;
     if(rawDay==null||(typeof rawDay==="string"&&rawDay.trim()===""))return true;
     var savedDay=finiteNumber(rawDay);
@@ -125,7 +126,7 @@
     var injuryPanel=$("wellnessInjuryPanel");if(injuryPanel)injuryPanel.classList.toggle("is-injured",injury>0);
     var bodyBadge=$("wellnessBodyBadge");if(bodyBadge){bodyBadge.textContent=injury>0?"تعافٍ مطلوب":energy<40||fatigue>60?"حمل مرتفع":"جاهزية بدنية";bodyBadge.className="pill "+(injury>0||energy<30||fatigue>=70?"red":energy<48||fatigue>=55?"gold":"green");}
     var today=careerDay(s);
-    text("wellnessDayStatus","اليوم "+today+" · الموسم "+(finiteNumber(s.season)||1));
+    text("wellnessDayStatus","اليوم "+(today===null?1:today)+" · الموسم "+(finiteNumber(s.season)||1));
     var used=dailyActionUsedOnDay(s,today);
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";

@@ -1542,7 +1542,7 @@ assert.ok(cacheVersionMatch && Number(cacheVersionMatch[1]) >= 471,
   "transfer completion identity changes must invalidate the deployed PWA shell cache");
 require("./assert-static-cache-version.cjs")(sw, 429);
 assert.ok(require("./assert-static-cache-version.cjs")(sw, 278) >= 278, "world-season, worker-engine, and UI changes must invalidate the deployed PWA cache");
-assert.ok(sw.includes("transfer-awards-engine.js?v=25"),
+assert.ok(sw.includes("transfer-awards-engine.js?v=26"),
   "the cached award-engine asset version must advance with the transfer eligibility fix");
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(sw, "match-engine.js", 68);
 

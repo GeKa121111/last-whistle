@@ -645,6 +645,12 @@ assert.notEqual(legacyKeeperIdentityOffers[0].id, legacyStrikerIdentityOffers[0]
   "legacy offer rows without player IDs must still use position-aware identity keys");
 
 const invalidOfferCases = [
+  { label: "Symbol appearances", player: { ...youthPlayer, appearances: Symbol("appearances") } },
+  { label: "hostile object appearances", player: { ...youthPlayer, appearances: { valueOf() { throw new Error("unexpected appearance coercion"); } } } },
+  { label: "coercible array appearances", player: { ...youthPlayer, appearances: [5] } },
+  { label: "Symbol form", player: { ...youthPlayer, form: Symbol("form") } },
+  { label: "hostile object form", player: { ...youthPlayer, form: { valueOf() { throw new Error("unexpected form coercion"); } } } },
+  { label: "coercible array form", player: { ...youthPlayer, form: [6.5] } },
   { label: "positive-infinite appearances", player: { ...youthPlayer, appearances: Infinity } },
   { label: "infinite-string appearances", player: { ...youthPlayer, appearances: "Infinity" } },
   { label: "NaN appearances", player: { ...youthPlayer, appearances: NaN } },
@@ -658,6 +664,9 @@ const invalidOfferCases = [
   { label: "form below minimum", player: { ...youthPlayer, form: 5.7 } }
 ];
 for (const testCase of invalidOfferCases) {
+  assert.doesNotThrow(() => engine.generateOffers({
+    player: testCase.player, targets, windowId: "invalid-" + testCase.label, currentClubPower: 52
+  }), `malformed eligibility must not throw for ${testCase.label}`);
   assert.equal(engine.generateOffers({
     player: testCase.player, targets, windowId: "invalid-" + testCase.label, currentClubPower: 52
   }).length, 0, `invalid transfer eligibility should reject ${testCase.label}`);
@@ -666,6 +675,43 @@ assert.ok(engine.generateOffers({
   player: { ...youthPlayer, appearances: "5", form: "6.5" },
   targets, windowId: "numeric-string-test", currentClubPower: 52
 }).length > 0, "finite numeric strings should remain accepted for legacy saves");
+
+const hostileOfferNumber = { valueOf() { throw new Error("unexpected transfer-offer coercion"); } };
+const malformedOfferPlayer = {
+  ...youthPlayer, age: Symbol("age"), potential: hostileOfferNumber,
+  goals: Symbol("goals"), assists: hostileOfferNumber
+};
+const malformedOfferTargets = [{
+  club: "نادي بياناته ناقصة", country: "مصر", power: 60,
+  division: Symbol("division"), prestige: hostileOfferNumber,
+  players: [{ name: "منافس مجهول التقييم", position: "جناح", ovr: Symbol("ovr") }]
+}];
+let malformedMetadataOffers;
+assert.doesNotThrow(() => {
+  malformedMetadataOffers = engine.generateOffers({
+    player: malformedOfferPlayer, targets: malformedOfferTargets,
+    windowId: "malformed-transfer-metadata", currentClubPower: 52
+  });
+}, "malformed player and target metadata must not crash transfer scouting");
+assert.equal(malformedMetadataOffers.length, 1,
+  "valid player form and appearances should still allow a safe fallback offer");
+assert.equal(malformedMetadataOffers[0].division, 1,
+  "malformed target division should use the documented safe fallback");
+assert.equal(malformedMetadataOffers[0].prestige, 60,
+  "malformed target prestige should fall back to the club power");
+assert.equal(malformedMetadataOffers[0].role, "لاعب بديل",
+  "malformed age and potential must not fabricate a youth role");
+
+const zeroPrestigeOffer = engine.generateOffers({
+  player: normalizedIdentityPlayer,
+  windowId: "zero-prestige-compatibility",
+  targets: [{ club: "نادي بسمعة صفر", country: "مصر", power: 72, prestige: 0, division: 1 }]
+})[0];
+assert.equal(zeroPrestigeOffer.maxWage, Math.round(zeroPrestigeOffer.wage * 1.28),
+  "zero prestige must keep the legacy max-wage fallback instead of collapsing the cap");
+
+
+
 
 const offer = youthOffers[0];
 const normalTerms = {

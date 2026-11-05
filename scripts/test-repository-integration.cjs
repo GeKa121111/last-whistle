@@ -123,7 +123,7 @@ const requireBefore = (first, second, reason) => {
   const a = scriptIndex(first), b = scriptIndex(second);
   assert.ok(a >= 0 && b >= 0 && a < b, reason);
 };
-requireBefore("./career-state-store.js?v=8", "./football-world-ai.js?v=84",
+requireBefore("./career-state-store.js?v=8", "./football-world-ai.js?v=85",
   "the shared state bus must load before the world engine");
 requireBefore("./football-world-rosters.js?v=6", "./football-world-db.js?v=11",
   "sourced rosters must load before the world database");

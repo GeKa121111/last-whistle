@@ -1533,6 +1533,9 @@
           || player.transferListed === true;
         if (hasStaleFreeAgentState) {
           if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
+          if (orphanedClubId && club && Array.isArray(club.roster)) {
+            club.roster = club.roster.filter(id => String(id) !== String(player.id));
+          }
           player.clubId = "";
           player.leagueId = "";
           player.division = 0;
@@ -3220,7 +3223,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=73");
+    const worker = new global.Worker("./football-world-worker.js?v=74");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

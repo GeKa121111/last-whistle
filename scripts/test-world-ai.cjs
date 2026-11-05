@@ -828,6 +828,31 @@ assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgent, fa
 assert.equal(formerClubReturnWorld.players["returning-free-agent"].freeAgentSince, 0,
   "a completed signing must clear the old free-agent start marker");
 
+// Legacy saves can store a numeric previousClubId while catalogue club IDs are strings.
+// The former club must still respect the one-complete-season return restriction.
+const numericFormerClubReturnWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const numericFormerClub = makeMarketTestClub(numericFormerClubReturnWorld, "12345", 2, "goalkeeper");
+numericFormerClubReturnWorld.players["numeric-return-free-agent"] = {
+  id: "numeric-return-free-agent", name: "Numeric-ID returning keeper",
+  clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+  age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: 12345, freeAgentSince: 2, isGenerated: false
+};
+const blockedNumericFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(numericFormerClubReturnWorld, 2, []);
+assert.equal(blockedNumericFormerClubReturn.length, 0,
+  "numeric legacy previousClubId must not bypass the former-club return restriction");
+assert.equal(numericFormerClubReturnWorld.players["numeric-return-free-agent"].freeAgent, true,
+  "a numeric-ID player must remain a free agent during the initial free-agent season");
+const delayedNumericFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(numericFormerClubReturnWorld, 3, []);
+assert.equal(delayedNumericFormerClubReturn.length, 1,
+  "the former club may re-sign a numeric-ID legacy player after one complete free-agent season");
+assert.equal(delayedNumericFormerClubReturn[0].toClubId, "12345",
+  "the delayed numeric-ID return must resolve to the exact former club");
+
 
 // An expiring defender should receive the squad-need renewal bonus when only four
 // other defenders remain. The deterministic roll sits between the old and corrected

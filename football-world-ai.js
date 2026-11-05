@@ -2780,6 +2780,8 @@
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
       const formerClubSince = Number(player.freeAgentSince);
+      // Legacy saves may store club IDs as numbers while the world catalogue uses strings.
+      const previousClubId = player.previousClubId == null ? "" : String(player.previousClubId).trim();
       // Do not let a just-expired player bounce straight back to the same club.
       // After one complete free-agent season, a former club may recruit them again.
       // Legacy saves without a freeAgentSince marker keep the conservative old guard.
@@ -2789,7 +2791,7 @@
         const counts = roleCountsByClub.get(club.id) || {};
         return !usedClubs.has(club.id)
           && activeRosterIdsForClub(world, club).length < 18
-          && (!player.previousClubId || player.previousClubId !== club.id || formerClubReturnEligible)
+          && (!previousClubId || previousClubId !== String(club.id || "").trim() || formerClubReturnEligible)
           && Number(player.ovr) <= Number(club.power || 55) + 10
           && Number(player.ovr) >= Number(club.power || 55) - 23
           && (player.age || 18) < 37
@@ -2807,7 +2809,7 @@
       transaction.capturePlayer(player);
       transaction.captureHistory(player.id);
       buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
-      const previousClub = player.previousClubId && world.clubs[player.previousClubId];
+      const previousClub = previousClubId ? world.clubs[previousClubId] : null;
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = divisionForClub(buyer); player.freeAgent = false;

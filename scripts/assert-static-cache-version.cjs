@@ -49,7 +49,7 @@ if (require.main === module) {
     ["football-world-worker.js", 72],
     ["transfer-awards-engine.js", 27],
     ["ui-organization.css", 5],
-    ["career-experience.js", 10],
+    ["career-experience.js", 9],
     ["career-experience.css", 2],
     ["story-mode.js", 14],
     ["agent-system.js", 9],

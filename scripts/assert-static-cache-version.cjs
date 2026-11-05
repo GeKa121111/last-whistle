@@ -27,7 +27,7 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 525;
+  const minimumCacheVersion = 526;
   assert.ok(
     /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
@@ -55,7 +55,7 @@ if (require.main === module) {
     ["agent-system.js", 9],
     ["career-hub.css", 2],
     ["season-objectives.js", 1],
-    ["team-dynamics.js", 1],
+    ["team-dynamics.js", 3],
     ["social-media.js", 3]
   ];
   requiredAssets.forEach(([asset, minimum]) => {

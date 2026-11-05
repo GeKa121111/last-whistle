@@ -19,6 +19,7 @@ const club = {id:"club-a",name:"Test FC",country:"Egypt",power:80,roster:["p1","
 let state = null;
 let saveResult = true;
 let saves = 0, renders = 0, toasts = 0, intervalCallback = null;
+let stateRevision = 1, domReadyCallback = null;
 const lines = [
   {id:"p1",name:"Captain Candidate",club:"Test FC",clubName:"Test FC",country:"Egypt",ovr:84,appearances:10,goals:0,assists:1,averageRating:7.3,displayStats:{appearances:8,goals:0,assists:1,averageRating:7.3}},
   {id:"p2",name:"Defender Rival",club:"Test FC",clubName:"Test FC",country:"Egypt",ovr:78,appearances:12,goals:1,assists:0,averageRating:6.9,displayStats:{appearances:10,goals:1,assists:0,averageRating:6.9}},
@@ -49,6 +50,10 @@ const window = {
       });
     }
   },
+  LWStateStore:{
+    getRevision:()=>stateRevision,
+    subscribe(){return ()=>{};}
+  },
   LWStoryRuntime:{
     getState:()=>state,
     overall:()=>78,
@@ -74,7 +79,7 @@ const document={
   readyState:"loading",hidden:false,
   getElementById(id){return id==="page-contract"?page:id==="lwTeamDynamicsPanel"?host:(nodes[id]||null);},
   createElement(){return {id:"",className:"",addEventListener(){},setAttribute(){},innerHTML:"",hidden:false};},
-  addEventListener(){},
+  addEventListener(name,callback){if(name==="DOMContentLoaded")domReadyCallback=callback;},
 };
 const context={window,document,console,Math,Number,String,Array,Object,JSON,Promise,Set};
 vm.createContext(context);
@@ -225,5 +230,18 @@ saveResult=true;
 const noWorld={careerStarted:true,clubName:"Missing FC",leagueCountry:"Egypt",worldSimulation:state.worldSimulation};
 assert.equal(dynamics.snapshot(noWorld).ready,false,"missing club data must not fabricate a squad or rival");
 
-assert.ok(intervalCallback || true);
-console.log("PASS: real squad leadership candidate, same-role rivalry, persisted captaincy challenge, performance gates, one-time award, transfer scoping and save rollback.");
+assert.equal(typeof domReadyCallback,"function","team dynamics must wait for DOM readiness before mounting its panel");
+domReadyCallback();
+assert.equal(typeof intervalCallback,"function","the panel must install its state refresh safety poll");
+const beforeRenderedAverage=dynamics.snapshot(state).stats.averageRating.toFixed(2);
+assert.ok(host.innerHTML.includes(beforeRenderedAverage),
+  "the rendered leadership panel must display the current average match rating");
+state.careerMatchHistory[0].rating=Number(state.careerMatchHistory[0].rating)+2;
+stateRevision+=1;
+intervalCallback();
+const afterRenderedAverage=dynamics.snapshot(state).stats.averageRating.toFixed(2);
+assert.notEqual(afterRenderedAverage,beforeRenderedAverage,
+  "the in-place match rating mutation must change the underlying current-form metric");
+assert.ok(host.innerHTML.includes(afterRenderedAverage),
+  "a new state-store revision must refresh the panel even when match-history array length is unchanged");
+console.log("PASS: real squad leadership candidate, same-role rivalry, persisted captaincy challenge, performance gates, one-time award, save rollback, and in-place match-history UI refresh.");

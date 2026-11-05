@@ -543,11 +543,15 @@
   }
 
   function negotiationPressure(offer, terms) {
-    offer = offer || {};
-    terms = terms || {};
+    offer = offer && typeof offer === "object" && !Array.isArray(offer) ? offer : {};
+    terms = terms && typeof terms === "object" && !Array.isArray(terms) ? terms : {};
+    const numericOrZero = value => {
+      const number = finiteNumericValue(value);
+      return number === null ? 0 : number;
+    };
     const ratio = function (requested, offered) {
-      const base = Math.max(1, Number(offered) || 0);
-      return Math.max(0, Number(requested) || 0) / base;
+      const base = Math.max(1, numericOrZero(offered));
+      return Math.max(0, numericOrZero(requested)) / base;
     };
     const wageRatio = ratio(terms.weeklyWage, offer.wage);
     const signRatio = ratio(terms.signingBonus, offer.signingBonus);
@@ -559,19 +563,37 @@
       + Math.max(0, goalRatio - 1) * 10
       + Math.max(0, cleanRatio - 1) * 10
       + Math.max(0, clauseRatio - 2.5) * 7;
-    const years = clamp(terms.contractSeasons || 3, 1, 5);
+    const years = clamp(numericOrZero(terms.contractSeasons) || 3, 1, 5);
     if (years === 1) pressure += 3;
     if (years === 5) pressure -= 2;
     return Number(clamp(Math.round(pressure), 0, 100));
   }
 
   function evaluateNegotiation(offer, terms, patience, round) {
-    const currentPatience = clamp(patience === undefined ? offer && offer.patience : patience, 0, 100);
-    const currentRound = Math.max(0, Math.floor(Number(round) || 0));
+    offer = offer && typeof offer === "object" && !Array.isArray(offer) ? offer : {};
+    terms = terms && typeof terms === "object" && !Array.isArray(terms) ? terms : {};
+    const numericOrZero = value => {
+      const number = finiteNumericValue(value);
+      return number === null ? 0 : number;
+    };
+    const roundedNonNegative = value => Math.max(0, Math.round(numericOrZero(value)));
+    const currentPatience = clamp(patience === undefined ? offer.patience : patience, 0, 100);
+    const roundValue = finiteNumericValue(round);
+    const currentRound = Math.max(0, Math.floor(roundValue === null ? 0 : roundValue));
     const pressure = negotiationPressure(offer, terms);
-    const requestedWage = Math.max(0, Math.round(Number(terms && terms.weeklyWage) || 0));
-    const requestedSign = Math.max(0, Math.round(Number(terms && terms.signingBonus) || 0));
-    if (pressure <= 12 && requestedWage <= Math.max(1, Number(offer.maxWage) || Number(offer.wage) || 1)) {
+    const requestedWage = roundedNonNegative(terms.weeklyWage);
+    const requestedSign = roundedNonNegative(terms.signingBonus);
+    const requestedGoal = roundedNonNegative(terms.goalBonus);
+    const requestedCleanSheet = roundedNonNegative(terms.cleanSheetBonus);
+    const requestedReleaseClause = roundedNonNegative(terms.releaseClause);
+    const offerWage = roundedNonNegative(offer.wage);
+    const offerMaxWage = roundedNonNegative(offer.maxWage);
+    const offerSigning = roundedNonNegative(offer.signingBonus);
+    const offerGoal = roundedNonNegative(offer.goalBonus);
+    const offerCleanSheet = roundedNonNegative(offer.cleanSheetBonus);
+    const offerReleaseClause = roundedNonNegative(offer.releaseClause);
+    const years = clamp(numericOrZero(terms.contractSeasons) || 3, 1, 5);
+    if (pressure <= 12 && requestedWage <= Math.max(1, offerMaxWage || offerWage || 1)) {
       return {
         status: "accepted",
         pressure: pressure,
@@ -580,22 +602,22 @@
         terms: Object.assign({}, terms, {
           weeklyWage: requestedWage,
           signingBonus: requestedSign,
-          goalBonus: Math.max(0, Math.round(Number(terms.goalBonus) || 0)),
-          cleanSheetBonus: Math.max(0, Math.round(Number(terms.cleanSheetBonus) || 0)),
-          contractSeasons: clamp(terms.contractSeasons || 3, 1, 5),
-          releaseClause: Math.max(0, Math.round(Number(terms.releaseClause) || 0))
+          goalBonus: requestedGoal,
+          cleanSheetBonus: requestedCleanSheet,
+          contractSeasons: years,
+          releaseClause: requestedReleaseClause
         })
       };
     }
     const loss = clamp(Math.round(15 + pressure * 0.92), 15, 68);
     const nextPatience = Math.max(0, currentPatience - loss);
     const counterOffer = {
-      weeklyWage: Math.min(requestedWage || Number(offer.wage) || 0, Number(offer.maxWage) || Number(offer.wage) || 0),
-      signingBonus: Math.min(requestedSign || Number(offer.signingBonus) || 0, Math.round((Number(offer.signingBonus) || 0) * 1.2)),
-      goalBonus: Math.min(Math.max(0, Number(terms.goalBonus) || 0), Math.round((Number(offer.goalBonus) || 0) * 1.25)),
-      cleanSheetBonus: Math.min(Math.max(0, Number(terms.cleanSheetBonus) || 0), Math.round((Number(offer.cleanSheetBonus) || 0) * 1.25)),
-      contractSeasons: clamp(terms.contractSeasons || 3, 1, 5),
-      releaseClause: Math.min(Math.max(0, Number(terms.releaseClause) || 0), Math.round((Number(offer.releaseClause) || 0) * 2.5))
+      weeklyWage: Math.min(requestedWage || offerWage, offerMaxWage || offerWage),
+      signingBonus: Math.min(requestedSign || offerSigning, Math.round(offerSigning * 1.2)),
+      goalBonus: Math.min(requestedGoal, Math.round(offerGoal * 1.25)),
+      cleanSheetBonus: Math.min(requestedCleanSheet, Math.round(offerCleanSheet * 1.25)),
+      contractSeasons: years,
+      releaseClause: Math.min(requestedReleaseClause, Math.round(offerReleaseClause * 2.5))
     };
     const withdraw = nextPatience <= 0 || currentRound >= 2;
     if (withdraw) {

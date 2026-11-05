@@ -122,8 +122,8 @@ assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 524);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 77);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 539);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 78);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -2469,6 +2469,67 @@ assert.equal(JSON.stringify(deployedCareer.purchaseItem(deployedPurchaseState, p
 assert.equal(JSON.stringify(deployedPurchaseState), JSON.stringify(sourcePurchaseState),
   "deployed/source purchase state must match");
 
+const careerEngineCases = [["shared", career], ["deployed", deployedCareer]];
+for (const [engineName, engine] of careerEngineCases) {
+  for (const invalidPrice of [[100], true, Symbol("price"), Object.create(null), Infinity, -1]) {
+    const state = { money: 1000 };
+    const result = engine.purchaseItem(state, { id: "speedBoots", price: invalidPrice });
+    assert.equal(result.status, "invalid-item", engineName + " store must reject non-primitive or invalid prices");
+    assert.equal(state.money, 1000, engineName + " invalid price must not debit the wallet");
+    assert.equal(state.speedBoots, undefined, engineName + " invalid price must not grant an item");
+  }
+  for (const invalidBalance of [[1000], true, Symbol("money"), Object.create(null), Infinity, -1, "bad"]) {
+    const state = { money: invalidBalance };
+    const originalBalance = state.money;
+    const result = engine.purchaseItem(state, { id: "speedBoots", price: 100 });
+    assert.equal(result.status, "insufficient-funds", engineName + " store must reject malformed balances");
+    assert.strictEqual(state.money, originalBalance, engineName + " rejected balance must remain untouched");
+    assert.equal(state.speedBoots, undefined, engineName + " rejected balance must not grant an item");
+  }
+  const legacyNumericStrings = { money: "1000", shooting: "60", dribbling: "61" };
+  const legacyPurchase = engine.purchaseItem(legacyNumericStrings, { id: "boots", price: "100" });
+  assert.equal(legacyPurchase.ok, true, engineName + " store must preserve legacy numeric-string saves");
+  assert.equal(legacyNumericStrings.money, 900);
+  assert.equal(legacyNumericStrings.shooting, 63);
+  assert.equal(legacyNumericStrings.dribbling, 64);
+
+  const malformedBootSkills = { money: 1000, shooting: Symbol("shooting"), dribbling: [61] };
+  let malformedBootPurchase;
+  assert.doesNotThrow(() => {
+    malformedBootPurchase = engine.purchaseItem(malformedBootSkills, { id: "boots", price: 100 });
+  }, engineName + " boot purchase must tolerate malformed saved skills");
+  assert.equal(malformedBootPurchase.ok, true);
+  assert.equal(malformedBootSkills.money, 900);
+  assert.equal(malformedBootSkills.boots, true);
+  assert.equal(malformedBootSkills.shooting, 3);
+  assert.equal(malformedBootSkills.dribbling, 3);
+
+  for (const invalidAge of [[37], true, Symbol("age"), Object.create(null), Infinity, "bad"]) {
+    const state = { pos: "جناح", age: invalidAge, fitness: 75, speed: 80, physical: 70 };
+    assert.doesNotThrow(() => engine.applySeasonAging(state),
+      engineName + " season aging must ignore malformed age values without throwing");
+    assert.equal(state.fitness, 75);
+    assert.equal(state.speed, 80);
+    assert.equal(state.physical, 70);
+  }
+  const malformedAgeingSkills = {
+    pos: "حارس مرمى", age: 37, professionalism: 0,
+    fitness: Symbol("fitness"), physical: [72]
+  };
+  const originalFitness = malformedAgeingSkills.fitness;
+  const originalPhysical = malformedAgeingSkills.physical;
+  assert.doesNotThrow(() => engine.applySeasonAging(malformedAgeingSkills),
+    engineName + " season aging must skip malformed skill fields safely");
+  assert.strictEqual(malformedAgeingSkills.fitness, originalFitness);
+  assert.strictEqual(malformedAgeingSkills.physical, originalPhysical);
+
+  const legacyAgeing = { pos: "حارس مرمى", age: "38", professionalism: "90", fitness: 75, physical: 72 };
+  engine.applySeasonAging(legacyAgeing);
+  assert.equal(legacyAgeing.fitness, 74, engineName + " season aging must retain numeric-string compatibility");
+  assert.equal(legacyAgeing.physical, 71);
+}
+
+
 
 // Career role selection must react to sustained output without bypassing academy graduation.
 const roleHistory = Array.from({ length: 8 }, (_, index) => ({
@@ -3032,5 +3093,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v538"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v539"),
  "service worker cache must be refreshed");

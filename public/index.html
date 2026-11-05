@@ -2433,8 +2433,15 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function purchaseItem(state, item) {
-    if (!state || !item || typeof item.id !== "string" || !item.id.trim()
-      || !Number.isFinite(Number(item.price)) || Number(item.price) < 0) return { ok: false, status: "invalid-item" };
+    if (!state || typeof state !== "object" || Array.isArray(state)
+      || !item || typeof item !== "object" || Array.isArray(item)
+      || typeof item.id !== "string" || !item.id.trim()) {
+      return { ok: false, status: "invalid-item" };
+    }
+    const rawCost = finiteLegacyNumber(item.price);
+    if (rawCost === null || rawCost < 0 || rawCost > Number.MAX_SAFE_INTEGER) {
+      return { ok: false, status: "invalid-item" };
+    }
     if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (["ovr", "overall", "ovrBoost", "overallBoost", "overallRating", "ratingPoints"].includes(item.id)) {
       return { ok: false, status: "direct-rating-purchase-disabled" };
@@ -2448,14 +2455,23 @@ function seasonAwards(state, league, teamRank) {
     ];
     if (!allowedStoreItems.includes(item.id)) return { ok: false, status: "invalid-item" };
     if (state[item.id]) return { ok: false, status: "already-owned" };
-    const cost = Math.round(Number(item.price));
-    const balance = Number(state.money);
-    if (!Number.isFinite(balance) || balance < cost) return { ok: false, status: "insufficient-funds" };
+    const cost = Math.round(rawCost);
+    if (!Number.isSafeInteger(cost)) return { ok: false, status: "invalid-item" };
+    const balance = finiteLegacyNumber(state.money);
+    if (balance === null || balance < 0 || balance > Number.MAX_SAFE_INTEGER || balance < cost) {
+      return { ok: false, status: "insufficient-funds" };
+    }
+    // Calculate every reward before mutating the save. A malformed legacy skill must not
+    // leave the wallet debited or the item marked as owned if a later conversion fails.
+    const nextShooting = item.id === "boots"
+      ? clamp((finiteLegacyNumber(state.shooting) ?? 0) + 3) : null;
+    const nextDribbling = item.id === "boots"
+      ? clamp((finiteLegacyNumber(state.dribbling) ?? 0) + 3) : null;
     state.money = balance - cost;
     state[item.id] = true;
     if (item.id === "boots") {
-      state.shooting = Math.max(0, Math.min(100, Math.round((Number(state.shooting) || 0) + 3)));
-      state.dribbling = Math.max(0, Math.min(100, Math.round((Number(state.dribbling) || 0) + 3)));
+      state.shooting = nextShooting;
+      state.dribbling = nextDribbling;
     }
     return { ok: true, status: "purchased", itemId: item.id, cost, money: state.money };
   }
@@ -2617,27 +2633,40 @@ function seasonAwards(state, league, teamRank) {
     return { ok: true, status: state.nationalTournamentWinner ? "champion" : "final-lost", points: state.nationalTournamentPoints };
   }
   function applySeasonAging(state) {
-    if (!state || typeof state !== "object") return "";
-    const age = Math.max(0, Number(state.age) || 0), position = String(state.pos || "");
-    const highProfessionalism = Number(state.professionalism) > 80;
+    if (!state || typeof state !== "object" || Array.isArray(state)) return "";
+    const savedAge = finiteLegacyNumber(state.age);
+    if (savedAge === null) return "";
+    const age = Math.max(0, Math.min(100, Math.floor(savedAge)));
+    const position = typeof state.pos === "string" ? state.pos : "";
+    const savedProfessionalism = finiteLegacyNumber(state.professionalism);
+    const highProfessionalism = savedProfessionalism !== null && savedProfessionalism > 80;
     const decayThisSeason = !highProfessionalism || age % 2 === 0;
+    const notes = [];
+    const decayAttribute = (key, label) => {
+      const current = finiteLegacyNumber(state[key]);
+      if (current === null) return;
+      state[key] = clamp(current - 1);
+      notes.push(label);
+    };
     if (position === "حارس مرمى") {
       if (age < 35) return "";
-      const notes = [];
-      if (decayThisSeason) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
-      if (age >= 37 && decayThisSeason) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
-      return notes.length ? "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن."
-        : "احترافيتك وخبرتك ساعدتاك على إبطاء تراجع السمات البدنية.";
+      if (decayThisSeason) {
+        decayAttribute("fitness", "اللياقة");
+        if (age >= 37) decayAttribute("physical", "القوة البدنية");
+      }
+      if (notes.length) return "منحنى عمر الحارس أبطأ: راقب " + notes.join(" و") + " مع التقدم في السن.";
+      return decayThisSeason ? "" : "احترافيتك وخبرتك ساعدتاك على إبطاء تراجع السمات البدنية.";
     }
     if (age < 32) return "";
-    const notes = [];
-    if (decayThisSeason) { state.fitness = clamp(Number(state.fitness) - 1); notes.push("اللياقة"); }
-    if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position) && decayThisSeason) {
-      state.speed = clamp(Number(state.speed) - 1); notes.push("السرعة");
+    if (decayThisSeason) {
+      decayAttribute("fitness", "اللياقة");
+      if (age >= 32 && ["ظهير", "جناح", "مهاجم", "رأس حربة"].includes(position)) {
+        decayAttribute("speed", "السرعة");
+      }
+      if (age >= 35) decayAttribute("physical", "القوة البدنية");
     }
-    if (age >= 35 && decayThisSeason) { state.physical = clamp(Number(state.physical) - 1); notes.push("القوة البدنية"); }
-    return notes.length ? "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء."
-      : "الاحترافية ساعدتك على تقليل تراجع السمات في هذا الموسم.";
+    if (notes.length) return "مع تقدم العمر، منحنى التطور اتغير: راقب " + notes.join(" و") + "، وركّز على التمركز والخبرة والاستشفاء.";
+    return decayThisSeason ? "" : "الاحترافية ساعدتك على تقليل تراجع السمات في هذا الموسم.";
   }
   window.LWCareer = {
     calendarGameDateISO, ensureState, uniqueMatchRows, rebuildLegacyCareerStats, deriveLeagueRatingStats, overall, train, matchDevelopment,

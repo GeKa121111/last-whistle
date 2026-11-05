@@ -173,7 +173,7 @@
   }
   function playerLeadershipScore(state, overall, stats) {
     var age = Math.max(12, Math.min(40, num(state.age, 18)));
-    return Number((
+    return clamp(Number((
       clamp(overall, 0, 100) * 0.48
       + clamp((age - 17) * 0.42, 0, 9)
       + clamp(state.trust, 0, 100) * 0.14
@@ -181,7 +181,7 @@
       + clamp(state.teamChemistry, 0, 100) * 0.08
       + clamp(stats.averageRating, 0, 10) * 1.1
       + clamp(stats.appearances, 0, 50) * 0.07
-    ).toFixed(2));
+    ).toFixed(2)), 0, 100);
   }
   function rivalScore(stats, player) {
     return Number((

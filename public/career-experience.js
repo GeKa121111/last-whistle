@@ -89,7 +89,7 @@
   }
 
   function safeInvestmentDueDay(item) {
-    if (!item || typeof item !== "object") return null;
+    if (!financeRecord(item)) return null;
     var rawDueDay;
     try { rawDueDay = item.dueDay; } catch (error) { return null; }
     var dueDay = finiteNumber(rawDueDay);
@@ -98,7 +98,7 @@
   }
 
   function investmentIsDue(item, today) {
-    if (!item || item.settled) return false;
+    if (!financeRecord(item) || item.settled) return false;
     var dueDay = safeInvestmentDueDay(item);
     return dueDay !== null && today >= dueDay;
   }
@@ -484,7 +484,7 @@
   function renderPanel(s, cachedWorld) {
     if (!s || !ensurePanel()) return;
     var w = cachedWorld || world(s);
-    var pending = w.investments.filter(function (item) { return !item.settled; }).length;
+    var pending = w.investments.filter(function (item) { return financeRecord(item) && !item.settled; }).length;
     function text(id, value) {
       var element = document.getElementById(id);
       if (element) element.textContent = String(value);
@@ -785,8 +785,8 @@
     var w = world(s);
     var balance = safeWholeMoney(s.money);
     var displayBalance = balance === null ? 0 : balance;
-    var open = w.investments.filter(function (item) { return !item.settled; });
-    var recent = w.investments.slice().reverse().slice(0, 5);
+    var open = w.investments.filter(function (item) { return financeRecord(item) && !item.settled; });
+    var recent = w.investments.slice().reverse().filter(financeRecord).slice(0, 5);
     var list = recent.length ? '<div class="lwcx-investment-list">' + recent.map(function (item) {
       var dueDay = safeInvestmentDueDay(item);
       var status = item.settled ? "تم الاستحقاق: +" + item.payout + " جنيه"
@@ -1114,7 +1114,7 @@
     if (force || w !== pendingInvestmentsWorld || revision !== pendingInvestmentsRevision
       || investments.length !== pendingInvestmentsLength || tail !== pendingInvestmentsTail) {
       pendingInvestmentsCount = investments.reduce(function (count, item) {
-        return count + (item && !item.settled ? 1 : 0);
+        return count + (financeRecord(item) && !item.settled ? 1 : 0);
       }, 0);
       pendingInvestmentsWorld = w;
       pendingInvestmentsRevision = revision;

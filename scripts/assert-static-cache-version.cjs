@@ -27,14 +27,15 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 521;
+  const minimumCacheVersion = 522;
   assert.ok(
     /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-worker\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("transfer-awards-engine\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("season-objectives\.js\?"\)\s*>=\s*0/.test(serviceWorker)
-      && /url\.indexOf\("team-dynamics\.js\?"\)\s*>=\s*0/.test(serviceWorker),
+      && /url\.indexOf\("team-dynamics\.js\?"\)\s*>=\s*0/.test(serviceWorker)
+      && /url\.indexOf\("social-media\.js\?"\)\s*>=\s*0/.test(serviceWorker),
     "updated world AI, database, worker, and award engine modules must bypass the browser HTTP cache during a new static-cache install");
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
@@ -53,12 +54,13 @@ if (require.main === module) {
     ["agent-system.js", 9],
     ["career-hub.css", 2],
     ["season-objectives.js", 1],
-    ["team-dynamics.js", 1]
+    ["team-dynamics.js", 1],
+    ["social-media.js", 3]
   ];
   requiredAssets.forEach(([asset, minimum]) => {
     const assetSource = asset === "football-world-worker.js"
       ? fs.readFileSync(path.join(root, "football-world-ai.js"), "utf8")
-      : asset === "football-world-db.js" || asset === "data/career-engine.js" || asset === "data/match-engine.js" ? serviceWorker : html;
+      : asset === "football-world-db.js" || asset === "data/career-engine.js" || asset === "data/match-engine.js" || asset === "social-media.js" ? serviceWorker : html;
     module.exports.assertAssetVersionAtLeast(assetSource, asset, minimum);
   });
   console.log("Static cache v" + cacheVersion + " and " + requiredAssets.length + " versioned app assets verified.");

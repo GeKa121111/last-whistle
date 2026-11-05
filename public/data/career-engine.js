@@ -277,7 +277,8 @@
       .filter(row => row && typeof row === "object")
       .map(row => ({ ...row, scope: row.scope || "league" }));
     const careerRows = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [];
-    return uniqueMatchRows([...leagueRows, ...careerRows]);
+    // Current history wins when both stores contain the same fixture; legacy rows only fill gaps.
+    return uniqueMatchRows([...careerRows, ...leagueRows]);
   }
 
   // Awards are season-scoped: merge legacy seasonLog rows with current-season
@@ -320,7 +321,8 @@
       })
       .map(row => row.season === undefined || row.season === null || String(row.season).trim() === ""
         ? { ...row, season: currentSeason } : row);
-    return uniqueMatchRows([...legacySeasonRows, ...careerRows]);
+    // Keep current snapshots first so stale legacy duplicates cannot override them.
+    return uniqueMatchRows([...careerRows, ...legacySeasonRows]);
   }
 
   const normalizeLegacyBoolean = (value, fallback = false) => {

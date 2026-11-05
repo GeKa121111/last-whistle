@@ -106,13 +106,19 @@ assert.equal(runLoanDivisionCase(undefined).division, 1,
   "legacy loan destinations without a division must retain the first-division fallback");
 assert.ok(rootHtml.includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
+assert.ok(rootHtml.includes("const savedTrust = finiteLegacyNumber(state.trust);")
+  && rootHtml.includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
+  "the inline browser career engine must normalize trust and follower counters before state mutations");
+assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
+  && engineCopies[0].includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
+  "all shared career-engine mirrors must normalize trust and follower counters");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 518);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 76);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 521);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 77);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -538,6 +544,7 @@ const malformedSavedCareer = {
   levelXP: Symbol("levelXP"), leagueRatingSum: Symbol("leagueRatingSum"),
   leagueRatingCount: Symbol("leagueRatingCount"), trainingXP: { passing: Symbol("trainingXP") },
   passing: Symbol("passing"), fatigue: Symbol("fatigue"), playerPotential: Symbol("potential"),
+  trust: Symbol("trust"), followers: Symbol("followers"),
   seasonLog: [
     { matchId: "saved-symbol-minutes", scope: "league", minutes: Symbol("minutes"), rating: 8 },
     { matchId: "saved-valid-minutes", scope: "league", minutes: "90", rating: "8.5" }
@@ -564,6 +571,21 @@ assert.equal(malformedSavedCareer.trainingXP.passing, 0);
 assert.equal(malformedSavedCareer.passing, 50);
 assert.equal(malformedSavedCareer.playerPotential, 82);
 assert.equal(malformedSavedCareer.fatigue, 0);
+assert.equal(malformedSavedCareer.trust, 25, "malformed legacy trust must fall back to the original career default");
+assert.equal(malformedSavedCareer.followers, 120, "malformed follower totals must fall back to the original career default");
+
+const legacyNumericSocialCounters = { pos: "CM", age: 22, trust: "63", followers: "1200" };
+career.ensureState(legacyNumericSocialCounters);
+assert.equal(legacyNumericSocialCounters.trust, 63,
+  "numeric-string trust from older saves must be normalized before arithmetic");
+assert.equal(legacyNumericSocialCounters.followers, 1200,
+  "numeric-string follower totals from older saves must remain numeric");
+legacyNumericSocialCounters.trust += 2;
+legacyNumericSocialCounters.followers += 5;
+assert.equal(legacyNumericSocialCounters.trust, 65,
+  "post-normalization trust rewards must add numerically rather than concatenate strings");
+assert.equal(legacyNumericSocialCounters.followers, 1205,
+  "post-normalization audience gains must add numerically rather than concatenate strings");
 
 const malformedMatchState = {
   pos: "CM", age: Symbol("match-age"), apps: Symbol("match-apps"),
@@ -2966,5 +2988,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v520"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v521"),
  "service worker cache must be refreshed");

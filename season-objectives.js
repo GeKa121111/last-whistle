@@ -354,6 +354,7 @@
   }
 
   function refresh(force) {
+    if (typeof document === "undefined" || !document || typeof document.getElementById !== "function") return;
     var runtime = api();
     var state = runtime && typeof runtime.getState === "function" ? runtime.getState() : null;
     if (!state) { lastSignature = ""; return; }

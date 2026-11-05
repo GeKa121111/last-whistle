@@ -104,19 +104,19 @@ assert.equal(secondDivisionLoan.source, "محاكاة عالم الكرة • 20
   "a loan destination must preserve its actual roster/league data source instead of being mislabeled as OpenFootball");
 assert.equal(runLoanDivisionCase(undefined).division, 1,
   "legacy loan destinations without a division must retain the first-division fallback");
-assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
+assert.ok(rootHtml.includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 509);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 73);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 516);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 74);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
-assert.ok(engineCopies[0].includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
+assert.ok(engineCopies[0].includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the shared career engine must clamp saved player attributes to the 0-100 range");
 const inlineDedupStart = rootHtml.indexOf("  function uniqueMatchRows(rows) {");
 const inlineDedupEnd = rootHtml.indexOf("\n  function uniqueCareerHistory(state)", inlineDedupStart);
@@ -2208,7 +2208,7 @@ for (const [savedWage, expectedWage] of malformedWageCases) {
   assert.equal(browserWageState.weeklyWage, expectedWage,
     "embedded browser wage normalization must match the shared engine");
 }
-assert.ok(deployedHtml.includes("state.money = Number.isFinite(moneyValue)"),
+assert.ok(deployedHtml.includes("state.money = moneyValue !== null"),
   "embedded browser career engine must normalize saved money balances");
 for (const [savedMoney, expectedMoney] of malformedMoneyCases) {
   const sourceMoneyState = { pos: "جناح", age: 24, money: savedMoney, trainingXP: {}, randomSeed: 1 };

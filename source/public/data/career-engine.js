@@ -2,8 +2,7 @@
 (() => {
   "use strict";
 
-  // Saved values are accepted only when they are finite numbers or numeric strings.
-  // Avoid Number(Symbol) and user-defined valueOf() coercion during save hydration.
+  // Accept finite number primitives and numeric strings only; never invoke arbitrary valueOf().
   const finiteLegacyNumber = value => {
     if (typeof value === "number") return Number.isFinite(value) ? value : null;
     if (typeof value !== "string" || value.trim() === "") return null;
@@ -304,8 +303,7 @@
       (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
         .filter(archive => archive && typeof archive === "object"
           && finiteLegacyNumber(archive.season) === currentSeason)
-        .map(archive => String(archive.segmentId || "").trim())
-        .filter(Boolean)
+        .map(archive => String(archive.segmentId || "").trim()).filter(Boolean)
     );
     const activeSegmentId = String(state && state.leagueSegmentId || "").trim();
     if (activeSegmentId) currentSeasonSegments.add(activeSegmentId);
@@ -316,11 +314,9 @@
           || (typeof row.season === "string" && row.season.trim() === "")
           || finiteLegacyNumber(row.season) === currentSeason))
       .map(row => ({
-        ...row,
-        scope: row.scope || "league",
+        ...row, scope: row.scope || "league",
         season: row.season === undefined || row.season === null
-          || (typeof row.season === "string" && row.season.trim() === "")
-          ? currentSeason : row.season
+          || (typeof row.season === "string" && row.season.trim() === "") ? currentSeason : row.season
       }));
     const careerRows = (Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [])
       .filter(row => {
@@ -338,7 +334,6 @@
       .map(row => row.season === undefined || row.season === null
         || (typeof row.season === "string" && row.season.trim() === "")
         ? { ...row, season: currentSeason } : row);
-    // Keep current snapshots first so stale legacy duplicates cannot override them.
     return uniqueMatchRows([...careerRows, ...legacySeasonRows]);
   }
 
@@ -359,8 +354,7 @@
   };
   const safeLegacyCount = value => {
     const numeric = finiteLegacyNumber(value);
-    return numeric === null
-      ? 0 : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric)));
+    return numeric === null ? 0 : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric)));
   };
   const safeLegacyRating = value => {
     const numeric = finiteLegacyNumber(value);
@@ -975,8 +969,8 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function leagueMatchTarget(teamCount) {
-    const teamCountValue = finiteLegacyNumber(teamCount);
-    const n = Math.max(0, Math.floor(teamCountValue === null ? 0 : teamCountValue));
+    const value = finiteLegacyNumber(teamCount);
+    const n = Math.max(0, Math.floor(value === null ? 0 : value));
     return n < 2 ? 0 : 2 * (n - 1);
   }
 

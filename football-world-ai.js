@@ -2734,11 +2734,18 @@
   }
   function signFreeAgents(world, season, existingMoves) {
     return base.withTransferMarketTransaction(world, function(transaction) {
-    const freeAgents = Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent) && Number(player.contractSeasons) <= 0)
-      .sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
-    const clubs = Object.values(world.clubs || {}).filter(club => club && divisionForClub(club) >= 1
-      && activeRosterIdsForClub(world, club).length < 18)
-      .sort((a,b)=>Number(b.power||50)-Number(a.power||50));
+    const seasonNumber = safeNumber(season, NaN);
+    if (!Number.isFinite(seasonNumber)) return [];
+    const freeAgents = Object.values(world.players || {}).filter(player => {
+      if (!player || base.isTrueFlag(player.retired) || !base.isTrueFlag(player.freeAgent)) return false;
+      const contractSeasons = safeNumber(player.contractSeasons, NaN);
+      return Number.isFinite(contractSeasons) && contractSeasons <= 0;
+    }).sort((a,b)=>safeNumber(b.ovr,50)-safeNumber(a.ovr,50));
+    const clubs = Object.values(world.clubs || {}).filter(club => {
+      if (!club || divisionForClub(club) < 1) return false;
+      const power = safeNumber(club.power || 55, NaN);
+      return Number.isFinite(power) && activeRosterIdsForClub(world, club).length < 18;
+    }).sort((a,b)=>safeNumber(b.power||50,50)-safeNumber(a.power||50,50));
     Object.values(world.clubs || {}).forEach(club => transaction.captureClub(club));
     const roleCountsByClub = new Map();
     for (const club of clubs) {
@@ -2779,22 +2786,29 @@
       const group = player.group || base.groupForPosition(player.position);
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
-      const formerClubSince = Number(player.freeAgentSince);
-      // Legacy saves may store club IDs as numbers while the world catalogue uses strings.
-      const previousClubId = player.previousClubId == null ? "" : String(player.previousClubId).trim();
+      const formerClubSince = safeNumber(player.freeAgentSince, NaN);
+      // Normalize only supported primitive legacy IDs; arrays and objects are not club identifiers.
+      const rawPreviousClubId = player.previousClubId;
+      const previousClubId = typeof rawPreviousClubId === "string" ? rawPreviousClubId.trim()
+        : typeof rawPreviousClubId === "number" && Number.isFinite(rawPreviousClubId) ? String(rawPreviousClubId) : "";
       // Do not let a just-expired player bounce straight back to the same club.
       // After one complete free-agent season, a former club may recruit them again.
       // Legacy saves without a freeAgentSince marker keep the conservative old guard.
       const formerClubReturnEligible = Number.isFinite(formerClubSince)
-        && formerClubSince > 0 && Number(season) > formerClubSince;
+        && formerClubSince > 0 && seasonNumber > formerClubSince;
+      const playerOvr = safeNumber(player.ovr, NaN);
+      const playerAge = player.age ? safeNumber(player.age, NaN) : 18;
+      if (!Number.isFinite(playerOvr) || !Number.isFinite(playerAge)) continue;
       const eligible = clubs.filter(club => {
         const counts = roleCountsByClub.get(club.id) || {};
-        return !usedClubs.has(club.id)
+        const clubPower = safeNumber(club.power || 55, NaN);
+        return Number.isFinite(clubPower)
+          && !usedClubs.has(club.id)
           && activeRosterIdsForClub(world, club).length < 18
           && (!previousClubId || previousClubId !== String(club.id || "").trim() || formerClubReturnEligible)
-          && Number(player.ovr) <= Number(club.power || 55) + 10
-          && Number(player.ovr) >= Number(club.power || 55) - 23
-          && (player.age || 18) < 37
+          && playerOvr <= clubPower + 10
+          && playerOvr >= clubPower - 23
+          && playerAge < 37
           && (counts[group] || 0) < roleTarget;
       });
       if (!eligible.length) continue;
@@ -2802,7 +2816,7 @@
       eligible.sort((a,b) => {
         const aCount = (roleCountsByClub.get(a.id) || {})[group] || 0;
         const bCount = (roleCountsByClub.get(b.id) || {})[group] || 0;
-        return aCount - bCount || Number(b.power || 50) - Number(a.power || 50) || String(a.id).localeCompare(String(b.id));
+        return aCount - bCount || safeNumber(b.power || 50, 50) - safeNumber(a.power || 50, 50) || String(a.id).localeCompare(String(b.id));
       });
       const buyer = eligible[0];
       transaction.captureClub(buyer);
@@ -2814,23 +2828,23 @@
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = divisionForClub(buyer); player.freeAgent = false;
       player.freeAgentSince = 0;
-      player.contractSeasons = 2 + (hash(player.id + "|" + season + "|free-agent-term") % 3);
+      player.contractSeasons = 2 + (hash(player.id + "|" + seasonNumber + "|free-agent-term") % 3);
       buyer.roster.push(String(player.id));
       const counts = roleCountsByClub.get(buyer.id);
       counts[group] = (counts[group] || 0) + 1;
       usedClubs.add(buyer.id);
       const move = {
         id: "world-transfer-" + season + "-free-" + hash(player.id + "|" + buyer.id).toString(36),
-        season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
+        season: seasonNumber, day: 1, playerId: player.id, player: player.name, position: player.position,
         group, from: oldClubName, fromCountry: previousClub ? previousClub.country : "",
         fromClubId: previousClub ? String(previousClub.id) : "",
         to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id), fee: 0, currency: buyer.currency,
         reason: "تعاقد مجاني • احتياج في المركز وخبرة/إمكانات مناسبة",
-        playerOvr: player.ovr, kind: "تعاقد مع لاعب حر — محاكاة"
+        playerOvr, kind: "تعاقد مع لاعب حر — محاكاة"
       };
       signed.push(move);
       world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: Number(season), clubId: String(buyer.id),
+      world.playerHistory[player.id].unshift({ season: seasonNumber, clubId: String(buyer.id),
         club: buyer.name, country: buyer.country, fromClubId: previousClub ? String(previousClub.id) : "",
         type: "free-agent-signing", from: oldClubName });
       world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
@@ -2838,15 +2852,19 @@
     if (signed.length) {
       world.transfers = signed.concat(world.transfers || []).slice(0, 300);
       for (const club of clubs) {
-        const top = playersForClub(world, club).slice().sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50)).slice(0,11);
-        if (top.length) club.power = clamp(Math.round(Number(club.basePower||club.power||55)*0.7
-          + avg(top.map(player=>Number(player.ovr)||50))*0.3), 35, 97);
+        const top = playersForClub(world, club).slice().sort((a,b)=>safeNumber(b.ovr,50)-safeNumber(a.ovr,50)).slice(0,11);
+        if (top.length) {
+          const currentPower = safeNumber(club.power || 55, 55);
+          const basePower = safeNumber(club.basePower || club.power || 55, currentPower);
+          club.power = clamp(Math.round(basePower * 0.7
+            + avg(top.map(player=>safeNumber(player.ovr,50))) * 0.3), 35, 97);
+        }
       }
       const report = world.marketReports && world.marketReports[0];
-      if (report && Number(report.season) === Number(season)) {
-        report.moves = Number(report.moves || 0) + signed.length;
-        report.transferIds = signed.map(row => row.id).concat(report.transferIds || []);
-        report.summary += " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";
+      if (report && safeNumber(report.season, NaN) === seasonNumber) {
+        report.moves = safeNumber(report.moves || 0, 0) + signed.length;
+        report.transferIds = signed.map(row => row.id).concat(Array.isArray(report.transferIds) ? report.transferIds : []);
+        report.summary = String(report.summary || "") + " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";
       }
     }
     signed.forEach(move => {

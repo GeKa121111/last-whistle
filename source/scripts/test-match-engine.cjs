@@ -2643,16 +2643,42 @@ const invalidNumericLedgerMutations = [
   ["Symbol event goal minute", match => { match.events[0].goalMinute = Symbol("goal-minute"); }],
   ["Symbol event attempt number", match => { match.events[0].attemptNumber = Symbol("attempt"); }],
   ["Symbol player shots on target", match => { match.player.shotsOnTarget = Symbol("shots-on-target"); }],
-  ["Symbol player key passes", match => { match.player.keyPasses = Symbol("key-passes"); }],
+  ["Symbol player key passes", match => { match.player.keyPasses = Symbol("key-passes"); }]
+];
+const invalidMetadataNumericCases = [
+  ["Symbol aggregate offset", match => { match.metadata.aggregateOffset = Symbol("aggregate-offset"); }, "invalid-aggregate-offset"],
+  ["Symbol extra-time event seed", match => { match.metadata.extraTimeEventSeed = Symbol("extra-time-seed"); }, "invalid-extra-time-event-seed"]
+];
+const guardedMalformedLedgerCases = [
   ["Symbol extra-time period score", match => {
     match.extraTime = { played: true, for: 0, against: 0,
       periods: [{ for: Symbol("period"), against: 0 }, { for: 0, against: 0 }] };
   }],
-  ["Symbol metadata aggregate offset", match => { match.metadata.aggregateOffset = Symbol("aggregate-offset"); }],
   ["hostile shootout summary score", match => {
     match.shootout = { used: true, won: false, scoreFor: hostileLegacyNumber, scoreAgainst: 0, attempts: [] };
   }]
 ];
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  for (const [caseName, mutate, expectedReason] of invalidMetadataNumericCases) {
+    const match = targetEngine.simulateMatch({ seed: 8148, player: { name: "Metadata Regression", position: "وسط" } });
+    mutate(match);
+    let validation;
+    assert.doesNotThrow(() => { validation = targetEngine.validateResult(match); },
+      label + " validator must not throw for " + caseName);
+    assert.equal(validation.ok, false);
+    assert.equal(validation.reason, expectedReason,
+      label + " validator must preserve its specific metadata error for " + caseName);
+  }
+  for (const [caseName, mutate] of guardedMalformedLedgerCases) {
+    const match = targetEngine.simulateMatch({ seed: 8149, player: { name: "Guarded Ledger Regression", position: "وسط" } });
+    mutate(match);
+    let validation;
+    assert.doesNotThrow(() => { validation = targetEngine.validateResult(match); },
+      label + " validator must not throw for " + caseName);
+    assert.equal(validation.ok, false, label + " validator must reject " + caseName);
+  }
+}
+
 for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
   for (const [caseName, mutate] of invalidNumericLedgerMutations) {
     const match = targetEngine.simulateMatch({

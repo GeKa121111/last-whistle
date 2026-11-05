@@ -1574,7 +1574,7 @@
         player.clubId = "";
         player.leagueId = "";
         player.division = 0;
-        world.notes.unshift({ season: Number(season) + 1, type: "free-agent", text: player.name + " انتهى عقده وأصبح لاعبًا حرًا." });
+        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent", text: player.name + " انتهى عقده وأصبح لاعبًا حرًا." });
       }
     });
     world.notes = world.notes.slice(0, 30);

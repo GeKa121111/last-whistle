@@ -14,6 +14,51 @@ vm.runInContext(source, sandbox, { filename: "social-media.js" });
 const social = sandbox.window.LWSocialMedia;
 assert.ok(social, "social media runtime must expose its public API");
 
+// Corrupt legacy values must never crash feed hydration or be coerced into
+// fabricated match stats. Numeric strings remain supported by the safe parser.
+const malformedSocialMatch = {
+  id: "malformed-social-match", season: Symbol("season"), day: {}, opponent: "منافس",
+  minutes: Symbol("minutes"), rating: [], goals: {}, assists: false,
+  teamGoals: [], oppGoals: Symbol("opponent-goals")
+};
+const malformedSocialState = {
+  name: "Malformed Player", careerStarted: true, retired: false,
+  season: Symbol("season"), day: {}, calendarDay: Symbol("calendar-day"), role: "بديل",
+  teamChemistry: Symbol("chemistry"), followers: Symbol("followers"),
+  mediaReputation: Symbol("reputation"), professionalism: [], coachRelationship: Symbol("coach"),
+  morale: Symbol("morale"), trust: Symbol("trust"),
+  careerMatchHistory: [malformedSocialMatch], pressHistory: [], relationshipHistory: [],
+  transferHistory: [], careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: Symbol("version"), nextId: Symbol("next-id"), initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "بديل", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: Symbol("last-day"), lastBenchStoryMatchId: ""
+  }
+};
+assert.equal(social.syncState(malformedSocialState), 1,
+  "malformed saved social counters and match stats must not interrupt feed synchronization");
+assert.equal(malformedSocialState.socialMedia.posts.length, 1);
+assert.equal(malformedSocialState.socialMedia.posts[0].season, 1);
+assert.equal(malformedSocialState.socialMedia.posts[0].day, 1);
+assert.equal(typeof malformedSocialState.socialMedia.posts[0].likes, "number");
+assert.equal(social.respond(malformedSocialState, malformedSocialState.socialMedia.posts[0].id, "respect").ok, true,
+  "social replies must safely recover malformed legacy player counters");
+assert.equal(malformedSocialState.professionalism, 1);
+assert.equal(malformedSocialState.mediaReputation, 1);
+assert.equal(malformedSocialState.morale, 1);
+
+const numericStringSocialState = {
+  name: "Legacy Numeric Player", careerStarted: true, season: "4", day: "7",
+  followers: "1200", mediaReputation: "45", professionalism: "65",
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: []
+};
+assert.equal(social.createPlayerPost(numericStringSocialState, "شكراً للجمهور على الدعم.").ok, true);
+assert.equal(typeof numericStringSocialState.followers, "number",
+  "numeric-string follower totals must remain compatible and become numeric before increments");
+assert.ok(numericStringSocialState.followers > 1200);
+
 const state = {
   name: "Test Player",
   careerStarted: true,

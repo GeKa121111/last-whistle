@@ -63,7 +63,7 @@ const vm = require("node:vm");
   const investments = [{
     id: 1, kind: "safe", label: "ادخار آمن قديم", amount: 100, payout: 118,
     dueDay: 30, settled: false, successful: true
-  }, {
+  }, null, {
     id: 2, kind: "safe", label: "ادخار آمن جديد", amount: 100, payout: 120,
     dueDay: 60, settled: false, successful: true
   }];

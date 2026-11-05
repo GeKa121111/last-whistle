@@ -12,8 +12,27 @@
   var socialMutationPending = false;
   var socialPersistenceWarningShown = false;
 
+  function finiteNumber(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    var parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function number(value, fallback) {
+    var parsed = finiteNumber(value);
+    return parsed === null ? fallback : parsed;
+  }
+
+  function keyPart(value) {
+    if (typeof value === "string") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+    if (typeof value === "boolean") return value ? "true" : "false";
+    return "";
+  }
+
   function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
+    return Math.max(min, Math.min(max, Math.round(number(value, 0))));
   }
 
   function hash(value) {
@@ -37,7 +56,7 @@
   }
 
   function dayKey(state) {
-    return String(Number(state.season) || 1) + ":" + String(Number(state.day) || 1);
+    return String(number(state.season, 1) || 1) + ":" + String(number(state.day, 1) || 1);
   }
 
   function ensureState(state) {
@@ -47,13 +66,13 @@
         version: 3, nextId: 1, initialized: false, posts: [],
         seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
         observedRole: String(state.role || ""),
-        lockerRoomCrisisActive: Number(state.teamChemistry) <= 28,
+        lockerRoomCrisisActive: number(state.teamChemistry, 50) <= 28,
         lastBenchStoryCalendarDay: 0, lastBenchStoryMatchId: "", lastReplyDay: ""
       };
     }
     var social = state.socialMedia;
-    var previousVersion = Math.max(1, Number(social.version) || 1);
-    social.nextId = Math.max(1, Number(social.nextId) || 1);
+    var previousVersion = Math.max(1, number(social.version, 1) || 1);
+    social.nextId = Math.max(1, number(social.nextId, 1) || 1);
     if (!Array.isArray(social.posts)) social.posts = [];
     if (!social.seen || typeof social.seen !== "object" || Array.isArray(social.seen)) social.seen = {};
     var hadOfferCursor = Array.isArray(social.seen.offers);
@@ -70,8 +89,8 @@
         social.seen.offers = (Array.isArray(state.transferOffers) ? state.transferOffers : []).map(offerKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
       }
       if (typeof social.observedRole !== "string" || !social.observedRole) social.observedRole = String(state.role || "");
-      if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = Number(state.teamChemistry) <= 28;
-      if (!Number(social.lastBenchStoryCalendarDay)) social.lastBenchStoryCalendarDay = Math.max(1, Number(state.calendarDay) || Number(state.day) || 1);
+      if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
+      if (!number(social.lastBenchStoryCalendarDay, 0)) social.lastBenchStoryCalendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
       if (!social.lastBenchStoryMatchId) {
         var oldDomestic = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [])
           .filter(function (match) { return match && match.scope !== "international"; });
@@ -79,8 +98,8 @@
       }
     }
     if (typeof social.observedRole !== "string") social.observedRole = String(state.role || "");
-    if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = Number(state.teamChemistry) <= 28;
-    social.lastBenchStoryCalendarDay = Math.max(0, Number(social.lastBenchStoryCalendarDay) || 0);
+    if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
+    social.lastBenchStoryCalendarDay = Math.max(0, number(social.lastBenchStoryCalendarDay, 0) || 0);
     social.lastBenchStoryMatchId = String(social.lastBenchStoryMatchId || "");
     social.version = 3;
     social.posts = social.posts.filter(function (post) {
@@ -234,37 +253,30 @@
 
   function matchKey(match) {
     if (!match || typeof match !== "object") return "";
-    return [
-      match.id || match.matchId || "",
-      match.season || "",
-      match.day || "",
-      match.matchday || "",
-      match.competition || "",
-      match.club || "",
-      match.opponent || "",
-      match.teamGoals == null ? "" : match.teamGoals,
-      match.oppGoals == null ? "" : match.oppGoals,
-      match.minutes == null ? "" : match.minutes,
-      match.rating == null ? "" : match.rating,
-      match.goals == null ? "" : match.goals,
-      match.assists == null ? "" : match.assists
-    ].join("|");
+    var parts = [
+      keyPart(match.id || match.matchId), keyPart(match.season), keyPart(match.day),
+      keyPart(match.matchday), keyPart(match.competition), keyPart(match.club),
+      keyPart(match.opponent), keyPart(match.teamGoals), keyPart(match.oppGoals),
+      keyPart(match.minutes), keyPart(match.rating), keyPart(match.goals), keyPart(match.assists)
+    ];
+    return parts.some(Boolean) ? parts.join("|") : "";
   }
 
   function eventKey(item) {
     if (!item || typeof item !== "object") return "";
-    return [
-      item.id || item.eventId || "",
-      item.season || "",
-      item.day || "",
-      item.type || item.title || item.name || "",
-      item.text || item.choice || item.outcome || ""
-    ].join("|");
+    var parts = [
+      keyPart(item.id || item.eventId), keyPart(item.season), keyPart(item.day),
+      keyPart(item.type || item.title || item.name), keyPart(item.text || item.choice || item.outcome)
+    ];
+    return parts.some(Boolean) ? parts.join("|") : "";
   }
 
   function offerKey(offer) {
     if (!offer || typeof offer !== "object") return "";
-    return String(offer.id || [offer.windowId || "", offer.country || "", offer.club || ""].join("|"));
+    var id = keyPart(offer.id);
+    if (id) return id;
+    var parts = [keyPart(offer.windowId), keyPart(offer.country), keyPart(offer.club)];
+    return parts.some(Boolean) ? parts.join("|") : "";
   }
 
   function textSentiment(text) {
@@ -276,13 +288,13 @@
   }
 
   function matchSentiment(match) {
-    var minutes = Math.max(0, Number(match.minutes) || 0);
-    var rating = Number(match.rating) || 0;
-    var goals = Math.max(0, Number(match.goals) || 0);
-    var assists = Math.max(0, Number(match.assists) || 0);
+    var minutes = Math.max(0, number(match.minutes, 0) || 0);
+    var rating = number(match.rating, 0) || 0;
+    var goals = Math.max(0, number(match.goals, 0) || 0);
+    var assists = Math.max(0, number(match.assists, 0) || 0);
     var score = minutes > 0 ? (rating - 6.4) * 0.65 + goals * 0.85 + assists * 0.55 : -0.7;
-    var forGoals = Number(match.teamGoals) || 0;
-    var against = Number(match.oppGoals) || 0;
+    var forGoals = number(match.teamGoals, 0) || 0;
+    var against = number(match.oppGoals, 0) || 0;
     if (forGoals > against) score += 0.55;
     else if (forGoals < against) score -= 0.55;
     if (minutes > 0 && minutes < 25) score -= 0.2;
@@ -346,7 +358,7 @@
   }
 
   function engagement(state, seed, sentiment) {
-    var followers = Math.max(0, Number(state.followers) || 0);
+    var followers = Math.max(0, number(state.followers, 0) || 0);
     var rate = sentiment > 0 ? 0.035 : sentiment < 0 ? 0.048 : 0.025;
     var reach = Math.max(1, Math.round(followers * rate));
     return Math.min(999999, reach + seeded(seed + "|reach", Math.max(2, Math.round(reach * 0.7) + 1)));
@@ -361,7 +373,7 @@
   function makePost(state, options) {
     var social = ensureState(state);
     var id = nextId(social);
-    var sentiment = Number(options.sentiment) || 0;
+    var sentiment = number(options.sentiment, 0) || 0;
     var seed = id + "|" + options.body;
     var authorType = options.authorType || "media";
     return {
@@ -372,8 +384,8 @@
       verified: authorType !== "player",
       avatar: String(options.avatar || (authorType === "player" ? "👤" : "📣")),
       body: String(options.body || ""),
-      season: Math.max(1, Number(state.season) || 1),
-      day: Math.max(1, Number(state.day) || 1),
+      season: Math.max(1, number(state.season, 1) || 1),
+      day: Math.max(1, number(state.day, 0) || 1),
       likes: engagement(state, seed, sentiment),
       liked: false,
       sentiment: sentiment,
@@ -412,15 +424,15 @@
     });
 
     if (sentiment > 0) {
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 1, 0, 100);
-      state.professionalism = clamp((Number(state.professionalism) || 0) + 1, 0, 100);
-      state.followers = Math.max(0, (Number(state.followers) || 0) + 2 + seeded(post.id, 5));
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 1, 0, 100);
+      state.professionalism = clamp((number(state.professionalism, 0) || 0) + 1, 0, 100);
+      state.followers = Math.max(0, (number(state.followers, 0) || 0) + 2 + seeded(post.id, 5));
     } else if (sentiment < 0) {
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 1, 0, 100);
-      state.coachRelationship = clamp((Number(state.coachRelationship) || 35) - 1, 0, 100);
-      state.followers = Math.max(0, (Number(state.followers) || 0) + 4 + seeded(post.id, 9));
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 1, 0, 100);
+      state.coachRelationship = clamp(number(state.coachRelationship, 35) - 1, 0, 100);
+      state.followers = Math.max(0, (number(state.followers, 0) || 0) + 4 + seeded(post.id, 9));
     } else {
-      state.followers = Math.max(0, (Number(state.followers) || 0) + 1 + seeded(post.id, 3));
+      state.followers = Math.max(0, (number(state.followers, 0) || 0) + 1 + seeded(post.id, 3));
     }
     return { ok: true, post: post };
   }
@@ -428,12 +440,12 @@
   function createMatchPost(state, match) {
     var name = String(state.name || "اللاعب");
     var opponent = String(match.opponent || "المنافس");
-    var minutes = Math.max(0, Number(match.minutes) || 0);
-    var rating = Number(match.rating) || 0;
-    var goals = Math.max(0, Number(match.goals) || 0);
-    var assists = Math.max(0, Number(match.assists) || 0);
-    var forGoals = Number(match.teamGoals) || 0;
-    var against = Number(match.oppGoals) || 0;
+    var minutes = Math.max(0, number(match.minutes, 0) || 0);
+    var rating = number(match.rating, 0) || 0;
+    var goals = Math.max(0, number(match.goals, 0) || 0);
+    var assists = Math.max(0, number(match.assists, 0) || 0);
+    var forGoals = number(match.teamGoals, 0) || 0;
+    var against = number(match.oppGoals, 0) || 0;
     var result = forGoals > against ? "فوز" : forGoals < against ? "خسارة" : "تعادل";
     var body;
     var sentiment = matchSentiment(match);
@@ -513,7 +525,7 @@
       + ". العرض موجود في سوق اللعبة، والقرار لسه ما اتحسمش.";
     return addPost(state, {
       kind: "rumor", author: "رادار الانتقالات", authorType: "media", avatar: "🔁",
-      body: body, sentiment: Number(state.lastRating) >= 6.8 ? 1 : 0
+      body: body, sentiment: number(state.lastRating, 0) >= 6.8 ? 1 : 0
     });
   }
 
@@ -583,8 +595,8 @@
     social.seen.awards = awards.map(eventKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
     social.seen.offers = offers.map(offerKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
     social.observedRole = String(state.role || "");
-    social.lockerRoomCrisisActive = Number(state.teamChemistry) <= 28;
-    social.lastBenchStoryCalendarDay = Math.max(1, Number(state.calendarDay) || Number(state.day) || 1);
+    social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
+    social.lastBenchStoryCalendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
     var domestic = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [])
       .filter(function (match) { return match && match.scope !== "international"; });
     social.lastBenchStoryMatchId = domestic[0] ? String(domestic[0].id || matchKey(domestic[0])) : "";
@@ -605,7 +617,7 @@
     // Histories are newest-first. Publish a bounded oldest-first batch so a
     // simulation that adds many events cannot silently discard the backlog.
     var ordered = pending.reverse();
-    var count = limit === undefined ? ordered.length : Math.max(0, Math.floor(Number(limit) || 0));
+    var count = limit === undefined ? ordered.length : Math.max(0, Math.floor(number(limit, 0)));
     var selected = ordered.slice(0, count);
     selected.forEach(function (entry) { seen.unshift(entry.token); });
     social.seen[key] = seen.slice(0, MAX_SEEN_ITEMS);
@@ -659,7 +671,7 @@
     }
 
     var hasTeamChemistry = state.teamChemistry !== null && state.teamChemistry !== undefined
-      && Number.isFinite(Number(state.teamChemistry));
+      && finiteNumber(state.teamChemistry) !== null;
     var chemistry = hasTeamChemistry ? clamp(state.teamChemistry, 0, 100) : 50;
     if (!hasTeamChemistry || chemistry >= 40) social.lockerRoomCrisisActive = false;
     else if (chemistry <= 28 && !social.lockerRoomCrisisActive && created < 8) {
@@ -671,10 +683,10 @@
     var careerMatches = Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [];
     var recentDomestic = careerMatches.filter(function (match) { return match && match.scope !== "international"; }).slice(0, 3);
     var unusedCount = recentDomestic.filter(function (match) {
-      return Math.max(0, Number(match.minutes) || 0) === 0 || match.playerAvailable === false;
+      return Math.max(0, number(match.minutes, 0) || 0) === 0 || match.playerAvailable === false;
     }).length;
-    var calendarDay = Math.max(1, Number(state.calendarDay) || Number(state.day) || 1);
-    var lastBenchDay = Math.max(0, Number(social.lastBenchStoryCalendarDay) || 0);
+    var calendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
+    var lastBenchDay = Math.max(0, number(social.lastBenchStoryCalendarDay, 0) || 0);
     var latestMatchId = recentDomestic[0] ? String(recentDomestic[0].id || matchKey(recentDomestic[0])) : "";
     if (created < 8 && recentDomestic.length === 3 && unusedCount >= 2 && isBenchRole(currentRole)
       && latestMatchId && latestMatchId !== social.lastBenchStoryMatchId
@@ -698,7 +710,7 @@
     if (!post) return { ok: false, reason: "post-not-found" };
     if (action === "like") {
       post.liked = !post.liked;
-      post.likes = Math.max(0, (Number(post.likes) || 0) + (post.liked ? 1 : -1));
+      post.likes = Math.max(0, (number(post.likes, 0)) + (post.liked ? 1 : -1));
       return { ok: true, liked: post.liked };
     }
     if (post.playerResponse) return { ok: false, reason: "post-already-answered" };
@@ -716,47 +728,47 @@
     post.playerResponseDay = today;
 
     if (action === "respect") {
-      state.professionalism = clamp((Number(state.professionalism) || 0) + 1, 0, 100);
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 1, 0, 100);
-      state.morale = clamp((Number(state.morale) || 0) + 1, 0, 100);
+      state.professionalism = clamp((number(state.professionalism, 0) || 0) + 1, 0, 100);
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 1, 0, 100);
+      state.morale = clamp(number(state.morale, 0) + 1, 0, 100);
       return { ok: true, message: "رديت بهدوء؛ صورتك المهنية اتحسنت." };
     }
     if (action === "bold") {
-      state.followers = Math.max(0, (Number(state.followers) || 0) + 10);
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 2, 0, 100);
-      state.coachRelationship = clamp((Number(state.coachRelationship) || 35) - 3, 0, 100);
-      state.trust = clamp((Number(state.trust) || 0) - 1, 0, 100);
-      state.professionalism = clamp((Number(state.professionalism) || 0) - 2, 0, 100);
+      state.followers = Math.max(0, (number(state.followers, 0) || 0) + 10);
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 2, 0, 100);
+      state.coachRelationship = clamp(number(state.coachRelationship, 35) - 3, 0, 100);
+      state.trust = clamp(number(state.trust, 0) - 1, 0, 100);
+      state.professionalism = clamp((number(state.professionalism, 0) || 0) - 2, 0, 100);
       return { ok: true, message: "ردك عمل ضجة، لكن المدرب مش بالضرورة يعجبه الأسلوب." };
     }
     if (action === "deny-rumor") {
-      state.professionalism = clamp((Number(state.professionalism) || 0) + 2, 0, 100);
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 1, 0, 100);
-      state.coachRelationship = clamp((Number(state.coachRelationship) || 35) + 2, 0, 100);
-      state.teamChemistry = clamp((Number(state.teamChemistry) || 0) + 1, 0, 100);
+      state.professionalism = clamp((number(state.professionalism, 0) || 0) + 2, 0, 100);
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 1, 0, 100);
+      state.coachRelationship = clamp(number(state.coachRelationship, 35) + 2, 0, 100);
+      state.teamChemistry = clamp((number(state.teamChemistry, 50) || 0) + 1, 0, 100);
       return { ok: true, message: "نفيت الشائعة بهدوء؛ صورتك المهنية وعلاقتك بالنادي اتحسنت." };
     }
     if (action === "fuel-rumor") {
-      state.followers = Math.max(0, (Number(state.followers) || 0) + 18);
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 2, 0, 100);
-      state.coachRelationship = clamp((Number(state.coachRelationship) || 35) - 4, 0, 100);
-      state.trust = clamp((Number(state.trust) || 0) - 2, 0, 100);
-      state.professionalism = clamp((Number(state.professionalism) || 0) - 2, 0, 100);
+      state.followers = Math.max(0, (number(state.followers, 0) || 0) + 18);
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 2, 0, 100);
+      state.coachRelationship = clamp(number(state.coachRelationship, 35) - 4, 0, 100);
+      state.trust = clamp(number(state.trust, 0) - 2, 0, 100);
+      state.professionalism = clamp((number(state.professionalism, 0) || 0) - 2, 0, 100);
       return { ok: true, message: "لمّحت إنك منفتح على الرحيل؛ التفاعل زاد لكن النادي مش هيحب الضغط العلني." };
     }
     if (action === "support-team") {
-      state.professionalism = clamp((Number(state.professionalism) || 0) + 1, 0, 100);
-      state.teamChemistry = clamp((Number(state.teamChemistry) || 0) + 5, 0, 100);
-      state.coachRelationship = clamp((Number(state.coachRelationship) || 35) + 1, 0, 100);
+      state.professionalism = clamp((number(state.professionalism, 0) || 0) + 1, 0, 100);
+      state.teamChemistry = clamp((number(state.teamChemistry, 50) || 0) + 5, 0, 100);
+      state.coachRelationship = clamp(number(state.coachRelationship, 35) + 1, 0, 100);
       if (state.teamChemistry >= 40) social.lockerRoomCrisisActive = false;
       return { ok: true, message: "اخترت تهدئة الأجواء ودعم الفريق؛ الانسجام اتحسن." };
     }
     if (action === "fuel-conflict") {
-      state.followers = Math.max(0, (Number(state.followers) || 0) + 12);
-      state.mediaReputation = clamp((Number(state.mediaReputation) || 0) + 2, 0, 100);
-      state.teamChemistry = clamp((Number(state.teamChemistry) || 0) - 5, 0, 100);
-      state.coachRelationship = clamp((Number(state.coachRelationship) || 35) - 2, 0, 100);
-      state.morale = clamp((Number(state.morale) || 0) - 2, 0, 100);
+      state.followers = Math.max(0, (number(state.followers, 0) || 0) + 12);
+      state.mediaReputation = clamp((number(state.mediaReputation, 0) || 0) + 2, 0, 100);
+      state.teamChemistry = clamp((number(state.teamChemistry, 50) || 0) - 5, 0, 100);
+      state.coachRelationship = clamp(number(state.coachRelationship, 35) - 2, 0, 100);
+      state.morale = clamp(number(state.morale, 0) - 2, 0, 100);
       return { ok: true, message: "صعّدت الخلاف؛ التفاعل زاد لكن غرفة الملابس اتأثرت." };
     }
     return { ok: false, reason: "invalid-social-action" };
@@ -797,7 +809,7 @@
     var followerNode = document.getElementById("lw-social-followers");
     var reputationNode = document.getElementById("lw-social-reputation");
     var postsNode = document.getElementById("lw-social-count");
-    if (followerNode) followerNode.textContent = String(Math.max(0, Number(state.followers) || 0));
+    if (followerNode) followerNode.textContent = String(Math.max(0, number(state.followers, 0) || 0));
     if (reputationNode) reputationNode.textContent = String(clamp(state.mediaReputation, 0, 100)) + "/100";
     if (postsNode) postsNode.textContent = String(social.posts.filter(function (post) { return post.authorType === "player"; }).length);
     var composer = document.getElementById("lw-social-composer");

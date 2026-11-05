@@ -737,7 +737,7 @@
       });
     };
     const eligibleCandidates = candidates.filter(row =>
-      Number(row.appearances) >= 10 && seasonMinutes(row, safeCount(row.appearances)) > 0);
+      safeCount(row.appearances) >= 10 && seasonMinutes(row, safeCount(row.appearances)) > 0);
     const bestFive = rank(eligibleCandidates, "ballonScore").slice(0, 5);
     const ballonWinner = bestFive[0] || { name: "لا يوجد لاعب مؤهل", club: "", isUser: false };
     const allAwards = [
@@ -745,7 +745,7 @@
       { id: "fifa-the-best", title: "جائزة ذا بيست (FIFA The Best)", metric: "theBestScore", pool: eligibleCandidates },
       { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: eligibleCandidates },
       { id: "golden-glove", title: "القفاز الذهبي (Golden Glove)", metric: "goldenGloveScore",
-        pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
+        pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && safeCount(row.appearances) >= 10) },
       { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.youthAwardEligible === true) },
       { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.originConfederation === "CAF") },
       { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "UEFA") },
@@ -863,7 +863,8 @@
     const goals = safeCount(player.goals);
     const assists = safeCount(player.assists);
     const cleanSheets = safeCount(player.cleanSheets);
-    const strength = safeStrength(player.leagueStrength || 60);
+    const rawStrength = finiteNumericValue(player.leagueStrength);
+    const strength = rawStrength === null ? 60 : clamp(rawStrength || 60, 25, 100);
     const participation = clamp(minutes / Math.max(1, apps * 90), 0, 1);
     const role = roleType(player.position);
     const contribution = role === "attacker" ? goals * 1.05 + assists * .72

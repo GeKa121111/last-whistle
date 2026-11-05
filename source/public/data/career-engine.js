@@ -1292,7 +1292,7 @@ function seasonAwards(state, league, teamRank) {
 
     if (decision === "accept") {
       const offerWage = finiteLegacyNumber(offer.wage);
-      if (offerWage === null || offerWage < 0 || offerWage > Number.MAX_SAFE_INTEGER) {
+      if (offerWage === null || offerWage < 0) {
         return { ok: false, status: "invalid-offer" };
       }
       const hasOfferSeasons = offer.seasons !== undefined && offer.seasons !== null && offer.seasons !== "";

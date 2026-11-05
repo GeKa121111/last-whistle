@@ -218,6 +218,46 @@ assert.equal(objectives.claim(archived, 1).ok, true,
 assert.equal(archived.money, 800);
 assert.equal(archived.seasonObjectiveHistory[0].claimed, true);
 
+const malformedCurrentObjective = {
+  careerStarted:true, season:4, pos:"رأس حربة", day:10,
+  seasonObjective:{id:"attacker-goals",season:Symbol("saved-season"),claimed:false}
+};
+runtimeState = malformedCurrentObjective;
+let malformedChoose;
+assert.doesNotThrow(() => { malformedChoose = objectives.choose(malformedCurrentObjective, "attacker-goals"); },
+  "a malformed current objective season must not throw");
+assert.equal(malformedChoose.reason, "invalid-current-objective");
+assert.equal(typeof malformedCurrentObjective.seasonObjective.season, "symbol",
+  "a malformed saved objective must remain untouched rather than being overwritten");
+
+const malformedHistoryObjective = {
+  careerStarted:true, season:5, pos:"رأس حربة", day:10,
+  seasonObjectiveHistory:[{id:"attacker-goals",season:Symbol("archive-season"),claimed:false}]
+};
+runtimeState = malformedHistoryObjective;
+let malformedHistoryClaim;
+assert.doesNotThrow(() => { malformedHistoryClaim = objectives.claim(malformedHistoryObjective, 1); },
+  "malformed archived objective seasons must be ignored safely");
+assert.equal(malformedHistoryClaim.reason, "no-objective");
+
+const malformedRewardState = {
+  careerStarted:true, season:6, pos:"رأس حربة",
+  day:Symbol("day"), money:Symbol("money"), morale:Symbol("morale"),
+  seasonObjective:{id:"attacker-goals",season:6,claimed:false},
+  careerMatchHistory:Array.from({length:12}, (_,index)=>({
+    id:"safe-reward-"+index,season:6,scope:"league",minutes:90,goals:1,assists:0,rating:7.1
+  }))
+};
+runtimeState = malformedRewardState;
+let malformedReward;
+assert.doesNotThrow(() => { malformedReward = objectives.claim(malformedRewardState); },
+  "malformed reward balance, morale and day fields must not crash a completed objective claim");
+assert.equal(malformedReward.ok,true);
+assert.equal(malformedRewardState.money,500);
+assert.equal(malformedRewardState.morale,5);
+assert.equal(malformedRewardState.seasonObjective.claimedDay,1);
+assert.equal(malformedRewardState.diary[0].day,1);
+
 const retired = { season:1, pos:"رأس حربة", retired:true };
 runtimeState = retired;
 assert.equal(objectives.choose(retired, "attacker-goals").reason, "retired");
@@ -242,5 +282,24 @@ assert.equal(objectives.choose(failedSaveState, "attacker-goals").reason, "save-
 assert.equal(failedSaveState.seasonObjective, undefined,
   "a rejected save must roll back a new in-memory objective");
 saveResult = true;
+
+const objectiveGrid = { children:[], appendChild(host) { this.children.push(host); } };
+const objectiveHost = {
+  hidden:false, innerHTML:"", className:"", id:"",
+  addEventListener() {}
+};
+const objectivePage = { querySelector() { return objectiveGrid; } };
+document.getElementById = id => id === "page-stats" ? objectivePage : null;
+document.createElement = () => objectiveHost;
+runtimeState = {
+  careerStarted:true, season:5, pos:"رأس حربة",
+  seasonObjectiveHistory:[{id:"attacker-goals",season:Symbol("render-season"),claimed:false}],
+  careerMatchHistory:[]
+};
+assert.doesNotThrow(() => documentListeners.DOMContentLoaded(),
+  "rendering archived objectives with malformed saved seasons must not throw");
+assert.match(objectiveHost.innerHTML, /أهداف الموسم/);
+assert.doesNotMatch(objectiveHost.innerHTML, /مكافآت مواسم سابقة جاهزة/,
+  "invalid archived season markers must be skipped without rewriting their records");
 
 console.log("PASS: position-aware season objectives, official-match progress, archived rewards, one-time claims and save rollback.");

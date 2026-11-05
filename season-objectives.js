@@ -204,12 +204,18 @@
     var allowed = catalogForPosition(state.pos).some(function (item) { return item.id === String(objectiveId || ""); });
     if (!allowed) return { ok:false, reason:"objective-not-for-position" };
     var current = state.seasonObjective;
-    if (current && Number(current.season) === season) return { ok:false, reason:"objective-already-selected" };
+    var currentSeasonValue = current ? finiteNumber(current.season) : null;
+    if (current && current.season != null && current.season !== "" && currentSeasonValue === null) {
+      return { ok:false, reason:"invalid-current-objective" };
+    }
+    if (current && currentSeasonValue === season) return { ok:false, reason:"objective-already-selected" };
+    var dayValue = finiteNumber(state.day);
+    var createdDay = Math.max(1, dayValue || 1);
     return persist(state, function () {
-      if (current && Number(current.season) > 0 && Number(current.season) < season) {
+      if (current && currentSeasonValue > 0 && currentSeasonValue < season) {
         state.seasonObjectiveHistory = Array.isArray(state.seasonObjectiveHistory) ? state.seasonObjectiveHistory : [];
         var exists = state.seasonObjectiveHistory.some(function (item) {
-          return item && Number(item.season) === Number(current.season) && String(item.id) === String(current.id);
+          return item && finiteNumber(item.season) === currentSeasonValue && String(item.id) === String(current.id);
         });
         if (!exists) {
           state.seasonObjectiveHistory.unshift(clone(current));
@@ -218,16 +224,16 @@
       }
       state.seasonObjective = {
         id:String(objectiveId), season:season, claimed:false,
-        createdDay:Math.max(1, Number(state.day) || 1)
+        createdDay:createdDay
       };
     }, "تم اعتماد هدفك للموسم. التقدم بيتحسب من مبارياتك الرسمية المسجلة.");
   }
 
   function objectiveRecordForSeason(state, season) {
-    if (state.seasonObjective && Number(state.seasonObjective.season) === season) return state.seasonObjective;
+    if (state.seasonObjective && finiteNumber(state.seasonObjective.season) === season) return state.seasonObjective;
     var history = Array.isArray(state.seasonObjectiveHistory) ? state.seasonObjectiveHistory : [];
     for (var i = 0; i < history.length; i++) {
-      if (history[i] && Number(history[i].season) === season) return history[i];
+      if (history[i] && finiteNumber(history[i].season) === season) return history[i];
     }
     return null;
   }
@@ -242,18 +248,20 @@
     if (!definition) return { ok:false, reason:"unknown-objective" };
     var progress = measure(state, objective.id, season);
     if (!progress.complete) return { ok:false, reason:"not-complete", progress:progress };
+    var balanceValue = finiteNumber(state.money);
+    var balance = balanceValue === null || balanceValue < 0 ? 0 : balanceValue;
+    var moraleValue = finiteNumber(state.morale);
+    var morale = moraleValue === null ? 0 : moraleValue;
+    var dayValue = finiteNumber(state.day);
+    var rewardDay = Math.max(1, dayValue || 1);
     return persist(state, function () {
-      var balance = Number(state.money);
-      if (!Number.isFinite(balance) || balance < 0) balance = 0;
       state.money = Math.min(Number.MAX_SAFE_INTEGER, Math.floor(balance) + REWARD);
-      var morale = Number(state.morale);
-      if (!Number.isFinite(morale)) morale = 0;
       state.morale = Math.max(0, Math.min(100, Math.round(morale + 5)));
       objective.claimed = true;
-      objective.claimedDay = Math.max(1, Number(state.day) || 1);
+      objective.claimedDay = rewardDay;
       state.diary = Array.isArray(state.diary) ? state.diary : [];
       state.diary.unshift({
-        season:season, day:Math.max(1, Number(state.day) || 1),
+        season:season, day:rewardDay,
         type:"هدف موسمي",
         text:"أكملت تحدي الموسم: " + definition.title + " واستلمت مكافأة قدرها " + REWARD + " جنيه داخل اللعبة."
       });
@@ -289,7 +297,7 @@
         var state = runtime && typeof runtime.getState === "function" ? runtime.getState() : null;
         if (!state) return;
         var action = button.getAttribute("data-season-objective-action");
-        var season = Number(button.getAttribute("data-objective-season")) || currentSeason(state);
+        var season = finiteNumber(button.getAttribute("data-objective-season")) || currentSeason(state);
         if (action === "choose") choose(state, button.getAttribute("data-objective-id"));
         else if (action === "claim") claim(state, season);
       });
@@ -303,19 +311,20 @@
     host.hidden = !state.careerStarted;
     if (host.hidden) return;
     var season = currentSeason(state);
-    var current = state.seasonObjective && Number(state.seasonObjective.season) === season ? state.seasonObjective : null;
+    var current = state.seasonObjective && finiteNumber(state.seasonObjective.season) === season ? state.seasonObjective : null;
     var html = '<div class="lw-objective-head"><div><span class="hub-overline">SEASON CHALLENGE / PLAYER TARGETS</span><h2>أهداف الموسم</h2><p>اختار تحديًا يناسب مركزك. التقدم بيتحسب من مباريات الدوري والكأس المسجلة فعلًا، مش من أرقام افتراضية.</p></div><span class="pill indigo">الموسم ' + season + '</span></div>';
 
     var archived = (Array.isArray(state.seasonObjectiveHistory) ? state.seasonObjectiveHistory : [])
-      .filter(function (item) { return item && !item.claimed && Number(item.season) < season && definitionFor(item.id); })
       .map(function (item) {
-        var progress = measure(state, item.id, Number(item.season));
-        return progress.complete ? { item:item, progress:progress } : null;
+        var itemSeason = item ? finiteNumber(item.season) : null;
+        if (!item || item.claimed || itemSeason === null || itemSeason >= season || !definitionFor(item.id)) return null;
+        var progress = measure(state, item.id, itemSeason);
+        return progress.complete ? { item:item, progress:progress, season:itemSeason } : null;
       }).filter(Boolean);
     if (archived.length) {
       html += '<div class="lw-objective-archive"><b>مكافآت مواسم سابقة جاهزة</b>';
       archived.forEach(function (entry) {
-        html += '<div class="lw-objective-archive-row"><span>الموسم ' + Number(entry.item.season) + ' · ' + escapeHTML(definitionFor(entry.item.id).title) + '</span><button type="button" class="btn" data-season-objective-action="claim" data-objective-season="' + Number(entry.item.season) + '">استلم 500 جنيه</button></div>';
+        html += '<div class="lw-objective-archive-row"><span>الموسم ' + entry.season + ' · ' + escapeHTML(definitionFor(entry.item.id).title) + '</span><button type="button" class="btn" data-season-objective-action="claim" data-objective-season="' + entry.season + '">استلم 500 جنيه</button></div>';
       });
       html += '</div>';
     }

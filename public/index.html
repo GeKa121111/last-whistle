@@ -2144,7 +2144,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function calendarGameDateISO(state) {
-    const calendarDay = Math.max(1, Math.floor(Number(state && state.calendarDay) || 1));
+    const calendarDayValue = finiteLegacyNumber(state && state.calendarDay);
+    const calendarDay = Math.max(1, Math.floor(calendarDayValue === null ? 1 : calendarDayValue));
     const elapsed = calendarDay - 1;
     const gameYear = 2024 + Math.floor(elapsed / 365);
     const dayInSeason = elapsed % 365;
@@ -2159,20 +2160,26 @@ function seasonAwards(state, league, teamRank) {
     const log = currentSeasonLeagueMatchRows(state);
     const competition = String(state.leagueCompetition || "");
     const country = String(state.leagueCountry || "");
+    const seasonValue = finiteLegacyNumber(state.season);
+    const currentSeason = seasonValue !== null && seasonValue > 0 ? Math.max(1, Math.floor(seasonValue)) : 1;
+    const divisionValue = finiteLegacyNumber(state.leagueDivision);
+    const currentDivision = divisionValue !== null && divisionValue > 0 ? Math.max(1, Math.floor(divisionValue)) : 1;
+    const ageValue = finiteLegacyNumber(state.age);
+    const currentAge = ageValue === null ? 18 : Math.max(0, Math.min(100, Math.floor(ageValue)));
     const awardCount = value => {
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? Math.max(0, Math.min(100, Math.floor(numeric))) : 0;
+      const numeric = finiteLegacyNumber(value);
+      return numeric === null ? 0 : Math.max(0, Math.min(100, Math.floor(numeric)));
     };
     const awardMinutes = value => {
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? Math.max(0, Math.min(120, numeric)) : 0;
+      const numeric = finiteLegacyNumber(value);
+      return numeric === null ? 0 : Math.max(0, Math.min(120, numeric));
     };
     const awardRating = value => {
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+      const numeric = finiteLegacyNumber(value);
+      return numeric === null ? 0 : Math.max(0, Math.min(10, numeric));
     };
-    const rankValue = Number(teamRank);
-    const safeTeamRank = Number.isFinite(rankValue) && rankValue > 0 ? rankValue : 6;
+    const rankValue = finiteLegacyNumber(teamRank);
+    const safeTeamRank = rankValue !== null && rankValue > 0 ? rankValue : 6;
     const playerMatches = log.filter(row => row && normalizeLegacyBoolean(row.playerAvailable, true) && awardMinutes(row.minutes) > 0
       && (!row.leagueCountry || row.leagueCountry === country)
       && (!row.leagueCompetition || !competition || row.leagueCompetition === competition));
@@ -2183,8 +2190,8 @@ function seasonAwards(state, league, teamRank) {
     const average = playerMatches.reduce((sum, row) => sum + awardRating(row.rating), 0) / appearances;
     const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - safeTeamRank) * 0.7;
     const opponents = (Array.isArray(league) ? league : []).filter(team => team && team.name !== state.clubName).map(team => {
-      const rng = seeded(hash(String(state.season) + "|" + String(state.leagueCountry) + "|" + team.name));
-      const powerValue = Number(team.power);
+      const rng = seeded(hash(String(currentSeason) + "|" + String(state.leagueCountry) + "|" + team.name));
+      const powerValue = finiteLegacyNumber(team.power);
       const power = Number.isFinite(powerValue) && powerValue !== 0
         ? Math.max(0, Math.min(100, powerValue)) : 50;
       return {
@@ -2196,21 +2203,20 @@ function seasonAwards(state, league, teamRank) {
       };
     });
     const database = window.LWWorldDB;
-    const leagueProfile = database?.leagueFor?.(country, state.leagueDivision) || {};
-    const currentDivision = Math.max(1, Number(state.leagueDivision) || 1);
+    const leagueProfile = database?.leagueFor?.(country, currentDivision) || {};
     const realLeagueClubs = (database?.clubs?.() || []).filter(club =>
-      club.country === country && Math.max(1, Number(club.division) || 1) === currentDivision
+      club.country === country && Math.max(1, Math.floor(finiteLegacyNumber(club.division) || 1)) === currentDivision
     );
     for (const club of realLeagueClubs) {
       const profile = database?.leagueById?.(club.leagueId) || {};
       for (const player of club.players || []) {
         const simulated = window.LWTransferAwards?.simulatePlayerSeason({
           ...player, clubName: club.name, country: club.country,
-          prestige: club.prestige, leagueStrength: Number(leagueProfile.strength) || 60,
+          prestige: club.prestige, leagueStrength: finiteLegacyNumber(leagueProfile.strength) || 60,
           confederation: profile.confederation || "",
           originConfederation: profile.confederation || "",
           realPlayer: true
-        }, state.season, 1);
+        }, currentSeason, 1);
         if (!simulated) continue;
         opponents.push({
           name: simulated.name, club: club.name, age: simulated.age,
@@ -2221,15 +2227,15 @@ function seasonAwards(state, league, teamRank) {
       }
     }
     for (const player of opponents) player.score = player.rating * 10 + player.goals * 0.34 + player.assists * 0.28;
-    const eligible = Number(state.age) <= 21;
+    const eligible = currentAge <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
-    const awardScope = String(state.season) + "|" + country + "|" + competition;
+    const awardScope = String(currentSeason) + "|" + country + "|" + competition;
     const alreadyWon = new Set((state.careerAwards || []).map(award =>
       String(award.season) + "|" + (award.country || "") + "|" + (award.competition || "") + "|" + award.id));
     const definitions = [
       { id: "league-player", title: "لاعب الموسم — محاكاة", value: playerScore,
         compare: Math.max(0, ...opponents.map(p => p.score)), minimum: 69,
-        note: "تقييم " + average.toFixed(2) + " • " + goals + " هدف • " + assists + " صناعة • مركز " + teamRank },
+        note: "تقييم " + average.toFixed(2) + " • " + goals + " هدف • " + assists + " صناعة • مركز " + safeTeamRank },
       { id: "golden-boot", title: "الحذاء الذهبي — محاكاة", value: goals,
         compare: Math.max(0, ...opponents.map(p => p.goals)), minimum: 3,
         note: goals + " هدف في " + appearances + " مشاركة" },
@@ -2238,27 +2244,27 @@ function seasonAwards(state, league, teamRank) {
         note: assists + " تمريرة حاسمة في " + appearances + " مشاركة" },
       { id: "young-player", title: "أفضل لاعب شاب — محاكاة", value: playerScore,
         compare: Math.max(0, ...youngOpponents.map(p => p.score)), minimum: 64, eligible,
-        note: state.age + " سنة • " + appearances + " مشاركة • تقييم " + average.toFixed(2) }
+        note: currentAge + " سنة • " + appearances + " مشاركة • تقييم " + average.toFixed(2) }
     ];
     const won = [];
     for (const definition of definitions) {
       if (alreadyWon.has(awardScope + "|" + definition.id) || definition.eligible === false) continue;
       if (definition.value < definition.minimum || definition.value <= definition.compare) continue;
       const award = {
-        id: definition.id, title: definition.title, season: Number(state.season) || 1,
+        id: definition.id, title: definition.title, season: currentSeason,
         club: String(state.clubName || ""), country, competition, note: definition.note,
         date: calendarGameDateISO(state)
       };
       state.careerAwards.unshift(award);
       won.push(award);
     }
-    const scorerCount = Number(state.topScorerAwards);
-    const safeScorerCount = Number.isFinite(scorerCount)
+    const scorerCount = finiteLegacyNumber(state.topScorerAwards);
+    const safeScorerCount = scorerCount !== null
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - 1, Math.floor(scorerCount))) : 0;
     state.topScorerAwards = safeScorerCount + (won.some(award => award.id === "golden-boot") ? 1 : 0);
     const rewards = { "league-player": 650, "golden-boot": 450, playmaker: 400, "young-player": 500 };
-    const balanceValue = Number(state.money);
-    const balance = Number.isFinite(balanceValue) ? Math.max(0, balanceValue) : 0;
+    const balanceValue = finiteLegacyNumber(state.money);
+    const balance = balanceValue === null ? 0 : Math.max(0, balanceValue);
     state.money = balance + won.reduce((sum, award) => sum + (rewards[award.id] || 0), 0);
     return won;
   }

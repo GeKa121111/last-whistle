@@ -858,8 +858,10 @@
   }
 
   function calendarGameDateISO(state) {
-    const calendarDayValue = finiteLegacyNumber(state && state.calendarDay);
-    const calendarDay = Math.max(1, Math.floor(calendarDayValue === null ? 1 : calendarDayValue));
+    const rawCalendarDay = state && state.calendarDay;
+    const numericCalendarDay = typeof rawCalendarDay === "number" ? rawCalendarDay
+      : typeof rawCalendarDay === "string" && rawCalendarDay.trim() !== "" ? Number(rawCalendarDay) : NaN;
+    const calendarDay = Math.max(1, Math.floor(Number.isFinite(numericCalendarDay) ? numericCalendarDay : 1));
     const elapsed = calendarDay - 1;
     const gameYear = 2024 + Math.floor(elapsed / 365);
     const dayInSeason = elapsed % 365;

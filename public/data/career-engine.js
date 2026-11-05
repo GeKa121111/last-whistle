@@ -1297,7 +1297,9 @@ function seasonAwards(state, league, teamRank) {
       }
       const hasOfferSeasons = offer.seasons !== undefined && offer.seasons !== null && offer.seasons !== "";
       const offerSeasonsValue = finiteLegacyNumber(offer.seasons);
-      if (hasOfferSeasons && offerSeasonsValue === null) return { ok: false, status: "invalid-offer" };
+      const malformedOfferSeasons = hasOfferSeasons && offerSeasonsValue === null
+        && typeof offer.seasons !== "number" && typeof offer.seasons !== "string";
+      if (malformedOfferSeasons) return { ok: false, status: "invalid-offer" };
       const offerSeasons = offerSeasonsValue !== null && offerSeasonsValue > 0
         ? Math.max(1, Math.min(5, Math.floor(offerSeasonsValue))) : 3;
       const nextWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(offerWage)));

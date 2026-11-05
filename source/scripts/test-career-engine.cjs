@@ -2614,6 +2614,17 @@ for (const [engineName, engine] of careerEngineCases) {
   assert.deepEqual(invalidWageState, invalidWageBefore,
     engineName + " invalid wage offers must not partially mutate the contract");
 
+  const invalidTermLengthState = {
+    clubName: "Test FC", season: 1, contractSeasons: 1, weeklyWage: 500,
+    freeAgent: false, contractType: "professional"
+  };
+  const invalidTermLengthBefore = { ...invalidTermLengthState };
+  assert.equal(engine.resolveContractDecision(invalidTermLengthState, "accept",
+    { club: "Test FC", season: 1, wage: 650, seasons: [3] }).status, "invalid-offer",
+    engineName + " contract renewal must reject array-valued term lengths");
+  assert.deepEqual(invalidTermLengthState, invalidTermLengthBefore,
+    engineName + " malformed term lengths must not mutate the contract");
+
   const invalidSeasonState = {
     clubName: "Test FC", season: 1, contractSeasons: 1, weeklyWage: 500,
     freeAgent: false, contractType: "professional"

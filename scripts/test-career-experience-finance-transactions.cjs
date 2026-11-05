@@ -299,6 +299,21 @@ function dueState() {
   assert.equal(fallbackInvalidDay.state.careerWorld.history[0].day, 1,
     "settlement history must use the same safe day fallback");
 
+  const nullPortfolio = makeHarness({
+    careerWorld: {
+      version:1, challengeCount:0, challengeWins:0, practiceAttempts:0,
+      memoryWins:0, timingWins:0, mentorSessions:0,
+      investments:[null, { id:1, kind:"safe", label:"ادخار آمن", amount:100,
+        payout:118, dueDay:30, settled:false, successful:true }],
+      history:[], investmentSequence:2
+    }
+  });
+  await assert.doesNotReject(async () => {
+    await nullPortfolio.click("open-finance");
+  }, "a legacy portfolio containing a null entry must not crash the finance screen");
+  assert.equal(nullPortfolio.saveCalls, 0,
+    "opening a portfolio with malformed entries must not mutate the saved career");
+
   const settlement = makeHarness(dueState());
   await settlement.settleMicrotasks();
   assert.equal(settlement.state.money, 1118);

@@ -125,7 +125,7 @@ assert.equal(view.challengeReady,true,"four good new performances and captaincy 
 const beforeClaimSaves=saves;
 assert.equal(dynamics.claimCaptaincy(state).ok,true);
 assert.equal(saves,beforeClaimSaves+1,"claiming the captaincy must persist once");
-assert.equal(state.teamLeadership.activeCaptain.clubKey,"egypt|testfc");
+assert.equal(state.teamLeadership.activeCaptain.clubKey,"egypt|test fc");
 assert.equal(state.teamLeadership.captainHistory.length,1);
 assert.equal(state.teamLeadership.challenge,null);
 assert.equal(state.teamChemistry,64);
@@ -153,7 +153,7 @@ assert.notEqual(state.teamLeadership.rivalId,"p4");
 assert.equal(saves,beforeClaimSaves+2+1,"rival selection must save once");
 
 const incomplete=Object.assign({},state,{teamLeadership:{challenge:{
-  clubKey:"egypt|testfc",season:2,startAppearances:8
+  clubKey:"egypt|test fc",season:2,startAppearances:8
 }}});
 const beforeIncomplete=JSON.stringify(incomplete.teamLeadership);
 assert.equal(dynamics.claimCaptaincy(incomplete).reason,"challenge-not-complete");

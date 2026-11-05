@@ -1500,12 +1500,15 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     const identityFields = ["scope", "competition", "season", "segmentId", "club", "opponent", "day", "calendarDay", "matchday"];
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
     const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
+    const safeIdentityText = value => {
+      if (value === undefined || value === null) return "";
+      try { return String(value).trim(); } catch (error) { return ""; }
+    };
     const identityValue = (row, field) => {
       const value = field === "competition"
-        ? [row.competition, row.leagueCompetition].find(candidate =>
-          candidate !== undefined && candidate !== null && String(candidate).trim() !== "")
+        ? [row.competition, row.leagueCompetition].find(candidate => safeIdentityText(candidate) !== "")
         : row[field];
-      return value === undefined || value === null ? "" : String(value).trim().toLowerCase();
+      return safeIdentityText(value).toLowerCase();
     };
     const rowSignature = row => {
       try {
@@ -1516,9 +1519,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     };
     return (Array.isArray(rows) ? rows : []).filter(row => {
       if (!row || typeof row !== "object" || Array.isArray(row)) return false;
-      const rawId = row.id !== undefined && row.id !== null && String(row.id).trim() !== ""
+      const rawId = row.id !== undefined && row.id !== null && safeIdentityText(row.id) !== ""
         ? row.id : row.matchId;
-      const id = String(rawId ?? "").trim();
+      const id = safeIdentityText(rawId);
       if (id) {
         const identity = Object.fromEntries(identityFields.map(field => [field, identityValue(row, field)]));
         const signature = rowSignature(row);
@@ -1562,8 +1565,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         identityValue(row, "season"), identityValue(row, "segmentId"),
         identityValue(row, "club"), identityValue(row, "opponent"),
         identityValue(row, "day"), identityValue(row, "calendarDay"), identityValue(row, "matchday"),
-        row.teamGoals ?? row.scoreFor ?? "", row.oppGoals ?? row.scoreAgainst ?? "",
-        row.minutes ?? "", row.goals ?? "", row.assists ?? ""
+        safeIdentityText(row.teamGoals ?? row.scoreFor), safeIdentityText(row.oppGoals ?? row.scoreAgainst),
+        safeIdentityText(row.minutes), safeIdentityText(row.goals), safeIdentityText(row.assists)
       ].join("|");
       const key = "row:" + fallback;
       if (seenFallback.has(key)) return false;
@@ -2227,7 +2230,7 @@ function seasonAwards(state, league, teamRank) {
       }
     }
     for (const player of opponents) player.score = player.rating * 10 + player.goals * 0.34 + player.assists * 0.28;
-    const eligible = currentAge <= 21;
+    const eligible = ageValue !== null && currentAge <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
     const awardScope = String(currentSeason) + "|" + country + "|" + competition;
     const alreadyWon = new Set((state.careerAwards || []).map(award =>

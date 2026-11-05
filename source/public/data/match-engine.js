@@ -676,10 +676,12 @@
         return value == null || finiteLegacyNumber(value) !== null;
       });
     };
-    const numericLedgerValuesValid = hasValidOptionalNumericFields(result.player, numericPlayerStatFields)
-      && result.events.every(event => hasValidOptionalNumericFields(event,
-        ["minute", "goalMinute", "attemptNumber"]));
-    if (!numericLedgerValuesValid) return { ok: false, reason: "invalid-match-ledger-number" };
+    if (!hasValidOptionalNumericFields(result.player, numericPlayerStatFields)) {
+      return { ok: false, reason: "invalid-player-stats" };
+    }
+    const numericEventValuesValid = result.events.every(event => hasValidOptionalNumericFields(event,
+      ["minute", "goalMinute", "attemptNumber"]));
+    if (!numericEventValuesValid) return { ok: false, reason: "invalid-match-ledger-number" };
     const playerStatsValid = numericPlayerStatFields.every(field => {
       const value = result.player[field];
       if (value == null) return true; // Preserve older records that omit newer optional stats.

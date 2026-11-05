@@ -503,7 +503,16 @@
   }
   function signature(state) {
     if (!state) return "";
+    // Match-history rows are sometimes updated in place, so their array length
+    // cannot invalidate this panel. The state-store revision changes on every
+    // published career mutation and gives this lightweight renderer a safe key.
+    var stateRevision = -1;
+    try {
+      var store = global.LWStateStore;
+      if (store && typeof store.getRevision === "function") stateRevision = num(store.getRevision(), -1);
+    } catch (error) {}
     return [
+      stateRevision,
       !!state.careerStarted, !!state.retired, state.currentPage || "",
       state.name || "", state.clubName || "", state.leagueCountry || "",
       state.season, state.day, state.pos, state.age, state.overall,

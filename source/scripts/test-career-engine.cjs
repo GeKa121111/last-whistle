@@ -122,8 +122,8 @@ assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 539);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 78);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 540);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 79);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -2531,6 +2531,120 @@ for (const [engineName, engine] of careerEngineCases) {
 
 
 
+
+for (const [engineName, engine] of careerEngineCases) {
+  const negotiationBase = {
+    retired: false, freeAgent: false, contractType: "professional", contractSeasons: 2,
+    daysSinceNegotiation: 7, apps: 10, weeklyWage: 500, trust: 70, randomSeed: 1,
+    season: 1, clubName: "Test FC"
+  };
+  assert.equal(engine.wageNegotiationStatus({ ...negotiationBase, daysSinceNegotiation: [7] }), "cooldown",
+    engineName + " wage negotiation must not treat array cooldowns as seven elapsed days");
+  assert.equal(engine.wageNegotiationStatus({ ...negotiationBase, contractSeasons: [2] }), "contract-expiring",
+    engineName + " wage negotiation must reject coercible array contract lengths");
+  assert.equal(engine.wageNegotiationStatus({ ...negotiationBase, contractSeasons: "2", daysSinceNegotiation: "7" }), "ready",
+    engineName + " wage negotiation must preserve numeric-string legacy counters");
+  assert.equal(engine.loanRequestStatus({ ...negotiationBase, apps: [2] }, { windowOpen: true }), "appearances-required",
+    engineName + " loan eligibility must not count array values as official appearances");
+  assert.equal(engine.loanRequestStatus({ ...negotiationBase, contractSeasons: [2] }, { windowOpen: true }), "free-agent",
+    engineName + " loan eligibility must reject malformed contract terms");
+  assert.equal(engine.loanRequestStatus({ ...negotiationBase, contractSeasons: "2", apps: "2" }, { windowOpen: true }), "ready",
+    engineName + " loan eligibility must preserve numeric-string legacy counters");
+  assert.equal(engine.loanSquadRole(renewalBase, { power: [80] }),
+    engine.loanSquadRole(renewalBase, { power: 50 }),
+    engineName + " loan squad projections must use the neutral fallback for malformed club power");
+
+  assert.equal(engine.shouldRetire({ age: [41] }), false,
+    engineName + " retirement must not coerce array ages");
+  assert.equal(engine.shouldRetire({ age: Symbol("age") }), false,
+    engineName + " retirement must not throw or retire a player for a malformed age");
+  assert.equal(engine.shouldRetire({ age: "41" }), true,
+    engineName + " retirement must preserve numeric-string legacy ages");
+
+  const malformedOfferState = {
+    ...renewalBase, weeklyWage: Symbol("wage"), trust: Symbol("trust"), season: Symbol("season")
+  };
+  let safeOffer;
+  assert.doesNotThrow(() => {
+    safeOffer = engine.makeContractOffer(malformedOfferState, { contractMultiplier: Symbol("agent") });
+  }, engineName + " contract offer generation must tolerate malformed saved wage, trust, season, and agent data");
+  assert.ok(Number.isFinite(safeOffer.wage));
+  assert.equal(safeOffer.season, 1);
+
+  const invalidLevelState = { ...negotiationBase, randomSeed: 123 };
+  const invalidLevelBefore = { ...invalidLevelState };
+  assert.equal(engine.resolveWageNegotiation(invalidLevelState, 95, [1]).status, "invalid-level",
+    engineName + " wage negotiation must reject coercible array levels");
+  assert.deepEqual(invalidLevelState, invalidLevelBefore,
+    engineName + " rejected wage negotiation must not reset cooldown, wage, trust, or random seed");
+
+  const malformedNegotiationState = {
+    ...negotiationBase, weeklyWage: Symbol("wage"), trust: Symbol("trust"), randomSeed: Symbol("seed")
+  };
+  let negotiationResult;
+  assert.doesNotThrow(() => {
+    negotiationResult = engine.resolveWageNegotiation(malformedNegotiationState, Symbol("chance"), "1");
+  }, engineName + " wage negotiation must safely handle malformed legacy values");
+  assert.equal(negotiationResult.ok, true);
+  assert.ok(["success", "failed"].includes(negotiationResult.status));
+  assert.ok(Number.isFinite(malformedNegotiationState.weeklyWage));
+  assert.ok(Number.isFinite(malformedNegotiationState.trust));
+  assert.ok(Number.isFinite(malformedNegotiationState.randomSeed));
+  assert.equal(malformedNegotiationState.daysSinceNegotiation, 0);
+
+  const invalidContractState = {
+    clubName: "Test FC", season: 1, contractSeasons: [1], weeklyWage: 500,
+    freeAgent: false, contractType: "professional"
+  };
+  const invalidContractBefore = { ...invalidContractState };
+  assert.equal(engine.resolveContractDecision(invalidContractState, "accept",
+    { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "invalid-contract",
+    engineName + " contract renewal must reject coercible array contract lengths");
+  assert.deepEqual(invalidContractState, invalidContractBefore,
+    engineName + " rejected contract state must remain unchanged");
+
+  const invalidWageState = {
+    clubName: "Test FC", season: 1, contractSeasons: 1, weeklyWage: 500,
+    freeAgent: false, contractType: "professional"
+  };
+  const invalidWageBefore = { ...invalidWageState };
+  assert.equal(engine.resolveContractDecision(invalidWageState, "accept",
+    { club: "Test FC", season: 1, wage: [650], seasons: 3 }).status, "invalid-offer",
+    engineName + " contract renewal must reject array wages");
+  assert.deepEqual(invalidWageState, invalidWageBefore,
+    engineName + " invalid wage offers must not partially mutate the contract");
+
+  const invalidSeasonState = {
+    clubName: "Test FC", season: 1, contractSeasons: 1, weeklyWage: 500,
+    freeAgent: false, contractType: "professional"
+  };
+  const invalidSeasonBefore = { ...invalidSeasonState };
+  assert.equal(engine.resolveContractDecision(invalidSeasonState, "accept",
+    { club: "Test FC", season: [1], wage: 650, seasons: 3 }).status, "stale-offer",
+    engineName + " contract renewal must reject array offer seasons");
+  assert.deepEqual(invalidSeasonState, invalidSeasonBefore);
+
+  const malformedPendingState = {
+    clubName: "Test FC", season: 1, contractSeasons: 1, weeklyWage: 500,
+    freeAgent: false, contractType: "professional",
+    contractOffer: { club: "Test FC", season: [1], wage: 650, seasons: 3 }
+  };
+  assert.equal(engine.resolveContractDecision(malformedPendingState, "accept",
+    { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "stale-offer",
+    engineName + " pending offer comparison must not coerce malformed saved terms");
+
+  const numericStringRenewal = {
+    clubName: "Test FC", season: "1", contractSeasons: "1", weeklyWage: "500",
+    freeAgent: false, contractType: "professional"
+  };
+  const numericStringResult = engine.resolveContractDecision(numericStringRenewal, "accept",
+    { club: "Test FC", season: "1", wage: "650", seasons: "3" });
+  assert.equal(numericStringResult.status, "renewed",
+    engineName + " contract renewal must preserve numeric-string legacy offer fields");
+  assert.equal(numericStringRenewal.weeklyWage, 650);
+  assert.equal(numericStringRenewal.contractSeasons, 4);
+}
+
 // Career role selection must react to sustained output without bypassing academy graduation.
 const roleHistory = Array.from({ length: 8 }, (_, index) => ({
   id: "role-history-" + index, scope: "league", minutes: 39, rating: 6.35,
@@ -3093,5 +3207,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v539"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v540"),
  "service worker cache must be refreshed");

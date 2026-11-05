@@ -2929,7 +2929,7 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v523"), "condition update must refresh the static cache");
-require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 523);
+assert.ok(workerCopies[0].includes("last-whistle-static-v524"), "condition update must refresh the static cache");
+require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 524);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
   workerCopies[0], "data/match-engine.js", 81);

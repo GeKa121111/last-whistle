@@ -2642,8 +2642,8 @@ const invalidNumericLedgerMutations = [
   ["hostile event minute", match => { match.events[0].minute = hostileLegacyNumber; }],
   ["Symbol event goal minute", match => { match.events[0].goalMinute = Symbol("goal-minute"); }],
   ["Symbol event attempt number", match => { match.events[0].attemptNumber = Symbol("attempt"); }],
-  ["Symbol player shots on target", match => { match.player.shotsOnTarget = Symbol("shots-on-target"); }],
-  ["Symbol player key passes", match => { match.player.keyPasses = Symbol("key-passes"); }]
+  ["Symbol player shots on target", match => { match.player.shotsOnTarget = Symbol("shots-on-target"); }, "invalid-player-stats"],
+  ["Symbol player key passes", match => { match.player.keyPasses = Symbol("key-passes"); }, "invalid-player-stats"]
 ];
 const invalidMetadataNumericCases = [
   ["Symbol aggregate offset", match => { match.metadata.aggregateOffset = Symbol("aggregate-offset"); }, "invalid-aggregate-offset"],
@@ -2680,7 +2680,7 @@ for (const [label, targetEngine] of [["source", engine], ["browser", browserEngi
 }
 
 for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
-  for (const [caseName, mutate] of invalidNumericLedgerMutations) {
+  for (const [caseName, mutate, expectedReason] of invalidNumericLedgerMutations) {
     const match = targetEngine.simulateMatch({
       seed: 8146, teamPower: 66, opponentPower: 61,
       player: { name: "Malformed Ledger Regression", position: "وسط", role: "أساسي",
@@ -2693,7 +2693,7 @@ for (const [label, targetEngine] of [["source", engine], ["browser", browserEngi
     assert.doesNotThrow(() => { validation = targetEngine.validateResult(match); },
       label + " validator must not throw for " + caseName);
     assert.equal(validation.ok, false, label + " validator must reject " + caseName);
-    assert.equal(validation.reason, "invalid-match-ledger-number",
+    assert.equal(validation.reason, expectedReason || "invalid-match-ledger-number",
       label + " validator must identify malformed numeric ledger values: " + caseName);
   }
   const getterFixture = targetEngine.simulateMatch({

@@ -2615,6 +2615,78 @@ for (const legacyMetadata of ["missing", null]) {
 }
 
 
+// Match-result validation must reject coercible and hostile persisted numeric fields
+// before any arithmetic, while keeping finite numeric strings compatible.
+const numericLedgerFixture = engine.simulateMatch({
+  seed: 8145,
+  teamPower: 66, opponentPower: 61,
+  player: { name: "Numeric Ledger Regression", position: "وسط", role: "أساسي",
+    shooting: 65, passing: 65, vision: 65, composure: 65, fitness: 85,
+    energy: 90, fatigue: 5, trust: 70 }
+});
+const numericStringLedgerFixture = JSON.parse(JSON.stringify(numericLedgerFixture));
+for (const event of numericStringLedgerFixture.events) {
+  for (const field of ["minute", "goalMinute", "attemptNumber", "scoreFor", "scoreAgainst"]) {
+    if (typeof event[field] === "number") event[field] = String(event[field]);
+  }
+}
+assert.equal(engine.validateResult(numericStringLedgerFixture).ok, true,
+  "finite numeric strings in the match event ledger must remain valid");
+assert.equal(browserEngine.validateResult(numericStringLedgerFixture).ok, true,
+  "the embedded validator must preserve numeric-string event compatibility");
+
+const invalidNumericLedgerMutations = [
+  ["Symbol event minute", match => { match.events[0].minute = Symbol("minute"); }],
+  ["coercible array event minute", match => { match.events[0].minute = [Number(match.events[0].minute)]; }],
+  ["boolean event minute", match => { match.events[0].minute = true; }],
+  ["hostile event minute", match => { match.events[0].minute = hostileLegacyNumber; }],
+  ["Symbol event goal minute", match => { match.events[0].goalMinute = Symbol("goal-minute"); }],
+  ["Symbol event attempt number", match => { match.events[0].attemptNumber = Symbol("attempt"); }],
+  ["Symbol player shots on target", match => { match.player.shotsOnTarget = Symbol("shots-on-target"); }],
+  ["Symbol player key passes", match => { match.player.keyPasses = Symbol("key-passes"); }],
+  ["Symbol extra-time period score", match => {
+    match.extraTime = { played: true, for: 0, against: 0,
+      periods: [{ for: Symbol("period"), against: 0 }, { for: 0, against: 0 }] };
+  }],
+  ["Symbol metadata aggregate offset", match => { match.metadata.aggregateOffset = Symbol("aggregate-offset"); }],
+  ["hostile shootout summary score", match => {
+    match.shootout = { used: true, won: false, scoreFor: hostileLegacyNumber, scoreAgainst: 0, attempts: [] };
+  }]
+];
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  for (const [caseName, mutate] of invalidNumericLedgerMutations) {
+    const match = targetEngine.simulateMatch({
+      seed: 8146, teamPower: 66, opponentPower: 61,
+      player: { name: "Malformed Ledger Regression", position: "وسط", role: "أساسي",
+        shooting: 65, passing: 65, vision: 65, composure: 65, fitness: 85,
+        energy: 90, fatigue: 5, trust: 70 }
+    });
+    assert.ok(match.events.length > 0, label + " fixture must contain at least one event");
+    mutate(match);
+    let validation;
+    assert.doesNotThrow(() => { validation = targetEngine.validateResult(match); },
+      label + " validator must not throw for " + caseName);
+    assert.equal(validation.ok, false, label + " validator must reject " + caseName);
+    assert.equal(validation.reason, "invalid-match-ledger-number",
+      label + " validator must identify malformed numeric ledger values: " + caseName);
+  }
+  const getterFixture = targetEngine.simulateMatch({
+    seed: 8147,
+    player: { name: "Hostile Getter Regression", position: "مهاجم", role: "أساسي",
+      shooting: 65, passing: 65, vision: 65, composure: 65, fitness: 85,
+      energy: 90, fatigue: 5, trust: 70 }
+  });
+  Object.defineProperty(getterFixture.events[0], "minute", {
+    configurable: true,
+    get() { throw new Error("hostile-match-ledger-getter"); }
+  });
+  let getterValidation;
+  assert.doesNotThrow(() => { getterValidation = targetEngine.validateResult(getterFixture); },
+    label + " validator must contain hostile match-ledger property access");
+  assert.equal(getterValidation.ok, false);
+  assert.equal(getterValidation.reason, "invalid-match-ledger-value");
+}
+
 const invalidMatchOptions = [null, true, false, 0, 1, "", "invalid", [], [1], Symbol("invalid")];
 for (const invalidOptions of invalidMatchOptions) {
   assert.throws(() => engine.simulateMatch(invalidOptions), /invalid-match-options/,
@@ -2929,7 +3001,7 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v527"), "condition update must refresh the static cache");
-require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 527);
+assert.ok(workerCopies[0].includes("last-whistle-static-v528"), "condition update must refresh the static cache");
+require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 528);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
-  workerCopies[0], "data/match-engine.js", 81);
+  workerCopies[0], "data/match-engine.js", 82);

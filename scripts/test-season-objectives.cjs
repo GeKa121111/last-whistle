@@ -35,7 +35,12 @@ const window = {
   addEventListener() {},
   setInterval() { return 1; }
 };
-const document = { readyState:"loading", addEventListener() {} };
+const documentListeners = Object.create(null);
+const document = {
+  readyState:"loading",
+  addEventListener(name, callback) { documentListeners[name] = callback; },
+  getElementById() { return null; }
+};
 const context = { window, document, console, Math, Number, String, Array, Object, JSON, Promise, Set };
 vm.createContext(context);
 vm.runInContext(source, context, { filename:"season-objectives.js" });
@@ -112,6 +117,35 @@ assert.equal(malformedMinuteProgress.value, 3,
   "only finite positive numeric minutes and numeric strings may contribute to objectives");
 assert.equal(malformedMinuteProgress.appearances, 2,
   "malformed, zero, negative, and non-numeric minute values must not count as appearances");
+
+// A valid appearance can still contain corrupt statistical fields. These must
+// be ignored safely by both objective measurement and the live UI signature.
+const symbolStatState = {
+  season:8, pos:"رأس حربة",
+  careerMatchHistory:[{
+    id:"symbol-stat-row", season:8, scope:"league", minutes:90,
+    goals:Symbol("goals"), assists:Symbol("assists"),
+    rating:Symbol("rating"), keyPasses:Symbol("key-passes")
+  }]
+};
+assert.equal(objectives.measure(symbolStatState, "attacker-goals").value, 0,
+  "Symbol goal and assist values must be ignored instead of throwing");
+assert.equal(objectives.measure(symbolStatState, "attacker-rating").value, 0,
+  "a Symbol rating must not crash average-rating objectives");
+const symbolSeasonState = {
+  season:8, pos:"رأس حربة",
+  careerMatchHistory:[{
+    id:"symbol-season-row", season:Symbol("season"), scope:"league",
+    minutes:90, goals:50, assists:20, rating:9.9
+  }]
+};
+assert.equal(objectives.measure(symbolSeasonState, "attacker-goals").value, 0,
+  "a malformed season marker must be excluded without throwing");
+runtimeState = symbolStatState;
+assert.doesNotThrow(() => {
+  assert.equal(typeof documentListeners.DOMContentLoaded, "function");
+  documentListeners.DOMContentLoaded();
+}, "the live season panel signature must tolerate corrupt numeric fields");
 
 const keeperState = {
   season:1, pos:"حارس مرمى",

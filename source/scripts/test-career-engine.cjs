@@ -219,6 +219,8 @@ vm.runInContext(rootHtml.slice(inlineDateStart, inlineDateEnd)
   + "\nthis.calendarGameDateISO = calendarGameDateISO;", inlineDateContext);
 assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "the browser career engine must use the same game-calendar date");
+assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: Symbol("calendar-day") }), "2024-08-01T00:00:00.000Z",
+  "the standalone browser date helper must safely default malformed saved calendar days");
 assert.ok(rootHtml.includes("const log = currentSeasonLeagueMatchRows(state);"),
   "the inline browser award engine must use the unified current-season league history");
 assert.ok(rootHtml.includes("function currentSeasonLeagueMatchRows(state)"),

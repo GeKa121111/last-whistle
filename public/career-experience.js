@@ -76,7 +76,31 @@
   }
 
   function dayNumber(s) {
-    return Math.max(1, Number(s.calendarDay) || Number(s.day) || 1);
+    var calendarDay = null, day = null;
+    try { calendarDay = finiteNumber(s && s.calendarDay); } catch (error) {}
+    if (calendarDay !== null && calendarDay > 0) {
+      return Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(calendarDay)));
+    }
+    try { day = finiteNumber(s && s.day); } catch (error) {}
+    if (day !== null && day > 0) {
+      return Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(day)));
+    }
+    return 1;
+  }
+
+  function safeInvestmentDueDay(item) {
+    if (!item || typeof item !== "object") return null;
+    var rawDueDay;
+    try { rawDueDay = item.dueDay; } catch (error) { return null; }
+    var dueDay = finiteNumber(rawDueDay);
+    return dueDay !== null && Number.isSafeInteger(dueDay) && dueDay >= 1
+      ? dueDay : null;
+  }
+
+  function investmentIsDue(item, today) {
+    if (!item || item.settled) return false;
+    var dueDay = safeInvestmentDueDay(item);
+    return dueDay !== null && today >= dueDay;
   }
 
   function stat(s, key, delta) {
@@ -97,8 +121,12 @@
     var row = {
       title: String(title || "حدث في المسيرة"),
       text: String(text || ""),
-      season: Number(s.season) || 1,
-      day: Number(s.day) || 1
+      season: (function () {
+        var savedSeason = finiteNumber(s && s.season);
+        return savedSeason !== null && savedSeason >= 1
+          ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(savedSeason)) : 1;
+      })(),
+      day: dayNumber(s)
     };
     w.history.unshift(row);
     w.history = w.history.slice(0, 40);
@@ -760,7 +788,10 @@
     var open = w.investments.filter(function (item) { return !item.settled; });
     var recent = w.investments.slice().reverse().slice(0, 5);
     var list = recent.length ? '<div class="lwcx-investment-list">' + recent.map(function (item) {
-      var status = item.settled ? "تم الاستحقاق: +" + item.payout + " جنيه" : "الاستحقاق بعد " + Math.max(0, Number(item.dueDay) - dayNumber(s)) + " يوم";
+      var dueDay = safeInvestmentDueDay(item);
+      var status = item.settled ? "تم الاستحقاق: +" + item.payout + " جنيه"
+        : dueDay === null ? "موعد الاستحقاق غير صالح — راجع الحفظ"
+        : "الاستحقاق بعد " + Math.max(0, dueDay - dayNumber(s)) + " يوم";
       return '<div class="lwcx-investment-row"><span><strong>' + esc(item.label) + '</strong><small>' + esc(status) + '</small></span><b>' + esc(item.amount) + '</b></div>';
     }).join("") + '</div>' : '<p class="lwcx-empty">مفيش عمليات استثمار مسجلة لسه.</p>';
     frame("إدارة المال والاستثمار", "IN-GAME ECONOMY",
@@ -878,7 +909,7 @@
   function settleInvestments(s, cachedWorld) {
     var w = cachedWorld || world(s);
     var today = dayNumber(s);
-    var due = w.investments.filter(function (item) { return item && !item.settled && today >= Number(item.dueDay); });
+    var due = w.investments.filter(function (item) { return investmentIsDue(item, today); });
     if (!due.length) return false;
     var api = API();
     if (financeMutationPending) return Promise.resolve({ ok: false, changed: false, reason: "finance-mutation-pending" });
@@ -889,7 +920,7 @@
     return runFinanceMutation(s, function () {
       var currentBalance = safeWholeMoney(s.money);
       if (currentBalance === null) return false;
-      var dueNow = w.investments.filter(function (item) { return item && !item.settled && today >= Number(item.dueDay); });
+      var dueNow = w.investments.filter(function (item) { return investmentIsDue(item, today); });
       if (!dueNow.length) return { changed: false, settledCount: 0 };
       var nextBalance = currentBalance, settledCount = 0;
       dueNow.forEach(function (item) {
@@ -1075,7 +1106,11 @@
   function pendingInvestmentCount(w, revision, force) {
     var investments = Array.isArray(w.investments) ? w.investments : [];
     var latest = investments.length ? investments[investments.length - 1] : null;
-    var tail = latest ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":") : "-";
+    var tail = latest ? [
+      safeCounter(latest.id, -1),
+      safeInvestmentDueDay(latest) === null ? "invalid-due-day" : safeInvestmentDueDay(latest),
+      latest.settled ? 1 : 0
+    ].join(":") : "-";
     if (force || w !== pendingInvestmentsWorld || revision !== pendingInvestmentsRevision
       || investments.length !== pendingInvestmentsLength || tail !== pendingInvestmentsTail) {
       pendingInvestmentsCount = investments.reduce(function (count, item) {
@@ -1093,8 +1128,10 @@
     var investments = Array.isArray(w.investments) ? w.investments : [];
     var balance = safeWholeMoney(s.money);
     var latest = investments.length ? investments[investments.length - 1] : null;
+    var latestDueDay = latest ? safeInvestmentDueDay(latest) : null;
     var latestSignature = latest
-      ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":")
+      ? [safeCounter(latest.id, -1), latestDueDay === null ? "invalid-due-day" : latestDueDay,
+        latest.settled ? 1 : 0].join(":")
       : "-";
     return [
       s.careerStarted ? 1 : 0,

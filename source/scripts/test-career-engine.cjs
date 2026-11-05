@@ -3096,9 +3096,9 @@ for (const engine of [career, deployedCareer]) {
 
 // A loan requires a finite, positive active contract. NaN/Infinity used to pass
 // the <= 0 check because comparisons against NaN and positive Infinity are false.
-assert.ok(rootHtml.includes("!Number.isFinite(contractSeasons) || contractSeasons <= 0"),
+assert.ok(rootHtml.includes("contractSeasons === null || contractSeasons <= 0"),
   "inline loan eligibility must reject invalid contract durations");
-assert.ok(rootHtml.includes("!Number.isFinite(appearances) || appearances < 2"),
+assert.ok(rootHtml.includes("appearances === null || appearances < 2"),
   "inline loan eligibility must reject non-finite appearance totals");
 for (const invalidLoanTerm of [undefined, NaN, Infinity, "Infinity"]) {
   const sharedLoanState = { retired: false, freeAgent: false, apps: 12 };

@@ -251,6 +251,54 @@ function dueState() {
   assert.equal(training.state.careerXP, 10);
   assert.equal(training.saveCalls, 1);
 
+  function malformedDueState(dueDay) {
+    const state = dueState();
+    state.careerWorld.investments[0].dueDay = dueDay;
+    return state;
+  }
+
+  for (const dueDay of [
+    [7], true, Symbol("7"), 7.5, Infinity, "not-a-day",
+    { valueOf() { throw new Error("unsafe-due-day-coercion"); } }
+  ]) {
+    const malformedDue = makeHarness(malformedDueState(dueDay));
+    await malformedDue.settleMicrotasks();
+    assert.equal(malformedDue.state.money, 1000,
+      "invalid due-day values must never release investment payouts");
+    assert.equal(malformedDue.state.careerWorld.investments[0].settled, false,
+      "invalid due-day records must remain pending for manual review");
+    assert.equal(malformedDue.saveCalls, 0,
+      "an invalid due day must not trigger a financial save");
+  }
+
+  const legacyStringDue = makeHarness(malformedDueState("7"));
+  await legacyStringDue.settleMicrotasks();
+  assert.equal(legacyStringDue.state.money, 1118,
+    "integer numeric-string due days must remain compatible with legacy saves");
+  assert.equal(legacyStringDue.state.careerWorld.investments[0].settled, true);
+
+  const fallbackCalendarDay = makeHarness(Object.assign(dueState(), {
+    calendarDay: Symbol("invalid-calendar-day")
+  }));
+  await fallbackCalendarDay.settleMicrotasks();
+  assert.equal(fallbackCalendarDay.state.money, 1118,
+    "an invalid calendarDay must safely fall back to the valid legacy day field");
+
+  const fallbackInvalidDay = makeHarness(Object.assign(dueState(), {
+    calendarDay: { valueOf() { throw new Error("unsafe-calendar-day-coercion"); } },
+    day: Symbol("invalid-day"),
+    careerWorld: Object.assign(dueState().careerWorld, {
+      investments: [{ id:1, kind:"safe", label:"ادخار آمن", amount:100, payout:118,
+        dueDay:1, settled:false, successful:true }],
+      investmentSequence:2
+    })
+  }));
+  await fallbackInvalidDay.settleMicrotasks();
+  assert.equal(fallbackInvalidDay.state.money, 1118,
+    "both invalid day fields must fall back to day one without crashing settlement");
+  assert.equal(fallbackInvalidDay.state.careerWorld.history[0].day, 1,
+    "settlement history must use the same safe day fallback");
+
   const settlement = makeHarness(dueState());
   await settlement.settleMicrotasks();
   assert.equal(settlement.state.money, 1118);

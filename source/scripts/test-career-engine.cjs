@@ -1477,12 +1477,12 @@ function makeCurrentMatchPriorityState() {
   const currentRows = [];
   for (let index = 0; index < 3; index++) {
     const identity = {
-      id: "priority-fixture-" + index, scope: "league", season: 1,
+      id: "priority-fixture-" + index, season: 1,
       competition: "Test League", leagueCompetition: "Test League",
       leagueCountry: "England", club: "Test FC", opponent: "Opponent " + index,
       day: index + 1
     };
-    legacyRows.push({ ...identity, minutes: 90, goals: 0, assists: 0, rating: 6.1 });
+    legacyRows.push({ ...identity, scope: "league", minutes: 90, goals: 0, assists: 0, rating: 6.1 });
     currentRows.push({ ...identity, minutes: 75, goals: 1, assists: 1, rating: 8.6 });
   }
   return {
@@ -1502,6 +1502,8 @@ for (const [engineName, engine] of [["shared", career], ["deployed", deployedCar
     engineName + " history migration must prefer the current match snapshot over stale seasonLog data");
   assert.equal(rebuiltRows[0].minutes, 75,
     engineName + " career minutes must use the current match snapshot when duplicate stores disagree");
+  assert.equal(rebuiltRows[0].scope, "league",
+    engineName + " current snapshots without an explicit scope must retain the legacy default league classification");
   assert.equal(historyState.careerMinutes, 225,
     engineName + " rebuilt career minutes must reflect the three current 75-minute appearances");
   assert.equal(historyState.qualifyingAppearances, 3,

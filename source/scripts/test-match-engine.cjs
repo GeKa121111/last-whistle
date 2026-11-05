@@ -2804,3 +2804,87 @@ missingShootoutSaveEvent.events.splice(missingSaveIndex, 1);
 missingShootoutSaveEvent.player.penaltiesSaved--;
 assert.equal(engine.validateResult(missingShootoutSaveEvent).ok, false,
   "the validator must reject a detailed shootout ledger with a missing save event");
+
+
+// Recovery and match-condition regression coverage.
+const conditionMatchOptions = (seed, overrides = {}) => ({
+  seed, teamPower: 63, opponentPower: 61, tactic: "balanced", opponentTactic: "balanced",
+  player: {
+    name: "اختبار تأثير الحالة", position: "وسط مهاجم", role: "أساسي",
+    shooting: 62, dribbling: 64, passing: 68, vision: 69, composure: 65,
+    fitness: 76, speed: 66, physical: 68, goalkeeping: 0, trust: 62,
+    energy: 86, fatigue: 12, morale: 50, injuryDays: 0, suspensionMatches: 0,
+    ...overrides
+  }
+});
+const strongConditionResult = engine.simulateMatch(conditionMatchOptions(913, { energy: 90, fatigue: 8 }));
+const depletedConditionResult = engine.simulateMatch(conditionMatchOptions(913, { energy: 10, fatigue: 92 }));
+assert.ok(strongConditionResult.player.minutes > depletedConditionResult.player.minutes,
+  "low energy and high fatigue must reduce expected on-pitch minutes");
+assert.equal(browserEngine.simulateMatch(conditionMatchOptions(913, { energy: 90, fatigue: 8 })).player.minutes,
+  strongConditionResult.player.minutes,
+  "the embedded engine must preserve energy/fatigue participation effects");
+
+const moraleSamples = [];
+for (let seed = 1; seed <= 40; seed++) {
+  const low = engine.simulateMatch(conditionMatchOptions(seed, { morale: 0 }));
+  const high = engine.simulateMatch(conditionMatchOptions(seed, { morale: 100 }));
+  if (high.player.rating >= low.player.rating + 0.2) moraleSamples.push({ seed, low: low.player.rating, high: high.player.rating });
+}
+assert.ok(moraleSamples.length > 0,
+  "higher morale must produce a measurably stronger player performance rating in deterministic match samples");
+const moraleParityOptions = conditionMatchOptions(913, { morale: 92 });
+assert.equal(JSON.stringify(browserEngine.simulateMatch(moraleParityOptions)), JSON.stringify(engine.simulateMatch(moraleParityOptions)),
+  "embedded and shared match engines must apply morale to player performance identically");
+
+// Multi-day recovery remains linear when recovery-room and physio bonuses are active.
+const recoveryStart = html.indexOf("function advanceCalendarDays(");
+const recoveryEnd = html.indexOf("\nfunction calendarHasConflict(", recoveryStart);
+assert.ok(recoveryStart >= 0 && recoveryEnd > recoveryStart,
+  "the app must expose its calendar recovery routine for regression testing");
+const recoveryState = {
+  calendarDay: 1, day: 1, daysSinceTransfer: 0, daysSinceNegotiation: 0, transferCooldown: 0,
+  weeklyWage: 0, money: 0, energy: 20, fatigue: 90, injuryDays: 8, injuryName: "شد عضلي",
+  diet: false, sleepCoach: false, privateChef: false, recoveryRoom: true, physio: true,
+  homeUpgrade: false, morale: 65
+};
+const recoveryContext = {
+  state: recoveryState,
+  window: { LWAgentRuntime: { dailyRecoveryBonus: () => 0 } },
+  careerMatchPlayerEligible: () => false,
+  clamp: (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0)),
+  resetDailyActions: () => {},
+  log: () => {}
+};
+vm.createContext(recoveryContext);
+vm.runInContext(html.slice(recoveryStart, recoveryEnd)
+  + "\nthis.advanceCalendarDaysForTest = advanceCalendarDays;", recoveryContext);
+recoveryContext.advanceCalendarDaysForTest(3, "اختبار استشفاء", { rest: true });
+assert.equal(recoveryState.energy, 100, "three days of rest must recover energy at the configured daily rate");
+assert.equal(recoveryState.fatigue, 39,
+  "three rest days with physio and recovery room must reduce fatigue by 17 per day");
+assert.equal(recoveryState.injuryDays, 2,
+  "three rest days plus physio must reduce injury duration by four days total");
+assert.equal(recoveryState.morale, 68, "recovery-room morale bonus must remain a one-time rest benefit");
+const normalRestState = {
+  calendarDay: 1, day: 1, daysSinceTransfer: 0, daysSinceNegotiation: 0, transferCooldown: 0,
+  weeklyWage: 0, money: 0, energy: 60, fatigue: 90, injuryDays: 0,
+  diet: false, sleepCoach: false, privateChef: false, recoveryRoom: false, physio: false,
+  homeUpgrade: false, morale: 50
+};
+const normalRestContext = { ...recoveryContext, state: normalRestState };
+vm.createContext(normalRestContext);
+vm.runInContext(html.slice(recoveryStart, recoveryEnd)
+  + "\nthis.advanceCalendarDaysForTest = advanceCalendarDays;", normalRestContext);
+normalRestContext.advanceCalendarDaysForTest(3, "راحة عادية", { rest: true });
+assert.equal(normalRestState.fatigue, 54,
+  "three normal rest days must reduce fatigue linearly by twelve points per day");
+
+// Verify the cache-busted match engine is present in both offline copies.
+const workerCopies = ["sw.js", "public/sw.js"]
+  .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
+assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
+assert.ok(workerCopies[0].includes("last-whistle-static-v520"), "condition update must refresh the static cache");
+require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 520);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
+  workerCopies[0], "data/match-engine.js", 80);

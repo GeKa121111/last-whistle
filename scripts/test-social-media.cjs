@@ -27,7 +27,7 @@ const malformedSocialState = {
   teamChemistry: Symbol("chemistry"), followers: Symbol("followers"),
   mediaReputation: Symbol("reputation"), professionalism: [], coachRelationship: Symbol("coach"),
   morale: Symbol("morale"), trust: Symbol("trust"),
-  careerMatchHistory: [malformedSocialMatch], pressHistory: [], relationshipHistory: [],
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [],
   transferHistory: [], careerAwards: [], trophyCabinet: [],
   socialMedia: {
     version: Symbol("version"), nextId: Symbol("next-id"), initialized: true, posts: [],

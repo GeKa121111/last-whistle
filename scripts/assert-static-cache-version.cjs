@@ -45,7 +45,7 @@ if (require.main === module) {
     ["football-world-ai.js", 83],
     ["football-world-db.js", 11],
     ["football-world-worker.js", 72],
-    ["transfer-awards-engine.js", 25],
+    ["transfer-awards-engine.js", 24],
     ["ui-organization.css", 5],
     ["career-experience.js", 9],
     ["career-experience.css", 2],

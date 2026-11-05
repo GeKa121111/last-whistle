@@ -394,6 +394,9 @@
     claim:claim
   });
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once:true });
-  else start();
+  if (document && typeof document.getElementById === "function") {
+    if (document.readyState === "loading" && typeof document.addEventListener === "function") {
+      document.addEventListener("DOMContentLoaded", start, { once:true });
+    } else start();
+  }
 })();

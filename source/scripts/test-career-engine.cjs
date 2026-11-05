@@ -2656,6 +2656,79 @@ for (const [engineName, engine] of careerEngineCases) {
   assert.equal(numericStringRenewal.contractSeasons, 4);
 }
 
+// Loan return must validate the saved parent-contract snapshot, not coerce arrays or throw on Symbols.
+for (const [engineName, engine] of careerEngineCases) {
+  const loanBase = {
+    clubName: "Host Club", leagueCountry: "Hostland", weeklyWage: 900,
+    contractSeasons: 3, contractType: "professional", freeAgent: false,
+    loan: {
+      parentClub: "Parent Club", parentCountry: "Egypt", parentWage: 400,
+      parentContractSeasons: 1, parentFreeAgent: false, parentContractType: "professional"
+    }
+  };
+  const malformedParentWage = {
+    ...loanBase, loan: { ...loanBase.loan, parentWage: [400] }
+  };
+  let wageRestored;
+  assert.doesNotThrow(() => {
+    wageRestored = engine.contractStateForSeasonTransition(malformedParentWage);
+  }, engineName + " loan return must not coerce an array-valued parent wage");
+  assert.equal(wageRestored.clubName, "Parent Club");
+  assert.equal(wageRestored.weeklyWage, 0,
+    engineName + " an invalid parent wage must not restore the temporary host wage");
+  assert.equal(wageRestored.contractSeasons, 1,
+    engineName + " an invalid wage must not erase an otherwise valid parent contract");
+  assert.equal(wageRestored.freeAgent, false);
+  assert.deepEqual(malformedParentWage.loan.parentWage, [400],
+    engineName + " loan return must leave the saved parent snapshot untouched");
+
+  for (const invalidParentTerm of [[1], true, Symbol("parent term"), Object.create(null), Infinity, "bad"]) {
+    const malformedParentTerm = {
+      ...loanBase, loan: { ...loanBase.loan, parentContractSeasons: invalidParentTerm }
+    };
+    let termRestored;
+    assert.doesNotThrow(() => {
+      termRestored = engine.contractStateForSeasonTransition(malformedParentTerm);
+    }, engineName + " loan return must safely reject malformed parent contract terms");
+    assert.equal(termRestored.clubName, "Parent Club");
+    assert.equal(termRestored.contractSeasons, 0,
+      engineName + " an invalid parent term must not borrow the host club's contract duration");
+    assert.equal(termRestored.weeklyWage, 0,
+      engineName + " an invalid parent term must not restore a professional wage");
+    assert.equal(termRestored.freeAgent, true);
+    assert.strictEqual(malformedParentTerm.loan.parentContractSeasons, invalidParentTerm,
+      engineName + " rejected parent contract snapshots must remain unchanged");
+  }
+
+  const legacyParentFallback = {
+    ...loanBase, contractSeasons: "2",
+    loan: { ...loanBase.loan, parentWage: "400", parentContractSeasons: undefined }
+  };
+  const fallbackRestored = engine.contractStateForSeasonTransition(legacyParentFallback);
+  assert.equal(fallbackRestored.weeklyWage, 400,
+    engineName + " legacy numeric-string parent wages must remain supported");
+  assert.equal(fallbackRestored.contractSeasons, 2,
+    engineName + " a genuinely missing parent-term snapshot must retain the legacy state fallback");
+
+  const malformedFallback = {
+    ...loanBase, contractSeasons: Symbol("host term"),
+    loan: { ...loanBase.loan, parentContractSeasons: undefined }
+  };
+  let safeFallback;
+  assert.doesNotThrow(() => {
+    safeFallback = engine.contractStateForSeasonTransition(malformedFallback);
+  }, engineName + " loan return must not throw when a legacy fallback term is malformed");
+  assert.equal(safeFallback.freeAgent, true);
+  assert.equal(safeFallback.contractSeasons, 0);
+
+  const malformedType = {
+    ...loanBase,
+    loan: { ...loanBase.loan, parentContractType: Symbol("parent contract type") }
+  };
+  assert.equal(engine.contractStateForSeasonTransition(malformedType).contractType, "professional",
+    engineName + " a malformed parent contract type must fall back to the valid saved contract type");
+}
+
 // Career role selection must react to sustained output without bypassing academy graduation.
 const roleHistory = Array.from({ length: 8 }, (_, index) => ({
   id: "role-history-" + index, scope: "league", minutes: 39, rating: 6.35,

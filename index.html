@@ -2337,19 +2337,15 @@ function seasonAwards(state, league, teamRank) {
         freeAgent: true
       };
     }
-    const parentWageValue = Number(loan.parentWage);
+    const parentWageValue = finiteLegacyNumber(loan.parentWage);
     const parentFreeAgent = normalizeLegacyBoolean(loan.parentFreeAgent);
-    const savedParentContractType = loan.parentContractType;
-    const hasSavedParentContractType = savedParentContractType !== undefined
-      && savedParentContractType !== null
-      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
-    const savedStateContractType = state.contractType;
-    const hasSavedStateContractType = savedStateContractType !== undefined
-      && savedStateContractType !== null
-      && !(typeof savedStateContractType === "string" && savedStateContractType.trim() === "");
-    const parentContractType = String(hasSavedParentContractType ? savedParentContractType
-      : hasSavedStateContractType ? savedStateContractType
-        : parentFreeAgent ? "free-agent" : "professional").trim();
+    const savedParentContractType = typeof loan.parentContractType === "string"
+      ? loan.parentContractType.trim() : "";
+    const savedStateContractType = typeof state.contractType === "string"
+      ? state.contractType.trim() : "";
+    const parentContractType = savedParentContractType
+      || savedStateContractType
+      || (parentFreeAgent ? "free-agent" : "professional");
     const parentIsFreeAgent = parentFreeAgent || parentContractType.toLowerCase() === "free-agent";
     // Older loan saves may omit this snapshot or serialize it as null/blank; fall back to the parent term on state.
     const savedParentContractSeasons = loan.parentContractSeasons;
@@ -2360,19 +2356,19 @@ function seasonAwards(state, league, teamRank) {
     const stateContractSeasonsMissing = savedStateContractSeasons === undefined || savedStateContractSeasons === null
       || (typeof savedStateContractSeasons === "string" && savedStateContractSeasons.trim() === "");
     const fallbackParentContractSeasons = stateContractSeasonsMissing
-      ? (parentIsFreeAgent ? 0 : 2) : Number(savedStateContractSeasons);
+      ? (parentIsFreeAgent ? 0 : 2) : finiteLegacyNumber(savedStateContractSeasons);
     const parentContractSeasonsValue = hasSavedParentContractSeasons
-      ? Number(savedParentContractSeasons) : fallbackParentContractSeasons;
-    const restoredParentContractSeasons = Number.isFinite(parentContractSeasonsValue)
-      ? Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue))) : 0;
+      ? finiteLegacyNumber(savedParentContractSeasons) : fallbackParentContractSeasons;
+    const restoredParentContractSeasons = parentContractSeasonsValue === null
+      ? 0 : Math.max(0, Math.min(10, Math.floor(parentContractSeasonsValue)));
     const parentHasNoContract = parentIsFreeAgent || restoredParentContractSeasons <= 0;
-    const restoredParentWage = Number.isFinite(parentWageValue)
-      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue))) : 0;
+    const restoredParentWage = parentWageValue === null
+      ? 0 : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(parentWageValue)));
     return {
       ...state,
       loan: null,
-      clubName: String(loan.parentClub || state.clubName || ""),
-      leagueCountry: String(loan.parentCountry || state.leagueCountry || ""),
+      clubName: loan.parentClub,
+      leagueCountry: loan.parentCountry,
       weeklyWage: parentHasNoContract ? 0 : restoredParentWage,
       contractSeasons: parentHasNoContract ? 0 : restoredParentContractSeasons,
       contractType: parentHasNoContract ? "free-agent" : parentContractType,

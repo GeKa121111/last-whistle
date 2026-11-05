@@ -87,6 +87,47 @@ async function playPenalty(h) {
   assert.equal(failedPenalty.flushCalls, 2);
   assert.match(failedPenalty.overlay.innerHTML, /النتيجة ما اتحفظتش/);
 
+  const malformedStatsTraining = makeHarness({
+    money: 1000, energy: 10, shooting: Symbol("invalid-shooting"), trainedToday: false
+  });
+  const malformedTrainingResult = await malformedStatsTraining.click("skill-shooting");
+  assert.equal(malformedTrainingResult.ok, true,
+    "training must safely initialize a malformed saved skill instead of throwing during stat arithmetic");
+  assert.equal(malformedStatsTraining.state.shooting, 2);
+  assert.equal(malformedStatsTraining.state.money, 820);
+  assert.equal(malformedStatsTraining.state.energy, 2);
+
+  const malformedLegacy = makeHarness({
+    totalCareerAppearances: Symbol("invalid-apps"), apps: [12], goals: Symbol("invalid-goals"),
+    assists: true, trophies: [], nationalCaps: {}, topScorerAwards: Symbol("invalid-awards"),
+    teamChemistry: Symbol("invalid-chemistry"), coachRelationship: 80,
+    mediaReputation: Symbol("invalid-reputation"), followers: [9000]
+  });
+  await malformedLegacy.click("open-legacy");
+  assert.match(malformedLegacy.overlay.innerHTML, /CAREER LEGACY/,
+    "the legacy dossier must render safely when persisted career counters are malformed");
+  assert.match(malformedLegacy.overlay.innerHTML, /<b>0<\/b>/,
+    "malformed career counters must be ignored rather than coerced into inflated totals");
+
+  const malformedMemory = makeHarness({ energy: 10, season: Symbol("invalid-season"), apps: Symbol("invalid-apps") });
+  await malformedMemory.click("open-memory");
+  assert.match(malformedMemory.overlay.innerHTML, /MEMORY CHALLENGE/,
+    "memory challenge seeding must tolerate malformed saved season and appearance counters");
+  assert.ok(malformedMemory.timeoutCallbacks.length > 0,
+    "a valid-energy memory challenge must still schedule its reveal step");
+
+  const malformedPenaltyStats = makeHarness({
+    energy: 10, shooting: Symbol("invalid-shooting"), composure: Symbol("invalid-composure")
+  });
+  const malformedPenaltyResult = await playPenalty(malformedPenaltyStats);
+  assert.equal(malformedPenaltyResult.ok, true,
+    "penalty probability and challenge rewards must safely handle malformed saved player skills");
+  assert.equal(malformedPenaltyStats.state.energy, 6);
+  assert.equal(malformedPenaltyStats.state.careerWorld.challengeCount, 1);
+  assert.equal(malformedPenaltyStats.state.careerWorld.practiceAttempts, 1);
+  assert.ok(malformedPenaltyStats.state.shooting === 1 || malformedPenaltyStats.state.composure === 1,
+    "the selected penalty skill must be initialized safely before its reward is applied");
+
   let releaseConcurrentActivity;
   const concurrentActivity = makeHarness({ energy: 10, careerXP: 0, shooting: 50 }, [
     () => new Promise(resolve => { releaseConcurrentActivity = resolve; }), true

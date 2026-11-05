@@ -2618,6 +2618,8 @@ for (const [engineName, engine] of [["shared", career], ["deployed", deployedCar
 
 const previousWorldDatabase = global.LWWorldDB;
 const previousTransferAwards = global.LWTransferAwards;
+const previousDeployedWorldDatabase = deployedContext.window.LWWorldDB;
+const previousDeployedTransferAwards = deployedContext.window.LWTransferAwards;
 let resolvedAwardDivision = null;
 let resolvedAwardLeagueStrength = null;
 global.LWWorldDB = {
@@ -2640,6 +2642,8 @@ global.LWTransferAwards = {
     return null;
   }
 };
+deployedContext.window.LWWorldDB = global.LWWorldDB;
+deployedContext.window.LWTransferAwards = global.LWTransferAwards;
 try {
   for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
     const malformedState = {
@@ -2678,6 +2682,10 @@ try {
   else global.LWWorldDB = previousWorldDatabase;
   if (previousTransferAwards === undefined) delete global.LWTransferAwards;
   else global.LWTransferAwards = previousTransferAwards;
+  if (previousDeployedWorldDatabase === undefined) delete deployedContext.window.LWWorldDB;
+  else deployedContext.window.LWWorldDB = previousDeployedWorldDatabase;
+  if (previousDeployedTransferAwards === undefined) delete deployedContext.window.LWTransferAwards;
+  else deployedContext.window.LWTransferAwards = previousDeployedTransferAwards;
 }
 
 // Contract dialogs can become stale if retirement happens after they were opened.

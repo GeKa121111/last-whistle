@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 22);
+assert.equal(engine.version, 23);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -91,6 +91,51 @@ for (const malformedAppearances of ["Infinity", "not-a-number"]) {
   assert.equal(invalidSeasonLoan.developmentPriority, true,
     "a youth with malformed explicit season appearances must be treated as lacking current-season minutes");
 }
+
+// Current-season appearance counts must accept only finite numbers or numeric
+// strings. Coercible objects and booleans are not valid saved match evidence.
+const strictAppearanceInputs = [
+  { label: "Symbol", value: Symbol("appearances") },
+  { label: "boolean", value: true },
+  { label: "array", value: [25] },
+  { label: "throwing object", value: { valueOf() { throw new Error("unexpected coercion"); } } }
+];
+for (const malformed of strictAppearanceInputs) {
+  const player = {
+    age: 20, appearances: malformed.value, apps: 25, minutes: 1625,
+    goals: 12, assists: 7, averageRating: 8.1, leagueStrength: 80
+  };
+  assert.doesNotThrow(() => engine.evaluateSeasonPerformance(player),
+    malformed.label + " appearance data must not crash season evaluation");
+  const evaluation = engine.evaluateSeasonPerformance(player);
+  assert.equal(evaluation.performanceSample, 0,
+    malformed.label + " appearance data must not become a fabricated season appearance count");
+  assert.equal(evaluation.minutes, 0);
+  assert.equal(evaluation.score, 0);
+  const loan = engine.buildLoanProposal({ player, durationMonths: 12 });
+  assert.equal(loan.developmentPriority, true,
+    malformed.label + " appearance data must not block a development-focused youth loan");
+}
+
+// A valid current-season count must not inspect a corrupt legacy alias.
+const validSeasonWithCorruptLegacyApps = {
+  age: 24, appearances: "3", apps: Symbol("legacy-apps"), minutes: 270,
+  goals: 2, assists: 1, averageRating: 7.4, leagueStrength: 60
+};
+assert.doesNotThrow(() => engine.evaluateSeasonPerformance(validSeasonWithCorruptLegacyApps),
+  "valid current-season appearances must not coerce an unused legacy apps field");
+assert.equal(engine.evaluateSeasonPerformance(validSeasonWithCorruptLegacyApps).performanceSample, 3);
+const malformedLegacyApps = { age: 20, apps: Symbol("legacy-apps") };
+assert.doesNotThrow(() => engine.buildLoanProposal({ player: malformedLegacyApps, durationMonths: 12 }),
+  "malformed legacy apps must be ignored without throwing");
+assert.equal(engine.buildLoanProposal({ player: malformedLegacyApps, durationMonths: 12 }).developmentPriority, true);
+const numericStringLegacyApps = engine.evaluateSeasonPerformance({
+  age: 24, apps: "10", averageRating: 7.2, goals: 5, assists: 3, leagueStrength: 60
+});
+assert.equal(numericStringLegacyApps.performanceSample, 10,
+  "legacy numeric-string apps must remain supported");
+assert.equal(numericStringLegacyApps.minutes, 650);
+
 const lowAppearanceLoan = engine.buildLoanProposal({
   player: { age: 20, appearances: 11, apps: 24 }, durationMonths: 12
 });

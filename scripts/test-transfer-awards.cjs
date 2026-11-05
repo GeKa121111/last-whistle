@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 24);
+assert.equal(engine.version, 25);
 
 const malformedAwardNumbers = [
   { label: "Symbol", value: Symbol("season-stat") },
@@ -239,6 +239,40 @@ for (const malformed of strictAppearanceInputs) {
   assert.equal(loan.developmentPriority, true,
     malformed.label + " appearance data must not block a development-focused youth loan");
 }
+
+// Loan fees and saved wages are numeric boundaries; corrupt values must not
+// throw or leak Infinity into a transfer proposal.
+const malformedLoanTerms = [
+  ...malformedAwardNumbers.map(row => row.value),
+  Infinity, -Infinity, "Infinity", "not-a-number"
+];
+for (const malformedValue of malformedLoanTerms) {
+  const player = { age:20, marketValue:250000, wage:malformedValue, appearances:0, minutes:0 };
+  let proposal;
+  assert.doesNotThrow(() => {
+    proposal = engine.buildLoanProposal({ player, durationMonths:malformedValue,
+      loanFee:malformedValue, buyOptionFee:malformedValue, optionToBuy:true });
+  }, "malformed loan terms must fall back without throwing");
+  assert.equal(proposal.durationMonths, 12);
+  assert.equal(proposal.loanFee, 0, "invalid loan fees must not enter a contract");
+  assert.equal(proposal.buyOptionFee, 250000,
+    "an invalid buy-option fee should fall back to a finite market value");
+  let wageOffer;
+  assert.doesNotThrow(() => { wageOffer = engine.capWageOffer(50000, "Egypt", player); },
+    "a malformed saved wage must not crash wage negotiation");
+  assert.equal(wageOffer, engine.capWageOffer(50000, "Egypt", { ...player, wage:250 }));
+}
+const validLoanTerms = engine.buildLoanProposal({ player:{age:20,marketValue:250000},
+  durationMonths:"6", loanFee:"12500", buyOptionFee:"350000", optionToBuy:true });
+assert.deepEqual({durationMonths:validLoanTerms.durationMonths,loanFee:validLoanTerms.loanFee,
+  buyOptionFee:validLoanTerms.buyOptionFee},
+  {durationMonths:6,loanFee:12500,buyOptionFee:350000},
+  "finite numeric-string loan terms must remain backward compatible");
+const negativeLoanTerms = engine.buildLoanProposal({ player:{age:20,marketValue:250000},
+  durationMonths:6, loanFee:-100, buyOptionFee:-200, optionToBuy:true });
+assert.equal(negativeLoanTerms.loanFee,0);
+assert.equal(negativeLoanTerms.buyOptionFee,0,
+  "negative contract fees must be clamped to zero");
 
 // A valid current-season count must not inspect a corrupt legacy alias.
 const validSeasonWithCorruptLegacyApps = {

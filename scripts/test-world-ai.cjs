@@ -1490,6 +1490,7 @@ assert.equal(legacyDivisionPromotionMoves[0].relegated, "Ranked First 6",
   "a legacy first-tier club must remain eligible for relegation by its explicit final rank");
 assert.equal(legacyDivisionPromotionWorld.clubs["ranked-first-6"].division, 2,
   "a legacy club relegated from the first tier must receive the destination division");
+const rankedPromotionBaseline = JSON.parse(JSON.stringify(rankedPromotionWorld));
 const rankedPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
   rankedPromotionWorld, 6, rankedPromotionDb
 );
@@ -1501,7 +1502,6 @@ assert.equal(rankedPromotionMoves[0].relegated, "Ranked First 6",
 assert.equal(rankedPromotionWorld.clubs["ranked-second-1"].division, 1);
 assert.equal(rankedPromotionWorld.clubs["ranked-first-6"].division, 2);
 
-const rankedPromotionBaseline = JSON.parse(JSON.stringify(rankedPromotionWorld));
 
 // Malformed legacy standings values must never become valid ranks or points through
 // JavaScript coercion. Numeric strings remain supported for older persisted tables.

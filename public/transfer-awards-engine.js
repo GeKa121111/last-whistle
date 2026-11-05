@@ -423,14 +423,14 @@
     input = input || {};
     const player = input.player || {};
     const targets = Array.isArray(input.targets) ? input.targets : [];
-    const appearances = Number(player.appearances);
-    const form = Number(player.form);
-    if (!input.windowId || !Number.isFinite(appearances) || appearances < 2
-      || !Number.isFinite(form) || form < 5.8) return [];
+    const appearances = parseSeasonAppearanceValue(player.appearances);
+    const form = finiteNumericValue(player.form);
+    if (!input.windowId || appearances === null || appearances < 2
+      || form === null || form < 5.8) return [];
     const playerOvr = clamp(player.ovr || 50, 35, 99);
     const currentPower = clamp(input.currentClubPower || player.currentClubPower || 50, 35, 99);
-    const contributions = Math.max(0, Number(player.goals) || 0) + Math.max(0, Number(player.assists) || 0);
-    const formLift = Number(player.form) >= 7.1 ? 4 : Number(player.form) >= 6.7 ? 2 : 0;
+    const contributions = safeCount(player.goals) + safeCount(player.assists);
+    const formLift = form >= 7.1 ? 4 : form >= 6.7 ? 2 : 0;
     const experienceLift = Math.min(5, Math.floor(contributions * 0.28));
     const progressionMargin = playerOvr < 60 ? 3 : playerOvr < 70 ? 7 : playerOvr < 80 ? 13 : 21;
     const maxPower = Math.min(96, Math.max(currentPower + 4, playerOvr + progressionMargin + formLift + experienceLift));
@@ -448,19 +448,30 @@
       const power = clamp(raw.power || raw.ovr || 50, 35, 99);
       if (power < minPower || power > maxPower) continue;
       if (playerOvr < 60 && power >= 70) continue;
-      if (playerOvr < 68 && Number(raw.division) === 1 && power > playerOvr + 3) continue;
+      const divisionValue = finiteNumericValue(raw.division);
+      if (playerOvr < 68 && divisionValue === 1 && power > playerOvr + 3) continue;
+      const ageValue = finiteNumericValue(player.age);
+      const potentialValue = finiteNumericValue(player.potential);
       const roleGap = playerOvr - power;
-      const role = roleGap >= 9 ? "نجم الفريق" : roleGap >= 4 ? "أساسي" : roleGap >= -1 ? "تناوب" : Number(player.age) <= 21 && Number(player.potential) >= 78 ? "لاعب ناشئ" : "لاعب بديل";
+      const role = roleGap >= 9 ? "نجم الفريق" : roleGap >= 4 ? "أساسي" : roleGap >= -1 ? "تناوب"
+        : ageValue !== null && ageValue <= 21 && potentialValue !== null && potentialValue >= 78
+          ? "لاعب ناشئ" : "لاعب بديل";
       const positionRivals = (Array.isArray(raw.players) ? raw.players : [])
         .filter(item => item && item.name && samePositionRole(item.position, player.position))
-        .sort((a, b) => Number(b.ovr || 0) - Number(a.ovr || 0))
+        .sort((a, b) => {
+          const aOvr = finiteNumericValue(a.ovr);
+          const bOvr = finiteNumericValue(b.ovr);
+          return (bOvr === null ? 0 : bOvr) - (aOvr === null ? 0 : aOvr);
+        })
         .slice(0, 3).map(item => item.name);
       const stars = (positionRivals.length ? positionRivals : (Array.isArray(raw.stars) ? raw.stars : []))
         .filter(Boolean).slice(0, 4);
       const regionalBonus = normalized(raw.country) === normalized(player.country) ? -5 : 2;
-      const divisionBonus = Number(raw.division) >= 2 ? -1.5 : 1;
+      const divisionBonus = divisionValue !== null && divisionValue >= 2 ? -1.5 : 1;
+      const prestigeValue = finiteNumericValue(raw.prestige);
+      const prestigeForScore = prestigeValue === null || prestigeValue === 0 ? 50 : prestigeValue;
       const proximity = Math.abs(power - Math.min(maxPower, currentPower + 5));
-      const scoutScore = proximity + regionalBonus + divisionBonus - (Number(raw.prestige) || 50) * 0.025
+      const scoutScore = proximity + regionalBonus + divisionBonus - prestigeForScore * 0.025
         + (stableHash(key + "|" + input.windowId) % 13) * 0.19;
       candidates.push({
         target: raw,
@@ -473,7 +484,7 @@
     }
 
     candidates.sort((a, b) => a.scoutScore - b.scoutScore || b.power - a.power);
-    const desired = clamp(2 + Math.floor(Math.max(0, playerOvr - 55) / 15) + (Number(player.form) >= 7.0 ? 1 : 0), 2, 4);
+    const desired = clamp(2 + Math.floor(Math.max(0, playerOvr - 55) / 15) + (form >= 7.0 ? 1 : 0), 2, 4);
     const selected = [];
     for (const candidate of candidates) {
       if (selected.length >= desired) break;
@@ -490,7 +501,12 @@
       const wage = currency === "ج.م"
         ? Math.round(350 + power * 28 + playerOvr * 12)
         : Math.round(80 + power * 18 + playerOvr * 10);
-      const sign = Math.round(wage * (4 + (Number(target.prestige) || 60) / 50));
+      const targetPrestigeValue = finiteNumericValue(target.prestige);
+      const signPrestige = targetPrestigeValue === null || targetPrestigeValue === 0 ? 60 : targetPrestigeValue;
+      const displayPrestige = safePrestige(target.prestige, power);
+      const maxWagePrestige = safePercent(target.prestige, 50);
+      const targetDivisionValue = finiteNumericValue(target.division);
+      const sign = Math.round(wage * (4 + signPrestige / 50));
       const goal = Math.max(10, Math.round(wage * 0.18));
       const cleanSheet = Math.max(10, Math.round(wage * 0.12));
       const releaseClause = Math.round(wage * 52 * (1.9 + power / 100));
@@ -503,16 +519,16 @@
         leagueEnglish: target.leagueEnglish || "",
         season: target.season || "",
         source: target.source || "قاعدة اللعبة",
-        division: Math.max(1, Number(target.division) || 1),
+        division: targetDivisionValue === null ? 1 : Math.max(1, Math.floor(targetDivisionValue)),
         power: power,
-        prestige: clamp(target.prestige || power, 1, 100),
+        prestige: displayPrestige,
         currency: currency,
         confederation: target.confederation || "",
         stars: candidate.stars,
         positionRivals: candidate.positionRivals,
         role: candidate.role,
         wage: wage,
-        maxWage: Math.round(wage * (1.18 + clamp(target.prestige || 50, 0, 100) / 500)),
+        maxWage: Math.round(wage * (1.18 + clamp(maxWagePrestige, 0, 100) / 500)),
         signingBonus: sign,
         goalBonus: goal,
         cleanSheetBonus: cleanSheet,

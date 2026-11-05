@@ -80,6 +80,37 @@ for (const malformed of malformedAwardNumbers) {
   assert.ok(Number.isFinite(projectedLine.averageRating));
   assert.ok(Number.isFinite(projectedLine.score));
   assert.equal(projectedLine.leagueStrength, 60);
+
+  let ceremony;
+  assert.doesNotThrow(() => {
+    ceremony = engine.buildSeasonAwardCeremony({
+      season: 6,
+      player: {
+        id: "malformed-user-" + malformed.label, name: "Malformed user", club: "Test FC",
+        country: "Egypt", position: "ST", age: malformed.value, ovr: 72,
+        appearances: 12, minutes: 1080, goals: malformed.value, assists: malformed.value,
+        averageRating: malformed.value, trophies: malformed.value,
+        professionalism: malformed.value, leagueStrength: malformed.value,
+        seasonStats: {
+          season: 6, appearances: 12, minutes: 1080, goals: malformed.value,
+          assists: malformed.value, averageRating: malformed.value,
+          cleanSheets: malformed.value, saves: malformed.value, penaltiesSaved: malformed.value
+        }
+      },
+      realPlayers: [{
+        id: "malformed-real-" + malformed.label, name: "Malformed real player",
+        clubName: "Test Club", country: "Egypt", position: "GK", age: malformed.value,
+        ovr: 75, prestige: malformed.value, leagueStrength: malformed.value,
+        seasonStats: {
+          season: 6, appearances: 12, minutes: 1080, goals: malformed.value,
+          assists: malformed.value, averageRating: malformed.value,
+          cleanSheets: malformed.value, saves: malformed.value, penaltiesSaved: malformed.value
+        }
+      }]
+    });
+  }, malformed.label + " award ceremony inputs must not throw");
+  assert.ok(ceremony && Array.isArray(ceremony.awards),
+    malformed.label + " award ceremony must return a valid award list");
 }
 
 const numericStringAwardStats = engine.simulatePlayerSeason({

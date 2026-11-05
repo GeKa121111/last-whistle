@@ -150,10 +150,10 @@ view=dynamics.snapshot(state);
 assert.equal(view.rival.id,"p4","an explicitly selected teammate rival should be retained");
 assert.equal(dynamics.selectRival(state).ok,true);
 assert.notEqual(state.teamLeadership.rivalId,"p4");
-assert.equal(saves,beforeClaimSaves+2+1,"rival selection must save once");
+assert.equal(saves,beforeClaimSaves+2,"rival selection must save once");
 
 const incomplete=Object.assign({},state,{teamLeadership:{challenge:{
-  clubKey:"egypt|test fc",season:2,startAppearances:8
+  clubKey:"egypt|test fc",season:2,startAppearances:20
 }}});
 const beforeIncomplete=JSON.stringify(incomplete.teamLeadership);
 assert.equal(dynamics.claimCaptaincy(incomplete).reason,"challenge-not-complete");

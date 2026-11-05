@@ -90,11 +90,12 @@
 
   function careerDay(s) {
     var day = finiteNumber(s && s.day);
-    return day !== null && Number.isSafeInteger(day) && day >= 1 ? day : 1;
+    return day !== null && Number.isSafeInteger(day) && day >= 1 ? day : null;
   }
 
   function dailyActionUsedOnDay(s, today) {
     if (!s || !s.dailyActionUsed) return false;
+    if (today === null) return true;
     var rawDay = s.dailyActionDay;
     // Older saves may only have the boolean flag. Fail closed for a used action
     // with a missing/corrupt day until the normal day rollover clears the flag.
@@ -1066,6 +1067,7 @@
       var actionEnergy = finiteNumber(s.energy);
       if (!s.careerStarted || s.retired || dailyActionUsedOnDay(s, actionDay)
         || actionEnergy === null || actionEnergy < requiredEnergy) return false;
+      if (actionDay === null) actionDay = 1;
       if (kind === "coach") {
         stat(s, "coachRelationship", 5);
         stat(s, "trust", 2);

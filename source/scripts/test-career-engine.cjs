@@ -109,9 +109,7 @@ assert.ok(rootHtml.includes("state[key] = attributeValue !== null ? clamp(attrib
 assert.ok(rootHtml.includes("const savedTrust = finiteLegacyNumber(state.trust);")
   && rootHtml.includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
   "the inline browser career engine must normalize trust and follower counters before state mutations");
-assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
-  && engineCopies[0].includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
-  "all shared career-engine mirrors must normalize trust and follower counters");
+
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
@@ -121,6 +119,9 @@ require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0],
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 77);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
+assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
+  && engineCopies[0].includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
+  "all shared career-engine mirrors must normalize trust and follower counters");
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
 assert.ok(engineCopies[0].includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the shared career engine must clamp saved player attributes to the 0-100 range");

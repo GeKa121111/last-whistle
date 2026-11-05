@@ -17,7 +17,7 @@ assert.match(html, /career-experience\.js\?v=9/);
 const experienceCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
 assert.ok(experienceCacheVersionMatch && Number(experienceCacheVersionMatch[1]) >= 471, "career-experience activity cache invalidation must remain valid after newer cache bumps");
 assert.match(sw, /career-experience\.js\?v=9/);
-require("./assert-static-cache-version.cjs")(sw, 539);
+require("./assert-static-cache-version.cjs")(sw, 540);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
 
 function makeHarness(overrides = {}, flushQueue = []) {

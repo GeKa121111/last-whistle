@@ -217,10 +217,10 @@ const vm = require("node:vm");
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-  require("./assert-static-cache-version.cjs")(sw, 539);
+  require("./assert-static-cache-version.cjs")(sw, 540);
   assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
   const careerHubCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
-  assert.ok(careerHubCacheVersionMatch && Number(careerHubCacheVersionMatch[1]) >= 539,
+  assert.ok(careerHubCacheVersionMatch && Number(careerHubCacheVersionMatch[1]) >= 540,
     "legacy-history rendering must invalidate the PWA shell cache");
   assert.match(sw, /url\.indexOf\("career-hub\.js\?"\) >= 0/,
     "the updated career hub must be fetched fresh during service-worker installation");

@@ -1092,34 +1092,34 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function wageNegotiationStatus(state) {
-    if (!state) return "invalid-state";
+    if (!state || typeof state !== "object" || Array.isArray(state)) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
     if (state.loan) return "loaned";
     if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") return "free-agent";
-    const contractSeasons = Number(state.contractSeasons);
-    if (!Number.isFinite(contractSeasons)) return "contract-expiring";
+    const contractSeasons = finiteLegacyNumber(state.contractSeasons);
+    if (contractSeasons === null) return "contract-expiring";
     if (contractSeasons <= 0) return "free-agent";
     if (contractSeasons <= 1) return "contract-expiring";
-    const daysSinceNegotiation = Number(state.daysSinceNegotiation);
-    if (!Number.isFinite(daysSinceNegotiation) || Math.max(0, daysSinceNegotiation) < 7) return "cooldown";
+    const daysSinceNegotiation = finiteLegacyNumber(state.daysSinceNegotiation);
+    if (daysSinceNegotiation === null || Math.max(0, daysSinceNegotiation) < 7) return "cooldown";
     return "ready";
   }
   function canNegotiateInSeason(state) { return wageNegotiationStatus(state) === "ready"; }
 
   function loanRequestStatus(state, options = {}) {
-    if (!state) return "invalid-state";
+    if (!state || typeof state !== "object" || Array.isArray(state)) return "invalid-state";
+    options = options && typeof options === "object" && !Array.isArray(options) ? options : {};
     if (normalizeLegacyBoolean(state.retired)) return "retired";
-    const contractSeasons = Number(state.contractSeasons);
+    const contractSeasons = finiteLegacyNumber(state.contractSeasons);
     if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent"
-      || !Number.isFinite(contractSeasons) || contractSeasons <= 0) return "free-agent";
+      || contractSeasons === null || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
-    // A permanent move already agreed or still being negotiated takes priority over a loan.
     if (state.pendingTransfer) return "transfer-pending";
     if (state.transferNegotiation) return "transfer-negotiation";
     if (options.cupActive) return "cup-active";
     if (!options.windowOpen) return "window-closed";
-    const appearances = Number(state.apps);
-    if (!Number.isFinite(appearances) || appearances < 2) return "appearances-required";
+    const appearances = finiteLegacyNumber(state.apps);
+    if (appearances === null || appearances < 2) return "appearances-required";
     return "ready";
   }
 
@@ -1134,10 +1134,10 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function loanSquadRole(state, target) {
-    if (!state || typeof state !== "object") return "بديل أساسي";
+    if (!state || typeof state !== "object" || Array.isArray(state)) return "بديل أساسي";
     const playerOverall = overall(state);
-    const rawTargetPower = Number(target && target.power);
-    const targetPower = Number.isFinite(rawTargetPower) && rawTargetPower > 0
+    const rawTargetPower = finiteLegacyNumber(target && target.power);
+    const targetPower = rawTargetPower !== null && rawTargetPower > 0
       ? clamp(rawTargetPower, 25, 95) : 50;
     const powerGap = playerOverall - targetPower;
     return powerGap >= 5 ? "أساسي" : powerGap >= -2 ? "بديل أساسي" : "بديل";
@@ -1188,7 +1188,9 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function nextRandomUnit(state) {
-    let x = (Number(state.randomSeed) >>> 0) || 0x6d2b79f5;
+    if (!state || typeof state !== "object" || Array.isArray(state)) return 0;
+    const savedSeed = finiteLegacyNumber(state.randomSeed);
+    let x = ((savedSeed === null ? 0 : savedSeed) >>> 0) || 0x6d2b79f5;
     x = (x + 0x6d2b79f5) >>> 0;
     state.randomSeed = x;
     let t = x;
@@ -1200,53 +1202,65 @@ function seasonAwards(state, league, teamRank) {
   function resolveWageNegotiation(state, chance, level) {
     const status = wageNegotiationStatus(state);
     if (status !== "ready") return { ok: false, status };
-    if (![0, 1, 2].includes(Number(level))) return { ok: false, status: "invalid-level" };
-    const wageValue = Number(state.weeklyWage);
-    const oldWage = Number.isFinite(wageValue)
-      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(wageValue))) : 0;
-    state.weeklyWage = oldWage;
+    const levelValue = finiteLegacyNumber(level);
+    if (![0, 1, 2].includes(levelValue)) return { ok: false, status: "invalid-level" };
+    const savedWage = finiteLegacyNumber(state.weeklyWage);
+    const oldWage = savedWage === null ? 0
+      : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(savedWage)));
+    const savedTrust = finiteLegacyNumber(state.trust);
+    const currentTrust = Math.max(0, Math.min(100, savedTrust === null ? 0 : savedTrust));
+    const chanceValue = finiteLegacyNumber(chance);
+    const chancePercent = Math.max(5, Math.min(95, chanceValue === null ? 0 : chanceValue));
+    const factor = levelValue === 2 ? 1.35 : levelValue === 1 ? 1.15 : 1.05;
+    const success = nextRandomUnit(state) * 100 < chancePercent;
+    const nextWage = success
+      ? Math.min(Number.MAX_SAFE_INTEGER, Math.round(oldWage * factor)) : oldWage;
+    const nextTrust = Math.max(0, Math.min(100, Math.round(currentTrust + (success ? 3 : -2))));
+    state.weeklyWage = nextWage;
     state.daysSinceNegotiation = 0;
-    const success = nextRandomUnit(state) * 100 < Math.max(5, Math.min(95, Number(chance) || 0));
-    if (!success) {
-      state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) - 2)));
-      return { ok: true, status: "failed", oldWage, wage: oldWage, trust: state.trust };
-    }
-    const factor = Number(level) === 2 ? 1.35 : Number(level) === 1 ? 1.15 : 1.05;
-    state.weeklyWage = Math.min(Number.MAX_SAFE_INTEGER, Math.round(oldWage * factor));
-    state.trust = Math.max(0, Math.min(100, Math.round((Number(state.trust) || 0) + 3)));
-    return { ok: true, status: "success", oldWage, wage: state.weeklyWage, trust: state.trust };
+    state.trust = nextTrust;
+    return { ok: true, status: success ? "success" : "failed", oldWage, wage: nextWage, trust: nextTrust };
   }
 
   function shouldRetire(state, maximumAge = 40) {
-    return Boolean(state && (normalizeLegacyBoolean(state.retired) || Number(state.age) >= maximumAge));
+    if (!state || typeof state !== "object" || Array.isArray(state)) return false;
+    if (normalizeLegacyBoolean(state.retired)) return true;
+    const age = finiteLegacyNumber(state.age);
+    const retirementAge = finiteLegacyNumber(maximumAge);
+    return age !== null && retirementAge !== null && age >= retirementAge;
   }
 
   function makeContractOffer(state, withAgent = false) {
-    const savedWage = Number(state?.weeklyWage);
-    const currentWage = Number.isFinite(savedWage) && savedWage > 0
+    const safeState = state && typeof state === "object" && !Array.isArray(state) ? state : {};
+    const savedWage = finiteLegacyNumber(safeState.weeklyWage);
+    const currentWage = savedWage !== null && savedWage > 0
       ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(savedWage)) : 250;
-    const contractMultiplier = withAgent && typeof withAgent === "object"
-      ? Math.max(0.96, Math.min(1.18, Number(withAgent.contractMultiplier) || 1.08))
+    const agentMultiplier = withAgent && typeof withAgent === "object" && !Array.isArray(withAgent)
+      ? finiteLegacyNumber(withAgent.contractMultiplier) : null;
+    const contractMultiplier = withAgent && typeof withAgent === "object" && !Array.isArray(withAgent)
+      ? Math.max(0.96, Math.min(1.18, agentMultiplier === null || agentMultiplier === 0 ? 1.08 : agentMultiplier))
       : withAgent ? 1.1 : 1;
-    const ratingValue = Number(overall(state));
-    const rating = Number.isFinite(ratingValue) ? Math.max(0, Math.min(100, ratingValue)) : 50;
-    const trustValue = Number(state?.trust);
-    const trust = Number.isFinite(trustValue) ? Math.max(0, Math.min(100, trustValue)) : 0;
+    const ratingValue = finiteLegacyNumber(overall(safeState));
+    const rating = ratingValue !== null ? Math.max(0, Math.min(100, ratingValue)) : 50;
+    const trustValue = finiteLegacyNumber(safeState.trust);
+    const trust = trustValue !== null ? Math.max(0, Math.min(100, trustValue)) : 0;
     const calculatedWage = Math.round(currentWage * (0.9 + rating / 500 + trust / 1000) * contractMultiplier);
     const wage = Math.max(currentWage, Math.min(Number.MAX_SAFE_INTEGER, calculatedWage));
-    return { club: String(state?.clubName || ""), wage, seasons: 3, season: Number(state?.season) || 1 };
+    const savedSeason = finiteLegacyNumber(safeState.season);
+    return { club: String(safeState.clubName || ""), wage, seasons: 3, season: savedSeason || 1 };
   }
 
   function resolveContractDecision(state, decision, offer) {
-    if (!state || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
+    if (!state || typeof state !== "object" || Array.isArray(state)
+      || !["accept", "decline"].includes(decision)) return { ok: false, status: "invalid-decision" };
     if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (state.loan) return { ok: false, status: "loaned" };
     if (!offer || typeof offer !== "object" || Array.isArray(offer)) return { ok: false, status: "invalid-offer" };
     if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") {
       return { ok: false, status: "free-agent" };
     }
-    const contractSeasonsValue = Number(state.contractSeasons);
-    if (!Number.isFinite(contractSeasonsValue) || contractSeasonsValue < 0) return { ok: false, status: "invalid-contract" };
+    const contractSeasonsValue = finiteLegacyNumber(state.contractSeasons);
+    if (contractSeasonsValue === null || contractSeasonsValue < 0) return { ok: false, status: "invalid-contract" };
     if (contractSeasonsValue > 1) return { ok: false, status: "not-expiring" };
 
     const currentClub = String(state.clubName || "").trim();
@@ -1254,43 +1268,54 @@ function seasonAwards(state, league, teamRank) {
     if (currentClub && offeredClub && currentClub !== offeredClub) return { ok: false, status: "club-mismatch" };
     const hasOfferSeason = offer.season !== undefined && offer.season !== null && offer.season !== "";
     if (hasOfferSeason) {
-      const offerSeason = Number(offer.season);
-      const currentSeason = Number(state.season);
-      if (!Number.isFinite(offerSeason) || !Number.isFinite(currentSeason) || offerSeason !== currentSeason) {
+      const offerSeason = finiteLegacyNumber(offer.season);
+      const currentSeason = finiteLegacyNumber(state.season);
+      if (offerSeason === null || currentSeason === null || offerSeason !== currentSeason) {
         return { ok: false, status: "stale-offer" };
       }
     }
 
     const pendingOffer = state.contractOffer;
-    if (pendingOffer && typeof pendingOffer === "object" && pendingOffer !== offer) {
+    if (pendingOffer && typeof pendingOffer === "object" && !Array.isArray(pendingOffer) && pendingOffer !== offer) {
       const keys = ["club", "season", "wage", "seasons"];
       const matchesPending = keys.every(key => {
         const pendingValue = pendingOffer[key], suppliedValue = offer[key];
         if (pendingValue === undefined || pendingValue === null || pendingValue === "") return true;
         if (suppliedValue === undefined || suppliedValue === null || suppliedValue === "") return false;
-        return key === "club"
-          ? String(pendingValue).trim() === String(suppliedValue).trim()
-          : Number(pendingValue) === Number(suppliedValue);
+        if (key === "club") return String(pendingValue).trim() === String(suppliedValue).trim();
+        const pendingNumber = finiteLegacyNumber(pendingValue);
+        const suppliedNumber = finiteLegacyNumber(suppliedValue);
+        return pendingNumber !== null && suppliedNumber !== null && pendingNumber === suppliedNumber;
       });
       if (!matchesPending) return { ok: false, status: "stale-offer" };
     }
 
     if (decision === "accept") {
-      if (offer.wage === undefined || offer.wage === null || offer.wage === ""
-        || !Number.isFinite(Number(offer.wage)) || Number(offer.wage) < 0) {
+      const offerWage = finiteLegacyNumber(offer.wage);
+      if (offerWage === null || offerWage < 0) {
         return { ok: false, status: "invalid-offer" };
       }
-      state.weeklyWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(offer.wage))));
-      const offerSeasonsValue = Number(offer.seasons);
-      const offerSeasons = Number.isFinite(offerSeasonsValue) && offerSeasonsValue > 0
+      const hasOfferSeasons = offer.seasons !== undefined && offer.seasons !== null && offer.seasons !== "";
+      const offerSeasonsValue = finiteLegacyNumber(offer.seasons);
+      const malformedOfferSeasons = hasOfferSeasons && offerSeasonsValue === null
+        && typeof offer.seasons !== "number" && typeof offer.seasons !== "string";
+      if (malformedOfferSeasons) return { ok: false, status: "invalid-offer" };
+      const offerSeasons = offerSeasonsValue !== null && offerSeasonsValue > 0
         ? Math.max(1, Math.min(5, Math.floor(offerSeasonsValue))) : 3;
-      state.contractSeasons = offerSeasons + 1;
+      const nextWage = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(offerWage)));
+      const nextContractSeasons = offerSeasons + 1;
+      state.weeklyWage = nextWage;
+      state.contractSeasons = nextContractSeasons;
       state.freeAgent = false;
       state.contractType = "professional";
       state.contractOffer = null;
-      return { ok: true, status: "renewed", wage: state.weeklyWage, seasonsBeforeNewSeason: state.contractSeasons };
+      return { ok: true, status: "renewed", wage: nextWage, seasonsBeforeNewSeason: nextContractSeasons };
     }
-    state.contractSeasons = 0; state.weeklyWage = 0; state.freeAgent = true; state.contractType = "free-agent"; state.contractOffer = null;
+    state.contractSeasons = 0;
+    state.weeklyWage = 0;
+    state.freeAgent = true;
+    state.contractType = "free-agent";
+    state.contractOffer = null;
     return { ok: true, status: "free-agent", wage: 0, seasonsBeforeNewSeason: 0 };
   }
 

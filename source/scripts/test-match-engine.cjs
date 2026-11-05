@@ -52,6 +52,15 @@ assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "d
  const malformedLegacyResult = engine.simulateMatch(malformedLegacyOptions);
  assert.equal(engine.validateResult(malformedLegacyResult).ok, true,
    "corrupt legacy player attributes must still produce a valid, internally consistent match");
+ // A saved match must carry a player-stat record, not a truthy primitive or array.
+ for (const malformedPlayer of [[], true, "player stats", 7, Symbol("player stats")]) {
+   const malformedResult = { ...malformedLegacyResult, player: malformedPlayer };
+   for (const [engineName, targetEngine] of [["shared", engine], ["embedded", browserEngine]]) {
+     const validation = targetEngine.validateResult(malformedResult);
+     assert.equal(validation.ok, false, engineName + " match validation must reject non-record player stats");
+     assert.equal(validation.reason, "invalid-shape", engineName + " malformed player stats must fail at the result-shape boundary");
+   }
+ }
  assert.equal(JSON.stringify(browserEngine.simulateMatch(malformedLegacyOptions)), JSON.stringify(malformedLegacyResult),
    "the embedded browser engine must safely normalize the same corrupt legacy player values");
  assert.equal(engine.positionPerformanceImpact("CB", {
@@ -3027,7 +3036,7 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v541"), "condition update must refresh the static cache");
+assert.ok(workerCopies[0].includes("last-whistle-static-v542"), "condition update must refresh the static cache");
 require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 528);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
-  workerCopies[0], "data/match-engine.js", 82);
+  workerCopies[0], "data/match-engine.js", 83);

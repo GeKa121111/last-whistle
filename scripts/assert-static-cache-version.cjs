@@ -43,7 +43,7 @@ if (require.main === module) {
     ["career-state-store.js", 8],
     ["ai-career-engine.js", 7],
     ["data/career-engine.js", 79],
-    ["data/match-engine.js", 82],
+    ["data/match-engine.js", 83],
     ["football-world-ai.js", 83],
     ["football-world-db.js", 11],
     ["football-world-worker.js", 72],

@@ -1531,11 +1531,17 @@
           || Boolean(String(player.leagueId || "").trim())
           || safeNumber(player.division, 0) > 0
           || player.transferListed === true;
-        if (hasStaleFreeAgentState) {
-          if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
-          if (orphanedClubId && club && Array.isArray(club.roster)) {
-            club.roster = club.roster.filter(id => String(id) !== String(player.id));
+        if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
+        // Free-agent saves can have an empty clubId but retain a stale former-club roster entry.
+        const staleRosterClubIds = [orphanedClubId, String(player.previousClubId || "").trim()]
+          .filter((clubId, index, ids) => clubId && ids.indexOf(clubId) === index);
+        staleRosterClubIds.forEach(clubId => {
+          const staleClub = world.clubs[clubId];
+          if (staleClub && Array.isArray(staleClub.roster)) {
+            staleClub.roster = staleClub.roster.filter(id => String(id) !== String(player.id));
           }
+        });
+        if (hasStaleFreeAgentState) {
           player.clubId = "";
           player.leagueId = "";
           player.division = 0;
@@ -3223,7 +3229,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=74");
+    const worker = new global.Worker("./football-world-worker.js?v=75");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

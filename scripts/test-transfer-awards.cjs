@@ -747,6 +747,41 @@ const withdrawn = engine.evaluateNegotiation(offer, {
 }, 1, 0);
 assert.equal(withdrawn.status, "withdrawn", "the club must withdraw when its patience is exhausted");
 
+const hostileNegotiationNumber = { valueOf() { throw new Error("unexpected negotiation coercion"); } };
+const malformedNegotiationOffer = {
+  ...offer, wage: Symbol("wage"), maxWage: hostileNegotiationNumber,
+  signingBonus: [100], goalBonus: Symbol("goal"), cleanSheetBonus: hostileNegotiationNumber,
+  releaseClause: [1000], patience: Symbol("patience")
+};
+const malformedNegotiationTerms = {
+  weeklyWage: Symbol("requested-wage"), signingBonus: hostileNegotiationNumber,
+  goalBonus: [100], cleanSheetBonus: true, contractSeasons: Symbol("years"),
+  releaseClause: hostileNegotiationNumber
+};
+let malformedNegotiation;
+assert.doesNotThrow(() => {
+  malformedNegotiation = engine.evaluateNegotiation(
+    malformedNegotiationOffer, malformedNegotiationTerms, Symbol("patience"), Symbol("round")
+  );
+}, "malformed persisted offer and negotiation values must not throw");
+assert.ok(["accepted", "counter", "withdrawn"].includes(malformedNegotiation.status));
+assert.ok(Number.isFinite(malformedNegotiation.pressure));
+assert.ok(Number.isFinite(malformedNegotiation.patience));
+assert.doesNotThrow(() => engine.evaluateNegotiation(undefined, undefined, Symbol("patience"), Symbol("round")),
+  "missing or malformed negotiation records must safely normalize to empty records");
+const numericStringNegotiation = engine.evaluateNegotiation(offer, {
+  weeklyWage: String(offer.wage),
+  signingBonus: String(offer.signingBonus),
+  goalBonus: String(offer.goalBonus),
+  cleanSheetBonus: String(offer.cleanSheetBonus),
+  contractSeasons: "3",
+  releaseClause: String(offer.releaseClause)
+}, 100, "0");
+assert.equal(numericStringNegotiation.status, "accepted",
+  "finite numeric strings must remain valid in legacy negotiation terms");
+
+
+
 const leaderboard = engine.buildLeagueLeaderboard({
   season: 3,
   progress: 0.5,

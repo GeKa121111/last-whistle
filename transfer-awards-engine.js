@@ -786,18 +786,24 @@
 
 
   // Stage 2: shared performance-led valuation and competition-aware wage guardrails.
+  function parseSeasonAppearanceValue(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
   function seasonAppearanceCount(player) {
     player = player || {};
     const rawAppearances = player.appearances;
     const hasAppearances = rawAppearances !== undefined && rawAppearances !== null && rawAppearances !== "";
-    const parsedAppearances = Number(rawAppearances);
-    const legacyApps = Number(player.apps);
-    // Use the legacy career alias only when the current-season field is absent.
-    // An explicit malformed value must not resurrect stale career-wide appearances.
-    const appearances = hasAppearances
-      ? (Number.isFinite(parsedAppearances) ? parsedAppearances : 0)
-      : Number.isFinite(legacyApps) ? legacyApps : 0;
-    return Math.max(0, appearances);
+    // Do not coerce booleans, arrays, objects, or Symbols into appearance counts.
+    // Also avoid touching the legacy alias when a current-season value exists:
+    // old saves may contain malformed career-wide apps beside valid season data.
+    const parsed = hasAppearances
+      ? parseSeasonAppearanceValue(rawAppearances)
+      : parseSeasonAppearanceValue(player.apps);
+    return parsed === null ? 0 : Math.max(0, parsed);
   }
 
   function seasonMinutes(player, appearances) {
@@ -899,7 +905,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 22,
+    version: 23,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

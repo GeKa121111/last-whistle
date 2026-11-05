@@ -567,8 +567,11 @@
     s = s || (API() && API().getState());
     if (!s) return;
     currentView = "challenges";
-    var unavailable = !!s.retired || Number(s.injuryDays) > 0;
-    var energy = Number(s.energy) || 0;
+    var rawInjuryDays = s.injuryDays;
+    var injuryDays = rawInjuryDays == null ? 0 : finiteNumber(rawInjuryDays);
+    var parsedEnergy = finiteNumber(s.energy);
+    var unavailable = !!s.retired || injuryDays === null || injuryDays > 0 || parsedEnergy === null;
+    var energy = parsedEnergy === null ? 0 : parsedEnergy;
     frame("اختار اللحظة اللي هتلعبها", "PLAYABLE MOMENTS",
       '<p class="lwcx-intro">دي تحديات تدريبية بتطوّر قدراتك من غير ما تزود إحصائيات المباريات الرسمية. كل تحدي له تكلفة طاقة، والإصابة بتمنع التدريب.</p>' +
       '<div class="lwcx-options">' +
@@ -610,10 +613,16 @@
       message = s && s.retired
         ? "المسيرة انتهت بالاعتزال؛ التحديات التدريبية متاحة أثناء اللعب فقط."
         : "ابدأ مسيرتك الأول علشان تستخدم التحديات دي.";
-    } else if (Number(s.injuryDays) > 0) {
-      message = "اتعافى الأول قبل أي تحدي تدريبي.";
-    } else if ((Number(s.energy) || 0) < Math.max(0, Number(energyCost) || 0)) {
-      message = "طاقتك مش كفاية للتحدي ده. ارتاح أو تقدّم في أيام المسيرة.";
+    } else {
+      var rawInjuryDays = s.injuryDays;
+      var injuryDays = rawInjuryDays == null ? 0 : finiteNumber(rawInjuryDays);
+      var energy = finiteNumber(s.energy);
+      var cost = finiteNumber(energyCost);
+      if (injuryDays === null || injuryDays > 0) {
+        message = "اتعافى الأول قبل أي تحدي تدريبي.";
+      } else if (energy === null || cost === null || energy < Math.max(0, cost)) {
+        message = "طاقتك مش كفاية للتحدي ده. ارتاح أو تقدّم في أيام المسيرة.";
+      }
     }
     if (message) {
       if (api && api.toast) api.toast(message);
@@ -628,8 +637,12 @@
       return { ok: false, reason: "practice-unavailable" };
     }
     var result = await runCareerMutation(s, function () {
-      if (!s || !s.careerStarted || s.retired || Number(s.injuryDays) > 0
-        || (Number(s.energy) || 0) < Math.max(0, Number(energyCost) || 0)) return false;
+      var rawInjuryDays = s && s.injuryDays;
+      var injuryDays = rawInjuryDays == null ? 0 : finiteNumber(rawInjuryDays);
+      var energy = finiteNumber(s && s.energy);
+      var cost = finiteNumber(energyCost);
+      if (!s || !s.careerStarted || s.retired || injuryDays === null || injuryDays > 0
+        || energy === null || cost === null || energy < Math.max(0, cost)) return false;
       var w = world(s);
       w.challengeCount++;
       w.practiceAttempts++;
@@ -638,7 +651,7 @@
         if (successCounter === "timingWins" || successCounter === "memoryWins") w[successCounter]++;
       }
       if (skill && amount) stat(s, skill, amount);
-      stat(s, "energy", -Math.abs(Number(energyCost) || 0));
+      stat(s, "energy", -Math.abs(cost));
       stat(s, "careerXP", won ? 8 : 3);
       if (won) {
         stat(s, "morale", 2);
@@ -1190,7 +1203,7 @@
     return [
       s.careerStarted ? 1 : 0,
       s.retired ? 1 : 0,
-      Number(s.energy) || 0,
+      finiteNumber(s.energy) === null ? "invalid-energy" : finiteNumber(s.energy),
       balance === null ? "invalid-balance" : balance,
       dayNumber(s),
       Array.isArray(s.storyHistory) ? s.storyHistory.length : 0,

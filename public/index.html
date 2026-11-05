@@ -1291,6 +1291,14 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 (() => {
   "use strict";
 
+  // Accept finite number primitives and numeric strings only; never invoke arbitrary valueOf().
+  const finiteLegacyNumber = value => {
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value !== "string" || value.trim() === "") return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
   const CONFIG = {
     shooting: { cost: 18, xp: 28, secondary: { composure: 7 } },
     dribbling: { cost: 16, xp: 27, secondary: { speed: 7 } },
@@ -1368,8 +1376,8 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     }
 
     const safeMetric = (value, maximum = 1000000) => {
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, numeric)) : 0;
+      const numeric = finiteLegacyNumber(value);
+      return numeric === null ? 0 : Math.max(0, Math.min(maximum, numeric));
     };
     const validRow = row => row && row.scope !== "international" && safeMetric(row.minutes, 120) > 0;
     const current = validRow(currentMatch) ? { ...currentMatch } : null;
@@ -1456,8 +1464,10 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
       const APPEARANCE_MILESTONES = [5, 10, 20, 30];
-  const clamp = (value, min = 0, max = 100) =>
-    Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
+  const clamp = (value, min = 0, max = 100) => {
+    const numeric = finiteLegacyNumber(value);
+    return Math.max(min, Math.min(max, Math.round(numeric === null ? 0 : numeric)));
+  };
 
   const STARTING_RANGES = {
     "حارس مرمى": { shooting:[15,35], dribbling:[15,35], passing:[15,35], speed:[15,35], fitness:[15,35], composure:[58,68], defending:[15,35], goalkeeping:[58,68], vision:[58,68], physical:[15,35] },
@@ -1575,44 +1585,44 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   // Awards are season-scoped: merge legacy seasonLog rows with current-season
   // career rows, but never let older seasons or cup/international matches leak in.
   function currentSeasonLeagueMatchRows(state) {
-    const seasonValue = Number(state && state.season);
-    const currentSeason = Number.isFinite(seasonValue) && seasonValue > 0 ? seasonValue : 1;
+    const seasonValue = finiteLegacyNumber(state && state.season);
+    const currentSeason = seasonValue !== null && seasonValue > 0 ? seasonValue : 1;
     const isLeagueRow = row => !row.scope || String(row.scope) === "league";
     const currentSeasonSegments = new Set(
       (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
         .filter(archive => archive && typeof archive === "object"
-          && Number(archive.season) === currentSeason)
-        .map(archive => String(archive.segmentId || "").trim())
-        .filter(Boolean)
+          && finiteLegacyNumber(archive.season) === currentSeason)
+        .map(archive => String(archive.segmentId || "").trim()).filter(Boolean)
     );
     const activeSegmentId = String(state && state.leagueSegmentId || "").trim();
     if (activeSegmentId) currentSeasonSegments.add(activeSegmentId);
     const legacySeasonRows = (Array.isArray(state && state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object" && !Array.isArray(row)
         && isLeagueRow(row)
-        && (row.season === undefined || row.season === null || String(row.season).trim() === ""
-          || Number(row.season) === currentSeason))
+        && (row.season === undefined || row.season === null
+          || (typeof row.season === "string" && row.season.trim() === "")
+          || finiteLegacyNumber(row.season) === currentSeason))
       .map(row => ({
-        ...row,
-        scope: row.scope || "league",
-        season: row.season === undefined || row.season === null || String(row.season).trim() === ""
-          ? currentSeason : row.season
+        ...row, scope: row.scope || "league",
+        season: row.season === undefined || row.season === null
+          || (typeof row.season === "string" && row.season.trim() === "") ? currentSeason : row.season
       }));
     const careerRows = (Array.isArray(state && state.careerMatchHistory) ? state.careerMatchHistory : [])
       .filter(row => {
         if (!row || typeof row !== "object" || Array.isArray(row) || !isLeagueRow(row)) return false;
         const rawSeason = row.season;
-        const hasSeason = rawSeason !== undefined && rawSeason !== null && String(rawSeason).trim() !== "";
+        const hasSeason = rawSeason !== undefined && rawSeason !== null
+          && !(typeof rawSeason === "string" && rawSeason.trim() === "");
         if (hasSeason) {
-          const savedSeason = Number(rawSeason);
-          return Number.isFinite(savedSeason) && savedSeason === currentSeason;
+          const savedSeason = finiteLegacyNumber(rawSeason);
+          return savedSeason !== null && savedSeason === currentSeason;
         }
         const segmentId = String(row.segmentId || "").trim();
         return !!segmentId && currentSeasonSegments.has(segmentId);
       })
-      .map(row => row.season === undefined || row.season === null || String(row.season).trim() === ""
+      .map(row => row.season === undefined || row.season === null
+        || (typeof row.season === "string" && row.season.trim() === "")
         ? { ...row, season: currentSeason } : row);
-    // Keep current snapshots first so stale legacy duplicates cannot override them.
     return uniqueMatchRows([...careerRows, ...legacySeasonRows]);
   }
 
@@ -1628,17 +1638,16 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   };
 
   const safeLegacyMinutes = value => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.max(0, Math.min(120, Math.floor(numeric))) : 0;
+    const numeric = finiteLegacyNumber(value);
+    return numeric === null ? 0 : Math.max(0, Math.min(120, Math.floor(numeric)));
   };
   const safeLegacyCount = value => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric)
-      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
+    const numeric = finiteLegacyNumber(value);
+    return numeric === null ? 0 : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric)));
   };
   const safeLegacyRating = value => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.max(0, Math.min(10, numeric)) : 0;
+    const numeric = finiteLegacyNumber(value);
+    return numeric === null ? 0 : Math.max(0, Math.min(10, numeric));
   };
 
   function rebuildLegacyCareerStats(state) {
@@ -1653,9 +1662,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function deriveLeagueRatingStats(state) {
-    const hasUsableRating = value => (typeof value === "number"
-      || (typeof value === "string" && value.trim() !== ""))
-      && Number.isFinite(Number(value));
+    const hasUsableRating = value => finiteLegacyNumber(value) !== null;
     const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
       && safeLegacyMinutes(row.minutes) > 0 && hasUsableRating(row.rating));
     state.leagueRatingSum = rows.reduce((sum, row) => sum + safeLegacyRating(row.rating), 0);
@@ -1666,6 +1673,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   function ensureState(state) {
     if (state.pos && String(state.pos).trim()) state.pos = normalizeCareerPosition(state.pos);
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
+    const savedAgeValue = finiteLegacyNumber(state.age);
+    if (state.age !== undefined && state.age !== null
+      && !(typeof state.age === "string" && state.age.trim() === "")) {
+      state.age = savedAgeValue === null ? 18 : Math.max(0, Math.min(100, Math.floor(savedAgeValue)));
+    }
     const hasActiveLoan = !!(state.loan && typeof state.loan === "object" && !Array.isArray(state.loan));
     const savedParentContractType = hasActiveLoan ? state.loan.parentContractType : undefined;
     const hasSavedParentContractType = savedParentContractType !== undefined
@@ -1691,10 +1703,10 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       || (typeof savedStateContractSeasons === "string" && savedStateContractSeasons.trim() === "");
     const fallbackParentContractSeasons = stateContractSeasonsMissing
       ? (effectiveFreeAgent || effectiveContractType === "free-agent" ? 0 : 2)
-      : Number(savedStateContractSeasons);
+      : finiteLegacyNumber(savedStateContractSeasons);
     const effectiveContractSeasons = hasActiveLoan
-      ? hasSavedParentContractSeasons ? Number(savedParentContractSeasons) : fallbackParentContractSeasons
-      : Number(state.contractSeasons);
+      ? hasSavedParentContractSeasons ? finiteLegacyNumber(savedParentContractSeasons) : fallbackParentContractSeasons
+      : finiteLegacyNumber(state.contractSeasons);
     if (!hasActiveLoan && effectiveContractType === "free-agent") state.freeAgent = true;
     if (!hasActiveLoan && state.freeAgent && !normalizeLegacyBoolean(state.academyGraduationPending)) state.contractType = "free-agent";
     state.retired = normalizeLegacyBoolean(state.retired);
@@ -1756,17 +1768,18 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.creatorStudio = normalizeLegacyBoolean(state.creatorStudio);
     state.stylist = normalizeLegacyBoolean(state.stylist);
     state.charityFoundation = normalizeLegacyBoolean(state.charityFoundation);
-    state.randomSeed = Number(state.randomSeed) >>> 0 || 0x6d2b79f5;
+    const savedRandomSeed = finiteLegacyNumber(state.randomSeed);
+    state.randomSeed = (savedRandomSeed === null ? 0 : savedRandomSeed) >>> 0 || 0x6d2b79f5;
     state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
-    const moneyValue = Number(state.money);
-    state.money = Number.isFinite(moneyValue)
+    const moneyValue = finiteLegacyNumber(state.money);
+    state.money = moneyValue !== null
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, moneyValue)) : 0;
     const savedWageMissing = state.weeklyWage === undefined || state.weeklyWage === null || state.weeklyWage === "";
     if (savedWageMissing) state.weeklyWage = state.freeAgent || state.retired ? 0 : 250;
     else {
-      const weeklyWageValue = Number(state.weeklyWage);
-      state.weeklyWage = Number.isFinite(weeklyWageValue)
+      const weeklyWageValue = finiteLegacyNumber(state.weeklyWage);
+      state.weeklyWage = weeklyWageValue !== null
         ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(weeklyWageValue))) : 0;
     }
     state.agentCommissionPaid = finiteCount(state.agentCommissionPaid);
@@ -1777,32 +1790,33 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       || (typeof state.contractSeasons === "string" && state.contractSeasons.trim() === "");
     if (contractSeasonsMissing) state.contractSeasons = defaultContractSeasons;
     else {
-      const contractSeasonsValue = Number(state.contractSeasons);
-      state.contractSeasons = Number.isFinite(contractSeasonsValue)
+      const contractSeasonsValue = finiteLegacyNumber(state.contractSeasons);
+      state.contractSeasons = contractSeasonsValue !== null
         ? Math.max(0, Math.min(10, Math.floor(contractSeasonsValue)))
         : defaultContractSeasons;
     }
     if (!hasActiveLoan && state.freeAgent) state.contractSeasons = 0;
     if (effectiveFreeAgent || state.retired || effectiveContractType === "free-agent"
-      || (!hasActiveLoan && Number(state.contractSeasons) <= 0)
+      || (!hasActiveLoan && state.contractSeasons <= 0)
       || (hasActiveLoan && (!Number.isFinite(effectiveContractSeasons) || effectiveContractSeasons <= 0))) {
       state.weeklyWage = 0;
     }
     const negotiationDaysMissing = state.daysSinceNegotiation === undefined || state.daysSinceNegotiation === null || state.daysSinceNegotiation === "";
     state.daysSinceNegotiation = negotiationDaysMissing ? 99 : finiteCount(state.daysSinceNegotiation);
-    const careerXPValue = Number(state.careerXP);
-    state.careerXP = Number.isFinite(careerXPValue)
+    const careerXPValue = finiteLegacyNumber(state.careerXP);
+    state.careerXP = careerXPValue !== null
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0;
-    const careerLevelValue = Number(state.careerLevel);
-    state.careerLevel = Number.isFinite(careerLevelValue)
+    const careerLevelValue = finiteLegacyNumber(state.careerLevel);
+    state.careerLevel = careerLevelValue !== null
       ? Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerLevelValue))) : 1;
     const levelXPThreshold = 100 + Math.min(80, (state.careerLevel - 1) * 8);
-    const levelXPValue = Number(state.levelXP);
-    state.levelXP = Number.isFinite(levelXPValue)
+    const levelXPValue = finiteLegacyNumber(state.levelXP);
+    state.levelXP = levelXPValue !== null
       ? Math.max(0, Math.min(levelXPThreshold - 0.01, levelXPValue)) : 0;
     state.trainingSessions = finiteCount(state.trainingSessions);
     state.injuryDays = Math.min(60, finiteCount(state.injuryDays));
-    state.playerPotential = clamp(state.playerPotential || 82, 65, 97);
+    const savedPotentialValue = finiteLegacyNumber(state.playerPotential);
+    state.playerPotential = clamp(savedPotentialValue === null ? 82 : savedPotentialValue, 65, 97);
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
     const hadMilestoneLedger = Array.isArray(state.careerMilestonesEarned);
     state.progressionMatchIds = Array.isArray(state.progressionMatchIds) ? state.progressionMatchIds : [];
@@ -1810,15 +1824,16 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.careerMilestonesEarned = hadMilestoneLedger ? state.careerMilestonesEarned : [];
     state.competitionStats = state.competitionStats && typeof state.competitionStats === "object"
       && !Array.isArray(state.competitionStats) ? state.competitionStats : {};
-    const careerAppearancesValue = Number(state.careerAppearances);
-    const legacyAppsValue = Number(state.apps);
-    const appearanceSource = Number.isFinite(careerAppearancesValue)
-      ? (careerAppearancesValue || (Number.isFinite(legacyAppsValue) ? legacyAppsValue : 0))
-      : (Number.isFinite(legacyAppsValue) ? legacyAppsValue : 0);
+    const careerAppearancesValue = finiteLegacyNumber(state.careerAppearances);
+    const legacyAppsValue = finiteLegacyNumber(state.apps);
+    const appearanceSource = careerAppearancesValue !== null
+      ? (careerAppearancesValue || (legacyAppsValue !== null ? legacyAppsValue : 0))
+      : (legacyAppsValue !== null ? legacyAppsValue : 0);
     state.careerAppearances = finiteCount(appearanceSource);
+    state.apps = finiteCount(state.apps);
     state.careerMinutes = finiteCount(state.careerMinutes);
-    const leagueRatingSumValue = Number(state.leagueRatingSum);
-    state.leagueRatingSum = Number.isFinite(leagueRatingSumValue)
+    const leagueRatingSumValue = finiteLegacyNumber(state.leagueRatingSum);
+    state.leagueRatingSum = leagueRatingSumValue !== null
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, leagueRatingSumValue)) : 0;
     state.leagueRatingCount = finiteCount(state.leagueRatingCount);
     if (state.qualifyingAppearances === undefined) {
@@ -1848,14 +1863,16 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
       state.careerMilestonesEarned = APPEARANCE_MILESTONES
         .filter(threshold => state.qualifyingAppearances >= threshold).map(String);
     }
-    state.fatigue = clamp(state.fatigue || 0, 0, 100);
-    const trainingXPThreshold = Number(state.age) >= 30 ? 125 : Number(state.age) <= 21 ? 92 : 108;
+    state.fatigue = clamp(state.fatigue, 0, 100);
+    const trainingAgeValue = finiteLegacyNumber(state.age);
+    const trainingXPThreshold = trainingAgeValue !== null && trainingAgeValue >= 30
+      ? 125 : trainingAgeValue !== null && trainingAgeValue <= 21 ? 92 : 108;
     for (const key of Object.keys(CONFIG)) {
-      const trainingXPValue = Number(state.trainingXP[key]);
-      state.trainingXP[key] = Number.isFinite(trainingXPValue)
+      const trainingXPValue = finiteLegacyNumber(state.trainingXP[key]);
+      state.trainingXP[key] = trainingXPValue !== null
         ? Math.max(0, Math.min(trainingXPThreshold - 0.01, trainingXPValue)) : 0;
-      const attributeValue = state[key] === null || state[key] === undefined || state[key] === "" ? NaN : Number(state[key]);
-      state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;
+      const attributeValue = finiteLegacyNumber(state[key]);
+      state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;
     }
     // Repair legacy outfield saves without altering any other career or roster data.
     if (state.pos && state.pos !== "حارس مرمى") state.goalkeeping = 0;
@@ -1887,25 +1904,31 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function limitFor(state, key) {
-    const agePenalty = Number(state.age) >= 30 ? Math.min(8, Number(state.age) - 29) : 0;
+    const ageValue = finiteLegacyNumber(state.age);
+    const agePenalty = ageValue !== null && ageValue >= 30 ? Math.min(8, ageValue - 29) : 0;
     const positionBonus = key === CAREER_ATTRIBUTE[state.pos] ? 3 : 0;
-    return Math.max(Number(state[key]) || 0, Math.min(99, state.playerPotential + positionBonus - agePenalty));
+    const attributeValue = finiteLegacyNumber(state[key]);
+    return Math.max(attributeValue === null ? 0 : attributeValue,
+      Math.min(99, state.playerPotential + positionBonus - agePenalty));
   }
 
   function addTrainingXP(state, key, amount) {
-    const threshold = Number(state.age) >= 30 ? 125 : Number(state.age) <= 21 ? 92 : 108;
-    const amountValue = Number(amount);
-    const safeAmount = Number.isFinite(amountValue) ? Math.max(0, Math.min(1000, amountValue)) : 0;
-    const trainingXPValue = Number(state.trainingXP[key]);
-    state.trainingXP[key] = (Number.isFinite(trainingXPValue)
+    const ageValue = finiteLegacyNumber(state.age);
+    const threshold = ageValue !== null && ageValue >= 30 ? 125
+      : ageValue !== null && ageValue <= 21 ? 92 : 108;
+    const amountValue = finiteLegacyNumber(amount);
+    const safeAmount = amountValue === null ? 0 : Math.max(0, Math.min(1000, amountValue));
+    const trainingXPValue = finiteLegacyNumber(state.trainingXP[key]);
+    state.trainingXP[key] = (trainingXPValue !== null
       ? Math.max(0, Math.min(threshold - 0.01, trainingXPValue)) : 0) + safeAmount;
     let gained = 0;
-    while (state.trainingXP[key] >= threshold && Number(state[key]) < limitFor(state, key)) {
+    while (state.trainingXP[key] >= threshold
+      && (finiteLegacyNumber(state[key]) ?? 0) < limitFor(state, key)) {
       state.trainingXP[key] -= threshold;
-      state[key] = clamp(Number(state[key]) + 1, 0, limitFor(state, key));
+      state[key] = clamp((finiteLegacyNumber(state[key]) ?? 0) + 1, 0, limitFor(state, key));
       gained++;
     }
-    if (Number(state[key]) >= limitFor(state, key)) state.trainingXP[key] = 0;
+    if ((finiteLegacyNumber(state[key]) ?? 0) >= limitFor(state, key)) state.trainingXP[key] = 0;
     return gained;
   }
 
@@ -1996,12 +2019,12 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   function matchDevelopment(state, match, legacyMinutes) {
     ensureState(state);
     const data = match && typeof match === "object" ? match : { rating: match, minutes: legacyMinutes };
-    const minutesValue = Number(data.minutes);
-    const played = Number.isFinite(minutesValue) ? Math.max(0, Math.min(120, Math.floor(minutesValue))) : 0;
+    const minutesValue = finiteLegacyNumber(data.minutes);
+    const played = minutesValue === null ? 0 : Math.max(0, Math.min(120, Math.floor(minutesValue)));
     if (!played) return { gained: 0, skill: "", qualifying: false, milestones: [] };
     const safeMatchCount = (value, maximum = 100) => {
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.floor(numeric))) : 0;
+      const numeric = finiteLegacyNumber(value);
+      return numeric === null ? 0 : Math.max(0, Math.min(maximum, Math.floor(numeric)));
     };
     const goals = safeMatchCount(data.goals, 20);
     const assists = safeMatchCount(data.assists, 20);
@@ -2033,11 +2056,16 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
         finiteCount(competitionStats.qualifyingAppearances) + 1);
     }
     const skill = CAREER_ATTRIBUTE[state.pos] || "passing";
-    const ageFactor = Number(state.age) >= 30 ? 0.7 : Number(state.age) <= 21 ? 1.15 : 1;
-    const rating = clamp(data.rating || 6, 3, 10);
+    const ageValue = finiteLegacyNumber(state.age);
+    const ageFactor = ageValue !== null && ageValue >= 30 ? 0.7 : ageValue !== null && ageValue <= 21 ? 1.15 : 1;
+    const ratingValue = finiteLegacyNumber(data.rating);
+    const rating = clamp(ratingValue === null ? 6 : ratingValue, 3, 10);
     const performanceFactor = 0.72 + rating * 0.047;
-    const potentialFactor = clamp(0.82 + (Number(state.playerPotential) - overall(state)) * 0.012, 0.68, 1.24);
-    const fatigueFactor = clamp(1 - Number(state.fatigue || 0) * 0.0025, 0.70, 1);
+    const potentialValue = finiteLegacyNumber(state.playerPotential);
+    const potential = potentialValue === null ? overall(state) : potentialValue;
+    const potentialFactor = clamp(0.82 + (potential - overall(state)) * 0.012, 0.68, 1.24);
+    const fatigueValue = finiteLegacyNumber(state.fatigue);
+    const fatigueFactor = clamp(1 - (fatigueValue === null ? 0 : fatigueValue) * 0.0025, 0.70, 1);
     const storeXPMultiplier = state.xpMultiplier ? 1.25 : 1;
     const matchStats = data.stats && typeof data.stats === "object" ? data.stats : data;
     const tackles = safeMatchCount(matchStats.tacklesWon != null ? matchStats.tacklesWon : matchStats.tackles);
@@ -2230,26 +2258,30 @@ function seasonAwards(state, league, teamRank) {
   }
 
   function leagueMatchTarget(teamCount) {
-    const n = Math.max(0, Math.floor(Number(teamCount) || 0));
+    const value = finiteLegacyNumber(teamCount);
+    const n = Math.max(0, Math.floor(value === null ? 0 : value));
     return n < 2 ? 0 : 2 * (n - 1);
   }
 
   function leagueMatchDaysRemaining(lastMatchCalendarDay, currentCalendarDay, minimumGap = 5) {
-    const last = Math.max(0, Math.floor(Number(lastMatchCalendarDay) || 0));
-    const current = Math.max(0, Math.floor(Number(currentCalendarDay) || 0));
-    const gap = Math.max(1, Math.floor(Number(minimumGap) || 7));
+    const lastValue = finiteLegacyNumber(lastMatchCalendarDay);
+    const currentValue = finiteLegacyNumber(currentCalendarDay);
+    const gapValue = finiteLegacyNumber(minimumGap);
+    const last = Math.max(0, Math.floor(lastValue === null ? 0 : lastValue));
+    const current = Math.max(0, Math.floor(currentValue === null ? 0 : currentValue));
+    const gap = Math.max(1, Math.floor(gapValue === null ? 7 : gapValue));
     if (last <= 0 || current >= last + gap) return 0;
     return last + gap - current;
   }
 
   const toNonNegativeInteger = value => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+    const numeric = finiteLegacyNumber(value);
+    return numeric === null ? 0 : Math.max(0, Math.floor(numeric));
   };
 
   const finiteCount = value => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric))) : 0;
+    const numeric = finiteLegacyNumber(value);
+    return numeric === null ? 0 : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric)));
   };
 
   function normalizeLeagueRoundIndex(savedRoundIndex, roundHistory, leagueApps, roundCount) {
@@ -2258,8 +2290,8 @@ function seasonAwards(state, league, teamRank) {
       Math.max(maximum, toNonNegativeInteger(row?.matchday)), 0);
     const legacyRound = Math.max(historyRound, toNonNegativeInteger(leagueApps));
     const hasSavedIndex = savedRoundIndex !== undefined && savedRoundIndex !== null && savedRoundIndex !== "";
-    const saved = Number(savedRoundIndex);
-    const candidate = hasSavedIndex && Number.isFinite(saved)
+    const saved = finiteLegacyNumber(savedRoundIndex);
+    const candidate = hasSavedIndex && saved !== null
       ? Math.max(0, Math.floor(saved), legacyRound)
       : legacyRound;
     return Math.min(candidate, toNonNegativeInteger(roundCount));

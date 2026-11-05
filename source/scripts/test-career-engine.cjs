@@ -104,19 +104,19 @@ assert.equal(secondDivisionLoan.source, "محاكاة عالم الكرة • 20
   "a loan destination must preserve its actual roster/league data source instead of being mislabeled as OpenFootball");
 assert.equal(runLoanDivisionCase(undefined).division, 1,
   "legacy loan destinations without a division must retain the first-division fallback");
-assert.ok(rootHtml.includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
+assert.ok(rootHtml.includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 509);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 73);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 516);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 74);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
-assert.ok(engineCopies[0].includes("state[key] = Number.isFinite(attributeValue) ? clamp(attributeValue, 0, 100) : 50;"),
+assert.ok(engineCopies[0].includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the shared career engine must clamp saved player attributes to the 0-100 range");
 const inlineDedupStart = rootHtml.indexOf("  function uniqueMatchRows(rows) {");
 const inlineDedupEnd = rootHtml.indexOf("\n  function uniqueCareerHistory(state)", inlineDedupStart);
@@ -499,6 +499,90 @@ assert.equal(crossCompetitionHistory.careerMinutes, 180,
   "legacy career-stat rebuilding must preserve minutes from distinct competitions that reused an ID");
 assert.equal(crossCompetitionHistory.qualifyingAppearances, 2,
   "legacy career-stat rebuilding must retain both real fixtures across competition scopes");
+
+const malformedLegacyHistory = {
+  apps: Symbol("legacy-apps"),
+  careerAppearances: Symbol("legacy-career-appearances"),
+  seasonLog: [
+    { matchId: "symbol-minutes", scope: "league", minutes: Symbol("minutes"), rating: 8 },
+    { matchId: "numeric-string-minutes", scope: "league", minutes: "90", rating: "8.5" }
+  ]
+};
+assert.doesNotThrow(() => career.rebuildLegacyCareerStats(malformedLegacyHistory),
+  "legacy stat rebuilding must reject Symbol values without crashing");
+assert.equal(malformedLegacyHistory.careerMinutes, 90,
+  "valid numeric-string minutes must remain usable beside malformed legacy rows");
+assert.equal(malformedLegacyHistory.qualifyingAppearances, 1,
+  "malformed minutes must not count as a qualifying appearance");
+assert.equal(malformedLegacyHistory.careerAppearances, 0,
+  "malformed saved appearance totals must safely fall back to zero");
+
+const malformedLegacyRatings = {
+  seasonLog: [
+    { matchId: "symbol-rating", scope: "league", minutes: 90, rating: Symbol("rating") },
+    { matchId: "numeric-string-rating", scope: "league", minutes: "90", rating: "8.5" }
+  ]
+};
+assert.doesNotThrow(() => career.deriveLeagueRatingStats(malformedLegacyRatings),
+  "league rating rebuilding must ignore Symbol ratings without crashing");
+assert.deepEqual(career.deriveLeagueRatingStats(malformedLegacyRatings), { sum: 8.5, count: 1 },
+  "valid numeric-string ratings must remain in the league average");
+
+const malformedSavedCareer = {
+  pos: "CM", age: Symbol("age"), apps: Symbol("apps"),
+  careerAppearances: Symbol("careerAppearances"), careerMinutes: Symbol("careerMinutes"),
+  money: Symbol("money"), weeklyWage: Symbol("weeklyWage"), contractSeasons: Symbol("contractSeasons"),
+  randomSeed: Symbol("randomSeed"), careerXP: Symbol("careerXP"), careerLevel: Symbol("careerLevel"),
+  levelXP: Symbol("levelXP"), leagueRatingSum: Symbol("leagueRatingSum"),
+  leagueRatingCount: Symbol("leagueRatingCount"), trainingXP: { passing: Symbol("trainingXP") },
+  passing: Symbol("passing"), fatigue: Symbol("fatigue"), playerPotential: Symbol("potential"),
+  seasonLog: [
+    { matchId: "saved-symbol-minutes", scope: "league", minutes: Symbol("minutes"), rating: 8 },
+    { matchId: "saved-valid-minutes", scope: "league", minutes: "90", rating: "8.5" }
+  ]
+};
+assert.doesNotThrow(() => career.ensureState(malformedSavedCareer),
+  "save hydration must survive malformed Symbol values in legacy numeric fields");
+assert.equal(malformedSavedCareer.age, 18, "an invalid explicit saved age must receive a safe fallback");
+assert.equal(malformedSavedCareer.apps, 0, "invalid legacy apps must normalize to zero");
+assert.equal(malformedSavedCareer.careerAppearances, 0, "invalid career appearances must normalize to zero");
+assert.equal(malformedSavedCareer.careerMinutes, 0, "invalid career minutes must normalize to zero");
+assert.equal(malformedSavedCareer.qualifyingAppearances, 1,
+  "save hydration must count only valid numeric-string match minutes");
+assert.equal(malformedSavedCareer.money, 0);
+assert.equal(malformedSavedCareer.weeklyWage, 0);
+assert.equal(malformedSavedCareer.contractSeasons, 2);
+assert.equal(malformedSavedCareer.randomSeed, 0x6d2b79f5);
+assert.equal(malformedSavedCareer.careerXP, 0);
+assert.equal(malformedSavedCareer.careerLevel, 1);
+assert.equal(malformedSavedCareer.levelXP, 0);
+assert.equal(malformedSavedCareer.leagueRatingSum, 0);
+assert.equal(malformedSavedCareer.leagueRatingCount, 0);
+assert.equal(malformedSavedCareer.trainingXP.passing, 0);
+assert.equal(malformedSavedCareer.passing, 50);
+assert.equal(malformedSavedCareer.playerPotential, 82);
+assert.equal(malformedSavedCareer.fatigue, 0);
+
+const malformedMatchState = {
+  pos: "CM", age: Symbol("match-age"), apps: Symbol("match-apps"),
+  careerAppearances: Symbol("match-career-appearances")
+};
+assert.doesNotThrow(() => career.matchDevelopment(malformedMatchState, {
+  matchId: "symbol-match-inputs", minutes: 90, rating: Symbol("match-rating"),
+  goals: Symbol("match-goals"), assists: Symbol("match-assists")
+}), "match development must safely ignore malformed numeric match inputs");
+assert.equal(malformedMatchState.apps, 0);
+assert.equal(malformedMatchState.age, 18);
+assert.equal(malformedMatchState.competitionStats["club|unknown"].goals, 0);
+assert.equal(malformedMatchState.competitionStats["club|unknown"].assists, 0);
+
+const symbolRoleDecision = career.evaluateSquadRole({
+  pos: "ST", role: "بديل", apps: Symbol("role-apps"),
+  goals: Symbol("role-goals"), assists: Symbol("role-assists"), trust: 50
+}, [{ matchId: "symbol-role-minutes", minutes: Symbol("role-minutes"), rating: 8 }]);
+assert.equal(symbolRoleDecision.reason, "no-appearances",
+  "malformed saved minutes must not crash squad-role evaluation or create a recent appearance");
+
 assert.equal(career.leagueMatchTarget(16), 30, "a 16-team league must schedule 30 matches");
 assert.equal(career.leagueMatchTarget(18), 34, "an 18-team league must schedule 34 matches");
 assert.equal(career.leagueMatchTarget(20), 38, "a 20-team league must schedule 38 matches");
@@ -530,14 +614,19 @@ assert.equal(career.normalizeLeagueRoundIndex(Infinity, [{ matchday: 5 }], 0, 34
   "a non-finite saved index must fall back to valid persisted match history");
 assert.equal(career.normalizeLeagueRoundIndex(3, [], 0, Infinity), 0,
   "a non-finite round count must not create an invalid league index");
-const inlineRoundStart = rootHtml.indexOf("const toNonNegativeInteger = value => {");
+const inlineNumberStart = rootHtml.indexOf("const finiteLegacyNumber = value => {");
+const inlineNumberEnd = rootHtml.indexOf("\n  };", inlineNumberStart) + 5;
+const inlineRoundStart = rootHtml.indexOf("const toNonNegativeInteger = value => {", inlineNumberEnd);
 const inlineNormalizeStart = rootHtml.indexOf("function normalizeLeagueRoundIndex(", inlineRoundStart);
 const inlineRoundEnd = rootHtml.indexOf("\n  function ", inlineNormalizeStart + 10);
-assert.ok(inlineRoundStart >= 0 && inlineNormalizeStart > inlineRoundStart && inlineRoundEnd > inlineNormalizeStart,
-  "the inline browser engine must expose the integer helper and league-round normalizer for regression testing");
+assert.ok(inlineNumberStart >= 0 && inlineNumberEnd > inlineNumberStart
+  && inlineRoundStart > inlineNumberEnd && inlineNormalizeStart > inlineRoundStart
+  && inlineRoundEnd > inlineNormalizeStart,
+  "the inline browser engine must expose its strict number parser and league-round helpers for regression testing");
 const inlineRoundContext = {};
 vm.createContext(inlineRoundContext);
-vm.runInContext(rootHtml.slice(inlineRoundStart, inlineRoundEnd)
+vm.runInContext(rootHtml.slice(inlineNumberStart, inlineNumberEnd) + "\n"
+  + rootHtml.slice(inlineRoundStart, inlineRoundEnd)
   + "\nthis.normalizeLeagueRoundIndex = normalizeLeagueRoundIndex;", inlineRoundContext);
 assert.equal(inlineRoundContext.normalizeLeagueRoundIndex(undefined, [{ matchday: Infinity }], 0, 34), 0,
   "the inline browser engine must ignore non-finite matchday values");
@@ -557,10 +646,10 @@ assert.ok(Number.isFinite(inlineCorruptedXPState.careerXP)
   && Number.isFinite(inlineCorruptedXPState.levelXP)
   && Number.isFinite(inlineCorruptedXPState.careerLevel),
   "the inline career XP function must recover safely from non-finite progression values");
-assert.ok(rootHtml.includes("Number.isFinite(trainingXPValue)")
+assert.ok(rootHtml.includes("trainingXPValue !== null")
   && rootHtml.includes("trainingXPThreshold - 0.01"),
   "the inline engine must sanitize malformed training XP before applying progression");
-assert.ok(rootHtml.includes("Number.isFinite(minutesValue)")
+assert.ok(rootHtml.includes("minutesValue === null ? 0")
   && rootHtml.includes("const safeMatchCount = (value, maximum = 100)"),
   "the inline engine must reject non-finite match minutes and action totals");
 
@@ -2102,7 +2191,7 @@ for (const [savedFlag, expectedFreeAgent] of parentFreeAgentCases) {
   assert.equal(JSON.stringify(browserSnapshot), JSON.stringify(sharedSnapshot),
     "embedded and shared parent free-agent normalization must stay identical");
 }
-assert.ok(deployedHtml.includes("state.weeklyWage = Number.isFinite(weeklyWageValue)"),
+assert.ok(deployedHtml.includes("state.weeklyWage = weeklyWageValue !== null"),
   "embedded browser career engine must normalize saved weekly wages");
 assert.ok(deployedHtml.includes("const contractSeasonsMissing ="),
   "embedded browser career engine must normalize saved contract durations");
@@ -2124,7 +2213,7 @@ for (const [savedWage, expectedWage] of malformedWageCases) {
   assert.equal(browserWageState.weeklyWage, expectedWage,
     "embedded browser wage normalization must match the shared engine");
 }
-assert.ok(deployedHtml.includes("state.money = Number.isFinite(moneyValue)"),
+assert.ok(deployedHtml.includes("state.money = moneyValue !== null"),
   "embedded browser career engine must normalize saved money balances");
 for (const [savedMoney, expectedMoney] of malformedMoneyCases) {
   const sourceMoneyState = { pos: "جناح", age: 24, money: savedMoney, trainingXP: {}, randomSeed: 1 };

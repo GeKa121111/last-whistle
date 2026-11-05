@@ -822,7 +822,7 @@
       return Promise.resolve({ ok: false, reason: "invalid-balance" });
     }
     var w = world(s);
-    var openCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
+    var openCount = w.investments.filter(function (item) { return financeRecord(item) && !item.settled; }).length;
     if (openCount >= 5) {
       if (api && api.toast) api.toast("عندك 5 عمليات استثمار مفتوحة بالفعل. استنى استحقاق واحدة قبل ما تبدأ غيرها.");
       return Promise.resolve({ ok: false, reason: "investment-limit" });
@@ -833,7 +833,7 @@
     }
     return runFinanceMutation(s, function () {
       var currentBalance = safeWholeMoney(s.money);
-      var currentOpenCount = w.investments.filter(function (item) { return item && !item.settled; }).length;
+      var currentOpenCount = w.investments.filter(function (item) { return financeRecord(item) && !item.settled; }).length;
       if (currentBalance === null || currentBalance < amount || currentOpenCount >= 5) return false;
       s.money = currentBalance - amount;
       var successful = !risky || Math.random() < 0.54;

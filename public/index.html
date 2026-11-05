@@ -2825,9 +2825,22 @@ function seasonAwards(state, league, teamRank) {
 /* Deterministic, shared event-based match simulation for LAST WHISTLE. No DOM or storage. */
 (() => {
   "use strict";
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
+  // Legacy saves can contain Symbols or objects with hostile valueOf methods.
+  // Accept only finite numbers and non-empty numeric strings; treat other values as missing.
+  const finiteLegacyNumber = value => {
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value !== "string" || value.trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const numberOr = (value, fallback = 0) => {
+    const parsed = finiteLegacyNumber(value);
+    return parsed === null ? fallback : parsed;
+  };
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, numberOr(value, 0)));
   function seededRandom(seed) {
-    let value = (Number(seed) >>> 0) || 0x9e3779b9;
+    const parsedSeed = finiteLegacyNumber(seed);
+    let value = ((parsedSeed === null ? 0 : parsedSeed) >>> 0) || 0x9e3779b9;
     return () => {
       value += 0x6d2b79f5;
       let t = value;
@@ -2845,8 +2858,8 @@ function seasonAwards(state, league, teamRank) {
     if (!eligible) return null;
     if (typeof random !== "function") throw new TypeError("invalid-extra-time-random");
     const roll = () => {
-      const value = Number(random());
-      return Number.isFinite(value) ? Math.max(0, Math.min(0.999999999, value)) : 0;
+      const value = finiteLegacyNumber(random());
+      return value === null ? 0 : Math.max(0, Math.min(0.999999999, value));
     };
     const redCardRolled = roll() < clamp(redCardChance, 0, 1);
     const injuryRolled = roll() < clamp(injuryChance, 0, 1);
@@ -2950,14 +2963,14 @@ function seasonAwards(state, league, teamRank) {
   }
   function positionPerformanceImpact(position, stats = {}, goalsAgainst = 0) {
     position = normalizePosition(position);
-    const tackles = Math.max(0, Number(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles) || 0);
-    const interceptions = Math.max(0, Number(stats.interceptions) || 0);
-    const saves = Math.max(0, Number(stats.saves) || 0);
-    const penaltiesSaved = Math.max(0, Number(stats.penaltiesSaved) || 0);
-    const clearances = Math.max(0, Number(stats.clearances) || 0);
-    const recoveries = Math.max(0, Number(stats.ballRecoveries) || 0);
-    const keyPasses = Math.max(0, Number(stats.keyPasses) || 0);
-    const conceded = Math.max(0, Number(goalsAgainst) || 0);
+    const tackles = Math.max(0, numberOr(stats.tacklesWon != null ? stats.tacklesWon : stats.tackles, 0));
+    const interceptions = Math.max(0, numberOr(stats.interceptions, 0));
+    const saves = Math.max(0, numberOr(stats.saves, 0));
+    const penaltiesSaved = Math.max(0, numberOr(stats.penaltiesSaved, 0));
+    const clearances = Math.max(0, numberOr(stats.clearances, 0));
+    const recoveries = Math.max(0, numberOr(stats.ballRecoveries, 0));
+    const keyPasses = Math.max(0, numberOr(stats.keyPasses, 0));
+    const conceded = Math.max(0, numberOr(goalsAgainst, 0));
     const cleanSheetBonus = stats.cleanSheet === true ? 1.1 : 0;
     if (position === "حارس مرمى") return saves * 0.42 + penaltiesSaved * 0.75 + cleanSheetBonus - Math.min(4, conceded) * 0.045;
     if (["قلب دفاع", "ظهير", "وسط دفاعي"].includes(position)) {
@@ -2969,20 +2982,20 @@ function seasonAwards(state, league, teamRank) {
     return tackles * 0.05 + interceptions * 0.06 + recoveries * 0.04;
   }
   function playerConcededGoals(minutes, events = [], redCardMinute = null) {
-    const played = Math.max(0, Number(minutes) || 0);
+    const played = Math.max(0, numberOr(minutes, 0));
     const timeline = Array.isArray(events) ? events : [];
     const entryEvent = timeline.find(event => event && event.type === "substitution-on" && event.side === "player");
-    const rawEntryMinute = entryEvent ? Number(entryEvent.minute) : 0;
-    const entryMinute = Number.isFinite(rawEntryMinute) ? Math.max(0, rawEntryMinute) : 0;
+    const rawEntryMinute = entryEvent ? finiteLegacyNumber(entryEvent.minute) : 0;
+    const entryMinute = rawEntryMinute === null ? 0 : Math.max(0, rawEntryMinute);
     const exits = timeline
       .filter(event => event && event.side === "player"
         && ["substitution", "injury", "red-card"].includes(event.type))
-      .map(event => ({ type: event.type, minute: Number(event.minute) }))
-      .filter(event => Number.isFinite(event.minute))
+      .map(event => ({ type: event.type, minute: finiteLegacyNumber(event.minute) }))
+      .filter(event => event.minute !== null)
       .sort((a, b) => a.minute - b.minute);
-    const explicitDismissal = redCardMinute == null ? null : Number(redCardMinute);
+    const explicitDismissal = redCardMinute == null ? null : finiteLegacyNumber(redCardMinute);
     const exitCandidates = exits.map(event => event.minute);
-    if (Number.isFinite(explicitDismissal)) exitCandidates.push(explicitDismissal);
+    if (explicitDismissal !== null) exitCandidates.push(explicitDismissal);
     // An explicit dismissal minute and event-ledger exits may both be supplied.
     // The earliest one ends responsibility; a later substitution must never override an earlier red card.
     const exitMinute = exitCandidates.length
@@ -2991,15 +3004,15 @@ function seasonAwards(state, league, teamRank) {
     // Same-minute goals are ordered after substitution-on and before substitution/exit events.
     return timeline.filter(event => {
       if (!event || event.type !== "goal" || event.side !== "opponent") return false;
-      const minute = Number(event.minute);
-      if (!Number.isFinite(minute) || minute < entryMinute) return false;
+      const minute = finiteLegacyNumber(event.minute);
+      if (minute === null || minute < entryMinute) return false;
       return exitMinute == null || minute <= exitMinute;
     }).length;
   }
   function playerEarnsCleanSheet(position, minutes, events = [], redCardMinute = null) {
     position = normalizePosition(position);
     const eligible = ["حارس مرمى", "قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(position || ""));
-    const played = Math.max(0, Number(minutes) || 0);
+    const played = Math.max(0, numberOr(minutes, 0));
     return eligible && played >= 60 && playerConcededGoals(played, events, redCardMinute) === 0;
   }
   function sameMinuteEventPriority(event) {
@@ -3059,8 +3072,13 @@ function seasonAwards(state, league, teamRank) {
     const tacticalIQ = clamp(options.opponentTacticalIQ ?? opponentPower, 25, 98);
     const tacticalScale = clamp(0.72 + (tacticalIQ - 45) * 0.007, 0.55, 1.10);
     const homeAdvantage = options.home ? 3 : 0;
-    const unavailable = options.playerAvailable === false || Number(player.injuryDays) > 0
-      || Number(player.suspensionMatches) > 0 || Number(player.energy) <= 0;
+    const injuryDays = finiteLegacyNumber(player.injuryDays);
+    const suspensionMatches = finiteLegacyNumber(player.suspensionMatches);
+    const playerEnergy = finiteLegacyNumber(player.energy);
+    const unavailable = options.playerAvailable === false
+      || (injuryDays !== null && injuryDays > 0)
+      || (suspensionMatches !== null && suspensionMatches > 0)
+      || (playerEnergy !== null && playerEnergy <= 0);
     const playerRoleType = playerSquadRoleType(player);
     // A rotation contract is mostly a bench role, but the player also earns occasional starts.
     const playerStartsOnBench = playerRoleType === "rotation"
@@ -3967,8 +3985,8 @@ function seasonAwards(state, league, teamRank) {
     result = result || {};
     context = context || {};
     const finiteNumber = (value, fallback = 0) => {
-      const number = Number(value);
-      return Number.isFinite(number) ? number : fallback;
+      const number = finiteLegacyNumber(value);
+      return number === null ? fallback : number;
     };
     const sanitizeReportValue = (value, ancestors = new WeakSet()) => {
       if (typeof value === "number") return Number.isFinite(value) ? value : null;

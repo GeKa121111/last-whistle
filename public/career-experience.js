@@ -40,7 +40,8 @@
   }
 
   function cap(value, min, max) {
-    return Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
+    var parsed = finiteNumber(value);
+    return Math.max(min, Math.min(max, Math.round(parsed === null ? min : parsed)));
   }
 
   function world(s) {
@@ -126,10 +127,14 @@
       "shooting", "dribbling", "passing", "speed", "composure", "defending",
       "goalkeeping", "vision"
     ];
-    var next = (Number(s[key]) || 0) + Number(delta || 0);
+    var current = finiteNumber(s && s[key]);
+    var change = finiteNumber(delta);
+    var next = (current === null ? 0 : current) + (change === null ? 0 : change);
+    if (!Number.isFinite(next)) next = 0;
     if (bounded.indexOf(key) >= 0) s[key] = cap(next, 0, 100);
-    else if (key === "money" || key === "followers" || key === "careerXP" || key === "levelXP") s[key] = Math.max(0, Math.round(next));
-    else s[key] = next;
+    else if (key === "money" || key === "followers" || key === "careerXP" || key === "levelXP") {
+      s[key] = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.round(next)));
+    } else s[key] = next;
   }
 
   function record(s, title, text, cachedWorld) {
@@ -686,7 +691,9 @@
     var keeper = ["left", "center", "right"][Math.floor(Math.random() * 3)];
     var power = cap(penalty.power, 25, 95);
     var accuracyPenalty = Math.abs(power - 68) * 0.48;
-    var chance = cap(34 + (Number(s.shooting) || 0) * 0.42 + (Number(s.composure) || 0) * 0.12 - accuracyPenalty - (keeper === penalty.direction ? 27 : 0), 8, 95);
+    var shooting = cap(s.shooting, 0, 100);
+    var composure = cap(s.composure, 0, 100);
+    var chance = cap(34 + shooting * 0.42 + composure * 0.12 - accuracyPenalty - (keeper === penalty.direction ? 27 : 0), 8, 95);
     var goal = Math.random() * 100 < chance;
     var dirLabel = { left: "الشمال", center: "النص", right: "اليمين" };
     var message = goal
@@ -748,7 +755,10 @@
 
   function createMemorySequence(s) {
     var arrows = ["↑", "→", "↓", "←"];
-    var seed = dayNumber(s) * 5 + (Number(s.season) || 1) * 13 + world(s).challengeCount * 7 + (Number(s.apps) || 0) * 3;
+    var season = Math.max(1, safeCounter(s.season, 1));
+    var apps = safeCounter(s.apps, 0);
+    var challengeCount = safeCounter(world(s).challengeCount, 0);
+    var seed = dayNumber(s) * 5 + season * 13 + challengeCount * 7 + apps * 3;
     memory.sequence = [];
     for (var i = 0; i < 4; i++) {
       memory.sequence.push(arrows[Math.abs(seed + i * 11 + i * i * 3) % arrows.length]);
@@ -1101,21 +1111,25 @@
   }
 
   function legacyData(s) {
-    var apps = Math.max(Number(s.totalCareerAppearances) || 0, Number(s.apps) || 0);
-    var goals = Number(s.goals) || 0;
-    var assists = Number(s.assists) || 0;
-    var trophies = Number(s.trophies) || 0;
-    var caps = Number(s.nationalCaps) || 0;
-    var awards = (Array.isArray(s.careerAwards) ? s.careerAwards.length : 0) + (Number(s.topScorerAwards) || 0);
+    var apps = Math.max(safeCounter(s.totalCareerAppearances, 0), safeCounter(s.apps, 0));
+    var goals = safeCounter(s.goals, 0);
+    var assists = safeCounter(s.assists, 0);
+    var trophies = safeCounter(s.trophies, 0);
+    var caps = safeCounter(s.nationalCaps, 0);
+    var awards = (Array.isArray(s.careerAwards) ? s.careerAwards.length : 0) + safeCounter(s.topScorerAwards, 0);
     var transfers = Array.isArray(s.transferHistory) ? s.transferHistory.length : 0;
     var stories = Array.isArray(s.storyHistory) ? s.storyHistory.length : 0;
+    var teamChemistry = cap(s.teamChemistry, 0, 100);
+    var coachRelationship = cap(s.coachRelationship, 0, 100);
+    var mediaReputation = cap(s.mediaReputation, 0, 100);
+    var followers = safeCounter(s.followers, 0);
     var score = apps + goals * 3 + assists * 2 + trophies * 35 + caps * 3 + awards * 12;
     var tags = [];
     if (trophies >= 3) tags.push("جامع بطولات");
     if (goals >= 30) tags.push("هداف المسيرة");
     if (caps >= 10) tags.push("دولي مخضرم");
-    if ((Number(s.teamChemistry) || 0) >= 75 && (Number(s.coachRelationship) || 0) >= 70) tags.push("قائد غرفة الملابس");
-    if ((Number(s.mediaReputation) || 0) >= 65 || (Number(s.followers) || 0) >= 5000) tags.push("نجم جماهيري");
+    if (teamChemistry >= 75 && coachRelationship >= 70) tags.push("قائد غرفة الملابس");
+    if (mediaReputation >= 65 || followers >= 5000) tags.push("نجم جماهيري");
     if (transfers >= 4) tags.push("رحّالة الملاعب");
     if (apps >= 20 && transfers <= 1) tags.push("وفيّ للنادي");
     if (stories >= 8) tags.push("صاحب حكاية استثنائية");
@@ -1209,9 +1223,9 @@
       balance === null ? "invalid-balance" : balance,
       dayNumber(s),
       Array.isArray(s.storyHistory) ? s.storyHistory.length : 0,
-      Number(w.challengeWins) || 0,
-      Number(w.practiceAttempts) || 0,
-      Number(w.mentorSessions) || 0,
+      safeCounter(w.challengeWins, 0),
+      safeCounter(w.practiceAttempts, 0),
+      safeCounter(w.mentorSessions, 0),
       investments.length,
       latestSignature,
       pendingInvestmentCount(w, revision, !!forcePendingCount)

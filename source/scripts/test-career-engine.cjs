@@ -2191,7 +2191,7 @@ for (const [savedFlag, expectedFreeAgent] of parentFreeAgentCases) {
   assert.equal(JSON.stringify(browserSnapshot), JSON.stringify(sharedSnapshot),
     "embedded and shared parent free-agent normalization must stay identical");
 }
-assert.ok(deployedHtml.includes("state.weeklyWage = Number.isFinite(weeklyWageValue)"),
+assert.ok(deployedHtml.includes("state.weeklyWage = weeklyWageValue !== null"),
   "embedded browser career engine must normalize saved weekly wages");
 assert.ok(deployedHtml.includes("const contractSeasonsMissing ="),
   "embedded browser career engine must normalize saved contract durations");

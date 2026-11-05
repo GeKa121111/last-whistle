@@ -283,4 +283,23 @@ assert.equal(failedSaveState.seasonObjective, undefined,
   "a rejected save must roll back a new in-memory objective");
 saveResult = true;
 
+const objectiveGrid = { children:[], appendChild(host) { this.children.push(host); } };
+const objectiveHost = {
+  hidden:false, innerHTML:"", className:"", id:"",
+  addEventListener() {}
+};
+const objectivePage = { querySelector() { return objectiveGrid; } };
+document.getElementById = id => id === "page-stats" ? objectivePage : null;
+document.createElement = () => objectiveHost;
+runtimeState = {
+  careerStarted:true, season:5, pos:"رأس حربة",
+  seasonObjectiveHistory:[{id:"attacker-goals",season:Symbol("render-season"),claimed:false}],
+  careerMatchHistory:[]
+};
+assert.doesNotThrow(() => documentListeners.DOMContentLoaded(),
+  "rendering archived objectives with malformed saved seasons must not throw");
+assert.match(objectiveHost.innerHTML, /أهداف الموسم/);
+assert.doesNotMatch(objectiveHost.innerHTML, /مكافآت مواسم سابقة جاهزة/,
+  "invalid archived season markers must be skipped without rewriting their records");
+
 console.log("PASS: position-aware season objectives, official-match progress, archived rewards, one-time claims and save rollback.");

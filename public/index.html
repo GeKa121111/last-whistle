@@ -3449,7 +3449,7 @@ function seasonAwards(state, league, teamRank) {
       metadata: { seed: simulationSeed, extraTimeEventSeed, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
   }
-  function validateResult(result) {
+  function validateResultUnchecked(result) {
     if (!result || !result.score || !result.player || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
     const scoreValueValid = value =>
       (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
@@ -3493,6 +3493,22 @@ function seasonAwards(state, league, teamRank) {
     }
     const numericPlayerStatFields = ["minutes", "goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "tacklesWon", "interceptions", "saves", "penaltiesSaved", "clearances", "ballRecoveries", "passAttempts", "passesCompleted", "passingAccuracy", "rating"];
     const integerPlayerStatFields = new Set(["minutes", "goals", "assists", "shots", "shotsOnTarget", "chances", "keyPasses", "fouls", "redCards", "yellowCards", "injuryDays", "tackles", "tacklesWon", "interceptions", "saves", "penaltiesSaved", "clearances", "ballRecoveries", "passAttempts", "passesCompleted"]);
+    // Validate every numeric ledger boundary before any Number() conversion below.
+    // Persisted JSON can contain coercible arrays/booleans or hostile objects in legacy saves.
+    const hasValidOptionalNumericFields = (record, fields) => {
+      if (!record || typeof record !== "object" || Array.isArray(record)) return true;
+      return fields.every(field => {
+        if (!Object.prototype.hasOwnProperty.call(record, field)) return true;
+        const value = record[field];
+        return value == null || finiteLegacyNumber(value) !== null;
+      });
+    };
+    if (!hasValidOptionalNumericFields(result.player, numericPlayerStatFields)) {
+      return { ok: false, reason: "invalid-player-stats" };
+    }
+    const numericEventValuesValid = result.events.every(event => hasValidOptionalNumericFields(event,
+      ["minute", "goalMinute", "attemptNumber"]));
+    if (!numericEventValuesValid) return { ok: false, reason: "invalid-match-ledger-number" };
     const playerStatsValid = numericPlayerStatFields.every(field => {
       const value = result.player[field];
       if (value == null) return true; // Preserve older records that omit newer optional stats.
@@ -3831,16 +3847,13 @@ function seasonAwards(state, league, teamRank) {
       || (typeof result.metadata === "object" && !Array.isArray(result.metadata));
     const aggregateOffsetValue = result.metadata?.aggregateOffset;
     const aggregateOffsetPresent = aggregateOffsetValue != null;
-    const aggregateOffset = aggregateOffsetPresent ? Number(aggregateOffsetValue) : 0;
+    const parsedAggregateOffset = aggregateOffsetPresent ? finiteLegacyNumber(aggregateOffsetValue) : 0;
+    const aggregateOffset = parsedAggregateOffset === null ? NaN : parsedAggregateOffset;
     const aggregateOffsetConsistent = !aggregateOffsetPresent
-      || ((typeof aggregateOffsetValue === "number"
-        || (typeof aggregateOffsetValue === "string" && aggregateOffsetValue.trim() !== ""))
-        && Number.isSafeInteger(aggregateOffset));
+      || (parsedAggregateOffset !== null && Number.isSafeInteger(aggregateOffset));
     const extraTimeEventSeedValue = result.metadata?.extraTimeEventSeed;
     const extraTimeEventSeedConsistent = extraTimeEventSeedValue == null
-      || ((typeof extraTimeEventSeedValue === "number"
-        || (typeof extraTimeEventSeedValue === "string" && extraTimeEventSeedValue.trim() !== ""))
-        && Number.isFinite(Number(extraTimeEventSeedValue)));
+      || finiteLegacyNumber(extraTimeEventSeedValue) !== null;
     const shootoutLedgerConsistent = (() => {
       const shootout = result.shootout;
       const shootoutEvents = result.events.filter(event => event.type === "penalty-shootout");
@@ -3982,6 +3995,16 @@ function seasonAwards(state, league, teamRank) {
           : !playerMinutesLedgerConsistent ? "invalid-player-minutes-ledger"
             : valid ? "" : "inconsistent-match-ledger";
     return { ok: valid, reason, teamGoals, opponentGoals, playerGoals, assists, shots, tackles, interceptions, fouls, saves, penaltiesSaved, clearances, ballRecoveries, playerEventsInBounds, playerMinutesLedgerConsistent, noPlayerActivityWhenUnavailable, eventMinutesValid, metadataShapeConsistent, aggregateOffsetConsistent, extraTimeEventSeedConsistent, extraTimeLedgerConsistent, extraTimePeriodLedgerConsistent, shootoutLedgerConsistent, eventsChronological, sameMinuteOrderConsistent, noPlayerActivityAfterExit, shotTargetMetadataConsistent, shotAttributionConsistent, chancesLedgerConsistent, saveRoleConsistent, penaltySaveRoleConsistent, assistGoalLinksValid, goalAttributionConsistent, goalShotLedgerConsistent, redCards, yellowCards, injuries, cleanSheetConsistent, outcomeConsistent, matchOutcomeConsistent };
+  }
+
+  // Match validation is a trust boundary: malformed legacy values and hostile
+  // property accessors must reject the record, never interrupt a career flow.
+  function validateResult(result) {
+    try {
+      return validateResultUnchecked(result);
+    } catch (error) {
+      return { ok: false, reason: "invalid-match-ledger-value" };
+    }
   }
 
   function buildStoryReport(result, context) {

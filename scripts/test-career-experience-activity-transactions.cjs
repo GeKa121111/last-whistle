@@ -17,7 +17,7 @@ assert.match(html, /career-experience\.js\?v=9/);
 const experienceCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
 assert.ok(experienceCacheVersionMatch && Number(experienceCacheVersionMatch[1]) >= 471, "career-experience activity cache invalidation must remain valid after newer cache bumps");
 assert.match(sw, /career-experience\.js\?v=9/);
-require("./assert-static-cache-version.cjs")(sw, 445);
+require("./assert-static-cache-version.cjs")(sw, 537);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
 
 function makeHarness(overrides = {}, flushQueue = []) {
@@ -185,6 +185,55 @@ async function playPenalty(h) {
   assert.equal(successfulMentor.state.careerWorld.mentorSessions, 1);
   assert.equal(successfulMentor.saveCalls, 1);
   assert.equal(successfulMentor.flushCalls, 1);
+
+  const legacyUsedWithoutDay = makeHarness({ energy: 10, dailyActionUsed: true });
+  await legacyUsedWithoutDay.click("open-mentor");
+  assert.match(legacyUsedWithoutDay.overlay.innerHTML, /استخدمت نشاطك الجانبي النهارده/,
+    "legacy saves with the used flag but no dailyActionDay must show the activity as consumed");
+  assert.match(legacyUsedWithoutDay.overlay.innerHTML, /data-lwcx-action="mentor-reset"[^>]*disabled/,
+    "the missing legacy day marker must fail closed in the activity panel");
+  const legacyBlockedResult = await legacyUsedWithoutDay.click("mentor-reset");
+  assert.equal(legacyBlockedResult.ok, false);
+  assert.equal(legacyBlockedResult.reason, "daily-action-used");
+  assert.equal(legacyUsedWithoutDay.state.morale, 50);
+  assert.equal(legacyUsedWithoutDay.saveCalls, 0);
+
+  const malformedActionDay = makeHarness({
+    energy: 10, dailyActionUsed: true, dailyActionDay: Symbol("invalid-action-day")
+  });
+  await malformedActionDay.click("open-mentor");
+  const malformedActionDayResult = await malformedActionDay.click("mentor-reset");
+  assert.equal(malformedActionDayResult.ok, false,
+    "a corrupt dailyActionDay must not make a previously used activity available again");
+  assert.equal(malformedActionDayResult.reason, "daily-action-used");
+  assert.equal(malformedActionDay.saveCalls, 0);
+
+  const malformedCurrentDay = makeHarness({
+    energy: 10, day: Symbol("invalid-current-day"), dailyActionUsed: true, dailyActionDay: 1
+  });
+  const malformedCurrentDayResult = await malformedCurrentDay.click("mentor-reset");
+  assert.equal(malformedCurrentDayResult.ok, false,
+    "a corrupt current day must use a deterministic fallback before checking the activity lock");
+  assert.equal(malformedCurrentDayResult.reason, "daily-action-used");
+  assert.equal(malformedCurrentDay.saveCalls, 0);
+
+  const nextDayLegacyFlag = makeHarness({
+    energy: 3, day: 2, dailyActionUsed: true, dailyActionDay: 1, coachRelationship: 40
+  }, [true]);
+  const nextDayResult = await nextDayLegacyFlag.click("mentor-coach");
+  assert.equal(nextDayResult.ok, true,
+    "a valid prior-day marker must not block a new day's activity even if an old save retained the flag");
+  assert.equal(nextDayLegacyFlag.state.dailyActionDay, 2);
+  assert.equal(nextDayLegacyFlag.state.dailyActionUsed, true);
+  assert.equal(nextDayLegacyFlag.state.coachRelationship, 45);
+  assert.equal(nextDayLegacyFlag.saveCalls, 1);
+
+  const invalidEnergy = makeHarness({ energy: Symbol("invalid-energy"), dailyActionUsed: false });
+  const invalidEnergyResult = await invalidEnergy.click("mentor-reset");
+  assert.equal(invalidEnergyResult.ok, false, "invalid energy must fail closed instead of throwing or applying a reset");
+  assert.equal(invalidEnergyResult.reason, "insufficient-energy");
+  assert.equal(invalidEnergy.state.morale, 50);
+  assert.equal(invalidEnergy.saveCalls, 0);
 
   let release;
   const concurrent = makeHarness({ energy: 0, morale: 50, dailyActionUsed: false }, [

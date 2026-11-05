@@ -724,15 +724,24 @@ function extractExperienceFunction(source, functionName) {
   if (end < 0) throw new Error("Cannot find end of career experience function: " + functionName);
   return source.slice(start, end);
 }
-const trainingUIState = { pos: "جناح" };
+const trainingUIState = {
+  pos: "جناح", careerStarted: true, retired: false, injuryDays: 0,
+  money: 1000, energy: 90, playedToday: false, trainedToday: false
+};
 const trainingUIHarness = {
   currentView: "",
   API: () => ({ getState: () => trainingUIState }),
   frame: (title, chapter, body) => { trainingUIHarness.renderedBody = body; },
-  actionButton: (id, label) => '<button data-lwcx-action="' + id + '">' + label + '</button>'
+  finiteNumber: value => (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+    && Number.isFinite(Number(value)) ? Number(value) : null,
+  safeWholeMoney: value => (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+    && Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : null,
+  actionButton: (id, label, detail, attrs) => '<button data-lwcx-action="' + id + '"' + (attrs || "") + '>' + label + '</button>'
 };
 vm.createContext(trainingUIHarness);
-vm.runInContext(extractExperienceFunction(experienceSource, "openTrainingSkill") + "\nthis.openTrainingSkill = openTrainingSkill;", trainingUIHarness);
+vm.runInContext(extractExperienceFunction(experienceSource, "focusedTrainingBlockReason") + "\n"
+  + extractExperienceFunction(experienceSource, "openTrainingSkill")
+  + "\nthis.openTrainingSkill = openTrainingSkill;", trainingUIHarness);
 trainingUIHarness.openTrainingSkill();
 assert.equal(trainingUIHarness.renderedBody.includes('data-lwcx-action="skill-goalkeeping"'), false,
   "goalkeeping-focused training must not be offered to an outfield player");
@@ -745,8 +754,10 @@ const focusedTrainingHarness = {
   currentView: "",
   financeMutationPending: false,
   API: () => ({ toast: message => focusedTrainingMessages.push(String(message)) }),
-  safeWholeMoney: value => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= Number.MAX_SAFE_INTEGER
-    ? Math.floor(Number(value)) : null,
+  finiteNumber: value => (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+    && Number.isFinite(Number(value)) ? Number(value) : null,
+  safeWholeMoney: value => (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+    && Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : null,
   world: state => state.careerWorld || (state.careerWorld = { investments: [], history: [], investmentSequence: 1, mentorSessions: 0 }),
   runFinanceMutation: (state, operation) => Promise.resolve(Object.assign({ ok: true }, operation() || {})),
   stat: (state, key, delta) => { state[key] = (Number(state[key]) || 0) + Number(delta || 0); },
@@ -754,14 +765,22 @@ const focusedTrainingHarness = {
   renderFinance: () => {}
 };
 vm.createContext(focusedTrainingHarness);
-vm.runInContext(extractExperienceFunction(experienceSource, "applyFocusedTraining") + "\nthis.applyFocusedTraining = applyFocusedTraining;", focusedTrainingHarness);
-const wingerTrainingState = { pos: "جناح", retired: false, injuryDays: 0, money: 1000, energy: 90, goalkeeping: 12, careerXP: 0 };
+vm.runInContext(extractExperienceFunction(experienceSource, "focusedTrainingBlockReason") + "\n"
+  + extractExperienceFunction(experienceSource, "applyFocusedTraining")
+  + "\nthis.applyFocusedTraining = applyFocusedTraining;", focusedTrainingHarness);
+const wingerTrainingState = {
+  pos: "جناح", careerStarted: true, retired: false, injuryDays: 0, money: 1000,
+  energy: 90, playedToday: false, trainedToday: false, goalkeeping: 12, careerXP: 0
+};
 focusedTrainingHarness.applyFocusedTraining(wingerTrainingState, "goalkeeping");
 assert.equal(wingerTrainingState.money, 1000, "an outfield player must not pay for invalid goalkeeper training");
 assert.equal(wingerTrainingState.energy, 90, "rejected goalkeeper training must not consume energy");
 assert.equal(wingerTrainingState.goalkeeping, 12, "rejected goalkeeper training must not raise goalkeeper skill");
 assert.equal(wingerTrainingState.careerXP, 0, "rejected goalkeeper training must not grant XP");
-const keeperTrainingState = { pos: "حارس مرمى", retired: false, injuryDays: 0, money: 1000, energy: 90, goalkeeping: 60, careerXP: 0 };
+const keeperTrainingState = {
+  pos: "حارس مرمى", careerStarted: true, retired: false, injuryDays: 0, money: 1000,
+  energy: 90, playedToday: false, trainedToday: false, goalkeeping: 60, careerXP: 0
+};
 focusedTrainingHarness.applyFocusedTraining(keeperTrainingState, "goalkeeping");
 assert.equal(keeperTrainingState.money, 820, "valid goalkeeper training should charge the listed fee");
 assert.equal(keeperTrainingState.energy, 82, "valid goalkeeper training should charge the listed energy");

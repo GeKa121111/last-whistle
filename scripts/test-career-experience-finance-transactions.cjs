@@ -12,7 +12,7 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"));
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 436);
+require("./assert-static-cache-version.cjs")(sw, 536);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
 
 function makeHarness(overrides = {}, flushQueue = []) {
@@ -79,7 +79,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   return {
-    state, notices, click, settleMicrotasks,
+    state, notices, overlay, click, settleMicrotasks,
     get saveCalls() { return saveCalls; },
     get flushCalls() { return flushCalls; },
     runInterval() { if (intervalCallback) intervalCallback(); }
@@ -242,14 +242,60 @@ function dueState() {
   assert.equal(sameBalanceUpdate.state.money, 1350,
     "rollback must reverse only the failed investment debit while preserving a newer balance credit");
 
-  const training = makeHarness({ money: 1000, energy: 10, shooting: 50 });
+  const training = makeHarness({ money: 1000, energy: 10, shooting: 50, trainedToday: false });
   const trained = await training.click("skill-shooting");
   assert.equal(trained.ok, true);
   assert.equal(training.state.money, 820);
   assert.equal(training.state.shooting, 52);
   assert.equal(training.state.energy, 2);
   assert.equal(training.state.careerXP, 10);
+  assert.equal(training.state.trainedToday, true,
+    "paid focused training must consume the same daily training slot as the standard career session");
   assert.equal(training.saveCalls, 1);
+  const duplicateTraining = await training.click("skill-passing");
+  assert.equal(duplicateTraining.ok, false, "a second paid training session must be blocked on the same day");
+  assert.equal(duplicateTraining.reason, "training-already-used");
+  assert.equal(training.state.money, 820, "a blocked second session must not charge the player again");
+  assert.equal(training.state.passing, undefined, "a blocked second session must not improve another skill");
+  assert.equal(training.state.energy, 2);
+  assert.equal(training.state.careerXP, 10);
+  assert.equal(training.saveCalls, 1, "a blocked second session must not queue another save");
+
+  const alreadyTrained = makeHarness({ money: 1000, energy: 10, trainedToday: true });
+  const alreadyTrainedResult = await alreadyTrained.click("skill-shooting");
+  assert.equal(alreadyTrainedResult.ok, false,
+    "paid focused training must respect a training session already completed in the main career UI");
+  assert.equal(alreadyTrainedResult.reason, "training-already-used");
+  assert.equal(alreadyTrained.state.money, 1000);
+  assert.equal(alreadyTrained.state.shooting, 50);
+  assert.equal(alreadyTrained.saveCalls, 0);
+
+  const matchDayTraining = makeHarness({ money: 1000, energy: 10, playedToday: true });
+  const matchDayTrainingResult = await matchDayTraining.click("skill-shooting");
+  assert.equal(matchDayTrainingResult.ok, false, "specialized training must be blocked on match days");
+  assert.equal(matchDayTrainingResult.reason, "played-today");
+  assert.equal(matchDayTraining.state.money, 1000);
+  assert.equal(matchDayTraining.state.shooting, 50);
+  assert.equal(matchDayTraining.saveCalls, 0);
+
+  const blockedTrainingUi = makeHarness({ trainedToday: true });
+  await blockedTrainingUi.click("training-skill");
+  assert.match(blockedTrainingUi.overlay.innerHTML, /data-lwcx-action="skill-shooting" disabled/,
+    "the specialized training UI must disable skills after the daily training slot is used");
+  assert.match(blockedTrainingUi.overlay.innerHTML, /أنهيت تدريب اليوم/,
+    "the specialized training UI must explain why the skill buttons are disabled");
+
+  const failedTrainingSave = makeHarness({ money: 1000, energy: 10, shooting: 50, trainedToday: false }, [false, true]);
+  const failedTrainingResult = await failedTrainingSave.click("skill-shooting");
+  assert.equal(failedTrainingResult.ok, false);
+  assert.equal(failedTrainingSave.state.money, 1000);
+  assert.equal(failedTrainingSave.state.shooting, 50);
+  assert.equal(failedTrainingSave.state.energy, 10);
+  assert.equal(failedTrainingSave.state.careerXP, 0);
+  assert.equal(failedTrainingSave.state.trainedToday, false,
+    "a failed backup-first save must roll back the consumed training slot");
+  assert.equal(failedTrainingSave.saveCalls, 2);
+  assert.equal(failedTrainingSave.flushCalls, 2);
 
   function malformedDueState(dueDay) {
     const state = dueState();

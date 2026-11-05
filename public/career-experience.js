@@ -854,19 +854,45 @@
     });
   }
 
+  function focusedTrainingBlockReason(s) {
+    if (!s || !s.careerStarted || s.retired) return "career-unavailable";
+    if (s.playedToday) return "played-today";
+    if (s.trainedToday) return "training-already-used";
+    var rawInjuryDays = s.injuryDays;
+    var injuryDays = rawInjuryDays == null || rawInjuryDays === "" ? 0 : finiteNumber(rawInjuryDays);
+    var energy = finiteNumber(s.energy);
+    var balance = safeWholeMoney(s.money);
+    if (injuryDays === null || injuryDays > 0 || balance === null || balance < 180 || energy === null || energy < 8) {
+      return "training-requirements-not-met";
+    }
+    return "";
+  }
+
   function openTrainingSkill() {
     currentView = "training-skill";
     var s = API().getState();
+    var blockReason = focusedTrainingBlockReason(s);
+    var blockMessage = blockReason === "training-already-used"
+      ? "أنهيت تدريب اليوم. تقدر تختار حصة جديدة بعد ما تتقدم ليوم تاني."
+      : blockReason === "played-today"
+        ? "يوم المباراة خلص؛ التدريب المتخصص متاح بعد يوم جديد."
+        : blockReason === "career-unavailable"
+          ? "التدريب المتخصص متاح أثناء المسيرة الاحترافية فقط."
+          : blockReason
+            ? "التدريب يحتاج 180 جنيهًا، و8 طاقة على الأقل، ومن غير إصابة."
+            : "";
+    var disabled = blockReason ? " disabled" : "";
     frame("حصة مدرب متخصص", "FOCUSED TRAINING",
       '<p class="lwcx-intro">اختار مهارة واحدة. التكلفة 180 جنيهًا داخل اللعبة و8 طاقة، والتدريب يمنح نقطتين في المهارة المختارة.</p>' +
+      (blockMessage ? '<p class="lwcx-intro">' + esc(blockMessage) + '</p>' : '') +
       '<div class="lwcx-skill-grid">' +
-        actionButton("skill-shooting", "التسديد", "تحسين إنهاء الفرص.") +
-        actionButton("skill-passing", "التمرير", "دقة أفضل في بناء اللعب.") +
-        actionButton("skill-dribbling", "المراوغة", "تحكم أحسن في الكرة.") +
-        actionButton("skill-speed", "السرعة", "انطلاقة أسرع.") +
-        actionButton("skill-fitness", "اللياقة", "قدرة بدنية أعلى.") +
-        actionButton("skill-composure", "الهدوء", "ثبات تحت الضغط.") +
-        (s.pos === "حارس مرمى" ? actionButton("skill-goalkeeping", "حراسة المرمى", "تدريب تخصصي للحارس فقط.") : "") +
+        actionButton("skill-shooting", "التسديد", "تحسين إنهاء الفرص.", disabled) +
+        actionButton("skill-passing", "التمرير", "دقة أفضل في بناء اللعب.", disabled) +
+        actionButton("skill-dribbling", "المراوغة", "تحكم أحسن في الكرة.", disabled) +
+        actionButton("skill-speed", "السرعة", "انطلاقة أسرع.", disabled) +
+        actionButton("skill-fitness", "اللياقة", "قدرة بدنية أعلى.", disabled) +
+        actionButton("skill-composure", "الهدوء", "ثبات تحت الضغط.", disabled) +
+        (s.pos === "حارس مرمى" ? actionButton("skill-goalkeeping", "حراسة المرمى", "تدريب تخصصي للحارس فقط.", disabled) : "") +
       '</div><div class="lwcx-modal-actions"><button type="button" class="lwcx-button" data-lwcx-action="open-finance">رجوع</button></div>');
   }
 
@@ -884,17 +910,25 @@
       if (api && api.toast) api.toast("فيه عملية مالية تانية بيتأكد حفظها دلوقتي. استنى لحظة.");
       return Promise.resolve({ ok: false, reason: "finance-mutation-pending" });
     }
-    var balance = safeWholeMoney(s.money), energy = Number(s.energy);
-    if (s.retired || Number(s.injuryDays) > 0 || balance === null || balance < 180 || !Number.isFinite(energy) || energy < 8) {
-      if (api && api.toast) api.toast("راجع الرصيد والطاقة والإصابة قبل التمرين.");
-      return Promise.resolve({ ok: false, reason: "training-requirements-not-met" });
+    var blockReason = focusedTrainingBlockReason(s);
+    if (blockReason) {
+      if (api && api.toast) api.toast(blockReason === "training-already-used"
+        ? "أنهيت تدريب اليوم. تقدر تختار حصة جديدة بعد ما تتقدم ليوم تاني."
+        : blockReason === "played-today"
+          ? "يوم المباراة خلص؛ التدريب المتخصص متاح بعد يوم جديد."
+          : "راجع حالة المسيرة والرصيد والطاقة والإصابة قبل التمرين.");
+      return Promise.resolve({ ok: false, reason: blockReason });
     }
     var labels = { shooting: "التسديد", passing: "التمرير", dribbling: "المراوغة", speed: "السرعة", fitness: "اللياقة", composure: "الهدوء", goalkeeping: "حراسة المرمى" };
     var w = world(s);
     return runFinanceMutation(s, function () {
-      var currentBalance = safeWholeMoney(s.money), currentEnergy = Number(s.energy);
-      if (s.retired || Number(s.injuryDays) > 0 || currentBalance === null || currentBalance < 180 || !Number.isFinite(currentEnergy) || currentEnergy < 8) return false;
+      // Recheck after acquiring the shared transaction lock: a standard session,
+      // match, or another module may have consumed today's training slot.
+      if (focusedTrainingBlockReason(s)) return false;
+      var currentBalance = safeWholeMoney(s.money), currentEnergy = finiteNumber(s.energy);
+      if (currentBalance === null || currentBalance < 180 || currentEnergy === null || currentEnergy < 8) return false;
       s.money = currentBalance - 180;
+      s.trainedToday = true;
       stat(s, skill, 2);
       stat(s, "energy", -8);
       stat(s, "careerXP", 10);

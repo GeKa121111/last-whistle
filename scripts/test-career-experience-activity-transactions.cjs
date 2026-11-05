@@ -235,6 +235,17 @@ async function playPenalty(h) {
   assert.equal(invalidEnergy.state.morale, 50);
   assert.equal(invalidEnergy.saveCalls, 0);
 
+  let malformedEnergyPanel;
+  assert.doesNotThrow(() => {
+    malformedEnergyPanel = makeHarness({ energy: Symbol("invalid-panel-energy"), dailyActionUsed: false });
+  }, "the life panel's polling signature must tolerate a malformed saved energy value");
+  await malformedEnergyPanel.click("open-challenges");
+  assert.match(malformedEnergyPanel.overlay.innerHTML, /data-lwcx-action="open-penalty" disabled/,
+    "the challenges panel must disable practice when energy is malformed");
+  await malformedEnergyPanel.click("open-penalty");
+  assert.equal(malformedEnergyPanel.saveCalls, 0,
+    "a malformed energy value must never reach the challenge transaction");
+
   let release;
   const concurrent = makeHarness({ energy: 0, morale: 50, dailyActionUsed: false }, [
     () => new Promise(resolve => { release = resolve; })

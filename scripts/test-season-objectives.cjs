@@ -145,7 +145,19 @@ assert.equal(archived.seasonObjectiveHistory[0].claimed, true);
 const retired = { season:1, pos:"رأس حربة", retired:true };
 runtimeState = retired;
 assert.equal(objectives.choose(retired, "attacker-goals").reason, "retired");
-assert.equal(objectives.claim(retired).reason, "retired");
+assert.equal(objectives.claim(retired).reason, "no-objective");
+const retiredCompleted = {
+  season:1, pos:"رأس حربة", retired:true, day:80, money:5, morale:40,
+  seasonObjective:{id:"attacker-goals",season:1,claimed:false},
+  careerMatchHistory:Array.from({length:12}, (_,index)=>({
+    id:"retired-goal-"+index,season:1,scope:"league",minutes:90,goals:1
+  }))
+};
+runtimeState = retiredCompleted;
+assert.equal(objectives.claim(retiredCompleted).ok,true,
+  "a retired player must still be able to collect an already completed season reward");
+assert.equal(retiredCompleted.money,505);
+assert.equal(objectives.claim(retiredCompleted).reason,"already-claimed");
 
 const failedSaveState = { season:1, pos:"رأس حربة", day:1, money:50, morale:40 };
 runtimeState = failedSaveState;

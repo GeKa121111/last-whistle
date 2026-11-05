@@ -214,7 +214,6 @@
 
   function claim(state, seasonOverride) {
     if (!state || typeof state !== "object") return { ok:false, reason:"invalid-state" };
-    if (state.retired) return { ok:false, reason:"retired" };
     var season = Math.max(1, Number(seasonOverride) || currentSeason(state));
     var objective = objectiveRecordForSeason(state, season);
     if (!objective) return { ok:false, reason:"no-objective" };
@@ -301,9 +300,7 @@
       html += '</div>';
     }
 
-    if (state.retired) {
-      html += '<div class="lw-objective-empty">المسيرة انتهت. تقدر تستلم المكافآت السابقة المكتملة إن وجدت.</div>';
-    } else if (current) {
+    if (current) {
       var definition = definitionFor(current.id);
       if (!definition) {
         html += '<div class="lw-objective-empty">التحدي المحفوظ غير معروف. بيانات المسيرة محفوظة كما هي، ومش هنستبدله تلقائيًا.</div>';
@@ -317,8 +314,11 @@
         html += '<div class="lw-objective-meta"><span>' + (definition.metric === "averageRating" ? progress.appearances + " / " + definition.minimumAppearances + " مشاركة" : targetText) + '</span><b>' + progress.progress + '%</b></div>';
         if (current.claimed) html += '<div class="lw-objective-complete">تم استلام مكافأة هذا التحدي بالفعل.</div>';
         else if (progress.complete) html += '<div class="lw-objective-ready"><span>وصلت لهدفك!</span><button type="button" class="btn primary" data-season-objective-action="claim" data-objective-season="' + season + '">استلم مكافأتك · 500</button></div>';
+        else if (state.retired) html += '<div class="lw-objective-empty">انتهت المسيرة قبل اكتمال الهدف؛ مفيش مكافأة مستحقة.</div>';
         else html += '<div class="lw-objective-note">لسه قدامك فرصة تكمل التحدي. التقدم بيتحدث بعد كل مباراة.</div>';
       }
+    } else if (state.retired) {
+      html += '<div class="lw-objective-empty">المسيرة انتهت. تقدر تراجع أهدافك السابقة وتستلم أي مكافأة مكتملة لم تُستلم.</div>';
     } else if (!state.seasonFinished) {
       html += '<div class="lw-objective-grid">';
       catalogForPosition(state.pos).forEach(function (item) {

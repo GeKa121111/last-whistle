@@ -145,7 +145,7 @@ const malformedSeasonHistoryState = Object.assign({},state,{
 const malformedSeasonHistoryView=dynamics.snapshot(malformedSeasonHistoryState);
 assert.equal(malformedSeasonHistoryView.stats.appearances,3,
   "current form must include numeric/current and genuinely missing legacy seasons only");
-assert.equal(malformedSeasonHistoryView.stats.averageRating,7.4,
+assert.ok(Math.abs(malformedSeasonHistoryView.stats.averageRating-7.4)<1e-9,
   "malformed or prior-season rows must not inflate current-season leadership form");
 assert.equal(Array.from(malformedSeasonHistoryView.stats.formRows,row=>row.id).sort().join(","),
   "season-current-number,season-current-string,season-missing",

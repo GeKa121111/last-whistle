@@ -400,6 +400,7 @@ const required = [
   "career-hub.css?v=2",
   "career-hub.js?v=4",
   "season-objectives.js?v=1",
+  "team-dynamics.js?v=1",
   "player-store.css?v=2",
   "ai-career-engine.js?v=7",
   "football-world-ai.css?v=2",
@@ -557,7 +558,7 @@ if (!inlineCount) {
   console.error("UI smoke test failed: no inline application script found.");
   process.exit(1);
 }
-for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css", "ai-career-engine.js", "football-world-ai.css", "football-world-ai.js", "lz-string.min.js"]) {
+for (const asset of ["sw.js", "manifest.webmanifest", "app-icon.svg", "story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "team-dynamics.js", "player-store.css", "ai-career-engine.js", "football-world-ai.css", "football-world-ai.js", "lz-string.min.js"]) {
   if (!fs.existsSync(path.join(root, "public", asset))) {
     console.error("Missing public asset:", asset);
     process.exit(1);
@@ -618,7 +619,7 @@ catch (error) { console.error("Career hub JavaScript syntax error:", error.messa
 for (const marker of ["wellnessReadinessScore", "statusTrust", "statusRelation", "winterBreakPending", "dailyActionDay"]) {
   if (!careerHubSource.includes(marker)) { console.error("Career hub integration test failed. Missing marker:", marker); process.exit(1); }
 }
-for (const asset of ["story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "player-store.css", "ai-career-engine.js", "football-world-ai.css", "football-world-ai.js", "lz-string.min.js", "redesign.css", "sw.js"]) {
+for (const asset of ["story-ui.css", "story-mode.js", "career-experience.css", "career-experience.js", "agent-system.css", "agent-system.js", "career-hub.css", "career-hub.js", "team-dynamics.js", "player-store.css", "ai-career-engine.js", "football-world-ai.css", "football-world-ai.js", "lz-string.min.js", "redesign.css", "sw.js"]) {
   const rootAsset = fs.readFileSync(path.join(root, asset), "utf8");
   const publicAsset = fs.readFileSync(path.join(root, "public", asset), "utf8");
   if (rootAsset !== publicAsset) { console.error("Root/public asset mirror mismatch:", asset); process.exit(1); }
@@ -696,7 +697,7 @@ const workerCacheDeclaration = workerSource.split("\n").find(line => line.starts
 if (!workerCacheDeclaration || !/last-whistle-static-v\d+/.test(workerCacheDeclaration)) {
   console.error("Application runtime fix must use a versioned service-worker cache."); process.exit(1);
 }
-for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=14", "career-experience.css?v=2", "career-experience.js?v=9", "agent-system.css?v=1", "agent-system.js?v=9", "career-hub.css?v=2", "career-hub.js?v=4", "season-objectives.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=83", "football-world-rosters.js?v=6", "football-world-db.js?v=11", "lz-string.min.js?v=1", "career-state-store.js?v=8", "ai-career-ui.js?v=1", "football-world-worker.js?v=72", "world-roster-audit.json", "redesign.css?v=17"]) {
+for (const assetUrl of ["story-ui.css?v=1", "story-mode.js?v=14", "career-experience.css?v=2", "career-experience.js?v=9", "agent-system.css?v=1", "agent-system.js?v=9", "career-hub.css?v=2", "career-hub.js?v=4", "season-objectives.js?v=1", "team-dynamics.js?v=1", "player-store.css?v=2", "ai-career-engine.js?v=7", "football-world-ai.css?v=2", "football-world-ai.js?v=83", "football-world-rosters.js?v=6", "football-world-db.js?v=11", "lz-string.min.js?v=1", "career-state-store.js?v=8", "ai-career-ui.js?v=1", "football-world-worker.js?v=72", "world-roster-audit.json", "redesign.css?v=17"]) {
   if (!workerSource.includes(assetUrl)) { console.error("Offline app shell is missing cache-busted asset:", assetUrl); process.exit(1); }
 }
 if (!workerSource.includes('url.indexOf("ai-career-engine.js?") >= 0')) {

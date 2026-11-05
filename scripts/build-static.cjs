@@ -67,6 +67,7 @@ const canonicalCopies = [
   ["career-hub.css", "career-hub.css"],
   ["career-hub.js", "career-hub.js"],
   ["season-objectives.js", "season-objectives.js"],
+  ["team-dynamics.js", "team-dynamics.js"],
   ["career-state-store.js", "career-state-store.js"],
   ["football-world-ai.css", "football-world-ai.css"],
   ["football-world-ai.js", "football-world-ai.js"],

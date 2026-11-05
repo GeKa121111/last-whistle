@@ -602,17 +602,20 @@
       const appearanceValue = user.appearances !== undefined && user.appearances !== null
         ? user.appearances : user.apps;
       const userAppearances = safeCount(appearanceValue);
-      const userGoals = userAppearances > 0 ? safeCount(user.goals) : 0;
-      const userAssists = userAppearances > 0 ? safeCount(user.assists) : 0;
-      const userAverageRating = userAppearances > 0 ? safeRating(user.averageRating) : 0;
+      const userMinutes = seasonMinutes(user, userAppearances);
+      const hasUserPlayingTime = userAppearances > 0 && userMinutes > 0;
+      const userGoals = hasUserPlayingTime ? safeCount(user.goals) : 0;
+      const userAssists = hasUserPlayingTime ? safeCount(user.assists) : 0;
+      const userAverageRating = hasUserPlayingTime ? safeRating(user.averageRating) : 0;
       const userLeagueStrength = safeStrength(user.leagueStrength);
       user.appearances = userAppearances;
+      user.minutes = userMinutes;
       user.goals = userGoals;
       user.assists = userAssists;
       user.averageRating = userAverageRating;
       user.leagueStrength = userLeagueStrength;
       user.ovr = clamp(user.ovr || 50, 35, 99);
-      if (userAppearances === 0) {
+      if (!hasUserPlayingTime) {
         user.score = 0;
         user.weightedGoals = 0;
       } else {
@@ -800,10 +803,15 @@
   function seasonMinutes(player, appearances) {
     if (appearances <= 0) return 0;
     const rawMinutes = player && player.minutes;
-    const hasMinutes = rawMinutes !== undefined && rawMinutes !== null && rawMinutes !== "";
-    const parsedMinutes = Number(rawMinutes);
-    const minutes = hasMinutes && Number.isFinite(parsedMinutes) ? parsedMinutes : appearances * 65;
-    return Math.max(0, minutes);
+    const missingMinutes = rawMinutes === undefined || rawMinutes === null
+      || (typeof rawMinutes === "string" && rawMinutes.trim() === "");
+    // Only legacy saves with no minute value receive the 65-minute estimate.
+    // An explicitly stored but malformed value is not evidence of playing time.
+    if (missingMinutes) return appearances * 65;
+    const parsedMinutes = typeof rawMinutes === "number" || typeof rawMinutes === "string"
+      ? Number(rawMinutes) : NaN;
+    if (!Number.isFinite(parsedMinutes)) return 0;
+    return Math.max(0, parsedMinutes);
   }
 
   function performanceIndex(player) {
@@ -891,7 +899,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 21,
+    version: 22,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

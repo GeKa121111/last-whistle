@@ -1501,6 +1501,77 @@ assert.equal(rankedPromotionMoves[0].relegated, "Ranked First 6",
 assert.equal(rankedPromotionWorld.clubs["ranked-second-1"].division, 1);
 assert.equal(rankedPromotionWorld.clubs["ranked-first-6"].division, 2);
 
+const rankedPromotionBaseline = JSON.parse(JSON.stringify(rankedPromotionWorld));
+
+// Malformed legacy standings values must never become valid ranks or points through
+// JavaScript coercion. Numeric strings remain supported for older persisted tables.
+const malformedStandingWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+const malformedStandingTables = malformedStandingWorld.leagueTables["6"];
+["ranked-league", "ranked-league:2"].forEach(tableKey => {
+  malformedStandingTables[tableKey].forEach(row => delete row.rank);
+});
+const malformedSecondThree = malformedStandingTables["ranked-league:2"]
+  .find(row => row.clubId === "ranked-second-3");
+malformedSecondThree.rank = [1];
+malformedSecondThree.pts = [9999];
+malformedSecondThree.gd = Object(9999);
+malformedSecondThree.gf = [9999];
+malformedSecondThree.ga = [0];
+malformedStandingTables["ranked-league:2"]
+  .find(row => row.clubId === "ranked-second-1").pts = "14";
+const malformedStandingMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  malformedStandingWorld, 6, rankedPromotionDb
+);
+assert.equal(malformedStandingMoves.length, 1);
+assert.equal(malformedStandingMoves[0].promoted, "Ranked Second 1",
+  "array ranks and boxed/array metrics must not promote a club over valid standings");
+assert.equal(malformedStandingMoves[0].relegated, "Ranked First 6");
+
+// Symbol and coercion-hostile objects in imported standings must be rejected without
+// throwing or aborting the season transition.
+const hostileStandingWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+const hostileStandingTables = hostileStandingWorld.leagueTables["6"];
+["ranked-league", "ranked-league:2"].forEach(tableKey => {
+  hostileStandingTables[tableKey].forEach(row => delete row.rank);
+});
+hostileStandingTables["ranked-league:2"].forEach(row => {
+  row.pts = Symbol("invalid-points");
+});
+const hostileMetricRow = hostileStandingTables["ranked-league:2"]
+  .find(row => row.clubId === "ranked-second-3");
+hostileMetricRow.gd = { valueOf() { throw new Error("unsafe goal-difference coercion"); } };
+hostileMetricRow.gf = Symbol("invalid-goals-for");
+hostileMetricRow.ga = { toString() { throw new Error("unsafe goals-against coercion"); } };
+let hostileStandingMoves;
+assert.doesNotThrow(() => {
+  hostileStandingMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+    hostileStandingWorld, 6, rankedPromotionDb
+  );
+}, "malformed Symbol and hostile-object standings must not crash promotion processing");
+assert.equal(hostileStandingMoves.length, 1);
+assert.equal(hostileStandingMoves[0].promoted, "Ranked Second 1");
+
+// A club with a coerced tier is not a valid second-division participant.
+const malformedClubDivisionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+malformedClubDivisionWorld.clubs["ranked-second-1"].division = [2];
+const malformedClubDivisionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  malformedClubDivisionWorld, 6, rankedPromotionDb
+);
+assert.equal(malformedClubDivisionMoves.length, 0,
+  "an array-valued club division must not qualify as a second-tier club");
+assert.equal(malformedClubDivisionWorld.clubs["ranked-second-1"].division.length, 1,
+  "invalid saved division data must remain untouched rather than being silently rewritten");
+
+// A malformed persisted row division must also be excluded from its table.
+const malformedRowDivisionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+malformedRowDivisionWorld.leagueTables["6"]["ranked-league:2"]
+  .find(row => row.clubId === "ranked-second-1").division = [2];
+const malformedRowDivisionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  malformedRowDivisionWorld, 6, rankedPromotionDb
+);
+assert.equal(malformedRowDivisionMoves.length, 0,
+  "an array-valued table division must not be accepted as a numeric tier");
+
 // A metadata failure midway through a promotion batch must roll back every club and player tier.
 const atomicPromotionClubs = [];
 for (let index = 1; index <= 6; index++) atomicPromotionClubs.push({

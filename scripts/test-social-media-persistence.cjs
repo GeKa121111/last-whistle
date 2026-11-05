@@ -152,7 +152,37 @@ function careerState() {
     "periodic feed sync must snapshot only social state, not the full world/player database");
   assert.deepEqual(lightweight.counts(), { saves: 0, flushes: 0 });
 
-  console.log("PASS: social posts, replies, likes, automatic feed sync and migration use confirmed saves with rollback and concurrency protection.");
+  // The feed signature must invalidate when an older post changes in a shared save.
+  // The newest post and feed length deliberately remain unchanged in this regression.
+  const renderFeed = { dataset: {}, innerHTML: "" };
+  const renderState = careerState();
+  renderState.socialMedia.posts = [
+    { id:"post-newest", kind:"news", author:"رادار الملاعب", authorType:"media", avatar:"📣",
+      verified:true, body:"أحدث خبر", season:2, day:7, likes:10, liked:false, comments:[] },
+    { id:"post-older", kind:"news", author:"صوت المدرج", authorType:"media", avatar:"📣",
+      verified:true, body:"خبر أقدم", season:2, day:6, likes:3, liked:false, comments:[] }
+  ];
+  let renderRevision = 1;
+  const renderWindow = { LWStateStore: { getRevision: () => renderRevision } };
+  const renderDocument = {
+    readyState: "loading",
+    getElementById(id) { return id === "lw-social-feed" ? renderFeed : null; },
+    addEventListener() {}
+  };
+  const renderSandbox = { window: renderWindow, document: renderDocument, Math, Promise, console };
+  vm.createContext(renderSandbox);
+  vm.runInContext(source, renderSandbox, { filename: "social-media-render-revision.cjs" });
+  const renderSocial = renderWindow.LWSocialMedia;
+  renderSocial.render(renderState);
+  assert.ok(renderFeed.innerHTML.includes("♥ 3 إعجاب"),
+    "the initial feed must render the older post's saved likes");
+  renderState.socialMedia.posts[1].likes = 9;
+  renderRevision += 1;
+  renderSocial.render(renderState);
+  assert.ok(renderFeed.innerHTML.includes("♥ 9 إعجاب"),
+    "a newer shared state revision must refresh older post changes without changing feed length or newest post");
+
+  console.log("PASS: social posts, replies, likes, automatic feed sync, migration, and stale older-post render invalidation.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

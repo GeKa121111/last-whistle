@@ -793,7 +793,15 @@
     if (!feed || !state) return;
     var social = readSocialState(state);
     var rows = visiblePosts(state);
-    var signature = [social.posts.length, social.posts[0] && social.posts[0].id,
+    // Older posts are part of the visible feed too. A shared save can update
+    // their likes or replies without changing the newest post or feed length.
+    // Include the O(1) store revision so cross-tab and background saves repaint.
+    var stateRevision = -1;
+    try {
+      var store = window.LWStateStore;
+      if (store && typeof store.getRevision === "function") stateRevision = number(store.getRevision(), -1);
+    } catch (error) {}
+    var signature = [stateRevision, social.posts.length, social.posts[0] && social.posts[0].id,
       social.posts[0] && social.posts[0].liked, social.posts[0] && social.posts[0].likes,
       activeFilter, state.followers, state.mediaReputation, state.teamChemistry,
       state.coachRelationship, state.role, social.lastReplyDay, draft, socialMutationPending].join("|");

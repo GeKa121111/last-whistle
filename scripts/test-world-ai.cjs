@@ -2632,6 +2632,7 @@ assert.equal(malformedProgressionPlayer.lastRating, 0);
 assert.equal(malformedProgressionPlayer.ovr, 35);
 assert.equal(malformedProgressionPlayer.potential, 35);
 assert.equal(malformedProgressionPlayer.clubId, "");
+assert.deepEqual(malformedProgressionWorld.clubs["malformed-progression-club"].roster, [], "a free agent must be removed from the former club roster");
 assert.equal(malformedProgressionPlayer.division, 0);
 assert.equal(malformedProgressionPlayer.freeAgent, true);
 assert.equal(malformedProgressionPlayer.freeAgentSince, 2);

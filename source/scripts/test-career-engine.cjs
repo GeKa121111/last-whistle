@@ -111,8 +111,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 517);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 75);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 518);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 76);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -219,6 +219,8 @@ vm.runInContext(rootHtml.slice(inlineDateStart, inlineDateEnd)
   + "\nthis.calendarGameDateISO = calendarGameDateISO;", inlineDateContext);
 assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: 1 }), "2024-08-01T00:00:00.000Z",
   "the browser career engine must use the same game-calendar date");
+assert.equal(inlineDateContext.calendarGameDateISO({ calendarDay: Symbol("calendar-day") }), "2024-08-01T00:00:00.000Z",
+  "the standalone browser date helper must safely default malformed saved calendar days");
 assert.ok(rootHtml.includes("const log = currentSeasonLeagueMatchRows(state);"),
   "the inline browser award engine must use the unified current-season league history");
 assert.ok(rootHtml.includes("function currentSeasonLeagueMatchRows(state)"),
@@ -2580,6 +2582,111 @@ assert.equal(sourceUnifiedAwardState.money, 1100,
 assert.equal(browserUnifiedAwardState.money, sourceUnifiedAwardState.money,
   "deployed and shared award payouts must remain identical");
 
+// Corrupt saved match values must never crash season-award calculation.
+function makeSymbolAwardStatsState() {
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", season: 1, calendarDay: 120, money: 500,
+    topScorerAwards: 0, careerAwards: [],
+    seasonLog: [
+      { matchId: "symbol-award-minute", leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: Symbol("minutes"), rating: 10, goals: 20, assists: 20 },
+      { scope: "league", competition: "Test League", season: 1, club: "Test FC",
+        opponent: "Legacy Symbol Row", day: 99, leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: Symbol("legacy-minutes"), rating: 8, goals: 30, assists: 30 },
+      { matchId: "symbol-award-stats", leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: 90, rating: Symbol("rating"), goals: Symbol("goals"), assists: Symbol("assists") },
+      { matchId: "symbol-award-valid-1", leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: 90, rating: 8, goals: 1, assists: 1 },
+      { matchId: "symbol-award-valid-2", leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: 90, rating: 8, goals: 1, assists: 1 },
+      { matchId: "symbol-award-valid-3", leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: 90, rating: 8, goals: 1, assists: 1 }
+    ]
+  };
+}
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const symbolStatsState = makeSymbolAwardStatsState();
+  assert.doesNotThrow(() => engine.seasonAwards(symbolStatsState, [], 1),
+    engineName + " award processing must ignore Symbol minutes, goals, assists and ratings");
+  const symbolStatsBoot = symbolStatsState.careerAwards.find(award => award.id === "golden-boot");
+  assert.ok(symbolStatsBoot, engineName + " valid match rows must still qualify after malformed rows are sanitized");
+  assert.equal(symbolStatsBoot.note, "3 هدف في 4 مشاركة",
+    engineName + " must exclude malformed minutes and count Symbol performance fields as zero");
+  assert.equal(symbolStatsState.topScorerAwards, 1);
+}
+
+const previousWorldDatabase = global.LWWorldDB;
+const previousTransferAwards = global.LWTransferAwards;
+const previousDeployedWorldDatabase = deployedContext.window.LWWorldDB;
+const previousDeployedTransferAwards = deployedContext.window.LWTransferAwards;
+let resolvedAwardDivision = null;
+let resolvedAwardLeagueStrength = null;
+global.LWWorldDB = {
+  leagueFor(country, division) {
+    resolvedAwardDivision = division;
+    return { strength: Symbol("league-strength") };
+  },
+  clubs() {
+    return [{
+      id: "symbol-division-club", name: "Symbol Division Club", country: "England",
+      division: Symbol("club-division"), leagueId: "symbol-league",
+      players: [{ id: "symbol-roster-player", name: "Roster Test", position: "ST" }]
+    }];
+  },
+  leagueById() { return { confederation: "UEFA" }; }
+};
+global.LWTransferAwards = {
+  simulatePlayerSeason(player) {
+    resolvedAwardLeagueStrength = player.leagueStrength;
+    return null;
+  }
+};
+deployedContext.window.LWWorldDB = global.LWWorldDB;
+deployedContext.window.LWTransferAwards = global.LWTransferAwards;
+try {
+  for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+    const malformedState = {
+      age: Symbol("age"), pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+      leagueCompetition: "Test League", season: Symbol("season"), calendarDay: Symbol("calendar-day"),
+      leagueDivision: Symbol("league-division"), money: Symbol("money"),
+      topScorerAwards: Symbol("top-scorer-awards"), careerAwards: [],
+      seasonLog: [
+        { matchId: "malformed-state-1", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 1 },
+        { matchId: "malformed-state-2", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 1 },
+        { matchId: "malformed-state-3", leagueCountry: "England", leagueCompetition: "Test League", minutes: 90, rating: 8, goals: 1, assists: 1 }
+      ]
+    };
+    assert.doesNotThrow(() => engine.seasonAwards(malformedState, [], Symbol("team-rank")),
+      engineName + " awards must tolerate malformed saved season, division, date, age, balance and counters");
+    assert.equal(resolvedAwardDivision, 1, engineName + " must use a safe default league division");
+    assert.equal(resolvedAwardLeagueStrength, 60, engineName + " must use safe league strength for sourced clubs");
+    assert.equal(malformedState.topScorerAwards, 1, engineName + " must recover a malformed scorer-award counter");
+    assert.equal(malformedState.money, 2000, engineName + " must preserve valid award rewards after save recovery");
+    assert.equal(malformedState.careerAwards.length, 4, engineName + " must still calculate all eligible season awards");
+    assert.ok(malformedState.careerAwards.every(award => award.season === 1
+      && award.date === "2024-08-01T00:00:00.000Z"),
+      engineName + " must use safe season and calendar defaults in award records");
+  }
+  for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+    const noAppearanceState = {
+      age: 24, pos: "مهاجم", season: 1, money: 0, topScorerAwards: 0,
+      careerAwards: [], seasonLog: []
+    };
+    assert.doesNotThrow(() => engine.seasonAwards(noAppearanceState,
+      [{ name: "Opponent", power: Symbol("club-power") }], 1),
+      engineName + " must ignore malformed opponent club strength");
+  }
+} finally {
+  if (previousWorldDatabase === undefined) delete global.LWWorldDB;
+  else global.LWWorldDB = previousWorldDatabase;
+  if (previousTransferAwards === undefined) delete global.LWTransferAwards;
+  else global.LWTransferAwards = previousTransferAwards;
+  if (previousDeployedWorldDatabase === undefined) delete deployedContext.window.LWWorldDB;
+  else deployedContext.window.LWWorldDB = previousDeployedWorldDatabase;
+  if (previousDeployedTransferAwards === undefined) delete deployedContext.window.LWTransferAwards;
+  else deployedContext.window.LWTransferAwards = previousDeployedTransferAwards;
+}
 
 // Contract dialogs can become stale if retirement happens after they were opened.
 // Neither accepting nor declining may mutate a retired career.
@@ -2859,5 +2966,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v517"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v518"),
  "service worker cache must be refreshed");

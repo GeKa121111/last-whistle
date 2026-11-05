@@ -10,11 +10,14 @@
   var refreshQueued = false;
 
   function num(value, fallback) {
+    var safeFallback = Number.isFinite(fallback) ? fallback : 0;
+    if (typeof value !== "number" && typeof value !== "string") return safeFallback;
+    if (typeof value === "string" && value.trim() === "") return safeFallback;
     var valueNumber = Number(value);
-    return Number.isFinite(valueNumber) ? valueNumber : (fallback || 0);
+    return Number.isFinite(valueNumber) ? valueNumber : safeFallback;
   }
   function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, Number(value) || 0));
+    return Math.max(min, Math.min(max, num(value, 0)));
   }
   function escapeHTML(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (char) {
@@ -114,7 +117,7 @@
     }
     return combined.filter(function (row) {
       var scope = String(row.scope || "league");
-      return Number(row.season) === season && Number(row.minutes) > 0
+      return currentSeasonForRow(row, season) === season && num(row.minutes) > 0
         && (scope === "league" || scope === "cup");
     });
   }

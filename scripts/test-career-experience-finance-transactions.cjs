@@ -79,7 +79,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   return {
-    state, notices, click, settleMicrotasks,
+    state, notices, overlay, click, settleMicrotasks,
     get saveCalls() { return saveCalls; },
     get flushCalls() { return flushCalls; },
     runInterval() { if (intervalCallback) intervalCallback(); }

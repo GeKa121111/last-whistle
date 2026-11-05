@@ -2676,9 +2676,6 @@ try {
 }
 
 // Contract dialogs can become stale if retirement happens after they were opened.
-
-
-// Contract dialogs can become stale if retirement happens after they were opened.
 // Neither accepting nor declining may mutate a retired career.
 assert.ok(rootHtml.includes('const decision=window.LWCareer?.resolveContractDecision(state,"decline",o);if(!decision?.ok)return;state.transferHistory.unshift'),
   "the browser decline handler must stop when contract resolution is rejected");

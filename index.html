@@ -3503,15 +3503,18 @@ function seasonAwards(state, league, teamRank) {
         return value == null || finiteLegacyNumber(value) !== null;
       });
     };
+    // Keep established metadata error codes while validating these values before Number().
+    const aggregateOffsetCandidate = result.metadata?.aggregateOffset;
+    if (aggregateOffsetCandidate != null && finiteLegacyNumber(aggregateOffsetCandidate) === null) {
+      return { ok: false, reason: "invalid-aggregate-offset" };
+    }
+    const extraTimeEventSeedCandidate = result.metadata?.extraTimeEventSeed;
+    if (extraTimeEventSeedCandidate != null && finiteLegacyNumber(extraTimeEventSeedCandidate) === null) {
+      return { ok: false, reason: "invalid-extra-time-event-seed" };
+    }
     const numericLedgerValuesValid = hasValidOptionalNumericFields(result.player, numericPlayerStatFields)
       && result.events.every(event => hasValidOptionalNumericFields(event,
-        ["minute", "goalMinute", "attemptNumber", "scoreFor", "scoreAgainst"]))
-      && hasValidOptionalNumericFields(result.regulation, ["for", "against"])
-      && hasValidOptionalNumericFields(result.extraTime, ["for", "against"])
-      && (!Array.isArray(result.extraTime?.periods) || result.extraTime.periods.every(period =>
-        hasValidOptionalNumericFields(period, ["for", "against"])))
-      && hasValidOptionalNumericFields(result.shootout, ["scoreFor", "scoreAgainst"])
-      && hasValidOptionalNumericFields(result.metadata, ["aggregateOffset", "extraTimeEventSeed"]);
+        ["minute", "goalMinute", "attemptNumber"]));
     if (!numericLedgerValuesValid) return { ok: false, reason: "invalid-match-ledger-number" };
     const playerStatsValid = numericPlayerStatFields.every(field => {
       const value = result.player[field];

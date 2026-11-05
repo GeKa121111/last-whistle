@@ -26,6 +26,19 @@
     });
   }
 
+  function finiteNumber(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    var parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function safeCounter(value, fallback) {
+    var parsed = finiteNumber(value);
+    if (parsed === null) return fallback;
+    return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(parsed)));
+  }
+
   function cap(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(Number(value) || 0)));
   }
@@ -41,18 +54,24 @@
     var w = s.careerWorld;
     if (!Array.isArray(w.investments)) w.investments = [];
     if (!Array.isArray(w.history)) w.history = [];
-    w.challengeCount = Number(w.challengeCount) || 0;
-    w.challengeWins = Number(w.challengeWins) || 0;
-    w.practiceAttempts = Number(w.practiceAttempts) || 0;
-    w.memoryWins = Number(w.memoryWins) || 0;
-    w.timingWins = Number(w.timingWins) || 0;
-    w.mentorSessions = Number(w.mentorSessions) || 0;
-    w.investmentSequence = Number(w.investmentSequence) || 1;
+    w.challengeCount = safeCounter(w.challengeCount, 0);
+    w.challengeWins = safeCounter(w.challengeWins, 0);
+    w.practiceAttempts = safeCounter(w.practiceAttempts, 0);
+    w.memoryWins = safeCounter(w.memoryWins, 0);
+    w.timingWins = safeCounter(w.timingWins, 0);
+    w.mentorSessions = safeCounter(w.mentorSessions, 0);
+    w.investmentSequence = Math.max(1, safeCounter(w.investmentSequence, 1));
     // Legacy saves may have an absent or stale sequence counter; keep every investment ID unique.
+    // Only finite, non-negative safe integer IDs may advance the sequence.
     var maxInvestmentId = w.investments.reduce(function (max, item) {
-      return Math.max(max, Number(item && item.id) || 0);
+      var rawId;
+      try { rawId = item && item.id; } catch (error) { return max; }
+      var id = finiteNumber(rawId);
+      return id !== null && Number.isSafeInteger(id) && id >= 0 ? Math.max(max, id) : max;
     }, 0);
-    w.investmentSequence = Math.max(w.investmentSequence, maxInvestmentId + 1);
+    var nextInvestmentSequence = maxInvestmentId >= Number.MAX_SAFE_INTEGER
+      ? Number.MAX_SAFE_INTEGER : maxInvestmentId + 1;
+    w.investmentSequence = Math.max(w.investmentSequence, nextInvestmentSequence);
     return w;
   }
 

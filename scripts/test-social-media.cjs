@@ -36,8 +36,11 @@ const malformedSocialState = {
     lastBenchStoryCalendarDay: Symbol("last-day"), lastBenchStoryMatchId: ""
   }
 };
+assert.equal(social.syncState(malformedSocialState), 0,
+  "malformed saved social counters must not interrupt legacy social-state migration");
+malformedSocialState.careerMatchHistory.unshift(malformedSocialMatch);
 assert.equal(social.syncState(malformedSocialState), 1,
-  "malformed saved social counters and match stats must not interrupt feed synchronization");
+  "malformed match stats must not interrupt feed synchronization after migration");
 assert.equal(malformedSocialState.socialMedia.posts.length, 1);
 assert.equal(malformedSocialState.socialMedia.posts[0].season, 1);
 assert.equal(malformedSocialState.socialMedia.posts[0].day, 1);

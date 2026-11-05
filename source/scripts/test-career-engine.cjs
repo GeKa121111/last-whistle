@@ -576,11 +576,11 @@ assert.equal(malformedMatchState.age, 18);
 assert.equal(malformedMatchState.competitionStats["club|unknown"].goals, 0);
 assert.equal(malformedMatchState.competitionStats["club|unknown"].assists, 0);
 
-const malformedRoleDecision = career.evaluateSquadRole({
+const symbolRoleDecision = career.evaluateSquadRole({
   pos: "ST", role: "بديل", apps: Symbol("role-apps"),
   goals: Symbol("role-goals"), assists: Symbol("role-assists"), trust: 50
 }, [{ matchId: "symbol-role-minutes", minutes: Symbol("role-minutes"), rating: 8 }]);
-assert.equal(malformedRoleDecision.reason, "no-appearances",
+assert.equal(symbolRoleDecision.reason, "no-appearances",
   "malformed saved minutes must not crash squad-role evaluation or create a recent appearance");
 
 assert.equal(career.leagueMatchTarget(16), 30, "a 16-team league must schedule 30 matches");

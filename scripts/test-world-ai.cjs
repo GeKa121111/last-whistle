@@ -2591,8 +2591,14 @@ assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].contractSea
 
 // Malformed saved player numerics must not interrupt season aging, contract expiry or retirement checks.
 const malformedProgressionPlayerId = "malformed-progression-player";
+const legacyNullProgressionPlayerId = "legacy-null-progression-player";
 const malformedProgressionWorld = {
   players: {
+    [legacyNullProgressionPlayerId]: {
+      id: legacyNullProgressionPlayerId, name: "Legacy Null Progression Player",
+      clubId: "", age: null, contractSeasons: null, ovr: null, potential: null, lastRating: null,
+      position: "ST", group: "attacker", retired: false, freeAgent: true
+    },
     [malformedProgressionPlayerId]: {
       id: malformedProgressionPlayerId, name: "Malformed Progression Player",
       clubId: "malformed-progression-club", leagueId: "malformed-progression-league",
@@ -2610,7 +2616,10 @@ const malformedProgressionWorld = {
     }
   },
   seasonStats: {
-    "1": [{ id: malformedProgressionPlayerId, appearances: Symbol("appearances"), averageRating: Symbol("rating") }]
+    "1": [
+      { id: malformedProgressionPlayerId, appearances: Symbol("appearances"), averageRating: Symbol("rating") },
+      { id: legacyNullProgressionPlayerId, appearances: null, averageRating: null }
+    ]
   },
   notes: [], lastDevelopedSeason: Symbol("last-developed-season")
 };
@@ -2627,6 +2636,12 @@ assert.equal(malformedProgressionPlayer.division, 0);
 assert.equal(malformedProgressionPlayer.freeAgent, true);
 assert.equal(malformedProgressionPlayer.freeAgentSince, 2);
 assert.equal(malformedProgressionWorld.lastDevelopedSeason, 1);
+const legacyNullProgressionPlayer = malformedProgressionWorld.players[legacyNullProgressionPlayerId];
+assert.equal(legacyNullProgressionPlayer.age, 19, "null legacy ages must retain the existing 18-year fallback");
+assert.equal(legacyNullProgressionPlayer.contractSeasons, 0, "null legacy contract terms must retain the existing one-season fallback");
+assert.equal(legacyNullProgressionPlayer.lastRating, 0);
+assert.equal(legacyNullProgressionPlayer.ovr, 35);
+assert.equal(legacyNullProgressionPlayer.potential, 35);
 
 // A free-agent history write can fail after the paid market has advanced the world.
 // The failed free-agent phase must be retryable without replaying player development.

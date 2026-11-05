@@ -18,14 +18,15 @@
     attacker: ["جناح", "مهاجم", "رأس حربة"]
   });
   function safeNumber(value, fallback = 0) {
-    if (value === null || value === "") return 0;
     if (typeof value !== "number" && typeof value !== "string") return fallback;
-    if (typeof value === "string" && value.trim() === "") return 0;
+    if (typeof value === "string" && value.trim() === "") return fallback;
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
   }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
-  const int = (value, fallback = 0) => Math.round(safeNumber(value, fallback));
+  const int = (value, fallback = 0) => Math.round(
+    value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
+  );
   const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   function isTrueFlag(value) {
     if (value === true || value === 1) return true;
@@ -1492,10 +1493,10 @@
       const row = byId.get(player.id);
       // Season statistics describe the season just played, so development thresholds
       // must use the player's age during that season, before advancing their age.
-      const seasonAge = Math.min(43, Math.max(16, safeNumber(player.age, 18)));
+      const seasonAge = Math.min(43, Math.max(16, safeNumber(player.age, 18) || 18));
       seasonAges.set(player.id, seasonAge);
       player.age = Math.min(43, seasonAge + 1);
-      player.contractSeasons = Math.max(0, safeNumber(player.contractSeasons, 1) - 1);
+      player.contractSeasons = Math.max(0, (safeNumber(player.contractSeasons, 1) || 1) - 1);
       if (row) {
         const rowAppearances = safeNumber(row.appearances, 0);
         const rowAverageRating = safeNumber(row.averageRating, 0);
@@ -1507,7 +1508,7 @@
         else if (seasonAge >= 29 && rowAverageRating < 6.0) delta = -1;
         player.ovr = clamp(safeNumber(player.ovr, 35) + delta, 35, 97);
         const potentialValue = safeNumber(player.potential, null);
-        if (potentialValue === null && player.potential !== undefined && player.potential !== null) player.potential = player.ovr;
+        if (potentialValue === null && player.potential !== undefined) player.potential = player.ovr;
         else if (potentialValue !== null && potentialValue < player.ovr) player.potential = player.ovr;
       }
     });
@@ -1555,8 +1556,8 @@
       const sameRole = roster.filter(row => row.group === player.group && row.id !== player.id);
       const roleTarget = Math.max(1, Number(TARGETS[player.group]) || 1);
       const roleNeed = sameRole.length < roleTarget;
-      const age = safeNumber(player.age, 18);
-      const quality = safeNumber(player.ovr, 50);
+      const age = safeNumber(player.age, 18) || 18;
+      const quality = safeNumber(player.ovr, 50) || 50;
       const renewalChance = clamp(0.12 + (quality >= club.power - 2 ? 0.28 : 0)
         + (safeNumber(player.lastRating, 0) >= 7.0 ? 0.16 : 0) + (roleNeed ? 0.20 : 0)
         - Math.max(0, age - 30) * 0.055, 0.02, 0.76);

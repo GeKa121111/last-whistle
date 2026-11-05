@@ -127,6 +127,31 @@ assert.equal(numericStringAwardStats.assists, 3);
 assert.equal(numericStringAwardStats.averageRating, 7.4,
   "numeric-string season stats must remain compatible with legacy saves");
 
+const malformedSeasonLeaderboard = engine.buildLeagueLeaderboard({
+  season: Symbol("season"),
+  userLine: {
+    id: "malformed-leaderboard-user", name: "Malformed leaderboard user", position: "ST",
+    ovr: Symbol("ovr"), appearances: 12, minutes: 1080,
+    goals: Symbol("goals"), assists: Symbol("assists"),
+    averageRating: Symbol("rating"), leagueStrength: Symbol("strength")
+  }
+});
+assert.equal(malformedSeasonLeaderboard.length, 1);
+assert.equal(malformedSeasonLeaderboard[0].ovr, 35);
+assert.equal(malformedSeasonLeaderboard[0].goals, 0);
+assert.equal(malformedSeasonLeaderboard[0].assists, 0);
+assert.equal(malformedSeasonLeaderboard[0].averageRating, 0);
+assert.ok(Number.isFinite(malformedSeasonLeaderboard[0].score),
+  "malformed leaderboard season, OVR, and performance fields must not crash or poison the row");
+
+const malformedSeasonCeremony = engine.buildSeasonAwardCeremony({
+  season: Symbol("season"),
+  player: { name: "Malformed season ceremony player", position: "ST" },
+  realPlayers: []
+});
+assert.ok(malformedSeasonCeremony && Array.isArray(malformedSeasonCeremony.awards),
+  "a malformed ceremony season marker must safely fall back instead of throwing");
+
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,

@@ -4,7 +4,7 @@ self.window = self;
 let engineReady = false;
 function ensureEngines() {
   if (engineReady && self.LWWorldAI && self.LWWorldDB) return;
-  importScripts("./career-state-store.js?v=8", "./football-world-rosters.js?v=6", "./football-world-db.js?v=11", "./football-world-ai.js?v=85");
+  importScripts("./career-state-store.js?v=8", "./football-world-rosters.js?v=6", "./football-world-db.js?v=11", "./football-world-ai.js?v=86");
   if (!self.LWWorldAI || !self.LWWorldDB) throw new Error("World modules failed to initialize in worker");
   engineReady = true;
 }

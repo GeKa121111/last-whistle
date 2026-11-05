@@ -2592,8 +2592,16 @@ assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].contractSea
 // Malformed saved player numerics must not interrupt season aging, contract expiry or retirement checks.
 const malformedProgressionPlayerId = "malformed-progression-player";
 const legacyNullProgressionPlayerId = "legacy-null-progression-player";
+const previousClubFreeAgentId = 9101;
 const malformedProgressionWorld = {
   players: {
+    "previous-club-free-agent-player": {
+      id: previousClubFreeAgentId, name: "Previous Club Free Agent",
+      clubId: "", leagueId: "", division: 0, age: 25, contractSeasons: 0,
+      ovr: 65, potential: 70, lastRating: 7, position: "ST", group: "attacker",
+      retired: false, freeAgent: true, freeAgentSince: 1,
+      previousClubId: "previous-free-agent-club", transferListed: false
+    },
     [legacyNullProgressionPlayerId]: {
       id: legacyNullProgressionPlayerId, name: "Legacy Null Progression Player",
       clubId: "", age: null, contractSeasons: null, ovr: null, potential: null, lastRating: null,
@@ -2613,6 +2621,11 @@ const malformedProgressionWorld = {
       id: "malformed-progression-club", name: "Malformed Progression Club",
       country: "Testland", leagueId: "malformed-progression-league", division: 1,
       power: 60, roster: [malformedProgressionPlayerId]
+    },
+    "previous-free-agent-club": {
+      id: "previous-free-agent-club", name: "Previous Free Agent Club",
+      country: "Testland", leagueId: "previous-free-agent-league", division: 1,
+      power: 60, roster: [previousClubFreeAgentId, String(previousClubFreeAgentId), "keep-player"]
     }
   },
   seasonStats: {
@@ -2633,6 +2646,14 @@ assert.equal(malformedProgressionPlayer.ovr, 35);
 assert.equal(malformedProgressionPlayer.potential, 35);
 assert.equal(malformedProgressionPlayer.clubId, "");
 assert.deepEqual(malformedProgressionWorld.clubs["malformed-progression-club"].roster, [], "a free agent must be removed from the former club roster");
+const previousClubFreeAgent = malformedProgressionWorld.players["previous-club-free-agent-player"];
+assert.equal(previousClubFreeAgent.clubId, "", "a free agent with a cleared club link must remain unattached");
+assert.equal(previousClubFreeAgent.previousClubId, "previous-free-agent-club", "former-club history must be preserved");
+assert.equal(previousClubFreeAgent.freeAgent, true);
+assert.deepEqual(malformedProgressionWorld.clubs["previous-free-agent-club"].roster, ["keep-player"],
+  "a free agent with a cleared clubId must be removed from its previous club roster, including numeric legacy roster IDs");
+assert.ok(malformedProgressionWorld.players["previous-club-free-agent-player"],
+  "roster cleanup must not delete the free-agent player record");
 assert.equal(malformedProgressionPlayer.division, 0);
 assert.equal(malformedProgressionPlayer.freeAgent, true);
 assert.equal(malformedProgressionPlayer.freeAgentSince, 2);

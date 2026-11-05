@@ -210,6 +210,38 @@ assert.equal(validCoach.state.dailyActionUsed, true);
 assert.equal(validCoach.state.careerWorld.mentorSessions, 1,
   "a valid coach session should retain its intended daily reward");
 
+const hostileWorldNumber = {
+  valueOf() { throw new Error("unsafe-career-world-number-coercion"); },
+  toString() { throw new Error("unsafe-career-world-number-coercion"); }
+};
+const malformedWorld = makeHarness({
+  energy:3, coachRelationship:40, trust:50, professionalism:60, dailyActionUsed:false,
+  careerWorld:{
+    challengeCount:Symbol("challenge-count"), challengeWins:true,
+    practiceAttempts:hostileWorldNumber, memoryWins:[3], timingWins:"4",
+    mentorSessions:"2", investmentSequence:Symbol("investment-sequence"),
+    investments:[{id:Symbol("invalid-id")},{id:hostileWorldNumber},{id:"4"}], history:[]
+  }
+});
+let malformedWorldAction;
+assert.doesNotThrow(() => { malformedWorldAction = malformedWorld.click("mentor-coach"); },
+  "malformed saved career-world counters and investment IDs must not crash the action handler");
+await malformedWorldAction;
+assert.equal(malformedWorld.state.careerWorld.challengeCount,0);
+assert.equal(malformedWorld.state.careerWorld.challengeWins,0);
+assert.equal(malformedWorld.state.careerWorld.practiceAttempts,0);
+assert.equal(malformedWorld.state.careerWorld.memoryWins,0);
+assert.equal(malformedWorld.state.careerWorld.timingWins,4,
+  "finite numeric-string counters must remain compatible with older saves");
+assert.equal(malformedWorld.state.careerWorld.mentorSessions,3,
+  "a valid numeric-string mentor counter must increment from its normalized value");
+assert.equal(malformedWorld.state.careerWorld.investmentSequence,5,
+  "the next investment ID must follow the greatest valid saved ID, not malformed IDs");
+assert.equal(typeof malformedWorld.state.careerWorld.investments[0].id,"symbol",
+  "invalid legacy investment records must be retained rather than deleted");
+assert.equal(malformedWorld.state.careerWorld.investments[1].id,hostileWorldNumber);
+assert.equal(malformedWorld.state.careerWorld.investments[2].id,"4");
+
 const restAtZero = makeHarness({ energy: 0, morale: 50, fatigue: 20, dailyActionUsed: false });
 await restAtZero.click("mentor-reset");
 assert.equal(restAtZero.state.energy, 7,

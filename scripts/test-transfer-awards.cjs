@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 21);
+assert.equal(engine.version, 22);
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,
@@ -543,6 +543,8 @@ const leaderboard = engine.buildLeagueLeaderboard({
   userLine: { name: "أنا", club: "فريقي", country: "مصر", ovr: 79, age: 22, appearances: 10, goals: 9, assists: 4, averageRating: 7.7, leagueStrength: 70 }
 });
 assert.ok(leaderboard.some(row => row.isUser && row.name === "أنا"));
+assert.equal(leaderboard.find(row => row.isUser && row.name === "أنا").minutes, 650,
+  "legacy leaderboard rows without a minutes field must keep the compatible 65-minute estimate");
 assert.ok(leaderboard.some(row => row.name === "مهاجم حقيقي"));
 assert.ok(leaderboard.every(row => Number.isFinite(row.goals) && Number.isFinite(row.assists)));
 
@@ -608,6 +610,7 @@ assert.equal(zeroAppearanceWorldRow.goals, 0);
 assert.equal(zeroAppearanceWorldRow.assists, 0);
 assert.equal(zeroAppearanceWorldRow.score, 0);
 assert.equal(zeroAppearanceWorldRow.weightedGoals, 0);
+assert.equal(zeroAppearanceUserRow.minutes, 0);
 assert.equal(zeroAppearanceUserRow.goals, 0);
 assert.equal(zeroAppearanceUserRow.assists, 0);
 assert.equal(zeroAppearanceUserRow.score, 0);
@@ -662,7 +665,7 @@ assert.equal(legacyMissingMinutesPerformance.minutes, 780,
   "legacy saves with no minutes field must retain the 65-minute appearance estimate");
 assert.ok(legacyMissingMinutesPerformance.score > 0,
   "legacy saves without minutes must remain eligible for performance evaluation");
-for (const invalidMinutes of [NaN, Infinity, -Infinity, "NaN", "Infinity", "-Infinity", "not-a-number", true]) {
+for (const invalidMinutes of [NaN, Infinity, -Infinity, "NaN", "Infinity", "-Infinity", "not-a-number", true, false, {}, []]) {
   const invalidMinutePlayer = {
     name: "لاعب دقائق غير صالحة", club: "نادي الاختبار", position: "مهاجم",
     age: 25, ovr: 90, appearances: 12, minutes: invalidMinutes,
@@ -682,6 +685,19 @@ for (const invalidMinutes of [NaN, Infinity, -Infinity, "NaN", "Infinity", "-Inf
     "a career player with malformed explicit minutes must not qualify for season awards");
   assert.equal(invalidMinuteCeremony.playerAwards.length, 0,
     "a career player with malformed explicit minutes must not receive an award record");
+  const invalidMinuteLeaderboard = engine.buildLeagueLeaderboard({
+    season: 5, progress: 1, players: [], userLine: invalidMinutePlayer
+  });
+  const invalidMinuteRow = invalidMinuteLeaderboard.find(row => row.isUser);
+  assert.ok(invalidMinuteRow, "the current career row remains visible in the leaderboard");
+  assert.equal(invalidMinuteRow.minutes, 0,
+    "invalid explicit minutes must not be converted into estimated leaderboard minutes");
+  assert.equal(invalidMinuteRow.goals, 0);
+  assert.equal(invalidMinuteRow.assists, 0);
+  assert.equal(invalidMinuteRow.averageRating, 0);
+  assert.equal(invalidMinuteRow.score, 0);
+  assert.equal(invalidMinuteRow.weightedGoals, 0,
+    "a career row without valid playing time must not retain leaderboard contributions");
 }
 const numericStringMinutesPerformance = engine.evaluateSeasonPerformance({
   position: "مهاجم", appearances: 12, minutes: "780", goals: 8, assists: 4, averageRating: 8.1, ovr: 84

@@ -17,6 +17,13 @@
 
   const MAX_SEASON_STAT = 1000000;
 
+  function safeAmount(value, fallback = 0) {
+    const parsed = finiteNumericValue(value);
+    const fallbackValue = finiteNumericValue(fallback);
+    const amount = parsed === null ? (fallbackValue === null ? 0 : fallbackValue) : parsed;
+    return Math.round(Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, amount)));
+  }
+
   function safeCount(value, fallback = 0) {
     const number = finiteNumericValue(value);
     if (number === null) {
@@ -935,7 +942,8 @@
   function capWageOffer(wage, league, player) {
     const ceiling = leagueWageCeiling(league);
     const performance = performanceIndex(player);
-    const floor = Math.min(ceiling, Math.max(250, Number(player && player.wage) || 250));
+    const savedWage = finiteNumericValue(player && player.wage);
+    const floor = Math.min(ceiling, Math.max(250, savedWage === null ? 250 : savedWage));
     const performanceCap = ceiling * (.24 + .76 * performance / 100);
     return Math.round(clamp(wage, floor, Math.max(floor, Math.min(ceiling, performanceCap))));
   }
@@ -946,15 +954,19 @@
     const ageValue = finiteNumericValue(player.age);
     const age = ageValue === null || ageValue === 0 ? 24 : ageValue;
     const apps = seasonAppearanceCount(player);
-    const durationMonths = Number(input.durationMonths) === 6 ? 6 : 12;
+    const durationMonths = finiteNumericValue(input.durationMonths) === 6 ? 6 : 12;
     const isYouth = age < 23;
     const minutesTarget = isYouth ? (durationMonths === 6 ? 700 : 1400) : (durationMonths === 6 ? 450 : 900);
     const wageShare = clamp(input.wageShare === undefined ? (isYouth ? .35 : .5) : input.wageShare, 0, 1);
+    const requestedBuyOptionFee = finiteNumericValue(input.buyOptionFee);
+    const marketValue = finiteNumericValue(player.marketValue);
+    const buyOptionFee = requestedBuyOptionFee === null || requestedBuyOptionFee === 0
+      ? marketValue : requestedBuyOptionFee;
     return {
       type: "loan", durationMonths, minutesTarget,
-      loanFee: Math.round(Math.max(0, Number(input.loanFee) || 0)),
+      loanFee: safeAmount(input.loanFee),
       wageShare, optionToBuy: !!input.optionToBuy,
-      buyOptionFee: input.optionToBuy ? Math.round(Math.max(0, Number(input.buyOptionFee) || Number(player.marketValue || 0))) : 0,
+      buyOptionFee: input.optionToBuy ? safeAmount(buyOptionFee) : 0,
       developmentPriority: isYouth && apps < 12,
       recallClause: true
     };
@@ -981,7 +993,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 24,
+    version: 25,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

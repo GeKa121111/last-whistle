@@ -2589,6 +2589,9 @@ function makeSymbolAwardStatsState() {
     seasonLog: [
       { matchId: "symbol-award-minute", leagueCountry: "England", leagueCompetition: "Test League",
         minutes: Symbol("minutes"), rating: 10, goals: 20, assists: 20 },
+      { scope: "league", competition: "Test League", season: 1, club: "Test FC",
+        opponent: "Legacy Symbol Row", day: 99, leagueCountry: "England", leagueCompetition: "Test League",
+        minutes: Symbol("legacy-minutes"), rating: 8, goals: 30, assists: 30 },
       { matchId: "symbol-award-stats", leagueCountry: "England", leagueCompetition: "Test League",
         minutes: 90, rating: Symbol("rating"), goals: Symbol("goals"), assists: Symbol("assists") },
       { matchId: "symbol-award-valid-1", leagueCountry: "England", leagueCompetition: "Test League",

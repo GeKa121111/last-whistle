@@ -111,8 +111,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 429);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 71);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 509);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 73);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -1471,6 +1471,60 @@ vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+function makeCurrentMatchPriorityState() {
+  const legacyRows = [];
+  const currentRows = [];
+  for (let index = 0; index < 3; index++) {
+    const identity = {
+      id: "priority-fixture-" + index, season: 1,
+      competition: "Test League", leagueCompetition: "Test League",
+      leagueCountry: "England", club: "Test FC", opponent: "Opponent " + index,
+      day: index + 1
+    };
+    legacyRows.push({ ...identity, scope: "league", minutes: 90, goals: 0, assists: 0, rating: 6.1 });
+    currentRows.push({ ...identity, minutes: 75, goals: 1, assists: 1, rating: 8.6 });
+  }
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", season: 1, calendarDay: 120,
+    money: 0, topScorerAwards: 0, careerAwards: [], apps: 3,
+    seasonLog: legacyRows, careerMatchHistory: currentRows
+  };
+}
+
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const historyState = makeCurrentMatchPriorityState();
+  const rebuiltRows = engine.rebuildLegacyCareerStats(historyState);
+  assert.equal(rebuiltRows.length, 3,
+    engineName + " history migration must count each overlapping fixture only once");
+  assert.equal(rebuiltRows[0].goals, 1,
+    engineName + " history migration must prefer the current match snapshot over stale seasonLog data");
+  assert.equal(rebuiltRows[0].minutes, 75,
+    engineName + " career minutes must use the current match snapshot when duplicate stores disagree");
+  assert.equal(rebuiltRows[0].scope, "league",
+    engineName + " current snapshots without an explicit scope must retain the legacy default league classification");
+  assert.equal(historyState.careerMinutes, 225,
+    engineName + " rebuilt career minutes must reflect the three current 75-minute appearances");
+  assert.equal(historyState.qualifyingAppearances, 3,
+    engineName + " qualifying appearances must remain single-counted after snapshot precedence");
+  const ratingStats = engine.deriveLeagueRatingStats(historyState);
+  assert.equal(ratingStats.count, 3,
+    engineName + " league rating reconstruction must count each current fixture once");
+  assert.ok(Math.abs(ratingStats.sum - 25.8) < 0.001,
+    engineName + " league rating reconstruction must use the latest 8.6 ratings");
+
+  const awardState = makeCurrentMatchPriorityState();
+  engine.seasonAwards(awardState, [{ name: "Test FC", power: 50 }], 1);
+  const currentBoot = awardState.careerAwards.find(award => award.id === "golden-boot");
+  assert.ok(currentBoot,
+    engineName + " season awards must calculate goals from current match snapshots, not stale legacy duplicates");
+  assert.equal(currentBoot.note, "3 هدف في 3 مشاركة",
+    engineName + " golden boot totals must use current goals and count overlapping fixtures once");
+  const playerOfSeason = awardState.careerAwards.find(award => award.id === "league-player");
+  assert.ok(playerOfSeason && playerOfSeason.note.includes("تقييم 8.60"),
+    engineName + " season award ratings must use the latest saved match ratings");
+}
 
 function makeSegmentScopedAwardState() {
   const makeRow = (matchId, segmentId, goals, extra = {}) => ({

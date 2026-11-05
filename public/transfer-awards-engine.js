@@ -601,7 +601,8 @@
 
   function buildLeagueLeaderboard(input) {
     input = input || {};
-    const season = Number(input.season) || 1;
+    const seasonValue = finiteNumericValue(input.season);
+    const season = seasonValue || 1;
     const progress = clamp(input.progress === undefined ? 1 : input.progress, 0, 1);
     const players = Array.isArray(input.players) ? input.players : [];
     const rows = [];
@@ -618,7 +619,7 @@
         club: input.userLine.club || "",
         country: input.userLine.country || "",
         position: input.userLine.position || "غير محدد",
-        ovr: Number(input.userLine.ovr) || 50,
+        ovr: finiteNumericValue(input.userLine.ovr) || 50,
         appearances: 0,
         goals: 0,
         assists: 0,
@@ -665,7 +666,8 @@
 
   function buildSeasonAwardCeremony(input) {
     input = input || {};
-    const season = Number(input.season) || 1;
+    const seasonValue = finiteNumericValue(input.season);
+    const season = seasonValue || 1;
     const player = input.player || {};
     const realPlayers = Array.isArray(input.realPlayers) ? input.realPlayers : [];
     const trophies = safeCount(player.trophies);

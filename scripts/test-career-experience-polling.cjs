@@ -155,7 +155,8 @@ const vm = require("node:vm");
   subscriber({ source: "save" });
   await settleAsyncWork();
   assert.equal(investments[0].settled, true, "the older investment should settle when its due day arrives");
-  assert.equal(investments[1].settled, false, "the newest investment should remain open until its own due day");
+  assert.equal(investments[2].settled, false, "the newest investment should remain open until its own due day");
+  assert.equal(investments[1], null, "malformed legacy portfolio entries must be preserved during settlement");
   assert.equal(state.money, 1368, "settling the first due investment must credit its payout exactly once");
   assert.equal(saveCalls, 1, "the first due investment should persist exactly once");
   assert.equal(reduceCalls, beforeFirstSettlementScans + 2,
@@ -167,7 +168,8 @@ const vm = require("node:vm");
   state.calendarDay = 60;
   subscriber({ source: "save" });
   await settleAsyncWork();
-  assert.equal(investments[1].settled, true, "the newest investment should settle at its own due day");
+  assert.equal(investments[2].settled, true, "the newest investment should settle at its own due day");
+  assert.equal(investments[1], null, "settling the newest investment must not remove malformed legacy entries");
   assert.equal(state.money, 1488, "each due investment payout should be applied exactly once");
   assert.equal(saveCalls, 2, "each settlement day should persist one payout batch");
   assert.equal(reduceCalls, beforeSecondSettlementScans + 2,

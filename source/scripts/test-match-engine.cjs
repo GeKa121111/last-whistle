@@ -30,6 +30,51 @@ vm.createContext(browserContext);
 vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundle" });
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
+
+ // Malformed legacy numeric fields must not crash the core match simulator.
+ // Symbols and objects with throwing coercion hooks are treated as missing values.
+ const hostileLegacyNumber = {
+   valueOf() { throw new Error("unsafe-legacy-number-coercion"); },
+   toString() { throw new Error("unsafe-legacy-number-coercion"); }
+ };
+ const malformedLegacyOptions = {
+   seed: 991204, teamPower: 66, opponentPower: 61,
+   player: {
+     name: "اختبار بيانات قديمة تالفة", position: "وسط", role: "أساسي",
+     morale: Symbol("morale"), injuryDays: Symbol("injury"),
+     suspensionMatches: hostileLegacyNumber, energy: Symbol("energy"),
+     fatigue: hostileLegacyNumber, trust: Symbol("trust"), fitness: hostileLegacyNumber,
+     shooting: Symbol("shooting"), composure: hostileLegacyNumber,
+     passing: Symbol("passing"), vision: hostileLegacyNumber,
+     speed: Symbol("speed"), physical: hostileLegacyNumber, dribbling: hostileLegacyNumber
+   }
+ };
+ const malformedLegacyResult = engine.simulateMatch(malformedLegacyOptions);
+ assert.equal(engine.validateResult(malformedLegacyResult).ok, true,
+   "corrupt legacy player attributes must still produce a valid, internally consistent match");
+ assert.equal(JSON.stringify(browserEngine.simulateMatch(malformedLegacyOptions)), JSON.stringify(malformedLegacyResult),
+   "the embedded browser engine must safely normalize the same corrupt legacy player values");
+ assert.equal(engine.positionPerformanceImpact("CB", {
+   tacklesWon: Symbol("tackles"), interceptions: hostileLegacyNumber
+ }), 0, "malformed defensive stats must safely fall back to zero");
+ assert.equal(engine.playerConcededGoals(90, [
+   { type: "goal", side: "opponent", minute: Symbol("minute") }
+ ]), 0, "a malformed event minute must not crash or count as a concession");
+ assert.equal(engine.playerConcededGoals(90, [], Symbol("dismissal")), 0,
+   "a malformed dismissal minute must be ignored safely");
+ assert.equal(engine.playerEarnsCleanSheet("CB", Symbol("minutes"), []), false,
+   "malformed minutes must not crash clean-sheet eligibility");
+ assert.equal(engine.positionPerformanceImpact("CB", { tacklesWon: "2" }),
+   engine.positionPerformanceImpact("CB", { tacklesWon: 2 }),
+   "numeric strings from legacy saves must remain supported");
+ assert.equal(engine.playerConcededGoals("90", [
+   { type: "goal", side: "opponent", minute: "50" }
+ ]), 1, "numeric-string event minutes must remain supported");
+ assert.equal(Number.isFinite(engine.seededRandom(Symbol("seed"))()), true,
+   "the exposed seeded RNG must safely handle a malformed legacy seed");
+ assert.deepEqual(engine.rollExtraTimePlayerExit(() => Symbol("roll"), true, 1, 0),
+   { type: "injury", minute: 91 }, "malformed random values must fall back safely in extra-time exit rolls");
+
  
 // A short substitute cameo must retain meaningful credit for a decisive action.
 // The action count is already limited by actual minutes; scaling it by minutes again
@@ -2884,7 +2929,7 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v522"), "condition update must refresh the static cache");
-require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 522);
+assert.ok(workerCopies[0].includes("last-whistle-static-v523"), "condition update must refresh the static cache");
+require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 523);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
-  workerCopies[0], "data/match-engine.js", 80);
+  workerCopies[0], "data/match-engine.js", 81);

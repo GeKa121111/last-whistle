@@ -188,6 +188,15 @@ const vm = require("node:vm");
   assert.match(nodes.get("wellnessDailyActionLabel").textContent, /استخدمت نشاطك الجانبي اليوم/);
   assert.equal(coachButton.disabled, true);
 
+  state.day = Symbol("invalid-current-day");
+  state.dailyActionDay = 2;
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.match(nodes.get("wellnessDailyActionLabel").textContent, /استخدمت نشاطك الجانبي اليوم/,
+    "an invalid current day must not make a previously used activity available");
+  assert.equal(coachButton.disabled, true);
+
   state.day = 2;
   state.dailyActionDay = 1;
   revision++;

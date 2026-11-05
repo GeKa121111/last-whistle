@@ -702,6 +702,15 @@ assert.equal(malformedMetadataOffers[0].prestige, 60,
 assert.equal(malformedMetadataOffers[0].role, "لاعب بديل",
   "malformed age and potential must not fabricate a youth role");
 
+const zeroPrestigeOffer = engine.generateOffers({
+  player: normalizedIdentityPlayer,
+  windowId: "zero-prestige-compatibility",
+  targets: [{ club: "نادي بسمعة صفر", country: "مصر", power: 72, prestige: 0, division: 1 }]
+})[0];
+assert.equal(zeroPrestigeOffer.maxWage, Math.round(zeroPrestigeOffer.wage * 1.28),
+  "zero prestige must keep the legacy max-wage fallback instead of collapsing the cap");
+
+
 
 
 const offer = youthOffers[0];

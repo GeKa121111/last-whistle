@@ -22,8 +22,19 @@
   var lastSignature = "";
   var refreshQueued = false;
 
+  // Saved career rows may contain malformed values. Only finite numbers and
+  // non-empty numeric strings are valid numeric inputs; Symbols and objects
+  // must never make the season panel or objective calculations throw.
+  function finiteNumber(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    var number;
+    try { number = Number(value); } catch (error) { return null; }
+    return Number.isFinite(number) ? number : null;
+  }
+
   function currentSeason(state) {
-    return Math.max(1, Number(state && state.season) || 1);
+    return Math.max(1, finiteNumber(state && state.season) || 1);
   }
 
   function clone(value) {
@@ -55,8 +66,8 @@
   function stat(row, key) {
     var nested = row && row.stats && typeof row.stats === "object" ? row.stats : {};
     var value = row && row[key] != null ? row[key] : nested[key];
-    var number = Number(value);
-    return Number.isFinite(number) ? Math.max(0, number) : 0;
+    var number = finiteNumber(value);
+    return number === null ? 0 : Math.max(0, number);
   }
 
   function cleanSheet(row) {
@@ -68,8 +79,8 @@
     var rawMinutes = row && row.minutes;
     if (typeof rawMinutes !== "number" && typeof rawMinutes !== "string") return false;
     if (typeof rawMinutes === "string" && rawMinutes.trim() === "") return false;
-    var minutes = Number(rawMinutes);
-    return Number.isFinite(minutes) && minutes > 0;
+    var minutes = finiteNumber(rawMinutes);
+    return minutes !== null && minutes > 0;
   }
 
   function rowsForSeason(state, season) {
@@ -77,16 +88,16 @@
     var legacy = (Array.isArray(state.seasonLog) ? state.seasonLog : []).filter(function (row) {
       if (!row || typeof row !== "object" || Array.isArray(row)) return false;
       var value = row.season;
-      return value == null || value === "" || Number(value) === season;
+      return value == null || value === "" || finiteNumber(value) === season;
     }).map(function (row) {
       var copy = Object.assign({}, row);
-      copy.season = Number(copy.season) || season;
+      copy.season = finiteNumber(copy.season) || season;
       copy.scope = copy.scope || "league";
       return copy;
     });
     var career = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : []).filter(function (row) {
       return row && typeof row === "object" && !Array.isArray(row)
-        && Number(row.season) === season;
+        && finiteNumber(row.season) === season;
     }).map(function (row) {
       var copy = Object.assign({}, row);
       copy.scope = copy.scope || "league";
@@ -102,7 +113,7 @@
         var key = String(row.id || row.matchId || [
           row.season, row.scope, row.competition, row.matchday, row.day,
           row.club, row.opponent, row.minutes, row.goals, row.assists
-        ].join("|"));
+        ].map(function (value) { return value == null ? "" : String(value); }).join("|"));
         if (seen[key]) return false;
         seen[key] = true;
         return true;
@@ -110,7 +121,7 @@
     }
     return combined.filter(function (row) {
       var scope = String(row.scope || "league");
-      return Number(row.season) === season && hasValidPlayingTime(row)
+      return finiteNumber(row.season) === season && hasValidPlayingTime(row)
         && (scope === "league" || scope === "cup");
     });
   }
@@ -118,13 +129,13 @@
   function measure(state, objectiveId, seasonOverride) {
     var definition = definitionFor(objectiveId);
     if (!definition) return { ok:false, reason:"unknown-objective", value:0, target:0, progress:0, complete:false };
-    var season = Math.max(1, Number(seasonOverride) || currentSeason(state));
+    var season = Math.max(1, finiteNumber(seasonOverride) || currentSeason(state));
     var rows = rowsForSeason(state, season);
     var value = 0, ratingCount = 0, ratingTotal = 0;
     if (definition.metric === "averageRating") {
       rows.forEach(function (row) {
-        var rating = Number(row.rating);
-        if (Number.isFinite(rating) && rating > 0) { ratingTotal += rating; ratingCount++; }
+        var rating = finiteNumber(row.rating);
+        if (rating !== null && rating > 0) { ratingTotal += rating; ratingCount++; }
       });
       value = ratingCount ? ratingTotal / ratingCount : 0;
     } else {
@@ -223,7 +234,7 @@
 
   function claim(state, seasonOverride) {
     if (!state || typeof state !== "object") return { ok:false, reason:"invalid-state" };
-    var season = Math.max(1, Number(seasonOverride) || currentSeason(state));
+    var season = Math.max(1, finiteNumber(seasonOverride) || currentSeason(state));
     var objective = objectiveRecordForSeason(state, season);
     if (!objective) return { ok:false, reason:"no-objective" };
     if (objective.claimed) return { ok:false, reason:"already-claimed" };
@@ -350,9 +361,9 @@
     var history = Array.isArray(state.seasonObjectiveHistory) ? state.seasonObjectiveHistory : [];
     var rowPart = rows.map(function (row) {
       return [
-        String(row.id || row.matchId || ""), Number(row.season) || 0, String(row.scope || ""),
-        Number(row.minutes) || 0, Number(row.goals) || 0, Number(row.assists) || 0,
-        Number(row.rating) || 0, stat(row, "saves"), stat(row, "tacklesWon") || stat(row, "tackles"),
+        String(row.id || row.matchId || ""), finiteNumber(row.season) || 0, String(row.scope || ""),
+        finiteNumber(row.minutes) || 0, finiteNumber(row.goals) || 0, finiteNumber(row.assists) || 0,
+        finiteNumber(row.rating) || 0, stat(row, "saves"), stat(row, "tacklesWon") || stat(row, "tackles"),
         stat(row, "interceptions"), stat(row, "keyPasses"), cleanSheet(row) ? 1 : 0
       ].join(":");
     }).join("|");

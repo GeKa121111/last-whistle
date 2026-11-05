@@ -209,7 +209,7 @@ async function playPenalty(h) {
   assert.equal(malformedActionDay.saveCalls, 0);
 
   const malformedCurrentDay = makeHarness({
-    energy: 10, day: Symbol("invalid-current-day"), dailyActionUsed: true, dailyActionDay: 1
+    energy: 10, day: Symbol("invalid-current-day"), dailyActionUsed: true, dailyActionDay: 2
   });
   const malformedCurrentDayResult = await malformedCurrentDay.click("mentor-reset");
   assert.equal(malformedCurrentDayResult.ok, false,

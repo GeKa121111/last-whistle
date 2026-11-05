@@ -88,6 +88,21 @@
     return 1;
   }
 
+  function careerDay(s) {
+    var day = finiteNumber(s && s.day);
+    return day !== null && Number.isSafeInteger(day) && day >= 1 ? day : 1;
+  }
+
+  function dailyActionUsedOnDay(s, today) {
+    if (!s || !s.dailyActionUsed) return false;
+    var rawDay = s.dailyActionDay;
+    // Older saves may only have the boolean flag. Fail closed for a used action
+    // with a missing/corrupt day until the normal day rollover clears the flag.
+    if (rawDay == null || (typeof rawDay === "string" && rawDay.trim() === "")) return true;
+    var savedDay = finiteNumber(rawDay);
+    return savedDay === null || !Number.isSafeInteger(savedDay) || savedDay < 1 || savedDay === today;
+  }
+
   function safeInvestmentDueDay(item) {
     if (!financeRecord(item)) return null;
     var rawDueDay;
@@ -988,15 +1003,18 @@
   function openMentor() {
     currentView = "mentor";
     var s = API().getState();
-    var used = !!s.dailyActionUsed && Number(s.dailyActionDay) === Number(s.day);
+    var today = careerDay(s);
+    var used = dailyActionUsedOnDay(s, today);
     var unavailable = !s.careerStarted || !!s.retired;
-    var energy = Number(s.energy) || 0;
+    var parsedEnergy = finiteNumber(s.energy);
+    var energy = parsedEnergy === null ? 0 : parsedEnergy;
+    var energyInvalid = parsedEnergy === null;
     frame("العلاقات والتوجيه", "PEOPLE AROUND YOU",
       '<p class="lwcx-intro">قرار خارج الملعب ممكن يحسن ثقتك وانسجامك. جلسة المدرب تحتاج 3 طاقة، ودعم الزميل يحتاج طاقة واحدة؛ الراحة الذهنية متاحة حتى مع الطاقة المنخفضة.</p>' +
       '<div class="lwcx-options">' +
-        actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", (used || unavailable || energy < 3) ? ' disabled' : '') +
-        actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", (used || unavailable || energy < 1) ? ' disabled' : '') +
-        actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", (used || unavailable) ? ' disabled' : '') +
+        actionButton("mentor-coach", "جلسة مع المدرب", "ثقة المدرب +5، احترافية +3، مقابل 3 طاقة.", (used || unavailable || energyInvalid || energy < 3) ? ' disabled' : '') +
+        actionButton("mentor-teammate", "دعم لاعب أصغر", "انسجام الفريق +5 ومعنويات +3، مقابل طاقة واحدة.", (used || unavailable || energyInvalid || energy < 1) ? ' disabled' : '') +
+        actionButton("mentor-reset", "راحة ذهنية", "معنويات +5 وطاقة +7؛ مفيدة بعد الضغط.", (used || unavailable || energyInvalid) ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>سجل العلاقات</strong><span>' + world(s).mentorSessions + ' جلسة' + '</span></div>' +
       ((world(s).history.filter(function (row) { return /جلسة مع المدرب|دعم لاعب أصغر|راحة ذهنية/.test(row.title); }).slice(0, 4)).map(function (row) {
         return '<div class="lwcx-investment-row"><span><strong>' + esc(row.title) + '</strong><small>الموسم ' + esc(row.season) + ' · اليوم ' + esc(row.day) + '</small></span><b>✓</b></div>';
@@ -1017,22 +1035,24 @@
       if (api && api.toast) api.toast("النشاط ده مش متاح.");
       return { ok: false, reason: "invalid-mentor-action" };
     }
-    var currentDay = Number(s.day) || 1;
-    if (s.dailyActionUsed && Number(s.dailyActionDay) === currentDay) {
+    var currentDay = careerDay(s);
+    if (dailyActionUsedOnDay(s, currentDay)) {
       if (api && api.toast) api.toast("استخدمت نشاطك الجانبي النهارده. تقدّم ليوم جديد.");
       openMentor();
       return { ok: false, reason: "daily-action-used" };
     }
     var requiredEnergy = kind === "coach" ? 3 : kind === "teammate" ? 1 : 0;
-    if ((Number(s.energy) || 0) < requiredEnergy) {
+    var currentEnergy = finiteNumber(s.energy);
+    if (currentEnergy === null || currentEnergy < requiredEnergy) {
       if (api && api.toast) api.toast("طاقتك مش كفاية للنشاط ده. ارتاح الأول أو اختار الراحة الذهنية.");
       openMentor();
       return { ok: false, reason: "insufficient-energy" };
     }
     var result = await runCareerMutation(s, function () {
-      var actionDay = Number(s.day) || 1;
-      if (!s.careerStarted || s.retired || (s.dailyActionUsed && Number(s.dailyActionDay) === actionDay)
-        || (Number(s.energy) || 0) < requiredEnergy) return false;
+      var actionDay = careerDay(s);
+      var actionEnergy = finiteNumber(s.energy);
+      if (!s.careerStarted || s.retired || dailyActionUsedOnDay(s, actionDay)
+        || actionEnergy === null || actionEnergy < requiredEnergy) return false;
       if (kind === "coach") {
         stat(s, "coachRelationship", 5);
         stat(s, "trust", 2);

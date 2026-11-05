@@ -6,7 +6,25 @@
   var refreshScheduled=false,queuedForce=false;
   var api=function(){return window.LWStoryRuntime||null;};
   var $=function(id){return document.getElementById(id);};
-  var clamp=function(v,min,max){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));};
+  function finiteNumber(value){
+    if(typeof value!=="number"&&typeof value!=="string")return null;
+    if(typeof value==="string"&&value.trim()==="")return null;
+    var parsed=Number(value);
+    return Number.isFinite(parsed)?parsed:null;
+  }
+  var clamp=function(v,min,max){var parsed=finiteNumber(v);return Math.max(min,Math.min(max,Math.round(parsed===null?0:parsed)));};
+  function careerDay(s){
+    var day=finiteNumber(s&&s.day);
+    return day!==null&&Number.isSafeInteger(day)&&day>=1?day:null;
+  }
+  function dailyActionUsedOnDay(s,today){
+    if(!s||!s.dailyActionUsed)return false;
+    if(today===null)return true;
+    var rawDay=s.dailyActionDay;
+    if(rawDay==null||(typeof rawDay==="string"&&rawDay.trim()===""))return true;
+    var savedDay=finiteNumber(rawDay);
+    return savedDay===null||!Number.isSafeInteger(savedDay)||savedDay<1||savedDay===today;
+  }
   var text=function(id,value){var e=$(id),next=String(value);if(e&&e.textContent!==next)e.textContent=next;};
   var bar=function(id,value){var e=$(id),next=clamp(value,0,100)+"%";if(e&&e.style.width!==next)e.style.width=next;};
   function statusTrust(v){
@@ -38,7 +56,8 @@
   function recommendation(s,energy,fatigue,trust,relation){
     if(s.retired)return {title:"المسيرة انتهت",text:"اللاعب معتزل؛ المؤشرات هنا للمراجعة فقط."};
     if(s.winterBreakPending)return {title:"راجع انتقالات منتصف الموسم",text:"المسيرة متوقفة مؤقتًا عند نافذة الشتاء. راجع السوق أو اختار تكملة الموسم قبل تمرير يوم الراحة أو اليوم التالي."};
-    if(Number(s.injuryDays)>0)return {title:"الأولوية للتعافي",text:"عندك إصابة لسه باقي لها "+Number(s.injuryDays)+" يوم. التدريب والمشاركة مقفولين لحد ما مدة الإصابة تخلص؛ يوم الراحة يقللها يومًا."};
+    var injuryDays=finiteNumber(s.injuryDays);
+    if(injuryDays!==null&&injuryDays>0)return {title:"الأولوية للتعافي",text:"عندك إصابة لسه باقي لها "+injuryDays+" يوم. التدريب والمشاركة مقفولين لحد ما مدة الإصابة تخلص؛ يوم الراحة يقللها يومًا."};
     if(energy<30||fatigue>=70)return {title:"خد راحة قبل أي مجهود",text:"طاقتك أو مستوى الإجهاد مش مناسبين لحصة قوية. يوم استشفاء يمرر يومًا في التقويم ويرفع الطاقة ويقلل الإجهاد."};
     if(energy<48||fatigue>=55)return {title:"خفّف الحمل البدني",text:"الأفضل تختار راحة، أو حصة خفيفة لو لسه ما تمرنتش وما لعبتش النهارده. تجنب الشدة المكثفة."};
     if(s.playedToday)return {title:"يوم المباراة خلص",text:"التدريب مقفول في نفس يوم المباراة. راجع نتيجة الماتش وخد راحة أو تقدّم لليوم التالي."};
@@ -72,7 +91,7 @@
     return JSON.stringify([
       s.careerStarted,s.retired,s.winterBreakPending,s.injuryDays,s.injuryName,
       s.energy,s.morale,s.fatigue,s.trust,s.coachRelationship,s.playedToday,s.trainedToday,
-      s.dailyActionUsed,s.dailyActionDay,s.dailyActionType,s.day,s.season,
+      s.dailyActionUsed,finiteNumber(s.dailyActionDay),s.dailyActionType,careerDay(s),s.season,
       s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,lastHistorySignature,lastSeasonLogSignature
     ]);
   }
@@ -86,7 +105,7 @@
     if(!force&&runtime===lastRuntime&&signature===lastSnapshot)return;
     lastRuntime=runtime;lastSnapshot=signature;
     var energy=clamp(s.energy,0,100),morale=clamp(s.morale,0,100),fatigue=clamp(s.fatigue,0,100);
-    var trust=clamp(s.trust,0,100),relation=clamp(s.coachRelationship==null?35:s.coachRelationship,0,100),injury=Math.max(0,Number(s.injuryDays)||0);
+    var trust=clamp(s.trust,0,100),relation=clamp(s.coachRelationship==null?35:s.coachRelationship,0,100),injury=Math.max(0,finiteNumber(s.injuryDays)||0);
     var readiness=Math.round(energy*.42+(100-fatigue)*.25+morale*.13+trust*.12+relation*.08);
     if(injury>0)readiness=Math.min(24,readiness);
     var advice=recommendation(s,energy,fatigue,trust,relation);
@@ -106,9 +125,9 @@
     text("wellnessInjuryLabel",injury>0?"التدريب والمباراة غير متاحين أثناء التعافي.":"مفيش إصابة مسجلة؛ راقب الطاقة والإجهاد قبل المجهود.");
     var injuryPanel=$("wellnessInjuryPanel");if(injuryPanel)injuryPanel.classList.toggle("is-injured",injury>0);
     var bodyBadge=$("wellnessBodyBadge");if(bodyBadge){bodyBadge.textContent=injury>0?"تعافٍ مطلوب":energy<40||fatigue>60?"حمل مرتفع":"جاهزية بدنية";bodyBadge.className="pill "+(injury>0||energy<30||fatigue>=70?"red":energy<48||fatigue>=55?"gold":"green");}
-    text("wellnessDayStatus","اليوم "+(Number(s.day)||1)+" · الموسم "+(Number(s.season)||1));
-    var today=Number(s.day)||1;
-    var used=!!s.dailyActionUsed&&Number(s.dailyActionDay)===today;
+    var today=careerDay(s);
+    text("wellnessDayStatus","اليوم "+(today===null?1:today)+" · الموسم "+(finiteNumber(s.season)||1));
+    var used=dailyActionUsedOnDay(s,today);
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
     document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});

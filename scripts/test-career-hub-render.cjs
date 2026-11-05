@@ -170,13 +170,57 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
     "sparse duplicate rows must represent one appearance, not two");
 
+  state.dailyActionUsed = true;
+  delete state.dailyActionDay;
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.match(nodes.get("wellnessDailyActionLabel").textContent, /استخدمت نشاطك الجانبي اليوم/,
+    "legacy saves with a used action flag but no day marker must fail closed in the wellness UI");
+  assert.equal(coachButton.disabled, true,
+    "a legacy used daily action must disable the coach action until the next day reset");
+
+  state.dailyActionDay = Symbol("invalid-action-day");
+  revision++;
+  assert.doesNotThrow(() => stateChangeListener({ revision }),
+    "a malformed daily action day must not crash the career hub signature or renderer");
+  await Promise.resolve();
+  assert.match(nodes.get("wellnessDailyActionLabel").textContent, /استخدمت نشاطك الجانبي اليوم/);
+  assert.equal(coachButton.disabled, true);
+
+  state.day = Symbol("invalid-current-day");
+  state.dailyActionDay = 2;
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.match(nodes.get("wellnessDailyActionLabel").textContent, /استخدمت نشاطك الجانبي اليوم/,
+    "an invalid current day must not make a previously used activity available");
+  assert.equal(coachButton.disabled, true);
+
+  state.day = 2;
+  state.dailyActionDay = 1;
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("wellnessDailyActionLabel").textContent, "النشاط الجانبي متاح النهارده",
+    "a valid prior-day action marker must unlock the next day even when the legacy used flag remains set");
+  assert.equal(coachButton.disabled, false);
+
+  state.energy = Symbol("invalid-energy");
+  revision++;
+  assert.doesNotThrow(() => stateChangeListener({ revision }),
+    "the wellness dashboard must not throw when a saved energy value is malformed");
+  await Promise.resolve();
+  assert.equal(nodes.get("wellnessEnergyValue").textContent, "0/100",
+    "invalid energy must be displayed as a safe zero instead of breaking the wellness panel");
+
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-  require("./assert-static-cache-version.cjs")(sw, 175);
+  require("./assert-static-cache-version.cjs")(sw, 537);
   assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
   const careerHubCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
-  assert.ok(careerHubCacheVersionMatch && Number(careerHubCacheVersionMatch[1]) >= 471,
+  assert.ok(careerHubCacheVersionMatch && Number(careerHubCacheVersionMatch[1]) >= 537,
     "legacy-history rendering must invalidate the PWA shell cache");
   assert.match(sw, /url\.indexOf\("career-hub\.js\?"\) >= 0/,
     "the updated career hub must be fetched fresh during service-worker installation");

@@ -12,7 +12,7 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.equal(html, fs.readFileSync(path.join(root, "public", "index.html"), "utf8"));
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 536);
+require("./assert-static-cache-version.cjs")(sw, 537);
 require("./assert-static-cache-version.cjs").assertAssetVersionAtLeast(html, "career-experience.js", 9);
 
 function makeHarness(overrides = {}, flushQueue = []) {

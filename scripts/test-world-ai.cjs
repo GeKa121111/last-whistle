@@ -2589,6 +2589,60 @@ assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].age, 24,
   "the development marker must still allow the following season to progress");
 assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].contractSeasons, 1);
 
+// Malformed saved player numerics must not interrupt season aging, contract expiry or retirement checks.
+const malformedProgressionPlayerId = "malformed-progression-player";
+const legacyNullProgressionPlayerId = "legacy-null-progression-player";
+const malformedProgressionWorld = {
+  players: {
+    [legacyNullProgressionPlayerId]: {
+      id: legacyNullProgressionPlayerId, name: "Legacy Null Progression Player",
+      clubId: "", age: null, contractSeasons: null, ovr: null, potential: null, lastRating: null,
+      position: "ST", group: "attacker", retired: false, freeAgent: true
+    },
+    [malformedProgressionPlayerId]: {
+      id: malformedProgressionPlayerId, name: "Malformed Progression Player",
+      clubId: "malformed-progression-club", leagueId: "malformed-progression-league",
+      division: Symbol("division"), age: Symbol("age"), contractSeasons: Symbol("contract"),
+      ovr: Symbol("ovr"), potential: Symbol("potential"), lastRating: Symbol("last-rating"),
+      position: "ST", group: "attacker", retired: false, freeAgent: true,
+      freeAgentSince: Symbol("free-agent-since"), transferListed: true
+    }
+  },
+  clubs: {
+    "malformed-progression-club": {
+      id: "malformed-progression-club", name: "Malformed Progression Club",
+      country: "Testland", leagueId: "malformed-progression-league", division: 1,
+      power: 60, roster: [malformedProgressionPlayerId]
+    }
+  },
+  seasonStats: {
+    "1": [
+      { id: malformedProgressionPlayerId, appearances: Symbol("appearances"), averageRating: Symbol("rating") },
+      { id: legacyNullProgressionPlayerId, appearances: null, averageRating: null }
+    ]
+  },
+  notes: [], lastDevelopedSeason: Symbol("last-developed-season")
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestDevelopPlayers(malformedProgressionWorld, 1),
+  "malformed world-player age, contract, rating and free-agent fields must not crash season development");
+const malformedProgressionPlayer = malformedProgressionWorld.players[malformedProgressionPlayerId];
+assert.equal(malformedProgressionPlayer.age, 19);
+assert.equal(malformedProgressionPlayer.contractSeasons, 0);
+assert.equal(malformedProgressionPlayer.lastRating, 0);
+assert.equal(malformedProgressionPlayer.ovr, 35);
+assert.equal(malformedProgressionPlayer.potential, 35);
+assert.equal(malformedProgressionPlayer.clubId, "");
+assert.equal(malformedProgressionPlayer.division, 0);
+assert.equal(malformedProgressionPlayer.freeAgent, true);
+assert.equal(malformedProgressionPlayer.freeAgentSince, 2);
+assert.equal(malformedProgressionWorld.lastDevelopedSeason, 1);
+const legacyNullProgressionPlayer = malformedProgressionWorld.players[legacyNullProgressionPlayerId];
+assert.equal(legacyNullProgressionPlayer.age, 19, "null legacy ages must retain the existing 18-year fallback");
+assert.equal(legacyNullProgressionPlayer.contractSeasons, 0, "null legacy contract terms must retain the existing one-season fallback");
+assert.equal(legacyNullProgressionPlayer.lastRating, 0);
+assert.equal(legacyNullProgressionPlayer.ovr, 35);
+assert.equal(legacyNullProgressionPlayer.potential, 35);
+
 // A free-agent history write can fail after the paid market has advanced the world.
 // The failed free-agent phase must be retryable without replaying player development.
 const retrySeasonClubId = "retry-season-recovery-club";

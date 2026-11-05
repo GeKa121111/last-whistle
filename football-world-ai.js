@@ -17,8 +17,16 @@
     midfielder: ["وسط دفاعي", "وسط مهاجم", "وسط"],
     attacker: ["جناح", "مهاجم", "رأس حربة"]
   });
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
-  const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  function safeNumber(value, fallback = 0) {
+    if (typeof value !== "number" && typeof value !== "string") return fallback;
+    if (typeof value === "string" && value.trim() === "") return fallback;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  }
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
+  const int = (value, fallback = 0) => Math.round(
+    value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
+  );
   const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   function isTrueFlag(value) {
     if (value === true || value === 1) return true;
@@ -42,7 +50,7 @@
     return h >>> 0;
   }
   function random(seed) {
-    let value = (Number(seed) >>> 0) || 0x9e3779b9;
+    let value = (safeNumber(seed, 0) >>> 0) || 0x9e3779b9;
     return () => {
       value += 0x6d2b79f5;
       let t = value;
@@ -1428,14 +1436,14 @@
   function shouldRetirePlayer(player, seasonAge, row, season) {
     const isGoalkeeper = String(player.group || "") === "goalkeeper"
       || groupForPosition(player.position) === "goalkeeper";
-    const effectiveAge = Math.max(16, Number(seasonAge) - (isGoalkeeper ? 1 : 0));
+    const effectiveAge = Math.max(16, safeNumber(seasonAge, 18) - (isGoalkeeper ? 1 : 0));
     if (effectiveAge < 38) return false;
     if (effectiveAge >= 42) return true;
-    const rating = Number(row && row.averageRating) || Number(player.lastRating) || 0;
+    const rating = safeNumber(row && row.averageRating, safeNumber(player.lastRating, 0));
     let chance = effectiveAge >= 41 ? 78 : effectiveAge >= 40 ? 55 : effectiveAge >= 39 ? 30 : 12;
     if (rating >= 7.4) chance -= 12;
     else if (rating > 0 && rating < 6.0) chance += 12;
-    if (Number(player.ovr) <= 55) chance += 12;
+    if (safeNumber(player.ovr, 0) <= 55) chance += 12;
     return (hash(String(player.id) + "|retirement|" + String(season)) % 100) < clamp(chance, 0, 100);
   }
   function retireWorldPlayer(world, player, season, seasonAge) {
@@ -1453,7 +1461,7 @@
     player.transferListed = false;
     player.retired = true;
     player.retiredSeason = Math.max(1, int(season, 1)) + 1;
-    player.retirementAge = Math.max(16, Number(seasonAge) || Number(player.age) || 18);
+    player.retirementAge = Math.max(16, safeNumber(seasonAge, 0) || safeNumber(player.age, 0) || 18);
     player.retirementReason = "age";
     world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
     const history = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
@@ -1485,19 +1493,23 @@
       const row = byId.get(player.id);
       // Season statistics describe the season just played, so development thresholds
       // must use the player's age during that season, before advancing their age.
-      const seasonAge = Math.min(43, Math.max(16, Number(player.age) || 18));
+      const seasonAge = Math.min(43, Math.max(16, safeNumber(player.age, 18) || 18));
       seasonAges.set(player.id, seasonAge);
       player.age = Math.min(43, seasonAge + 1);
-      player.contractSeasons = Math.max(0, (Number(player.contractSeasons) || 1) - 1);
+      player.contractSeasons = Math.max(0, (safeNumber(player.contractSeasons, 1) || 1) - 1);
       if (row) {
-        player.lastRating = Number(row.averageRating) || 0;
+        const rowAppearances = safeNumber(row.appearances, 0);
+        const rowAverageRating = safeNumber(row.averageRating, 0);
+        player.lastRating = rowAverageRating;
         let delta = 0;
-        if (seasonAge <= 23 && row.appearances >= 10 && row.averageRating >= 6.45) delta = row.averageRating >= 7.25 ? 2 : 1;
-        else if (seasonAge <= 28 && row.appearances >= 16 && row.averageRating >= 7.15) delta = 1;
-        else if (seasonAge >= 31) delta = row.averageRating < 6.4 ? -2 : -1;
-        else if (seasonAge >= 29 && row.averageRating < 6.0) delta = -1;
-        player.ovr = clamp(Number(player.ovr) + delta, 35, 97);
-        if (player.potential < player.ovr) player.potential = player.ovr;
+        if (seasonAge <= 23 && rowAppearances >= 10 && rowAverageRating >= 6.45) delta = rowAverageRating >= 7.25 ? 2 : 1;
+        else if (seasonAge <= 28 && rowAppearances >= 16 && rowAverageRating >= 7.15) delta = 1;
+        else if (seasonAge >= 31) delta = rowAverageRating < 6.4 ? -2 : -1;
+        else if (seasonAge >= 29 && rowAverageRating < 6.0) delta = -1;
+        player.ovr = clamp(safeNumber(player.ovr, 35) + delta, 35, 97);
+        const potentialValue = safeNumber(player.potential, null);
+        if (potentialValue === null && player.potential !== undefined) player.potential = player.ovr;
+        else if (potentialValue !== null && potentialValue < player.ovr) player.potential = player.ovr;
       }
     });
     // Contracts now truly expire. A deterministic renewal decision keeps key players
@@ -1515,9 +1527,9 @@
       if (isTrueFlag(player.freeAgent) || !orphanedClubId || !club) {
         const wasFreeAgent = isTrueFlag(player.freeAgent);
         const hasStaleFreeAgentState = Boolean(orphanedClubId) || !wasFreeAgent
-          || Number(player.contractSeasons) > 0
+          || safeNumber(player.contractSeasons, 0) > 0
           || Boolean(String(player.leagueId || "").trim())
-          || Number(player.division) > 0
+          || safeNumber(player.division, 0) > 0
           || player.transferListed === true;
         if (hasStaleFreeAgentState) {
           if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
@@ -1526,44 +1538,44 @@
           player.division = 0;
           player.contractSeasons = 0;
           player.freeAgent = true;
-          const freeAgentSince = Number(player.freeAgentSince);
+          const freeAgentSince = safeNumber(player.freeAgentSince, 0);
           player.freeAgentSince = Number.isFinite(freeAgentSince) && freeAgentSince > 0
-            ? freeAgentSince : Number(season) + 1;
+            ? freeAgentSince : safeNumber(season, 1) + 1;
           player.transferListed = false;
           if (!wasFreeAgent) {
             world.notes = Array.isArray(world.notes) ? world.notes : [];
-            world.notes.unshift({ season: Number(season) + 1, type: "free-agent",
+            world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent",
               text: player.name + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
             world.notes = world.notes.slice(0, 30);
           }
         }
         return;
       }
-      if (Number(player.contractSeasons) > 0) return;
+      if (safeNumber(player.contractSeasons, 0) > 0) return;
       const roster = rosterPlayers(world, club);
       const sameRole = roster.filter(row => row.group === player.group && row.id !== player.id);
       const roleTarget = Math.max(1, Number(TARGETS[player.group]) || 1);
       const roleNeed = sameRole.length < roleTarget;
-      const age = Number(player.age) || 18;
-      const quality = Number(player.ovr) || 50;
+      const age = safeNumber(player.age, 18) || 18;
+      const quality = safeNumber(player.ovr, 50) || 50;
       const renewalChance = clamp(0.12 + (quality >= club.power - 2 ? 0.28 : 0)
-        + (Number(player.lastRating) >= 7.0 ? 0.16 : 0) + (roleNeed ? 0.20 : 0)
+        + (safeNumber(player.lastRating, 0) >= 7.0 ? 0.16 : 0) + (roleNeed ? 0.20 : 0)
         - Math.max(0, age - 30) * 0.055, 0.02, 0.76);
       const roll = hash(player.id + "|" + season + "|contract-renewal-v2") / 4294967296;
       if (roll < renewalChance && age < 36) {
         player.contractSeasons = 2 + (hash(player.id + "|" + season + "|renewed-term") % 3);
         player.freeAgent = false;
-        player.lastRenewedSeason = Number(season) + 1;
-        world.notes.unshift({ season: Number(season) + 1, type: "contract", text: player.name + " جدد عقده مع " + club.name + " لمدة " + player.contractSeasons + " مواسم." });
+        player.lastRenewedSeason = safeNumber(season, 1) + 1;
+        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "contract", text: player.name + " جدد عقده مع " + club.name + " لمدة " + player.contractSeasons + " مواسم." });
       } else {
         club.roster = (club.roster || []).filter(id => id !== player.id);
         player.previousClubId = club.id;
         player.freeAgent = true;
-        player.freeAgentSince = Number(season) + 1;
+        player.freeAgentSince = safeNumber(season, 1) + 1;
         player.clubId = "";
         player.leagueId = "";
         player.division = 0;
-        world.notes.unshift({ season: Number(season) + 1, type: "free-agent", text: player.name + " انتهى عقده وأصبح لاعبًا حرًا." });
+        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent", text: player.name + " انتهى عقده وأصبح لاعبًا حرًا." });
       }
     });
     world.notes = world.notes.slice(0, 30);
@@ -3208,7 +3220,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=72");
+    const worker = new global.Worker("./football-world-worker.js?v=73");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -166,3 +166,33 @@ body.lw-rebuild #page-training [data-action^="train-"].position-recommended{bord
 body.lw-rebuild #page-training [data-action^="train-"].position-primary{border-color:#a0c94b;box-shadow:inset 0 0 0 1px #d9ff6230}
 body.lw-rebuild #page-training [data-action^="train-"].position-recommended .actionTitle:after{content:" • مناسب لمركزك";display:inline-block;color:#d9ff62;font-size:9px;font-weight:850}
 @media(max-width:760px){body.lw-rebuild .positionDevelopmentCard{padding:13px;border-radius:14px}body.lw-rebuild .positionDevelopmentHead strong{font-size:14px}body.lw-rebuild #positionPlanSummary{font-size:11px}}
+
+
+/* Position-aware personal season objectives */
+body.lw-rebuild .lw-season-objectives{grid-column:1/-1;border:1px solid #385a51;background:radial-gradient(ellipse at 92% 0%,#274d4140,transparent 58%),linear-gradient(145deg,#142d2b,#111a2c);color:#eaf8f2;padding:17px 18px}
+body.lw-rebuild .lw-objective-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+body.lw-rebuild .lw-objective-head h2{font-size:19px;font-weight:1000;color:#effff6;margin:5px 0}
+body.lw-rebuild .lw-objective-head p{font-size:11px;line-height:1.8;color:#a8c3b9;margin:0}
+body.lw-rebuild .lw-objective-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+body.lw-rebuild .lw-objective-option{display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:13px;border:1px solid #31534a;border-radius:14px;background:#0e211f}
+body.lw-rebuild .lw-objective-option h3,body.lw-rebuild .lw-objective-active h3{font-size:14px;color:#eafff5;font-weight:950;margin:5px 0}
+body.lw-rebuild .lw-objective-option p,body.lw-rebuild .lw-objective-active p{font-size:10px;line-height:1.75;color:#a5beb5;margin:4px 0 9px}
+body.lw-rebuild .lw-objective-option strong{display:block;color:#dcff70;font-size:10px}
+body.lw-rebuild .lw-objective-label{font-size:8px;letter-spacing:.08em;color:#8db9aa;font-weight:950}
+body.lw-rebuild .lw-objective-option .btn{width:100%;background:#1b4338;border-color:#3b7460;color:#eafff4}
+body.lw-rebuild .lw-objective-option .btn:hover{background:#245743}
+body.lw-rebuild .lw-objective-footnote,body.lw-rebuild .lw-objective-note{font-size:10px;line-height:1.8;color:#8fa99f;margin:12px 0 0}
+body.lw-rebuild .lw-objective-active{padding:15px;border:1px solid #31584e;border-radius:14px;background:#0e211f}
+body.lw-rebuild .lw-objective-active-copy{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+body.lw-rebuild .lw-objective-value{flex:0 0 auto;color:#dcff70;font-size:20px;font-weight:1000;white-space:nowrap}
+body.lw-rebuild .lw-objective-meter{height:9px;border-radius:99px;background:#263d38;overflow:hidden;margin:12px 0 7px}
+body.lw-rebuild .lw-objective-meter-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#47c99b,#d9ff62);transition:width .25s ease}
+body.lw-rebuild .lw-objective-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#8fa99f;font-size:9px}
+body.lw-rebuild .lw-objective-meta b{color:#d9ff62;font-size:11px}
+body.lw-rebuild .lw-objective-ready{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #29463e}
+body.lw-rebuild .lw-objective-ready>span,body.lw-rebuild .lw-objective-complete{color:#bff5d8;font-size:11px;font-weight:900}
+body.lw-rebuild .lw-objective-complete{margin-top:13px;padding:10px;border-radius:10px;background:#1c4335}
+body.lw-rebuild .lw-objective-empty{padding:13px;border:1px dashed #42665b;border-radius:12px;color:#a6c0b6;font-size:11px}
+body.lw-rebuild .lw-objective-archive{margin-bottom:12px;padding:12px;border:1px solid #665333;border-radius:12px;background:#2a2415;color:#f7e5ad;font-size:10px}
+body.lw-rebuild .lw-objective-archive-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:9px;margin-top:9px;border-top:1px solid #665333}
+@media(max-width:760px){body.lw-rebuild .lw-objective-grid{grid-template-columns:1fr}body.lw-rebuild .lw-season-objectives{padding:13px;border-radius:14px}body.lw-rebuild .lw-objective-head h2{font-size:16px}body.lw-rebuild .lw-objective-active-copy{flex-direction:column}body.lw-rebuild .lw-objective-ready{align-items:stretch;flex-direction:column}body.lw-rebuild .lw-objective-ready .btn{width:100%}body.lw-rebuild .lw-objective-archive-row{align-items:stretch;flex-direction:column}body.lw-rebuild .lw-objective-archive-row .btn{width:100%}}

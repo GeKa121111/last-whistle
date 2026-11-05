@@ -27,12 +27,13 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 504;
+  const minimumCacheVersion = 505;
   assert.ok(
     /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-worker\.js\?"\)\s*>=\s*0/.test(serviceWorker)
-      && /url\.indexOf\("transfer-awards-engine\.js\?"\)\s*>=\s*0/.test(serviceWorker),
+      && /url\.indexOf\("transfer-awards-engine\.js\?"\)\s*>=\s*0/.test(serviceWorker)
+      && /url\.indexOf\("season-objectives\.js\?"\)\s*>=\s*0/.test(serviceWorker),
     "updated world AI, database, worker, and award engine modules must bypass the browser HTTP cache during a new static-cache install");
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
@@ -48,7 +49,9 @@ if (require.main === module) {
     ["career-experience.js", 9],
     ["career-experience.css", 2],
     ["story-mode.js", 14],
-    ["agent-system.js", 9]
+    ["agent-system.js", 9],
+    ["career-hub.css", 2],
+    ["season-objectives.js", 1]
   ];
   requiredAssets.forEach(([asset, minimum]) => {
     const assetSource = asset === "football-world-worker.js"

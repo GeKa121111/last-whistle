@@ -64,6 +64,14 @@
       || stat(row, "cleanSheets") > 0;
   }
 
+  function hasValidPlayingTime(row) {
+    var rawMinutes = row && row.minutes;
+    if (typeof rawMinutes !== "number" && typeof rawMinutes !== "string") return false;
+    if (typeof rawMinutes === "string" && rawMinutes.trim() === "") return false;
+    var minutes = Number(rawMinutes);
+    return Number.isFinite(minutes) && minutes > 0;
+  }
+
   function rowsForSeason(state, season) {
     if (!state || typeof state !== "object") return [];
     var legacy = (Array.isArray(state.seasonLog) ? state.seasonLog : []).filter(function (row) {
@@ -102,7 +110,7 @@
     }
     return combined.filter(function (row) {
       var scope = String(row.scope || "league");
-      return Number(row.season) === season && Number(row.minutes) > 0
+      return Number(row.season) === season && hasValidPlayingTime(row)
         && (scope === "league" || scope === "cup");
     });
   }

@@ -89,6 +89,30 @@ assert.equal(objectives.measure(currentMatchWins, "attacker-rating").value, 8.6,
 assert.equal(objectives.measure(currentMatchWins, "attacker-goals").appearances, 1,
   "a fixture present in both history stores must count only once");
 
+// Explicit malformed minutes must never count as an official appearance.
+// This also guards against coercion of booleans, arrays, boxed numbers, and Symbols.
+const malformedMinuteValues = [
+  NaN, Infinity, -Infinity, "NaN", "Infinity", "-Infinity", "1e309",
+  "not-a-number", true, false, {}, [], [90], new Number(90),
+  Symbol("90"), 0, -1, "", "   ", null, undefined
+];
+const malformedMinuteState = {
+  season:7,
+  pos:"رأس حربة",
+  careerMatchHistory: malformedMinuteValues.map((minutes, index) => ({
+    id:"malformed-minute-" + index, season:7, scope:"league",
+    minutes:minutes, goals:10, assists:5, rating:9.9
+  })).concat([
+    { id:"valid-number-minutes", season:7, scope:"league", minutes:90, goals:1, assists:0, rating:7.1 },
+    { id:"valid-string-minutes", season:7, scope:"league", minutes:"90", goals:2, assists:0, rating:7.2 }
+  ])
+};
+const malformedMinuteProgress = objectives.measure(malformedMinuteState, "attacker-goals");
+assert.equal(malformedMinuteProgress.value, 3,
+  "only finite positive numeric minutes and numeric strings may contribute to objectives");
+assert.equal(malformedMinuteProgress.appearances, 2,
+  "malformed, zero, negative, and non-numeric minute values must not count as appearances");
+
 const keeperState = {
   season:1, pos:"حارس مرمى",
   careerMatchHistory:[

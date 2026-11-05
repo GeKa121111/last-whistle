@@ -110,8 +110,15 @@ assert.ok(rootHtml.includes("const savedTrust = finiteLegacyNumber(state.trust);
   && rootHtml.includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
   "the inline browser career engine must normalize trust and follower counters before state mutations");
 
-assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
+assert.ok(rootHtml.includes("normalizeNationalTournamentCounter(state.nationalTournamentMatches,4)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
+assert.ok(rootHtml.includes("const normalizeNationalTournamentCounter = (value, maximum) => {")
+  && rootHtml.includes('typeof value === "string" && value.trim() !== "" ? Number(value) : NaN'),
+  "the inline UI counter reader must reject coercible non-primitive values while preserving numeric strings");
+assert.equal(rootHtml.includes("Number(state.nationalTournamentMatches)"), false,
+  "national match counters must not be coerced directly in UI guards or labels");
+assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
+  "national tournament points must not be coerced directly in UI labels");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");

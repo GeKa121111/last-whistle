@@ -106,6 +106,28 @@ assert.equal(view.rival.isGenerated,false);
 assert.equal(view.stats.appearances,8);
 assert.equal(view.stats.averageRating,7);
 
+const malformedSeasonHistoryState = Object.assign({},state,{
+  careerMatchHistory:[
+    match("season-current-number",2,7.8,0,0),
+    match("season-current-string","2",7.6,0,0),
+    match("season-missing",undefined,6.8,0,0),
+    Object.assign(match("season-object",2,9.9,0,0),{season:{}}),
+    Object.assign(match("season-array",2,9.8,0,0),{season:[]}),
+    Object.assign(match("season-invalid-string",2,9.7,0,0),{season:"not-a-season"}),
+    Object.assign(match("season-boolean",2,9.6,0,0),{season:true}),
+    match("season-previous",1,4.0,0,0)
+  ],
+  seasonLog:[]
+});
+const malformedSeasonHistoryView=dynamics.snapshot(malformedSeasonHistoryState);
+assert.equal(malformedSeasonHistoryView.stats.appearances,3,
+  "current form must include numeric/current and genuinely missing legacy seasons only");
+assert.equal(malformedSeasonHistoryView.stats.averageRating,7.4,
+  "malformed or prior-season rows must not inflate current-season leadership form");
+assert.equal(Array.from(malformedSeasonHistoryView.stats.formRows,row=>row.id).sort().join(","),
+  "season-current-number,season-current-string,season-missing",
+  "malformed season objects, arrays, booleans and strings must not be relabelled as current-season matches");
+
 const legacySeasonRows = Array.from({length:8},(_,i)=>match("legacy-"+(i+1),2,5+(i*0.4),0,0));
 const legacyOnlyState = Object.assign({},state,{careerMatchHistory:[],seasonLog:legacySeasonRows});
 const legacyOnlyView = dynamics.snapshot(legacyOnlyState);

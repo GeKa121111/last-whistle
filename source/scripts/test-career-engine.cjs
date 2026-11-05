@@ -3032,5 +3032,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v534"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v535"),
  "service worker cache must be refreshed");

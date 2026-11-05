@@ -122,7 +122,7 @@ const malformedMinutesHistoryState = Object.assign({},state,{
 const malformedMinutesHistoryView=dynamics.snapshot(malformedMinutesHistoryState);
 assert.equal(malformedMinutesHistoryView.stats.appearances,3,
   "only finite number or numeric-string minutes may qualify a leadership appearance");
-assert.equal(malformedMinutesHistoryView.stats.averageRating,7.7,
+assert.ok(Math.abs(malformedMinutesHistoryView.stats.averageRating-7.7)<1e-9,
   "array/object-style rating values must not enter the current-form average");
 assert.equal(malformedMinutesHistoryView.stats.goals,0,
   "array-style goal values must not be counted as real match contributions");

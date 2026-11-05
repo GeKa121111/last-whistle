@@ -623,7 +623,7 @@
     };
   }
   function validateResultUnchecked(result) {
-    if (!result || !result.score || !result.player || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
+    if (!result || typeof result !== "object" || Array.isArray(result) || !result.score || !result.player || typeof result.player !== "object" || Array.isArray(result.player) || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
     const scoreValueValid = value =>
       (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
       && Number.isFinite(Number(value)) && Number.isInteger(Number(value)) && Number(value) >= 0;

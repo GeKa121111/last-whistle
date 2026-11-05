@@ -2563,6 +2563,18 @@
     const destinationSeason = Number(season) + 1;
     if (world.promotionHistory.some(row => Number(row.season) === destinationSeason)) return [];
     const tables = world.leagueTables && world.leagueTables[String(season)] || {};
+    const finiteStandingNumber = value => {
+      if (typeof value === "number") return Number.isFinite(value) ? value : null;
+      if (typeof value !== "string" || value.trim() === "") return null;
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
+    const compareDescendingStandingMetric = (a, b) => {
+      if (a === null && b === null) return 0;
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return b - a;
+    };
     const leagueIds = new Set(Object.values(world.clubs || {}).map(club => String(club && club.leagueId || "")).filter(Boolean));
     const eligibleTableRows = (rows, leagueId, expectedDivision) => {
       const seen = new Set();
@@ -2574,12 +2586,13 @@
         if (!clubId || seen.has(clubId)) continue;
         const club = world.clubs && world.clubs[clubId];
         if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
-        const clubDivision = divisionForClub(club);
+        const rawClubDivision = finiteStandingNumber(club.division);
+        const clubDivision = rawClubDivision === null ? 1 : Math.max(1, Math.round(rawClubDivision));
         if (!Number.isInteger(clubDivision) || clubDivision !== expectedDivision) continue;
         const rowLeagueId = String(row.leagueId || "").trim();
         if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
         if (row.division !== undefined && row.division !== null && String(row.division).trim() !== "") {
-          const rowDivision = Number(row.division);
+          const rowDivision = finiteStandingNumber(row.division);
           if (!Number.isInteger(rowDivision) || rowDivision !== expectedDivision) continue;
         }
         seen.add(clubId);
@@ -2588,20 +2601,26 @@
       // New season tables are rank-sorted, but imported/legacy snapshots are not
       // guaranteed to preserve array order. Honor an explicit rank first, then use
       // standings metrics as a deterministic fallback for older rows without rank.
-      const pointsFor = row => Number.isFinite(Number(row && row.pts)) ? Number(row.pts) : 0;
-      const goalDifferenceFor = row => row && row.gd != null && row.gd !== ""
-        && Number.isFinite(Number(row.gd))
-        ? Number(row.gd) : (Number(row && row.gf) || 0) - (Number(row && row.ga) || 0);
+      const pointsFor = row => finiteStandingNumber(row && row.pts);
+      const goalDifferenceFor = row => {
+        const saved = finiteStandingNumber(row && row.gd);
+        if (saved !== null) return saved;
+        const goalsFor = finiteStandingNumber(row && row.gf);
+        const goalsAgainst = finiteStandingNumber(row && row.ga);
+        return (goalsFor === null ? 0 : goalsFor) - (goalsAgainst === null ? 0 : goalsAgainst);
+      };
+      const goalsFor = row => finiteStandingNumber(row && row.gf) ?? 0;
+      const powerFor = club => finiteStandingNumber(club && club.power) || 50;
       eligible.sort((a, b) => {
-        const aRank = Number(a.row && a.row.rank), bRank = Number(b.row && b.row.rank);
+        const aRank = finiteStandingNumber(a.row && a.row.rank), bRank = finiteStandingNumber(b.row && b.row.rank);
         const aHasRank = Number.isInteger(aRank) && aRank > 0;
         const bHasRank = Number.isInteger(bRank) && bRank > 0;
         if (aHasRank && bHasRank && aRank !== bRank) return aRank - bRank;
         if (aHasRank !== bHasRank) return aHasRank ? -1 : 1;
-        return pointsFor(b.row) - pointsFor(a.row)
-          || goalDifferenceFor(b.row) - goalDifferenceFor(a.row)
-          || (Number(b.row && b.row.gf) || 0) - (Number(a.row && a.row.gf) || 0)
-          || (Number(b.club.power) || 50) - (Number(a.club.power) || 50)
+        return compareDescendingStandingMetric(pointsFor(a.row), pointsFor(b.row))
+          || compareDescendingStandingMetric(goalDifferenceFor(a.row), goalDifferenceFor(b.row))
+          || compareDescendingStandingMetric(goalsFor(a.row), goalsFor(b.row))
+          || compareDescendingStandingMetric(powerFor(a.club), powerFor(b.club))
           || a.index - b.index;
       });
       return eligible.map(entry => entry.club);

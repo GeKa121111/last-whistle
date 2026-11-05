@@ -110,12 +110,19 @@ assert.ok(rootHtml.includes("const savedTrust = finiteLegacyNumber(state.trust);
   && rootHtml.includes("const savedFollowers = finiteLegacyNumber(state.followers);"),
   "the inline browser career engine must normalize trust and follower counters before state mutations");
 
-assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.nationalTournamentQualified!==true"),
+assert.ok(rootHtml.includes("normalizeNationalTournamentCounter(state.nationalTournamentMatches,4)>=3&&state.nationalTournamentQualified!==true"),
   "an unqualified national team must not be offered a final match");
+assert.ok(rootHtml.includes("const normalizeNationalTournamentCounter = (value, maximum) => {")
+  && rootHtml.includes('typeof value === "string" && value.trim() !== "" ? Number(value) : NaN'),
+  "the inline UI counter reader must reject coercible non-primitive values while preserving numeric strings");
+assert.equal(rootHtml.includes("Number(state.nationalTournamentMatches)"), false,
+  "national match counters must not be coerced directly in UI guards or labels");
+assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
+  "national tournament points must not be coerced directly in UI labels");
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 523);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 524);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 77);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
@@ -1551,6 +1558,42 @@ assert.equal(malformedTournamentCounters.nationalTournamentQualified, false);
 assert.equal(malformedTournamentCounters.nationalTournamentDone, false);
 assert.equal(malformedTournamentCounters.internationalPlayed, false);
 
+const hostileTournamentNumber = {
+  valueOf() { throw new Error("unsafe-tournament-counter-coercion"); },
+  toString() { throw new Error("unsafe-tournament-counter-coercion"); }
+};
+const malformedTournamentCounterCases = [
+  { matches: [2], points: [3], label: "single-item arrays" },
+  { matches: Object(2), points: Object(3), label: "boxed numbers" },
+  { matches: Symbol("matches"), points: hostileTournamentNumber, label: "Symbols and hostile coercion objects" }
+];
+for (const malformed of malformedTournamentCounterCases) {
+  const state = {
+    nationalTournamentMatches: malformed.matches,
+    nationalTournamentPoints: malformed.points,
+    nationalTournamentDone: false,
+    nationalTournamentQualified: false,
+    nationalTournamentWinner: false,
+    nationalTournamentFinalOutcome: "",
+    internationalPlayed: false
+  };
+  const result = career.recordNationalTournamentMatch(state, "تعادل");
+  assert.equal(result.status, "group",
+    malformed.label + " must not be interpreted as valid tournament counters");
+  assert.equal(state.nationalTournamentMatches, 1,
+    malformed.label + " must recover the match counter from zero");
+  assert.equal(state.nationalTournamentPoints, 1,
+    malformed.label + " must recover the points counter from zero");
+}
+const numericStringTournamentCounters = {
+  nationalTournamentMatches: "2", nationalTournamentPoints: "3", nationalTournamentDone: false,
+  nationalTournamentQualified: false, nationalTournamentWinner: false,
+  nationalTournamentFinalOutcome: "", internationalPlayed: false
+};
+assert.equal(career.recordNationalTournamentMatch(numericStringTournamentCounters, "تعادل").status, "final-qualified",
+  "numeric-string legacy tournament counters must remain compatible");
+assert.equal(numericStringTournamentCounters.nationalTournamentMatches, 3);
+assert.equal(numericStringTournamentCounters.nationalTournamentPoints, 4);
 
 const drawnFinal = { nationalTournamentMatches: 3, nationalTournamentPoints: 4, nationalTournamentDone: false,
   nationalTournamentQualified: true, nationalTournamentWinner: false, nationalTournamentFinalOutcome: "", internationalPlayed: false };
@@ -2989,5 +3032,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v523"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v524"),
  "service worker cache must be refreshed");

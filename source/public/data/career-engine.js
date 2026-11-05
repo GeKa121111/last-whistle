@@ -1286,7 +1286,10 @@ function seasonAwards(state, league, teamRank) {
     state.internationalPlayed = normalizeLegacyBoolean(state.internationalPlayed);
     if (state.nationalTournamentDone) return { ok: false, status: "tournament-closed" };
     const finiteTournamentCounter = (value, maximum) => {
-      const numeric = Number(value);
+      // Only primitive numbers and non-empty numeric strings are valid legacy counters.
+      // Never coerce arrays, boxed numbers, booleans, Symbols, or hostile objects.
+      const numeric = typeof value === "number" ? value
+        : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
       return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.floor(numeric))) : 0;
     };
     const played = finiteTournamentCounter(state.nationalTournamentMatches, 4);

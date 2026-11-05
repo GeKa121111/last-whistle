@@ -536,8 +536,8 @@ if (!nationalRenderSource.includes("البطولة المصغرة تبدأ بث�
   || !nationalRenderSource.includes("tm<3?")
   || !nationalMatchSource.includes("tournamentMatchIndex<3?")
   || !nationalMatchSource.includes("knockout:tournamentMatchIndex>=3")
-  || !nationalMatchSource.includes("Number(state.nationalTournamentMatches)>=4")
-  || !html.includes("state.nationalTournamentMatches=3;}state.nationalTournamentFormat=2;")) {
+  || !nationalMatchSource.includes("normalizeNationalTournamentCounter(state.nationalTournamentMatches,4)>=4")
+  || !html.includes("normalizeNationalTournamentCounter(state.nationalTournamentMatches,4)===2&&state.nationalTournamentQualified===true){state.nationalTournamentMatches=3;}state.nationalTournamentFormat=2;")) {
   console.error("National tournament must have three group fixtures, a separate final, and legacy-save migration.");
   process.exit(1);
 }

@@ -16,6 +16,12 @@ const app = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const deployedApp = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 assert.equal(app, deployedApp, "root and public app shells must remain synchronized");
 
+const counterHelperStart = app.indexOf("const normalizeNationalTournamentCounter =");
+const counterHelperEnd = app.indexOf("\n};", counterHelperStart);
+assert.ok(counterHelperStart >= 0 && counterHelperEnd > counterHelperStart,
+  "the UI national tournament counter helper must exist");
+const counterHelperSource = app.slice(counterHelperStart, counterHelperEnd + 3);
+
 const start = app.indexOf("function nationalMatch(){");
 assert.ok(start >= 0, "the international fixture action must exist");
 const end = app.indexOf("\nfunction ", start + 1);
@@ -83,7 +89,7 @@ const sandbox = {
   showPage: () => {}
 };
 vm.createContext(sandbox);
-vm.runInContext(nationalMatchSource + "\nglobalThis.playNationalFixture = nationalMatch;", sandbox,
+vm.runInContext(counterHelperSource + "\n" + nationalMatchSource + "\nglobalThis.playNationalFixture = nationalMatch;", sandbox,
   { filename: "national-match-id-regression.js" });
 
 sandbox.playNationalFixture();
@@ -131,7 +137,7 @@ function runRejectedTournamentFixture(overrides, expectedStatus) {
     }
   };
   vm.createContext(invalidSandbox);
-  vm.runInContext(nationalMatchSource + "\nglobalThis.playNationalFixture = nationalMatch;", invalidSandbox,
+  vm.runInContext(counterHelperSource + "\n" + nationalMatchSource + "\nglobalThis.playNationalFixture = nationalMatch;", invalidSandbox,
     { filename: "national-match-transaction-regression.js" });
   invalidSandbox.playNationalFixture();
   assert.equal(rejectedSettlements.length, 0,

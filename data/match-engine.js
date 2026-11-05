@@ -223,6 +223,9 @@
     const foulRandom = seededRandom(hash("player-fouls:" + String(simulationSeed)));
     const extraTimeEventRandom = seededRandom(extraTimeEventSeed);
     const player = options.player && typeof options.player === "object" ? options.player : {};
+    // Morale is a confidence signal, not a squad-role override. Missing legacy values stay neutral.
+    const morale = player.morale === undefined || player.morale === null ? 50 : clamp(player.morale, 0, 100);
+    const confidenceFactor = 0.96 + morale * 0.0008;
     const profile = positionProfile(String(player.position || player.pos || ""));
     const fallbackTeamGoalkeeping = clamp(options.teamGoalkeeping ?? 55, 25, 95);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
@@ -347,11 +350,12 @@
                 + clamp(player.vision, 0, 100) * 0.14 + clamp(player.passing, 0, 100) * 0.10;
           const involvement = playerCanAct
             ? clamp(profile.shooter * (0.82 + roleSkill / 100 * 0.36)
-              * (0.82 + energy / 500 - fatigue / 450), 0, 0.70)
+              * (0.82 + energy / 500 - fatigue / 450) * confidenceFactor, 0, 0.70)
             : 0;
           const byPlayer = playerCanAct && !profile.goalkeeper && random() < involvement;
           const defendingGoalkeeper = clamp(options.opponentGoalkeeping ?? 60, 25, 95);
           const playerShotChance = clamp(0.075 + shooting * 0.0022 + composure * 0.00045 + relativeGap * 0.0014 - defendingGoalkeeper * 0.00055
+            + (morale - 50) * 0.00012
             + (Number(profile.finishingBonus) || 0)
             + (opponentTactic === "compact" ? -0.024 * tacticalScale : opponentTactic === "press" ? -0.010 * tacticalScale : 0), 0.075, 0.48);
           const teamShotChance = clamp(0.21 + relativeGap * 0.0022 - defendingGoalkeeper * 0.0006 + (opponentTactic === "compact" ? -0.020 * tacticalScale : opponentTactic === "press" ? -0.008 * tacticalScale : 0), 0.08, 0.39);
@@ -585,7 +589,7 @@
       // Event impact already comes from actions during the player's actual minutes.
       // Apply only a confidence floor for short appearances, not a second full minutes penalty.
       const impactConfidence = 0.65 + 0.35 * scale;
-      stats.rating = Math.round(clamp((6.05 + impact * impactConfidence + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
+      stats.rating = Math.round(clamp((6.05 + impact * impactConfidence + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 + (morale - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
     if (minutes > 0 && playerEndMinute < 90 && !redCard && !injured) events.push({ type: "substitution", minute: playerEndMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
     if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });

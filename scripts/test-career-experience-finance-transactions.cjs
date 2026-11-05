@@ -299,6 +299,22 @@ function dueState() {
   assert.equal(fallbackInvalidDay.state.careerWorld.history[0].day, 1,
     "settlement history must use the same safe day fallback");
 
+  const malformedPortfolio = makeHarness({
+    money:1000,
+    careerWorld: {
+      version:1, challengeCount:0, challengeWins:0, practiceAttempts:0,
+      memoryWins:0, timingWins:0, mentorSessions:0,
+      investments:[null, "legacy-row", [], true, [1], { malformed:true }],
+      history:[], investmentSequence:1
+    }
+  });
+  const malformedPortfolioResult = await malformedPortfolio.click("invest-safe");
+  assert.equal(malformedPortfolioResult.ok, true,
+    "malformed non-record rows must not consume the five-open-investment limit");
+  assert.equal(malformedPortfolio.state.money, 900);
+  assert.equal(malformedPortfolio.state.careerWorld.investments.length, 7,
+    "adding a valid investment must preserve every malformed legacy portfolio entry");
+
   const nullPortfolio = makeHarness({
     careerWorld: {
       version:1, challengeCount:0, challengeWins:0, practiceAttempts:0,

@@ -147,9 +147,8 @@
   }
 
   function safeWholeMoney(value) {
-    if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return null;
-    var amount = Number(value);
-    if (!Number.isFinite(amount) || amount < 0 || amount > Number.MAX_SAFE_INTEGER) return null;
+    var amount = finiteNumber(value);
+    if (amount === null || amount < 0 || amount > Number.MAX_SAFE_INTEGER) return null;
     var whole = Math.floor(amount);
     return Number.isSafeInteger(whole) ? whole : null;
   }
@@ -756,6 +755,8 @@
   function renderFinance() {
     var s = API().getState();
     var w = world(s);
+    var balance = safeWholeMoney(s.money);
+    var displayBalance = balance === null ? 0 : balance;
     var open = w.investments.filter(function (item) { return !item.settled; });
     var recent = w.investments.slice().reverse().slice(0, 5);
     var list = recent.length ? '<div class="lwcx-investment-list">' + recent.map(function (item) {
@@ -763,11 +764,11 @@
       return '<div class="lwcx-investment-row"><span><strong>' + esc(item.label) + '</strong><small>' + esc(status) + '</small></span><b>' + esc(item.amount) + '</b></div>';
     }).join("") + '</div>' : '<p class="lwcx-empty">مفيش عمليات استثمار مسجلة لسه.</p>';
     frame("إدارة المال والاستثمار", "IN-GAME ECONOMY",
-      '<div class="lwcx-balance"><span>رصيدك الحالي</span><strong>' + Math.max(0, Number(s.money) || 0).toLocaleString("en-US") + ' <small>جنيه</small></strong><p>كل المبالغ افتراضية داخل اللعبة فقط.</p></div>' +
+      '<div class="lwcx-balance"><span>رصيدك الحالي</span><strong>' + displayBalance.toLocaleString("en-US") + ' <small>جنيه</small></strong><p>كل المبالغ افتراضية داخل اللعبة فقط.</p></div>' +
       '<div class="lwcx-options">' +
-        actionButton("invest-safe", "ادخار آمن", "حجز 100 جنيه لمدة 7 أيام؛ تسترد 118 جنيهًا عند الاستحقاق.", (Number(s.money) < 100 || s.retired || !s.careerStarted || open.length >= 5) ? ' disabled' : '') +
-        actionButton("invest-risky", "استثمار عالي المخاطرة", "حجز 200 جنيه لمدة 10 أيام؛ العائد أعلى أو أقل من المبلغ حسب النتيجة.", (Number(s.money) < 200 || s.retired || !s.careerStarted || open.length >= 5) ? ' disabled' : '') +
-        actionButton("training-skill", "حصة مدرب متخصص", "تكلفة 180 جنيهًا و8 طاقة؛ تطوّر مهارة تختارها فورًا.", (Number(s.money) < 180 || s.energy < 8 || s.injuryDays > 0 || s.retired) ? ' disabled' : '') +
+        actionButton("invest-safe", "ادخار آمن", "حجز 100 جنيه لمدة 7 أيام؛ تسترد 118 جنيهًا عند الاستحقاق.", (balance === null || balance < 100 || s.retired || !s.careerStarted || open.length >= 5) ? ' disabled' : '') +
+        actionButton("invest-risky", "استثمار عالي المخاطرة", "حجز 200 جنيه لمدة 10 أيام؛ العائد أعلى أو أقل من المبلغ حسب النتيجة.", (balance === null || balance < 200 || s.retired || !s.careerStarted || open.length >= 5) ? ' disabled' : '') +
+        actionButton("training-skill", "حصة مدرب متخصص", "تكلفة 180 جنيهًا و8 طاقة؛ تطوّر مهارة تختارها فورًا.", (balance === null || balance < 180 || s.energy < 8 || s.injuryDays > 0 || s.retired) ? ' disabled' : '') +
       '</div><div class="lwcx-subhead"><strong>محفظة الاستثمار</strong><span>' + open.length + ' عملية مفتوحة</span></div>' + list,
       "العوائد تتسجل داخل الحفظ؛ الادخار والاستثمار مش مربوطين بفلوس حقيقية أو مدفوعات.");
   }
@@ -1090,6 +1091,7 @@
 
   function panelSignature(s, w, revision, forcePendingCount) {
     var investments = Array.isArray(w.investments) ? w.investments : [];
+    var balance = safeWholeMoney(s.money);
     var latest = investments.length ? investments[investments.length - 1] : null;
     var latestSignature = latest
       ? [latest.id, latest.dueDay, latest.settled ? 1 : 0].join(":")
@@ -1098,7 +1100,7 @@
       s.careerStarted ? 1 : 0,
       s.retired ? 1 : 0,
       Number(s.energy) || 0,
-      Math.max(0, Number(s.money) || 0),
+      balance === null ? "invalid-balance" : balance,
       dayNumber(s),
       Array.isArray(s.storyHistory) ? s.storyHistory.length : 0,
       Number(w.challengeWins) || 0,

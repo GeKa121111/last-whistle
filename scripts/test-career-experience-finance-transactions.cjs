@@ -116,6 +116,32 @@ function dueState() {
   assert.equal(invalid.state.careerWorld.investments.length, 0, "rejected investment must not create a partial portfolio");
   assert.equal(invalid.saveCalls, 0);
 
+  const coercibleBalance = makeHarness({ money:[100] });
+  const coercibleBalanceResult = await coercibleBalance.click("invest-safe");
+  assert.equal(coercibleBalanceResult.ok, false,
+    "an array that coerces to 100 must not be accepted as a cash balance");
+  assert.deepEqual(coercibleBalance.state.money, [100]);
+  assert.equal(coercibleBalance.state.careerWorld.investments.length, 0);
+  assert.equal(coercibleBalance.saveCalls, 0,
+    "a malformed balance must be rejected before any financial save is queued");
+
+  const hostileBalance = makeHarness({
+    money:{ valueOf() { throw new Error("unsafe-money-coercion"); } }
+  });
+  let hostileBalanceResult;
+  await assert.doesNotReject(async () => {
+    hostileBalanceResult = await hostileBalance.click("invest-safe");
+  }, "a hostile saved balance must be rejected without crashing the finance panel");
+  assert.equal(hostileBalanceResult.ok, false);
+  assert.equal(hostileBalance.state.careerWorld.investments.length, 0);
+  assert.equal(hostileBalance.saveCalls, 0);
+
+  const numericStringBalance = makeHarness({ money:"100" });
+  const numericStringBalanceResult = await numericStringBalance.click("invest-safe");
+  assert.equal(numericStringBalanceResult.ok, true,
+    "finite numeric-string balances must remain compatible with legacy saves");
+  assert.equal(numericStringBalance.state.money, 0);
+
   const rollback = makeHarness({ money: 1000 }, [false, true]);
   const rollbackResult = await rollback.click("invest-risky");
   assert.equal(rollbackResult.ok, false);

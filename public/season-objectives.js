@@ -84,7 +84,8 @@
       copy.scope = copy.scope || "league";
       return copy;
     });
-    var combined = legacy.concat(career);
+    // Prefer current careerMatchHistory snapshots when a legacy seasonLog row shares the same fixture ID.
+    var combined = career.concat(legacy);
     if (window.LWCareer && typeof window.LWCareer.uniqueMatchRows === "function") {
       try { combined = window.LWCareer.uniqueMatchRows(combined); } catch (error) {}
     } else {

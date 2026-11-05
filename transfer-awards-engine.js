@@ -1,61 +1,85 @@
 (function (global) {
   "use strict";
 
+  function finiteNumericValue(value) {
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value !== "string") return null;
+    const text = value.trim();
+    if (!text) return null;
+    const number = Number(text);
+    return Number.isFinite(number) ? number : null;
+  }
+
   function clamp(value, min, max) {
-    const number = Number(value);
-    return Math.max(min, Math.min(max, Number.isFinite(number) ? number : min));
+    const number = finiteNumericValue(value);
+    return Math.max(min, Math.min(max, number === null ? min : number));
   }
 
   const MAX_SEASON_STAT = 1000000;
 
   function safeCount(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? Math.max(0, Math.min(MAX_SEASON_STAT, number)) : fallback;
+    const number = finiteNumericValue(value);
+    if (number === null) {
+      const fallbackNumber = finiteNumericValue(fallback);
+      return fallbackNumber === null ? 0 : Math.max(0, Math.min(MAX_SEASON_STAT, fallbackNumber));
+    }
+    return Math.max(0, Math.min(MAX_SEASON_STAT, number));
   }
 
   function safeRating(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? clamp(number, 0, 10) : fallback;
+    const number = finiteNumericValue(value);
+    if (number !== null) return clamp(number, 0, 10);
+    const fallbackNumber = finiteNumericValue(fallback);
+    return clamp(fallbackNumber === null ? 0 : fallbackNumber, 0, 10);
   }
 
   function safeStrength(value, fallback = 60) {
-    const number = Number(value);
-    return Number.isFinite(number) && number > 0 ? clamp(number, 25, 100) : fallback;
+    const number = finiteNumericValue(value);
+    if (number === null || number <= 0) {
+      const fallbackNumber = finiteNumericValue(fallback);
+      return fallbackNumber === null ? 60 : fallbackNumber;
+    }
+    return clamp(number, 25, 100);
   }
 
   function safePrestige(value, fallback = 60) {
-    const number = Number(value);
-    return Number.isFinite(number) && number > 0 ? clamp(number, 1, 100) : fallback;
+    const number = finiteNumericValue(value);
+    if (number === null || number <= 0) {
+      const fallbackNumber = finiteNumericValue(fallback);
+      return fallbackNumber === null ? 60 : fallbackNumber;
+    }
+    return clamp(number, 1, 100);
   }
 
   function isYouthAwardEligible(value) {
-    if (value === undefined || value === null || value === "") return false;
-    const age = Number(value);
-    return Number.isFinite(age) && age >= 16 && age <= 21;
+    const age = finiteNumericValue(value);
+    return age !== null && age >= 16 && age <= 21;
   }
 
   function isYouthAwardEligibleForPlayer(player, fallbackAge) {
     const rawAge = player && player.age;
-    if (rawAge === undefined || rawAge === null || rawAge === "") {
+    if (rawAge === undefined || rawAge === null || (typeof rawAge === "string" && rawAge.trim() === "")) {
       return isYouthAwardEligible(fallbackAge);
     }
-    const age = Number(rawAge);
+    const age = finiteNumericValue(rawAge);
     return age === 0
       ? isYouthAwardEligible(fallbackAge)
       : isYouthAwardEligible(age);
   }
 
   function safeAge(value, fallback = 18) {
-    if (value === undefined || value === null || value === "") return fallback;
-    const number = Number(value);
-    if (!Number.isFinite(number) || number < 0) return 100;
+    if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return fallback;
+    const number = finiteNumericValue(value);
+    if (number === null || number < 0) return 100;
     if (number === 0) return fallback;
     return Math.min(100, Math.floor(number));
   }
 
   function safePercent(value, fallback = 50) {
-    const number = Number(value);
-    return Number.isFinite(number) ? clamp(number, 0, 100) : fallback;
+    const number = finiteNumericValue(value);
+    if (number !== null) return clamp(number, 0, 100);
+    const fallbackNumber = finiteNumericValue(fallback);
+    return fallbackNumber === null ? 50 : fallbackNumber;
   }
 
   function stableHash(value) {
@@ -99,8 +123,8 @@
     player = player || {};
     const id = stablePlayerId(player);
     if (id) return "id|" + normalized(id);
-    const ageValue = Number(player.age);
-    const age = Number.isFinite(ageValue) && ageValue > 0 ? String(Math.floor(ageValue)) : "";
+    const ageValue = finiteNumericValue(player.age);
+    const age = ageValue !== null && ageValue > 0 ? String(Math.floor(ageValue)) : "";
     return [
       "fallback",
       normalized(player.name || ""),
@@ -119,8 +143,8 @@
     player = player || {};
     const id = stablePlayerId(player);
     if (id) return "id|" + normalized(id);
-    const ageValue = Number(player.age);
-    const age = Number.isFinite(ageValue) && ageValue > 0 ? String(Math.floor(ageValue)) : "";
+    const ageValue = finiteNumericValue(player.age);
+    const age = ageValue !== null && ageValue > 0 ? String(Math.floor(ageValue)) : "";
     return [
       "fallback",
       normalized(player.name || ""),
@@ -238,7 +262,9 @@
 
   function applyDefensiveSeasonStats(row, player, season) {
     player = player || {};
-    const saved = player.seasonStats && Number(player.seasonStats.season) === Number(season)
+    const savedSeason = player.seasonStats && finiteNumericValue(player.seasonStats.season);
+    const currentSeason = finiteNumericValue(season);
+    const saved = player.seasonStats && savedSeason !== null && currentSeason !== null && savedSeason === currentSeason
       ? player.seasonStats : {};
     const type = roleType(row.position || player.position);
     const appearances = safeCount(row.appearances);
@@ -300,13 +326,14 @@
       "نيكو أوريلي": 21
     };
     const name = String(player && player.name || "");
-    const sourcedAge = Number(player && player.age);
-    const firstSeasonAge = Number.isFinite(sourcedAge) && sourcedAge >= 1
+    const sourcedAge = finiteNumericValue(player && player.age);
+    const firstSeasonAge = sourcedAge !== null && sourcedAge >= 1
       ? Math.floor(sourcedAge)
       : Object.prototype.hasOwnProperty.call(knownYoung, name)
         ? knownYoung[name]
         : 24 + (stableHash(playerProjectionKey(player)) % 10);
-    const seasonNumber = Math.max(1, Math.floor(Number(season) || 1));
+    const seasonValue = finiteNumericValue(season);
+    const seasonNumber = Math.max(1, Math.floor(seasonValue === null ? 1 : seasonValue));
     // Sourced age, known-player baseline, or fallback estimate all describe the
     // player's age in season one. Advance the same baseline once per season.
     return Math.min(40, firstSeasonAge + seasonNumber - 1);
@@ -314,7 +341,9 @@
 
   function simulatePlayerSeason(player, season, progress) {
     const saved = player && player.seasonStats;
-    if (saved && Number(saved.season) === Number(season)) {
+    const savedSeason = saved && finiteNumericValue(saved.season);
+    const requestedSeason = finiteNumericValue(season);
+    if (saved && savedSeason !== null && requestedSeason !== null && savedSeason === requestedSeason) {
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
       const appearances = Math.round(safeCount(saved.appearances) * scale);
@@ -572,7 +601,8 @@
 
   function buildLeagueLeaderboard(input) {
     input = input || {};
-    const season = Number(input.season) || 1;
+    const seasonValue = finiteNumericValue(input.season);
+    const season = seasonValue || 1;
     const progress = clamp(input.progress === undefined ? 1 : input.progress, 0, 1);
     const players = Array.isArray(input.players) ? input.players : [];
     const rows = [];
@@ -589,7 +619,7 @@
         club: input.userLine.club || "",
         country: input.userLine.country || "",
         position: input.userLine.position || "غير محدد",
-        ovr: Number(input.userLine.ovr) || 50,
+        ovr: finiteNumericValue(input.userLine.ovr) || 50,
         appearances: 0,
         goals: 0,
         assists: 0,
@@ -636,7 +666,8 @@
 
   function buildSeasonAwardCeremony(input) {
     input = input || {};
-    const season = Number(input.season) || 1;
+    const seasonValue = finiteNumericValue(input.season);
+    const season = seasonValue || 1;
     const player = input.player || {};
     const realPlayers = Array.isArray(input.realPlayers) ? input.realPlayers : [];
     const trophies = safeCount(player.trophies);
@@ -708,7 +739,7 @@
       });
     };
     const eligibleCandidates = candidates.filter(row =>
-      Number(row.appearances) >= 10 && seasonMinutes(row, safeCount(row.appearances)) > 0);
+      safeCount(row.appearances) >= 10 && seasonMinutes(row, safeCount(row.appearances)) > 0);
     const bestFive = rank(eligibleCandidates, "ballonScore").slice(0, 5);
     const ballonWinner = bestFive[0] || { name: "لا يوجد لاعب مؤهل", club: "", isUser: false };
     const allAwards = [
@@ -716,7 +747,7 @@
       { id: "fifa-the-best", title: "جائزة ذا بيست (FIFA The Best)", metric: "theBestScore", pool: eligibleCandidates },
       { id: "world-golden-shoe", title: "الحذاء الذهبي العالمي", metric: "weightedGoals", pool: eligibleCandidates },
       { id: "golden-glove", title: "القفاز الذهبي (Golden Glove)", metric: "goldenGloveScore",
-        pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && Number(row.appearances) >= 10) },
+        pool: eligibleCandidates.filter(row => roleType(row.position) === "keeper" && safeCount(row.appearances) >= 10) },
       { id: "golden-boy", title: "الفتى الذهبي (Golden Boy)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.youthAwardEligible === true) },
       { id: "caf-player", title: "أفضل لاعب في أفريقيا (CAF Player of the Year)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.originConfederation === "CAF") },
       { id: "uefa-player", title: "أفضل لاعب في أوروبا (UEFA Best Player)", metric: "ballonScore", pool: eligibleCandidates.filter(row => row.confederation === "UEFA") },
@@ -827,11 +858,15 @@
     // A saved zero is meaningful: do not fall back to career totals or stale
     // minutes when the current season has no actual appearances.
     if (apps <= 0 || minutes <= 0) return 0;
-    const rating = clamp(player.averageRating || player.form || 0, 0, 10);
-    const goals = Math.max(0, Number(player.goals) || 0);
-    const assists = Math.max(0, Number(player.assists) || 0);
-    const cleanSheets = Math.max(0, Number(player.cleanSheets) || 0);
-    const strength = clamp(player.leagueStrength || 60, 25, 100);
+    const averageRating = finiteNumericValue(player.averageRating);
+    const formRating = finiteNumericValue(player.form);
+    const rating = safeRating(averageRating !== null && averageRating !== 0
+      ? averageRating : formRating === null ? 0 : formRating);
+    const goals = safeCount(player.goals);
+    const assists = safeCount(player.assists);
+    const cleanSheets = safeCount(player.cleanSheets);
+    const rawStrength = finiteNumericValue(player.leagueStrength);
+    const strength = rawStrength === null ? 60 : clamp(rawStrength || 60, 25, 100);
     const participation = clamp(minutes / Math.max(1, apps * 90), 0, 1);
     const role = roleType(player.position);
     const contribution = role === "attacker" ? goals * 1.05 + assists * .72
@@ -869,7 +904,8 @@
   function buildLoanProposal(input) {
     input = input || {};
     const player = input.player || {};
-    const age = Number(player.age) || 24;
+    const ageValue = finiteNumericValue(player.age);
+    const age = ageValue === null || ageValue === 0 ? 24 : ageValue;
     const apps = seasonAppearanceCount(player);
     const durationMonths = Number(input.durationMonths) === 6 ? 6 : 12;
     const isYouth = age < 23;
@@ -892,7 +928,8 @@
     const hasSeasonPerformance = apps > 0 && minutes > 0;
     const score = hasSeasonPerformance ? performanceIndex(player) : 0;
     const ovr = clamp(player.ovr || player.power || 50, 35, 99);
-    const age = Math.max(16, Number(player.age) || 24);
+    const ageValue = finiteNumericValue(player.age);
+    const age = Math.max(16, ageValue === null || ageValue === 0 ? 24 : ageValue);
     const development = age < 23 ? Math.max(0, 23 - age) * .55 : age > 30 ? -(age - 30) * .7 : 0;
     const seasonScore = hasSeasonPerformance ? score + development + Math.min(5, minutes / 900) : 0;
     return {
@@ -905,7 +942,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 23,
+    version: 24,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

@@ -28,7 +28,130 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 23);
+assert.equal(engine.version, 24);
+
+const malformedAwardNumbers = [
+  { label: "Symbol", value: Symbol("season-stat") },
+  { label: "boolean", value: true },
+  { label: "array", value: [7] },
+  { label: "throwing object", value: { valueOf() { throw new Error("unexpected numeric coercion"); } } }
+];
+for (const malformed of malformedAwardNumbers) {
+  const savedMalformedPlayer = {
+    name: "Malformed saved award stats", position: "ST", age: 24, ovr: 72,
+    leagueStrength: malformed.value,
+    seasonStats: {
+      season: 6, appearances: 12, minutes: 1080,
+      goals: malformed.value, assists: malformed.value, averageRating: malformed.value
+    }
+  };
+  let savedLine;
+  assert.doesNotThrow(() => { savedLine = engine.simulatePlayerSeason(savedMalformedPlayer, 6, 1); },
+    malformed.label + " saved award statistics must not crash season simulation");
+  assert.equal(savedLine.goals, 0, malformed.label + " goals must be ignored");
+  assert.equal(savedLine.assists, 0, malformed.label + " assists must be ignored");
+  assert.equal(savedLine.averageRating, 0, malformed.label + " ratings must be ignored");
+  assert.equal(savedLine.leagueStrength, 60, malformed.label + " league strength must use the safe fallback");
+  assert.ok(Number.isFinite(savedLine.score), malformed.label + " must not create a non-finite award score");
+
+  const performanceRow = {
+    name: "Malformed performance row", position: "ST", age: malformed.value,
+    appearances: 12, minutes: 1080, averageRating: malformed.value, form: 7.2,
+    goals: malformed.value, assists: malformed.value, cleanSheets: malformed.value,
+    leagueStrength: malformed.value
+  };
+  let performanceScore;
+  assert.doesNotThrow(() => { performanceScore = engine.performanceIndex(performanceRow); },
+    malformed.label + " performance inputs must not throw during ranking");
+  assert.ok(Number.isFinite(performanceScore), malformed.label + " performance score must remain finite");
+  let evaluation;
+  assert.doesNotThrow(() => { evaluation = engine.evaluateSeasonPerformance(performanceRow); },
+    malformed.label + " season evaluation must tolerate malformed age and statistics");
+  assert.ok(Number.isFinite(evaluation.score));
+  assert.ok(Number.isFinite(evaluation.transferReadiness));
+
+  let projectedLine;
+  assert.doesNotThrow(() => {
+    projectedLine = engine.simulatePlayerSeason({
+      name: "Malformed projected player", position: "ST", age: malformed.value,
+      prestige: malformed.value, leagueStrength: malformed.value, ovr: 72
+    }, 6, 1);
+  }, malformed.label + " projection metadata must not crash award simulation");
+  assert.ok(Number.isFinite(projectedLine.averageRating));
+  assert.ok(Number.isFinite(projectedLine.score));
+  assert.equal(projectedLine.leagueStrength, 60);
+
+  let ceremony;
+  assert.doesNotThrow(() => {
+    ceremony = engine.buildSeasonAwardCeremony({
+      season: 6,
+      player: {
+        id: "malformed-user-" + malformed.label, name: "Malformed user", club: "Test FC",
+        country: "Egypt", position: "ST", age: malformed.value, ovr: 72,
+        appearances: 12, minutes: 1080, goals: malformed.value, assists: malformed.value,
+        averageRating: malformed.value, trophies: malformed.value,
+        professionalism: malformed.value, leagueStrength: malformed.value,
+        seasonStats: {
+          season: 6, appearances: 12, minutes: 1080, goals: malformed.value,
+          assists: malformed.value, averageRating: malformed.value,
+          cleanSheets: malformed.value, saves: malformed.value, penaltiesSaved: malformed.value
+        }
+      },
+      realPlayers: [{
+        id: "malformed-real-" + malformed.label, name: "Malformed real player",
+        clubName: "Test Club", country: "Egypt", position: "GK", age: malformed.value,
+        ovr: 75, prestige: malformed.value, leagueStrength: malformed.value,
+        seasonStats: {
+          season: 6, appearances: 12, minutes: 1080, goals: malformed.value,
+          assists: malformed.value, averageRating: malformed.value,
+          cleanSheets: malformed.value, saves: malformed.value, penaltiesSaved: malformed.value
+        }
+      }]
+    });
+  }, malformed.label + " award ceremony inputs must not throw");
+  assert.ok(ceremony && Array.isArray(ceremony.awards),
+    malformed.label + " award ceremony must return a valid award list");
+}
+
+const numericStringAwardStats = engine.simulatePlayerSeason({
+  name: "Numeric string award stats", position: "ST", age: "24", leagueStrength: "72",
+  seasonStats: {
+    season: "6", appearances: "12", minutes: "1080",
+    goals: "8", assists: "3", averageRating: "7.4"
+  }
+}, 6, 1);
+assert.equal(numericStringAwardStats.appearances, 12);
+assert.equal(numericStringAwardStats.minutes, 1080);
+assert.equal(numericStringAwardStats.goals, 8);
+assert.equal(numericStringAwardStats.assists, 3);
+assert.equal(numericStringAwardStats.averageRating, 7.4,
+  "numeric-string season stats must remain compatible with legacy saves");
+
+const malformedSeasonLeaderboard = engine.buildLeagueLeaderboard({
+  season: Symbol("season"),
+  userLine: {
+    id: "malformed-leaderboard-user", name: "Malformed leaderboard user", position: "ST",
+    ovr: Symbol("ovr"), appearances: 12, minutes: 1080,
+    goals: Symbol("goals"), assists: Symbol("assists"),
+    averageRating: Symbol("rating"), leagueStrength: Symbol("strength")
+  }
+});
+assert.equal(malformedSeasonLeaderboard.length, 1);
+assert.equal(malformedSeasonLeaderboard[0].ovr, 35);
+assert.equal(malformedSeasonLeaderboard[0].goals, 0);
+assert.equal(malformedSeasonLeaderboard[0].assists, 0);
+assert.equal(malformedSeasonLeaderboard[0].averageRating, 0);
+assert.ok(Number.isFinite(malformedSeasonLeaderboard[0].score),
+  "malformed leaderboard season, OVR, and performance fields must not crash or poison the row");
+
+const malformedSeasonCeremony = engine.buildSeasonAwardCeremony({
+  season: Symbol("season"),
+  player: { name: "Malformed season ceremony player", position: "ST" },
+  realPlayers: []
+});
+assert.ok(malformedSeasonCeremony && Array.isArray(malformedSeasonCeremony.awards),
+  "a malformed ceremony season marker must safely fall back instead of throwing");
+
 
 const zeroAppearanceSeasonStats = {
   name: "لاعب بلا مشاركات هذا الموسم", position: "مهاجم", age: 24, ovr: 94,

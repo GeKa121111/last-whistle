@@ -504,7 +504,8 @@
       const targetPrestigeValue = finiteNumericValue(target.prestige);
       const signPrestige = targetPrestigeValue === null || targetPrestigeValue === 0 ? 60 : targetPrestigeValue;
       const displayPrestige = safePrestige(target.prestige, power);
-      const maxWagePrestige = safePercent(target.prestige, 50);
+      const maxWagePrestige = targetPrestigeValue === null || targetPrestigeValue === 0
+        ? 50 : clamp(targetPrestigeValue, 0, 100);
       const targetDivisionValue = finiteNumericValue(target.division);
       const sign = Math.round(wage * (4 + signPrestige / 50));
       const goal = Math.max(10, Math.round(wage * 0.18));

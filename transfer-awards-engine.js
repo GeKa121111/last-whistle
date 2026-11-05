@@ -602,17 +602,20 @@
       const appearanceValue = user.appearances !== undefined && user.appearances !== null
         ? user.appearances : user.apps;
       const userAppearances = safeCount(appearanceValue);
-      const userGoals = userAppearances > 0 ? safeCount(user.goals) : 0;
-      const userAssists = userAppearances > 0 ? safeCount(user.assists) : 0;
-      const userAverageRating = userAppearances > 0 ? safeRating(user.averageRating) : 0;
+      const userMinutes = seasonMinutes(user, userAppearances);
+      const hasUserPlayingTime = userAppearances > 0 && userMinutes > 0;
+      const userGoals = hasUserPlayingTime ? safeCount(user.goals) : 0;
+      const userAssists = hasUserPlayingTime ? safeCount(user.assists) : 0;
+      const userAverageRating = hasUserPlayingTime ? safeRating(user.averageRating) : 0;
       const userLeagueStrength = safeStrength(user.leagueStrength);
       user.appearances = userAppearances;
+      user.minutes = userMinutes;
       user.goals = userGoals;
       user.assists = userAssists;
       user.averageRating = userAverageRating;
       user.leagueStrength = userLeagueStrength;
       user.ovr = clamp(user.ovr || 50, 35, 99);
-      if (userAppearances === 0) {
+      if (!hasUserPlayingTime) {
         user.score = 0;
         user.weightedGoals = 0;
       } else {
@@ -896,7 +899,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 21,
+    version: 22,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

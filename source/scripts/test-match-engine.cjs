@@ -2834,7 +2834,7 @@ for (let seed = 1; seed <= 40; seed++) {
 assert.ok(moraleSamples.length > 0,
   "higher morale must produce a measurably stronger player performance rating in deterministic match samples");
 const moraleParityOptions = conditionMatchOptions(913, { morale: 92 });
-assert.deepEqual(browserEngine.simulateMatch(moraleParityOptions), engine.simulateMatch(moraleParityOptions),
+assert.equal(JSON.stringify(browserEngine.simulateMatch(moraleParityOptions)), JSON.stringify(engine.simulateMatch(moraleParityOptions)),
   "embedded and shared match engines must apply morale to player performance identically");
 
 // Multi-day recovery remains linear when recovery-room and physio bonuses are active.

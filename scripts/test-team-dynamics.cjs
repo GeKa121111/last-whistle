@@ -106,6 +106,13 @@ assert.equal(view.rival.isGenerated,false);
 assert.equal(view.stats.appearances,8);
 assert.equal(view.stats.averageRating,7);
 
+const legacySeasonRows = Array.from({length:8},(_,i)=>match("legacy-"+(i+1),2,5+(i*0.4),0,0));
+const legacyOnlyState = Object.assign({},state,{careerMatchHistory:[],seasonLog:legacySeasonRows});
+const legacyOnlyView = dynamics.snapshot(legacyOnlyState);
+assert.equal(legacyOnlyView.stats.formRows.map(row=>row.id).join(","),
+  "legacy-8,legacy-7,legacy-6,legacy-5",
+  "legacy seasonLog history must be reversed before recent-form and captaincy checks");
+
 assert.equal(dynamics.requestCaptaincy(state).ok,true);
 assert.equal(saves,1,"starting a captaincy challenge must persist once");
 view=dynamics.snapshot(state);

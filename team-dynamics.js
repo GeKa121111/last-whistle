@@ -77,7 +77,8 @@
         copy.season = Number(copy.season) || season;
         return copy;
       });
-    var legacy = (Array.isArray(state.seasonLog) ? state.seasonLog : [])
+    // Legacy seasonLog is appended oldest-first; reverse it so formRows always start with the latest match.
+    var legacy = (Array.isArray(state.seasonLog) ? state.seasonLog.slice().reverse() : [])
       .filter(function (row) {
         return row && typeof row === "object" && !Array.isArray(row)
           && (row.season == null || row.season === "" || Number(row.season) === season);

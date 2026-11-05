@@ -499,6 +499,90 @@ assert.equal(crossCompetitionHistory.careerMinutes, 180,
   "legacy career-stat rebuilding must preserve minutes from distinct competitions that reused an ID");
 assert.equal(crossCompetitionHistory.qualifyingAppearances, 2,
   "legacy career-stat rebuilding must retain both real fixtures across competition scopes");
+
+const malformedLegacyHistory = {
+  apps: Symbol("legacy-apps"),
+  careerAppearances: Symbol("legacy-career-appearances"),
+  seasonLog: [
+    { matchId: "symbol-minutes", scope: "league", minutes: Symbol("minutes"), rating: 8 },
+    { matchId: "numeric-string-minutes", scope: "league", minutes: "90", rating: "8.5" }
+  ]
+};
+assert.doesNotThrow(() => career.rebuildLegacyCareerStats(malformedLegacyHistory),
+  "legacy stat rebuilding must reject Symbol values without crashing");
+assert.equal(malformedLegacyHistory.careerMinutes, 90,
+  "valid numeric-string minutes must remain usable beside malformed legacy rows");
+assert.equal(malformedLegacyHistory.qualifyingAppearances, 1,
+  "malformed minutes must not count as a qualifying appearance");
+assert.equal(malformedLegacyHistory.careerAppearances, 0,
+  "malformed saved appearance totals must safely fall back to zero");
+
+const malformedLegacyRatings = {
+  seasonLog: [
+    { matchId: "symbol-rating", scope: "league", minutes: 90, rating: Symbol("rating") },
+    { matchId: "numeric-string-rating", scope: "league", minutes: "90", rating: "8.5" }
+  ]
+};
+assert.doesNotThrow(() => career.deriveLeagueRatingStats(malformedLegacyRatings),
+  "league rating rebuilding must ignore Symbol ratings without crashing");
+assert.deepEqual(career.deriveLeagueRatingStats(malformedLegacyRatings), { sum: 8.5, count: 1 },
+  "valid numeric-string ratings must remain in the league average");
+
+const malformedSavedCareer = {
+  pos: "CM", age: Symbol("age"), apps: Symbol("apps"),
+  careerAppearances: Symbol("careerAppearances"), careerMinutes: Symbol("careerMinutes"),
+  money: Symbol("money"), weeklyWage: Symbol("weeklyWage"), contractSeasons: Symbol("contractSeasons"),
+  randomSeed: Symbol("randomSeed"), careerXP: Symbol("careerXP"), careerLevel: Symbol("careerLevel"),
+  levelXP: Symbol("levelXP"), leagueRatingSum: Symbol("leagueRatingSum"),
+  leagueRatingCount: Symbol("leagueRatingCount"), trainingXP: { passing: Symbol("trainingXP") },
+  passing: Symbol("passing"), fatigue: Symbol("fatigue"), playerPotential: Symbol("potential"),
+  seasonLog: [
+    { matchId: "saved-symbol-minutes", scope: "league", minutes: Symbol("minutes"), rating: 8 },
+    { matchId: "saved-valid-minutes", scope: "league", minutes: "90", rating: "8.5" }
+  ]
+};
+assert.doesNotThrow(() => career.ensureState(malformedSavedCareer),
+  "save hydration must survive malformed Symbol values in legacy numeric fields");
+assert.equal(malformedSavedCareer.age, 18, "an invalid explicit saved age must receive a safe fallback");
+assert.equal(malformedSavedCareer.apps, 0, "invalid legacy apps must normalize to zero");
+assert.equal(malformedSavedCareer.careerAppearances, 0, "invalid career appearances must normalize to zero");
+assert.equal(malformedSavedCareer.careerMinutes, 0, "invalid career minutes must normalize to zero");
+assert.equal(malformedSavedCareer.qualifyingAppearances, 1,
+  "save hydration must count only valid numeric-string match minutes");
+assert.equal(malformedSavedCareer.money, 0);
+assert.equal(malformedSavedCareer.weeklyWage, 0);
+assert.equal(malformedSavedCareer.contractSeasons, 2);
+assert.equal(malformedSavedCareer.randomSeed, 0x6d2b79f5);
+assert.equal(malformedSavedCareer.careerXP, 0);
+assert.equal(malformedSavedCareer.careerLevel, 1);
+assert.equal(malformedSavedCareer.levelXP, 0);
+assert.equal(malformedSavedCareer.leagueRatingSum, 0);
+assert.equal(malformedSavedCareer.leagueRatingCount, 0);
+assert.equal(malformedSavedCareer.trainingXP.passing, 0);
+assert.equal(malformedSavedCareer.passing, 50);
+assert.equal(malformedSavedCareer.playerPotential, 82);
+assert.equal(malformedSavedCareer.fatigue, 0);
+
+const malformedMatchState = {
+  pos: "CM", age: Symbol("match-age"), apps: Symbol("match-apps"),
+  careerAppearances: Symbol("match-career-appearances")
+};
+assert.doesNotThrow(() => career.matchDevelopment(malformedMatchState, {
+  matchId: "symbol-match-inputs", minutes: 90, rating: Symbol("match-rating"),
+  goals: Symbol("match-goals"), assists: Symbol("match-assists")
+}), "match development must safely ignore malformed numeric match inputs");
+assert.equal(malformedMatchState.apps, 0);
+assert.equal(malformedMatchState.age, 18);
+assert.equal(malformedMatchState.competitionStats["club|unknown"].goals, 0);
+assert.equal(malformedMatchState.competitionStats["club|unknown"].assists, 0);
+
+const malformedRoleDecision = career.evaluateSquadRole({
+  pos: "ST", role: "بديل", apps: Symbol("role-apps"),
+  goals: Symbol("role-goals"), assists: Symbol("role-assists"), trust: 50
+}, [{ matchId: "symbol-role-minutes", minutes: Symbol("role-minutes"), rating: 8 }]);
+assert.equal(malformedRoleDecision.reason, "no-appearances",
+  "malformed saved minutes must not crash squad-role evaluation or create a recent appearance");
+
 assert.equal(career.leagueMatchTarget(16), 30, "a 16-team league must schedule 30 matches");
 assert.equal(career.leagueMatchTarget(18), 34, "an 18-team league must schedule 34 matches");
 assert.equal(career.leagueMatchTarget(20), 38, "a 20-team league must schedule 38 matches");

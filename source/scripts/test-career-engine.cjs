@@ -614,14 +614,19 @@ assert.equal(career.normalizeLeagueRoundIndex(Infinity, [{ matchday: 5 }], 0, 34
   "a non-finite saved index must fall back to valid persisted match history");
 assert.equal(career.normalizeLeagueRoundIndex(3, [], 0, Infinity), 0,
   "a non-finite round count must not create an invalid league index");
-const inlineRoundStart = rootHtml.indexOf("const toNonNegativeInteger = value => {");
+const inlineNumberStart = rootHtml.indexOf("const finiteLegacyNumber = value => {");
+const inlineNumberEnd = rootHtml.indexOf("\n  };", inlineNumberStart) + 5;
+const inlineRoundStart = rootHtml.indexOf("const toNonNegativeInteger = value => {", inlineNumberEnd);
 const inlineNormalizeStart = rootHtml.indexOf("function normalizeLeagueRoundIndex(", inlineRoundStart);
 const inlineRoundEnd = rootHtml.indexOf("\n  function ", inlineNormalizeStart + 10);
-assert.ok(inlineRoundStart >= 0 && inlineNormalizeStart > inlineRoundStart && inlineRoundEnd > inlineNormalizeStart,
-  "the inline browser engine must expose the integer helper and league-round normalizer for regression testing");
+assert.ok(inlineNumberStart >= 0 && inlineNumberEnd > inlineNumberStart
+  && inlineRoundStart > inlineNumberEnd && inlineNormalizeStart > inlineRoundStart
+  && inlineRoundEnd > inlineNormalizeStart,
+  "the inline browser engine must expose its strict number parser and league-round helpers for regression testing");
 const inlineRoundContext = {};
 vm.createContext(inlineRoundContext);
-vm.runInContext(rootHtml.slice(inlineRoundStart, inlineRoundEnd)
+vm.runInContext(rootHtml.slice(inlineNumberStart, inlineNumberEnd) + "\n"
+  + rootHtml.slice(inlineRoundStart, inlineRoundEnd)
   + "\nthis.normalizeLeagueRoundIndex = normalizeLeagueRoundIndex;", inlineRoundContext);
 assert.equal(inlineRoundContext.normalizeLeagueRoundIndex(undefined, [{ matchday: Infinity }], 0, 34), 0,
   "the inline browser engine must ignore non-finite matchday values");
@@ -641,10 +646,10 @@ assert.ok(Number.isFinite(inlineCorruptedXPState.careerXP)
   && Number.isFinite(inlineCorruptedXPState.levelXP)
   && Number.isFinite(inlineCorruptedXPState.careerLevel),
   "the inline career XP function must recover safely from non-finite progression values");
-assert.ok(rootHtml.includes("Number.isFinite(trainingXPValue)")
+assert.ok(rootHtml.includes("trainingXPValue !== null")
   && rootHtml.includes("trainingXPThreshold - 0.01"),
   "the inline engine must sanitize malformed training XP before applying progression");
-assert.ok(rootHtml.includes("Number.isFinite(minutesValue)")
+assert.ok(rootHtml.includes("minutesValue === null ? 0")
   && rootHtml.includes("const safeMatchCount = (value, maximum = 100)"),
   "the inline engine must reject non-finite match minutes and action totals");
 

@@ -111,8 +111,8 @@ assert.ok(rootHtml.includes("Number(state.nationalTournamentMatches)>=3&&state.n
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 516);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 74);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 517);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 75);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies.every(content => content === engineCopies[0]), "all career engine copies must stay synchronized");
@@ -2805,3 +2805,59 @@ assert.equal(career.loanRequestStatus(legacyNumericLoanApps, { windowOpen: true 
   "valid numeric-string appearance totals from older saves must remain supported");
 assert.equal(deployedCareer.loanRequestStatus({ ...legacyNumericLoanApps }, { windowOpen: true }), "ready",
   "the browser engine must preserve valid legacy numeric-string loan eligibility");
+
+
+// Energy and morale must be normalized before the training engine reads or mutates them.
+function makeTrainingConditionState(overrides = {}) {
+  return { ...makeProgressionFixture(false), energy:80, morale:65, fatigue:0, injuryDays:0,
+    playedToday:false, trainedToday:false, trainingIntensity:"normal", ...overrides };
+}
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const missing = makeTrainingConditionState();
+  delete missing.energy; delete missing.morale;
+  const result = engine.train(missing, "passing", {random:()=>0.99});
+  assert.equal(result.ok,true,engineName+" must support legacy saves missing condition fields");
+  assert.equal(result.cost,14);
+  assert.equal(missing.energy,66,engineName+" must default missing energy to 80 before the normal cost");
+  assert.equal(missing.morale,67,engineName+" must default missing morale to 65 before training reward");
+
+  const malformed = makeTrainingConditionState({energy:Symbol("energy"),morale:Symbol("morale")});
+  let malformedResult;
+  assert.doesNotThrow(()=>{malformedResult=engine.train(malformed,"passing");},
+    engineName+" must not throw on Symbol condition fields");
+  assert.equal(malformed.energy,0);
+  assert.equal(malformed.morale,65);
+  assert.equal(malformedResult.ok,false,engineName+" must not grant free training when explicit energy is corrupt");
+  assert.equal(malformed.trainingSessions,0);
+  assert.equal(malformed.trainedToday,false);
+
+  const numericStrings = makeTrainingConditionState({energy:"80",morale:"65"});
+  const stringResult=engine.train(numericStrings,"passing",{random:()=>0.99});
+  assert.equal(stringResult.ok,true);
+  assert.equal(numericStrings.energy,66);
+  assert.equal(numericStrings.morale,67);
+
+  const bounded=makeTrainingConditionState({energy:150,morale:-10});
+  engine.ensureState(bounded);
+  assert.equal(bounded.energy,100);
+  assert.equal(bounded.morale,0);
+
+  for(const invalid of [NaN,Infinity,-Infinity,Symbol("energy"),true,{},[80],"bad",""]){
+    const s=makeTrainingConditionState({energy:invalid});
+    assert.doesNotThrow(()=>engine.ensureState(s));
+    assert.equal(s.energy,0,engineName+" must fail closed for invalid explicit energy");
+  }
+  for(const invalid of [NaN,Infinity,-Infinity,Symbol("morale"),true,{},[65],"bad"]){
+    const s=makeTrainingConditionState({morale:invalid});
+    assert.doesNotThrow(()=>engine.ensureState(s));
+    assert.equal(s.morale,65,engineName+" must default invalid morale safely");
+  }
+}
+assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy);")
+ && rootHtml.includes("const savedMorale = finiteLegacyNumber(state.morale);"),
+ "inline engine must normalize energy and morale");
+assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
+ && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
+ "shared engine mirrors must normalize energy and morale");
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v517"),
+ "service worker cache must be refreshed");

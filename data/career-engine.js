@@ -526,6 +526,12 @@
       ? Math.max(0, Math.min(levelXPThreshold - 0.01, levelXPValue)) : 0;
     state.trainingSessions = finiteCount(state.trainingSessions);
     state.injuryDays = Math.min(60, finiteCount(state.injuryDays));
+    // Keep defaults for omitted legacy fields; corrupt explicit energy must fail closed.
+    const savedEnergy = finiteLegacyNumber(state.energy);
+    const energyMissing = state.energy === undefined || state.energy === null;
+    state.energy = savedEnergy !== null ? clamp(savedEnergy, 0, 100) : energyMissing ? 80 : 0;
+    const savedMorale = finiteLegacyNumber(state.morale);
+    state.morale = savedMorale !== null ? clamp(savedMorale, 0, 100) : 65;
     const savedPotentialValue = finiteLegacyNumber(state.playerPotential);
     state.playerPotential = clamp(savedPotentialValue === null ? 82 : savedPotentialValue, 65, 97);
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";
@@ -686,7 +692,7 @@
       intense: { energy: 1.30, xp: 1.32, risk: 0.09 }
     }[intensity] || { energy: 1, xp: 1, risk: 0.01 };
     const cost = Math.ceil(setup.cost * multipliers.energy);
-    if (Number(state.energy) < cost) return { ok: false, message: "طاقتك " + state.energy + "%، والحصة تحتاج " + cost + "%. خُد راحة الأول." };
+    if (state.energy < cost) return { ok: false, message: "طاقتك " + state.energy + "%، والحصة تحتاج " + cost + "%. خُد راحة الأول." };
 
     state.energy = clamp(state.energy - cost);
     const coachBonus = state.privateCoach ? 8 : 0;
@@ -702,18 +708,18 @@
       if (gained) secondaryGains.push(skill);
     }
     state.trainingSessions++;
-    state.fatigue = clamp(Number(state.fatigue) + (intensity === "intense" ? 20 : intensity === "light" ? 7 : 13));
+    state.fatigue = clamp(state.fatigue + (intensity === "intense" ? 20 : intensity === "light" ? 7 : 13));
     const levels = addCareerXP(state, Math.round(baseXP * 0.45));
-    state.morale = clamp(Number(state.morale) + 2);
+    state.morale = clamp(state.morale + 2);
     state.trainedToday = true;
 
     const tired = state.energy < 18 || state.fatigue >= 82;
-    const risk = Math.min(0.32, multipliers.risk + Math.max(0, Number(state.fatigue) - 45) * 0.003);
+    const risk = Math.min(0.32, multipliers.risk + Math.max(0, state.fatigue - 45) * 0.003);
     const injured = intensity === "intense" && (tired || random() < risk);
     if (injured) {
       const injuryRoll = random();
       const injuryDays = tired ? 7 : injuryRoll < 0.65 ? 2 : injuryRoll < 0.92 ? 5 : 10;
-      state.injuryDays = Math.max(Number(state.injuryDays) || 0, injuryDays);
+      state.injuryDays = Math.max(state.injuryDays, injuryDays);
       state.injuryName = injuryDays >= 10 ? "إصابة عضلية متوسطة" : injuryDays >= 5 ? "شد عضلي" : "إجهاد تدريبي";
       state.morale = clamp(state.morale - 3);
     }

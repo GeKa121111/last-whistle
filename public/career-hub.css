@@ -196,3 +196,37 @@ body.lw-rebuild .lw-objective-empty{padding:13px;border:1px dashed #42665b;borde
 body.lw-rebuild .lw-objective-archive{margin-bottom:12px;padding:12px;border:1px solid #665333;border-radius:12px;background:#2a2415;color:#f7e5ad;font-size:10px}
 body.lw-rebuild .lw-objective-archive-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:9px;margin-top:9px;border-top:1px solid #665333}
 @media(max-width:760px){body.lw-rebuild .lw-objective-grid{grid-template-columns:1fr}body.lw-rebuild .lw-season-objectives{padding:13px;border-radius:14px}body.lw-rebuild .lw-objective-head h2{font-size:16px}body.lw-rebuild .lw-objective-active-copy{flex-direction:column}body.lw-rebuild .lw-objective-ready{align-items:stretch;flex-direction:column}body.lw-rebuild .lw-objective-ready .btn{width:100%}body.lw-rebuild .lw-objective-archive-row{align-items:stretch;flex-direction:column}body.lw-rebuild .lw-objective-archive-row .btn{width:100%}}
+
+
+/* Team leadership and positional rivalry */
+body.lw-rebuild .lw-team-dynamics{grid-column:1/-1;border:1px solid #344e67;background:radial-gradient(ellipse at 90% 0%,#34516b40,transparent 58%),linear-gradient(145deg,#132437,#111a2c);color:#edf6ff;padding:18px}
+body.lw-rebuild .lw-team-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+body.lw-rebuild .lw-team-head h2{font-size:19px;font-weight:1000;color:#f3f8ff;margin:5px 0}
+body.lw-rebuild .lw-team-head p{font-size:11px;line-height:1.8;color:#a9bdce;margin:0}
+body.lw-rebuild .lw-team-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+body.lw-rebuild .lw-team-card{display:flex;flex-direction:column;align-items:stretch;gap:9px;padding:15px;border:1px solid #35536e;border-radius:15px;background:#0e1e30;min-width:0}
+body.lw-rebuild .lw-team-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+body.lw-rebuild .lw-team-kicker{font-size:8px;font-weight:950;letter-spacing:.07em;color:#8db3d4}
+body.lw-rebuild .lw-team-card h3{font-size:16px;color:#f2f8ff;font-weight:950;margin:4px 0 0;overflow-wrap:anywhere}
+body.lw-rebuild .lw-team-card p{font-size:10px;line-height:1.7;color:#a8bed0;margin:0}
+body.lw-rebuild .lw-team-statline{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#9eb3c7;font-size:10px}
+body.lw-rebuild .lw-team-statline b{color:#d9edff;font-size:12px}
+body.lw-rebuild .lw-team-disclaimer,body.lw-rebuild .lw-team-card small{font-size:9px;line-height:1.75;color:#849db2}
+body.lw-rebuild .lw-team-card .btn{width:100%;margin-top:auto}
+body.lw-rebuild .lw-team-success{padding:10px 12px;border:1px solid #326b5b;border-radius:10px;background:#123b33;color:#baf6d9;font-size:11px;font-weight:900}
+body.lw-rebuild .lw-team-challenge{padding:12px;border:1px solid #4d6480;border-radius:12px;background:#122941}
+body.lw-rebuild .lw-team-challenge p{margin:8px 0;color:#b0c5d8}
+body.lw-rebuild .lw-team-challenge small{display:block;margin-top:8px}
+body.lw-rebuild .lw-team-meter{height:9px;border-radius:99px;background:#2a3f56;overflow:hidden;margin:8px 0}
+body.lw-rebuild .lw-team-meter span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#48c59b,#86d7ff);transition:width .25s ease}
+body.lw-rebuild .lw-team-eligibility{padding:10px;border:1px dashed #536b84;border-radius:10px;color:#aec4d8;font-size:10px;line-height:1.8}
+body.lw-rebuild .lw-team-duel{display:grid;grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);align-items:center;gap:8px;padding:10px;border:1px solid #2e4c68;border-radius:12px;background:#10253a}
+body.lw-rebuild .lw-team-duel>div:not(.lw-team-versus){display:flex;flex-direction:column;gap:3px;min-width:0}
+body.lw-rebuild .lw-team-duel span{font-size:9px;color:#8faec7}
+body.lw-rebuild .lw-team-duel b{font-size:23px;line-height:1.15;color:#eef7ff}
+body.lw-rebuild .lw-team-duel small{font-size:8px}
+body.lw-rebuild .lw-team-versus{text-align:center;font-size:10px;font-weight:1000;color:#86d7ff}
+body.lw-rebuild .lw-team-rival-status{padding:8px 10px;border-radius:9px;background:#1a334a;color:#c7e7ff;font-size:10px;font-weight:900}
+body.lw-rebuild .lw-team-empty{padding:12px;border:1px dashed #536b84;border-radius:11px;color:#adc4d8;font-size:11px;line-height:1.8}
+body.lw-rebuild .lw-team-footnote{margin-top:12px;color:#8da5b9;font-size:9px}
+@media(max-width:760px){body.lw-rebuild .lw-team-dynamics{padding:13px;border-radius:14px}body.lw-rebuild .lw-team-head h2{font-size:16px}body.lw-rebuild .lw-team-grid{grid-template-columns:1fr}body.lw-rebuild .lw-team-card{padding:12px}body.lw-rebuild .lw-team-duel b{font-size:20px}}

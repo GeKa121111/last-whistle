@@ -654,6 +654,48 @@ assert.equal(boundedCareerRow.leagueStrength, 60);
 assert.ok(Number.isFinite(boundedCareerRow.score) && Number.isFinite(boundedCareerRow.weightedGoals),
   "malformed career leaderboard values must never produce non-finite ranking scores");
 
+// A missing minutes field is a legacy-save case; an explicit invalid value is not.
+const legacyMissingMinutesPerformance = engine.evaluateSeasonPerformance({
+  position: "مهاجم", appearances: 12, goals: 8, assists: 4, averageRating: 8.1, ovr: 84
+});
+assert.equal(legacyMissingMinutesPerformance.minutes, 780,
+  "legacy saves with no minutes field must retain the 65-minute appearance estimate");
+assert.ok(legacyMissingMinutesPerformance.score > 0,
+  "legacy saves without minutes must remain eligible for performance evaluation");
+for (const invalidMinutes of [NaN, Infinity, -Infinity, "NaN", "Infinity", "-Infinity", "not-a-number", true]) {
+  const invalidMinutePlayer = {
+    name: "لاعب دقائق غير صالحة", club: "نادي الاختبار", position: "مهاجم",
+    age: 25, ovr: 90, appearances: 12, minutes: invalidMinutes,
+    goals: 30, assists: 12, averageRating: 9.5, trophies: 5, leagueStrength: 90
+  };
+  const invalidPerformance = engine.evaluateSeasonPerformance(invalidMinutePlayer);
+  assert.equal(invalidPerformance.minutes, 0,
+    "an explicit malformed minutes value must not be replaced by 65 minutes per appearance");
+  assert.equal(invalidPerformance.score, 0,
+    "a player with invalid explicit minutes must not receive a season performance score");
+  assert.equal(engine.performanceIndex(invalidMinutePlayer), 0,
+    "performance ranking must reject a malformed explicit minutes sample");
+  const invalidMinuteCeremony = engine.buildSeasonAwardCeremony({
+    season: 5, player: invalidMinutePlayer, realPlayers: []
+  });
+  assert.equal(invalidMinuteCeremony.awards.length, 0,
+    "a career player with malformed explicit minutes must not qualify for season awards");
+  assert.equal(invalidMinuteCeremony.playerAwards.length, 0,
+    "a career player with malformed explicit minutes must not receive an award record");
+}
+const numericStringMinutesPerformance = engine.evaluateSeasonPerformance({
+  position: "مهاجم", appearances: 12, minutes: "780", goals: 8, assists: 4, averageRating: 8.1, ovr: 84
+});
+assert.equal(numericStringMinutesPerformance.minutes, 780,
+  "numeric minute strings from compatible saves must remain valid");
+const explicitZeroMinutesPerformance = engine.evaluateSeasonPerformance({
+  position: "مهاجم", appearances: 12, minutes: 0, goals: 8, assists: 4, averageRating: 8.1, ovr: 84
+});
+assert.equal(explicitZeroMinutesPerformance.minutes, 0,
+  "an explicit zero-minute season must remain zero rather than use the legacy estimate");
+assert.equal(explicitZeroMinutesPerformance.score, 0,
+  "an explicit zero-minute season must not earn a performance score");
+
 const realPlayers = [
   { name: "كيليان مبابي", clubName: "ريال مدريد", country: "إسبانيا", position: "مهاجم", ovr: 93, prestige: 100, leagueStrength: 96, age: 27, confederation: "UEFA", originConfederation: "UEFA" },
   { name: "لامين يامال", clubName: "برشلونة", country: "إسبانيا", position: "جناح", ovr: 91, prestige: 99, leagueStrength: 96, age: 19, confederation: "UEFA", originConfederation: "UEFA" },

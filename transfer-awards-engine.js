@@ -800,10 +800,15 @@
   function seasonMinutes(player, appearances) {
     if (appearances <= 0) return 0;
     const rawMinutes = player && player.minutes;
-    const hasMinutes = rawMinutes !== undefined && rawMinutes !== null && rawMinutes !== "";
-    const parsedMinutes = Number(rawMinutes);
-    const minutes = hasMinutes && Number.isFinite(parsedMinutes) ? parsedMinutes : appearances * 65;
-    return Math.max(0, minutes);
+    const missingMinutes = rawMinutes === undefined || rawMinutes === null
+      || (typeof rawMinutes === "string" && rawMinutes.trim() === "");
+    // Only legacy saves with no minute value receive the 65-minute estimate.
+    // An explicitly stored but malformed value is not evidence of playing time.
+    if (missingMinutes) return appearances * 65;
+    const parsedMinutes = typeof rawMinutes === "number" || typeof rawMinutes === "string"
+      ? Number(rawMinutes) : NaN;
+    if (!Number.isFinite(parsedMinutes)) return 0;
+    return Math.max(0, parsedMinutes);
   }
 
   function performanceIndex(player) {

@@ -2593,7 +2593,7 @@ assert.equal(developmentRetryWorld.players[developmentRetryPlayerId].contractSea
 const malformedProgressionPlayerId = "malformed-progression-player";
 const malformedProgressionWorld = {
   players: {
-    [${malformedProgressionPlayerId}]: {
+    [malformedProgressionPlayerId]: {
       id: malformedProgressionPlayerId, name: "Malformed Progression Player",
       clubId: "malformed-progression-club", leagueId: "malformed-progression-league",
       division: Symbol("division"), age: Symbol("age"), contractSeasons: Symbol("contract"),

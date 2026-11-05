@@ -197,6 +197,14 @@ const vm = require("node:vm");
     "a valid prior-day action marker must unlock the next day even when the legacy used flag remains set");
   assert.equal(coachButton.disabled, false);
 
+  state.energy = Symbol("invalid-energy");
+  revision++;
+  assert.doesNotThrow(() => stateChangeListener({ revision }),
+    "the wellness dashboard must not throw when a saved energy value is malformed");
+  await Promise.resolve();
+  assert.equal(nodes.get("wellnessEnergyValue").textContent, "0/100",
+    "invalid energy must be displayed as a safe zero instead of breaking the wellness panel");
+
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");

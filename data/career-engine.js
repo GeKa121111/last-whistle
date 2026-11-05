@@ -535,6 +535,12 @@
     state.energy = savedEnergy !== null ? clamp(savedEnergy, 0, 100) : energyMissing ? 80 : 0;
     const savedMorale = finiteLegacyNumber(state.morale);
     state.morale = savedMorale !== null ? clamp(savedMorale, 0, 100) : 65;
+    // These counters are incremented during match and daily-action settlement; normalize before arithmetic.
+    const savedTrust = finiteLegacyNumber(state.trust);
+    state.trust = savedTrust !== null ? clamp(savedTrust, 0, 100) : 25;
+    const savedFollowers = finiteLegacyNumber(state.followers);
+    state.followers = savedFollowers !== null
+      ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(savedFollowers))) : 120;
     const savedPotentialValue = finiteLegacyNumber(state.playerPotential);
     state.playerPotential = clamp(savedPotentialValue === null ? 82 : savedPotentialValue, 65, 97);
     state.trainingIntensity = ["light", "normal", "intense"].includes(state.trainingIntensity) ? state.trainingIntensity : "normal";

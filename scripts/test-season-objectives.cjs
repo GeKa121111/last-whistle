@@ -71,6 +71,24 @@ assert.equal(objectives.measure(state, "attacker-rating").complete, false,
   "rating objectives require the minimum number of official appearances");
 assert.equal(JSON.stringify(state), beforeMeasure, "measuring progress must not mutate a saved career");
 
+const currentMatchWins = {
+  season:6, pos:"رأس حربة",
+  seasonLog:[{
+    id:"same-fixture",season:6,scope:"league",competition:"League",club:"Test FC",
+    opponent:"Rivals",day:12,minutes:90,goals:0,assists:0,rating:6.1
+  }],
+  careerMatchHistory:[{
+    id:"same-fixture",season:6,scope:"league",competition:"League",club:"Test FC",
+    opponent:"Rivals",day:12,minutes:90,goals:2,assists:1,rating:8.6
+  }]
+};
+assert.equal(objectives.measure(currentMatchWins, "attacker-goals").value, 2,
+  "the current career history snapshot must win over a stale legacy duplicate");
+assert.equal(objectives.measure(currentMatchWins, "attacker-rating").value, 8.6,
+  "objective ratings must use the latest saved match snapshot, not the stale legacy copy");
+assert.equal(objectives.measure(currentMatchWins, "attacker-goals").appearances, 1,
+  "a fixture present in both history stores must count only once");
+
 const keeperState = {
   season:1, pos:"حارس مرمى",
   careerMatchHistory:[

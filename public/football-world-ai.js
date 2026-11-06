@@ -176,7 +176,9 @@
     return Math.max(0, Math.min(10, int(player && player.contractSeasons, 0)));
   }
   function marketClubPower(club, fallback = 55) {
-    const power = safeNumber(club && club.power, safeNumber(club && club.basePower, fallback));
+    const savedPower = safeNumber(club && club.power, 0);
+    const basePower = safeNumber(club && club.basePower, 0);
+    const power = savedPower > 0 ? savedPower : basePower > 0 ? basePower : fallback;
     return power > 0 ? clamp(power, 25, 100) : fallback;
   }
   function marketClubPrestige(club, fallback = 50) {
@@ -326,7 +328,7 @@
     let position = String(row && row.position || "");
     if (!position || normalizePosition(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
     const group = groupForPosition(position);
-    const ovr = clamp(row && (row.ovr || row.power) || club.power - 5 + Math.round(rng() * 9 - 5), 38, 96);
+    const ovr = clamp(row && (row.ovr || row.power) || marketClubPower(club) - 5 + Math.round(rng() * 9 - 5), 38, 96);
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
     const sourceIdentity = sourcePlayerIdentityKey({ name: row && row.name, position, age });
     const id = generated
@@ -1153,7 +1155,7 @@
     return { season: year, rows, tables, alreadyCompleted: false, transfers: 0 };
   }
   function inferArchetype(club) {
-    const power = clamp(club && club.power, 35, 97);
+    const power = marketClubPower(club);
     const prestige = clamp(club && club.prestige, 25, 100);
     if (power >= 82 && prestige >= 78) return "title-chaser";
     if (power <= 65 && prestige <= 68) return "youth-investor";
@@ -1646,7 +1648,8 @@
       const roleNeed = sameRole.length < roleTarget;
       const age = safeNumber(player.age, 18) || 18;
       const quality = safeNumber(player.ovr, 50) || 50;
-      const renewalChance = clamp(0.12 + (quality >= club.power - 2 ? 0.28 : 0)
+      const clubPower = marketClubPower(club);
+      const renewalChance = clamp(0.12 + (quality >= clubPower - 2 ? 0.28 : 0)
         + (safeNumber(player.lastRating, 0) >= 7.0 ? 0.16 : 0) + (roleNeed ? 0.20 : 0)
         - Math.max(0, age - 30) * 0.055, 0.02, 0.76);
       const roll = hash(player.id + "|" + season + "|contract-renewal-v2") / 4294967296;
@@ -1742,7 +1745,7 @@
       return {
         country: club.country, club: club.name, league: league, leagueEnglish: leagueEnglish,
         season: "موسم " + world.currentSeason, source: "محاكاة عالم الكرة", division: division,
-        power: club.power, prestige: club.prestige, confederation: club.confederation,
+        power: marketClubPower(club), prestige: club.prestige, confederation: club.confederation,
         currency: club.currency, stars, players, leagueId: club.leagueId, sourceUrl: ""
       };
     }).sort((a, b) => b.power - a.power || a.club.localeCompare(b.club, "ar"));
@@ -1854,6 +1857,11 @@
     const numeric = safeNumber(value, NaN);
     return Number.isFinite(numeric) ? Math.round(numeric) : fallback;
   };
+  function clubPowerForSimulation(club, fallback = 55) {
+    const currentPower = safeNumber(club && club.power, 0);
+    const basePower = safeNumber(club && club.basePower, 0);
+    return clamp(currentPower > 0 ? currentPower : basePower > 0 ? basePower : fallback, 25, 100);
+  }
   const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   const hash = value => {
     let h = 2166136261;
@@ -1960,8 +1968,8 @@
     const seed = hash([season, division, matchday, home.id, away.id, competitionId || "league", "match-v2"].join("|"));
     const rng = random(seed);
     const homeLineup = lineupForMatch(world, home, lineupCache), awayLineup = lineupForMatch(world, away, lineupCache);
-    const homeStrength = clamp(safeNumber(home && home.power, 0) || safeNumber(home && home.basePower, 55) || 55, 25, 95);
-    const awayStrength = clamp(safeNumber(away && away.power, 0) || safeNumber(away && away.basePower, 55) || 55, 25, 95);
+    const homeStrength = clamp(clubPowerForSimulation(home), 25, 95);
+    const awayStrength = clamp(clubPowerForSimulation(away), 25, 95);
     const xgHome = clamp(1.28 + (homeStrength - awayStrength) * 0.027 + 0.16, 0.28, 3.05);
     const xgAway = clamp(1.24 + (awayStrength - homeStrength) * 0.027 - 0.06, 0.22, 2.9);
     const homeGoals = poisson(rng, xgHome), awayGoals = poisson(rng, xgAway);
@@ -2018,7 +2026,7 @@
   }
   function tableRow(club, season, leagueId, division) {
     return { season: Number(season), leagueId: String(leagueId), division: Number(division) || 1,
-      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55),
+      country: club.country, clubId: club.id, club: club.name, power: Math.round(clubPowerForSimulation(club)),
       played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0, form: 0, recentForm: "" };
   }
   function applyResult(tablesByClub, match) {
@@ -2047,7 +2055,7 @@
       if (!club) return;
       const key = String(club.leagueId || "") + "|" + divisionForClub(club);
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
-      const savedPower = safeNumber(club.power, 55);
+      const savedPower = clubPowerForSimulation(club);
       summary.total += savedPower > 0 ? clamp(savedPower, 25, 100) : 55;
       summary.count++;
       powerByLeagueDivision.set(key, summary);
@@ -2470,8 +2478,10 @@
         const home = round % 2 ? first : second, away = home.id === first.id ? second : first;
         const fixtureSeed = hash(season + "|" + def.id + "|" + round + "|" + home.id + "|" + away.id);
         const matchRng = random(fixtureSeed);
-        let homeGoals = poisson(matchRng, clamp(1.24 + (home.power - away.power) * 0.025 + 0.08, 0.2, 2.8));
-        let awayGoals = poisson(matchRng, clamp(1.20 + (away.power - home.power) * 0.025, 0.2, 2.7));
+        const homePower = clubPowerForSimulation(home);
+        const awayPower = clubPowerForSimulation(away);
+        let homeGoals = poisson(matchRng, clamp(1.24 + (homePower - awayPower) * 0.025 + 0.08, 0.2, 2.8));
+        let awayGoals = poisson(matchRng, clamp(1.20 + (awayPower - homePower) * 0.025, 0.2, 2.7));
         // Cup ties cannot end level: simulate extra time and penalties with a deterministic tiebreak.
         if (homeGoals === awayGoals) {
           // Use one fair draw. Chained conditional draws gave the home club a 52.645% win probability on a neutral tiebreak.
@@ -2768,7 +2778,12 @@
         return (goalsFor === null ? 0 : goalsFor) - (goalsAgainst === null ? 0 : goalsAgainst);
       };
       const goalsFor = row => finiteStandingNumber(row && row.gf) ?? 0;
-      const powerFor = club => finiteStandingNumber(club && club.power) || 50;
+      const powerFor = club => {
+        const currentPower = finiteStandingNumber(club && club.power);
+        if (currentPower !== null && currentPower > 0) return currentPower;
+        const basePower = finiteStandingNumber(club && club.basePower);
+        return basePower !== null && basePower > 0 ? basePower : 50;
+      };
       eligible.sort((a, b) => {
         const aRank = finiteStandingNumber(a.row && a.row.rank), bRank = finiteStandingNumber(b.row && b.row.rank);
         const aHasRank = Number.isInteger(aRank) && aRank > 0;
@@ -2880,10 +2895,10 @@
       return Number.isFinite(numeric) ? numeric : fallback;
     };
     const clubPowerForMarket = club => {
-      const rawPower = club && club.power;
-      const missing = rawPower === undefined || rawPower === null
-        || (typeof rawPower === "string" && rawPower.trim() === "");
-      return marketNumber(rawPower, missing ? 55 : NaN);
+      const savedPower = marketNumber(club && club.power, NaN);
+      if (Number.isFinite(savedPower) && savedPower > 0) return savedPower;
+      const basePower = marketNumber(club && club.basePower, NaN);
+      return Number.isFinite(basePower) && basePower > 0 ? basePower : 55;
     };
     const seasonNumber = marketNumber(season, NaN);
     if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1) return [];
@@ -3282,8 +3297,13 @@
     const numeric = safeNumber(value, NaN);
     return Number.isFinite(numeric) ? Math.round(numeric) : fallback;
   };
+  function clubPowerForAI(club, fallback = 55) {
+    const currentPower = safeNumber(club && club.power, 0);
+    const basePower = safeNumber(club && club.basePower, 0);
+    return clamp(currentPower > 0 ? currentPower : basePower > 0 ? basePower : fallback, 25, 100);
+  }
   function archetypeForClub(club) {
-    const power = clamp(club && club.power, 35, 97), prestige = clamp(club && club.prestige, 25, 100);
+    const power = clamp(clubPowerForAI(club), 35, 97), prestige = clamp(club && club.prestige, 25, 100);
     if (power >= 82 && prestige >= 78) return { id: "title-chaser", label: "منافس على البطولات", strategy: "استقطاب الجاهز", coachStyle: "win-now" };
     if (power <= 65 && prestige <= 68) return { id: "youth-investor", label: "استثمار وتطوير شباب", strategy: "تطوير ثم بيع", coachStyle: "develop-youth" };
     if (power >= 70 && prestige >= 72) return { id: "academy-builder", label: "بناء فني منظم", strategy: "تطوير المواهب", coachStyle: "technical-discipline" };
@@ -3342,7 +3362,7 @@
           : archetype === "title-chaser"
             ? Math.max(0, averageAge - 31) * 0.55
             : Math.max(0, averageAge - 28) * 0.7;
-        const qualityGap = Math.max(0, (safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55) - averageOverall) * 0.25;
+        const qualityGap = Math.max(0, clubPowerForAI(club) - averageOverall) * 0.25;
         const potentialGap = archetype === "youth-investor"
           ? Math.max(0, 72 - averagePotential) * 0.18 : 0;
         const deficit = Math.max(0, role.target - players.length);
@@ -3353,7 +3373,7 @@
           averageAge: averageAge == null ? null : Number(averageAge.toFixed(1)),
           agePressure: Number(agePressure.toFixed(2)), priorityScore };
       }).sort((a, b) => b.priorityScore - a.priorityScore || b.deficit - a.deficit);
-      return { clubId: club.id, club: club.name, country: club.country, power: club.power,
+      return { clubId: club.id, club: club.name, country: club.country, power: clubPowerForAI(club),
         archetype: club.aiArchetype, strategy: club.aiStrategy, coach: club.coachArchetype,
         rosterSize: rows.length, needs: roleNeeds, priority: roleNeeds[0] || null };
     });

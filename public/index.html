@@ -6436,38 +6436,78 @@ function seasonRealPlayerDirectory(){
  return output;
 }
 function currentSeasonMatchRows(scopeFilter){
- const season=Number(state.season)||1;
+ const finitePrimitiveNumber=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:null;
+  if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value.trim());return Number.isFinite(numeric)?numeric:null;}
+  return null;
+ };
+ const seasonValue=finitePrimitiveNumber(state&&state.season);
+ const season=seasonValue!==null&&seasonValue>0?Math.floor(seasonValue):1;
  const currentSegments=new Set((Array.isArray(state.leagueArchives)?state.leagueArchives:[])
-  .filter(archive=>archive&&Number(archive.season)===season)
-  .map(archive=>String(archive.segmentId||"").trim()).filter(Boolean));
- const activeSegmentId=String(state.leagueSegmentId||"").trim();if(activeSegmentId)currentSegments.add(activeSegmentId);
+  .filter(archive=>archive&&typeof archive==="object"&&!Array.isArray(archive)
+   &&finitePrimitiveNumber(archive.season)===season)
+  .map(archive=>typeof archive.segmentId==="string"?archive.segmentId.trim():"").filter(Boolean));
+ const activeSegmentId=typeof state.leagueSegmentId==="string"?state.leagueSegmentId.trim():"";
+ if(activeSegmentId)currentSegments.add(activeSegmentId);
  return allCareerMatchRowsForHistory().filter(row=>{
   if(!row||typeof row!=="object"||Array.isArray(row))return false;
-  const rawSeason=row.season,hasSeason=rawSeason!==undefined&&rawSeason!==null&&String(rawSeason).trim()!=="";
-  const belongsToCurrentSeason=hasSeason
-   ?Number.isFinite(Number(rawSeason))&&Number(rawSeason)===season
-   :currentSegments.has(String(row.segmentId||"").trim());
-  return belongsToCurrentSeason&&Number(row.minutes)>0&&row.scope!=="international"
-   &&(!scopeFilter||scopeFilter(row));
+  const rawSeason=row.season;
+  const hasSeason=rawSeason!==undefined&&rawSeason!==null&&!(typeof rawSeason==="string"&&rawSeason.trim()==="");
+  const savedSeason=finitePrimitiveNumber(rawSeason);
+  const segmentId=typeof row.segmentId==="string"?row.segmentId.trim():"";
+  const segmentMatches=!!segmentId&&currentSegments.has(segmentId);
+  const isSeasonLabel=typeof rawSeason==="string"&&/^\d{4}(?:[/-]\d{2,4})?$/.test(rawSeason.trim());
+  const belongsToCurrentSeason=savedSeason!==null?savedSeason===season
+   :hasSeason?isSeasonLabel&&segmentMatches:segmentMatches;
+  const minutes=finitePrimitiveNumber(row.minutes);
+  const rawScope=row.scope;
+  const scope=rawScope===undefined||rawScope===null||(typeof rawScope==="string"&&rawScope.trim()==="")
+   ?"league":typeof rawScope==="string"?rawScope.trim().toLowerCase():null;
+  const scopeMatches=scope!==null&&scope!=="international";
+  const filterMatches=typeof scopeFilter!=="function"||scopeFilter(row);
+  return belongsToCurrentSeason&&minutes!==null&&minutes>0&&minutes<=120&&scopeMatches&&filterMatches;
  }).map(row=>{
-  const hasSeason=row.season!==undefined&&row.season!==null&&String(row.season).trim()!=="";
+  const hasSeason=row.season!==undefined&&row.season!==null&&!(typeof row.season==="string"&&row.season.trim()==="");
   return hasSeason?row:{...row,season};
  });
 }
 function playerCurrentSeasonStats(rows){
- const apps=rows.length;
- const goals=rows.reduce((total,row)=>total+(Number(row.goals)||0),0);
- const assists=rows.reduce((total,row)=>total+(Number(row.assists)||0),0);
- const averageRating=apps?rows.reduce((total,row)=>total+(Number(row.rating)||0),0)/apps:0;
- const statValue=(row,key)=>Math.max(0,Number(row&&row[key]!=null?row[key]:row&&row.stats&&row.stats[key])||0);
- const sum=key=>rows.reduce((total,row)=>total+statValue(row,key),0);
- const tacklesWon=rows.reduce((total,row)=>{
-  const hasExplicitTacklesWon=!!(row&&(row.tacklesWon!=null||row.stats&&row.stats.tacklesWon!=null));
+ const finitePrimitiveNumber=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:null;
+  if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value.trim());return Number.isFinite(numeric)?numeric:null;}
+  return null;
+ };
+ const boundedMetric=(value,maximum=1000)=>{
+  const numeric=finitePrimitiveNumber(value);
+  return numeric===null?0:Math.max(0,Math.min(maximum,numeric));
+ };
+ const countMetric=value=>Math.floor(boundedMetric(value,1000));
+ const validRows=(Array.isArray(rows)?rows:[]).filter(row=>{
+  if(!row||typeof row!=="object"||Array.isArray(row))return false;
+  const minutes=finitePrimitiveNumber(row.minutes);
+  return minutes!==null&&minutes>0&&minutes<=120;
+ });
+ const apps=validRows.length;
+ const goals=validRows.reduce((total,row)=>total+countMetric(row.goals),0);
+ const assists=validRows.reduce((total,row)=>total+countMetric(row.assists),0);
+ const ratings=validRows.map(row=>finitePrimitiveNumber(row.rating)).filter(value=>value!==null)
+  .map(value=>Math.max(0,Math.min(10,value)));
+ const averageRating=ratings.length?ratings.reduce((total,value)=>total+value,0)/ratings.length:0;
+ const statValue=(row,key,maximum=1000)=>{
+  const stats=row&&row.stats&&typeof row.stats==="object"&&!Array.isArray(row.stats)?row.stats:null;
+  const value=row&&row[key]!=null?row[key]:stats&&stats[key];
+  return boundedMetric(value,maximum);
+ };
+ const sum=key=>validRows.reduce((total,row)=>total+statValue(row,key,key==="minutes"?120:1000),0);
+ const tacklesWon=validRows.reduce((total,row)=>{
+  const stats=row.stats&&typeof row.stats==="object"&&!Array.isArray(row.stats)?row.stats:null;
+  const hasExplicitTacklesWon=row.tacklesWon!=null||!!(stats&&stats.tacklesWon!=null);
   return total+statValue(row,hasExplicitTacklesWon?"tacklesWon":"tackles");
  },0);
- const cleanSheets=rows.reduce((total,row)=>{
-  const direct=row&&row.cleanSheets!=null?row.cleanSheets:row&&row.stats&&row.stats.cleanSheets;
-  return total+(direct!=null?Math.max(0,Number(direct)||0):(row&&(row.cleanSheet===true||row.stats&&row.stats.cleanSheet===true)?1:0));
+ const cleanSheets=validRows.reduce((total,row)=>{
+  const stats=row.stats&&typeof row.stats==="object"&&!Array.isArray(row.stats)?row.stats:null;
+  const direct=row.cleanSheets!=null?row.cleanSheets:stats&&stats.cleanSheets;
+  return total+(direct!=null?countMetric(direct):(row.cleanSheet===true||!!(stats&&stats.cleanSheet===true)?1:0));
  },0);
  return {appearances:apps,minutes:sum("minutes"),goals:goals,assists:assists,averageRating:Number(averageRating.toFixed(2)),
   cleanSheets:cleanSheets,saves:sum("saves"),penaltiesSaved:sum("penaltiesSaved"),

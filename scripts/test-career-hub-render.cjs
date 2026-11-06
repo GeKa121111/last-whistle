@@ -170,6 +170,49 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
     "sparse duplicate rows must represent one appearance, not two");
 
+  state.seasonLog = [];
+  state.careerMatchHistory = [
+    { id: "career-valid-league", minutes: 90, scope: "league", goals: 2, assists: 1 },
+    { id: "career-valid-cup", minutes: "90", scope: "cup", goals: "1", assists: "0" },
+    { id: "career-symbol-goals", minutes: 90, scope: "league", goals: Symbol("invalid-goals"), assists: 0 },
+    { id: "career-infinite-minutes", minutes: Infinity, scope: "league", goals: 50, assists: 50 },
+    { id: "career-array-minutes", minutes: [90], scope: "league", goals: [8], assists: true },
+    { id: "career-symbol-minutes", minutes: Symbol("invalid-minutes"), scope: "league", goals: 50, assists: 50 },
+    { id: "career-overlong-minutes", minutes: 121, scope: "league", goals: 50, assists: 50 },
+    { id: "career-international-case", minutes: 90, scope: " INTERNATIONAL ", goals: 9, assists: 9 }
+  ];
+  state.apps = [99]; state.totalCareerAppearances = Infinity;
+  state.goals = Infinity; state.assists = [6]; state.seasonApps = true;
+  revision++;
+  assert.doesNotThrow(() => stateChangeListener({ revision }),
+    "career statistics and history signatures must tolerate malformed primitive and container values");
+  await Promise.resolve();
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.00",
+    "career rates must ignore invalid minutes, cap match metrics, and normalize international scope");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "0.33",
+    "career assist rates must use only finite valid match metrics");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
+    "career minutes per appearance must reject invalid and overlong match rows");
+  assert.equal(nodes.get("statsCareerApps").textContent, "0",
+    "malformed saved career appearance counters must render as zero");
+  assert.equal(nodes.get("statsCareerGoals").textContent, "0",
+    "malformed saved career goal counters must render as zero");
+  assert.equal(nodes.get("statsCareerAssists").textContent, "0",
+    "malformed saved career assist counters must render as zero");
+  assert.equal(nodes.get("statsSeasonApps").textContent, "0",
+    "malformed saved season appearance counters must render as zero");
+
+  state.apps = "4"; state.totalCareerAppearances = "3";
+  state.goals = "6"; state.assists = "2"; state.seasonApps = "5";
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("statsCareerApps").textContent, "4",
+    "valid numeric-string career appearance counters must remain backward compatible");
+  assert.equal(nodes.get("statsCareerGoals").textContent, "6");
+  assert.equal(nodes.get("statsCareerAssists").textContent, "2");
+  assert.equal(nodes.get("statsSeasonApps").textContent, "5");
+
   state.dailyActionUsed = true;
   delete state.dailyActionDay;
   revision++;
@@ -217,10 +260,10 @@ const vm = require("node:vm");
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
   assert.equal(sw, publicSw, "root and public service workers must stay synchronized");
-  require("./assert-static-cache-version.cjs")(sw, 540);
-  assert.match(sw, /career-hub\.js\?v=4/, "PWA must cache the new event-driven career UI");
+  require("./assert-static-cache-version.cjs")(sw, 553);
+  assert.match(sw, /career-hub\.js\?v=5/, "PWA must cache the hardened career statistics UI");
   const careerHubCacheVersionMatch = sw.match(/last-whistle-static-v(\d+)/);
-  assert.ok(careerHubCacheVersionMatch && Number(careerHubCacheVersionMatch[1]) >= 540,
+  assert.ok(careerHubCacheVersionMatch && Number(careerHubCacheVersionMatch[1]) >= 553,
     "legacy-history rendering must invalidate the PWA shell cache");
   assert.match(sw, /url\.indexOf\("career-hub\.js\?"\) >= 0/,
     "the updated career hub must be fetched fresh during service-worker installation");

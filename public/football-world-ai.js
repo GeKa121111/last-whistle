@@ -2187,6 +2187,12 @@
     const numeric = safeNumber(value, NaN);
     return Number.isFinite(numeric) ? Math.round(numeric) : fallback;
   };
+  function safeWorldOwnValue(record, key) {
+    try {
+      if (!record || typeof record !== "object" || !Object.prototype.hasOwnProperty.call(record, key)) return undefined;
+      return record[key];
+    } catch (_) { return undefined; }
+  }
   function clubPowerForSimulation(club, fallback = 55) {
     const currentPower = safeNumber(club && club.power, 0);
     const basePower = safeNumber(club && club.basePower, 0);

@@ -946,13 +946,16 @@
     return marketClubPower(club);
   }
   function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
-    const club = world.clubs[player.clubId];
+    const playerClubId = safeWorldIdentifier(player && player.clubId);
+    const savedClub = playerClubId && world.clubs ? world.clubs[playerClubId] : null;
+    const clubId = savedClub ? safeWorldClubIdentifier(savedClub, playerClubId) : "";
+    const club = savedClub && clubId ? savedClub : null;
     const savedDivision = normalizeClubDivision(player && player.division, 0);
     const division = savedDivision >= 1 ? savedDivision : divisionForClub(club);
     const rng = random(hash(player.id + "|" + season + "|season-stat-v" + VERSION));
     const power = club ? normalizedClubPower(club) : 55;
     const matches = club
-      ? Math.max(0, Math.min(60, int(matchesByClub && matchesByClub.get(String(club.id)), Math.max(0, int(club.matchesPerSeason, 34)))))
+      ? Math.max(0, Math.min(60, int(matchesByClub && matchesByClub.get(clubId), Math.max(0, int(club.matchesPerSeason, 34)))))
       : 34;
     const ovr = clamp(safeNumber(player.ovr, 55) || 55, 35, 99);
     const group = player.group || groupForPosition(player.position);
@@ -991,16 +994,13 @@
   }
   function buildLeagueStrengthLookup(world) {
     const totals = new Map();
-    Object.values(world.clubs || {}).forEach(club => {
-      if (!club || !club.leagueId) return;
-      const division = divisionForClub(club);
-      if (division < 1) return;
-      const key = String(club.leagueId) + "|" + division;
+    for (const entry of worldLeagueClubEntries(world)) {
+      const key = entry.leagueId + "|" + entry.division;
       const row = totals.get(key) || { total: 0, count: 0 };
-      row.total += normalizedClubPower(club);
+      row.total += normalizedClubPower(entry.club);
       row.count++;
       totals.set(key, row);
-    });
+    }
     return new Map(Array.from(totals, ([key, row]) => [
       key, row.count ? Math.round(row.total / row.count) : 55
     ]));
@@ -1037,9 +1037,12 @@
       const strengthByLeague = buildLeagueStrengthLookup(world);
       const matchesByClub = buildLeagueMatchCountLookup(world, db);
       const rows = Object.values(world.players || {}).filter(player => {
-        const club = player && world.clubs && world.clubs[player.clubId];
+        const playerClubId = safeWorldIdentifier(player && player.clubId);
+        const club = playerClubId && world.clubs ? world.clubs[playerClubId] : null;
         return player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
-          && player.clubId && club && divisionForClub(club) >= 1;
+          && !!playerClubId && !!club
+          && !!safeWorldClubIdentifier(club, playerClubId)
+          && divisionForClub(club) >= 1;
       }).map(player => generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
@@ -1975,6 +1978,37 @@
     return clamp(currentPower > 0 ? currentPower : basePower > 0 ? basePower : fallback, 25, 100);
   }
   const divisionForClub = club => base.divisionForClub(club);
+  function safeSimulationIdentifier(value) {
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return "";
+  }
+  function simulationClubEntries(world) {
+    const source = world && world.clubs;
+    if (!source || typeof source !== "object" || Array.isArray(source)) return [];
+    let rows;
+    try { rows = Object.entries(source); } catch (_) { return []; }
+    const byId = new Map();
+    for (const [key, club] of rows) {
+      if (!club || typeof club !== "object") continue;
+      let savedId, savedLeagueId, savedDivision;
+      try {
+        savedId = club.id;
+        savedLeagueId = club.leagueId;
+        savedDivision = club.division;
+      } catch (_) { continue; }
+      const missingId = savedId === undefined || savedId === null
+        || (typeof savedId === "string" && savedId.trim() === "");
+      const clubId = missingId ? safeSimulationIdentifier(key) : safeSimulationIdentifier(savedId);
+      const leagueId = safeSimulationIdentifier(savedLeagueId);
+      const division = base.normalizeClubDivision(savedDivision, 1);
+      if (!clubId) continue;
+      const entry = { key, club, clubId, leagueId, division };
+      const current = byId.get(clubId);
+      if (!current || (key === clubId && current.key !== current.clubId)) byId.set(clubId, entry);
+    }
+    return Array.from(byId.values());
+  }
   const hash = value => {
     let h = 2166136261;
     for (const char of String(value)) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
@@ -2232,39 +2266,46 @@
   const MAX_WORLD_SEASON_APPEARANCES = 1000;
   const MAX_WORLD_SEASON_STAT = 1000000;
   function buildPlayerRows(world, season, accumulators) {
-    // Precompute club power averages once per league/division. The old implementation
-    // rescanned every club twice for every player, adding millions of needless comparisons
-    // whenever a complete world season was simulated.
+    // Precompute strength only from unique clubs with safe persisted identifiers.
     if (!world || typeof world !== "object") return [];
     const seasonNumber = safeNumber(season, NaN);
     if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1) return [];
-    const clubs = world.clubs && typeof world.clubs === "object" ? world.clubs : {};
     const players = world.players && typeof world.players === "object" ? world.players : {};
+    const clubEntries = simulationClubEntries(world);
+    const clubsById = new Map(clubEntries.map(entry => [entry.clubId, entry]));
     const powerByLeagueDivision = new Map();
-    Object.values(clubs).forEach(club => {
-      if (!club) return;
-      const division = divisionForClub(club);
-      if (division < 1) return;
-      const key = String(club.leagueId || "") + "|" + division;
+    clubEntries.forEach(entry => {
+      if (!entry.leagueId || entry.division < 1) return;
+      const key = entry.leagueId + "|" + entry.division;
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
-      const savedPower = clubPowerForSimulation(club);
+      const savedPower = clubPowerForSimulation(entry.club);
       summary.total += savedPower > 0 ? clamp(savedPower, 25, 100) : 55;
       summary.count++;
       powerByLeagueDivision.set(key, summary);
     });
     const leagueStrengthFor = (leagueId, division) => {
+      const safeLeagueId = safeSimulationIdentifier(leagueId);
       const divisionNumber = base.normalizeClubDivision(division, 0);
-      if (divisionNumber < 1) return 55;
-      const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + divisionNumber);
+      if (divisionNumber < 1 || !safeLeagueId) return 55;
+      const summary = powerByLeagueDivision.get(safeLeagueId + "|" + divisionNumber);
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(players).filter(player => player && !base.isTrueFlag(player.retired)
-      && !base.isTrueFlag(player.freeAgent) && player.clubId && clubs[player.clubId]).map(player => {
+    return Object.values(players).filter(player => {
+      if (!player || base.isTrueFlag(player.retired) || base.isTrueFlag(player.freeAgent)) return false;
+      const clubId = safeSimulationIdentifier(player.clubId);
+      return !!clubId && clubsById.has(clubId);
+    }).map(player => {
+      const playerClubId = safeSimulationIdentifier(player.clubId);
       const savedAccumulator = accumulators && typeof accumulators.get === "function"
         ? accumulators.get(player.id) : null;
       const acc = savedAccumulator && typeof savedAccumulator === "object" && !Array.isArray(savedAccumulator)
         ? savedAccumulator : playerAccumulator();
-      const historicalClub = clubs[acc.clubId || player.clubId] || null;
+      const accumulatorClubId = safeSimulationIdentifier(acc.clubId);
+      const historicalEntry = accumulatorClubId ? clubsById.get(accumulatorClubId) : null;
+      const currentEntry = clubsById.get(playerClubId);
+      const historicalClub = accumulatorClubId
+        ? (historicalEntry ? historicalEntry.club : null)
+        : currentEntry.club;
       const apps = Math.min(MAX_WORLD_SEASON_APPEARANCES,
         Math.max(0, Math.floor(safeNumber(acc.appearances, 0))));
       const goals = Math.min(MAX_WORLD_SEASON_STAT,
@@ -2273,7 +2314,9 @@
         Math.max(0, Math.floor(safeNumber(acc.assists, 0))));
       const ratingTotal = Math.min(apps * 10, Math.max(0, safeNumber(acc.ratingTotal, 0)));
       const rating = apps ? Number((clamp(ratingTotal / apps, 0, 10)).toFixed(2)) : 0;
-      const leagueId = String(acc.leagueId || player.leagueId || "");
+      const leagueId = safeSimulationIdentifier(acc.leagueId)
+        || safeSimulationIdentifier(player.leagueId)
+        || safeSimulationIdentifier(historicalClub && historicalClub.leagueId);
       const accumulatorDivision = base.normalizeClubDivision(acc.division, 0);
       const playerDivision = base.normalizeClubDivision(player.division, 0);
       const historicalDivision = historicalClub ? divisionForClub(historicalClub) : 0;
@@ -2287,7 +2330,8 @@
       const prestige = clamp(safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0), 0, 100);
       const row = {
         id: player.id, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",
-        clubName: historicalClub ? historicalClub.name : "", clubId: acc.clubId || player.clubId || "",
+        clubName: historicalClub ? historicalClub.name : "",
+        clubId: accumulatorClubId || playerClubId,
         country: historicalClub ? historicalClub.country : player.country || "",
         leagueId, division: savedDivision,
         position: player.position, group: player.group || base.groupForPosition(player.position),
@@ -2308,59 +2352,77 @@
     });
   }
   function buildBalancedLeagueSchedule(clubs, matchesPerClub, seed) {
-    const teams = Array.isArray(clubs) ? clubs.slice() : [];
+    const uniqueTeams = new Map();
+    for (const club of Array.isArray(clubs) ? clubs : []) {
+      if (!club || typeof club !== "object") continue;
+      let savedId;
+      try { savedId = club.id; } catch (_) { continue; }
+      const id = safeSimulationIdentifier(savedId);
+      if (!id || uniqueTeams.has(id)) continue;
+      uniqueTeams.set(id, { id, club });
+    }
+    const teams = Array.from(uniqueTeams.values());
     const teamCount = teams.length;
     if (teamCount < 2) return [];
     let target = Math.max(0, Math.min(60, int(matchesPerClub, 2 * (teamCount - 1))));
     if (teamCount % 2 === 1 && target % 2 === 1) target--;
     if (!target) return [];
-    const fixtures = [], homeCounts = new Map(teams.map(club => [String(club.id), 0]));
+    const fixtures = [], homeCounts = new Map(teams.map(team => [team.id, 0]));
     let matchday = 0;
     const addFixture = (first, second, day, cycle) => {
-      if (!first || !second || String(first.id) === String(second.id)) return;
-      const firstId=String(first.id), secondId=String(second.id);
-      const firstHomes=homeCounts.get(firstId)||0, secondHomes=homeCounts.get(secondId)||0;
-      let home,away;
-      if(firstHomes<secondHomes){home=first;away=second;}
-      else if(secondHomes<firstHomes){home=second;away=first;}
-      else if(hash([seed,cycle,day,firstId,secondId,"balanced-home"].join("|"))%2===0){home=first;away=second;}
-      else{home=second;away=first;}
-      homeCounts.set(String(home.id),(homeCounts.get(String(home.id))||0)+1);
-      fixtures.push({home,away,round:day});
+      if (!first || !second || first.id === second.id) return;
+      const firstId = first.id, secondId = second.id;
+      const firstHomes = homeCounts.get(firstId) || 0, secondHomes = homeCounts.get(secondId) || 0;
+      let home, away;
+      if (firstHomes < secondHomes) { home = first; away = second; }
+      else if (secondHomes < firstHomes) { home = second; away = first; }
+      else if (hash([seed, cycle, day, firstId, secondId, "balanced-home"].join("|")) % 2 === 0) {
+        home = first; away = second;
+      } else { home = second; away = first; }
+      homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
+      fixtures.push({ home: home.club, away: away.club, round: day });
     };
-    const cycleSize=teamCount-1, fullCycles=Math.floor(target/cycleSize), remainder=target%cycleSize;
-    for(let cycle=0;cycle<fullCycles;cycle++){
-      let rotation=teams.slice(); if(rotation.length%2) rotation.push(null);
-      const roundCount=rotation.length-1;
-      for(let round=0;round<roundCount;round++){
+    const cycleSize = teamCount - 1, fullCycles = Math.floor(target / cycleSize), remainder = target % cycleSize;
+    for (let cycle = 0; cycle < fullCycles; cycle++) {
+      let rotation = teams.slice();
+      if (rotation.length % 2) rotation.push(null);
+      const roundCount = rotation.length - 1;
+      for (let round = 0; round < roundCount; round++) {
         matchday++;
-        for(let index=0;index<rotation.length/2;index++){
-          const first=rotation[index],second=rotation[rotation.length-1-index];
-          if(first&&second)addFixture(first,second,matchday,cycle);
+        for (let index = 0; index < rotation.length / 2; index++) {
+          const first = rotation[index], second = rotation[rotation.length - 1 - index];
+          if (first && second) addFixture(first, second, matchday, cycle);
         }
-        const fixed=rotation[0],rest=rotation.slice(1);rest.unshift(rest.pop());rotation=[fixed].concat(rest);
+        const fixed = rotation[0], rest = rotation.slice(1);
+        rest.unshift(rest.pop());
+        rotation = [fixed].concat(rest);
       }
     }
-    const remainderPairs=[],usedPairs=new Set();
-    const addRemainderPair=(left,right)=>{
-      if(left===right)return;
-      const low=Math.min(left,right),high=Math.max(left,right),key=low+"|"+high;
-      if(usedPairs.has(key))return;
-      usedPairs.add(key);remainderPairs.push([teams[left],teams[right]]);
+    const remainderPairs = [], usedPairs = new Set();
+    const addRemainderPair = (left, right) => {
+      if (left === right) return;
+      const low = Math.min(left, right), high = Math.max(left, right), key = low + "|" + high;
+      if (usedPairs.has(key)) return;
+      usedPairs.add(key);
+      remainderPairs.push([teams[left], teams[right]]);
     };
-    for(let distance=1;distance<=Math.floor(remainder/2);distance++)
-      for(let index=0;index<teamCount;index++)addRemainderPair(index,(index+distance)%teamCount);
-    if(remainder%2===1&&teamCount%2===0)
-      for(let index=0;index<teamCount/2;index++)addRemainderPair(index,index+teamCount/2);
-    const remainderMatchdays=[];
-    remainderPairs.forEach(pair=>{
-      let dayIndex=0;
-      while(dayIndex<remainderMatchdays.length&&remainderMatchdays[dayIndex].some(row=>row.includes(pair[0])||row.includes(pair[1])))dayIndex++;
-      if(!remainderMatchdays[dayIndex])remainderMatchdays[dayIndex]=[];
+    for (let distance = 1; distance <= Math.floor(remainder / 2); distance++) {
+      for (let index = 0; index < teamCount; index++) addRemainderPair(index, (index + distance) % teamCount);
+    }
+    if (remainder % 2 === 1 && teamCount % 2 === 0) {
+      for (let index = 0; index < teamCount / 2; index++) addRemainderPair(index, index + teamCount / 2);
+    }
+    const remainderMatchdays = [];
+    remainderPairs.forEach(pair => {
+      let dayIndex = 0;
+      while (dayIndex < remainderMatchdays.length
+        && remainderMatchdays[dayIndex].some(row => row.includes(pair[0]) || row.includes(pair[1]))) dayIndex++;
+      if (!remainderMatchdays[dayIndex]) remainderMatchdays[dayIndex] = [];
       remainderMatchdays[dayIndex].push(pair);
     });
-    remainderMatchdays.forEach(dayPairs=>{
-      matchday++;dayPairs.forEach(([home,away])=>addFixture(home,away,matchday,fullCycles));
+    remainderMatchdays.forEach(dayPairs => {
+      matchday++;
+      dayPairs.forEach(([home, away]) => addFixture(home, away, matchday, fullCycles));
     });
     return fixtures;
   }

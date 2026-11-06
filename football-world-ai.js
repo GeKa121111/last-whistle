@@ -2578,10 +2578,10 @@
         const previousTables = world.leagueTables && world.leagueTables[String(previousSeason)] || {};
         const currentTables = tables && typeof tables === "object" ? tables : {};
         const qualificationPlaces = Array.from(new Set((Array.isArray(def.qualificationPlaces) ? def.qualificationPlaces : [])
-          .map(value => Number(value)).filter(value => Number.isInteger(value) && value > 0))).sort((a, b) => a - b);
+          .map(value => safeNumber(value, NaN))
+          .filter(value => Number.isSafeInteger(value) && value > 0))).sort((a, b) => a - b);
         if (!qualificationPlaces.length) return;
-        const slotStart = qualificationPlaces[0];
-        const slotCount = qualificationPlaces.length;
+        const qualificationPlaceSet = new Set(qualificationPlaces);
         const leagueIds = Array.from(new Set(clubs
           .filter(club => club.confederation === def.confederation && divisionForClub(club) === 1 && club.leagueId)
           .map(club => String(club.leagueId)))).sort();
@@ -2604,31 +2604,40 @@
             // Array order is a legacy fallback only when rank is absent; a malformed
             // explicit rank must not be converted into a qualifying position.
             return { row, rank: savedRank === null ? (hasSavedRank ? null : index + 1) : savedRank };
-          }).filter(entry => entry.rank !== null && entry.rank >= slotStart)
+          }).filter(entry => entry.rank !== null && qualificationPlaceSet.has(entry.rank))
             .sort((a, b) => a.rank - b.rank
               || standingPoints(b.row) - standingPoints(a.row)
               || standingGoalDifference(b.row) - standingGoalDifference(a.row)
               || safeStandingText(a.row && a.row.clubId).localeCompare(safeStandingText(b.row && b.row.clubId)));
-          const seenLeagueClubIds = new Set();
-          let filledSlots = 0;
-          for (const entry of rankedRows) {
-            if (filledSlots >= slotCount) break;
+          const eligibleRankedRows = rankedRows.filter(entry => {
             const row = entry.row || {};
             const clubId = safeStandingText(row.clubId);
-            if (!clubId || seenLeagueClubIds.has(clubId)) continue;
-            const club = world.clubs && world.clubs[clubId];
+            const club = clubId && world.clubs ? world.clubs[clubId] : null;
             if (!club || String(club.leagueId || "") !== leagueId || divisionForClub(club) !== 1
-              || String(club.confederation || "") !== String(def.confederation || "")) continue;
+              || String(club.confederation || "") !== String(def.confederation || "")) return false;
             if (hasStandingValue(row.leagueId)) {
               const rowLeagueId = safeStandingText(row.leagueId);
-              if (!rowLeagueId || rowLeagueId !== leagueId) continue;
+              if (!rowLeagueId || rowLeagueId !== leagueId) return false;
             }
             if (hasStandingValue(row.division)) {
               const rowDivision = safeNumber(row.division, NaN);
-              if (!Number.isInteger(rowDivision) || rowDivision !== 1) continue;
+              if (!Number.isInteger(rowDivision) || rowDivision !== 1) return false;
             }
+            return true;
+          });
+          const qualifyingRankCounts = new Map();
+          eligibleRankedRows.forEach(entry => {
+            qualifyingRankCounts.set(entry.rank, (qualifyingRankCounts.get(entry.rank) || 0) + 1);
+          });
+          const seenLeagueClubIds = new Set();
+          for (const entry of eligibleRankedRows) {
+            // Duplicate eligible ranks are ambiguous; do not award the same slot twice.
+            if (qualifyingRankCounts.get(entry.rank) !== 1) continue;
+            const row = entry.row || {};
+            const clubId = safeStandingText(row.clubId);
+            if (!clubId || seenLeagueClubIds.has(clubId)) continue;
+            const club = world.clubs[clubId];
             seenLeagueClubIds.add(clubId);
-            filledSlots++;
             candidates.push({
               club, rank: entry.rank,
               globalTier: safeNumber(profile && profile.globalTier, 99) || 99,

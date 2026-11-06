@@ -2033,6 +2033,8 @@ const hostilePromotionIdentifier = {
   toString() { throw new Error("hostile saved identifier coercion"); }
 };
 const hostileIdentifierPromotionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+hostileIdentifierPromotionWorld.promotionHistory = [];
+hostileIdentifierPromotionWorld.notes = [];
 for (let index = 1; index <= 6; index++) hostileIdentifierPromotionWorld.clubs["ranked-first-" + index].division = 1;
 for (let index = 1; index <= 3; index++) hostileIdentifierPromotionWorld.clubs["ranked-second-" + index].division = 2;
 const hostileIdentifierTables = hostileIdentifierPromotionWorld.leagueTables["6"];

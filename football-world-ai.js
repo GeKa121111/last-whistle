@@ -1995,12 +1995,47 @@
       homeGoals: Number(match.homeGoals) || 0, awayGoals: Number(match.awayGoals) || 0 };
   }
   function expandWorldMatches(world, matches) {
-    return (matches || []).map(match => {
-      const home = world.clubs[match.homeClubId], away = world.clubs[match.awayClubId];
-      return { ...match, id: "world-match-" + match.season + "-" + hash([match.homeClubId, match.awayClubId, match.matchday].join("|")).toString(36),
-        home: home ? home.name : "", away: away ? away.name : "",
-        result: match.homeGoals === match.awayGoals ? "draw" : match.homeGoals > match.awayGoals ? "home-win" : "away-win" };
-    });
+    if (!Array.isArray(matches)) return [];
+    const clubs = world && world.clubs && typeof world.clubs === "object" ? world.clubs : {};
+    const safeText = value => {
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      return "";
+    };
+    const safePositiveInteger = (value, fallback) => {
+      const numeric = safeNumber(value, NaN);
+      return Number.isSafeInteger(numeric) && numeric >= 1 ? numeric : fallback;
+    };
+    const safeNonNegativeInteger = value => {
+      const numeric = safeNumber(value, NaN);
+      return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : 0;
+    };
+    const expanded = [];
+    for (const match of matches) {
+      if (!match || typeof match !== "object" || Array.isArray(match)) continue;
+      try {
+        const homeClubId = safeText(match.homeClubId);
+        const awayClubId = safeText(match.awayClubId);
+        if (!homeClubId || !awayClubId) continue;
+        const season = safePositiveInteger(match.season, 1);
+        const matchday = safePositiveInteger(match.matchday, 1);
+        const homeGoals = safeNonNegativeInteger(match.homeGoals);
+        const awayGoals = safeNonNegativeInteger(match.awayGoals);
+        const division = base.normalizeClubDivision(match.division, 1);
+        const competitionId = safeText(match.competitionId) || "league";
+        const home = clubs[homeClubId] || null;
+        const away = clubs[awayClubId] || null;
+        expanded.push({
+          season, competitionId, division, matchday, homeClubId, awayClubId, homeGoals, awayGoals,
+          id: "world-match-" + season + "-" + hash([homeClubId, awayClubId, matchday].join("|")).toString(36),
+          home: safeText(home && home.name), away: safeText(away && away.name),
+          result: homeGoals === awayGoals ? "draw" : homeGoals > awayGoals ? "home-win" : "away-win"
+        });
+      } catch (_) {
+        // A malformed saved match must not prevent the rest of a completed season from loading.
+      }
+    }
+    return expanded;
   }
   function playerAccumulator() {
     return { appearances: 0, goals: 0, assists: 0, ratingTotal: 0, clubId: "", leagueId: "", division: 0 };
@@ -2249,9 +2284,17 @@
     world.competitionsBySeason = world.competitionsBySeason && typeof world.competitionsBySeason === "object" ? world.competitionsBySeason : {};
     const year = Math.max(1, int(season, int(save.season, 1)));
     if (Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))) {
-      return { season: year, rows: world.seasonStats[String(year)] || [], tables: world.leagueTables[String(year)] || {},
-        matches: expandWorldMatches(world, world.matchesBySeason[String(year)] || []),
-        competitions: world.competitionsBySeason[String(year)] || [] };
+      const seasonKey = String(year);
+      const savedRows = world.seasonStats[seasonKey];
+      const savedTables = world.leagueTables[seasonKey];
+      const savedCompetitions = world.competitionsBySeason[seasonKey];
+      return {
+        season: year,
+        rows: Array.isArray(savedRows) ? savedRows : [],
+        tables: savedTables && typeof savedTables === "object" && !Array.isArray(savedTables) ? savedTables : {},
+        matches: expandWorldMatches(world, world.matchesBySeason[seasonKey]),
+        competitions: Array.isArray(savedCompetitions) ? savedCompetitions : []
+      };
     }
     const accumulators = new Map(Object.values(world.players).map(player => [player.id, playerAccumulator()]));
     const tables = {}, allMatches = [], groups = groupRows(world);

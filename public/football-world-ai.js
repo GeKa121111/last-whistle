@@ -25,21 +25,6 @@
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
   }
-  // Persisted standings may contain arrays, boxed numbers, Symbols, or hostile objects.
-  // Only primitive numeric values and numeric strings are valid table metrics.
-  function hasStandingValue(value) {
-    return value !== null && value !== undefined
-      && !(typeof value === "string" && value.trim() === "");
-  }
-  function safeStandingText(value) {
-    if (typeof value === "string") return value.trim();
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
-    return "";
-  }
-  function safeStandingRank(value) {
-    const numeric = safeNumber(value, NaN);
-    return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
-  }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
   const int = (value, fallback = 0) => Math.round(
     value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
@@ -1870,6 +1855,21 @@
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
   };
+  // Persisted standings may contain arrays, boxed numbers, Symbols, or hostile objects.
+  // Only primitive numeric values and numeric strings are valid table metrics.
+  function hasStandingValue(value) {
+    return value !== null && value !== undefined
+      && !(typeof value === "string" && value.trim() === "");
+  }
+  function safeStandingText(value) {
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return "";
+  }
+  function safeStandingRank(value) {
+    const numeric = safeNumber(value, NaN);
+    return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+  }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
   const int = (value, fallback = 0) => {
     const numeric = safeNumber(value, NaN);

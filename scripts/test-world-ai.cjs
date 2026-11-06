@@ -4265,13 +4265,13 @@ assertDomesticSupercupRejectsInvalidLeagueRow(5, {
 assertDomesticSupercupRejectsInvalidLeagueRow(6, {
   clubId: "cup-first-01", leagueId: "foreign-cup-league", division: 1, rank: 1
 }, "mismatched saved league identity");
-assertDomesticSupercupRejectsInvalidLeagueRow(7, {
+assertDomesticSupercupRejectsInvalidLeagueRow(90, {
   clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: [1]
 }, "array-coerced domestic supercup rank");
-assertDomesticSupercupRejectsInvalidLeagueRow(8, {
+assertDomesticSupercupRejectsInvalidLeagueRow(91, {
   clubId: "cup-first-01", leagueId: "test-cup-league", division: [1], rank: 1
 }, "array-coerced domestic supercup division");
-assertDomesticSupercupRejectsInvalidLeagueRow(9, {
+assertDomesticSupercupRejectsInvalidLeagueRow(92, {
   clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: Symbol("invalid-rank")
 }, "Symbol domestic supercup rank");
 

@@ -1975,6 +1975,66 @@ assert.equal(staleDivisionWorld.players["stale-relegated-player"].division, 2);
 
 
  
+// Corrupted identifiers must be isolated to their own saved rows and never abort
+// a valid promotion/relegation batch or its player-division synchronization.
+const hostilePromotionIdentifier = {
+  toString() { throw new Error("hostile saved identifier coercion"); }
+};
+const hostileIdentifierPromotionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+const hostileIdentifierTables = hostileIdentifierPromotionWorld.leagueTables["6"];
+const hostileFirstRows = hostileIdentifierTables["ranked-league"];
+const hostileFirstOne = hostileFirstRows.find(row => row.clubId === "ranked-first-1");
+const hostileFirstTwo = hostileFirstRows.find(row => row.clubId === "ranked-first-2");
+hostileFirstOne.leagueId = hostilePromotionIdentifier;
+hostileFirstTwo.division = hostilePromotionIdentifier;
+for (let index = 7; index <= 8; index++) {
+  const id = "hostile-extra-first-" + index;
+  hostileIdentifierPromotionWorld.clubs[id] = {
+    id, name: "Hostile Extra " + index, leagueId: "ranked-league",
+    country: "Testland", division: 1, power: 50, roster: []
+  };
+  hostileFirstRows.push({
+    clubId: id, leagueId: "ranked-league", division: 1,
+    rank: index, pts: 30 - index, gd: 12 - index, gf: 20 - index
+  });
+}
+hostileIdentifierPromotionWorld.clubs["hostile-league-id-club"] = {
+  id: "hostile-league-id-club", name: "Hostile League ID", leagueId: hostilePromotionIdentifier,
+  country: "Testland", division: 1, power: 50, roster: []
+};
+hostileIdentifierPromotionWorld.clubs["hostile-club-id"] = {
+  id: hostilePromotionIdentifier, name: "Hostile Club ID", leagueId: "ranked-league",
+  country: "Testland", division: 1, power: 50, roster: []
+};
+hostileFirstRows.push(
+  { clubId: hostilePromotionIdentifier, leagueId: "ranked-league", division: 1 },
+  { clubId: "hostile-club-id", leagueId: "ranked-league", division: 1, rank: 9 }
+);
+hostileIdentifierTables["ranked-league:2"].push(
+  { clubId: "ranked-second-1", leagueId: hostilePromotionIdentifier, division: 2 },
+  { clubId: "ranked-second-2", leagueId: "ranked-league", division: hostilePromotionIdentifier }
+);
+hostileIdentifierPromotionWorld.players["safe-promoted-player"] = {
+  id: "safe-promoted-player", clubId: "ranked-second-1", division: 2
+};
+hostileIdentifierPromotionWorld.players["hostile-player-club-id"] = {
+  id: "hostile-player-club-id", clubId: hostilePromotionIdentifier, division: 1
+};
+let hostileIdentifierMoves;
+assert.doesNotThrow(() => {
+  hostileIdentifierMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+    hostileIdentifierPromotionWorld, 6, rankedPromotionDb
+  );
+}, "hostile club, league, and standings identifiers must not throw during promotion/relegation");
+assert.equal(hostileIdentifierMoves.length, 1,
+  "malformed identifiers must not prevent otherwise valid clubs from completing promotion/relegation");
+assert.equal(hostileIdentifierPromotionWorld.clubs["ranked-second-1"].division, 1,
+  "a valid promoted club must still move when unrelated malformed identifiers are present");
+assert.equal(hostileIdentifierPromotionWorld.players["safe-promoted-player"].division, 1,
+  "player division synchronization must use the validated standings club ID");
+assert.equal(hostileIdentifierPromotionWorld.players["hostile-player-club-id"].division, 1,
+  "a player with a malformed club identifier must be ignored without breaking the batch");
+
 // Imported standings may be shuffled. Promotion and relegation must follow the
 // explicit rank column rather than whichever club happens to appear first/last.
 const rankedPromotionClubs = [];

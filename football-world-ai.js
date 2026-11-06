@@ -1174,22 +1174,29 @@
   function normalizedClubPower(club) {
     return marketClubPower(club);
   }
-  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
+  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub, playerMapKey) {
+    const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+    if (!playerId) return null;
     const playerClubId = safeWorldIdentifier(player && player.clubId);
     const savedClub = playerClubId && world.clubs ? world.clubs[playerClubId] : null;
     const clubId = savedClub ? safeWorldClubIdentifier(savedClub, playerClubId) : "";
     const club = savedClub && clubId ? savedClub : null;
     const savedDivision = normalizeClubDivision(player && player.division, 0);
     const division = savedDivision >= 1 ? savedDivision : divisionForClub(club);
-    const rng = random(hash(player.id + "|" + season + "|season-stat-v" + VERSION));
+    const rng = random(hash(playerId + "|" + season + "|season-stat-v" + VERSION));
     const power = club ? normalizedClubPower(club) : 55;
     const matches = club
       ? Math.max(0, Math.min(60, int(matchesByClub && matchesByClub.get(clubId), Math.max(0, int(club.matchesPerSeason, 34)))))
       : 34;
     const ovr = clamp(safeNumber(player.ovr, 55) || 55, 35, 99);
     const group = player.group || groupForPosition(player.position);
-    const peers = club ? rosterPlayers(world, club).filter(row => row.group === group) : [player];
-    const roleStrength = peers.length ? (peers.slice().sort((a, b) => safeNumber(b && b.ovr, 50) - safeNumber(a && a.ovr, 50)).findIndex(row => row.id === player.id)) : 0;
+    const peers = club ? activeRosterIds(world, club).map(id => ({
+      playerId: id, player: safeWorldOwnValue(world.players, id)
+    })).filter(entry => entry.player && (entry.player.group || groupForPosition(entry.player.position)) === group)
+      : [{ playerId, player }];
+    const roleStrength = peers.length ? peers.slice().sort((a, b) =>
+      safeNumber(b.player && b.player.ovr, 50) - safeNumber(a.player && a.player.ovr, 50))
+      .findIndex(entry => entry.playerId === playerId) : 0;
     const expectedApps = matches > 0
       ? clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), Math.min(4, matches), matches)
       : 0;
@@ -1205,7 +1212,7 @@
     const goals = Math.round(fullGoals * clamp(progress, 0, 1));
     const assists = Math.round(fullAssists * clamp(progress, 0, 1));
     const values = {
-      id: player.id, season: Number(season), name: player.name, club: club ? club.name : "",
+      id: playerId, playerId, season: Number(season), name: player.name, club: club ? club.name : "",
       clubName: club ? club.name : "", country: player.country, leagueId: player.leagueId,
       division, position: player.position, group,
       age: clamp(safeNumber(player.age, 18) || 18, 14, 60), ovr,
@@ -1265,14 +1272,17 @@
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
       const matchesByClub = buildLeagueMatchCountLookup(world, db);
-      const rows = Object.values(world.players || {}).filter(player => {
+      const rows = Object.entries(world.players || {}).filter(([playerMapKey, player]) => {
+        const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
         const playerClubId = safeWorldIdentifier(player && player.clubId);
         const club = playerClubId && world.clubs ? world.clubs[playerClubId] : null;
-        return player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
+        return !!playerId && player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
           && !!playerClubId && !!club
           && !!safeWorldClubIdentifier(club, playerClubId)
           && divisionForClub(club) >= 1;
-      }).map(player => generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
+      }).map(([playerMapKey, player]) =>
+        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub, playerMapKey))
+        .filter(row => row && typeof row === "object");
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
       if (cached.rows.size > 2) cached.rows.delete(cached.rows.keys().next().value);
@@ -1470,8 +1480,13 @@
     }
     const strengthByLeague = buildLeagueStrengthLookup(world);
     const matchesByClub = buildLeagueMatchCountLookup(world, db);
-    const rows = Object.values(world.players).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
-      generatePlayerSeason(world, player, year, 1, strengthByLeague, matchesByClub));
+    const rows = Object.entries(world.players || {}).filter(([playerMapKey, player]) => {
+      const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+      return !!playerId && player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
+        && player.clubId && world.clubs[player.clubId];
+    }).map(([playerMapKey, player]) =>
+      generatePlayerSeason(world, player, year, 1, strengthByLeague, matchesByClub, playerMapKey))
+      .filter(row => row && typeof row === "object");
     const tables = simulateLeagueTables(world, year, 1, db, matchesByClub);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
@@ -2145,10 +2160,13 @@
   function transferTargets(save, db) {
     const world = ensureState(save, db);
     return Object.values(world.clubs).map(club => {
-      const players = rosterPlayers(world, club).map(player => ({
-        id: player.id, name: player.name, position: player.position, ovr: player.ovr, potential: player.potential,
-        age: player.age, contractSeasons: player.contractSeasons
-      }));
+      const players = activeRosterIds(world, club).map(playerId => {
+        const player = safeWorldOwnValue(world.players, playerId);
+        return player ? {
+          id: playerId, name: player.name, position: player.position, ovr: player.ovr, potential: player.potential,
+          age: player.age, contractSeasons: player.contractSeasons
+        } : null;
+      }).filter(Boolean);
       const stars = players.slice().sort((a, b) =>
         safeNumber(b && b.ovr, 50) - safeNumber(a && a.ovr, 50)).slice(0, 7).map(player => player.name);
       const division = divisionForClub(club);
@@ -2242,7 +2260,7 @@
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
     sortCompletedSeasonMarkers,
     getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
-    rememberTransferClubEndpoints, isTrueFlag
+    rememberTransferClubEndpoints, isTrueFlag, activeRosterIds
   });
 })(window);
 

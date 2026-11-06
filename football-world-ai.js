@@ -356,24 +356,33 @@
     }
     return world.archive;
   }
-  function archiveGeneratedPlayerBeforeRosterReplacement(world, player) {
-    const playerId = String(player && player.id || "");
-    if (!world || !playerId) return;
+  function archiveGeneratedPlayerBeforeRosterReplacement(world, player, playerMapKey) {
+    // The players-map key and club roster entry are the authoritative identity.
+    // A stale or hostile player.id must not strand the placeholder in the active squad.
+    const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+    if (!world || !playerId || !player || typeof player !== "object") return false;
     const archive = ensureArchive(world);
-    archive.players[playerId] = player;
-    if (world.playerHistory && Object.prototype.hasOwnProperty.call(world.playerHistory, playerId)) {
-      archive.playerHistory[playerId] = world.playerHistory[playerId];
-      delete world.playerHistory[playerId];
+    safeWorldSetOwnValue(archive.players, playerId, player);
+    const playerHistory = safeWorldOwnValue(world, "playerHistory");
+    if (playerHistory && typeof playerHistory === "object"
+      && Object.prototype.hasOwnProperty.call(playerHistory, playerId)) {
+      safeWorldSetOwnValue(archive.playerHistory, playerId, safeWorldOwnValue(playerHistory, playerId));
+      try { delete playerHistory[playerId]; } catch (_) {}
     }
-    Object.keys(world.seasonStats || {}).forEach(season => {
-      const rows = Array.isArray(world.seasonStats[season]) ? world.seasonStats[season] : [];
+    const seasonStats = safeWorldOwnValue(world, "seasonStats");
+    for (const season of safeWorldObjectKeys(seasonStats)) {
+      const rows = safeWorldOwnValue(seasonStats, season);
+      if (!Array.isArray(rows)) continue;
       const archivedRows = rows.filter(row => row
-        && String(row.id || row.playerId || "") === playerId);
-      if (!archivedRows.length) return;
-      archive.seasonStats[season] = (Array.isArray(archive.seasonStats[season])
-        ? archive.seasonStats[season] : []).concat(archivedRows);
-      world.seasonStats[season] = rows.filter(row => !archivedRows.includes(row));
-    });
+        && (safeWorldRecordIdentifier(row, "id") === playerId
+          || safeWorldRecordIdentifier(row, "playerId") === playerId));
+      if (!archivedRows.length) continue;
+      const existingRows = safeWorldOwnValue(archive.seasonStats, season);
+      safeWorldSetOwnValue(archive.seasonStats, season,
+        (Array.isArray(existingRows) ? existingRows : []).concat(archivedRows));
+      safeWorldSetOwnValue(seasonStats, season, rows.filter(row => !archivedRows.includes(row)));
+    }
+    return true;
   }
   function emptyWorld() {
     return {
@@ -1014,14 +1023,19 @@
           const identityKey = rosterIdentityKey(playerRow);
           if (!identityKey || knownForClub.has(identityKey) || unavailableForClub.has(identityKey)) continue;
           while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
-            const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
-              .sort((a, b) => safeNumber(a && a.ovr, 0) - safeNumber(b && b.ovr, 0));
+            const generated = (club.roster || []).map(playerId => ({
+              playerId,
+              player: safeWorldOwnValue(world.players, safeWorldIdentifier(playerId))
+            })).filter(entry => entry.player && entry.player.isGenerated)
+              .sort((a, b) => safeNumber(a.player && a.player.ovr, 0) - safeNumber(b.player && b.player.ovr, 0));
             if (!generated.length) break;
             const replace = generated[0];
-            club.roster = club.roster.filter(playerId => playerId !== replace.id);
-            archiveGeneratedPlayerBeforeRosterReplacement(world, replace);
-            delete world.players[replace.id];
-            knownForClub.delete(rosterIdentityKey(replace));
+            const replaceId = safeWorldIdentifier(replace.playerId);
+            if (!replaceId) break;
+            club.roster = club.roster.filter(playerId => playerId !== replace.playerId);
+            archiveGeneratedPlayerBeforeRosterReplacement(world, replace.player, replaceId);
+            delete world.players[replace.playerId];
+            knownForClub.delete(rosterIdentityKey(replace.player));
           }
           if ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) break;
           makePlayer(world, playerRow, club, index++, false);
@@ -3993,7 +4007,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=80");
+    const worker = new global.Worker("./football-world-worker.js?v=81");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

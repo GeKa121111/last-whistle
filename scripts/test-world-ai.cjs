@@ -3201,6 +3201,55 @@ const membershipProjectionSave = {
 };
 membershipProjectionSave.worldSimulation.dbVersion = Number(archiveReplaceDb.version);
 membershipProjectionSave.worldSimulation.rosterMembershipSchemaVersion = 4;
+
+// A player's object ID can drift from the key that actually owns it in world.players.
+// Roster replacement must use that canonical map/roster key for deletion and archiving.
+function assertArchivedReplacementUsesRosterKey(world, label) {
+  const club = world.clubs[archiveReplaceClubId];
+  assert.ok(club && !club.roster.includes(archiveReplacePlayerId),
+    label + ": replaced placeholder must leave the active roster by its roster key");
+  assert.equal(world.players[archiveReplacePlayerId], undefined,
+    label + ": replaced placeholder must be removed from the active player map by its map key");
+  assert.equal(world.archive.players[archiveReplacePlayerId].name, "Archive Academy Placeholder 1",
+    label + ": full player record must be archived under the canonical map key");
+  assert.deepEqual(world.archive.playerHistory[archiveReplacePlayerId], archiveReplaceHistory,
+    label + ": career history must be archived under the canonical map key");
+  assert.equal(world.archive.seasonStats["5"].length, 1,
+    label + ": season statistics must be archived using the safe player identity");
+  assert.equal(world.archive.seasonStats["5"][0].goals, 7,
+    label + ": archived season statistics must retain their original totals");
+  assert.equal(world.seasonStats["5"].length, 0,
+    label + ": archived statistics must leave the active season rows");
+  assert.ok(club.roster.some(id => {
+    const player = world.players[id];
+    return player && player.name === "New Officially Sourced Player" && player.isRealPlayer === true;
+  }), label + ": the sourced player must take the released squad slot");
+}
+const archiveReplaceStaleIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+archiveReplaceStaleIdWorld.players[archiveReplacePlayerId].id = "stale-internal-player-id";
+archiveReplaceStaleIdWorld.seasonStats["5"][0].id = {
+  toString() { throw new Error("unsafe season-stat player ID coercion"); }
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(archiveReplaceStaleIdWorld, archiveReplaceDb),
+  "stale player IDs and hostile season-stat IDs must not abort roster reconciliation");
+assertArchivedReplacementUsesRosterKey(archiveReplaceStaleIdWorld, "stale internal ID");
+assert.equal(archiveReplaceStaleIdWorld.archive.players[archiveReplacePlayerId].id, "stale-internal-player-id",
+  "archiving must preserve the original player record without rewriting its stale internal ID");
+assert.ok(!Object.prototype.hasOwnProperty.call(archiveReplaceStaleIdWorld.archive.players, "stale-internal-player-id"),
+  "the stale internal ID must not become a second archive identity");
+
+const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const hostileArchivePlayerId = {
+  toString() { throw new Error("unsafe generated-player ID coercion"); },
+  valueOf() { throw new Error("unsafe generated-player numeric coercion"); }
+};
+archiveReplaceHostileIdWorld.players[archiveReplacePlayerId].id = hostileArchivePlayerId;
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(archiveReplaceHostileIdWorld, archiveReplaceDb),
+  "a hostile generated-player ID must not abort roster reconciliation");
+assertArchivedReplacementUsesRosterKey(archiveReplaceHostileIdWorld, "hostile internal ID");
+assert.strictEqual(archiveReplaceHostileIdWorld.archive.players[archiveReplacePlayerId].id, hostileArchivePlayerId,
+  "archiving must preserve the original hostile ID value without coercion");
+
 sandbox.window.__lwTestReconcileDatabase(archiveReplaceWorld, archiveReplaceDb);
 const archiveReplaceClubAfter = archiveReplaceWorld.clubs[archiveReplaceClubId];
 const sourcedReplacement = archiveReplaceClubAfter.roster

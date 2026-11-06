@@ -877,6 +877,56 @@ assert.equal(blockedMalformedFormerClubReturn.length, 0,
 assert.equal(malformedFreeAgentMarkerWorld.players["malformed-free-agent-marker"].freeAgent, true,
   "a malformed free-agent start marker must preserve the conservative return restriction");
 
+// A season marker is an integer ordinal, not an elapsed-time decimal. Both numeric
+// and numeric-string fractions used to pass Number.isFinite and unlock an early return.
+for (const [index, marker] of [2.5, "2.5"].entries()) {
+  const fractionalMarkerWorld = {
+    clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+    notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+  };
+  const fractionalFormerClub = makeMarketTestClub(
+    fractionalMarkerWorld, "fractional-former-club-" + index, 2, "goalkeeper"
+  );
+  const playerId = "fractional-free-agent-" + index;
+  fractionalMarkerWorld.players[playerId] = {
+    id: playerId, name: "Fractional free-agent marker keeper " + index,
+    clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+    position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+    age: 26, contractSeasons: 0, freeAgent: true,
+    previousClubId: fractionalFormerClub.id, freeAgentSince: marker, isGenerated: false
+  };
+  const blockedFractionalReturn = sandbox.window.__lwTestSignFreeAgents(
+    fractionalMarkerWorld, 3, []
+  );
+  assert.equal(blockedFractionalReturn.length, 0,
+    "fractional freeAgentSince markers must not unlock a former-club return in season 3");
+  assert.equal(fractionalMarkerWorld.players[playerId].freeAgent, true,
+    "players with fractional season markers must remain free agents during the conservative waiting period");
+}
+
+// Valid numeric strings remain supported for older saves.
+const numericStringMarkerWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const numericStringFormerClub = makeMarketTestClub(
+  numericStringMarkerWorld, "numeric-string-former-club", 2, "goalkeeper"
+);
+numericStringMarkerWorld.players["numeric-string-free-agent"] = {
+  id: "numeric-string-free-agent", name: "Numeric-string returning keeper",
+  clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+  age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: numericStringFormerClub.id, freeAgentSince: "2", isGenerated: false
+};
+const delayedNumericStringReturn = sandbox.window.__lwTestSignFreeAgents(
+  numericStringMarkerWorld, 3, []
+);
+assert.equal(delayedNumericStringReturn.length, 1,
+  "a valid integer numeric-string marker must still allow return after one complete free-agent season");
+assert.equal(delayedNumericStringReturn[0].toClubId, numericStringFormerClub.id,
+  "numeric-string legacy markers must resolve to the exact former club");
+
 
 
 // An expiring defender should receive the squad-need renewal bonus when only four

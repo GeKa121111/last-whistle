@@ -2788,8 +2788,13 @@
       // Do not let a just-expired player bounce straight back to the same club.
       // After one complete free-agent season, a former club may recruit them again.
       // Legacy saves without a freeAgentSince marker keep the conservative old guard.
-      const formerClubReturnEligible = Number.isFinite(formerClubSince)
-        && formerClubSince > 0 && Number(season) > formerClubSince;
+      const currentSeason = Number(season);
+      // A free-agent start marker is a whole season ordinal; fractional or unsafe
+      // values are corrupt and must never shorten the former-club waiting period.
+      const formerClubReturnEligible = Number.isSafeInteger(formerClubSince)
+        && formerClubSince > 0
+        && Number.isSafeInteger(currentSeason)
+        && currentSeason > formerClubSince;
       const eligible = clubs.filter(club => {
         const counts = roleCountsByClub.get(club.id) || {};
         return !usedClubs.has(club.id)

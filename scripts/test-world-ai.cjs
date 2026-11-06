@@ -57,6 +57,8 @@ const knockoutMarker = "  function knockout(world, season, def, participants) {"
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 const generatePlayerSeasonMarker = "  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {";
 const normalizedClubPowerMarker = "  function normalizedClubPower(club) {";
+const marketClubPowerMarker = "  function marketClubPower(club, fallback = 55) {";
+const inferArchetypeMarker = "  function inferArchetype(club) {";
 const weightedPickMarker = "  function weightedPick(rows, rng, purpose) {";
 const playMatchMarker = "  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache) {";
 const tableRowMarker = "  function tableRow(club, season, leagueId, division) {";
@@ -94,6 +96,8 @@ const aiSource = aiSourceRaw
   .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
   .replace(knockoutMarker, "  global.__lwTestKnockout = knockout;\n" + knockoutMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
+  .replace(marketClubPowerMarker, "  global.__lwTestMarketClubPower = marketClubPower;\n" + marketClubPowerMarker)
+  .replace(inferArchetypeMarker, "  global.__lwTestInferArchetype = inferArchetype;\n" + inferArchetypeMarker)
   .replace(generatePlayerSeasonMarker, "  global.__lwTestGeneratePlayerSeason = generatePlayerSeason;\n" + generatePlayerSeasonMarker)
   .replace(normalizedClubPowerMarker, "  global.__lwTestNormalizedClubPower = normalizedClubPower;\n" + normalizedClubPowerMarker)
   .replace(weightedPickMarker, "  global.__lwTestWeightedPick = weightedPick;\n" + weightedPickMarker)
@@ -227,6 +231,21 @@ assert.doesNotThrow(() => {
 assert.ok(Number.isFinite(malformedSeasonRatingRow.averageRating));
 assert.equal(malformedSeasonRatingRow.ovr, 55,
   "malformed player OVR must use the legacy neutral rating without rewriting the source player");
+const malformedSeasonPowerRows = sandbox.window.__lwTestBuildPlayerRows(
+  malformedSeasonRatingWorld, 1, new Map()
+);
+assert.equal(malformedSeasonPowerRows.length, 3);
+assert.ok(malformedSeasonPowerRows.every(row => row.leagueStrength === 64),
+  "season-stat rows must use a valid basePower when the saved current power is malformed");
+assert.equal(sandbox.window.__lwTestMarketClubPower(malformedSeasonRatingClub), 64,
+  "shared club-power normalization must fall back to a valid basePower");
+assert.equal(sandbox.window.__lwTestMarketClubPower({ power: 0, basePower: 90 }), 90,
+  "a zero current power must not mask a valid basePower");
+const highPowerFallbackClub = { power: hostileSavedNumber, basePower: 90, prestige: 90 };
+assert.equal(sandbox.window.__lwTestInferArchetype(highPowerFallbackClub), "title-chaser",
+  "paid-market club strategy must use basePower when current power is malformed");
+assert.equal(ai.archetypeForClub(highPowerFallbackClub).id, "title-chaser",
+  "the recruitment AI must classify a club from its valid basePower fallback");
 
 // A stale free-agent ID must not occupy a squad slot or count toward recruitment needs.
 const staleFreeAgentRosterWorld = { players: {
@@ -1235,8 +1254,10 @@ let malformedPowerMoves;
 assert.doesNotThrow(() => {
   malformedPowerMoves = sandbox.window.__lwTestSignFreeAgents(malformedClubPower.world, 3, []);
 }, "a Symbol club power must not abort the free-agent market");
-assert.equal(malformedPowerMoves.length, 0,
-  "a club with invalid power must not recruit a free agent");
+assert.equal(malformedPowerMoves.length, 1,
+  "a club with malformed current power must remain eligible when its basePower is valid");
+assert.equal(malformedClubPower.player.clubId, malformedClubPower.club.id,
+  "free-agent recruitment must compare player quality against the valid basePower fallback");
 const malformedMarketSeason = makeMalformedFreeAgentMarketWorld("malformed-market-season", {});
 let malformedSeasonMoves;
 assert.doesNotThrow(() => {
@@ -1278,7 +1299,7 @@ const renewalPlayers = [{
 }))];
 const renewalWorld = {
   players: Object.fromEntries(renewalPlayers.map(player => [player.id, player])),
-  clubs: { "renewal-club": { id: "renewal-club", name: "Role renewal test club", power: 80, roster: renewalPlayers.map(player => player.id) } },
+  clubs: { "renewal-club": { id: "renewal-club", name: "Role renewal test club", power: hostileSavedNumber, basePower: 80, roster: renewalPlayers.map(player => player.id) } },
   seasonStats: { "1": [{ id: renewalTestPlayerId, averageRating: 6.0, appearances: 0 }] },
   notes: []
 };
@@ -1833,7 +1854,43 @@ assert.equal(promotionWorld.clubs["promotion-first-6"].leagueName, "Test Premier
   "a later promotion must refresh the club's division metadata again");
 assert.equal(promotionWorld.players["promotion-relegated-player"].division, 1,
   "a later promotion must synchronize every attached player again");
- 
+
+const powerFallbackPromotionClubs = [];
+for (let index = 1; index <= 6; index++) {
+  const id = "power-fallback-first-" + index;
+  powerFallbackPromotionClubs.push({
+    id, name: id, leagueId: "power-fallback", country: "Testland", division: 1,
+    power: index === 6 ? hostileSavedNumber : 60,
+    basePower: index === 6 ? 95 : 60, roster: []
+  });
+}
+for (let index = 1; index <= 3; index++) {
+  const id = "power-fallback-second-" + index;
+  powerFallbackPromotionClubs.push({
+    id, name: id, leagueId: "power-fallback", country: "Testland", division: 2,
+    power: 60, basePower: 60, roster: []
+  });
+}
+const powerFallbackPromotionWorld = {
+  players: {},
+  clubs: Object.fromEntries(powerFallbackPromotionClubs.map(club => [club.id, club])),
+  leagueTables: { "1": {
+    "power-fallback": powerFallbackPromotionClubs.filter(club => club.division === 1)
+      .map(club => ({ clubId: club.id, leagueId: "power-fallback", division: 1, pts: 30, gd: 0, gf: 30 })),
+    "power-fallback:2": powerFallbackPromotionClubs.filter(club => club.division === 2)
+      .map(club => ({ clubId: club.id, leagueId: "power-fallback", division: 2, pts: 30, gd: 0, gf: 30 }))
+  } },
+  promotionHistory: [], notes: []
+};
+const powerFallbackPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  powerFallbackPromotionWorld, 1, promotionDb
+);
+assert.equal(powerFallbackPromotionMoves.length, 1);
+assert.equal(powerFallbackPromotionWorld.clubs["power-fallback-first-6"].division, 1,
+  "a club with a valid high basePower must not be relegated because its current power is malformed");
+assert.equal(powerFallbackPromotionWorld.clubs["power-fallback-first-5"].division, 2,
+  "promotion tie-breaks must use basePower when current power is not numeric");
+
 // Promotion/relegation must ignore stale standings rows after a club changes tier,
 // moves to another league, or appears more than once in a legacy table.
 const staleDivisionClubs = [];
@@ -2171,8 +2228,20 @@ assert.equal(safeMalformedMatchProfile.goalkeeping, 55,
 assert.equal(ai.getClubPower(
   malformedMatchProfileSave, malformedMatchProfileClub.name, malformedMatchProfileClub.country, db
 ), 64, "club power lookup must use the safe base-power fallback");
-assert.doesNotThrow(() => ai.recruitmentNeeds(malformedMatchProfileSave, db),
-  "recruitment analysis must tolerate malformed saved player and club ratings");
+let malformedRecruitmentRows;
+assert.doesNotThrow(() => {
+  malformedRecruitmentRows = ai.recruitmentNeeds(malformedMatchProfileSave, db);
+}, "recruitment analysis must tolerate malformed saved player and club ratings");
+const malformedRecruitmentClub = malformedRecruitmentRows.find(row =>
+  row.clubId === malformedMatchProfileClub.id);
+assert.equal(malformedRecruitmentClub.power, 64,
+  "recruitment diagnostics must expose the safe basePower instead of a malformed object");
+let malformedTransferTargets;
+assert.doesNotThrow(() => {
+  malformedTransferTargets = ai.transferTargets(malformedMatchProfileSave, db);
+}, "transfer-target sorting must tolerate malformed club power values");
+assert.equal(malformedTransferTargets.find(row => row.club === malformedMatchProfileClub.name).power, 64,
+  "transfer targets must expose and sort by the valid basePower fallback");
 
 const identityCollisionSave = {
   ...matchProfileSave,

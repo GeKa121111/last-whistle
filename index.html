@@ -6450,13 +6450,14 @@ function currentSeasonMatchRows(scopeFilter){
   &&!(typeof rawStateSeason==="string"&&rawStateSeason.trim()==="");
  const seasonValue=finitePrimitiveNumber(rawStateSeason);
  const hasValidSeason=seasonValue!==null&&Number.isSafeInteger(seasonValue)&&seasonValue>0;
+ if(hasSavedSeason&&!hasValidSeason)return [];
  const season=hasValidSeason?seasonValue:1;
  const currentSegments=new Set((Array.isArray(state.leagueArchives)?state.leagueArchives:[])
   .filter(archive=>archive&&typeof archive==="object"&&!Array.isArray(archive)
    &&finitePrimitiveNumber(archive.season)===season)
   .map(archive=>segmentKey(archive.segmentId)).filter(Boolean));
  const activeSegmentId=segmentKey(state&&state.leagueSegmentId);
- if(activeSegmentId&&(hasValidSeason||!hasSavedSeason))currentSegments.add(activeSegmentId);
+ if(activeSegmentId)currentSegments.add(activeSegmentId);
  return allCareerMatchRowsForHistory().filter(row=>{
   if(!row||typeof row!=="object"||Array.isArray(row))return false;
   const rawSeason=row.season;

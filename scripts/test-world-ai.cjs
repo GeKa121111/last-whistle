@@ -578,6 +578,51 @@ assert.equal(
 );
 
 
+// Finite but absurd saved numbers must be bounded before scoring and weighted goals are built.
+const extremeSeasonRowsWorld = {
+  clubs: {
+    "extreme-season-stats-club": {
+      id: "extreme-season-stats-club", name: "Extreme Stats Club",
+      country: "Testland", leagueId: "extreme-season-stats-league", division: 1,
+      power: Number.MAX_VALUE, prestige: Number.MAX_VALUE, confederation: "CAF"
+    }
+  },
+  players: {
+    "extreme-season-stats-player": {
+      id: "extreme-season-stats-player", name: "Extreme Stats Player",
+      clubId: "extreme-season-stats-club", country: "Testland",
+      leagueId: "extreme-season-stats-league", division: 1,
+      position: "مهاجم", group: "attacker", age: 999, ovr: 999,
+      potential: -1, isGenerated: false
+    }
+  }
+};
+const extremeSeasonAccumulator = new Map([["extreme-season-stats-player", {
+  appearances: Number.MAX_VALUE, goals: Number.MAX_VALUE, assists: Number.MAX_VALUE,
+  ratingTotal: Number.MAX_VALUE, clubId: "extreme-season-stats-club",
+  leagueId: "extreme-season-stats-league", division: 1
+}]]);
+const extremeSeasonRows = sandbox.window.__lwTestBuildPlayerRows(
+  extremeSeasonRowsWorld, 5, extremeSeasonAccumulator
+);
+assert.equal(extremeSeasonRows.length, 1);
+assert.equal(extremeSeasonRows[0].appearances, 1000,
+  "absurd appearance totals must be capped before rating aggregation");
+assert.equal(extremeSeasonRows[0].goals, 1000000);
+assert.equal(extremeSeasonRows[0].assists, 1000000);
+assert.equal(extremeSeasonRows[0].averageRating, 10,
+  "rating totals must be bounded by the maximum rating for the saved appearances");
+assert.equal(extremeSeasonRows[0].leagueStrength, 100,
+  "club power must stay inside the game-strength range");
+assert.equal(extremeSeasonRows[0].age, 60);
+assert.equal(extremeSeasonRows[0].ovr, 99);
+assert.equal(extremeSeasonRows[0].potential, 1);
+assert.equal(extremeSeasonRows[0].prestige, 100);
+assert.ok(Number.isFinite(extremeSeasonRows[0].score),
+  "extreme finite stats must not overflow the season ranking score");
+assert.ok(Number.isFinite(extremeSeasonRows[0].weightedGoals),
+  "extreme finite stats must not overflow weighted goals");
+
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }

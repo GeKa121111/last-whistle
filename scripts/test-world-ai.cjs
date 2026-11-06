@@ -721,10 +721,10 @@ assert.equal(hostileRosterWorld.players["malformed-owner-player"].clubId, "malfo
   "an invalid club ID must not be silently rewritten to the object's storage key");
 assert.deepEqual(hostileRosterWorld.clubs["malformed-roster-club"].roster, ["malformed-owner-player"],
   "a malformed club's stored roster references must be preserved even though the club is excluded from active squads");
-assert.deepEqual(ai.rosterPlayers(hostileRosterWorld, hostileRosterWorld.clubs["malformed-roster-club"]), [],
+assert.equal(ai.rosterPlayers(hostileRosterWorld, hostileRosterWorld.clubs["malformed-roster-club"]).length, 0,
   "a club with an invalid explicit ID must not expose stale roster members as active players");
-assert.deepEqual(ai.rosterPlayers(hostileRosterWorld, hostileRosterWorld.clubs["fallback-roster-club"])
-  .map(player => player.id), ["fallback-roster-player"],
+assert.deepEqual(Array.from(ai.rosterPlayers(hostileRosterWorld, hostileRosterWorld.clubs["fallback-roster-club"]),
+  player => player.id), ["fallback-roster-player"],
   "active roster reads must resolve a missing legacy club ID from its world-map key");
 assert.equal(Object.keys(hostileRosterWorld.players).length, hostileRosterPlayerCount,
   "hostile roster migration must preserve every original player record");

@@ -2000,8 +2000,43 @@
     .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
   function groupRows(world) {
     const groups = new Map();
-    for (const entry of worldLeagueClubEntries(world)) {
-      if (entry.division > 2) continue;
+    const source = world && world.clubs;
+    if (!source || typeof source !== "object" || Array.isArray(source)) return groups;
+    let rows;
+    try { rows = Object.entries(source); } catch (_) { return groups; }
+    const safeIdentifier = value => {
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      return "";
+    };
+    const unique = new Map();
+    for (const [key, club] of rows) {
+      if (!club || typeof club !== "object") continue;
+      let savedId, savedLeagueId, savedDivision;
+      try {
+        savedId = club.id;
+        savedLeagueId = club.leagueId;
+        savedDivision = club.division;
+      } catch (_) { continue; }
+      const missingId = savedId === undefined || savedId === null
+        || (typeof savedId === "string" && savedId.trim() === "");
+      const clubId = missingId ? safeIdentifier(key) : safeIdentifier(savedId);
+      const leagueId = safeIdentifier(savedLeagueId);
+      if (!clubId || !leagueId) continue;
+      let division = 0;
+      if (savedDivision === undefined || savedDivision === null
+        || (typeof savedDivision === "string" && savedDivision.trim() === "")) {
+        division = 1;
+      } else if (typeof savedDivision === "number" || typeof savedDivision === "string") {
+        const numeric = typeof savedDivision === "string" ? Number(savedDivision.trim()) : savedDivision;
+        if (Number.isSafeInteger(numeric) && numeric >= 1) division = numeric;
+      }
+      if (division < 1 || division > 2) continue;
+      const entry = { key, club, clubId, leagueId, division };
+      const current = unique.get(clubId);
+      if (!current || (key === clubId && current.key !== current.clubId)) unique.set(clubId, entry);
+    }
+    for (const entry of unique.values()) {
       const key = entry.leagueId + ":" + entry.division;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(entry.club);

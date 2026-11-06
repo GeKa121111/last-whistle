@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 assert.equal(source, fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8"));
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 434);
+require("./assert-static-cache-version.cjs")(sw, 555);
 
 function extract(name) {
   const marker = "function " + name + "(";
@@ -33,7 +33,7 @@ function extract(name) {
 }
 const names = [
   "acquireSharedMutationLock", "releaseSharedMutationLock",
-  "availableAgentBalance", "pendingAgentFeeQuote", "ensureState", "clonePostRetirementMutationState",
+  "finiteAgentNumber", "availableAgentBalance", "pendingAgentFeeQuote", "ensureState", "clonePostRetirementMutationState",
   "restorePostRetirementMutationState", "flushPostRetirementMutation", "runAgentContractMutation",
   "openMeeting", "negotiateFee", "applyAgentSigning", "signAgent"
 ];

@@ -3084,8 +3084,10 @@
             + avg(top.map(player=>marketNumber(player.ovr,50))) * 0.3), 35, 97);
         }
       }
-      const report = world.marketReports && world.marketReports[0];
-      if (report && marketNumber(report.season, NaN) === seasonNumber) {
+      const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
+      const report = marketReports.find(row => row && typeof row === "object" && !Array.isArray(row)
+        && marketNumber(row.season, NaN) === seasonNumber);
+      if (report) {
         report.moves = marketNumber(report.moves || 0, 0) + signed.length;
         report.transferIds = signed.map(row => row.id).concat(Array.isArray(report.transferIds) ? report.transferIds : []);
         report.summary = String(report.summary || "") + " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";

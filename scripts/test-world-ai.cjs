@@ -732,6 +732,87 @@ assert.equal(hostileRosterWorld.nextGeneratedPlayer, hostileRosterNextGenerated,
   "identifier repair must not fabricate replacement players");
 assert.equal(hostileRosterWorld.projectionRevision, 13,
   "the new roster migration must invalidate unfinished season projections once");
+// Transfer-history hydration runs before roster migration and must also reject hostile saved IDs safely.
+const hostileTransferPlayerValue = {
+  toString() { throw new Error("hostile transfer player ID coercion"); },
+  valueOf() { throw new Error("hostile transfer player ID conversion"); }
+};
+const hostileTransferClubValue = {
+  toString() { throw new Error("hostile transfer club ID coercion"); },
+  valueOf() { throw new Error("hostile transfer club ID conversion"); }
+};
+const hostileTransferTextValue = {
+  toString() { throw new Error("hostile transfer name coercion"); },
+  valueOf() { throw new Error("hostile transfer name conversion"); }
+};
+const throwingTransferRecord = {};
+Object.defineProperty(throwingTransferRecord, "playerId", {
+  enumerable: true,
+  get() { throw new Error("hostile transfer playerId getter"); }
+});
+const transferHistoryPlayerHistory = {
+  "safe-transfer-player": [{
+    fromClubId: "old-club-id", from: "Old Club", fromCountry: "Egypt",
+    clubId: "safe-transfer-club", club: "Safe Club", country: "Egypt"
+  }]
+};
+Object.defineProperty(transferHistoryPlayerHistory, "__proto__", {
+  value: [{ clubId: "proto-club", club: "Proto Club", country: "Egypt" }],
+  enumerable: true, configurable: true, writable: true
+});
+const transferHistorySave = { season: 1, worldSimulation: {
+  schemaVersion: ai.version, dbVersion: Number(db.version) || 0, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 1, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, transferClubHistorySchemaVersion: 0,
+  seasonStats: {}, leagueTables: {}, completedSeasons: [], marketReports: [],
+  transfers: [
+    { playerId: hostileTransferPlayerValue, fromClubId: hostileTransferClubValue,
+      from: hostileTransferTextValue, toClubId: "ignored-hostile-player", to: "Ignored Club" },
+    { playerId: "safe-transfer-player", fromClubId: hostileTransferClubValue,
+      from: "Old Club", fromCountry: "Egypt", toClubId: "safe-transfer-club",
+      to: "Safe Club", toCountry: "Egypt" },
+    throwingTransferRecord,
+    { playerId: 7002, fromClubId: "numeric-old-club", from: "Numeric Old Club", fromCountry: "Egypt" },
+    { playerId: "__proto__", fromClubId: "proto-transfer-club", from: "Proto Transfer Club", fromCountry: "Egypt" }
+  ],
+  playerHistory: transferHistoryPlayerHistory,
+  archive: { playerHistory: {
+    "safe-transfer-player": [{ fromClubId: "old-club-id", from: "Old Club", fromCountry: "Egypt" }]
+  } },
+  clubs: {}, players: {}, nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+} };
+const originalTransferCount = transferHistorySave.worldSimulation.transfers.length;
+const originalPlayerHistoryKeys = Object.keys(transferHistoryPlayerHistory);
+let transferHistoryWorld;
+assert.doesNotThrow(() => {
+  transferHistoryWorld = ai.ensureState(transferHistorySave, db);
+}, "transfer-history migration must safely ignore hostile IDs and throwing property getters");
+const transferHistory = transferHistoryWorld.transferClubHistoryByPlayer;
+assert.equal(transferHistoryWorld.transferClubHistorySchemaVersion, 1,
+  "safe transfer-history migration must retain the existing schema version");
+assert.deepEqual(Array.from(transferHistory["safe-transfer-player"], row => row.clubId),
+  ["old-club-id", "safe-transfer-club"],
+  "legacy transfer and player-history endpoints must merge without duplicate club records");
+assert.deepEqual(Array.from(transferHistory["safe-transfer-player"], row => row.name),
+  ["Old Club", "Safe Club"],
+  "safe club names must survive while hostile transfer text is ignored");
+assert.equal(transferHistory["7002"].length, 1,
+  "numeric legacy player IDs must be preserved as stable string keys");
+assert.equal(transferHistory["7002"][0].clubId, "numeric-old-club");
+assert.ok(Object.prototype.hasOwnProperty.call(transferHistory, "__proto__"),
+  "a literal __proto__ player ID must be stored as an own history key, not mutate the history prototype");
+assert.equal(transferHistory["__proto__"][0].clubId, "proto-transfer-club");
+assert.equal(Object.getPrototypeOf(transferHistory).clubId, undefined,
+  "transfer-history keys must not alter the history map prototype");
+assert.equal(Object.keys(transferHistory).includes("ignored-hostile-player"), false,
+  "a transfer with an invalid player ID must not create a fabricated history entry");
+assert.equal(transferHistorySave.worldSimulation.transfers.length, originalTransferCount,
+  "transfer-history migration must not delete or rewrite source transfer records");
+assert.deepEqual(Object.keys(transferHistoryPlayerHistory), originalPlayerHistoryKeys,
+  "transfer-history migration must preserve the source player-history map");
+assert.equal(Object.keys(transferHistoryWorld.players).length, 0,
+  "transfer-history migration must not generate player records");
+
 const hostileLineupPlayer = {
   id: hostileRosterValue, name: "Hostile lineup identity", clubId: "hostile-lineup-club",
   group: "attacker", position: "ST", ovr: 70, retired: false, freeAgent: false

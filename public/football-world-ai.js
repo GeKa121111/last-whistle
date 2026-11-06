@@ -66,12 +66,12 @@
   function safeWorldRecordIdentifier(record, field) {
     try { return safeWorldIdentifier(record && record[field]); } catch (_) { return ""; }
   }
+  function safeWorldText(value) {
+    if (typeof value === "string") return value.trim();
+    return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+  }
   function safeWorldRecordText(record, field) {
-    try {
-      const value = record && record[field];
-      if (typeof value === "string") return value.trim();
-      return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
-    } catch (_) { return ""; }
+    try { return safeWorldText(record && record[field]); } catch (_) { return ""; }
   }
   function safeWorldOwnValue(record, key) {
     try {
@@ -94,6 +94,15 @@
       record[field] = value;
       return true;
     } catch (_) { return false; }
+  }
+  function safeWorldSetOwnValue(record, key, value) {
+    if (!record || typeof record !== "object") throw new TypeError("A transfer-history record is required");
+    if (key === "__proto__") {
+      Object.defineProperty(record, key, { value, writable: true, enumerable: true, configurable: true });
+    } else {
+      record[key] = value;
+    }
+    return true;
   }
   function safeWorldClubIdentifierForWorld(world, club) {
     if (!club || typeof club !== "object") return "";
@@ -372,69 +381,105 @@
   // Keep compact per-player club endpoints independently of the rolling 300-row transfer feed.
   // This preserves long-career former-club identity without retaining every full transfer record.
   function addTransferClubHistoryEndpoint(world, playerId, clubId, name, country) {
-    const key = String(playerId || "").trim();
+    const key = safeWorldIdentifier(playerId);
     if (!world || !key) return;
-    const endpointId = String(clubId || "").trim();
-    const clubName = String(name || "").trim();
-    const countryName = String(country || "").trim();
+    const endpointId = safeWorldIdentifier(clubId);
+    const clubName = safeWorldText(name);
+    const countryName = safeWorldText(country);
     if (!endpointId && !clubName) return;
-    const history = world.transferClubHistoryByPlayer && typeof world.transferClubHistoryByPlayer === "object"
-      && !Array.isArray(world.transferClubHistoryByPlayer)
-      ? world.transferClubHistoryByPlayer : (world.transferClubHistoryByPlayer = {});
-    const rows = Array.isArray(history[key]) ? history[key] : (history[key] = []);
+
+    let history = safeWorldOwnValue(world, "transferClubHistoryByPlayer");
+    if (!history || typeof history !== "object" || Array.isArray(history)) {
+      history = {};
+      if (!safeWorldSetField(world, "transferClubHistoryByPlayer", history)) return;
+    }
+    let rows = safeWorldOwnValue(history, key);
+    if (!Array.isArray(rows)) {
+      rows = [];
+      if (!safeWorldSetOwnValue(history, key, rows)) return;
+    }
     const duplicate = rows.find(row => {
-      if (!row) return false;
-      const existingId = String(row.clubId || "").trim();
+      if (!row || typeof row !== "object") return false;
+      const existingId = safeWorldRecordIdentifier(row, "clubId");
       if (endpointId && existingId) return existingId === endpointId;
-      return clubName && normalize(row.name) === normalize(clubName)
-        && normalize(row.country) === normalize(countryName);
+      return clubName && normalize(safeWorldRecordText(row, "name")) === normalize(clubName)
+        && normalize(safeWorldRecordText(row, "country")) === normalize(countryName);
     });
     if (duplicate) {
-      if (endpointId && !String(duplicate.clubId || "").trim()) duplicate.clubId = endpointId;
-      if (clubName && !String(duplicate.name || "").trim()) duplicate.name = clubName;
-      if (countryName && !String(duplicate.country || "").trim()) duplicate.country = countryName;
+      if (endpointId && !safeWorldRecordIdentifier(duplicate, "clubId")) {
+        safeWorldSetOwnValue(duplicate, "clubId", endpointId);
+      }
+      if (clubName && !safeWorldRecordText(duplicate, "name")) {
+        safeWorldSetOwnValue(duplicate, "name", clubName);
+      }
+      if (countryName && !safeWorldRecordText(duplicate, "country")) {
+        safeWorldSetOwnValue(duplicate, "country", countryName);
+      }
       return;
     }
     rows.push({ clubId: endpointId, name: clubName, country: countryName });
   }
   function ensureTransferClubHistory(world) {
     if (!world || typeof world !== "object") return {};
-    const hasHistory = world.transferClubHistoryByPlayer
-      && typeof world.transferClubHistoryByPlayer === "object"
-      && !Array.isArray(world.transferClubHistoryByPlayer);
-    const history = hasHistory ? world.transferClubHistoryByPlayer : {};
-    world.transferClubHistoryByPlayer = history;
-    if (hasHistory && Number(world.transferClubHistorySchemaVersion) >= 1) return history;
+    const currentHistory = safeWorldOwnValue(world, "transferClubHistoryByPlayer");
+    const hasHistory = currentHistory && typeof currentHistory === "object" && !Array.isArray(currentHistory);
+    const history = hasHistory ? currentHistory : {};
+    if (!hasHistory && !safeWorldSetField(world, "transferClubHistoryByPlayer", history)) return {};
+    const schemaVersion = safeNumber(safeWorldOwnValue(world, "transferClubHistorySchemaVersion"), 0);
+    if (hasHistory && schemaVersion >= 1) return history;
 
     const importTransfer = transfer => {
-      if (!transfer) return;
-      const playerId = String(transfer.playerId || "").trim();
+      if (!transfer || typeof transfer !== "object" || Array.isArray(transfer)) return;
+      const playerId = safeWorldRecordIdentifier(transfer, "playerId");
       if (!playerId) return;
-      addTransferClubHistoryEndpoint(world, playerId, transfer.fromClubId, transfer.from, transfer.fromCountry);
-      addTransferClubHistoryEndpoint(world, playerId, transfer.toClubId, transfer.to, transfer.toCountry);
+      addTransferClubHistoryEndpoint(world, playerId,
+        safeWorldRecordIdentifier(transfer, "fromClubId"),
+        safeWorldRecordText(transfer, "from"),
+        safeWorldRecordText(transfer, "fromCountry"));
+      addTransferClubHistoryEndpoint(world, playerId,
+        safeWorldRecordIdentifier(transfer, "toClubId"),
+        safeWorldRecordText(transfer, "to"),
+        safeWorldRecordText(transfer, "toCountry"));
     };
-    (Array.isArray(world.transfers) ? world.transfers : []).forEach(importTransfer);
+    safeWorldArrayField(world, "transfers").forEach(importTransfer);
+
     const importPlayerHistory = playerHistory => {
-      Object.entries(playerHistory && typeof playerHistory === "object" ? playerHistory : {}).forEach(([playerId, entries]) => {
-        (Array.isArray(entries) ? entries : []).forEach(entry => {
-          if (!entry) return;
-          addTransferClubHistoryEndpoint(world, playerId, entry.fromClubId, entry.from, entry.fromCountry);
-          addTransferClubHistoryEndpoint(world, playerId, entry.clubId, entry.club, entry.country);
+      if (!playerHistory || typeof playerHistory !== "object" || Array.isArray(playerHistory)) return;
+      for (const playerId of safeWorldObjectKeys(playerHistory)) {
+        const entries = safeWorldOwnValue(playerHistory, playerId);
+        if (!Array.isArray(entries)) continue;
+        entries.forEach(entry => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+          addTransferClubHistoryEndpoint(world, playerId,
+            safeWorldRecordIdentifier(entry, "fromClubId"),
+            safeWorldRecordText(entry, "from"),
+            safeWorldRecordText(entry, "fromCountry"));
+          addTransferClubHistoryEndpoint(world, playerId,
+            safeWorldRecordIdentifier(entry, "clubId"),
+            safeWorldRecordText(entry, "club"),
+            safeWorldRecordText(entry, "country"));
         });
-      });
+      }
     };
-    importPlayerHistory(world.playerHistory);
-    importPlayerHistory(world.archive && world.archive.playerHistory);
-    world.transferClubHistorySchemaVersion = 1;
+    importPlayerHistory(safeWorldOwnValue(world, "playerHistory"));
+    const archive = safeWorldOwnValue(world, "archive");
+    importPlayerHistory(safeWorldOwnValue(archive, "playerHistory"));
+    safeWorldSetOwnValue(world, "transferClubHistorySchemaVersion", 1);
     return history;
   }
   function rememberTransferClubEndpoints(world, transfer) {
-    if (!world || !transfer) return;
+    if (!world || !transfer || typeof transfer !== "object" || Array.isArray(transfer)) return;
     ensureTransferClubHistory(world);
-    const playerId = String(transfer.playerId || "").trim();
+    const playerId = safeWorldRecordIdentifier(transfer, "playerId");
     if (!playerId) return;
-    addTransferClubHistoryEndpoint(world, playerId, transfer.fromClubId, transfer.from, transfer.fromCountry);
-    addTransferClubHistoryEndpoint(world, playerId, transfer.toClubId, transfer.to, transfer.toCountry);
+    addTransferClubHistoryEndpoint(world, playerId,
+      safeWorldRecordIdentifier(transfer, "fromClubId"),
+      safeWorldRecordText(transfer, "from"),
+      safeWorldRecordText(transfer, "fromCountry"));
+    addTransferClubHistoryEndpoint(world, playerId,
+      safeWorldRecordIdentifier(transfer, "toClubId"),
+      safeWorldRecordText(transfer, "to"),
+      safeWorldRecordText(transfer, "toCountry"));
   }
   function addClub(world, row, db) {
     const id = clubKey(row.name, row.country);
@@ -3871,7 +3916,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=77");
+    const worker = new global.Worker("./football-world-worker.js?v=78");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

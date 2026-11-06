@@ -719,15 +719,17 @@
   }
   function invalidateUnfinishedSeasonProjection(world) {
     if (!world || typeof world !== "object") return false;
-    const season = Math.max(1, int(world.currentSeason, int(world.lastAdvancedTo, 1)),
-      int(world.lastAdvancedTo, 0));
-    const completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
+    const lastAdvancedTo = Math.max(0, int(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
+    const currentSeason = Math.max(1, int(safeWorldOwnValue(world, "currentSeason"), lastAdvancedTo || 1));
+    const season = Math.max(1, currentSeason, lastAdvancedTo);
+    const savedCompletedSeasons = safeWorldOwnValue(world, "completedSeasons");
+    const completedSeasons = Array.isArray(savedCompletedSeasons) ? savedCompletedSeasons : [];
     if (completedSeasons.some(value => safeNumber(value, NaN) === season)
-      || Math.max(0, int(world.lastCompletedSeason, 0)) >= season) return false;
+      || Math.max(0, int(safeWorldOwnValue(world, "lastCompletedSeason"), 0)) >= season) return false;
     const key = String(season);
     let invalidated = false;
     ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"].forEach(field => {
-      const collection = world[field];
+      const collection = safeWorldOwnValue(world, field);
       if (!collection || typeof collection !== "object" || Array.isArray(collection)) return;
       if (Object.prototype.hasOwnProperty.call(collection, key)) {
         delete collection[key];

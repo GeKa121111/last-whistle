@@ -815,20 +815,20 @@ assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budget
 
 // Legacy saved roster ratings can be arrays or numeric strings. They must not
 // concatenate into NaN role averages and silently disable otherwise valid transfers.
-const malformedMarketWorld = {
+const staleMarketHistoryWorld = {
   clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
   notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
 };
-makeMarketTestClub(malformedMarketWorld, "Malformed Market Seller", 1, null);
-const malformedMarketBuyer = makeMarketTestClub(malformedMarketWorld, "Malformed Market Buyer", 2, "defender");
+makeMarketTestClub(staleMarketHistoryWorld, "Malformed Market Seller", 1, null);
+const malformedMarketBuyer = makeMarketTestClub(staleMarketHistoryWorld, "Malformed Market Buyer", 2, "defender");
 const malformedBuyerDefenders = malformedMarketBuyer.roster
-  .map(id => malformedMarketWorld.players[id]).filter(player => player.group === "defender");
+  .map(id => staleMarketHistoryWorld.players[id]).filter(player => player.group === "defender");
 assert.ok(malformedBuyerDefenders.length >= 2, "the malformed-market fixture needs multiple defenders");
 malformedBuyerDefenders[0].ovr = "64";
 malformedBuyerDefenders[1].ovr = [64, 65];
-const malformedSeller = malformedMarketWorld.clubs["Malformed Market Seller"];
+const malformedSeller = staleMarketHistoryWorld.clubs["Malformed Market Seller"];
 const malformedSellerListedPlayer = malformedSeller.roster
-  .map(id => malformedMarketWorld.players[id]).find(player => player.group === "defender" && player.potential === 97);
+  .map(id => staleMarketHistoryWorld.players[id]).find(player => player.group === "defender" && player.potential === 97);
 assert.ok(malformedSellerListedPlayer, "the malformed-market seller needs a known listed defender");
 malformedSellerListedPlayer.ovr = [79, 80];
 malformedSellerListedPlayer.potential = [97, 98];
@@ -837,7 +837,7 @@ const malformedBuyerArrayOvr = malformedBuyerDefenders[1].ovr.slice();
 const malformedSellerArrayOvr = malformedSellerListedPlayer.ovr.slice();
 let malformedMarketMoves = [];
 assert.doesNotThrow(() => {
-  malformedMarketMoves = sandbox.window.__lwTestRunTransferWindow(malformedMarketWorld, 9);
+  malformedMarketMoves = sandbox.window.__lwTestRunTransferWindow(staleMarketHistoryWorld, 9);
 }, "malformed legacy roster ratings must not break transfer-window evaluation");
 assert.ok(malformedMarketMoves.length > 0,
   "invalid array ratings must not turn role averages into NaN and suppress a valid transfer");
@@ -3817,17 +3817,17 @@ assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
 
  // A null report row must be skipped, an array-wrapped season must not impersonate
  // the requested year, and a numeric-string legacy report must remain readable.
- const malformedMarketWorld = JSON.parse(JSON.stringify(staleWrapperWorld));
- malformedMarketWorld.marketReports = [
+ const staleMarketHistoryWorld = JSON.parse(JSON.stringify(staleWrapperWorld));
+ staleMarketHistoryWorld.marketReports = [
    null,
    { season: [2], moves: [99], transferIds: ["malformed-market-row"] },
    { season: "2", moves: "3", transferIds: ["legacy-numeric-string-market-row"] }
  ];
- const malformedMarketSave = { ...staleWrapperSave, worldSimulation: malformedMarketWorld };
- const malformedMarketResult = ai.completeSeason(malformedMarketSave, 2, db);
- assert.equal(malformedMarketResult.staleRequest, true,
+ const staleMarketHistorySave = { ...staleWrapperSave, worldSimulation: staleMarketHistoryWorld };
+ const staleMarketHistoryResult = ai.completeSeason(staleMarketHistorySave, 2, db);
+ assert.equal(staleMarketHistoryResult.staleRequest, true,
    "malformed market history must not turn a stale season completion into a live simulation");
- assert.equal(malformedMarketResult.transfers, 3,
+ assert.equal(staleMarketHistoryResult.transfers, 3,
    "market lookup must skip null/array season rows while preserving numeric-string report compatibility");
 
  const staleWrapperResult = ai.advanceToSeason(staleWrapperSave, 2, db);

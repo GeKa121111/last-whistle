@@ -924,7 +924,8 @@
       const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
       const internalPlayerId = safeWorldRecordIdentifier(player, "id");
       const hasUniqueLegacyAlias = !!internalPlayerId && internalPlayerId !== playerId
-        && internalPlayerIdCounts.get(internalPlayerId) === 1;
+        && internalPlayerIdCounts.get(internalPlayerId) === 1
+        && !safeWorldOwnValue(world.players, internalPlayerId);
       let isDetachedPlayer = false;
       try {
         isDetachedPlayer = isTrueFlag(safeWorldOwnValue(player, "retired"))

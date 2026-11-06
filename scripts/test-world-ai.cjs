@@ -4241,17 +4241,21 @@ cupWorld.clubs["cup-foreign-supercup"] = {
 };
 function assertDomesticSupercupRejectsInvalidLeagueRow(season, invalidRow, label) {
   const previousSeason = String(season - 1);
-  cupWorld.leagueTables[previousSeason] = {
+  // Each request simulates a full season, so isolate this fixture to avoid pruning or
+  // overwriting the later legacy/identity scenarios in the shared cup-world test save.
+  const testWorld = JSON.parse(JSON.stringify(cupWorld));
+  testWorld.leagueTables[previousSeason] = {
     "test-cup-league": [
       invalidRow,
       { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
     ]
   };
-  cupWorld.competitionsBySeason[previousSeason] = [
+  testWorld.competitionsBySeason[previousSeason] = [
     { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" },
     { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-04", runnerUpId: "cup-first-05" }
   ];
-  const supercup = ai.seasonCompetitions(cupSave, season, cupDb)
+  const testSave = { ...cupSave, worldSimulation: testWorld };
+  const supercup = ai.seasonCompetitions(testSave, season, cupDb)
     .find(row => row.id === "test-domestic-supercup");
   assert.equal(supercup, undefined,
     label + ": a domestic supercup must not be created without a verified top-flight league champion");
@@ -4265,13 +4269,13 @@ assertDomesticSupercupRejectsInvalidLeagueRow(5, {
 assertDomesticSupercupRejectsInvalidLeagueRow(6, {
   clubId: "cup-first-01", leagueId: "foreign-cup-league", division: 1, rank: 1
 }, "mismatched saved league identity");
-assertDomesticSupercupRejectsInvalidLeagueRow(90, {
+assertDomesticSupercupRejectsInvalidLeagueRow(7, {
   clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: [1]
 }, "array-coerced domestic supercup rank");
-assertDomesticSupercupRejectsInvalidLeagueRow(91, {
+assertDomesticSupercupRejectsInvalidLeagueRow(8, {
   clubId: "cup-first-01", leagueId: "test-cup-league", division: [1], rank: 1
 }, "array-coerced domestic supercup division");
-assertDomesticSupercupRejectsInvalidLeagueRow(92, {
+assertDomesticSupercupRejectsInvalidLeagueRow(9, {
   clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: Symbol("invalid-rank")
 }, "Symbol domestic supercup rank");
 

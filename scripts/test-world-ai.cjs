@@ -63,6 +63,10 @@ const weightedPickMarker = "  function weightedPick(rows, rng, purpose) {";
 const playMatchMarker = "  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache) {";
 const tableRowMarker = "  function tableRow(club, season, leagueId, division) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
+const divisionNormalizerMarker = "  function normalizeClubDivision(value, missingFallback = 1) {";
+const leagueTablesMarker = "  function simulateLeagueTables(world, season, progress = 1, db, suppliedMatchesByClub) {";
+const projectedRowsMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
+const groupRowsMarker = "  function groupRows(world) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 assert.ok(aiSourceRaw.includes(competitionsMarker), "AI engine must retain the continental competition selector for qualification regression coverage");
 assert.ok(aiSourceRaw.includes(reconcileMarker), "AI engine must retain reconciliation for the division-persistence regression guard");
@@ -76,7 +80,15 @@ assert.ok(aiSourceRaw.includes(competitionHistoryMarker), "AI engine must retain
 assert.ok(aiSourceRaw.includes(knockoutMarker), "AI engine must retain the knockout resolver for fair cup tiebreak regression coverage");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
+assert.ok(aiSourceRaw.includes(divisionNormalizerMarker), "AI engine must validate explicit club divisions without coercion");
+assert.ok(aiSourceRaw.includes(leagueTablesMarker), "AI engine must retain league table simulation for strict division regression coverage");
+assert.ok(aiSourceRaw.includes(projectedRowsMarker), "AI engine must retain projected season generation for strict division regression coverage");
+assert.ok(aiSourceRaw.includes(groupRowsMarker), "AI engine must retain world match grouping for strict division regression coverage");
 const aiSource = aiSourceRaw
+  .replace(divisionNormalizerMarker, "  global.__lwTestNormalizeClubDivision = normalizeClubDivision;\n  global.__lwTestDivisionForClub = divisionForClub;\n" + divisionNormalizerMarker)
+  .replace(leagueTablesMarker, "  global.__lwTestSimulateLeagueTables = simulateLeagueTables;\n" + leagueTablesMarker)
+  .replace(projectedRowsMarker, "  global.__lwTestGetProjectedSeasonRows = getProjectedSeasonRows;\n" + projectedRowsMarker)
+  .replace(groupRowsMarker, "  global.__lwTestGroupRows = groupRows;\n" + groupRowsMarker)
   .replace(rosterPlayersMarker, "  global.__lwTestRosterPlayers = rosterPlayers;\n" + rosterPlayersMarker)
   .replace(playersForClubMarker, "  global.__lwTestPlayersForClub = playersForClub;\n" + playersForClubMarker)
   .replace(normalizeRosterMembershipMarker, "  global.__lwTestNormalizeRosterMembership = normalizeRosterMembership;\n" + normalizeRosterMembershipMarker)
@@ -2166,6 +2178,161 @@ const numericStringClubDivisionMoves = sandbox.window.__lwTestApplyPromotionRele
 assert.equal(numericStringClubDivisionMoves.length, 1,
   "numeric-string club divisions must retain legacy compatibility");
 assert.equal(numericStringClubDivisionMoves[0].relegated, "Ranked First 6");
+assert.equal(sandbox.window.__lwTestDivisionForClub({}), 1,
+  "clubs with genuinely absent legacy divisions must remain first-tier compatible");
+assert.equal(sandbox.window.__lwTestDivisionForClub({ division: null }), 1,
+  "null legacy divisions must retain first-tier compatibility");
+assert.equal(sandbox.window.__lwTestDivisionForClub({ division: " " }), 1,
+  "blank legacy divisions must retain first-tier compatibility");
+assert.equal(sandbox.window.__lwTestDivisionForClub({ division: "2" }), 2,
+  "numeric-string divisions must remain compatible");
+const strictInvalidDivisionValues = [
+  [1], 0, -1, 1.5, "not-a-division", Symbol("invalid-division"),
+  { valueOf() { throw new Error("unsafe division coercion"); } }
+];
+strictInvalidDivisionValues.forEach(value => {
+  assert.equal(sandbox.window.__lwTestNormalizeClubDivision(value, 1), 0,
+    "explicit malformed club divisions must be rejected without coercion");
+});
+assert.equal(sandbox.window.__lwTestDivisionForClub(null), 0,
+  "a missing club object must not be treated as a real first-tier club");
+
+// The same strict tier rule must apply to schedules, league tables, projections and cups,
+// not only at the final promotion/relegation step.
+const strictDivisionWorld = { clubs: {}, players: {} };
+const strictFirstTierIds = [], strictSecondTierIds = [];
+const addStrictDivisionClub = (id, division, includeDivision = true) => {
+  const club = {
+    id, name: id, country: "Testland", leagueId: "strict-division-league",
+    power: 60, basePower: 60, prestige: 50, matchesPerSeason: 10, roster: []
+  };
+  if (includeDivision) club.division = division;
+  strictDivisionWorld.clubs[id] = club;
+  return club;
+};
+for (let index = 1; index <= 6; index++) {
+  const id = "strict-first-" + index;
+  addStrictDivisionClub(id, 1);
+  strictFirstTierIds.push(id);
+}
+for (let index = 1; index <= 3; index++) {
+  const id = "strict-second-" + index;
+  addStrictDivisionClub(id, 2);
+  strictSecondTierIds.push(id);
+}
+for (const [id, division, includeDivision] of [
+  ["strict-legacy-missing", undefined, false],
+  ["strict-legacy-null", null, true],
+  ["strict-legacy-blank", " ", true],
+  ["strict-numeric-string-first", "1", true]
+]) {
+  addStrictDivisionClub(id, division, includeDivision);
+  strictFirstTierIds.push(id);
+}
+addStrictDivisionClub("strict-numeric-string-second", "2", true);
+strictSecondTierIds.push("strict-numeric-string-second");
+strictInvalidDivisionValues.forEach((division, index) => {
+  addStrictDivisionClub("strict-invalid-first-" + index, division, true);
+  addStrictDivisionClub("strict-invalid-second-" + index, Array.isArray(division) ? [2] : division, true);
+});
+const strictDivisionDb = {
+  leagueFor: () => ({ teamCount: 0, matchesPerSeason: 10 })
+};
+const strictDivisionTables = sandbox.window.__lwTestSimulateLeagueTables(
+  strictDivisionWorld, 8, 1, strictDivisionDb
+);
+assert.deepEqual((strictDivisionTables["strict-division-league"] || []).map(row => row.clubId).sort(),
+  strictFirstTierIds.slice().sort(),
+  "league simulation must exclude explicit malformed first-tier clubs while retaining legacy missing and numeric-string divisions");
+assert.deepEqual((strictDivisionTables["strict-division-league:2"] || []).map(row => row.clubId).sort(),
+  strictSecondTierIds.slice().sort(),
+  "league simulation must exclude explicit malformed second-tier clubs");
+const strictDivisionGroups = sandbox.window.__lwTestGroupRows(strictDivisionWorld);
+assert.deepEqual((strictDivisionGroups.get("strict-division-league:1") || []).map(club => club.id).sort(),
+  strictFirstTierIds.slice().sort(),
+  "world match grouping must use the same strict first-tier eligibility");
+assert.deepEqual((strictDivisionGroups.get("strict-division-league:2") || []).map(club => club.id).sort(),
+  strictSecondTierIds.slice().sort(),
+  "world match grouping must use the same strict second-tier eligibility");
+
+const invalidDivisionMembershipWorld = {
+  clubs: {
+    "invalid-division-owner": {
+      id: "invalid-division-owner", name: "Invalid Division Owner", country: "Testland",
+      leagueId: "strict-division-league", division: [1], roster: ["invalid-division-player"]
+    }
+  },
+  players: {
+    "invalid-division-player": {
+      id: "invalid-division-player", clubId: "invalid-division-owner",
+      leagueId: "strict-division-league", division: 2, retired: false, freeAgent: false
+    }
+  }
+};
+sandbox.window.__lwTestNormalizeRosterMembership(invalidDivisionMembershipWorld);
+assert.equal(invalidDivisionMembershipWorld.players["invalid-division-player"].division, 2,
+  "roster normalization must preserve the player's last valid division when the owning club tier is corrupt");
+
+const invalidDivisionProjectionWorld = {
+  projectionRevision: 0, dbVersion: 1, rosterSchemaVersion: 1,
+  currentSeason: 4, lastAdvancedTo: 0, lastCompletedSeason: 0, transferSequence: 0,
+  clubs: {
+    "valid-projection-club": {
+      id: "valid-projection-club", name: "Valid Projection Club", country: "Testland",
+      leagueId: "strict-projection-league", division: 1, power: 60, basePower: 60,
+      matchesPerSeason: 10, roster: ["valid-projection-player"]
+    },
+    "invalid-projection-club": {
+      id: "invalid-projection-club", name: "Invalid Projection Club", country: "Testland",
+      leagueId: "strict-projection-league", division: [1], power: 60, basePower: 60,
+      matchesPerSeason: 10, roster: ["invalid-projection-player"]
+    }
+  },
+  players: {
+    "valid-projection-player": {
+      id: "valid-projection-player", name: "Valid Projection Player", clubId: "valid-projection-club",
+      leagueId: "strict-projection-league", division: 1, country: "Testland",
+      position: "مهاجم", group: "attacker", age: 24, ovr: 70, potential: 80,
+      contractSeasons: 2, retired: false, freeAgent: false, isGenerated: false
+    },
+    "invalid-projection-player": {
+      id: "invalid-projection-player", name: "Invalid Projection Player", clubId: "invalid-projection-club",
+      leagueId: "strict-projection-league", division: 1, country: "Testland",
+      position: "مهاجم", group: "attacker", age: 24, ovr: 70, potential: 80,
+      contractSeasons: 2, retired: false, freeAgent: false, isGenerated: false
+    }
+  }
+};
+const strictProjectionRows = sandbox.window.__lwTestGetProjectedSeasonRows(
+  invalidDivisionProjectionWorld, 4, strictDivisionDb
+);
+assert.deepEqual(strictProjectionRows.map(row => row.id), ["valid-projection-player"],
+  "projected season statistics must not assign an invalid-tier club to a valid league division");
+
+const invalidDivisionStatsWorld = {
+  clubs: {
+    "invalid-stats-club": {
+      id: "invalid-stats-club", name: "Invalid Stats Club", country: "Testland",
+      leagueId: "strict-stats-league", division: [1], power: 60, prestige: 50
+    }
+  },
+  players: {
+    "invalid-stats-player": {
+      id: "invalid-stats-player", name: "Invalid Stats Player", clubId: "invalid-stats-club",
+      leagueId: "strict-stats-league", division: 1, country: "Testland",
+      position: "مهاجم", group: "attacker", age: 24, ovr: 70, potential: 80, isGenerated: false
+    }
+  }
+};
+const invalidDivisionStatsRows = sandbox.window.__lwTestBuildPlayerRows(
+  invalidDivisionStatsWorld, 4, new Map()
+);
+assert.equal(invalidDivisionStatsRows.length, 1);
+assert.equal(invalidDivisionStatsRows[0].division, 0,
+  "actual season rows for a corrupt-tier club must not be mislabeled as first division");
+assert.equal(invalidDivisionStatsRows[0].leagueStrength, 55,
+  "invalid-tier players must not borrow the first-division strength average");
+
 
 // A malformed persisted row division must also be excluded from its table.
 const malformedRowDivisionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));

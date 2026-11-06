@@ -1934,6 +1934,8 @@
     else if (match.homeGoals < match.awayGoals) { away.w++; home.l++; away.pts += 3; away.recentForm += "W"; home.recentForm += "L"; }
     else { home.d++; away.d++; home.pts++; away.pts++; home.recentForm += "D"; away.recentForm += "D"; }
   }
+  const MAX_WORLD_SEASON_APPEARANCES = 1000;
+  const MAX_WORLD_SEASON_STAT = 1000000;
   function buildPlayerRows(world, season, accumulators) {
     // Precompute club power averages once per league/division. The old implementation
     // rescanned every club twice for every player, adding millions of needless comparisons
@@ -1949,7 +1951,7 @@
       const key = String(club.leagueId || "") + "|" + divisionForClub(club);
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
       const savedPower = safeNumber(club.power, 55);
-      summary.total += savedPower > 0 ? savedPower : 55;
+      summary.total += savedPower > 0 ? clamp(savedPower, 25, 100) : 55;
       summary.count++;
       powerByLeagueDivision.set(key, summary);
     });
@@ -1965,10 +1967,13 @@
       const acc = savedAccumulator && typeof savedAccumulator === "object" && !Array.isArray(savedAccumulator)
         ? savedAccumulator : playerAccumulator();
       const historicalClub = clubs[acc.clubId || player.clubId] || null;
-      const apps = Math.max(0, Math.floor(safeNumber(acc.appearances, 0)));
-      const goals = Math.max(0, Math.floor(safeNumber(acc.goals, 0)));
-      const assists = Math.max(0, Math.floor(safeNumber(acc.assists, 0)));
-      const ratingTotal = Math.max(0, safeNumber(acc.ratingTotal, 0));
+      const apps = Math.min(MAX_WORLD_SEASON_APPEARANCES,
+        Math.max(0, Math.floor(safeNumber(acc.appearances, 0))));
+      const goals = Math.min(MAX_WORLD_SEASON_STAT,
+        Math.max(0, Math.floor(safeNumber(acc.goals, 0))));
+      const assists = Math.min(MAX_WORLD_SEASON_STAT,
+        Math.max(0, Math.floor(safeNumber(acc.assists, 0))));
+      const ratingTotal = Math.min(apps * 10, Math.max(0, safeNumber(acc.ratingTotal, 0)));
       const rating = apps ? Number((clamp(ratingTotal / apps, 0, 10)).toFixed(2)) : 0;
       const leagueId = String(acc.leagueId || player.leagueId || "");
       const accumulatorDivision = safeNumber(acc.division, NaN);
@@ -1976,12 +1981,12 @@
       const leagueDivision = Math.max(1, Math.round(accumulatorDivision > 0
         ? accumulatorDivision : playerDivision > 0 ? playerDivision : 1));
       const leagueStrength = leagueStrengthFor(leagueId, leagueDivision);
-      const age = safeNumber(player.age, 18) || 18;
-      const ovr = safeNumber(player.ovr, 50) || 50;
-      const potential = safeNumber(player.potential, ovr) || ovr;
+      const age = clamp(safeNumber(player.age, 18) || 18, 14, 60);
+      const ovr = clamp(safeNumber(player.ovr, 50) || 50, 1, 99);
+      const potential = clamp(safeNumber(player.potential, ovr) || ovr, 1, 99);
       const savedDivision = accumulatorDivision > 0 ? accumulatorDivision
         : playerDivision > 0 ? playerDivision : 0;
-      const prestige = safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0);
+      const prestige = clamp(safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0), 0, 100);
       const row = {
         id: player.id, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",
         clubName: historicalClub ? historicalClub.name : "", clubId: acc.clubId || player.clubId || "",

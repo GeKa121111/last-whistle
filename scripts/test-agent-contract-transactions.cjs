@@ -10,7 +10,7 @@ const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "
 assert.equal(source, deployed, "root/public agent runtimes must stay identical");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 434);
+require("./assert-static-cache-version.cjs")(sw, 555);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
@@ -35,7 +35,7 @@ function extractFunction(name) {
 
 const names = [
   "acquireSharedMutationLock", "releaseSharedMutationLock",
-  "availableAgentBalance", "pendingAgentFeeQuote", "clonePostRetirementMutationState", "restorePostRetirementMutationState",
+  "finiteAgentNumber", "availableAgentBalance", "pendingAgentFeeQuote", "clonePostRetirementMutationState", "restorePostRetirementMutationState",
   "flushPostRetirementMutation", "runAgentContractMutation", "applyAgentSigning",
   "signAgent", "switchAgent", "confirmEnd", "finishStory"
 ];
@@ -151,7 +151,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
   assert.equal((await first).ok, true);
 
 
-  for (const invalidBalance of [undefined, NaN, Infinity, -1]) {
+  for (const invalidBalance of [undefined, NaN, Infinity, -1, [5000], Symbol("invalid-balance")]) {
     const blockedEnd = makeHarness({ money: invalidBalance });
     const end = await blockedEnd.runtime.confirmEnd();
     assert.equal(end.ok, false, "missing, non-finite, or negative balances must not waive an exit fee");

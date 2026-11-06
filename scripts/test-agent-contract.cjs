@@ -322,7 +322,7 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
      randomSeed: 1
    };
  }
- for (const malformedBalance of [undefined, NaN, Infinity, -100]) {
+ for (const malformedBalance of [undefined, NaN, Infinity, -100, [5000], true, {}, Symbol("invalid-balance")]) {
    const feeState = makeMalformedFeeState(malformedBalance);
    const paid = window.LWAgentRuntime.chargeFee(feeState, "اختبار رصيد مالي غير صالح", 2000);
    assert.equal(paid, 0, "invalid balances must not be treated as spendable money");
@@ -330,12 +330,58 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    assert.equal(window.LWAgentRuntime.outstandingFeeDebt(feeState), expectedMalformedBalanceFee,
      "an unpaid fee must remain recorded when the saved balance is invalid");
  }
- const invalidGrossState = makeMalformedFeeState(500);
- const invalidGrossPaid = window.LWAgentRuntime.chargeFee(invalidGrossState, "اختبار قيمة عمولة غير صالحة", Infinity);
- assert.equal(invalidGrossPaid, 0, "a non-finite fee base must be rejected without charging the player");
- assert.equal(invalidGrossState.money, 500, "an invalid fee base must not consume a valid balance");
- assert.equal(window.LWAgentRuntime.outstandingFeeDebt(invalidGrossState), 0,
-   "an invalid fee base must not create an uncollectable debt");
+ for (const invalidGross of [Infinity, [2000], true, {}, Symbol("invalid-fee-base")]) {
+   const invalidGrossState = makeMalformedFeeState(500);
+   const invalidGrossPaid = window.LWAgentRuntime.chargeFee(invalidGrossState, "اختبار قيمة عمولة غير صالحة", invalidGross);
+   assert.equal(invalidGrossPaid, 0, "malformed fee bases must be rejected without charging the player");
+   assert.equal(invalidGrossState.money, 500, "an invalid fee base must not consume a valid balance");
+   assert.equal(window.LWAgentRuntime.outstandingFeeDebt(invalidGrossState), 0,
+     "an invalid fee base must not create an uncollectable debt");
+ }
+
+ const numericStringBalanceState = makeMalformedFeeState("5000");
+ const numericStringPaid = window.LWAgentRuntime.chargeFee(numericStringBalanceState, "اختبار توافق الرصيد النصي", "2000");
+ assert.equal(numericStringPaid, expectedMalformedBalanceFee,
+   "valid numeric-string balances and fee bases must remain compatible with legacy saves");
+ assert.equal(numericStringBalanceState.money, 5000 - expectedMalformedBalanceFee,
+   "numeric-string balances must be normalized to the correctly debited numeric balance");
+
+ const malformedLedgerState = makeMalformedFeeState(5000);
+ malformedLedgerState.agentProfile.feeDebt = Symbol("invalid-profile-debt");
+ malformedLedgerState.agentFeeDebtLedger = [{
+   id: "malformed-array-debt", agentId: String(malformedLedgerState.agentProfile.id),
+   agentName: "Malformed legacy agent", reason: "Invalid legacy amount",
+   amount: Symbol("invalid-ledger-amount"), paid: [200], outstanding: [500],
+   createdSeason: [3], createdDay: [4]
+ }];
+ malformedLedgerState.agentFeeDebtSequence = [1];
+ const malformedLedgerChanged = window.LWAgentRuntime.ensureState(malformedLedgerState);
+ assert.equal(malformedLedgerChanged, true, "malformed legacy debt fields must be normalized and marked for persistence");
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(malformedLedgerState), 0,
+   "coercible arrays and symbols must not create or preserve an invalid agent debt");
+ assert.equal(malformedLedgerState.agentProfile.feeDebt, 0,
+   "malformed profile debt must not be migrated into the financial ledger");
+ assert.equal(malformedLedgerState.agentFeeDebtLedger[0].amount, 0);
+ assert.equal(malformedLedgerState.agentFeeDebtLedger[0].paid, 0);
+ assert.equal(malformedLedgerState.agentFeeDebtLedger[0].outstanding, 0);
+ assert.equal(malformedLedgerState.agentFeeDebtLedger[0].createdSeason, 1);
+ assert.equal(malformedLedgerState.agentFeeDebtLedger[0].createdDay, 1);
+ assert.equal(malformedLedgerState.agentFeeDebtSequence, 0);
+
+ const numericStringDebtState = makeMalformedFeeState(5000);
+ numericStringDebtState.agentProfile.feeDebt = "375";
+ numericStringDebtState.agentFeeDebtLedger = [{
+   id: "legacy-string-debt", agentId: String(numericStringDebtState.agentProfile.id),
+   agentName: "Legacy string agent", reason: "Legacy numeric strings",
+   amount: "500", paid: "125", outstanding: "375", createdSeason: "3", createdDay: "4"
+ }];
+ window.LWAgentRuntime.ensureState(numericStringDebtState);
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(numericStringDebtState), 375,
+   "valid numeric-string debt fields must retain their exact outstanding balance");
+ assert.equal(numericStringDebtState.agentProfile.feeDebt, 375);
+ assert.equal(numericStringDebtState.agentFeeDebtLedger[0].amount, 500);
+ assert.equal(numericStringDebtState.agentFeeDebtLedger[0].paid, 125);
+ assert.equal(numericStringDebtState.agentFeeDebtLedger[0].createdSeason, 3);
 
  console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -167,12 +167,18 @@
     p.lastPerformanceMilestone=Math.max(0,Number(p.lastPerformanceMilestone)||Math.floor((Number(s.apps)||0)/5));
     p.strategyOverride=String(p.strategyOverride||"");
     p.perks=p.perks&&typeof p.perks==="object"?p.perks:{};
-    p.feeDebt=Math.max(0,Math.floor(Number(p.feeDebt)||0));
+    p.feeDebt=safeWholeAmount(p.feeDebt);
     return p;
   }
-  function safeWholeAmount(value){
+  function finiteAgentNumber(value){
+    if(typeof value!=="number"&&typeof value!=="string")return null;
+    if(typeof value==="string"&&!value.trim())return null;
     var n=Number(value);
-    return Number.isFinite(n)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(n))):0;
+    return Number.isFinite(n)?n:null;
+  }
+  function safeWholeAmount(value){
+    var n=finiteAgentNumber(value);
+    return n===null?0:Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(n)));
   }
   function outstandingFeeDebt(s,agentId){
     var ledger=s&&Array.isArray(s.agentFeeDebtLedger)?s.agentFeeDebtLedger:[];
@@ -222,9 +228,9 @@
       };
       if(!entry.id){sequence++;entry.id="agent-fee-debt-"+entry.createdSeason+"-"+entry.createdDay+"-"+sequence;}
       if(entry.id!==raw.id||entry.agentId!==raw.agentId||entry.agentName!==raw.agentName
-        ||entry.reason!==raw.reason||entry.amount!==Number(raw.amount)||entry.paid!==Number(raw.paid)
-        ||entry.outstanding!==Number(raw.outstanding)||entry.createdSeason!==Number(raw.createdSeason)
-        ||entry.createdDay!==Number(raw.createdDay))changed=true;
+        ||entry.reason!==raw.reason||entry.amount!==raw.amount||entry.paid!==raw.paid
+        ||entry.outstanding!==raw.outstanding||entry.createdSeason!==raw.createdSeason
+        ||entry.createdDay!==raw.createdDay)changed=true;
       normalized.push(entry);
     });
     if(normalized.length!==s.agentFeeDebtLedger.length)changed=true;
@@ -279,8 +285,8 @@
   }
   function current(s){return s&&s.agent&&s.agentProfile&&BY_ID[s.agentProfile.id]?BY_ID[s.agentProfile.id]:null;}
 function availableAgentBalance(s){
-    var value=Number(s&&s.money);
-    return Number.isFinite(value)?Math.max(0,value):0;
+    var value=finiteAgentNumber(s&&s.money);
+    return value===null?0:Math.max(0,value);
   }
   function pendingAgentFeeQuote(s,id){
     var quote=s&&s.agentNegotiationQuote,agent=BY_ID[String(id||"")];
@@ -295,9 +301,9 @@ function availableAgentBalance(s){
     if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
     if(s.agent&&(!s.agentProfile||!BY_ID[s.agentProfile.id])){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
     if(s.agentProfile&&BY_ID[s.agentProfile.id]){
-      var oldContractMode=s.agentProfile.contractMode,oldExpiresSeason=s.agentProfile.expiresSeason;
+      var oldContractMode=s.agentProfile.contractMode,oldExpiresSeason=s.agentProfile.expiresSeason,oldFeeDebt=s.agentProfile.feeDebt;
       ensureProfileShape(s.agentProfile,s);
-      if(oldContractMode!=="open-ended"||oldExpiresSeason!=null)changed=true;
+      if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==s.agentProfile.feeDebt)changed=true;
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
     if(s.agentNegotiationQuote!=null){

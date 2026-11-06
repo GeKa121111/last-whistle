@@ -894,19 +894,56 @@
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
+    const internalPlayerIdCounts = new Map();
+    for (const player of Object.values(world.players || {})) {
+      const internalPlayerId = safeWorldRecordIdentifier(player, "id");
+      if (!internalPlayerId) continue;
+      internalPlayerIdCounts.set(internalPlayerId, (internalPlayerIdCounts.get(internalPlayerId) || 0) + 1);
+    }
+    const mergeLegacyHistoryKey = (historyMap, canonicalPlayerId, legacyPlayerId) => {
+      if (!historyMap || typeof historyMap !== "object" || Array.isArray(historyMap)
+        || !canonicalPlayerId || !legacyPlayerId || canonicalPlayerId === legacyPlayerId) {
+        return safeWorldOwnValue(historyMap, canonicalPlayerId);
+      }
+      const canonicalRows = safeWorldOwnValue(historyMap, canonicalPlayerId);
+      const legacyRows = safeWorldOwnValue(historyMap, legacyPlayerId);
+      if (!Array.isArray(legacyRows) || !legacyRows.length) return canonicalRows;
+      const mergedRows = Array.isArray(canonicalRows) ? canonicalRows.slice() : [];
+      legacyRows.forEach(entry => {
+        if (!mergedRows.includes(entry)) mergedRows.push(entry);
+      });
+      if (!safeWorldSetOwnValue(historyMap, canonicalPlayerId, mergedRows)) {
+        return mergedRows;
+      }
+      try { delete historyMap[legacyPlayerId]; } catch (_) {}
+      return mergedRows;
+    };
+    const archivedPlayerHistory = safeWorldOwnValue(archive, "playerHistory");
     for (const [playerMapKey, player] of Object.entries(world.players || {})) {
       if (!player || typeof player !== "object") continue;
       const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+      const internalPlayerId = safeWorldRecordIdentifier(player, "id");
+      const hasUniqueLegacyAlias = !!internalPlayerId && internalPlayerId !== playerId
+        && internalPlayerIdCounts.get(internalPlayerId) === 1
+        && !safeWorldOwnValue(world.players, internalPlayerId);
       let isDetachedPlayer = false;
       try {
         isDetachedPlayer = isTrueFlag(safeWorldOwnValue(player, "retired"))
           || isTrueFlag(safeWorldOwnValue(player, "freeAgent"));
       } catch (_) {}
       const currentClubId = safeWorldRecordIdentifier(player, "clubId");
-      const historyValue = playerId ? safeWorldOwnValue(world.playerHistory, playerId) : undefined;
+      if (hasUniqueLegacyAlias) {
+        mergeLegacyHistoryKey(archivedPlayerHistory, playerId, internalPlayerId);
+      }
+      const historyValue = playerId
+        ? (hasUniqueLegacyAlias
+          ? mergeLegacyHistoryKey(world.playerHistory, playerId, internalPlayerId)
+          : safeWorldOwnValue(world.playerHistory, playerId)) : undefined;
       const history = Array.isArray(historyValue) ? historyValue : [];
       const transferRowsValue = playerId
-        ? safeWorldOwnValue(transferClubHistoryByPlayer, playerId) : undefined;
+        ? (hasUniqueLegacyAlias
+          ? mergeLegacyHistoryKey(transferClubHistoryByPlayer, playerId, internalPlayerId)
+          : safeWorldOwnValue(transferClubHistoryByPlayer, playerId)) : undefined;
       const transferClubRows = Array.isArray(transferRowsValue) ? transferRowsValue : [];
       const hasFormerClubTrail = isDetachedPlayer
         || !!safeWorldRecordIdentifier(player, "previousClubId")

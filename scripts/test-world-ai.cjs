@@ -2301,6 +2301,176 @@ assert.ok(!Object.prototype.hasOwnProperty.call(canonicalHistoryReconcileWorld.p
 assert.ok(!canonicalHistoryReconcileWorld.clubs[freeAgentReconcileClubId].roster.includes(canonicalHistoryReconcileMapKey),
   "a detached free agent must remain outside the former club's active roster");
 
+// Unique legacy internal-ID history aliases migrate to the canonical map key.
+// Ambiguous aliases are retained rather than being assigned to multiple players.
+const legacyHistoryReconcileMapKey = "legacy-history-canonical-map-key";
+const legacyHistoryReconcileInternalId = "legacy-history-stale-internal-id";
+const legacyHistoryReconcileWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
+  players: {
+    [legacyHistoryReconcileMapKey]: {
+      id: legacyHistoryReconcileInternalId, name: freeAgentReconcilePlayerName,
+      clubId: "", previousClubId: "", country: freeAgentReconcileCountry,
+      leagueId: "", division: 0, position: "جناح", group: "attacker",
+      ovr: 66, potential: 76, age: 24, contractSeasons: 0,
+      retired: false, freeAgent: true, freeAgentSince: 6,
+      isRealPlayer: true, isGenerated: false
+    }
+  },
+  clubs: {
+    [freeAgentReconcileClubId]: {
+      id: freeAgentReconcileClubId, name: freeAgentReconcileClubName,
+      country: freeAgentReconcileCountry, leagueId: freeAgentReconcileLeagueId,
+      division: 1, leagueName: "Free Agent Test League",
+      leagueEnglish: "Free Agent Test League", matchesPerSeason: 30,
+      power: 64, basePower: 64, prestige: 50, roster: []
+    }
+  },
+  playerHistory: {
+    [legacyHistoryReconcileInternalId]: [{
+      season: 4, type: "contract-expiry", fromClubId: freeAgentReconcileClubId,
+      from: freeAgentReconcileClubName, fromCountry: freeAgentReconcileCountry
+    }]
+  },
+  transferClubHistoryByPlayer: {
+    [legacyHistoryReconcileInternalId]: [{
+      clubId: freeAgentReconcileClubId, name: freeAgentReconcileClubName,
+      country: freeAgentReconcileCountry
+    }]
+  },
+  transferClubHistorySchemaVersion: 1,
+  archive: { playerHistory: {
+    [legacyHistoryReconcileInternalId]: [{
+      season: 3, type: "transfer", fromClubId: freeAgentReconcileClubId,
+      from: freeAgentReconcileClubName, fromCountry: freeAgentReconcileCountry
+    }]
+  } },
+  seasonStats: { "5": [{
+    id: legacyHistoryReconcileMapKey, playerId: legacyHistoryReconcileMapKey,
+    season: 5, appearances: 18, goals: 4, assists: 2
+  }] },
+  leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 8
+};
+sandbox.window.__lwTestReconcileDatabase(legacyHistoryReconcileWorld, freeAgentReconcileDb);
+const legacyHistoryFreeAgent = legacyHistoryReconcileWorld.players[legacyHistoryReconcileMapKey];
+const legacyHistoryDuplicates = Object.values(legacyHistoryReconcileWorld.players).filter(player =>
+  player && player.name === freeAgentReconcilePlayerName
+  && String(player.clubId || "") === freeAgentReconcileClubId
+  && !player.retired && !player.freeAgent);
+assert.strictEqual(legacyHistoryFreeAgent.id, legacyHistoryReconcileInternalId,
+  "legacy history migration must preserve the original internal player ID");
+assert.equal(legacyHistoryFreeAgent.freeAgent, true);
+assert.equal(legacyHistoryFreeAgent.clubId, "",
+  "legacy former-club history must keep the saved free agent unattached");
+assert.equal(legacyHistoryDuplicates.length, 0,
+  "legacy history keyed by a unique internal ID must prevent former-club re-import");
+assert.ok(legacyHistoryReconcileWorld.playerHistory[legacyHistoryReconcileMapKey],
+  "unique legacy career history must move to the canonical player-map key");
+assert.ok(!Object.prototype.hasOwnProperty.call(legacyHistoryReconcileWorld.playerHistory, legacyHistoryReconcileInternalId),
+  "the old unique career-history alias must be removed after migration");
+assert.ok(legacyHistoryReconcileWorld.transferClubHistoryByPlayer[legacyHistoryReconcileMapKey],
+  "legacy compact club history must move to the canonical player-map key");
+assert.ok(!Object.prototype.hasOwnProperty.call(legacyHistoryReconcileWorld.transferClubHistoryByPlayer, legacyHistoryReconcileInternalId),
+  "the old compact-history alias must be removed after migration");
+assert.ok(legacyHistoryReconcileWorld.archive.playerHistory[legacyHistoryReconcileMapKey],
+  "archived legacy player history must also migrate to the canonical key");
+assert.ok(!Object.prototype.hasOwnProperty.call(legacyHistoryReconcileWorld.archive.playerHistory, legacyHistoryReconcileInternalId),
+  "the archived legacy history alias must be removed after migration");
+
+const ambiguousLegacyHistoryId = "shared-ambiguous-history-id";
+const ambiguousLegacyHistoryWorld = {
+  schemaVersion: ai.version, dbVersion: 2, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
+  players: {
+    "ambiguous-player-map-a": {
+      id: ambiguousLegacyHistoryId, name: "Ambiguous History Player A",
+      clubId: "", previousClubId: "", country: "Testland", leagueId: "", division: 0,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 60, potential: 65,
+      retired: false, freeAgent: true, freeAgentSince: 6
+    },
+    "ambiguous-player-map-b": {
+      id: ambiguousLegacyHistoryId, name: "Ambiguous History Player B",
+      clubId: "", previousClubId: "", country: "Testland", leagueId: "", division: 0,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 60, potential: 65,
+      retired: false, freeAgent: true, freeAgentSince: 6
+    }
+  },
+  clubs: {},
+  playerHistory: {
+    [ambiguousLegacyHistoryId]: [{ season: 3, type: "transfer", fromClubId: "ambiguous-former-club" }]
+  },
+  transferClubHistoryByPlayer: {
+    [ambiguousLegacyHistoryId]: [{ clubId: "ambiguous-former-club", name: "Ambiguous Former Club", country: "Testland" }]
+  },
+  transferClubHistorySchemaVersion: 1,
+  archive: { playerHistory: {
+    [ambiguousLegacyHistoryId]: [{ season: 2, type: "transfer", fromClubId: "ambiguous-former-club" }]
+  } },
+  seasonStats: {}, leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [], nextGeneratedPlayer: 1,
+  transferSequence: 0, projectionRevision: 0
+};
+sandbox.window.__lwTestReconcileDatabase(ambiguousLegacyHistoryWorld, {
+  version: 2, leagues: () => [], clubs: () => []
+});
+assert.ok(ambiguousLegacyHistoryWorld.playerHistory[ambiguousLegacyHistoryId],
+  "ambiguous legacy history must remain available under its original ID");
+assert.ok(!Object.prototype.hasOwnProperty.call(ambiguousLegacyHistoryWorld.playerHistory, "ambiguous-player-map-a")
+  && !Object.prototype.hasOwnProperty.call(ambiguousLegacyHistoryWorld.playerHistory, "ambiguous-player-map-b"),
+  "an ambiguous internal-ID history alias must never be assigned to multiple canonical players");
+assert.ok(ambiguousLegacyHistoryWorld.transferClubHistoryByPlayer[ambiguousLegacyHistoryId],
+  "ambiguous compact club history must remain preserved under its original ID");
+
+const collidingCanonicalHistoryWorld = {
+  schemaVersion: ai.version, dbVersion: 2, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
+  players: {
+    "canonical-collision-player-a": {
+      id: "canonical-collision-player-b", name: "Collision Player A",
+      clubId: "", previousClubId: "", country: "Testland", leagueId: "", division: 0,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 60, potential: 65,
+      retired: false, freeAgent: true, freeAgentSince: 6
+    },
+    "canonical-collision-player-b": {
+      id: "internal-collision-player-b", name: "Collision Player B",
+      clubId: "", previousClubId: "", country: "Testland", leagueId: "", division: 0,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 60, potential: 65,
+      retired: false, freeAgent: true, freeAgentSince: 6
+    }
+  },
+  clubs: {},
+  playerHistory: {
+    "canonical-collision-player-b": [{ season: 3, type: "transfer", fromClubId: "collision-former-club" }]
+  },
+  transferClubHistoryByPlayer: {
+    "canonical-collision-player-b": [{
+      clubId: "collision-former-club", name: "Collision Former Club", country: "Testland"
+    }]
+  },
+  transferClubHistorySchemaVersion: 1,
+  archive: { playerHistory: {
+    "canonical-collision-player-b": [{ season: 2, type: "transfer", fromClubId: "collision-former-club" }]
+  } },
+  seasonStats: {}, leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [], nextGeneratedPlayer: 1,
+  transferSequence: 0, projectionRevision: 0
+};
+sandbox.window.__lwTestReconcileDatabase(collidingCanonicalHistoryWorld, {
+  version: 2, leagues: () => [], clubs: () => []
+});
+assert.ok(collidingCanonicalHistoryWorld.playerHistory["canonical-collision-player-b"],
+  "a canonical history key owned by another player must remain untouched");
+assert.ok(!Object.prototype.hasOwnProperty.call(collidingCanonicalHistoryWorld.playerHistory, "canonical-collision-player-a"),
+  "legacy alias migration must not steal another player's canonical history key");
+assert.ok(collidingCanonicalHistoryWorld.transferClubHistoryByPlayer["canonical-collision-player-b"],
+  "canonical compact history must not be reassigned to a different player");
+
 // An active player moved by the simulation must not be imported again into the
 // selling club when the source catalogue still lists them there after an age update.
 const transferReconcileOriginName = "Transfer Reconcile Origin";

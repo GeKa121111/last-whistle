@@ -700,8 +700,8 @@ assert.doesNotThrow(() => {
 assert.equal(hostileRosterWorld.rosterMembershipSchemaVersion, 6,
   "v5 saves must receive the safe roster-identifier migration exactly once");
 assert.deepEqual(hostileRosterWorld.clubs["safe-roster-club"].roster,
-  ["safe-roster-player", "7002", "hostile-owner-player"],
-  "safe string/numeric IDs must survive, duplicate numeric aliases must collapse, and hostile IDs must be skipped");
+  ["safe-roster-player", 7002, "hostile-owner-player"],
+  "safe string/numeric IDs must survive in their original saved representation, duplicate numeric aliases must collapse, and hostile IDs must be skipped");
 assert.deepEqual(hostileRosterWorld.clubs["fallback-roster-club"].roster,
   ["fallback-roster-player"],
   "legacy clubs without an explicit ID must use their saved object key as the canonical ID");

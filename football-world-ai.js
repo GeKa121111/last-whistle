@@ -1994,9 +1994,11 @@
       homeClubId: match.homeClubId, awayClubId: match.awayClubId,
       homeGoals: Number(match.homeGoals) || 0, awayGoals: Number(match.awayGoals) || 0 };
   }
-  function expandWorldMatches(world, matches) {
+  function expandWorldMatches(world, matches, expectedSeason) {
     if (!Array.isArray(matches)) return [];
     const clubs = world && world.clubs && typeof world.clubs === "object" ? world.clubs : {};
+    const requiredSeason = Number.isSafeInteger(expectedSeason) && expectedSeason >= 1 ? expectedSeason : null;
+    const legacySeasonFallback = requiredSeason === null ? 1 : requiredSeason;
     const safeText = value => {
       if (typeof value === "string") return value.trim();
       if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -2021,18 +2023,22 @@
         const homeClubId = safeText(match.homeClubId);
         const awayClubId = safeText(match.awayClubId);
         if (!homeClubId || !awayClubId) continue;
-        const season = safePositiveInteger(match.season, 1);
+        const season = safePositiveInteger(match.season, legacySeasonFallback);
         const matchday = safePositiveInteger(match.matchday, 1);
         const homeGoals = safeNonNegativeInteger(match.homeGoals, 0);
         const awayGoals = safeNonNegativeInteger(match.awayGoals, 0);
-        if (season === null || matchday === null || homeGoals === null || awayGoals === null) continue;
+        if (season === null || (requiredSeason !== null && season !== requiredSeason)
+          || matchday === null || homeGoals === null || awayGoals === null
+          || homeClubId === awayClubId) continue;
         const division = base.normalizeClubDivision(match.division, 1);
-        const competitionId = safeText(match.competitionId) || "league";
+        if (!Number.isSafeInteger(division) || division < 1) continue;
+        const competitionId = isMissingLegacyValue(match.competitionId) ? "league" : safeText(match.competitionId);
+        if (!competitionId) continue;
         const home = clubs[homeClubId] || null;
         const away = clubs[awayClubId] || null;
         expanded.push({
           season, competitionId, division, matchday, homeClubId, awayClubId, homeGoals, awayGoals,
-          id: "world-match-" + season + "-" + hash([homeClubId, awayClubId, matchday].join("|")).toString(36),
+          id: "world-match-" + season + "-" + hash([season, competitionId, division, matchday, homeClubId, awayClubId].join("|")).toString(36),
           home: safeText(home && home.name), away: safeText(away && away.name),
           result: homeGoals === awayGoals ? "draw" : homeGoals > awayGoals ? "home-win" : "away-win"
         });
@@ -2297,7 +2303,7 @@
         season: year,
         rows: Array.isArray(savedRows) ? savedRows : [],
         tables: savedTables && typeof savedTables === "object" && !Array.isArray(savedTables) ? savedTables : {},
-        matches: expandWorldMatches(world, world.matchesBySeason[seasonKey]),
+        matches: expandWorldMatches(world, world.matchesBySeason[seasonKey], year),
         competitions: Array.isArray(savedCompetitions) ? savedCompetitions : []
       };
     }
@@ -3418,7 +3424,8 @@
     seasonMatches: function (save, season, db) {
       const world = base.ensureState(save, db);
       simulateLeagueSeason(save, season, db);
-      return expandWorldMatches(world, (world.matchesBySeason[String(Math.max(1, int(season, 1)))] || []).slice());
+      const year = Math.max(1, int(season, 1));
+      return expandWorldMatches(world, (world.matchesBySeason[String(year)] || []).slice(), year);
     },
     seasonCompetitions: function (save, season, db) {
       const world = base.ensureState(save, db);

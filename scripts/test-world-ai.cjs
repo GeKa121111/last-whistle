@@ -927,6 +927,91 @@ assert.equal(delayedNumericStringReturn.length, 1,
 assert.equal(delayedNumericStringReturn[0].toClubId, numericStringFormerClub.id,
   "numeric-string legacy markers must resolve to the exact former club");
 
+// Malformed legacy values must not abort the market or be coerced into valid terms.
+function makeMalformedFreeAgentMarketWorld(clubId, playerPatch) {
+  const world = {
+    clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+    notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+  };
+  const club = makeMarketTestClub(world, clubId, 2, "goalkeeper");
+  const player = Object.assign({
+    id: "malformed-free-agent", name: "Malformed free-agent fixture",
+    clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+    position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+    age: 26, contractSeasons: 0, freeAgent: true,
+    previousClubId: "different-former-club", freeAgentSince: 2, isGenerated: false
+  }, playerPatch || {});
+  world.players[player.id] = player;
+  return { world, club, player };
+}
+const malformedFreeAgentCases = [
+  { label: "Symbol contract term", patch: { contractSeasons: Symbol("bad-contract") } },
+  { label: "array contract term", patch: { contractSeasons: [0] } },
+  { label: "Symbol player rating", patch: { ovr: Symbol("bad-rating") } },
+  { label: "array player rating", patch: { ovr: [60] } },
+  { label: "Symbol player age", patch: { age: Symbol("bad-age") } },
+  { label: "array player age", patch: { age: [26] } }
+];
+for (const malformedCase of malformedFreeAgentCases) {
+  const fixture = makeMalformedFreeAgentMarketWorld(
+    "malformed-" + malformedCase.label.replace(/\W+/g, "-"), malformedCase.patch
+  );
+  let signed;
+  assert.doesNotThrow(() => {
+    signed = sandbox.window.__lwTestSignFreeAgents(fixture.world, 3, []);
+  }, malformedCase.label + " must not throw during the free-agent window");
+  assert.equal(signed.length, 0, malformedCase.label + " must not create a signing");
+  assert.equal(fixture.player.freeAgent, true, malformedCase.label + " must leave the player available");
+}
+const malformedPreviousClub = makeMalformedFreeAgentMarketWorld("malformed-previous-club", {});
+malformedPreviousClub.player.previousClubId = [malformedPreviousClub.club.id];
+let malformedPreviousClubMoves;
+assert.doesNotThrow(() => {
+  malformedPreviousClubMoves = sandbox.window.__lwTestSignFreeAgents(malformedPreviousClub.world, 3, []);
+}, "an array-shaped previousClubId must not abort free-agent recruitment");
+assert.equal(malformedPreviousClubMoves.length, 0,
+  "an unresolvable previousClubId must not permit a potentially immediate former-club return");
+const malformedFormerSince = makeMalformedFreeAgentMarketWorld("malformed-former-since", {});
+malformedFormerSince.player.previousClubId = malformedFormerSince.club.id;
+malformedFormerSince.player.freeAgentSince = Symbol("bad-free-agent-season");
+let malformedFormerSinceMoves;
+assert.doesNotThrow(() => {
+  malformedFormerSinceMoves = sandbox.window.__lwTestSignFreeAgents(malformedFormerSince.world, 3, []);
+}, "a Symbol freeAgentSince marker must not abort the market");
+assert.equal(malformedFormerSinceMoves.length, 0,
+  "an invalid former-club date must keep the return restriction conservative");
+const malformedClubPower = makeMalformedFreeAgentMarketWorld("malformed-club-power", {});
+malformedClubPower.club.power = Symbol("bad-club-power");
+let malformedPowerMoves;
+assert.doesNotThrow(() => {
+  malformedPowerMoves = sandbox.window.__lwTestSignFreeAgents(malformedClubPower.world, 3, []);
+}, "a Symbol club power must not abort the free-agent market");
+assert.equal(malformedPowerMoves.length, 0,
+  "a club with invalid power must not recruit a free agent");
+const malformedMarketSeason = makeMalformedFreeAgentMarketWorld("malformed-market-season", {});
+let malformedSeasonMoves;
+assert.doesNotThrow(() => {
+  malformedSeasonMoves = sandbox.window.__lwTestSignFreeAgents(
+    malformedMarketSeason.world, Symbol("bad-season"), []
+  );
+}, "an invalid market season must be rejected without throwing");
+assert.equal(malformedSeasonMoves.length, 0,
+  "an invalid market season must not create free-agent signings");
+assert.equal(malformedMarketSeason.player.freeAgent, true,
+  "an invalid market season must not mutate the free agent");
+
+// Numeric-string fields from older saves remain supported by the stricter parser.
+const numericStringMarket = makeMalformedFreeAgentMarketWorld("numeric-string-market", {
+  contractSeasons: "0", ovr: "60", age: "26"
+});
+numericStringMarket.club.power = "55";
+const numericStringMarketMoves = sandbox.window.__lwTestSignFreeAgents(
+  numericStringMarket.world, "3", []
+);
+assert.equal(numericStringMarketMoves.length, 1,
+  "valid numeric-string market fields must remain compatible with legacy saves");
+
+
 
 
 // An expiring defender should receive the squad-need renewal bonus when only four

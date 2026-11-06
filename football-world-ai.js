@@ -742,86 +742,132 @@
       for (const [id, club] of Object.entries(world.clubs)) {
         const leagueId = safeWorldLeagueIdentifier(club);
         if (club && leagueId && !supportedLeagueIds.has(leagueId)) {
-          removedClubIds.add(String(id));
-          archive.clubs[String(id)] = club;
+          removedClubIds.add(id);
+          safeWorldSetOwnValue(archive.clubs, id, club);
           delete world.clubs[id];
         }
       }
     }
     if (removedClubIds.size) {
       for (const [id, player] of Object.entries(world.players || {})) {
-        if (player && removedClubIds.has(String(player.clubId))) {
-          removedPlayerIds.add(String(id));
-          archive.players[String(id)] = player;
-          if (Object.prototype.hasOwnProperty.call(world.playerHistory, id)) {
-            archive.playerHistory[String(id)] = world.playerHistory[id];
+        const playerClubId = safeWorldRecordIdentifier(player, "clubId");
+        if (player && playerClubId && removedClubIds.has(playerClubId)) {
+          removedPlayerIds.add(id);
+          safeWorldSetOwnValue(archive.players, id, player);
+          let hasHistory = false;
+          try {
+            hasHistory = !!world.playerHistory && typeof world.playerHistory === "object"
+              && Object.prototype.hasOwnProperty.call(world.playerHistory, id);
+          } catch (_) {}
+          if (hasHistory) {
+            safeWorldSetOwnValue(archive.playerHistory, id, safeWorldOwnValue(world.playerHistory, id));
             delete world.playerHistory[id];
           }
           delete world.players[id];
         }
       }
       Object.values(world.clubs).forEach(club => {
-        club.roster = (club.roster || []).filter(id => !removedPlayerIds.has(String(id)) && !!world.players[id]);
+        if (!club || typeof club !== "object") return;
+        const roster = safeWorldArrayField(club, "roster");
+        safeWorldSetOwnValue(club, "roster", roster.filter(rawId => {
+          const playerId = safeWorldIdentifier(rawId);
+          return !!playerId && !removedPlayerIds.has(playerId)
+            && !!safeWorldOwnValue(world.players, playerId);
+        }));
       });
-      Object.keys(world.seasonStats || {}).forEach(season => {
-        const rows = world.seasonStats[season] || [];
-        const archivedRows = rows.filter(row => row && (
-          (row.leagueId && !supportedLeagueIds.has(String(row.leagueId)))
-          || removedPlayerIds.has(String(row.id || row.playerId || ""))
-          || removedClubIds.has(String(row.clubId || ""))
-        ));
-        if (archivedRows.length) {
-          archive.seasonStats[season] = (Array.isArray(archive.seasonStats[season]) ? archive.seasonStats[season] : []).concat(archivedRows);
-        }
-        world.seasonStats[season] = rows.filter(row => !archivedRows.includes(row));
-      });
-      Object.keys(world.leagueTables || {}).forEach(season => {
-        const tables = world.leagueTables[season] || {};
-        const archivedTables = archive.leagueTables[season] && typeof archive.leagueTables[season] === "object"
-          ? archive.leagueTables[season] : {};
-        Object.keys(tables).forEach(key => {
-          if (!supportedLeagueIds.has(String(key).split(":")[0])) {
-            archivedTables[key] = tables[key];
-            delete tables[key];
-          } else if (Array.isArray(tables[key])) {
-            const rows = tables[key];
-            const archivedRows = rows.filter(row => row && (
-              (row.leagueId && !supportedLeagueIds.has(String(row.leagueId)))
-              || removedClubIds.has(String(row.clubId || ""))
-            ));
-            if (archivedRows.length) {
-              archive.leagueTableRows[season] = archive.leagueTableRows[season] || {};
-              archive.leagueTableRows[season][key] = (archive.leagueTableRows[season][key] || []).concat(archivedRows);
-              tables[key] = rows.filter(row => !archivedRows.includes(row));
-            }
-          }
+      const seasonStats = safeWorldOwnValue(world, "seasonStats");
+      for (const season of safeWorldObjectKeys(seasonStats)) {
+        const rows = safeWorldOwnValue(seasonStats, season);
+        if (!Array.isArray(rows)) continue;
+        const archivedRows = rows.filter(row => {
+          if (!row || typeof row !== "object") return false;
+          const leagueId = safeWorldRecordIdentifier(row, "leagueId");
+          const playerId = safeWorldRecordIdentifier(row, "id")
+            || safeWorldRecordIdentifier(row, "playerId");
+          const clubId = safeWorldRecordIdentifier(row, "clubId");
+          return (leagueId && !supportedLeagueIds.has(leagueId))
+            || (playerId && removedPlayerIds.has(playerId))
+            || (clubId && removedClubIds.has(clubId));
         });
-        if (Object.keys(archivedTables).length) archive.leagueTables[season] = archivedTables;
-      });
-      Object.keys(world.matchesBySeason || {}).forEach(season => {
-        const matches = world.matchesBySeason[season] || [];
-        const archivedMatches = matches.filter(match =>
-          removedClubIds.has(String(match && match.homeClubId))
-          || removedClubIds.has(String(match && match.awayClubId)));
+        if (archivedRows.length) {
+          const previousRows = safeWorldArrayField(archive.seasonStats, season);
+          safeWorldSetOwnValue(archive.seasonStats, season, previousRows.concat(archivedRows));
+          safeWorldSetOwnValue(seasonStats, season, rows.filter(row => !archivedRows.includes(row)));
+        }
+      }
+      const leagueTables = safeWorldOwnValue(world, "leagueTables");
+      for (const season of safeWorldObjectKeys(leagueTables)) {
+        const tables = safeWorldOwnValue(leagueTables, season);
+        if (!tables || typeof tables !== "object" || Array.isArray(tables)) continue;
+        const savedArchiveTables = safeWorldOwnValue(archive.leagueTables, season);
+        const archivedTables = savedArchiveTables && typeof savedArchiveTables === "object"
+          && !Array.isArray(savedArchiveTables) ? savedArchiveTables : {};
+        for (const key of safeWorldObjectKeys(tables)) {
+          if (!supportedLeagueIds.has(key.split(":")[0])) {
+            safeWorldSetOwnValue(archivedTables, key, safeWorldOwnValue(tables, key));
+            delete tables[key];
+            continue;
+          }
+          const rows = safeWorldOwnValue(tables, key);
+          if (!Array.isArray(rows)) continue;
+          const archivedRows = rows.filter(row => {
+            if (!row || typeof row !== "object") return false;
+            const leagueId = safeWorldRecordIdentifier(row, "leagueId");
+            const clubId = safeWorldRecordIdentifier(row, "clubId");
+            return (leagueId && !supportedLeagueIds.has(leagueId))
+              || (clubId && removedClubIds.has(clubId));
+          });
+          if (archivedRows.length) {
+            let archivedRowsBySeason = safeWorldOwnValue(archive.leagueTableRows, season);
+            if (!archivedRowsBySeason || typeof archivedRowsBySeason !== "object"
+              || Array.isArray(archivedRowsBySeason)) {
+              archivedRowsBySeason = {};
+              safeWorldSetOwnValue(archive.leagueTableRows, season, archivedRowsBySeason);
+            }
+            const previousRows = safeWorldArrayField(archivedRowsBySeason, key);
+            safeWorldSetOwnValue(archivedRowsBySeason, key, previousRows.concat(archivedRows));
+            safeWorldSetOwnValue(tables, key, rows.filter(row => !archivedRows.includes(row)));
+          }
+        }
+        if (safeWorldObjectKeys(archivedTables).length) {
+          safeWorldSetOwnValue(archive.leagueTables, season, archivedTables);
+        }
+      }
+      const matchesBySeason = safeWorldOwnValue(world, "matchesBySeason");
+      for (const season of safeWorldObjectKeys(matchesBySeason)) {
+        const matches = safeWorldOwnValue(matchesBySeason, season);
+        if (!Array.isArray(matches)) continue;
+        const archivedMatches = matches.filter(match => {
+          const homeClubId = safeWorldRecordIdentifier(match, "homeClubId");
+          const awayClubId = safeWorldRecordIdentifier(match, "awayClubId");
+          return (homeClubId && removedClubIds.has(homeClubId))
+            || (awayClubId && removedClubIds.has(awayClubId));
+        });
         if (archivedMatches.length) {
-          archive.matchesBySeason[season] = (archive.matchesBySeason[season] || []).concat(archivedMatches);
+          const previousMatches = safeWorldArrayField(archive.matchesBySeason, season);
+          safeWorldSetOwnValue(archive.matchesBySeason, season, previousMatches.concat(archivedMatches));
+          safeWorldSetOwnValue(matchesBySeason, season, matches.filter(match => !archivedMatches.includes(match)));
         }
-        world.matchesBySeason[season] = matches.filter(match => !archivedMatches.includes(match));
-      });
-      Object.keys(world.competitionsBySeason || {}).forEach(season => {
-        const items = world.competitionsBySeason[season] || [];
-        const archivedItems = items.filter(item => item && (
-          item.confederation === "AFC"
-          || ["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"].includes(String(item.id || item.competitionId || ""))
-        ));
+      }
+      const competitionsBySeason = safeWorldOwnValue(world, "competitionsBySeason");
+      const unsupportedCompetitionIds = ["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"];
+      for (const season of safeWorldObjectKeys(competitionsBySeason)) {
+        const items = safeWorldOwnValue(competitionsBySeason, season);
+        if (!Array.isArray(items)) continue;
+        const isUnsupportedCompetition = item => {
+          if (!item || typeof item !== "object") return false;
+          const confederation = safeWorldRecordText(item, "confederation");
+          const competitionId = safeWorldRecordIdentifier(item, "id")
+            || safeWorldRecordIdentifier(item, "competitionId");
+          return confederation === "AFC" || unsupportedCompetitionIds.includes(competitionId);
+        };
+        const archivedItems = items.filter(isUnsupportedCompetition);
         if (archivedItems.length) {
-          archive.competitionsBySeason[season] = (archive.competitionsBySeason[season] || []).concat(archivedItems);
+          const previousItems = safeWorldArrayField(archive.competitionsBySeason, season);
+          safeWorldSetOwnValue(archive.competitionsBySeason, season, previousItems.concat(archivedItems));
+          safeWorldSetOwnValue(competitionsBySeason, season, items.filter(item => !isUnsupportedCompetition(item)));
         }
-        world.competitionsBySeason[season] = items.filter(item => item && !(
-          item.confederation === "AFC"
-          || ["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"].includes(String(item.id || item.competitionId || ""))
-        ));
-      });
+      }
     }
     // Restore authoritative player-to-club links before database reconciliation can
     // refill a missing squad slot with a generated placeholder.
@@ -829,69 +875,79 @@
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
-    for (const player of Object.values(world.players || {})) {
-      if (!player) continue;
-      const isDetachedPlayer = isTrueFlag(player.retired) || isTrueFlag(player.freeAgent);
-      const currentClubId = String(player.clubId || "").trim();
-      const history = world.playerHistory && Array.isArray(world.playerHistory[player.id])
-        ? world.playerHistory[player.id] : [];
-      const transferClubRows = Array.isArray(transferClubHistoryByPlayer[String(player.id || "")])
-        ? transferClubHistoryByPlayer[String(player.id || "")] : [];
+    for (const [playerMapKey, player] of Object.entries(world.players || {})) {
+      if (!player || typeof player !== "object") continue;
+      const playerId = safeWorldRecordIdentifier(player, "id") || safeWorldIdentifier(playerMapKey);
+      let isDetachedPlayer = false;
+      try {
+        isDetachedPlayer = isTrueFlag(safeWorldOwnValue(player, "retired"))
+          || isTrueFlag(safeWorldOwnValue(player, "freeAgent"));
+      } catch (_) {}
+      const currentClubId = safeWorldRecordIdentifier(player, "clubId");
+      const historyValue = playerId ? safeWorldOwnValue(world.playerHistory, playerId) : undefined;
+      const history = Array.isArray(historyValue) ? historyValue : [];
+      const transferRowsValue = playerId
+        ? safeWorldOwnValue(transferClubHistoryByPlayer, playerId) : undefined;
+      const transferClubRows = Array.isArray(transferRowsValue) ? transferRowsValue : [];
       const hasFormerClubTrail = isDetachedPlayer
-        || !!String(player.previousClubId || "").trim()
-        || !!String(player.retiredFromClubId || "").trim()
-        || history.some(entry => !!String(entry && (entry.fromClubId || entry.from) || "").trim())
+        || !!safeWorldRecordIdentifier(player, "previousClubId")
+        || !!safeWorldRecordIdentifier(player, "retiredFromClubId")
+        || history.some(entry => !!safeWorldRecordIdentifier(entry, "fromClubId")
+          || !!safeWorldRecordText(entry, "from"))
         || transferClubRows.length > 0;
       if (!hasFormerClubTrail) continue;
-      const identityKey = rosterIdentityKey(player);
+      let identityKey = "";
+      try { identityKey = rosterIdentityKey(player); } catch (_) {}
       if (!identityKey) continue;
       const clubIds = new Set();
       const addFormerClubId = value => {
-        const id = String(value || "").trim();
+        const id = safeWorldIdentifier(value);
         if (id && id !== currentClubId) clubIds.add(id);
       };
-      addFormerClubId(player.previousClubId);
-      addFormerClubId(player.retiredFromClubId);
+      addFormerClubId(safeWorldRecordIdentifier(player, "previousClubId"));
+      addFormerClubId(safeWorldRecordIdentifier(player, "retiredFromClubId"));
       for (const entry of history) {
-        if (!entry) continue;
+        if (!entry || typeof entry !== "object") continue;
         // Normal transfers retain both endpoints in player history. Protect only
         // the former club; never hide the player from the club they currently join.
-        addFormerClubId(entry.fromClubId);
-        const historyClubId = String(entry.clubId || "").trim();
+        const fromClubId = safeWorldRecordIdentifier(entry, "fromClubId");
+        addFormerClubId(fromClubId);
+        const historyClubId = safeWorldRecordIdentifier(entry, "clubId");
         addFormerClubId(historyClubId);
-        const clubName = String(entry.club || "").trim();
+        const clubName = safeWorldRecordText(entry, "club");
         if (clubName && (isDetachedPlayer || (historyClubId && historyClubId !== currentClubId))) {
-          const country = String(entry.country || "").trim();
+          const country = safeWorldRecordText(entry, "country");
           const matches = allClubs.filter(club =>
-            normalize(club.name) === normalize(clubName)
-            && (!country || normalize(club.country) === normalize(country)));
-          if (matches.length) matches.forEach(club => addFormerClubId(club.id));
+            normalize(safeWorldRecordText(club, "name")) === normalize(clubName)
+            && (!country || normalize(safeWorldRecordText(club, "country")) === normalize(country)));
+          if (matches.length) matches.forEach(club => addFormerClubId(safeWorldRecordIdentifier(club, "id")));
           else if (country) addFormerClubId(clubKey(clubName, country));
         }
         // Older history rows may have a textual origin but no fromClubId. Resolve
         // it only when the country/name combination identifies a former club.
-        const fromName = String(entry.from || "").trim();
-        const fromCountry = String(entry.fromCountry || "").trim();
-        if (fromName && !String(entry.fromClubId || "").trim()) {
+        const fromName = safeWorldRecordText(entry, "from");
+        const fromCountry = safeWorldRecordText(entry, "fromCountry");
+        if (fromName && !fromClubId) {
           const matches = allClubs.filter(club =>
-            normalize(club.name) === normalize(fromName)
-            && (!fromCountry || normalize(club.country) === normalize(fromCountry)));
+            normalize(safeWorldRecordText(club, "name")) === normalize(fromName)
+            && (!fromCountry || normalize(safeWorldRecordText(club, "country")) === normalize(fromCountry)));
           // Do not block every club with the same name when a legacy row lacks country data.
-          if (matches.length === 1) addFormerClubId(matches[0].id);
+          if (matches.length === 1) addFormerClubId(safeWorldRecordIdentifier(matches[0], "id"));
           else if (matches.length === 0 && fromCountry) addFormerClubId(clubKey(fromName, fromCountry));
         }
       }
       for (const endpoint of transferClubRows) {
-        if (!endpoint) continue;
-        const endpointId = String(endpoint.clubId || "").trim();
+        if (!endpoint || typeof endpoint !== "object") continue;
+        const endpointId = safeWorldRecordIdentifier(endpoint, "clubId");
         if (endpointId) addFormerClubId(endpointId);
-        const clubName = String(endpoint.name || "").trim();
-        if (!clubName || (endpointId && allClubs.some(club => String(club.id || "") === endpointId))) continue;
-        const countryName = String(endpoint.country || "").trim();
+        const clubName = safeWorldRecordText(endpoint, "name");
+        if (!clubName || (endpointId && allClubs.some(club =>
+          safeWorldRecordIdentifier(club, "id") === endpointId))) continue;
+        const countryName = safeWorldRecordText(endpoint, "country");
         const matches = allClubs.filter(club =>
-          normalize(club.name) === normalize(clubName)
-          && (!countryName || normalize(club.country) === normalize(countryName)));
-        if (matches.length === 1) addFormerClubId(matches[0].id);
+          normalize(safeWorldRecordText(club, "name")) === normalize(clubName)
+          && (!countryName || normalize(safeWorldRecordText(club, "country")) === normalize(countryName)));
+        if (matches.length === 1) addFormerClubId(safeWorldRecordIdentifier(matches[0], "id"));
         else if (matches.length === 0 && countryName) addFormerClubId(clubKey(clubName, countryName));
       }
       for (const clubId of clubIds) {
@@ -901,19 +957,23 @@
     }
     const knownPlayersByClub = new Map();
     for (const player of Object.values(world.players || {})) {
-      if (!player || isTrueFlag(player.retired)) continue;
-      const clubId = String(player.clubId || "");
-      const identityKey = rosterIdentityKey(player);
+      if (!player || typeof player !== "object" || isTrueFlag(safeWorldOwnValue(player, "retired"))) continue;
+      const clubId = safeWorldRecordIdentifier(player, "clubId");
+      let identityKey = "";
+      try { identityKey = rosterIdentityKey(player); } catch (_) {}
       if (!clubId || !identityKey) continue;
       if (!knownPlayersByClub.has(clubId)) knownPlayersByClub.set(clubId, new Set());
       knownPlayersByClub.get(clubId).add(identityKey);
     }
     for (const row of rows) {
-      if (!row || !row.name || !row.country) continue;
-      const id = clubKey(row.name, row.country);
-      const sourceRows = Array.isArray(row.players) && row.players.length ? row.players
-        : db && typeof db.playerRecordsForClub === "function" ? db.playerRecordsForClub(row.name, row.country) : [];
-      const records = sourceRows.slice(0, SIMULATED_SQUAD_LIMIT);
+      const rowName = safeWorldRecordText(row, "name");
+      const rowCountry = safeWorldRecordText(row, "country");
+      if (!row || !rowName || !rowCountry) continue;
+      const id = clubKey(rowName, rowCountry);
+      const savedPlayers = safeWorldOwnValue(row, "players");
+      const sourceRows = Array.isArray(savedPlayers) && savedPlayers.length ? savedPlayers
+        : db && typeof db.playerRecordsForClub === "function" ? db.playerRecordsForClub(rowName, rowCountry) : [];
+      const records = Array.isArray(sourceRows) ? sourceRows.slice(0, SIMULATED_SQUAD_LIMIT) : [];
       if (!world.clubs[id]) {
         const club = addClub(world, row, db);
         const knownForClub = new Set();
@@ -3916,7 +3976,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=78");
+    const worker = new global.Worker("./football-world-worker.js?v=79");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

@@ -3368,6 +3368,116 @@ for (let index = 0; index < malformedReconcileDivisionValues.length; index++) {
     "players must follow the recovered authoritative club division"));
 }
 
+// Database reconciliation must preserve malformed legacy rows without coercing their IDs.
+const hostileReconcileValue = {
+  toString() { throw new Error("unsafe reconciliation ID coercion"); },
+  valueOf() { throw new Error("unsafe reconciliation ID conversion"); }
+};
+function throwingReconcileFields(fields) {
+  const record = {};
+  fields.forEach(field => Object.defineProperty(record, field, {
+    enumerable: true,
+    configurable: true,
+    get() { throw new Error("unsafe saved reconciliation field read: " + field); }
+  }));
+  return record;
+}
+const hostileReconcileHistoryRow = throwingReconcileFields([
+  "fromClubId", "from", "clubId", "club", "country", "fromCountry"
+]);
+const hostileReconcileTransferEndpoint = throwingReconcileFields(["clubId", "name", "country"]);
+const hostileReconcileSeasonRow = throwingReconcileFields(["leagueId", "id", "playerId", "clubId"]);
+const hostileReconcileTableRow = throwingReconcileFields(["leagueId", "clubId"]);
+const hostileReconcileMatch = throwingReconcileFields(["homeClubId", "awayClubId"]);
+const hostileReconcileCompetition = throwingReconcileFields(["id", "competitionId", "confederation"]);
+const removedReconcilePlayer = {
+  id: "removed-reconcile-player", name: "Removed Reconcile Player",
+  clubId: "removed-reconcile-club", country: "Testland", position: "مهاجم",
+  group: "attacker", age: 24, retired: false, freeAgent: false
+};
+const hostileReconcilePlayer = {
+  id: hostileReconcileValue, name: "Hostile Reconcile Player",
+  clubId: hostileReconcileValue, previousClubId: hostileReconcileValue,
+  retiredFromClubId: hostileReconcileValue, country: "Testland",
+  position: "مهاجم", group: "attacker", age: 24, retired: false, freeAgent: false
+};
+const removedReconcileStatsRow = {
+  id: "removed-reconcile-player", playerId: "removed-reconcile-player",
+  clubId: "removed-reconcile-club", leagueId: "unsupported-reconcile-league", goals: 4
+};
+const removedReconcileTableRow = {
+  clubId: "removed-reconcile-club", leagueId: "supported-reconcile-league", rank: 12
+};
+const removedReconcileMatch = {
+  homeClubId: "removed-reconcile-club", awayClubId: "other-reconcile-club", homeGoals: 1, awayGoals: 0
+};
+const hostileReconcileAfcCompetition = { id: "afc-cl", confederation: "AFC" };
+const hostileReconcileWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 4, lastCompletedSeason: 4,
+  lastAdvancedTo: 4, completedSeasons: [4], rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, transferClubHistorySchemaVersion: 1,
+  clubs: {
+    "removed-reconcile-club": {
+      id: "removed-reconcile-club", name: "Removed Reconcile Club", country: "Testland",
+      leagueId: "unsupported-reconcile-league", division: 1, roster: ["removed-reconcile-player"]
+    }
+  },
+  players: {
+    "hostile-reconcile-player": hostileReconcilePlayer,
+    "removed-reconcile-player": removedReconcilePlayer
+  },
+  playerHistory: {
+    "hostile-reconcile-player": [hostileReconcileHistoryRow],
+    "removed-reconcile-player": [{ clubId: "removed-reconcile-club", club: "Removed Reconcile Club" }]
+  },
+  transferClubHistoryByPlayer: { "hostile-reconcile-player": [hostileReconcileTransferEndpoint] },
+  seasonStats: { "4": [hostileReconcileSeasonRow, removedReconcileStatsRow] },
+  leagueTables: { "4": { "supported-reconcile-league": [hostileReconcileTableRow, removedReconcileTableRow] } },
+  matchesBySeason: { "4": [hostileReconcileMatch, removedReconcileMatch] },
+  competitionsBySeason: { "4": [hostileReconcileCompetition, hostileReconcileAfcCompetition] },
+  transfers: [], marketReports: [], notes: [], nextGeneratedPlayer: 100,
+  transferSequence: 0, projectionRevision: 0
+};
+const hostileReconcileDb = {
+  version: 2,
+  leagues: () => [{ id: "supported-reconcile-league" }],
+  clubs: () => [],
+  playerRecordsForClub: () => [],
+  leagueFor: () => ({ name: "Supported Reconcile League", englishName: "Supported Reconcile League", matchesPerSeason: 30 })
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(hostileReconcileWorld, hostileReconcileDb),
+  "database reconciliation must not coerce hostile IDs or property getters in saved player/history/stat/match records");
+assert.strictEqual(hostileReconcileWorld.players["hostile-reconcile-player"], hostileReconcilePlayer,
+  "a player with an unresolvable saved club ID must remain preserved in the active player map");
+assert.equal(hostileReconcilePlayer.clubId, hostileReconcileValue,
+  "reconciliation must not rewrite a malformed player-to-club source value");
+assert.equal(hostileReconcileWorld.players["removed-reconcile-player"], undefined,
+  "a player with a valid link to a removed competition must still leave the active player map");
+assert.strictEqual(hostileReconcileWorld.archive.players["removed-reconcile-player"], removedReconcilePlayer,
+  "the complete removed player record must be preserved in the archive");
+assert.equal(hostileReconcileWorld.archive.playerHistory["removed-reconcile-player"][0].clubId,
+  "removed-reconcile-club", "removed-player career history must still be archived intact");
+assert.equal(hostileReconcileWorld.seasonStats["4"].length, 1,
+  "a statistics row with unreadable IDs must remain in its original saved season");
+assert.strictEqual(hostileReconcileWorld.seasonStats["4"][0], hostileReconcileSeasonRow);
+assert.strictEqual(hostileReconcileWorld.archive.seasonStats["4"][0], removedReconcileStatsRow,
+  "valid rows linked to removed players/clubs must still be archived");
+assert.equal(hostileReconcileWorld.leagueTables["4"]["supported-reconcile-league"].length, 1,
+  "a table row with unreadable IDs must remain in its original league table");
+assert.strictEqual(hostileReconcileWorld.leagueTables["4"]["supported-reconcile-league"][0], hostileReconcileTableRow);
+assert.strictEqual(hostileReconcileWorld.archive.leagueTableRows["4"]["supported-reconcile-league"][0],
+  removedReconcileTableRow, "valid removed-club table rows must be archived");
+assert.strictEqual(hostileReconcileWorld.matchesBySeason["4"][0], hostileReconcileMatch,
+  "a match with unreadable club IDs must be preserved rather than deleted");
+assert.strictEqual(hostileReconcileWorld.archive.matchesBySeason["4"][0], removedReconcileMatch,
+  "matches involving removed clubs must still be archived");
+assert.strictEqual(hostileReconcileWorld.competitionsBySeason["4"][0], hostileReconcileCompetition,
+  "a competition with unreadable identifiers must be preserved");
+assert.strictEqual(hostileReconcileWorld.archive.competitionsBySeason["4"][0], hostileReconcileAfcCompetition,
+  "known unsupported AFC competitions must still be archived");
+assert.equal(hostileReconcileWorld.nextGeneratedPlayer, 100,
+  "malformed reconciliation records must not trigger synthetic player generation");
+
 const divisionPersistenceClub = Object.values(world.clubs).find(club => club.leagueId === "scotland");
 assert.ok(divisionPersistenceClub, "the roster fixture must include a club for the division-persistence regression");
 const sourceDivisionForClub = db.clubs().find(row => row.name === divisionPersistenceClub.name).division;

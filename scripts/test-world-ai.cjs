@@ -2047,6 +2047,30 @@ assert.equal(rankedPromotionWorld.clubs["ranked-second-1"].division, 1);
 assert.equal(rankedPromotionWorld.clubs["ranked-first-6"].division, 2);
 
 
+// Duplicate rows for the same club must be ranked before club-ID deduplication.
+// The first imported row is stale/worse; the later row has the better explicit rank.
+const duplicateStandingsWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+const duplicateStandingsTables = duplicateStandingsWorld.leagueTables["6"];
+duplicateStandingsTables["ranked-league"].unshift({
+  clubId: "ranked-first-1", leagueId: "ranked-league", division: 1,
+  rank: 6, pts: 0, gd: -99, gf: 0
+});
+duplicateStandingsTables["ranked-league:2"].unshift({
+  clubId: "ranked-second-1", leagueId: "ranked-league", division: 2,
+  rank: 3, pts: 0, gd: -99, gf: 0
+});
+const duplicateStandingsMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  duplicateStandingsWorld, 6, rankedPromotionDb
+);
+assert.equal(duplicateStandingsMoves.length, 1,
+  "duplicate rows for the same clubs must not inflate promotion or relegation places");
+assert.equal(duplicateStandingsMoves[0].promoted, "Ranked Second 1",
+  "promotion must retain the best-ranked row for a club even when a stale duplicate appears first");
+assert.equal(duplicateStandingsMoves[0].relegated, "Ranked First 6",
+  "relegation must retain the worst club's best valid rank rather than an earlier duplicate row");
+assert.equal(duplicateStandingsWorld.clubs["ranked-second-1"].division, 1);
+assert.equal(duplicateStandingsWorld.clubs["ranked-first-6"].division, 2);
+
 // Malformed legacy standings values must never become valid ranks or points through
 // JavaScript coercion. Numeric strings remain supported for older persisted tables.
 const malformedStandingWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));

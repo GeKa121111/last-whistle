@@ -2816,13 +2816,12 @@
     };
     const leagueIds = new Set(Object.values(world.clubs || {}).map(club => String(club && club.leagueId || "")).filter(Boolean));
     const eligibleTableRows = (rows, leagueId, expectedDivision) => {
-      const seen = new Set();
       const eligible = [];
       let sourceIndex = 0;
       for (const row of Array.isArray(rows) ? rows : []) {
         const index = sourceIndex++;
         const clubId = String(row && row.clubId || "");
-        if (!clubId || seen.has(clubId)) continue;
+        if (!clubId) continue;
         const club = world.clubs && world.clubs[clubId];
         if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
         const rawClubDivision = finiteStandingNumber(club.division);
@@ -2834,8 +2833,7 @@
           const rowDivision = finiteStandingNumber(row.division);
           if (!Number.isInteger(rowDivision) || rowDivision !== expectedDivision) continue;
         }
-        seen.add(clubId);
-        eligible.push({ club, row, index });
+        eligible.push({ club, row, index, clubId });
       }
       // New season tables are rank-sorted, but imported/legacy snapshots are not
       // guaranteed to preserve array order. Honor an explicit rank first, then use
@@ -2867,7 +2865,14 @@
           || compareDescendingStandingMetric(powerFor(a.club), powerFor(b.club))
           || a.index - b.index;
       });
-      return eligible.map(entry => entry.club);
+      // Sort every valid row first, then keep the best-ranked row for each club.
+      // Deduplicating while collecting makes the result depend on imported array order.
+      const seen = new Set();
+      return eligible.filter(entry => {
+        if (seen.has(entry.clubId)) return false;
+        seen.add(entry.clubId);
+        return true;
+      }).map(entry => entry.club);
     };
     const plannedMoves = [];
     const scheduledClubIds = new Set();

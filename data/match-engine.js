@@ -47,6 +47,18 @@
     }
     return { type: "injury", minute: injuryMinute };
   }
+  function shootoutWinnerCertain(teamGoals, opponentGoals, teamKicksTaken, opponentKicksTaken, maxKicks = 5) {
+    const values = [teamGoals, opponentGoals, teamKicksTaken, opponentKicksTaken, maxKicks]
+      .map(finiteLegacyNumber);
+    if (values.some(value => value === null)
+      || values.some(value => !Number.isSafeInteger(value) || value < 0)) return false;
+    const [teamScore, opponentScore, teamTaken, opponentTaken, limit] = values;
+    if (limit < 1) return false;
+    const teamRemaining = Math.max(0, limit - teamTaken);
+    const opponentRemaining = Math.max(0, limit - opponentTaken);
+    return teamScore - opponentScore > opponentRemaining
+      || opponentScore - teamScore > teamRemaining;
+  }
   const POSITION_ALIASES = {
     "gk": "حارس مرمى", "goalkeeper": "حارس مرمى", "keeper": "حارس مرمى", "goalie": "حارس مرمى",
     "cb": "قلب دفاع", "lcb": "قلب دفاع", "rcb": "قلب دفاع", "center back": "قلب دفاع",
@@ -549,11 +561,12 @@
               attemptNumber: round, shootoutSide: "opponent" });
           }
         }
-        // Standard five-kick sequence, ending early only when the remaining kicks cannot change the winner.
+        // Stop immediately after either kick once the trailing side has too few kicks left to recover.
         for (let round = 1; round <= 5; round++) {
           takeTeamPenalty(round);
+          if (shootoutWinnerCertain(teamGoals, opponentGoals, round, round - 1)) break;
           takeOpponentPenalty(round);
-          if (Math.abs(teamGoals - opponentGoals) > 5 - round) break;
+          if (shootoutWinnerCertain(teamGoals, opponentGoals, round, round)) break;
         }
         // Sudden death continues in paired kicks until one side wins a round.
         for (let round = 6; teamGoals === opponentGoals && round <= 30; round++) {
@@ -1072,7 +1085,7 @@
       // Old career saves have only a summary score. Keep them readable; validate the detailed ledger when present.
       if (shootout.attempts == null) return true;
       const attempts = shootout.attempts;
-      if (!Array.isArray(attempts) || attempts.length < 6 || attempts.length % 2 !== 0) return false;
+      if (!Array.isArray(attempts) || attempts.length < 6 || attempts.length > 62) return false;
       const attemptScores = { team: 0, opponent: 0 };
       const savedRounds = [];
       for (let index = 0; index < attempts.length; index++) {
@@ -1087,6 +1100,15 @@
         if (attempt.savedByPlayer) savedRounds.push(attempt.round);
       }
       if (attemptScores.team !== scoreFor || attemptScores.opponent !== scoreAgainst) return false;
+      // New ledgers may end after a team's kick when the opponent can no longer catch up.
+      // Keep old even-length ledgers readable because previous releases always recorded both kicks.
+      if (attempts.length % 2 !== 0) {
+        const teamKicksTaken = Math.ceil(attempts.length / 2);
+        const opponentKicksTaken = Math.floor(attempts.length / 2);
+        if (teamKicksTaken > 5
+          || !shootoutWinnerCertain(attemptScores.team, attemptScores.opponent,
+            teamKicksTaken, opponentKicksTaken, 5)) return false;
+      }
       const saveEvents = result.events.filter(event => event.type === "penalty-save");
       if (saveEvents.length !== savedRounds.length) return false;
       const playerIsGoalkeeper = positionProfile(result.metadata?.position || "").goalkeeper === true;
@@ -1238,5 +1260,5 @@
       metadata: sanitizeReportValue(result.metadata || {})
     };
   }
-  window.LWMatch = { simulateMatch, seededRandom, hash, rollExtraTimePlayerExit, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
+  window.LWMatch = { simulateMatch, seededRandom, hash, rollExtraTimePlayerExit, shootoutWinnerCertain, validateResult, normalizePosition, positionProfile, positionPerformanceImpact, playerConcededGoals, playerEarnsCleanSheet, buildStoryReport };
 })();

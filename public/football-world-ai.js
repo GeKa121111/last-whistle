@@ -1858,6 +1858,19 @@
     if (safeNumber(safeWorldOwnValue(player, "ovr"), 0) <= 55) chance += 12;
     return (hash(playerId + "|retirement|" + String(season)) % 100) < clamp(chance, 0, 100);
   }
+  function worldPlayerRosterIdentifiers(world, player, playerMapKey) {
+    const identifiers = new Set();
+    const canonicalId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+    if (canonicalId) identifiers.add(canonicalId);
+    const internalId = safeWorldRecordIdentifier(player, "id");
+    if (internalId && !identifiers.has(internalId)) {
+      const playerMap = safeWorldOwnValue(world, "players");
+      const internalOwner = safeWorldOwnValue(playerMap, internalId);
+      // Keep a legacy alias only when it is not another player's real map key.
+      if (!internalOwner || internalOwner === player) identifiers.add(internalId);
+    }
+    return identifiers;
+  }
   function retireWorldPlayer(world, player, season, seasonAge, playerMapKey) {
     const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
     if (!world || !player || !playerId) return false;
@@ -1867,7 +1880,8 @@
       ? safeWorldOwnValue(clubs, currentClubId) : null;
     if (club && Array.isArray(safeWorldOwnValue(club, "roster"))) {
       const roster = safeWorldArrayField(club, "roster");
-      safeWorldSetField(club, "roster", roster.filter(id => safeWorldIdentifier(id) !== playerId));
+      const rosterIdentifiers = worldPlayerRosterIdentifiers(world, player, playerId);
+      safeWorldSetField(club, "roster", roster.filter(id => !rosterIdentifiers.has(safeWorldIdentifier(id))));
     }
     if (currentClubId) safeWorldSetField(player, "previousClubId", currentClubId);
     safeWorldSetField(player, "clubId", "");
@@ -2005,7 +2019,8 @@
           const staleClub = clubs && typeof clubs === "object" ? safeWorldOwnValue(clubs, clubId) : null;
           if (staleClub && Array.isArray(safeWorldOwnValue(staleClub, "roster"))) {
             const roster = safeWorldArrayField(staleClub, "roster");
-            safeWorldSetField(staleClub, "roster", roster.filter(id => safeWorldIdentifier(id) !== playerId));
+            const rosterIdentifiers = worldPlayerRosterIdentifiers(world, player, playerId);
+            safeWorldSetField(staleClub, "roster", roster.filter(id => !rosterIdentifiers.has(safeWorldIdentifier(id))));
           }
         });
         if (hasStaleFreeAgentState) {
@@ -2049,7 +2064,8 @@
             + " لمدة " + renewedTerm + " مواسم." });
       } else {
         const clubRoster = safeWorldArrayField(club, "roster");
-        safeWorldSetField(club, "roster", clubRoster.filter(id => safeWorldIdentifier(id) !== playerId));
+        const rosterIdentifiers = worldPlayerRosterIdentifiers(world, player, playerId);
+        safeWorldSetField(club, "roster", clubRoster.filter(id => !rosterIdentifiers.has(safeWorldIdentifier(id))));
         safeWorldSetField(player, "previousClubId", safeWorldRecordIdentifier(club, "id") || orphanedClubId);
         safeWorldSetField(player, "freeAgent", true);
         safeWorldSetField(player, "freeAgentSince", safeNumber(season, 1) + 1);

@@ -6456,7 +6456,7 @@ function currentSeasonMatchRows(scopeFilter){
   const savedSeason=finitePrimitiveNumber(rawSeason);
   const segmentId=typeof row.segmentId==="string"?row.segmentId.trim():"";
   const segmentMatches=!!segmentId&&currentSegments.has(segmentId);
-  const isSeasonLabel=typeof rawSeason==="string"&&/^\\d{4}(?:[/-]\\d{2,4})?$/.test(rawSeason.trim());
+  const isSeasonLabel=typeof rawSeason==="string"&&/^\d{4}(?:[/-]\d{2,4})?$/.test(rawSeason.trim());
   const belongsToCurrentSeason=savedSeason!==null?savedSeason===season
    :hasSeason?isSeasonLabel&&segmentMatches:segmentMatches;
   const minutes=finitePrimitiveNumber(row.minutes);

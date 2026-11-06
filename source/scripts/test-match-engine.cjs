@@ -1391,6 +1391,45 @@ assert.equal(engine.validateResult(validShootoutEvent).ok, true,
   "a shootout event at minute 120 must remain valid when the shootout was used");
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
+
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  assert.equal(targetEngine.shootoutWinnerCertain(3, 0, 4, 3), true,
+    label + " must stop when a 3-goal lead exceeds the opponent's two remaining kicks");
+  assert.equal(targetEngine.shootoutWinnerCertain(2, 0, 4, 3), false,
+    label + " must continue when the opponent can still equalize with two kicks");
+  assert.equal(targetEngine.shootoutWinnerCertain(2, 1, 4, 4), false,
+    label + " must continue when the trailing side can still equalize on its final kick");
+  assert.equal(targetEngine.shootoutWinnerCertain(0, 1, 5, 4), true,
+    label + " must stop when the team has no kicks left and is already behind");
+}
+
+const earlyShootoutWinAfterTeamKick = {
+  ...validShootoutEvent,
+  events: [{ ...validShootoutEvent.events[0], scoreFor: 3, scoreAgainst: 0 }],
+  shootout: {
+    ...validShootoutEvent.shootout, scoreFor: 3, scoreAgainst: 0,
+    attempts: [
+      { side: "team", round: 1, scored: true, savedByPlayer: false },
+      { side: "opponent", round: 1, scored: false, savedByPlayer: false },
+      { side: "team", round: 2, scored: true, savedByPlayer: false },
+      { side: "opponent", round: 2, scored: false, savedByPlayer: false },
+      { side: "team", round: 3, scored: true, savedByPlayer: false },
+      { side: "opponent", round: 3, scored: false, savedByPlayer: false },
+      { side: "team", round: 4, scored: false, savedByPlayer: false }
+    ]
+  }
+};
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  assert.equal(targetEngine.validateResult(earlyShootoutWinAfterTeamKick).ok, true,
+    label + " validator must accept a shootout that ends after a decisive team kick");
+  const undecidedOddShootout = JSON.parse(JSON.stringify(earlyShootoutWinAfterTeamKick));
+  undecidedOddShootout.shootout.scoreFor = 2;
+  undecidedOddShootout.events[0].scoreFor = 2;
+  undecidedOddShootout.shootout.attempts[4].scored = false;
+  assert.equal(targetEngine.validateResult(undecidedOddShootout).ok, false,
+    label + " validator must reject an incomplete round when the opponent can still equalize");
+}
+
 const validLateKeeperShootout = {
   ...validShootoutEvent,
   player: { ...validShootoutEvent.player, minutes: 90, penaltiesSaved: 1, cleanSheet: true },
@@ -3036,7 +3075,7 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v562"), "condition update must refresh the static cache");
+assert.ok(workerCopies[0].includes("last-whistle-static-v563"), "condition update must refresh the static cache");
 require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 528);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
-  workerCopies[0], "data/match-engine.js", 83);
+  workerCopies[0], "data/match-engine.js", 84);

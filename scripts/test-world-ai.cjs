@@ -2130,6 +2130,43 @@ assert.equal(malformedClubDivisionMoves.length, 0,
 assert.equal(malformedClubDivisionWorld.clubs["ranked-second-1"].division.length, 1,
   "invalid saved division data must remain untouched rather than being silently rewritten");
 
+// Explicit malformed first-tier club divisions must not be treated like missing legacy data.
+// Otherwise [1], zero, negative, fractional, or hostile values can incorrectly enter the
+// relegation pool and change the season outcome.
+const invalidFirstTierDivisionCases = [
+  [1],
+  0,
+  -1,
+  1.5,
+  "not-a-division",
+  Symbol("invalid-division"),
+  { valueOf() { throw new Error("unsafe club division coercion"); } }
+];
+for (const invalidDivision of invalidFirstTierDivisionCases) {
+  const invalidFirstTierWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+  const invalidFirstTierClub = invalidFirstTierWorld.clubs["ranked-first-6"];
+  invalidFirstTierClub.division = invalidDivision;
+  let invalidFirstTierMoves;
+  assert.doesNotThrow(() => {
+    invalidFirstTierMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+      invalidFirstTierWorld, 6, rankedPromotionDb
+    );
+  }, "malformed explicit first-tier divisions must not crash promotion processing");
+  assert.equal(invalidFirstTierMoves.length, 0,
+    "a malformed explicit first-tier club must not be silently accepted as a valid top-flight club");
+  assert.strictEqual(invalidFirstTierClub.division, invalidDivision,
+    "malformed saved club divisions must remain unchanged");
+}
+
+const numericStringClubDivisionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+numericStringClubDivisionWorld.clubs["ranked-first-6"].division = "1";
+const numericStringClubDivisionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  numericStringClubDivisionWorld, 6, rankedPromotionDb
+);
+assert.equal(numericStringClubDivisionMoves.length, 1,
+  "numeric-string club divisions must retain legacy compatibility");
+assert.equal(numericStringClubDivisionMoves[0].relegated, "Ranked First 6");
+
 // A malformed persisted row division must also be excluded from its table.
 const malformedRowDivisionWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
 malformedRowDivisionWorld.leagueTables["6"]["ranked-league:2"]

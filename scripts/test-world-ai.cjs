@@ -532,7 +532,7 @@ const malformedSeasonRowsWorld = {
   clubs: {
     "malformed-season-stats-club": {
       id: "malformed-season-stats-club", name: "Malformed Stats Club",
-      country: "Testland", leagueId: "malformed-season-stats-league", division: 1,
+      country: "Testland", leagueId: "malformed-season-stats-league", division: [1],
       power: [91], prestige: [80], confederation: "CAF"
     }
   },
@@ -571,9 +571,9 @@ assert.equal(malformedSeasonRows[0].age, 18);
 assert.equal(malformedSeasonRows[0].ovr, 50);
 assert.equal(malformedSeasonRows[0].potential, 50);
 assert.equal(malformedSeasonRows[0].prestige, 0);
-assert.deepEqual(
-  sandbox.window.__lwTestBuildPlayerRows(malformedSeasonRowsWorld, [5], malformedSeasonAccumulator),
-  [],
+assert.equal(
+  sandbox.window.__lwTestBuildPlayerRows(malformedSeasonRowsWorld, [5], malformedSeasonAccumulator).length,
+  0,
   "array-shaped season identifiers must not create malformed season rows"
 );
 

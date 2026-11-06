@@ -2002,7 +2002,7 @@
       const clubId = missingId ? safeSimulationIdentifier(key) : safeSimulationIdentifier(savedId);
       const leagueId = safeSimulationIdentifier(savedLeagueId);
       const division = base.normalizeClubDivision(savedDivision, 1);
-      if (!clubId || !leagueId || division < 1) continue;
+      if (!clubId) continue;
       const entry = { key, club, clubId, leagueId, division };
       const current = byId.get(clubId);
       if (!current || (key === clubId && current.key !== current.clubId)) byId.set(clubId, entry);
@@ -2275,6 +2275,7 @@
     const clubsById = new Map(clubEntries.map(entry => [entry.clubId, entry]));
     const powerByLeagueDivision = new Map();
     clubEntries.forEach(entry => {
+      if (!entry.leagueId || entry.division < 1) return;
       const key = entry.leagueId + "|" + entry.division;
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
       const savedPower = clubPowerForSimulation(entry.club);

@@ -3817,17 +3817,17 @@ assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
 
  // A null report row must be skipped, an array-wrapped season must not impersonate
  // the requested year, and a numeric-string legacy report must remain readable.
- const staleMarketHistoryWorld = JSON.parse(JSON.stringify(staleWrapperWorld));
- staleMarketHistoryWorld.marketReports = [
+ const staleRequestMarketWorld = JSON.parse(JSON.stringify(staleWrapperWorld));
+ staleRequestMarketWorld.marketReports = [
    null,
    { season: [2], moves: [99], transferIds: ["malformed-market-row"] },
    { season: "2", moves: "3", transferIds: ["legacy-numeric-string-market-row"] }
  ];
- const staleMarketHistorySave = { ...staleWrapperSave, worldSimulation: staleMarketHistoryWorld };
- const staleMarketHistoryResult = ai.completeSeason(staleMarketHistorySave, 2, db);
- assert.equal(staleMarketHistoryResult.staleRequest, true,
+ const staleRequestMarketSave = { ...staleWrapperSave, worldSimulation: staleRequestMarketWorld };
+ const staleRequestMarketResult = ai.completeSeason(staleRequestMarketSave, 2, db);
+ assert.equal(staleRequestMarketResult.staleRequest, true,
    "malformed market history must not turn a stale season completion into a live simulation");
- assert.equal(staleMarketHistoryResult.transfers, 3,
+ assert.equal(staleRequestMarketResult.transfers, 3,
    "market lookup must skip null/array season rows while preserving numeric-string report compatibility");
 
  const staleWrapperResult = ai.advanceToSeason(staleWrapperSave, 2, db);

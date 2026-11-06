@@ -3532,8 +3532,10 @@ assert.equal(reservedMarketWorld.players[reservedFreeAgentId].clubId, "retry-unr
 assert.equal(reservedMarketWorld.players[reservedFreeAgentId].clubId === "retry-reserved-seller"
   || reservedMarketWorld.players[reservedFreeAgentId].clubId === "retry-reserved-buyer", false,
   "free-agent recovery must not allow a second move for either paid-deal participant");
-assert.ok(reservedMarketWorld.marketReports[0].transferIds.includes(reservedPaidMoveId));
-assert.ok(reservedMarketWorld.marketReports[0].transferIds.includes(
+const reservedMarketReport = reservedMarketWorld.marketReports.find(row => row
+  && row.season === 2 && Array.isArray(row.transferIds) && row.transferIds.includes(reservedPaidMoveId));
+assert.ok(reservedMarketReport, "retry must update the valid season-2 market report after skipping malformed rows");
+assert.ok(reservedMarketReport.transferIds.includes(
   reservedMarketWorld.transfers.find(move => move.playerId === reservedFreeAgentId).id
 ));
 assert.equal(reservedMarketWorld.transfers.filter(move => move.playerId === reservedFreeAgentId).length, 1,

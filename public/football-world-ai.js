@@ -1473,8 +1473,8 @@
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
         group, from: origin, fromCountry: seller.country, fromClubId: String(seller.id),
         to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id),
-        fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (playerAge <= 23 ? "استثمار في المستقبل" : playerAge >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
-        playerOvr, kind: "انتقال — محاكاة"
+        fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (marketPlayerAge(player) <= 23 ? "استثمار في المستقبل" : marketPlayerAge(player) >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
+        playerOvr: marketPlayerRating(player), kind: "انتقال — محاكاة"
       };
       moves.push(transfer);
       world.transfers.unshift(transfer);

@@ -3477,7 +3477,7 @@ const malformedSeasonSnapshot = sandbox.window.__lwTestSimulateLeagueSeason(
 );
 assert.deepEqual(Array.from(malformedSeasonSnapshot.rows), [],
   "a malformed saved season-stat container must not escape as a non-array");
-assert.deepEqual(malformedSeasonSnapshot.tables, {},
+assert.equal(Object.keys(malformedSeasonSnapshot.tables).length, 0,
   "a malformed saved league-table container must not escape as an array");
 assert.deepEqual(Array.from(malformedSeasonSnapshot.matches), [],
   "a malformed saved match container must not crash completed-season loading");

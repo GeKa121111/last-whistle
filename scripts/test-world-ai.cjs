@@ -85,7 +85,7 @@ assert.ok(aiSourceRaw.includes(leagueTablesMarker), "AI engine must retain leagu
 assert.ok(aiSourceRaw.includes(projectedRowsMarker), "AI engine must retain projected season generation for strict division regression coverage");
 assert.ok(aiSourceRaw.includes(groupRowsMarker), "AI engine must retain world match grouping for strict division regression coverage");
 const aiSource = aiSourceRaw
-  .replace(divisionNormalizerMarker, "  global.__lwTestNormalizeClubDivision = normalizeClubDivision;\n  global.__lwTestDivisionForClub = divisionForClub;\n" + divisionNormalizerMarker)
+  .replace(divisionNormalizerMarker, "  global.__lwTestNormalizeClubDivision = normalizeClubDivision;\n" + divisionNormalizerMarker)
   .replace(leagueTablesMarker, "  global.__lwTestSimulateLeagueTables = simulateLeagueTables;\n" + leagueTablesMarker)
   .replace(projectedRowsMarker, "  global.__lwTestGetProjectedSeasonRows = getProjectedSeasonRows;\n" + projectedRowsMarker)
   .replace(groupRowsMarker, "  global.__lwTestGroupRows = groupRows;\n" + groupRowsMarker)
@@ -2178,13 +2178,13 @@ const numericStringClubDivisionMoves = sandbox.window.__lwTestApplyPromotionRele
 assert.equal(numericStringClubDivisionMoves.length, 1,
   "numeric-string club divisions must retain legacy compatibility");
 assert.equal(numericStringClubDivisionMoves[0].relegated, "Ranked First 6");
-assert.equal(sandbox.window.__lwTestDivisionForClub({}), 1,
+assert.equal(ai.divisionForClub({}), 1,
   "clubs with genuinely absent legacy divisions must remain first-tier compatible");
-assert.equal(sandbox.window.__lwTestDivisionForClub({ division: null }), 1,
+assert.equal(ai.divisionForClub({ division: null }), 1,
   "null legacy divisions must retain first-tier compatibility");
-assert.equal(sandbox.window.__lwTestDivisionForClub({ division: " " }), 1,
+assert.equal(ai.divisionForClub({ division: " " }), 1,
   "blank legacy divisions must retain first-tier compatibility");
-assert.equal(sandbox.window.__lwTestDivisionForClub({ division: "2" }), 2,
+assert.equal(ai.divisionForClub({ division: "2" }), 2,
   "numeric-string divisions must remain compatible");
 const strictInvalidDivisionValues = [
   [1], 0, -1, 1.5, "not-a-division", Symbol("invalid-division"),
@@ -2194,7 +2194,7 @@ strictInvalidDivisionValues.forEach(value => {
   assert.equal(sandbox.window.__lwTestNormalizeClubDivision(value, 1), 0,
     "explicit malformed club divisions must be rejected without coercion");
 });
-assert.equal(sandbox.window.__lwTestDivisionForClub(null), 0,
+assert.equal(ai.divisionForClub(null), 0,
   "a missing club object must not be treated as a real first-tier club");
 
 // The same strict tier rule must apply to schedules, league tables, projections and cups,

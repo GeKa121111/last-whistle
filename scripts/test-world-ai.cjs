@@ -1986,14 +1986,14 @@ assert.equal(canonicalProgressionPlayer.id, staleProgressionInternalId,
 // when the player's internal ID is stale. Cleanup must remove that exact membership.
 const canonicalFreeAgentMapKey = "canonical-free-agent-map-key";
 const staleFreeAgentInternalId = "stale-free-agent-internal-id";
-const canonicalSeasonFreeAgentPlayer = {
+const canonicalFreeAgentPlayer = {
   id: staleFreeAgentInternalId, name: "Canonical free-agent cleanup",
   clubId: "", previousClubId: "canonical-former-club", leagueId: "", division: 0,
   group: "attacker", position: "مهاجم", age: 25, contractSeasons: 0,
   ovr: 55, potential: 60, freeAgent: true, freeAgentSince: 1, transferListed: false, retired: false
 };
 const canonicalFreeAgentWorld = {
-  players: { [canonicalFreeAgentMapKey]: canonicalSeasonFreeAgentPlayer },
+  players: { [canonicalFreeAgentMapKey]: canonicalFreeAgentPlayer },
   clubs: { "canonical-former-club": {
     id: "canonical-former-club", name: "Canonical Former Club", roster: [canonicalFreeAgentMapKey]
   } },
@@ -2002,9 +2002,9 @@ const canonicalFreeAgentWorld = {
 sandbox.window.__lwTestDevelopPlayers(canonicalFreeAgentWorld, 1);
 assert.deepEqual(canonicalFreeAgentWorld.clubs["canonical-former-club"].roster, [],
   "free-agent cleanup must remove the canonical roster key, not the stale internal ID");
-assert.equal(canonicalFreeAgentWorld.players[canonicalFreeAgentMapKey], canonicalSeasonFreeAgentPlayer,
+assert.equal(canonicalFreeAgentWorld.players[canonicalFreeAgentMapKey], canonicalFreeAgentPlayer,
   "free-agent cleanup must preserve the player record under its original map key");
-assert.equal(canonicalSeasonFreeAgentPlayer.id, staleFreeAgentInternalId,
+assert.equal(canonicalFreeAgentPlayer.id, staleFreeAgentInternalId,
   "free-agent cleanup must not rewrite the saved internal ID");
 
 // Retirement must remove the canonical roster entry and retain history under the

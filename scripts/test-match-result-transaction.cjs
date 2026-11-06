@@ -333,6 +333,60 @@ assert.equal(currentSeasonRows.some(row => row.id === "unknown-career-season"), 
 assert.deepEqual(Array.from(sandbox.currentSeasonMatchRows(row => row.scope === "league"), row => row.id),
   ["legacy-only-3", "legacy-duplicate-3", "legacy-no-season-3", "archived-career-3", "active-career-3"],
   "competition filters must work over the unified legacy/current match history");
+const transferStatsState = {
+  ...initialState, season: 3, leagueSegmentId: "new-active-segment",
+  leagueArchives: [
+    { season: 3, segmentId: "old-club-segment" },
+    { season: 3, segmentId: "new-club-segment" },
+    { season: 2, segmentId: "previous-season-segment" }
+  ],
+  seasonLog: [{
+    id: "transfer-old-club-match", season: 3, segmentId: "old-club-segment",
+    scope: "league", club: "Old FC", minutes: 90, goals: 1, assists: 0, rating: 8
+  }],
+  careerMatchHistory: [
+    { id: "transfer-old-club-match", season: 3, segmentId: "old-club-segment", scope: "league", club: "Old FC", minutes: 90, goals: 1, assists: 0, rating: 8 },
+    { id: "transfer-new-club-match", season: 3, segmentId: "new-club-segment", scope: "league", club: "New FC", minutes: "90", goals: "2", assists: "1", rating: "7.5" },
+    { id: "transfer-old-club-legacy-segment", segmentId: "old-club-segment", scope: "league", club: "Old FC", minutes: 45, goals: 0, assists: 1, rating: 7 },
+    { id: "transfer-new-club-active-segment", segmentId: "new-active-segment", scope: "league", club: "New FC", minutes: 30, goals: 0, assists: 0, rating: 6.5 },
+    { id: "transfer-new-club-season-label", season: "2026/27", segmentId: "new-active-segment", scope: "league", club: "New FC", minutes: 15, goals: 0, assists: 0, rating: 7 },
+    { id: "transfer-invalid-infinite-minutes", season: 3, segmentId: "new-active-segment", minutes: Infinity, goals: 9 },
+    { id: "transfer-invalid-array-minutes", season: 3, segmentId: "new-active-segment", minutes: [90], goals: 9 },
+    { id: "transfer-invalid-string-minutes", season: 3, segmentId: "new-active-segment", minutes: "Infinity", goals: 9 },
+    { id: "transfer-invalid-object-minutes", season: 3, segmentId: "new-active-segment", minutes: { value: 90 }, goals: 9 },
+    { id: "transfer-prior-season", season: 2, segmentId: "new-active-segment", minutes: 90, goals: 9 },
+    { id: "transfer-international", season: 3, scope: "international", minutes: 90, goals: 9 }
+  ]
+};
+sandbox.state = transferStatsState;
+const transferSeasonRows = sandbox.currentSeasonMatchRows();
+assert.deepEqual(Array.from(transferSeasonRows, row => row.id), [
+  "transfer-old-club-match", "transfer-new-club-match", "transfer-old-club-legacy-segment",
+  "transfer-new-club-active-segment", "transfer-new-club-season-label"
+], "current-season stats must retain both clubs' appearances after a mid-season transfer while rejecting malformed minutes");
+const transferSeasonStats = sandbox.playerCurrentSeasonStats(transferSeasonRows);
+assert.deepEqual({
+  appearances: transferSeasonStats.appearances, minutes: transferSeasonStats.minutes,
+  goals: transferSeasonStats.goals, assists: transferSeasonStats.assists,
+  averageRating: transferSeasonStats.averageRating
+}, { appearances: 5, minutes: 270, goals: 3, assists: 2, averageRating: 7.2 },
+"a mid-season transfer must preserve the combined season ledger without counting the duplicated fixture twice");
+assert.equal(transferSeasonRows.some(row => String(row.id).includes("invalid-")), false,
+  "current-season rows must reject Infinity, arrays, and object-shaped minute values");
+const malformedSeasonStats = sandbox.playerCurrentSeasonStats([
+  { minutes: 90, goals: Infinity, assists: [2], rating: Infinity, stats: { saves: Infinity, tacklesWon: [] } },
+  { minutes: [90], goals: 5, assists: 5, rating: 9, stats: { saves: 8 } },
+  { minutes: "Infinity", goals: 5, assists: 5, rating: 9, stats: { saves: 8 } },
+  { minutes: "90", goals: "2", assists: "1", rating: "8", stats: { saves: "3", tacklesWon: "4", clearances: "5" } }
+]);
+assert.deepEqual({
+  appearances: malformedSeasonStats.appearances, minutes: malformedSeasonStats.minutes,
+  goals: malformedSeasonStats.goals, assists: malformedSeasonStats.assists,
+  averageRating: malformedSeasonStats.averageRating, saves: malformedSeasonStats.saves,
+  tacklesWon: malformedSeasonStats.tacklesWon, clearances: malformedSeasonStats.clearances
+}, { appearances: 2, minutes: 180, goals: 2, assists: 1, averageRating: 8, saves: 3, tacklesWon: 4, clearances: 5 },
+"season aggregation must ignore malformed metric values and accept valid numeric-string legacy stats");
+
 
 events.failCalendar = false;
 const segmentStartState = JSON.parse(JSON.stringify(initialState));

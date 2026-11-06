@@ -1857,6 +1857,11 @@
     const numeric = safeNumber(value, NaN);
     return Number.isFinite(numeric) ? Math.round(numeric) : fallback;
   };
+  function clubPowerForSimulation(club, fallback = 55) {
+    const currentPower = safeNumber(club && club.power, 0);
+    const basePower = safeNumber(club && club.basePower, 0);
+    return clamp(currentPower > 0 ? currentPower : basePower > 0 ? basePower : fallback, 25, 100);
+  }
   const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   const hash = value => {
     let h = 2166136261;
@@ -1963,8 +1968,8 @@
     const seed = hash([season, division, matchday, home.id, away.id, competitionId || "league", "match-v2"].join("|"));
     const rng = random(seed);
     const homeLineup = lineupForMatch(world, home, lineupCache), awayLineup = lineupForMatch(world, away, lineupCache);
-    const homeStrength = clamp(safeNumber(home && home.power, 0) || safeNumber(home && home.basePower, 55) || 55, 25, 95);
-    const awayStrength = clamp(safeNumber(away && away.power, 0) || safeNumber(away && away.basePower, 55) || 55, 25, 95);
+    const homeStrength = clamp(clubPowerForSimulation(home), 25, 95);
+    const awayStrength = clamp(clubPowerForSimulation(away), 25, 95);
     const xgHome = clamp(1.28 + (homeStrength - awayStrength) * 0.027 + 0.16, 0.28, 3.05);
     const xgAway = clamp(1.24 + (awayStrength - homeStrength) * 0.027 - 0.06, 0.22, 2.9);
     const homeGoals = poisson(rng, xgHome), awayGoals = poisson(rng, xgAway);
@@ -2021,7 +2026,7 @@
   }
   function tableRow(club, season, leagueId, division) {
     return { season: Number(season), leagueId: String(leagueId), division: Number(division) || 1,
-      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55),
+      country: club.country, clubId: club.id, club: club.name, power: Math.round(clubPowerForSimulation(club)),
       played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0, form: 0, recentForm: "" };
   }
   function applyResult(tablesByClub, match) {
@@ -2050,7 +2055,7 @@
       if (!club) return;
       const key = String(club.leagueId || "") + "|" + divisionForClub(club);
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
-      const savedPower = safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55;
+      const savedPower = clubPowerForSimulation(club);
       summary.total += savedPower > 0 ? clamp(savedPower, 25, 100) : 55;
       summary.count++;
       powerByLeagueDivision.set(key, summary);
@@ -2473,8 +2478,10 @@
         const home = round % 2 ? first : second, away = home.id === first.id ? second : first;
         const fixtureSeed = hash(season + "|" + def.id + "|" + round + "|" + home.id + "|" + away.id);
         const matchRng = random(fixtureSeed);
-        let homeGoals = poisson(matchRng, clamp(1.24 + (home.power - away.power) * 0.025 + 0.08, 0.2, 2.8));
-        let awayGoals = poisson(matchRng, clamp(1.20 + (away.power - home.power) * 0.025, 0.2, 2.7));
+        const homePower = clubPowerForSimulation(home);
+        const awayPower = clubPowerForSimulation(away);
+        let homeGoals = poisson(matchRng, clamp(1.24 + (homePower - awayPower) * 0.025 + 0.08, 0.2, 2.8));
+        let awayGoals = poisson(matchRng, clamp(1.20 + (awayPower - homePower) * 0.025, 0.2, 2.7));
         // Cup ties cannot end level: simulate extra time and penalties with a deterministic tiebreak.
         if (homeGoals === awayGoals) {
           // Use one fair draw. Chained conditional draws gave the home club a 52.645% win probability on a neutral tiebreak.

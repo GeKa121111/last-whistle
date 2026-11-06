@@ -4106,6 +4106,37 @@ assert.equal(tieBreakFinal.awayGoals, 2,
 assert.equal(tieBreakFinal.winnerId, tieBreakFinal.awayClubId,
   "a tied knockout final must follow one unbiased tiebreak draw, not a home-favouring chain");
 
+const malformedCupPowerClub = {
+  id: "malformed-cup-power", name: "Malformed Cup Power", power: hostileSavedNumber, basePower: 92
+};
+const validCupPowerClub = {
+  id: "valid-cup-power", name: "Valid Cup Power", power: 60, basePower: 60
+};
+const malformedCupPowerWorld = { clubs: {
+  [malformedCupPowerClub.id]: malformedCupPowerClub,
+  [validCupPowerClub.id]: validCupPowerClub
+} };
+const controlCupPowerWorld = { clubs: {
+  [malformedCupPowerClub.id]: { ...malformedCupPowerClub, power: 92 },
+  [validCupPowerClub.id]: { ...validCupPowerClub }
+} };
+let malformedPowerCup, controlPowerCup;
+assert.doesNotThrow(() => {
+  malformedPowerCup = sandbox.window.__lwTestKnockout(
+    malformedCupPowerWorld, 14, { id: "malformed-power-cup", name: "Malformed Power Cup", kind: "domestic-cup" },
+    [malformedCupPowerClub, validCupPowerClub]
+  );
+}, "knockout simulation must use basePower instead of coercing a malformed current club power");
+controlPowerCup = sandbox.window.__lwTestKnockout(
+  controlCupPowerWorld, 14, { id: "malformed-power-cup", name: "Malformed Power Cup", kind: "domestic-cup" },
+  [controlCupPowerWorld.clubs[malformedCupPowerClub.id], controlCupPowerWorld.clubs[validCupPowerClub.id]]
+);
+assert.deepEqual(
+  [malformedPowerCup.matches[0].homeGoals, malformedPowerCup.matches[0].awayGoals, malformedPowerCup.matches[0].winnerId],
+  [controlPowerCup.matches[0].homeGoals, controlPowerCup.matches[0].awayGoals, controlPowerCup.matches[0].winnerId],
+  "a malformed current power with valid basePower must simulate identically to the equivalent valid saved power"
+);
+
 const legacyCupWorld = JSON.parse(JSON.stringify(cupWorld));
 delete legacyCupWorld.clubs["cup-first-01"].division;
 const legacyCups = sandbox.window.__lwTestSimulateCompetitions(legacyCupWorld, 1, cupDb, {});

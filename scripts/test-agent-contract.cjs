@@ -387,7 +387,10 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  const malformedProfileRateState = makeMalformedFeeState(5000);
  malformedProfileRateState.agentProfile.feeRate = [0.14];
  malformedProfileRateState.agentProfile.customFeeRate = [0.14];
- assert.equal(window.LWAgentRuntime.commissionRate(malformedProfileRateState), 0.06,
+ const defaultCommissionState = makeMalformedFeeState(5000);
+ defaultCommissionState.agentProfile.customFeeRate = null;
+ const expectedDefaultCommission = window.LWAgentRuntime.commissionRate(defaultCommissionState);
+ assert.equal(window.LWAgentRuntime.commissionRate(malformedProfileRateState), expectedDefaultCommission,
    "array-shaped custom rates must not raise commission before save normalization");
  const malformedProfileRateChanged = window.LWAgentRuntime.ensureState(malformedProfileRateState);
  assert.equal(malformedProfileRateChanged, true, "malformed profile fee rates must be marked for persistence");

@@ -122,8 +122,8 @@ assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 556);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 81);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 557);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 82);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -668,9 +668,14 @@ const inlineCareerXPStart = rootHtml.indexOf("function addCareerXP(state, amount
 const inlineCareerXPEnd = rootHtml.indexOf("\n  function train(", inlineCareerXPStart + 10);
 assert.ok(inlineCareerXPStart >= 0 && inlineCareerXPEnd > inlineCareerXPStart,
   "the inline career XP function must remain extractable for regression testing");
+const inlineFiniteLegacyNumberStart = rootHtml.indexOf("const finiteLegacyNumber = value =>");
+const inlineFiniteLegacyNumberEnd = rootHtml.indexOf("\n\n  const CONFIG", inlineFiniteLegacyNumberStart);
+assert.ok(inlineFiniteLegacyNumberStart >= 0 && inlineFiniteLegacyNumberEnd > inlineFiniteLegacyNumberStart,
+  "the inline career XP regression must load the same strict numeric parser as the engine");
 const inlineCareerXPContext = {};
 vm.createContext(inlineCareerXPContext);
-vm.runInContext(rootHtml.slice(inlineCareerXPStart, inlineCareerXPEnd)
+vm.runInContext(rootHtml.slice(inlineFiniteLegacyNumberStart, inlineFiniteLegacyNumberEnd)
+  + "\n" + rootHtml.slice(inlineCareerXPStart, inlineCareerXPEnd)
   + "\nthis.addCareerXP = addCareerXP;", inlineCareerXPContext);
 const inlineCorruptedXPState = { careerXP: Infinity, levelXP: Infinity, careerLevel: Infinity };
 inlineCareerXPContext.addCareerXP(inlineCorruptedXPState, Infinity);
@@ -678,6 +683,21 @@ assert.ok(Number.isFinite(inlineCorruptedXPState.careerXP)
   && Number.isFinite(inlineCorruptedXPState.levelXP)
   && Number.isFinite(inlineCorruptedXPState.careerLevel),
   "the inline career XP function must recover safely from non-finite progression values");
+const inlineMalformedXPState = { careerXP: [20], levelXP: [5], careerLevel: [2] };
+assert.doesNotThrow(() => inlineCareerXPContext.addCareerXP(inlineMalformedXPState, Symbol("invalid-xp")),
+  "symbol and array progression values must not throw during career XP updates");
+assert.equal(inlineMalformedXPState.careerXP, 0);
+assert.equal(inlineMalformedXPState.levelXP, 0);
+assert.equal(inlineMalformedXPState.careerLevel, 1);
+const inlineArrayAmountState = { careerXP: 20, levelXP: 5, careerLevel: 2 };
+inlineCareerXPContext.addCareerXP(inlineArrayAmountState, [10]);
+assert.equal(inlineArrayAmountState.careerXP, 20, "array-shaped XP awards must not grant progression");
+assert.equal(inlineArrayAmountState.levelXP, 5);
+const inlineNumericStringXPState = { careerXP: "20", levelXP: "5", careerLevel: "2" };
+inlineCareerXPContext.addCareerXP(inlineNumericStringXPState, "10");
+assert.equal(inlineNumericStringXPState.careerXP, 30, "valid numeric-string XP must remain compatible");
+assert.equal(inlineNumericStringXPState.levelXP, 15);
+assert.equal(inlineNumericStringXPState.careerLevel, 2);
 assert.ok(rootHtml.includes("trainingXPValue !== null")
   && rootHtml.includes("trainingXPThreshold - 0.01"),
   "the inline engine must sanitize malformed training XP before applying progression");
@@ -3373,5 +3393,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v556"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v557"),
  "service worker cache must be refreshed");

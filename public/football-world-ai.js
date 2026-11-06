@@ -1174,22 +1174,29 @@
   function normalizedClubPower(club) {
     return marketClubPower(club);
   }
-  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
+  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub, playerMapKey) {
+    const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+    if (!playerId) return null;
     const playerClubId = safeWorldIdentifier(player && player.clubId);
     const savedClub = playerClubId && world.clubs ? world.clubs[playerClubId] : null;
     const clubId = savedClub ? safeWorldClubIdentifier(savedClub, playerClubId) : "";
     const club = savedClub && clubId ? savedClub : null;
     const savedDivision = normalizeClubDivision(player && player.division, 0);
     const division = savedDivision >= 1 ? savedDivision : divisionForClub(club);
-    const rng = random(hash(player.id + "|" + season + "|season-stat-v" + VERSION));
+    const rng = random(hash(playerId + "|" + season + "|season-stat-v" + VERSION));
     const power = club ? normalizedClubPower(club) : 55;
     const matches = club
       ? Math.max(0, Math.min(60, int(matchesByClub && matchesByClub.get(clubId), Math.max(0, int(club.matchesPerSeason, 34)))))
       : 34;
     const ovr = clamp(safeNumber(player.ovr, 55) || 55, 35, 99);
     const group = player.group || groupForPosition(player.position);
-    const peers = club ? rosterPlayers(world, club).filter(row => row.group === group) : [player];
-    const roleStrength = peers.length ? (peers.slice().sort((a, b) => safeNumber(b && b.ovr, 50) - safeNumber(a && a.ovr, 50)).findIndex(row => row.id === player.id)) : 0;
+    const peers = club ? activeRosterIds(world, club).map(id => ({
+      playerId: id, player: safeWorldOwnValue(world.players, id)
+    })).filter(entry => entry.player && (entry.player.group || groupForPosition(entry.player.position)) === group)
+      : [{ playerId, player }];
+    const roleStrength = peers.length ? peers.slice().sort((a, b) =>
+      safeNumber(b.player && b.player.ovr, 50) - safeNumber(a.player && a.player.ovr, 50))
+      .findIndex(entry => entry.playerId === playerId) : 0;
     const expectedApps = matches > 0
       ? clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), Math.min(4, matches), matches)
       : 0;
@@ -1205,7 +1212,7 @@
     const goals = Math.round(fullGoals * clamp(progress, 0, 1));
     const assists = Math.round(fullAssists * clamp(progress, 0, 1));
     const values = {
-      id: player.id, season: Number(season), name: player.name, club: club ? club.name : "",
+      id: playerId, playerId, season: Number(season), name: player.name, club: club ? club.name : "",
       clubName: club ? club.name : "", country: player.country, leagueId: player.leagueId,
       division, position: player.position, group,
       age: clamp(safeNumber(player.age, 18) || 18, 14, 60), ovr,
@@ -1265,14 +1272,17 @@
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
       const matchesByClub = buildLeagueMatchCountLookup(world, db);
-      const rows = Object.values(world.players || {}).filter(player => {
+      const rows = Object.entries(world.players || {}).filter(([playerMapKey, player]) => {
+        const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
         const playerClubId = safeWorldIdentifier(player && player.clubId);
         const club = playerClubId && world.clubs ? world.clubs[playerClubId] : null;
-        return player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
+        return !!playerId && player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
           && !!playerClubId && !!club
           && !!safeWorldClubIdentifier(club, playerClubId)
           && divisionForClub(club) >= 1;
-      }).map(player => generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
+      }).map(([playerMapKey, player]) =>
+        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub, playerMapKey))
+        .filter(row => row && typeof row === "object");
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
       if (cached.rows.size > 2) cached.rows.delete(cached.rows.keys().next().value);
@@ -1470,8 +1480,13 @@
     }
     const strengthByLeague = buildLeagueStrengthLookup(world);
     const matchesByClub = buildLeagueMatchCountLookup(world, db);
-    const rows = Object.values(world.players).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
-      generatePlayerSeason(world, player, year, 1, strengthByLeague, matchesByClub));
+    const rows = Object.entries(world.players || {}).filter(([playerMapKey, player]) => {
+      const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+      return !!playerId && player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
+        && player.clubId && world.clubs[player.clubId];
+    }).map(([playerMapKey, player]) =>
+      generatePlayerSeason(world, player, year, 1, strengthByLeague, matchesByClub, playerMapKey))
+      .filter(row => row && typeof row === "object");
     const tables = simulateLeagueTables(world, year, 1, db, matchesByClub);
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
@@ -2145,10 +2160,13 @@
   function transferTargets(save, db) {
     const world = ensureState(save, db);
     return Object.values(world.clubs).map(club => {
-      const players = rosterPlayers(world, club).map(player => ({
-        id: player.id, name: player.name, position: player.position, ovr: player.ovr, potential: player.potential,
-        age: player.age, contractSeasons: player.contractSeasons
-      }));
+      const players = activeRosterIds(world, club).map(playerId => {
+        const player = safeWorldOwnValue(world.players, playerId);
+        return player ? {
+          id: playerId, name: player.name, position: player.position, ovr: player.ovr, potential: player.potential,
+          age: player.age, contractSeasons: player.contractSeasons
+        } : null;
+      }).filter(Boolean);
       const stars = players.slice().sort((a, b) =>
         safeNumber(b && b.ovr, 50) - safeNumber(a && a.ovr, 50)).slice(0, 7).map(player => player.name);
       const division = divisionForClub(club);
@@ -2242,7 +2260,7 @@
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
     sortCompletedSeasonMarkers,
     getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
-    rememberTransferClubEndpoints, isTrueFlag
+    rememberTransferClubEndpoints, isTrueFlag, activeRosterIds
   });
 })(window);
 
@@ -2414,22 +2432,36 @@
     } catch (_) { return ""; }
   }
   function activeRosterIdsForClub(world, club) {
-    return playersForClub(world, club).map(player => safeRecordIdentifier(player, "id")).filter(Boolean);
+    return typeof base.activeRosterIds === "function" ? base.activeRosterIds(world, club) : [];
   }
-  function makeLineup(world, club) {
+  function makeLineup(world, club, playerKeyByObject) {
     const rows = playersForClub(world, club);
     const selected = [];
+    const playerIdentity = player => {
+      const mapped = playerKeyByObject && typeof playerKeyByObject.get === "function"
+        ? playerKeyByObject.get(player) : "";
+      return safeSimulationIdentifier(mapped) || safeRecordIdentifier(player, "id");
+    };
     const quotas = [
       ["goalkeeper", 1], ["defender", 4], ["midfielder", 4], ["attacker", 2]
     ];
     quotas.forEach(([group, count]) => {
       rows.filter(player => player.group === group)
         .sort((a, b) => playerOverall(b) - playerOverall(a)
-          || safeRecordIdentifier(a, "id").localeCompare(safeRecordIdentifier(b, "id")))
-        .slice(0, count).forEach(player => { if (!selected.some(row => row.id === player.id)) selected.push(player); });
+          || playerIdentity(a).localeCompare(playerIdentity(b)))
+        .slice(0, count).forEach(player => {
+          const playerId = playerIdentity(player);
+          if (playerId && !selected.some(row => playerIdentity(row) === playerId)) selected.push(player);
+        });
     });
-    rows.slice().sort((a, b) => playerOverall(b) - playerOverall(a))
-      .forEach(player => { if (selected.length < 11 && !selected.some(row => row.id === player.id)) selected.push(player); });
+    rows.slice().sort((a, b) => playerOverall(b) - playerOverall(a)
+      || playerIdentity(a).localeCompare(playerIdentity(b)))
+      .forEach(player => {
+        const playerId = playerIdentity(player);
+        if (selected.length < 11 && playerId && !selected.some(row => playerIdentity(row) === playerId)) {
+          selected.push(player);
+        }
+      });
     return selected.slice(0, 11);
   }
   function poisson(rng, lambda) {
@@ -2516,15 +2548,21 @@
     for (let i = 0; i < rows.length; i++) { roll -= weights[i]; if (roll <= 0) return rows[i]; }
     return rows[rows.length - 1];
   }
-  function lineupForMatch(world, club, cache) {
-    if (!(cache instanceof Map)) return makeLineup(world, club);
-    if (!cache.has(club.id)) cache.set(club.id, makeLineup(world, club));
+  function lineupForMatch(world, club, cache, playerKeyByObject) {
+    if (!(cache instanceof Map)) return makeLineup(world, club, playerKeyByObject);
+    if (!cache.has(club.id)) cache.set(club.id, makeLineup(world, club, playerKeyByObject));
     return cache.get(club.id);
   }
-  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache) {
+  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache, playerKeyByObject) {
+    const playerIdentity = player => {
+      const mapped = playerKeyByObject && typeof playerKeyByObject.get === "function"
+        ? playerKeyByObject.get(player) : "";
+      return safeSimulationIdentifier(mapped) || safeRecordIdentifier(player, "id");
+    };
     const seed = hash([season, division, matchday, home.id, away.id, competitionId || "league", "match-v2"].join("|"));
     const rng = random(seed);
-    const homeLineup = lineupForMatch(world, home, lineupCache), awayLineup = lineupForMatch(world, away, lineupCache);
+    const homeLineup = lineupForMatch(world, home, lineupCache, playerKeyByObject);
+    const awayLineup = lineupForMatch(world, away, lineupCache, playerKeyByObject);
     const homeStrength = clamp(clubPowerForSimulation(home), 25, 95);
     const awayStrength = clamp(clubPowerForSimulation(away), 25, 95);
     const xgHome = clamp(1.28 + (homeStrength - awayStrength) * 0.027 + 0.16, 0.28, 3.05);
@@ -2533,7 +2571,7 @@
     const homeGoalContributors = [], awayGoalContributors = [];
     function addAppearance(lineup, attackingGoals, concedingGoals, resultForClub, clubId) {
       lineup.forEach(player => {
-        const stat = accumulators.get(player.id);
+        const stat = accumulators.get(playerIdentity(player));
         if (!stat) return;
         stat.appearances++;
         stat.clubId = clubId;
@@ -2549,23 +2587,33 @@
     for (let i = 0; i < homeGoals; i++) {
       const scorer = weightedPick(homeLineup, rng, "goal");
       if (!scorer) break;
-      accumulators.get(scorer.id).goals++;
-      homeGoalContributors.push(scorer.id);
-      const helperPool = homeLineup.filter(player => player.id !== scorer.id);
+      const scorerId = playerIdentity(scorer);
+      const scorerStat = accumulators.get(scorerId);
+      if (scorerStat) scorerStat.goals++;
+      if (scorerId) homeGoalContributors.push(scorerId);
+      const helperPool = homeLineup.filter(player => playerIdentity(player) !== scorerId);
       if (helperPool.length && rng() < 0.72) {
         const helper = weightedPick(helperPool, rng, "assist");
-        if (helper) accumulators.get(helper.id).assists++;
+        if (helper) {
+          const helperStat = accumulators.get(playerIdentity(helper));
+          if (helperStat) helperStat.assists++;
+        }
       }
     }
     for (let i = 0; i < awayGoals; i++) {
       const scorer = weightedPick(awayLineup, rng, "goal");
       if (!scorer) break;
-      accumulators.get(scorer.id).goals++;
-      awayGoalContributors.push(scorer.id);
-      const helperPool = awayLineup.filter(player => player.id !== scorer.id);
+      const scorerId = playerIdentity(scorer);
+      const scorerStat = accumulators.get(scorerId);
+      if (scorerStat) scorerStat.goals++;
+      if (scorerId) awayGoalContributors.push(scorerId);
+      const helperPool = awayLineup.filter(player => playerIdentity(player) !== scorerId);
       if (helperPool.length && rng() < 0.72) {
         const helper = weightedPick(helperPool, rng, "assist");
-        if (helper) accumulators.get(helper.id).assists++;
+        if (helper) {
+          const helperStat = accumulators.get(playerIdentity(helper));
+          if (helperStat) helperStat.assists++;
+        }
       }
     }
     const homeOutcome = homeGoals > awayGoals ? "win" : homeGoals === awayGoals ? "draw" : "loss";
@@ -2623,14 +2671,16 @@
       const summary = powerByLeagueDivision.get(safeLeagueId + "|" + divisionNumber);
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(players).filter(player => {
-      if (!player || base.isTrueFlag(player.retired) || base.isTrueFlag(player.freeAgent)) return false;
+    return Object.entries(players).filter(([playerMapKey, player]) => {
+      const playerId = safeSimulationIdentifier(playerMapKey) || safeRecordIdentifier(player, "id");
+      if (!playerId || !player || base.isTrueFlag(player.retired) || base.isTrueFlag(player.freeAgent)) return false;
       const clubId = safeSimulationIdentifier(player.clubId);
       return !!clubId && clubsById.has(clubId);
-    }).map(player => {
+    }).map(([playerMapKey, player]) => {
+      const playerId = safeSimulationIdentifier(playerMapKey) || safeRecordIdentifier(player, "id");
       const playerClubId = safeSimulationIdentifier(player.clubId);
       const savedAccumulator = accumulators && typeof accumulators.get === "function"
-        ? accumulators.get(player.id) : null;
+        ? accumulators.get(playerId) : null;
       const acc = savedAccumulator && typeof savedAccumulator === "object" && !Array.isArray(savedAccumulator)
         ? savedAccumulator : playerAccumulator();
       const accumulatorClubId = safeSimulationIdentifier(acc.clubId);
@@ -2662,7 +2712,7 @@
       const savedDivision = leagueDivision;
       const prestige = clamp(safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0), 0, 100);
       const row = {
-        id: player.id, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",
+        id: playerId, playerId, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",
         clubName: historicalClub ? historicalClub.name : "",
         clubId: accumulatorClubId || playerClubId,
         country: historicalClub ? historicalClub.country : player.country || "",
@@ -2785,7 +2835,15 @@
         competitions: Array.isArray(savedCompetitions) ? savedCompetitions : []
       };
     }
-    const accumulators = new Map(Object.values(world.players).map(player => [player.id, playerAccumulator()]));
+    const playerKeyByObject = new WeakMap();
+    const accumulators = new Map();
+    for (const [playerMapKey, player] of Object.entries(world.players || {})) {
+      if (!player || typeof player !== "object") continue;
+      const playerId = safeSimulationIdentifier(playerMapKey) || safeRecordIdentifier(player, "id");
+      if (!playerId) continue;
+      if (!playerKeyByObject.has(player)) playerKeyByObject.set(player, playerId);
+      accumulators.set(playerId, playerAccumulator());
+    }
     const tables = {}, allMatches = [], groups = groupRows(world);
     // The selected XI cannot change during a season simulation; cache it instead of sorting each squad for every fixture.
     const lineupCache = new Map();
@@ -2824,7 +2882,7 @@
             if (!one || !two) continue;
             const home = (round + i) % 2 === 0 ? one : two;
             const away = home.id === one.id ? two : one;
-            const fixture = playMatch(world, home, away, year, division, round + 1, ++sequence, accumulators, "league", lineupCache);
+            const fixture = playMatch(world, home, away, year, division, round + 1, ++sequence, accumulators, "league", lineupCache, playerKeyByObject);
             allMatches.push(fixture); applyResult(leagueTables, fixture);
           }
           const fixed = rotation[0], rest = rotation.slice(1);
@@ -2840,7 +2898,7 @@
             if (!one || !two) continue;
             const home = (round + i) % 2 === 0 ? two : one;
             const away = home.id === two.id ? one : two;
-            const fixture = playMatch(world, home, away, year, division, rounds + round + 1, ++sequence, accumulators, "league", lineupCache);
+            const fixture = playMatch(world, home, away, year, division, rounds + round + 1, ++sequence, accumulators, "league", lineupCache, playerKeyByObject);
             allMatches.push(fixture); applyResult(leagueTables, fixture);
           }
           const fixed = rotation[0], rest = rotation.slice(1);
@@ -2873,7 +2931,7 @@
               else if (twoHomeCount < oneHomeCount) { home = two; away = one; }
               else { home = (round + i) % 2 === 0 ? one : two; away = home.id === one.id ? two : one; }
               const fixture = playMatch(world, home, away, year, division,
-                rounds * 2 + round + 1, ++sequence, accumulators, "league", lineupCache);
+                rounds * 2 + round + 1, ++sequence, accumulators, "league", lineupCache, playerKeyByObject);
               allMatches.push(fixture);
               applyResult(leagueTables, fixture);
               homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
@@ -2908,7 +2966,7 @@
                 else if (twoHomeCount < oneHomeCount) { home = two; away = one; }
                 else { home = (round + i) % 2 === 0 ? one : two; away = home.id === one.id ? two : one; }
                 const fixture = playMatch(world, home, away, year, division,
-                  rounds * 3 + round + 1, ++sequence, accumulators, "league", lineupCache);
+                  rounds * 3 + round + 1, ++sequence, accumulators, "league", lineupCache, playerKeyByObject);
                 allMatches.push(fixture);
                 applyResult(leagueTables, fixture);
                 homeCounts.set(home.id, (homeCounts.get(home.id) || 0) + 1);
@@ -2924,7 +2982,7 @@
             [leagueId, division, year, "configured-league-schedule-v1"].join("|"));
           fixtures.forEach(fixture => {
             const match = playMatch(world, fixture.home, fixture.away, year, division,
-              fixture.round, ++sequence, accumulators, "league", lineupCache);
+              fixture.round, ++sequence, accumulators, "league", lineupCache, playerKeyByObject);
             allMatches.push(match);
             applyResult(leagueTables, match);
           });
@@ -3940,10 +3998,14 @@
     },
     freeAgents: function (save, db) {
       const world = base.ensureState(save, db);
-      return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent)).map(player => ({
-        id: player.id, name: player.name, position: player.position, ovr: player.ovr, age: player.age,
-        potential: player.potential, contractSeasons: player.contractSeasons, formerClub: player.previousClubId
-      })).sort((a,b)=>safeNumber(b && b.ovr,50)-safeNumber(a && a.ovr,50));
+      return Object.entries(world.players || {}).filter(([playerMapKey, player]) =>
+        !!safeSimulationIdentifier(playerMapKey) && player
+          && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent))
+        .map(([playerMapKey, player]) => ({
+          id: safeSimulationIdentifier(playerMapKey), name: player.name, position: player.position,
+          ovr: player.ovr, age: player.age, potential: player.potential,
+          contractSeasons: player.contractSeasons, formerClub: player.previousClubId
+        })).sort((a,b)=>safeNumber(b && b.ovr,50)-safeNumber(a && a.ovr,50));
     }
   }));
 })(window);

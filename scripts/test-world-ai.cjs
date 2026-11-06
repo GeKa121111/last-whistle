@@ -853,6 +853,31 @@ assert.equal(delayedNumericFormerClubReturn.length, 1,
 assert.equal(delayedNumericFormerClubReturn[0].toClubId, "12345",
   "the delayed numeric-ID return must resolve to the exact former club");
 
+// Array-shaped legacy values must not pass Number() coercion and bypass the
+// conservative one-complete-free-agent-season return restriction.
+const malformedFreeAgentMarkerWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const malformedMarkerFormerClub = makeMarketTestClub(
+  malformedFreeAgentMarkerWorld, "malformed-marker-former-club", 2, "goalkeeper"
+);
+malformedFreeAgentMarkerWorld.players["malformed-free-agent-marker"] = {
+  id: "malformed-free-agent-marker", name: "Malformed free-agent marker keeper",
+  clubId: "", country: "Testland", leagueId: "test-market", division: 0,
+  position: "حارس مرمى", group: "goalkeeper", ovr: 60, potential: 65,
+  age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: malformedMarkerFormerClub.id, freeAgentSince: [2], isGenerated: false
+};
+const blockedMalformedFormerClubReturn = sandbox.window.__lwTestSignFreeAgents(
+  malformedFreeAgentMarkerWorld, 3, []
+);
+assert.equal(blockedMalformedFormerClubReturn.length, 0,
+  "an array-shaped freeAgentSince value must not unlock an immediate former-club return");
+assert.equal(malformedFreeAgentMarkerWorld.players["malformed-free-agent-marker"].freeAgent, true,
+  "a malformed free-agent start marker must preserve the conservative return restriction");
+
+
 
 // An expiring defender should receive the squad-need renewal bonus when only four
 // other defenders remain. The deterministic roll sits between the old and corrected

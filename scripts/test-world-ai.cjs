@@ -4241,17 +4241,21 @@ cupWorld.clubs["cup-foreign-supercup"] = {
 };
 function assertDomesticSupercupRejectsInvalidLeagueRow(season, invalidRow, label) {
   const previousSeason = String(season - 1);
-  cupWorld.leagueTables[previousSeason] = {
+  // Each request simulates a full season, so isolate this fixture to avoid pruning or
+  // overwriting the later legacy/identity scenarios in the shared cup-world test save.
+  const testWorld = JSON.parse(JSON.stringify(cupWorld));
+  testWorld.leagueTables[previousSeason] = {
     "test-cup-league": [
       invalidRow,
       { clubId: "cup-first-02", leagueId: "test-cup-league", division: 1, rank: 2 }
     ]
   };
-  cupWorld.competitionsBySeason[previousSeason] = [
+  testWorld.competitionsBySeason[previousSeason] = [
     { id: "test-all-tier-cup", kind: "domestic-cup", championId: "cup-first-03", runnerUpId: "cup-first-04" },
     { id: "test-first-tier-cup", kind: "domestic-cup", championId: "cup-first-04", runnerUpId: "cup-first-05" }
   ];
-  const supercup = ai.seasonCompetitions(cupSave, season, cupDb)
+  const testSave = { ...cupSave, worldSimulation: testWorld };
+  const supercup = ai.seasonCompetitions(testSave, season, cupDb)
     .find(row => row.id === "test-domestic-supercup");
   assert.equal(supercup, undefined,
     label + ": a domestic supercup must not be created without a verified top-flight league champion");
@@ -4265,6 +4269,15 @@ assertDomesticSupercupRejectsInvalidLeagueRow(5, {
 assertDomesticSupercupRejectsInvalidLeagueRow(6, {
   clubId: "cup-first-01", leagueId: "foreign-cup-league", division: 1, rank: 1
 }, "mismatched saved league identity");
+assertDomesticSupercupRejectsInvalidLeagueRow(7, {
+  clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: [1]
+}, "array-coerced domestic supercup rank");
+assertDomesticSupercupRejectsInvalidLeagueRow(8, {
+  clubId: "cup-first-01", leagueId: "test-cup-league", division: [1], rank: 1
+}, "array-coerced domestic supercup division");
+assertDomesticSupercupRejectsInvalidLeagueRow(9, {
+  clubId: "cup-first-01", leagueId: "test-cup-league", division: 1, rank: Symbol("invalid-rank")
+}, "Symbol domestic supercup rank");
 
 // Rankless legacy tables remain supported when their canonical club membership is valid.
 cupWorld.leagueTables["6"] = {
@@ -4535,6 +4548,63 @@ const legacyQualifiedCompetitions = sandbox.window.__lwTestSimulateCompetitions(
 const legacyQualifiedTournament = legacyQualifiedCompetitions.find(row => row.id === "test-caf-qualification");
 assert.ok(legacyQualifiedTournament && legacyQualifiedTournament.participants.includes(legacyQualifiedClubId),
   "a recorded first-tier continental qualifier without a persisted division must retain its place");
+
+// Array/boxed standings values must not become real continental ranks or points through coercion.
+const malformedQualificationWorld = JSON.parse(JSON.stringify(qualificationWorld));
+const malformedQualificationClubId = "qualification-1-5";
+malformedQualificationWorld.clubs[malformedQualificationClubId] = {
+  id: malformedQualificationClubId, name: "Malformed Qualification Club",
+  leagueId: "qualification-league-1", country: "Qualification Country 1",
+  confederation: "CAF", division: 1, power: 99, roster: []
+};
+malformedQualificationWorld.leagueTables["4"]["qualification-league-1"].unshift({
+  clubId: malformedQualificationClubId, leagueId: "qualification-league-1",
+  division: 1, rank: [1], pts: [9999], gd: Object(9999), gf: [9999], ga: [0]
+});
+const malformedQualificationDb = {
+  ...qualificationDb,
+  simulationCupDefinitions: () => [{
+    id: "test-caf-qualification", name: "Test CAF Qualification",
+    kind: "continental", confederation: "CAF", qualificationPlaces: [1, 2, 3]
+  }]
+};
+const malformedQualificationResult = sandbox.window.__lwTestSimulateCompetitions(
+  malformedQualificationWorld, 5, malformedQualificationDb, currentQualificationStandings
+);
+const malformedQualificationTournament = malformedQualificationResult
+  .find(row => row.id === "test-caf-qualification");
+assert.ok(malformedQualificationTournament, "valid continental qualification must survive malformed legacy rows");
+assert.ok(!malformedQualificationTournament.participants.includes(malformedQualificationClubId),
+  "array ranks and boxed/array metrics must not steal a continental place");
+assert.ok(malformedQualificationTournament.participants.includes("qualification-1-3"),
+  "the valid third-place club must retain its continental place when a malformed row claims rank one");
+
+// Symbols and coercion-hostile objects in imported continental standings must fail closed, not throw.
+const hostileQualificationWorld = JSON.parse(JSON.stringify(qualificationWorld));
+const hostileQualificationClubId = "qualification-1-hostile";
+hostileQualificationWorld.clubs[hostileQualificationClubId] = {
+  id: hostileQualificationClubId, name: "Hostile Qualification Club",
+  leagueId: "qualification-league-1", country: "Qualification Country 1",
+  confederation: "CAF", division: 1, power: 99, roster: []
+};
+hostileQualificationWorld.leagueTables["4"]["qualification-league-1"].push({
+  clubId: hostileQualificationClubId, leagueId: "qualification-league-1",
+  division: [1], rank: Symbol("invalid-rank"), pts: Symbol("invalid-points"),
+  gd: { valueOf() { throw new Error("unsafe continental goal-difference coercion"); } },
+  gf: Symbol("invalid-goals-for"), ga: { toString() { throw new Error("unsafe continental goals-against coercion"); } }
+});
+let hostileQualificationResult;
+assert.doesNotThrow(() => {
+  hostileQualificationResult = sandbox.window.__lwTestSimulateCompetitions(
+    hostileQualificationWorld, 5, qualificationDb, currentQualificationStandings
+  );
+}, "Symbol and hostile-object continental standings must not abort cup qualification");
+const hostileQualificationTournament = hostileQualificationResult
+  .find(row => row.id === "test-caf-qualification");
+assert.ok(hostileQualificationTournament, "hostile standings must not block valid continental qualifiers");
+assert.ok(!hostileQualificationTournament.participants.includes(hostileQualificationClubId),
+  "hostile rank/division values must never qualify a club");
+
 assert.equal(Object.keys(qualificationWorld.players).length, 0,
   "continental qualification must not fabricate player records");
  

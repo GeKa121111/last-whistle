@@ -11,7 +11,7 @@ assert.equal(source, deployed, "root and deployed agent-system.js must stay sync
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 434);
+require("./assert-static-cache-version.cjs")(sw, 555);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
@@ -37,6 +37,7 @@ function extractFunction(name) {
 const names = [
   "acquireSharedMutationLock",
   "releaseSharedMutationLock",
+  "finiteAgentNumber",
   "safeWholeAmount",
   "postRetirementOptions",
   "clonePostRetirementMutationState",

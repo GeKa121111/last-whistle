@@ -1535,25 +1535,30 @@
       + weakUnitPenalty + (row.count === 0 ? 18 : 0) + ageFit + (undercovered ? 7 : 0);
   }
   function sellingCandidate(world, seller, group, usedPlayers) {
-    const rows = rosterPlayers(world, seller).filter(player => player.group === group && !usedPlayers.has(player.id));
+    const rows = activeRosterIds(world, seller).map(playerId => ({
+      playerId,
+      player: safeWorldOwnValue(world.players, playerId)
+    })).filter(entry => entry.player && entry.player.group === group && !usedPlayers.has(entry.playerId));
     if (rows.length <= Math.max(1, Math.min(2, TARGETS[group] - 1))) return null;
     const quality = roleStats(world, seller)[group];
     const sellerPower = marketClubPower(seller);
-    const candidates = rows.filter(player => {
+    const candidates = rows.filter(entry => {
+      const player = entry.player;
       const rating = marketPlayerRating(player);
       const age = marketPlayerAge(player);
       const contract = marketContractSeasons(player);
       return rating < quality.best - 2 || age >= 29 || contract <= 1 || rating < sellerPower - 12;
     });
     candidates.sort((a, b) => {
-      const score = player => {
+      const score = entry => {
+        const player = entry.player;
         const age = marketPlayerAge(player);
         const contract = marketContractSeasons(player);
         const rating = marketPlayerRating(player);
         const potential = marketPlayerPotential(player, rating);
         return (age >= 29 ? 8 : 0) + (contract <= 1 ? 5 : 0)
           + Math.max(0, sellerPower - rating) * 0.8 - potential * 0.13
-          + hash(player.id + "|" + seller.updatedSeason) % 17 / 10;
+          + hash(entry.playerId + "|" + seller.updatedSeason) % 17 / 10;
       };
       return score(b) - score(a);
     });
@@ -1746,8 +1751,9 @@
       const candidates = [];
       for (const seller of clubs) {
         if (seller.id === buyer.id || alreadyUsedClubs.has(seller.id)) continue;
-        const player = sellingCandidate(world, seller, need.group, alreadyUsedPlayers);
-        if (!player) continue;
+        const selling = sellingCandidate(world, seller, need.group, alreadyUsedPlayers);
+        if (!selling) continue;
+        const { player, playerId } = selling;
         const fee = marketValue(player, seller);
         if (fee > buyer.budget) continue;
         const playerOvr = marketPlayerRating(player);
@@ -1763,7 +1769,7 @@
         const needsFactor = need.score * 0.8;
         const prestigeFactor = (buyerPrestige - sellerPrestige) * 0.04;
         const distancePenalty = buyer.leagueId === seller.leagueId ? 0 : 1.5;
-        const tie = hash(player.id + "|" + buyer.id + "|" + season) % 41 / 100;
+        const tie = hash(playerId + "|" + buyer.id + "|" + season) % 41 / 100;
         const archetype = inferArchetype(buyer);
         const coachStyle = inferCoachArchetype(buyer);
         const archetypeFactor = archetype === "youth-investor"
@@ -1776,30 +1782,30 @@
           : coachStyle === "technical-discipline" && playerPotential >= playerOvr + 8 ? 1 : 0;
         const score = playerOvr * 0.58 + potentialFactor + ageFactor + needsFactor + prestigeFactor
           + archetypeFactor + coachFit - distancePenalty - fee / Math.max(1, safeNumber(buyer.budget, 0)) * 5 + tie;
-        candidates.push({ player, seller, fee, score, group: need.group });
+        candidates.push({ player, playerId, seller, fee, score, group: need.group });
       }
       candidates.sort((a, b) => b.score - a.score || marketPlayerRating(b.player) - marketPlayerRating(a.player));
       const candidate = candidates[0];
       if (!candidate || candidate.score < 37) continue;
-      const { player, seller, fee, group } = candidate;
+      const { player, playerId, seller, fee, group } = candidate;
       transaction.capturePlayer(player);
-      transaction.captureHistory(player.id);
+      transaction.captureHistory(playerId);
       const origin = seller.name;
       // Rebuild both memberships from active ownership before moving the player.
       // This discards stale, duplicate, retired, free-agent, and cross-club IDs.
-      seller.roster = activeRosterIds(world, seller).filter(id => id !== String(player.id));
-      buyer.roster = activeRosterIds(world, buyer).filter(id => id !== String(player.id));
-      buyer.roster.push(String(player.id));
+      seller.roster = activeRosterIds(world, seller).filter(id => id !== playerId);
+      buyer.roster = activeRosterIds(world, buyer).filter(id => id !== playerId);
+      buyer.roster.push(playerId);
       // The recorded fee is a direct buyer-to-seller transaction; never discard part of it.
       seller.budget = Math.max(0, safeNumber(seller.budget, 0)) + fee;
       buyer.budget = Math.max(0, safeNumber(buyer.budget, 0) - fee);
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
-      player.division = divisionForClub(buyer); player.contractSeasons = 2 + (hash(player.id + "|" + season + "|contract") % 4);
+      player.division = divisionForClub(buyer); player.contractSeasons = 2 + (hash(playerId + "|" + season + "|contract") % 4);
       player.transferListed = false;
-      alreadyUsedClubs.add(seller.id); alreadyUsedClubs.add(buyer.id); alreadyUsedPlayers.add(player.id);
+      alreadyUsedClubs.add(seller.id); alreadyUsedClubs.add(buyer.id); alreadyUsedPlayers.add(playerId);
       const transfer = {
         id: "world-transfer-" + season + "-" + (++world.transferSequence),
-        season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
+        season: Number(season), day: 1, playerId, player: player.name, position: player.position,
         group, from: origin, fromCountry: seller.country, fromClubId: String(seller.id),
         to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id),
         fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (marketPlayerAge(player) <= 23 ? "استثمار في المستقبل" : marketPlayerAge(player) >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
@@ -1807,11 +1813,15 @@
       };
       moves.push(transfer);
       world.transfers.unshift(transfer);
-      world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: Number(season), clubId: String(buyer.id),
+      const historyMap = safeWorldOwnValue(world, "playerHistory");
+      const playerHistory = historyMap && typeof historyMap === "object" ? historyMap : {};
+      if (playerHistory !== historyMap) safeWorldSetField(world, "playerHistory", playerHistory);
+      const existingHistory = safeWorldOwnValue(playerHistory, playerId);
+      const history = Array.isArray(existingHistory) ? existingHistory : [];
+      history.unshift({ season: Number(season), clubId: String(buyer.id),
         club: buyer.name, country: buyer.country, fromClubId: String(seller.id),
         type: "transfer-in", from: origin });
-      world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
+      safeWorldSetOwnValue(playerHistory, playerId, history.slice(0, 12));
     }
     world.transfers = world.transfers.slice(0, 300);
     // Refill every division after contract expirations; relegated clubs need a complete squad too.
@@ -3544,11 +3554,13 @@
     };
     const seasonNumber = marketNumber(season, NaN);
     if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1) return [];
-    const freeAgents = Object.values(world.players || {}).filter(player => {
-      if (!player || base.isTrueFlag(player.retired) || !base.isTrueFlag(player.freeAgent)) return false;
-      const contractSeasons = marketNumber(player.contractSeasons, NaN);
-      return Number.isFinite(contractSeasons) && contractSeasons <= 0;
-    }).sort((a,b)=>marketNumber(b.ovr,50)-marketNumber(a.ovr,50));
+    const freeAgents = Object.entries(world.players || {}).map(([playerId, player]) => ({ playerId, player }))
+      .filter(entry => {
+        const player = entry.player;
+        if (!entry.playerId || !player || base.isTrueFlag(player.retired) || !base.isTrueFlag(player.freeAgent)) return false;
+        const contractSeasons = marketNumber(player.contractSeasons, NaN);
+        return Number.isFinite(contractSeasons) && contractSeasons <= 0;
+      }).sort((a,b)=>marketNumber(b.player.ovr,50)-marketNumber(a.player.ovr,50));
     const clubs = Object.values(world.clubs || {}).filter(club => {
       if (!club || divisionForClub(club) < 1) return false;
       const power = clubPowerForMarket(club);
@@ -3589,8 +3601,9 @@
     }
     const signed = [];
     const maxSignings = Math.min(12, Math.max(2, Math.round(clubs.length * 0.10)));
-    for (const player of freeAgents) {
+    for (const freeAgent of freeAgents) {
       if (signed.length >= maxSignings) break;
+      const { playerId, player } = freeAgent;
       const group = player.group || base.groupForPosition(player.position);
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
@@ -3638,21 +3651,21 @@
       const buyer = eligible[0];
       transaction.captureClub(buyer);
       transaction.capturePlayer(player);
-      transaction.captureHistory(player.id);
-      buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== String(player.id));
+      transaction.captureHistory(playerId);
+      buyer.roster = activeRosterIdsForClub(world, buyer).filter(id => id !== playerId);
       const previousClub = previousClubId ? world.clubs[previousClubId] : null;
       const oldClubName = previousClub ? previousClub.name : "لاعب حر";
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = divisionForClub(buyer); player.freeAgent = false;
       player.freeAgentSince = 0;
-      player.contractSeasons = 2 + (hash(player.id + "|" + seasonNumber + "|free-agent-term") % 3);
-      buyer.roster.push(String(player.id));
+      player.contractSeasons = 2 + (hash(playerId + "|" + seasonNumber + "|free-agent-term") % 3);
+      buyer.roster.push(playerId);
       const counts = roleCountsByClub.get(buyer.id);
       counts[group] = (counts[group] || 0) + 1;
       usedClubs.add(buyer.id);
       const move = {
-        id: "world-transfer-" + seasonNumber + "-free-" + hash(player.id + "|" + buyer.id).toString(36),
-        season: seasonNumber, day: 1, playerId: player.id, player: player.name, position: player.position,
+        id: "world-transfer-" + seasonNumber + "-free-" + hash(playerId + "|" + buyer.id).toString(36),
+        season: seasonNumber, day: 1, playerId, player: player.name, position: player.position,
         group, from: oldClubName, fromCountry: previousClub ? previousClub.country : "",
         fromClubId: previousClub ? String(previousClub.id) : "",
         to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id), fee: 0, currency: buyer.currency,
@@ -3660,11 +3673,19 @@
         playerOvr, kind: "تعاقد مع لاعب حر — محاكاة"
       };
       signed.push(move);
-      world.playerHistory[player.id] = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
-      world.playerHistory[player.id].unshift({ season: seasonNumber, clubId: String(buyer.id),
+      const historyMap = world.playerHistory && typeof world.playerHistory === "object"
+        ? world.playerHistory : (world.playerHistory = {});
+      const previousHistory = Object.prototype.hasOwnProperty.call(historyMap, playerId)
+        ? historyMap[playerId] : undefined;
+      const history = Array.isArray(previousHistory) ? previousHistory : [];
+      history.unshift({ season: seasonNumber, clubId: String(buyer.id),
         club: buyer.name, country: buyer.country, fromClubId: previousClub ? String(previousClub.id) : "",
         type: "free-agent-signing", from: oldClubName });
-      world.playerHistory[player.id] = world.playerHistory[player.id].slice(0, 12);
+      if (playerId === "__proto__") {
+        Object.defineProperty(historyMap, playerId, { configurable: true, enumerable: true, writable: true, value: history.slice(0, 12) });
+      } else {
+        historyMap[playerId] = history.slice(0, 12);
+      }
     }
     if (signed.length) {
       world.transfers = signed.concat(world.transfers || []).slice(0, 300);
@@ -4087,7 +4108,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=82");
+    const worker = new global.Worker("./football-world-worker.js?v=83");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

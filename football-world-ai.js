@@ -2576,9 +2576,12 @@
             }
           } catch (_) { profile = null; }
           const rankedRows = rows.map((row, index) => {
+            const hasSavedRank = hasStandingValue(row && row.rank);
             const savedRank = safeStandingRank(row && row.rank);
-            return { row, rank: savedRank || index + 1 };
-          }).filter(entry => entry.rank >= slotStart)
+            // Array order is a legacy fallback only when rank is absent; a malformed
+            // explicit rank must not be converted into a qualifying position.
+            return { row, rank: savedRank === null ? (hasSavedRank ? null : index + 1) : savedRank };
+          }).filter(entry => entry.rank !== null && entry.rank >= slotStart)
             .sort((a, b) => a.rank - b.rank
               || standingPoints(b.row) - standingPoints(a.row)
               || standingGoalDifference(b.row) - standingGoalDifference(a.row)

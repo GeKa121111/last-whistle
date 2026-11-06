@@ -4557,7 +4557,7 @@ malformedQualificationWorld.clubs[malformedQualificationClubId] = {
   leagueId: "qualification-league-1", country: "Qualification Country 1",
   confederation: "CAF", division: 1, power: 99, roster: []
 };
-malformedQualificationWorld.leagueTables["4"]["qualification-league-1"].push({
+malformedQualificationWorld.leagueTables["4"]["qualification-league-1"].unshift({
   clubId: malformedQualificationClubId, leagueId: "qualification-league-1",
   division: 1, rank: [1], pts: [9999], gd: Object(9999), gf: [9999], ga: [0]
 });

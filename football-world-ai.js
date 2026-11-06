@@ -2050,7 +2050,7 @@
       if (!club) return;
       const key = String(club.leagueId || "") + "|" + divisionForClub(club);
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
-      const savedPower = marketClubPower(club);
+      const savedPower = safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55;
       summary.total += savedPower > 0 ? clamp(savedPower, 25, 100) : 55;
       summary.count++;
       powerByLeagueDivision.set(key, summary);

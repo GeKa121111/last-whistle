@@ -387,6 +387,36 @@ assert.deepEqual({
 }, { appearances: 2, minutes: 180, goals: 2, assists: 1, averageRating: 8, saves: 3, tacklesWon: 4, clearances: 5 },
 "season aggregation must ignore malformed metric values and accept valid numeric-string legacy stats");
 
+const numericSegmentState = {
+  ...initialState, season: 3, leagueSegmentId: 302,
+  leagueArchives: [{ season: 3, segmentId: 301 }],
+  seasonLog: [],
+  careerMatchHistory: [
+    { id: "numeric-archive-segment", segmentId: 301, scope: "league", minutes: 90 },
+    { id: "numeric-active-segment", segmentId: 302, scope: "league", minutes: 45 },
+    { id: "numeric-string-archive-segment", segmentId: "301", scope: "league", minutes: 30 },
+    { id: "numeric-prior-segment", segmentId: 300, scope: "league", minutes: 90 },
+    { id: "numeric-object-segment", segmentId: { value: 301 }, scope: "league", minutes: 90 }
+  ]
+};
+sandbox.state = numericSegmentState;
+assert.deepEqual(Array.from(sandbox.currentSeasonMatchRows(), row => row.id), [
+  "numeric-archive-segment", "numeric-active-segment", "numeric-string-archive-segment"
+], "legacy numeric segment IDs must remain compatible with string IDs without coercing objects");
+
+sandbox.state = {
+  ...initialState, season: 3.5, leagueSegmentId: "fractional-active-segment",
+  leagueArchives: [{ season: 3, segmentId: "fractional-archive-segment" }],
+  seasonLog: [],
+  careerMatchHistory: [
+    { id: "fractional-season-rounded-down", season: 3, segmentId: "fractional-active-segment", minutes: 90, scope: "league" },
+    { id: "fractional-season-malformed", season: 3.5, segmentId: "fractional-active-segment", minutes: 90, scope: "league" },
+    { id: "fractional-archive-row", segmentId: "fractional-archive-segment", minutes: 90, scope: "league" }
+  ]
+};
+assert.deepEqual(Array.from(sandbox.currentSeasonMatchRows(), row => row.id), [],
+  "a fractional saved season must not be rounded down and merge another season's statistics");
+
 
 events.failCalendar = false;
 const segmentStartState = JSON.parse(JSON.stringify(initialState));

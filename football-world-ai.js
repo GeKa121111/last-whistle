@@ -619,10 +619,7 @@
   }
   function fillRoster(world, club) {
     const clubId = safeWorldClubIdentifierForWorld(world, club);
-    if (!clubId) {
-      safeWorldSetField(club, "roster", []);
-      return;
-    }
+    if (!clubId) return;
     club.roster = activeRosterIds(world, club, clubId);
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
@@ -3867,7 +3864,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=76");
+    const worker = new global.Worker("./football-world-worker.js?v=77");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

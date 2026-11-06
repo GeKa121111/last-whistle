@@ -1841,162 +1841,225 @@
   function roleNeedsLabel(group) {
     return ({ goalkeeper: "تدعيم حراسة المرمى", defender: "تدعيم الدفاع", midfielder: "تدعيم الوسط", attacker: "تدعيم الهجوم" })[group] || "تدعيم الفريق";
   }
-  function shouldRetirePlayer(player, seasonAge, row, season) {
-    const isGoalkeeper = String(player.group || "") === "goalkeeper"
-      || groupForPosition(player.position) === "goalkeeper";
+  function shouldRetirePlayer(player, seasonAge, row, season, playerMapKey) {
+    const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+    if (!playerId) return false;
+    const group = safeWorldRecordText(player, "group");
+    const position = safeWorldRecordText(player, "position");
+    const isGoalkeeper = group === "goalkeeper" || groupForPosition(position) === "goalkeeper";
     const effectiveAge = Math.max(16, safeNumber(seasonAge, 18) - (isGoalkeeper ? 1 : 0));
     if (effectiveAge < 38) return false;
     if (effectiveAge >= 42) return true;
-    const rating = safeNumber(row && row.averageRating, safeNumber(player.lastRating, 0));
+    const rating = safeNumber(safeWorldOwnValue(row, "averageRating"),
+      safeNumber(safeWorldOwnValue(player, "lastRating"), 0));
     let chance = effectiveAge >= 41 ? 78 : effectiveAge >= 40 ? 55 : effectiveAge >= 39 ? 30 : 12;
     if (rating >= 7.4) chance -= 12;
     else if (rating > 0 && rating < 6.0) chance += 12;
-    if (safeNumber(player.ovr, 0) <= 55) chance += 12;
-    return (hash(String(player.id) + "|retirement|" + String(season)) % 100) < clamp(chance, 0, 100);
+    if (safeNumber(safeWorldOwnValue(player, "ovr"), 0) <= 55) chance += 12;
+    return (hash(playerId + "|retirement|" + String(season)) % 100) < clamp(chance, 0, 100);
   }
-  function retireWorldPlayer(world, player, season, seasonAge) {
-    const currentClubId = String(player.clubId || "");
-    const club = currentClubId && world.clubs ? world.clubs[currentClubId] : null;
-    if (club && Array.isArray(club.roster)) {
-      club.roster = club.roster.filter(id => String(id) !== String(player.id));
+  function retireWorldPlayer(world, player, season, seasonAge, playerMapKey) {
+    const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
+    if (!world || !player || !playerId) return false;
+    const currentClubId = safeWorldRecordIdentifier(player, "clubId");
+    const clubs = safeWorldOwnValue(world, "clubs");
+    const club = currentClubId && clubs && typeof clubs === "object"
+      ? safeWorldOwnValue(clubs, currentClubId) : null;
+    if (club && Array.isArray(safeWorldOwnValue(club, "roster"))) {
+      const roster = safeWorldArrayField(club, "roster");
+      safeWorldSetField(club, "roster", roster.filter(id => safeWorldIdentifier(id) !== playerId));
     }
-    player.previousClubId = currentClubId || player.previousClubId || "";
-    player.clubId = "";
-    player.leagueId = "";
-    player.division = 0;
-    player.contractSeasons = 0;
-    player.freeAgent = false;
-    player.transferListed = false;
-    player.retired = true;
-    player.retiredSeason = Math.max(1, int(season, 1)) + 1;
-    player.retirementAge = Math.max(16, safeNumber(seasonAge, 0) || safeNumber(player.age, 0) || 18);
-    player.retirementReason = "age";
-    world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
-    const history = Array.isArray(world.playerHistory[player.id]) ? world.playerHistory[player.id] : [];
+    if (currentClubId) safeWorldSetField(player, "previousClubId", currentClubId);
+    safeWorldSetField(player, "clubId", "");
+    safeWorldSetField(player, "leagueId", "");
+    safeWorldSetField(player, "division", 0);
+    safeWorldSetField(player, "contractSeasons", 0);
+    safeWorldSetField(player, "freeAgent", false);
+    safeWorldSetField(player, "transferListed", false);
+    safeWorldSetField(player, "retired", true);
+    const retiredSeason = Math.max(1, int(season, 1)) + 1;
+    const retirementAge = Math.max(16,
+      safeNumber(seasonAge, 0) || safeNumber(safeWorldOwnValue(player, "age"), 0) || 18);
+    safeWorldSetField(player, "retiredSeason", retiredSeason);
+    safeWorldSetField(player, "retirementAge", retirementAge);
+    safeWorldSetField(player, "retirementReason", "age");
+
+    let historyMap = safeWorldOwnValue(world, "playerHistory");
+    if (!historyMap || typeof historyMap !== "object" || Array.isArray(historyMap)) {
+      historyMap = {};
+      safeWorldSetField(world, "playerHistory", historyMap);
+    }
+    const existingHistory = safeWorldOwnValue(historyMap, playerId);
+    const history = Array.isArray(existingHistory) ? existingHistory : [];
     history.unshift({
-      season: player.retiredSeason,
-      club: club ? club.name : "",
-      country: club ? club.country : "",
+      season: retiredSeason,
+      club: safeWorldRecordText(club, "name"),
+      country: safeWorldRecordText(club, "country"),
       type: "retirement",
-      age: player.retirementAge
+      age: retirementAge
     });
-    // Retirement is a terminal career event: keep every prior history row, including older saves.
-    world.playerHistory[player.id] = history;
-    world.notes = Array.isArray(world.notes) ? world.notes : [];
-    world.notes.unshift({
-      season: player.retiredSeason,
+    // Retirement is terminal: retain every previous history row under the canonical player-map key.
+    safeWorldSetOwnValue(historyMap, playerId, history);
+    const notes = safeWorldArrayField(world, "notes");
+    notes.unshift({
+      season: retiredSeason,
       type: "retirement",
-      text: player.name + " اعتزل كرة القدم بعد نهاية الموسم."
+      text: safeWorldRecordText(player, "name") + " اعتزل كرة القدم بعد نهاية الموسم."
     });
-    world.notes = world.notes.slice(0, 30);
+    safeWorldSetField(world, "notes", notes.slice(0, 30));
+    return true;
   }
   function developPlayers(world, season) {
     const developmentSeason = Math.max(1, int(season, 1));
     if (Math.max(0, int(world.lastDevelopedSeason, 0)) >= developmentSeason) return false;
-    const stats = world.seasonStats[String(season)] || [];
-    const byId = new Map(stats.map(row => [row.id, row]));
+    const seasonStats = safeWorldOwnValue(world, "seasonStats");
+    const seasonRows = safeWorldOwnValue(seasonStats, String(season));
+    const stats = Array.isArray(seasonRows) ? seasonRows : [];
+    const byId = new Map();
+    stats.forEach(row => {
+      const id = safeWorldRecordIdentifier(row, "id") || safeWorldRecordIdentifier(row, "playerId");
+      if (id) byId.set(id, row);
+    });
+    const playerMap = safeWorldOwnValue(world, "players");
+    const playerEntries = playerMap && typeof playerMap === "object" && !Array.isArray(playerMap)
+      ? Object.entries(playerMap) : [];
     const seasonAges = new Map();
-    Object.values(world.players).forEach(player => {
-      if (!player || isTrueFlag(player.retired)) return;
-      const row = byId.get(player.id);
-      // Season statistics describe the season just played, so development thresholds
-      // must use the player's age during that season, before advancing their age.
-      const seasonAge = Math.min(43, Math.max(16, safeNumber(player.age, 18) || 18));
-      seasonAges.set(player.id, seasonAge);
-      player.age = Math.min(43, seasonAge + 1);
-      player.contractSeasons = Math.max(0, (safeNumber(player.contractSeasons, 1) || 1) - 1);
+    const seasonRowsByPlayer = new Map();
+    const playerIdForEntry = (mapKey, player) =>
+      safeWorldIdentifier(mapKey) || safeWorldRecordIdentifier(player, "id");
+    const rowForPlayer = (playerId, player) => {
+      const canonicalRow = byId.get(playerId);
+      if (canonicalRow) return canonicalRow;
+      const internalId = safeWorldRecordIdentifier(player, "id");
+      if (!internalId || internalId === playerId) return undefined;
+      const internalOwner = safeWorldOwnValue(playerMap, internalId);
+      if (internalOwner && internalOwner !== player) return undefined;
+      return byId.get(internalId);
+    };
+
+    // Player-map keys are authoritative across progression, even when a legacy record's
+    // internal id is stale or malformed. Statistics can still fall back to an unclaimed
+    // legacy internal ID when no canonical-key row exists.
+    for (const [mapKey, player] of playerEntries) {
+      if (!player || typeof player !== "object" || isTrueFlag(safeWorldOwnValue(player, "retired"))) continue;
+      const playerId = playerIdForEntry(mapKey, player);
+      if (!playerId) continue;
+      const row = rowForPlayer(playerId, player);
+      const seasonAge = Math.min(43, Math.max(16, safeNumber(safeWorldOwnValue(player, "age"), 18) || 18));
+      seasonAges.set(playerId, seasonAge);
+      seasonRowsByPlayer.set(playerId, row);
+      safeWorldSetField(player, "age", Math.min(43, seasonAge + 1));
+      safeWorldSetField(player, "contractSeasons",
+        Math.max(0, (safeNumber(safeWorldOwnValue(player, "contractSeasons"), 1) || 1) - 1));
       if (row) {
-        const rowAppearances = safeNumber(row.appearances, 0);
-        const rowAverageRating = safeNumber(row.averageRating, 0);
-        player.lastRating = rowAverageRating;
+        const rowAppearances = safeNumber(safeWorldOwnValue(row, "appearances"), 0);
+        const rowAverageRating = safeNumber(safeWorldOwnValue(row, "averageRating"), 0);
+        safeWorldSetField(player, "lastRating", rowAverageRating);
         let delta = 0;
         if (seasonAge <= 23 && rowAppearances >= 10 && rowAverageRating >= 6.45) delta = rowAverageRating >= 7.25 ? 2 : 1;
         else if (seasonAge <= 28 && rowAppearances >= 16 && rowAverageRating >= 7.15) delta = 1;
         else if (seasonAge >= 31) delta = rowAverageRating < 6.4 ? -2 : -1;
         else if (seasonAge >= 29 && rowAverageRating < 6.0) delta = -1;
-        player.ovr = clamp(safeNumber(player.ovr, 35) + delta, 35, 97);
-        const potentialValue = safeNumber(player.potential, null);
-        if (potentialValue === null && player.potential !== undefined) player.potential = player.ovr;
-        else if (potentialValue !== null && potentialValue < player.ovr) player.potential = player.ovr;
+        const nextOverall = clamp(safeNumber(safeWorldOwnValue(player, "ovr"), 35) + delta, 35, 97);
+        safeWorldSetField(player, "ovr", nextOverall);
+        const potentialValue = safeNumber(safeWorldOwnValue(player, "potential"), null);
+        if (potentialValue === null && safeWorldOwnValue(player, "potential") !== undefined) {
+          safeWorldSetField(player, "potential", nextOverall);
+        } else if (potentialValue !== null && potentialValue < nextOverall) {
+          safeWorldSetField(player, "potential", nextOverall);
+        }
       }
-    });
-    // Contracts now truly expire. A deterministic renewal decision keeps key players
-    // when the club needs them, while the rest enter the free-agent pool.
-    Object.values(world.players).forEach(player => {
-      if (!player || isTrueFlag(player.retired)) return;
-      const seasonAge = seasonAges.get(player.id);
-      const row = byId.get(player.id);
-      if (shouldRetirePlayer(player, seasonAge, row, season)) {
-        retireWorldPlayer(world, player, season, seasonAge);
-        return;
+    }
+
+    // Contracts now truly expire. Renewal and retirement decisions use the same canonical
+    // identity that owns the player record and appears in the club roster.
+    for (const [mapKey, player] of playerEntries) {
+      if (!player || typeof player !== "object" || isTrueFlag(safeWorldOwnValue(player, "retired"))) continue;
+      const playerId = playerIdForEntry(mapKey, player);
+      if (!playerId) continue;
+      const seasonAge = seasonAges.get(playerId);
+      if (!Number.isFinite(seasonAge)) continue;
+      const row = seasonRowsByPlayer.get(playerId);
+      if (shouldRetirePlayer(player, seasonAge, row, season, playerId)) {
+        retireWorldPlayer(world, player, season, seasonAge, playerId);
+        continue;
       }
-      const orphanedClubId = String(player.clubId || "");
-      const club = orphanedClubId ? world.clubs[orphanedClubId] : null;
-      if (isTrueFlag(player.freeAgent) || !orphanedClubId || !club) {
-        const wasFreeAgent = isTrueFlag(player.freeAgent);
+      const orphanedClubId = safeWorldRecordIdentifier(player, "clubId");
+      const clubs = safeWorldOwnValue(world, "clubs");
+      const club = orphanedClubId && clubs && typeof clubs === "object"
+        ? safeWorldOwnValue(clubs, orphanedClubId) : null;
+      if (isTrueFlag(safeWorldOwnValue(player, "freeAgent")) || !orphanedClubId || !club) {
+        const wasFreeAgent = isTrueFlag(safeWorldOwnValue(player, "freeAgent"));
+        const previousClubId = safeWorldRecordIdentifier(player, "previousClubId");
         const hasStaleFreeAgentState = Boolean(orphanedClubId) || !wasFreeAgent
-          || safeNumber(player.contractSeasons, 0) > 0
-          || Boolean(String(player.leagueId || "").trim())
-          || safeNumber(player.division, 0) > 0
-          || player.transferListed === true;
-        if (orphanedClubId) player.previousClubId = player.previousClubId || orphanedClubId;
-        // Free-agent saves can have an empty clubId but retain a stale former-club roster entry.
-        const staleRosterClubIds = [orphanedClubId, String(player.previousClubId || "").trim()]
+          || safeNumber(safeWorldOwnValue(player, "contractSeasons"), 0) > 0
+          || Boolean(safeWorldRecordIdentifier(player, "leagueId"))
+          || safeNumber(safeWorldOwnValue(player, "division"), 0) > 0
+          || isTrueFlag(safeWorldOwnValue(player, "transferListed"));
+        if (orphanedClubId && !previousClubId) safeWorldSetField(player, "previousClubId", orphanedClubId);
+        // Free-agent saves can retain a former-club roster entry even after clubId was cleared.
+        const staleRosterClubIds = [orphanedClubId, previousClubId]
           .filter((clubId, index, ids) => clubId && ids.indexOf(clubId) === index);
         staleRosterClubIds.forEach(clubId => {
-          const staleClub = world.clubs[clubId];
-          if (staleClub && Array.isArray(staleClub.roster)) {
-            staleClub.roster = staleClub.roster.filter(id => String(id) !== String(player.id));
+          const staleClub = clubs && typeof clubs === "object" ? safeWorldOwnValue(clubs, clubId) : null;
+          if (staleClub && Array.isArray(safeWorldOwnValue(staleClub, "roster"))) {
+            const roster = safeWorldArrayField(staleClub, "roster");
+            safeWorldSetField(staleClub, "roster", roster.filter(id => safeWorldIdentifier(id) !== playerId));
           }
         });
         if (hasStaleFreeAgentState) {
-          player.clubId = "";
-          player.leagueId = "";
-          player.division = 0;
-          player.contractSeasons = 0;
-          player.freeAgent = true;
-          const freeAgentSince = safeNumber(player.freeAgentSince, 0);
-          player.freeAgentSince = Number.isFinite(freeAgentSince) && freeAgentSince > 0
-            ? freeAgentSince : safeNumber(season, 1) + 1;
-          player.transferListed = false;
+          safeWorldSetField(player, "clubId", "");
+          safeWorldSetField(player, "leagueId", "");
+          safeWorldSetField(player, "division", 0);
+          safeWorldSetField(player, "contractSeasons", 0);
+          safeWorldSetField(player, "freeAgent", true);
+          const freeAgentSince = safeNumber(safeWorldOwnValue(player, "freeAgentSince"), 0);
+          safeWorldSetField(player, "freeAgentSince", Number.isFinite(freeAgentSince) && freeAgentSince > 0
+            ? freeAgentSince : safeNumber(season, 1) + 1);
+          safeWorldSetField(player, "transferListed", false);
           if (!wasFreeAgent) {
-            world.notes = Array.isArray(world.notes) ? world.notes : [];
-            world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent",
-              text: player.name + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
-            world.notes = world.notes.slice(0, 30);
+            const notes = safeWorldArrayField(world, "notes");
+            notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent",
+              text: safeWorldRecordText(player, "name") + " فقد ارتباطه بناديه السابق وأصبح متاحًا في سوق اللاعبين." });
+            safeWorldSetField(world, "notes", notes.slice(0, 30));
           }
         }
-        return;
+        continue;
       }
-      if (safeNumber(player.contractSeasons, 0) > 0) return;
+      if (safeNumber(safeWorldOwnValue(player, "contractSeasons"), 0) > 0) continue;
       const roster = rosterPlayers(world, club);
-      const sameRole = roster.filter(row => row.group === player.group && row.id !== player.id);
+      const sameRole = roster.filter(row => row.group === player.group && row !== player);
       const roleTarget = Math.max(1, Number(TARGETS[player.group]) || 1);
       const roleNeed = sameRole.length < roleTarget;
-      const age = safeNumber(player.age, 18) || 18;
-      const quality = safeNumber(player.ovr, 50) || 50;
+      const age = safeNumber(safeWorldOwnValue(player, "age"), 18) || 18;
+      const quality = safeNumber(safeWorldOwnValue(player, "ovr"), 50) || 50;
       const clubPower = marketClubPower(club);
       const renewalChance = clamp(0.12 + (quality >= clubPower - 2 ? 0.28 : 0)
-        + (safeNumber(player.lastRating, 0) >= 7.0 ? 0.16 : 0) + (roleNeed ? 0.20 : 0)
+        + (safeNumber(safeWorldOwnValue(player, "lastRating"), 0) >= 7.0 ? 0.16 : 0) + (roleNeed ? 0.20 : 0)
         - Math.max(0, age - 30) * 0.055, 0.02, 0.76);
-      const roll = hash(player.id + "|" + season + "|contract-renewal-v2") / 4294967296;
+      const roll = hash(playerId + "|" + season + "|contract-renewal-v2") / 4294967296;
       if (roll < renewalChance && age < 36) {
-        player.contractSeasons = 2 + (hash(player.id + "|" + season + "|renewed-term") % 3);
-        player.freeAgent = false;
-        player.lastRenewedSeason = safeNumber(season, 1) + 1;
-        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "contract", text: player.name + " جدد عقده مع " + club.name + " لمدة " + player.contractSeasons + " مواسم." });
+        const renewedTerm = 2 + (hash(playerId + "|" + season + "|renewed-term") % 3);
+        safeWorldSetField(player, "contractSeasons", renewedTerm);
+        safeWorldSetField(player, "freeAgent", false);
+        safeWorldSetField(player, "lastRenewedSeason", safeNumber(season, 1) + 1);
+        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "contract",
+          text: safeWorldRecordText(player, "name") + " جدد عقده مع " + safeWorldRecordText(club, "name")
+            + " لمدة " + renewedTerm + " مواسم." });
       } else {
-        club.roster = (club.roster || []).filter(id => String(id) !== String(player.id));
-        player.previousClubId = club.id;
-        player.freeAgent = true;
-        player.freeAgentSince = safeNumber(season, 1) + 1;
-        player.clubId = "";
-        player.leagueId = "";
-        player.division = 0;
-        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent", text: player.name + " انتهى عقده وأصبح لاعبًا حرًا." });
+        const clubRoster = safeWorldArrayField(club, "roster");
+        safeWorldSetField(club, "roster", clubRoster.filter(id => safeWorldIdentifier(id) !== playerId));
+        safeWorldSetField(player, "previousClubId", safeWorldRecordIdentifier(club, "id") || orphanedClubId);
+        safeWorldSetField(player, "freeAgent", true);
+        safeWorldSetField(player, "freeAgentSince", safeNumber(season, 1) + 1);
+        safeWorldSetField(player, "clubId", "");
+        safeWorldSetField(player, "leagueId", "");
+        safeWorldSetField(player, "division", 0);
+        world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "free-agent",
+          text: safeWorldRecordText(player, "name") + " انتهى عقده وأصبح لاعبًا حرًا." });
       }
-    });
-    world.notes = world.notes.slice(0, 30);
+    }
+    world.notes = (Array.isArray(world.notes) ? world.notes : []).slice(0, 30);
     world.lastDevelopedSeason = developmentSeason;
     return true;
   }
@@ -4007,7 +4070,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=81");
+    const worker = new global.Worker("./football-world-worker.js?v=82");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

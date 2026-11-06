@@ -1743,6 +1743,99 @@ assert.equal(ageBoundaryWorld.players[ageBoundaryVeteranId].age, 31);
 assert.equal(ageBoundaryWorld.players[ageBoundaryVeteranId].ovr, 70,
   "a player who was 30 during the season must not receive age-31 decline one season early");
 
+// End-of-season development must use the canonical player-map key when a saved player.id has drifted.
+const canonicalProgressionPlayerKey = "canonical-progression-map-key";
+const staleProgressionInternalId = "stale-progression-internal-id";
+const canonicalProgressionPlayer = {
+  id: staleProgressionInternalId, name: "Canonical progression identity",
+  clubId: "canonical-progression-club", leagueId: "canonical-progression-league",
+  division: 1, group: "attacker", position: "مهاجم", age: 23,
+  contractSeasons: 3, ovr: 70, potential: 90, lastRating: 0, freeAgent: false, retired: false
+};
+const canonicalProgressionWorld = {
+  players: { [canonicalProgressionPlayerKey]: canonicalProgressionPlayer },
+  clubs: { "canonical-progression-club": {
+    id: "canonical-progression-club", name: "Canonical Progression Club",
+    division: 1, roster: [canonicalProgressionPlayerKey], power: 70
+  } },
+  seasonStats: { "1": [{
+    id: { toString() { throw new Error("unsafe progression stat ID coercion"); } },
+    playerId: canonicalProgressionPlayerKey, appearances: 10, averageRating: 7.4
+  }] },
+  notes: [], lastDevelopedSeason: 0
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestDevelopPlayers(canonicalProgressionWorld, 1),
+  "stale internal player IDs and hostile season-stat IDs must not interrupt development");
+assert.equal(canonicalProgressionPlayer.age, 24,
+  "progression must still age a player whose internal ID is stale");
+assert.equal(canonicalProgressionPlayer.ovr, 72,
+  "season statistics keyed by the canonical player-map key must still drive development");
+assert.equal(canonicalProgressionPlayer.lastRating, 7.4,
+  "the canonical season-stat row must remain attached to the correct player");
+assert.equal(canonicalProgressionPlayer.contractSeasons, 2);
+assert.equal(canonicalProgressionPlayer.id, staleProgressionInternalId,
+  "progression must preserve the original internal ID instead of rewriting saved player data");
+
+// A free agent can retain a former-club roster entry under the canonical map key even
+// when the player's internal ID is stale. Cleanup must remove that exact membership.
+const canonicalFreeAgentMapKey = "canonical-free-agent-map-key";
+const staleFreeAgentInternalId = "stale-free-agent-internal-id";
+const canonicalFreeAgentPlayer = {
+  id: staleFreeAgentInternalId, name: "Canonical free-agent cleanup",
+  clubId: "", previousClubId: "canonical-former-club", leagueId: "", division: 0,
+  group: "attacker", position: "مهاجم", age: 25, contractSeasons: 0,
+  ovr: 55, potential: 60, freeAgent: true, freeAgentSince: 1, transferListed: false, retired: false
+};
+const canonicalFreeAgentWorld = {
+  players: { [canonicalFreeAgentMapKey]: canonicalFreeAgentPlayer },
+  clubs: { "canonical-former-club": {
+    id: "canonical-former-club", name: "Canonical Former Club", roster: [canonicalFreeAgentMapKey]
+  } },
+  seasonStats: { "1": [] }, notes: [], lastDevelopedSeason: 0
+};
+sandbox.window.__lwTestDevelopPlayers(canonicalFreeAgentWorld, 1);
+assert.deepEqual(canonicalFreeAgentWorld.clubs["canonical-former-club"].roster, [],
+  "free-agent cleanup must remove the canonical roster key, not the stale internal ID");
+assert.equal(canonicalFreeAgentWorld.players[canonicalFreeAgentMapKey], canonicalFreeAgentPlayer,
+  "free-agent cleanup must preserve the player record under its original map key");
+assert.equal(canonicalFreeAgentPlayer.id, staleFreeAgentInternalId,
+  "free-agent cleanup must not rewrite the saved internal ID");
+
+// Retirement must remove the canonical roster entry and retain history under the
+// canonical map key even when the internal ID cannot be coerced to a string.
+const canonicalRetirementMapKey = "canonical-retirement-map-key";
+const hostileRetirementInternalId = {
+  toString() { throw new Error("unsafe retirement player ID coercion"); },
+  valueOf() { throw new Error("unsafe retirement player numeric coercion"); }
+};
+const canonicalRetirementPlayer = {
+  id: hostileRetirementInternalId, name: "Canonical retirement identity",
+  clubId: "canonical-retirement-club", leagueId: "canonical-retirement-league", division: 1,
+  group: "attacker", position: "مهاجم", age: 42, contractSeasons: 1,
+  ovr: 70, potential: 75, freeAgent: false, retired: false
+};
+const canonicalRetirementWorld = {
+  players: { [canonicalRetirementMapKey]: canonicalRetirementPlayer },
+  clubs: { "canonical-retirement-club": {
+    id: "canonical-retirement-club", name: "Canonical Retirement Club",
+    country: "Testland", roster: [canonicalRetirementMapKey], division: 1
+  } },
+  seasonStats: { "1": [{ id: canonicalRetirementMapKey, appearances: 30, averageRating: 7.1 }] },
+  playerHistory: { [canonicalRetirementMapKey]: [{ season: 1, type: "transfer-in", club: "Canonical Retirement Club" }] },
+  notes: []
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestDevelopPlayers(canonicalRetirementWorld, 1),
+  "retirement must not coerce a hostile internal player ID");
+assert.equal(canonicalRetirementPlayer.retired, true);
+assert.deepEqual(canonicalRetirementWorld.clubs["canonical-retirement-club"].roster, [],
+  "retirement must remove the canonical player-map key from the club roster");
+assert.equal(canonicalRetirementWorld.playerHistory[canonicalRetirementMapKey][0].type, "retirement",
+  "retirement history must be stored under the canonical player-map key");
+assert.equal(canonicalRetirementWorld.playerHistory[canonicalRetirementMapKey][1].type, "transfer-in",
+  "retirement must preserve prior history under the canonical player-map key");
+assert.strictEqual(canonicalRetirementPlayer.id, hostileRetirementInternalId,
+  "retirement must preserve the original malformed internal ID without coercion");
+
 // Retiring players are archived, removed from active squads and never re-enter the free-agent market.
 const retirementPlayerId = "retirement-boundary-player";
 const retirementWorld = {

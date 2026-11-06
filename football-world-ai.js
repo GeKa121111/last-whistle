@@ -712,7 +712,7 @@
           if (!identityKey || knownForClub.has(identityKey) || unavailableForClub.has(identityKey)) continue;
           while ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) {
             const generated = (club.roster || []).map(playerId => world.players[playerId]).filter(player => player && player.isGenerated)
-              .sort((a, b) => Number(a.ovr || 0) - Number(b.ovr || 0));
+              .sort((a, b) => safeNumber(a && a.ovr, 0) - safeNumber(b && b.ovr, 0));
             if (!generated.length) break;
             const replace = generated[0];
             club.roster = club.roster.filter(playerId => playerId !== replace.id);
@@ -856,7 +856,7 @@
     return matchesByClub;
   }
   function normalizedClubPower(club) {
-    const power = safeNumber(club && club.power, 55);
+    const power = safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55;
     return power > 0 ? clamp(power, 25, 100) : 55;
   }
   function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
@@ -869,7 +869,7 @@
     const ovr = clamp(safeNumber(player.ovr, 55) || 55, 35, 99);
     const group = player.group || groupForPosition(player.position);
     const peers = club ? rosterPlayers(world, club).filter(row => row.group === group) : [player];
-    const roleStrength = peers.length ? (peers.slice().sort((a, b) => b.ovr - a.ovr).findIndex(row => row.id === player.id)) : 0;
+    const roleStrength = peers.length ? (peers.slice().sort((a, b) => safeNumber(b && b.ovr, 50) - safeNumber(a && a.ovr, 50)).findIndex(row => row.id === player.id)) : 0;
     const expectedApps = matches > 0
       ? clamp(Math.round(matches * (0.63 + ovr * 0.0032 + rng() * 0.12 - roleStrength * 0.075)), Math.min(4, matches), matches)
       : 0;
@@ -1054,7 +1054,7 @@
         } else {
           homeClub = second; awayClub = first;
         }
-        const relativePower = clamp(((Number(homeClub.power) || 55) - (Number(awayClub.power) || 55)) / 100, -0.55, 0.55);
+        const relativePower = clamp((normalizedClubPower(homeClub) - normalizedClubPower(awayClub)) / 100, -0.55, 0.55);
         const rng = random(hash([leagueId, season, cycle, fixtureNumber++, homeClub.id, awayClub.id, "league-fixture-v2"].join("|")));
         function sampleGoals(rate) {
           const threshold = Math.exp(-rate);
@@ -1118,7 +1118,7 @@
           : 0;
         return {
           season: Number(season), leagueId, division, country: club.country, clubId: club.id,
-          club: club.name, power: Math.round(Number(club.power) || 55), played: stats.played,
+          club: club.name, power: Math.round(normalizedClubPower(club)), played: stats.played,
           w: stats.w, d: stats.d, l: stats.l, gf: stats.gf, ga: stats.ga,
           pts: points, form: Number(form.toFixed(2))
         };
@@ -2576,7 +2576,7 @@
         candidates.sort((a, b) => a.rank - b.rank || a.globalTier - b.globalTier
           || b.leagueStrength - a.leagueStrength || b.points - a.points
           || b.goalDifference - a.goalDifference
-          || Number(b.club.power || 50) - Number(a.club.power || 50)
+          || normalizedClubPower(b.club) - normalizedClubPower(a.club)
           || String(a.club.id).localeCompare(String(b.club.id)));
         participants = candidates.slice(0, 12).map(entry => entry.club);
       } else if (def.kind === "world") {
@@ -3259,7 +3259,7 @@
       return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && base.isTrueFlag(player.freeAgent)).map(player => ({
         id: player.id, name: player.name, position: player.position, ovr: player.ovr, age: player.age,
         potential: player.potential, contractSeasons: player.contractSeasons, formerClub: player.previousClubId
-      })).sort((a,b)=>Number(b.ovr||50)-Number(a.ovr||50));
+      })).sort((a,b)=>safeNumber(b && b.ovr,50)-safeNumber(a && a.ovr,50));
     }
   }));
 })(window);
@@ -3271,8 +3271,17 @@
   "use strict";
   const base = global.LWWorldAI;
   if (!base) return;
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
-  const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  const safeNumber = (value, fallback = 0) => {
+    if (typeof value !== "number" && typeof value !== "string") return fallback;
+    if (typeof value === "string" && value.trim() === "") return fallback;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
+  const int = (value, fallback = 0) => {
+    const numeric = safeNumber(value, NaN);
+    return Number.isFinite(numeric) ? Math.round(numeric) : fallback;
+  };
   function archetypeForClub(club) {
     const power = clamp(club && club.power, 35, 97), prestige = clamp(club && club.prestige, 25, 100);
     if (power >= 82 && prestige >= 78) return { id: "title-chaser", label: "منافس على البطولات", strategy: "استقطاب الجاهز", coachStyle: "win-now" };
@@ -3333,7 +3342,7 @@
           : archetype === "title-chaser"
             ? Math.max(0, averageAge - 31) * 0.55
             : Math.max(0, averageAge - 28) * 0.7;
-        const qualityGap = Math.max(0, Number(club.power) - averageOverall) * 0.25;
+        const qualityGap = Math.max(0, (safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55) - averageOverall) * 0.25;
         const potentialGap = archetype === "youth-investor"
           ? Math.max(0, 72 - averagePotential) * 0.18 : 0;
         const deficit = Math.max(0, role.target - players.length);

@@ -3458,6 +3458,7 @@ const malformedMatchRows = [
   { season: Symbol("season"), matchday: 1, homeClubId: "home", awayClubId: "away" },
   { season: 5, matchday: Symbol("matchday"), homeClubId: "home", awayClubId: "away" },
   { season: 5, matchday: 1, homeClubId: Symbol("club-id"), awayClubId: "away" },
+  { season: 5, matchday: 1, homeClubId: "home", awayClubId: "away", homeGoals: Symbol("goals"), awayGoals: 0 },
   { season: 5, matchday: 1, homeClubId: { toString() { throw new Error("hostile club id"); } }, awayClubId: "away" },
   hostileMatch
 ];

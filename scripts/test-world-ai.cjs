@@ -33,7 +33,7 @@ assert.ok(aiSourceRaw.includes('if (p === "st" || p === "f" || p === "striker"')
 assert.ok(aiSourceRaw.includes('if (p.includes("مهاجم") || p === "cf" || p === "ss" || p === "fw"'),
   "CF must use the mobile-forward production profile");
 
-const lineupMarker = "  function makeLineup(world, club) {";
+const lineupMarker = "  function makeLineup(world, club, playerKeyByObject) {";
 const rosterPlayersMarker = "  function rosterPlayers(world, club) {";
 const playersForClubMarker = "  function playersForClub(world, club) {";
 const normalizeRosterMembershipMarker = "  function normalizeRosterMembership(world) {";
@@ -60,12 +60,12 @@ const knockoutMarker = "  function knockout(world, season, def, participants) {"
 const buildLeagueStrengthLookupMarker = "  function buildLeagueStrengthLookup(world) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
 const buildBalancedLeagueScheduleMarker = "  function buildBalancedLeagueSchedule(clubs, matchesPerClub, seed) {";
-const generatePlayerSeasonMarker = "  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {";
+const generatePlayerSeasonMarker = "  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub, playerMapKey) {";
 const normalizedClubPowerMarker = "  function normalizedClubPower(club) {";
 const marketClubPowerMarker = "  function marketClubPower(club, fallback = 55) {";
 const inferArchetypeMarker = "  function inferArchetype(club) {";
 const weightedPickMarker = "  function weightedPick(rows, rng, purpose) {";
-const playMatchMarker = "  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache) {";
+const playMatchMarker = "  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache, playerKeyByObject) {";
 const tableRowMarker = "  function tableRow(club, season, leagueId, division) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 const divisionNormalizerMarker = "  function normalizeClubDivision(value, missingFallback = 1) {";
@@ -1239,6 +1239,10 @@ const canonicalFreeAgentBuyer = makeMarketTestClub(
   canonicalFreeAgentMarketWorld, "Canonical Free Agent D2 Keeper Vacancy", 2, "goalkeeper"
 );
 delete canonicalFreeAgentBuyer.division;
+const canonicalExistingBuyerKey = canonicalFreeAgentBuyer.roster[0];
+const canonicalExistingBuyerPlayer = canonicalFreeAgentMarketWorld.players[canonicalExistingBuyerKey];
+const staleExistingBuyerInternalId = "stale-existing-buyer-internal-id";
+canonicalExistingBuyerPlayer.id = staleExistingBuyerInternalId;
 const canonicalFreeAgentMarketKey = "canonical-free-agent-market-map-key";
 const staleFreeAgentMarketId = "stale-free-agent-market-internal-id";
 const canonicalFreeAgentMarketPlayer = {
@@ -1257,6 +1261,10 @@ assert.ok(canonicalFreeAgentBuyer.roster.includes(canonicalFreeAgentMarketKey),
   "free-agent recruitment must add the canonical roster key");
 assert.ok(!canonicalFreeAgentBuyer.roster.includes(staleFreeAgentMarketId),
   "free-agent recruitment must not add the stale internal player ID");
+assert.ok(canonicalFreeAgentBuyer.roster.includes(canonicalExistingBuyerKey),
+  "free-agent recruitment must preserve existing players by their canonical roster keys");
+assert.ok(!canonicalFreeAgentBuyer.roster.includes(staleExistingBuyerInternalId),
+  "free-agent roster reconciliation must never replace an existing map key with its stale internal ID");
 assert.equal(canonicalFreeAgentMarketPlayer.clubId, canonicalFreeAgentBuyer.id);
 assert.equal(canonicalFreeAgentMarketPlayer.id, staleFreeAgentMarketId,
   "free-agent recruitment must preserve the original internal player ID");

@@ -55,7 +55,9 @@ const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
 const expandMatchesMarker = "  function expandWorldMatches(world, matches, expectedSeason) {";
 const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
 const knockoutMarker = "  function knockout(world, season, def, participants) {";
+const buildLeagueStrengthLookupMarker = "  function buildLeagueStrengthLookup(world) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
+const buildBalancedLeagueScheduleMarker = "  function buildBalancedLeagueSchedule(clubs, matchesPerClub, seed) {";
 const generatePlayerSeasonMarker = "  function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {";
 const normalizedClubPowerMarker = "  function normalizedClubPower(club) {";
 const marketClubPowerMarker = "  function marketClubPower(club, fallback = 55) {";
@@ -84,7 +86,9 @@ assert.ok(aiSourceRaw.includes(matchSeasonMarker), "AI engine must retain the ma
 assert.ok(aiSourceRaw.includes(expandMatchesMarker), "AI engine must retain safe saved-match expansion for corrupted season snapshot regression coverage");
 assert.ok(aiSourceRaw.includes(competitionHistoryMarker), "AI engine must retain four seasons of continental qualification history");
 assert.ok(aiSourceRaw.includes(knockoutMarker), "AI engine must retain the knockout resolver for fair cup tiebreak regression coverage");
+assert.ok(aiSourceRaw.includes(buildLeagueStrengthLookupMarker), "AI engine must retain the season league-strength lookup");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
+assert.ok(aiSourceRaw.includes(buildBalancedLeagueScheduleMarker), "AI engine must retain the balanced schedule builder for fixture regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 assert.ok(aiSourceRaw.includes(divisionNormalizerMarker), "AI engine must validate explicit club divisions without coercion");
 assert.ok(aiSourceRaw.includes(safeWorldIdentifierMarker), "AI engine must read saved world identifiers without coercion");
@@ -122,7 +126,9 @@ const aiSource = aiSourceRaw
   .replace(expandMatchesMarker, "  global.__lwTestExpandWorldMatches = expandWorldMatches;\n" + expandMatchesMarker)
   .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
   .replace(knockoutMarker, "  global.__lwTestKnockout = knockout;\n" + knockoutMarker)
+  .replace(buildLeagueStrengthLookupMarker, "  global.__lwTestBuildLeagueStrengthLookup = buildLeagueStrengthLookup;\n" + buildLeagueStrengthLookupMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
+  .replace(buildBalancedLeagueScheduleMarker, "  global.__lwTestBuildBalancedLeagueSchedule = buildBalancedLeagueSchedule;\n" + buildBalancedLeagueScheduleMarker)
   .replace(marketClubPowerMarker, "  global.__lwTestMarketClubPower = marketClubPower;\n" + marketClubPowerMarker)
   .replace(inferArchetypeMarker, "  global.__lwTestInferArchetype = inferArchetype;\n" + inferArchetypeMarker)
   .replace(generatePlayerSeasonMarker, "  global.__lwTestGeneratePlayerSeason = generatePlayerSeason;\n" + generatePlayerSeasonMarker)
@@ -264,6 +270,134 @@ const malformedSeasonPowerRows = sandbox.window.__lwTestBuildPlayerRows(
 assert.equal(malformedSeasonPowerRows.length, 3);
 assert.ok(malformedSeasonPowerRows.every(row => row.leagueStrength === 64),
   "season-stat rows must use a valid basePower when the saved current power is malformed");
+
+// League-strength and player-stat paths must ignore hostile IDs and duplicate aliases
+// without dropping the canonical club or rewriting any persisted source values.
+const hostileSeasonClubIdentifier = {
+  toString() { throw new Error("unsafe season-stat club ID coercion"); },
+  valueOf() { throw new Error("unsafe season-stat club ID conversion"); }
+};
+const hostileSeasonLeagueIdentifier = {
+  toString() { throw new Error("unsafe season-stat league ID coercion"); },
+  valueOf() { throw new Error("unsafe season-stat league ID conversion"); }
+};
+const safeSeasonStatsWorld = {
+  clubs: {
+    "safe-season-stats-club-alias": {
+      id: "safe-season-stats-club", name: "Stale Alias Club", country: "Testland",
+      leagueId: "safe-season-stats-league", division: 1, power: 100, prestige: 10
+    },
+    "safe-season-stats-club": {
+      id: "safe-season-stats-club", name: "Canonical Stats Club", country: "Testland",
+      leagueId: "safe-season-stats-league", division: 1, power: 72, prestige: 60
+    },
+    "hostile-season-league-club": {
+      id: "hostile-season-league-club", name: "Hostile League Club", country: "Testland",
+      leagueId: hostileSeasonLeagueIdentifier, division: 1, power: 99
+    },
+    "hostile-season-club-id-key": {
+      id: hostileSeasonClubIdentifier, name: "Hostile Club ID", country: "Testland",
+      leagueId: "safe-season-stats-league", division: 1, power: 99
+    }
+  },
+  players: {
+    "safe-season-stats-player": {
+      id: "safe-season-stats-player", name: "Safe Season Stats Player",
+      clubId: "safe-season-stats-club", leagueId: "safe-season-stats-league", division: 1,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 72, potential: 80,
+      retired: false, freeAgent: false, isGenerated: false
+    },
+    "hostile-season-club-player": {
+      id: "hostile-season-club-player", name: "Hostile Club Player",
+      clubId: "hostile-season-club-id-key", leagueId: "safe-season-stats-league", division: 1,
+      position: "مهاجم", group: "attacker", age: 24, ovr: 75, potential: 82,
+      retired: false, freeAgent: false, isGenerated: false
+    }
+  }
+};
+let safeSeasonStrengths, safeSeasonRows;
+assert.doesNotThrow(() => {
+  safeSeasonStrengths = sandbox.window.__lwTestBuildLeagueStrengthLookup(safeSeasonStatsWorld);
+  safeSeasonRows = sandbox.window.__lwTestBuildPlayerRows(safeSeasonStatsWorld, 5, new Map([
+    ["safe-season-stats-player", {
+      appearances: 4, goals: 2, assists: 1, ratingTotal: 28,
+      clubId: hostileSeasonClubIdentifier, leagueId: hostileSeasonLeagueIdentifier, division: 1
+    }]
+  ]));
+}, "season-stat strength and player-row builders must not coerce hostile club or league identifiers");
+assert.equal(safeSeasonStrengths.get("safe-season-stats-league|1"), 72,
+  "league strength must count only the canonical club with a valid identifier");
+assert.equal(safeSeasonStrengths.has("[object Object]|1"), false,
+  "a malformed league identifier must never become a synthetic map key");
+assert.equal(safeSeasonRows.length, 1,
+  "players attached to clubs with malformed IDs must not receive misleading season rows");
+assert.equal(safeSeasonRows[0].club, "Canonical Stats Club",
+  "a stale dictionary alias must resolve to the canonical club record");
+assert.equal(safeSeasonRows[0].clubId, "safe-season-stats-club",
+  "a malformed accumulator club ID must fall back to the player's valid current club");
+assert.equal(safeSeasonRows[0].leagueId, "safe-season-stats-league",
+  "a malformed accumulator league ID must fall back to the player's valid league");
+assert.equal(safeSeasonRows[0].leagueStrength, 72,
+  "player performance weighting must use only the valid canonical club");
+assert.strictEqual(safeSeasonStatsWorld.clubs["hostile-season-club-id-key"].id,
+  hostileSeasonClubIdentifier, "season-stat validation must preserve malformed source club IDs");
+assert.strictEqual(safeSeasonStatsWorld.clubs["hostile-season-league-club"].leagueId,
+  hostileSeasonLeagueIdentifier, "season-stat validation must preserve malformed source league IDs");
+
+// A malformed saved club ID must be ignored by unfinished-season projection, not coerced.
+const hostileProjectionWorld = {
+  projectionRevision: 0, dbVersion: 0, rosterSchemaVersion: 3, currentSeason: 1,
+  lastAdvancedTo: 0, lastCompletedSeason: 0, transferSequence: 0,
+  clubs: {
+    "hostile-projection-club": {
+      id: hostileSeasonClubIdentifier, name: "Hostile Projection Club",
+      leagueId: "safe-projection-league", division: 1, power: 90, roster: []
+    }
+  },
+  players: {
+    "hostile-projection-player": {
+      id: "hostile-projection-player", name: "Hostile Projection Player",
+      clubId: "hostile-projection-club", leagueId: "safe-projection-league", division: 1,
+      position: "ST", group: "attacker", age: 24, ovr: 70, potential: 75,
+      retired: false, freeAgent: false
+    }
+  }
+};
+let hostileProjectionRows;
+assert.doesNotThrow(() => {
+  hostileProjectionRows = sandbox.window.__lwTestGetProjectedSeasonRows(hostileProjectionWorld, 1, db);
+}, "unfinished-season projections must skip a club with an invalid persisted ID");
+assert.equal(hostileProjectionRows.length, 0,
+  "players attached to a club with a malformed ID must not receive projected appearances");
+
+// Balanced fixture generation must ignore invalid and duplicate club IDs without
+// changing the identities of valid home/away club records.
+const hostileScheduleIdentifier = {
+  toString() { throw new Error("unsafe balanced-schedule club ID coercion"); }
+};
+const hostileScheduleClub = {};
+Object.defineProperty(hostileScheduleClub, "id", {
+  enumerable: true, get() { throw new Error("unsafe balanced-schedule club ID getter"); }
+});
+let safeBalancedFixtures;
+assert.doesNotThrow(() => {
+  safeBalancedFixtures = sandbox.window.__lwTestBuildBalancedLeagueSchedule([
+    { id: "safe-schedule-home", name: "Schedule Home" },
+    { id: "safe-schedule-away", name: "Schedule Away" },
+    { id: "safe-schedule-home", name: "Duplicate Schedule Alias" },
+    { id: hostileScheduleIdentifier, name: "Hostile Schedule Club" },
+    hostileScheduleClub,
+    { name: "Missing Schedule ID" }
+  ], 2, "safe-schedule-regression");
+}, "balanced fixture generation must ignore malformed, throwing, and duplicate club IDs");
+assert.equal(safeBalancedFixtures.length, 2,
+  "the two valid unique clubs must still receive the configured two-match schedule");
+assert.ok(safeBalancedFixtures.every(fixture =>
+  ["safe-schedule-home", "safe-schedule-away"].includes(fixture.home.id)
+  && ["safe-schedule-home", "safe-schedule-away"].includes(fixture.away.id)),
+  "balanced fixtures must contain only valid unique clubs");
+assert.equal(new Set(safeBalancedFixtures.flatMap(fixture => [fixture.home.id, fixture.away.id])).size, 2,
+  "malformed aliases must not create extra fixture participants");
 assert.equal(sandbox.window.__lwTestMarketClubPower(malformedSeasonRatingClub), 64,
   "shared club-power normalization must fall back to a valid basePower");
 assert.equal(sandbox.window.__lwTestMarketClubPower({ power: 0, basePower: 90 }), 90,
@@ -610,6 +744,12 @@ assert.equal(typeof sandbox.window.__lwTestRosterPlayers, "function", "active ro
 assert.equal(typeof sandbox.window.__lwTestBaseGetSeasonLines, "function", "projected season lines must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestBaseCompleteSeason, "function", "legacy season completion must be available to the regression guard");
 assert.equal(typeof sandbox.window.__lwTestBuildPlayerRows, "function", "shared season rows must be available to the regression guard");
+assert.equal(typeof sandbox.window.__lwTestBuildLeagueStrengthLookup, "function",
+  "season league-strength lookup must be available to the malformed-identifier regression guard");
+assert.equal(typeof sandbox.window.__lwTestBuildBalancedLeagueSchedule, "function",
+  "balanced schedule builder must be available to the malformed-identifier regression guard");
+assert.equal(typeof sandbox.window.__lwTestGetProjectedSeasonRows, "function",
+  "projected season rows must be available to the malformed-identifier regression guard");
  
  // Retired players keep their old season record but never receive rows in a later season.
  const retiredSeasonSave = { season: 2 };

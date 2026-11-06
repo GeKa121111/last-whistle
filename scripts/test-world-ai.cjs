@@ -1118,14 +1118,14 @@ assert.ok(canonicalSeasonTarget);
 assert.deepEqual(new Set(canonicalSeasonTarget.players.map(player => player.id)),
   new Set(canonicalSeasonWorld.clubs["canonical-season-club-a"].roster),
   "transfer-target snapshots must expose canonical roster keys");
-const canonicalFreeAgentKey = canonicalSeasonKeys[0];
-const canonicalFreeAgentPlayer = canonicalSeasonWorld.players[canonicalFreeAgentKey];
-canonicalFreeAgentPlayer.freeAgent = true;
-canonicalFreeAgentPlayer.clubId = "";
-canonicalFreeAgentPlayer.leagueId = "";
-canonicalFreeAgentPlayer.division = 0;
-const canonicalFreeAgentRows = sandbox.window.LWWorldAI.freeAgents(canonicalSeasonSave, db);
-assert.ok(canonicalFreeAgentRows.some(row => row.id === canonicalFreeAgentKey),
+const canonicalSeasonFreeAgentKey = canonicalSeasonKeys[0];
+const canonicalSeasonFreeAgentPlayer = canonicalSeasonWorld.players[canonicalSeasonFreeAgentKey];
+canonicalSeasonFreeAgentPlayer.freeAgent = true;
+canonicalSeasonFreeAgentPlayer.clubId = "";
+canonicalSeasonFreeAgentPlayer.leagueId = "";
+canonicalSeasonFreeAgentPlayer.division = 0;
+const canonicalSeasonFreeAgentRows = sandbox.window.LWWorldAI.freeAgents(canonicalSeasonSave, db);
+assert.ok(canonicalSeasonFreeAgentRows.some(row => row.id === canonicalSeasonFreeAgentKey),
   "free-agent snapshots must expose the canonical player-map key");
 
 const legacyDivisionStatsClubId = "legacy-stats-club";
@@ -1986,14 +1986,14 @@ assert.equal(canonicalProgressionPlayer.id, staleProgressionInternalId,
 // when the player's internal ID is stale. Cleanup must remove that exact membership.
 const canonicalFreeAgentMapKey = "canonical-free-agent-map-key";
 const staleFreeAgentInternalId = "stale-free-agent-internal-id";
-const canonicalFreeAgentPlayer = {
+const canonicalSeasonFreeAgentPlayer = {
   id: staleFreeAgentInternalId, name: "Canonical free-agent cleanup",
   clubId: "", previousClubId: "canonical-former-club", leagueId: "", division: 0,
   group: "attacker", position: "مهاجم", age: 25, contractSeasons: 0,
   ovr: 55, potential: 60, freeAgent: true, freeAgentSince: 1, transferListed: false, retired: false
 };
 const canonicalFreeAgentWorld = {
-  players: { [canonicalFreeAgentMapKey]: canonicalFreeAgentPlayer },
+  players: { [canonicalFreeAgentMapKey]: canonicalSeasonFreeAgentPlayer },
   clubs: { "canonical-former-club": {
     id: "canonical-former-club", name: "Canonical Former Club", roster: [canonicalFreeAgentMapKey]
   } },
@@ -2002,9 +2002,9 @@ const canonicalFreeAgentWorld = {
 sandbox.window.__lwTestDevelopPlayers(canonicalFreeAgentWorld, 1);
 assert.deepEqual(canonicalFreeAgentWorld.clubs["canonical-former-club"].roster, [],
   "free-agent cleanup must remove the canonical roster key, not the stale internal ID");
-assert.equal(canonicalFreeAgentWorld.players[canonicalFreeAgentMapKey], canonicalFreeAgentPlayer,
+assert.equal(canonicalFreeAgentWorld.players[canonicalFreeAgentMapKey], canonicalSeasonFreeAgentPlayer,
   "free-agent cleanup must preserve the player record under its original map key");
-assert.equal(canonicalFreeAgentPlayer.id, staleFreeAgentInternalId,
+assert.equal(canonicalSeasonFreeAgentPlayer.id, staleFreeAgentInternalId,
   "free-agent cleanup must not rewrite the saved internal ID");
 
 // Retirement must remove the canonical roster entry and retain history under the

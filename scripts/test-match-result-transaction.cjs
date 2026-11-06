@@ -410,6 +410,7 @@ sandbox.state = {
   seasonLog: [],
   careerMatchHistory: [
     { id: "fractional-season-rounded-down", season: 3, segmentId: "fractional-active-segment", minutes: 90, scope: "league" },
+    { id: "fractional-season-fallback-one", season: 1, segmentId: "fractional-active-segment", minutes: 90, scope: "league" },
     { id: "fractional-season-malformed", season: 3.5, segmentId: "fractional-active-segment", minutes: 90, scope: "league" },
     { id: "fractional-active-segment-without-season", segmentId: "fractional-active-segment", minutes: 90, scope: "league" },
     { id: "fractional-archive-row", segmentId: "fractional-archive-segment", minutes: 90, scope: "league" }

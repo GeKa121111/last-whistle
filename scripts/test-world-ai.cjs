@@ -882,6 +882,35 @@ assert.equal(renewalWorld.players[renewalTestPlayerId].freeAgent, false,
   "the role-need renewal must keep the player attached to the club");
 assert.ok(renewalWorld.clubs["renewal-club"].roster.includes(renewalTestPlayerId),
   "a renewed player must remain in the club roster");
+
+// Legacy roster arrays can store numeric IDs while player records use string IDs.
+// Contract expiry must detach the player from the old club using the same ID semantics
+// as the canonical roster reconciliation, otherwise a stale membership survives.
+const legacyExpiryClubId = "legacy-contract-expiry-club";
+const legacyExpiryPlayerId = "7001";
+const legacyExpiryPlayer = {
+  id: legacyExpiryPlayerId, name: "Legacy numeric roster expiry", clubId: legacyExpiryClubId,
+  group: "attacker", position: "مهاجم", age: 35, contractSeasons: 1,
+  ovr: 40, potential: 40, freeAgent: false, retired: false
+};
+const legacyExpiryWorld = {
+  players: { [legacyExpiryPlayerId]: legacyExpiryPlayer },
+  clubs: { [legacyExpiryClubId]: {
+    id: legacyExpiryClubId, name: "Legacy expiry club", power: 80, roster: [7001]
+  } },
+  seasonStats: { "1": [] },
+  notes: [], lastDevelopedSeason: 0
+};
+sandbox.window.__lwTestDevelopPlayers(legacyExpiryWorld, 1);
+assert.equal(legacyExpiryPlayer.freeAgent, true,
+  "an expiring legacy player must enter the free-agent pool");
+assert.equal(legacyExpiryPlayer.clubId, "",
+  "an expired contract must clear current club ownership");
+assert.equal(legacyExpiryPlayer.previousClubId, legacyExpiryClubId,
+  "an expired contract must retain the former club ID for transfer history");
+assert.ok(!legacyExpiryWorld.clubs[legacyExpiryClubId].roster.some(id => String(id) === legacyExpiryPlayerId),
+  "contract expiry must remove numeric legacy roster IDs for string player IDs");
+
 // End-of-season development must use the age during the season whose stats are being evaluated.
 const ageBoundaryYouthId = "season-age-youth-boundary";
 const ageBoundaryVeteranId = "season-age-veteran-boundary";

@@ -1577,7 +1577,7 @@
         player.lastRenewedSeason = safeNumber(season, 1) + 1;
         world.notes.unshift({ season: safeNumber(season, 1) + 1, type: "contract", text: player.name + " جدد عقده مع " + club.name + " لمدة " + player.contractSeasons + " مواسم." });
       } else {
-        club.roster = (club.roster || []).filter(id => id !== player.id);
+        club.roster = (club.roster || []).filter(id => String(id) !== String(player.id));
         player.previousClubId = club.id;
         player.freeAgent = true;
         player.freeAgentSince = safeNumber(season, 1) + 1;

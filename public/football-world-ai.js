@@ -5,7 +5,7 @@
 (function (global) {
   "use strict";
   const VERSION = 1;
-  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 5;
+  const ROSTER_MEMBERSHIP_SCHEMA_VERSION = 6;
   const TARGETS = Object.freeze({ goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 });
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
@@ -61,6 +61,51 @@
   function safeWorldIdentifier(value) {
     if (typeof value === "string") return value.trim();
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return "";
+  }
+  function safeWorldRecordIdentifier(record, field) {
+    try { return safeWorldIdentifier(record && record[field]); } catch (_) { return ""; }
+  }
+  function safeWorldRecordText(record, field) {
+    try {
+      const value = record && record[field];
+      if (typeof value === "string") return value.trim();
+      return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    } catch (_) { return ""; }
+  }
+  function safeWorldOwnValue(record, key) {
+    try {
+      if (!record || typeof record !== "object" || !Object.prototype.hasOwnProperty.call(record, key)) return undefined;
+      return record[key];
+    } catch (_) { return undefined; }
+  }
+  function safeWorldObjectKeys(record) {
+    try { return record && typeof record === "object" ? Object.keys(record) : []; } catch (_) { return []; }
+  }
+  function safeWorldArrayField(record, field) {
+    try {
+      const value = record && record[field];
+      return Array.isArray(value) ? value : [];
+    } catch (_) { return []; }
+  }
+  function safeWorldSetField(record, field, value) {
+    try {
+      if (!record || typeof record !== "object") return false;
+      record[field] = value;
+      return true;
+    } catch (_) { return false; }
+  }
+  function safeWorldClubIdentifierForWorld(world, club) {
+    if (!club || typeof club !== "object") return "";
+    let value;
+    try { value = club.id; } catch (_) { return ""; }
+    const missing = value === undefined || value === null
+      || (typeof value === "string" && value.trim() === "");
+    if (!missing) return safeWorldIdentifier(value);
+    const clubs = safeWorldOwnValue(world, "clubs");
+    for (const key of safeWorldObjectKeys(clubs)) {
+      if (safeWorldOwnValue(clubs, key) === club) return safeWorldIdentifier(key);
+    }
     return "";
   }
   function safeWorldClubIdentifier(club, fallbackKey) {
@@ -410,7 +455,9 @@
     return club;
   }
   function makePlayer(world, row, club, index, generated, forcedGroup) {
-    const rng = random(hash(club.id + "|" + (row && row.name || "academy") + "|" + index + "|" + VERSION));
+    const clubId = safeWorldClubIdentifierForWorld(world, club);
+    if (!clubId) return null;
+    const rng = random(hash(clubId + "|" + (row && row.name || "academy") + "|" + index + "|" + VERSION));
     let position = String(row && row.position || "");
     if (!position || normalizePosition(position).includes("غيرمحدد")) position = pickPosition(forcedGroup || "midfielder", rng);
     const group = groupForPosition(position);
@@ -418,125 +465,177 @@
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
     const sourceIdentity = sourcePlayerIdentityKey({ name: row && row.name, position, age });
     const id = generated
-      ? "academy-" + hash(club.id + "|" + index + "|" + (row && row.name || "player")).toString(36)
-      : "player-" + hash(club.id + "|" + (sourceIdentity || index)).toString(36);
+      ? "academy-" + hash(clubId + "|" + index + "|" + (row && row.name || "player")).toString(36)
+      : "player-" + hash(clubId + "|" + (sourceIdentity || index)).toString(36);
     if (world.players[id]) return world.players[id];
     const player = {
       id, name: String(row && row.name || (club.name + " • ناشئ " + String(index + 1).padStart(2, "0"))),
-      clubId: club.id, country: club.country, leagueId: club.leagueId, division: club.division,
+      clubId, country: club.country, leagueId: club.leagueId, division: club.division,
       position, group, ovr, potential: clamp(row && row.potential || ovr + 3 + Math.floor(rng() * 18), ovr, 97),
       age, prestige: club.prestige, contractSeasons: 1 + Math.floor(rng() * 5),
       isGenerated: !!generated || !!(row && row.isRealPlayer === false), isRealPlayer: !generated && !!row && row.isRealPlayer !== false,
       lastRating: 0, transferListed: false
     };
     world.players[id] = player;
+    if (!Array.isArray(club.roster)) club.roster = [];
     club.roster.push(id);
     return player;
   }
-  function activeRosterIds(world, club) {
+  function activeRosterIds(world, club, fallbackClubId) {
     const seen = new Set();
-    return (Array.isArray(club && club.roster) ? club.roster : []).filter(id => {
-      const key = String(id || "");
-      const player = world && world.players && world.players[key];
-      if (!key || seen.has(key) || !player || isTrueFlag(player.retired) || isTrueFlag(player.freeAgent)) return false;
-      const ownerClubId = String(player.clubId || "").trim();
-      if (ownerClubId && ownerClubId !== String(club.id)) return false;
+    const clubId = fallbackClubId
+      ? safeWorldClubIdentifier(club, fallbackClubId)
+      : safeWorldClubIdentifierForWorld(world, club);
+    if (!clubId) return [];
+    const players = safeWorldOwnValue(world, "players");
+    if (!players || typeof players !== "object") return [];
+    return safeWorldArrayField(club, "roster").filter(id => {
+      const key = safeWorldIdentifier(id);
+      if (!key || seen.has(key)) return false;
+      const player = safeWorldOwnValue(players, key);
+      if (!player || typeof player !== "object") return false;
+      let retired = false, freeAgent = false;
+      try {
+        retired = isTrueFlag(player.retired);
+        freeAgent = isTrueFlag(player.freeAgent);
+      } catch (_) { return false; }
+      if (retired || freeAgent) return false;
+      const ownerClubId = safeWorldRecordIdentifier(player, "clubId");
+      if (ownerClubId && ownerClubId !== clubId) return false;
       seen.add(key);
       return true;
     });
   }
   function syncPlayerClubMetadata(player, club) {
     if (!player || !club) return;
-    const country = String(club.country || "").trim();
-    const leagueId = String(club.leagueId || "").trim();
-    if (country) player.country = country;
-    if (leagueId) player.leagueId = leagueId;
+    const country = safeWorldRecordText(club, "country");
+    const leagueId = safeWorldRecordIdentifier(club, "leagueId");
+    if (country) safeWorldSetField(player, "country", country);
+    if (leagueId) safeWorldSetField(player, "leagueId", leagueId);
     const division = divisionForClub(club);
     // A corrupt explicit club tier must not overwrite a player's last known valid tier.
-    if (division >= 1) player.division = division;
+    if (division >= 1) safeWorldSetField(player, "division", division);
   }
   function normalizeRosterMembership(world) {
-    if (!world || !world.clubs || !world.players) return world;
+    if (!world || typeof world !== "object") return world;
+    const clubs = safeWorldOwnValue(world, "clubs");
+    const players = safeWorldOwnValue(world, "players");
+    if (!clubs || typeof clubs !== "object" || Array.isArray(clubs)
+      || !players || typeof players !== "object" || Array.isArray(players)) return world;
+
     const memberships = new Map();
-    Object.values(world.clubs).forEach(club => {
-      if (!club) return;
+    const clubEntries = [];
+    const clubById = new Map();
+    for (const key of safeWorldObjectKeys(clubs)) {
+      const club = safeWorldOwnValue(clubs, key);
+      if (!club || typeof club !== "object" || Array.isArray(club)) continue;
+      const clubId = safeWorldClubIdentifier(club, key);
+      if (!clubId) continue;
+      const entry = { key, club, clubId };
+      clubEntries.push(entry);
+      const current = clubById.get(clubId);
+      if (!current || (key === clubId && current.key !== current.clubId)) clubById.set(clubId, entry);
+
       const localSeen = new Set();
-      (Array.isArray(club.roster) ? club.roster : []).forEach(id => {
-        const key = String(id || "");
-        if (!key || localSeen.has(key)) return;
-        localSeen.add(key);
-        if (!memberships.has(key)) memberships.set(key, []);
-        memberships.get(key).push(String(club.id || ""));
-      });
-    });
+      for (const rosterId of safeWorldArrayField(club, "roster")) {
+        const playerId = safeWorldIdentifier(rosterId);
+        if (!playerId || localSeen.has(playerId)) continue;
+        localSeen.add(playerId);
+        if (!memberships.has(playerId)) memberships.set(playerId, []);
+        memberships.get(playerId).push(clubId);
+      }
+    }
+
     const ambiguous = new Set();
-    Object.entries(world.players).forEach(([id, player]) => {
-      if (!player) return;
-      // Legacy saves may encode boolean flags as strings; normalize before interpreting roster ownership.
-      player.retired = isTrueFlag(player.retired);
-      player.freeAgent = player.retired ? false : isTrueFlag(player.freeAgent);
-      const ownerClubId = String(player.clubId || "").trim();
-      const candidates = Array.from(new Set(memberships.get(String(id)) || [])).filter(Boolean);
+    for (const id of safeWorldObjectKeys(players)) {
+      const player = safeWorldOwnValue(players, id);
+      if (!player || typeof player !== "object" || Array.isArray(player)) continue;
+      let retired = false, freeAgent = false;
+      try {
+        // Legacy saves may encode boolean flags as strings; normalize before interpreting roster ownership.
+        retired = isTrueFlag(player.retired);
+        freeAgent = retired ? false : isTrueFlag(player.freeAgent);
+        player.retired = retired;
+        player.freeAgent = freeAgent;
+      } catch (_) { continue; }
+
+      const ownerClubId = safeWorldRecordIdentifier(player, "clubId");
+      const candidates = Array.from(new Set(memberships.get(id) || [])).filter(Boolean);
 
       // Retirement/free agency is authoritative. Old roster references must never
       // resurrect an unattached player or turn a former club into their current club.
-      if (isTrueFlag(player.retired) || isTrueFlag(player.freeAgent)) {
-        const formerClubId = ownerClubId && world.clubs[ownerClubId]
+      if (retired || freeAgent) {
+        const formerClubId = ownerClubId && clubById.has(ownerClubId)
           ? ownerClubId : candidates.length === 1 ? candidates[0] : "";
-        if (formerClubId && !String(player.previousClubId || "").trim()) {
-          player.previousClubId = formerClubId;
+        if (formerClubId && !safeWorldRecordIdentifier(player, "previousClubId")) {
+          safeWorldSetField(player, "previousClubId", formerClubId);
         }
-        player.clubId = "";
-        player.leagueId = "";
-        player.division = 0;
-        player.contractSeasons = 0;
-        player.transferListed = false;
-        if (isTrueFlag(player.retired)) player.freeAgent = false;
-        return;
+        safeWorldSetField(player, "clubId", "");
+        safeWorldSetField(player, "leagueId", "");
+        safeWorldSetField(player, "division", 0);
+        safeWorldSetField(player, "contractSeasons", 0);
+        safeWorldSetField(player, "transferListed", false);
+        if (retired) safeWorldSetField(player, "freeAgent", false);
+        continue;
       }
 
-      if (ownerClubId && world.clubs[ownerClubId]) {
+      const ownerEntry = ownerClubId ? clubById.get(ownerClubId) : null;
+      if (ownerEntry) {
         // The canonical owner is authoritative even when an interrupted save lost
         // the roster reference. Restore membership before any squad refill runs.
-        const owner = world.clubs[ownerClubId];
-        if (!Array.isArray(owner.roster)) owner.roster = [];
-        if (!owner.roster.some(rosterId => String(rosterId) === String(id))) {
-          owner.roster.push(String(id));
+        const owner = ownerEntry.club;
+        let roster = safeWorldArrayField(owner, "roster");
+        if (!Array.isArray(safeWorldOwnValue(owner, "roster"))) {
+          if (!safeWorldSetField(owner, "roster", [])) {
+            syncPlayerClubMetadata(player, owner);
+            continue;
+          }
+          roster = safeWorldArrayField(owner, "roster");
+        }
+        if (!roster.some(rosterId => safeWorldIdentifier(rosterId) === id)) {
+          try { owner.roster.push(id); } catch (_) {}
         }
         syncPlayerClubMetadata(player, owner);
-        return;
+        continue;
       }
+
       if (candidates.length === 1) {
-        const clubId = candidates[0], club = world.clubs[clubId];
-        player.clubId = clubId;
-        syncPlayerClubMetadata(player, club);
+        const inferredClub = clubById.get(candidates[0]);
+        if (inferredClub && safeWorldSetField(player, "clubId", candidates[0])) {
+          syncPlayerClubMetadata(player, inferredClub.club);
+        }
       } else if (candidates.length > 1) {
         // Keep the player record, but do not assign an ambiguous legacy player to two clubs.
-        ambiguous.add(String(id));
+        ambiguous.add(id);
       }
-    });
-    Object.values(world.clubs).forEach(club => {
-      if (!club) return;
-      club.roster = activeRosterIds(world, club).filter(id => !ambiguous.has(String(id)));
-    });
+    }
+
+    for (const entry of clubEntries) {
+      const roster = activeRosterIds(world, entry.club, entry.clubId)
+        .filter(id => !ambiguous.has(safeWorldIdentifier(id)));
+      safeWorldSetField(entry.club, "roster", roster);
+    }
     return world;
   }
   function fillRoster(world, club) {
-    club.roster = activeRosterIds(world, club);
+    const clubId = safeWorldClubIdentifierForWorld(world, club);
+    if (!clubId) return;
+    club.roster = activeRosterIds(world, club, clubId);
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
     club.roster.forEach(id => {
-      const player = world.players[id];
+      const player = safeWorldOwnValue(world && world.players, id);
       if (player) counts[player.group] = (counts[player.group] || 0) + 1;
     });
     while (club.roster.length < minimum) {
       const group = Object.keys(TARGETS).sort((a, b) =>
         counts[a] / TARGETS[a] - counts[b] / TARGETS[b] || counts[a] - counts[b] || a.localeCompare(b))[0];
       const index = world.nextGeneratedPlayer++;
-      const rng = random(hash(club.id + "|" + index + "|" + world.dbVersion));
+      const rng = random(hash(clubId + "|" + index + "|" + world.dbVersion));
       const ovr = clamp(club.basePower - 8 + Math.round(rng() * 12 - 5), 38, 88);
       const row = { name: club.name + " • ناشئ " + String(index).padStart(3, "0"), position: pickPosition(group, rng), ovr, potential: clamp(ovr + 5 + Math.floor(rng() * 15), ovr, 96), age: 17 + Math.floor(rng() * 7) };
       const player = makePlayer(world, row, club, index, true, group);
+      if (!player) break;
       counts[player.group] = (counts[player.group] || 0) + 1;
     }
   }
@@ -2081,8 +2180,15 @@
   function playersForClub(world, club) {
     return base.rosterPlayers(world, club);
   }
+  function safeRecordIdentifier(record, field) {
+    try {
+      const value = record && record[field];
+      if (typeof value === "string") return value.trim();
+      return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    } catch (_) { return ""; }
+  }
   function activeRosterIdsForClub(world, club) {
-    return playersForClub(world, club).map(player => String(player && player.id || "")).filter(Boolean);
+    return playersForClub(world, club).map(player => safeRecordIdentifier(player, "id")).filter(Boolean);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);
@@ -2092,7 +2198,8 @@
     ];
     quotas.forEach(([group, count]) => {
       rows.filter(player => player.group === group)
-        .sort((a, b) => playerOverall(b) - playerOverall(a) || String(a.id).localeCompare(String(b.id)))
+        .sort((a, b) => playerOverall(b) - playerOverall(a)
+          || safeRecordIdentifier(a, "id").localeCompare(safeRecordIdentifier(b, "id")))
         .slice(0, count).forEach(player => { if (!selected.some(row => row.id === player.id)) selected.push(player); });
     });
     rows.slice().sort((a, b) => playerOverall(b) - playerOverall(a))
@@ -3764,7 +3871,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=76");
+    const worker = new global.Worker("./football-world-worker.js?v=77");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

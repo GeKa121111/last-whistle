@@ -37,10 +37,12 @@ const lineupMarker = "  function makeLineup(world, club) {";
 const rosterPlayersMarker = "  function rosterPlayers(world, club) {";
 const playersForClubMarker = "  function playersForClub(world, club) {";
 const normalizeRosterMembershipMarker = "  function normalizeRosterMembership(world) {";
+const activeRosterIdsMarker = "  function activeRosterIds(world, club, fallbackClubId) {";
 assert.ok(aiSourceRaw.includes(lineupMarker), "AI engine must retain the lineup builder for the regression guard");
 assert.ok(aiSourceRaw.includes(rosterPlayersMarker), "AI engine must retain the active-roster helper for free-agent regression coverage");
 assert.ok(aiSourceRaw.includes(playersForClubMarker), "AI engine must retain the club-player filter for retired-roster regression coverage");
 assert.ok(aiSourceRaw.includes(normalizeRosterMembershipMarker), "AI engine must retain the legacy roster-membership migration");
+assert.ok(aiSourceRaw.includes(activeRosterIdsMarker), "AI engine must retain safe active-roster ID filtering");
 const advanceMarker = "  function advanceToSeason(save, nextSeason, db) {";
 assert.ok(aiSourceRaw.includes(advanceMarker), "AI engine must retain the season-advance entry point for the contract regression guard");
 const promotionMarker = "  function applyPromotionRelegation(world, season, db) {";
@@ -110,6 +112,7 @@ const aiSource = aiSourceRaw
   .replace(rosterPlayersMarker, "  global.__lwTestRosterPlayers = rosterPlayers;\n" + rosterPlayersMarker)
   .replace(playersForClubMarker, "  global.__lwTestPlayersForClub = playersForClub;\n" + playersForClubMarker)
   .replace(normalizeRosterMembershipMarker, "  global.__lwTestNormalizeRosterMembership = normalizeRosterMembership;\n" + normalizeRosterMembershipMarker)
+  .replace(activeRosterIdsMarker, "  global.__lwTestActiveRosterIds = activeRosterIds;\n" + activeRosterIdsMarker)
   .replace(lineupMarker, "  global.__lwTestMakeLineup = makeLineup;\n" + lineupMarker + `
     global.__lwLineupBuildsByClub = global.__lwLineupBuildsByClub || {};
     global.__lwLineupBuildsByClub[club.id] = (global.__lwLineupBuildsByClub[club.id] || 0) + 1;`)
@@ -465,7 +468,7 @@ const rosterMigrationSave = { season: 1, worldSimulation: {
   }
 } };
 const rosterMigrationWorld = ai.ensureState(rosterMigrationSave, db);
-assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 5,
+assert.equal(rosterMigrationWorld.rosterMembershipSchemaVersion, 6,
   "legacy saves must run the one-time roster ownership migration");
 assert.equal(rosterMigrationWorld.transferClubHistorySchemaVersion, 1,
   "legacy saves must migrate the compact per-player transfer-club history");
@@ -526,7 +529,7 @@ const legacyFlagSave = { season: 1, worldSimulation: {
 } };
 const legacyFlagWorld = ai.ensureState(legacyFlagSave, db);
 const legacyFlagClub = legacyFlagWorld.clubs[legacyFlagClubId];
-assert.equal(legacyFlagWorld.rosterMembershipSchemaVersion, 5,
+assert.equal(legacyFlagWorld.rosterMembershipSchemaVersion, 6,
   "v3 saves must normalize legacy string-valued player status flags once");
 assert.deepEqual(ai.rosterPlayers(legacyFlagWorld, legacyFlagClub).map(player => player.id).sort(),
   ["legacy-flag-false", "legacy-flag-zero"],
@@ -580,7 +583,7 @@ const missingMembershipSave = { season: 1, worldSimulation: {
 const missingMembershipPlayerCount = Object.keys(missingMembershipSave.worldSimulation.players).length;
 const missingMembershipNextGenerated = missingMembershipSave.worldSimulation.nextGeneratedPlayer;
 const missingMembershipWorld = ai.ensureState(missingMembershipSave, db);
-assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 5,
+assert.equal(missingMembershipWorld.rosterMembershipSchemaVersion, 6,
   "version-one saves must receive the missing-membership repair migration");
 assert.deepEqual(missingMembershipWorld.clubs["membership-gap-origin"].roster,
   ["membership-gap-existing", "membership-gap-unlisted"],
@@ -620,8 +623,132 @@ assert.ok(sandbox.window.__lwTestMakeLineup(missingMembershipWorld, missingMembe
   .some(player => player.id === "membership-gap-unlisted"),
   "restored players must be eligible for their club's matchday lineup");
 
+// Roster migration must never coerce untrusted saved identifiers or drop player records.
+const hostileRosterValue = {
+  toString() { throw new Error("hostile roster player ID coercion"); },
+  valueOf() { throw new Error("hostile roster player ID conversion"); }
+};
+const hostileClubValue = {
+  toString() { throw new Error("hostile club ID coercion"); },
+  valueOf() { throw new Error("hostile club ID conversion"); }
+};
+const hostilePreviousClubValue = {
+  toString() { throw new Error("hostile previous club ID coercion"); },
+  valueOf() { throw new Error("hostile previous club ID conversion"); }
+};
+const hostileMetadataValue = {
+  toString() { throw new Error("hostile club metadata coercion"); },
+  valueOf() { throw new Error("hostile club metadata conversion"); }
+};
+const hostileRosterSave = { season: 4, worldSimulation: {
+  schemaVersion: ai.version, dbVersion: Number(db.version) || 0, currentSeason: 4,
+  lastCompletedSeason: 3, lastAdvancedTo: 4, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 5, completedSeasons: [1, 2, 3],
+  seasonStats: {}, leagueTables: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 91, transferSequence: 0, projectionRevision: 12,
+  clubs: {
+    "safe-roster-club": {
+      id: "safe-roster-club", name: "Safe Roster Club", country: hostileMetadataValue,
+      leagueId: hostileMetadataValue, division: 1,
+      roster: ["safe-roster-player", hostileRosterValue, 7002, "7002",
+        "hostile-owner-player", "retired-hostile-player", Symbol("invalid-roster-id")]
+    },
+    "fallback-roster-club": {
+      name: "Fallback Roster Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1, roster: ["fallback-roster-player"]
+    },
+    "malformed-roster-club": {
+      id: hostileClubValue, name: "Malformed ID Club", country: "Testland",
+      leagueId: rosterMigrationLeagueId, division: 1, roster: ["malformed-owner-player"]
+    }
+  },
+  players: {
+    "safe-roster-player": {
+      id: "safe-roster-player", name: "Safe Player", clubId: "safe-roster-club",
+      country: "Legacy Country", leagueId: "legacy-league", division: 1,
+      retired: false, freeAgent: false
+    },
+    "7002": {
+      id: "7002", name: "Numeric Legacy Player", clubId: "safe-roster-club",
+      retired: false, freeAgent: false
+    },
+    "hostile-owner-player": {
+      id: "hostile-owner-player", name: "Recoverable Legacy Owner", clubId: hostileClubValue,
+      country: "Legacy Country", leagueId: "legacy-league", division: 1,
+      retired: false, freeAgent: false
+    },
+    "retired-hostile-player": {
+      id: "retired-hostile-player", name: "Retired Legacy Player", clubId: "safe-roster-club",
+      previousClubId: hostilePreviousClubValue, retired: true, freeAgent: false
+    },
+    "fallback-roster-player": {
+      id: "fallback-roster-player", name: "Fallback Owner", clubId: "fallback-roster-club",
+      retired: false, freeAgent: false
+    },
+    "malformed-owner-player": {
+      id: "malformed-owner-player", name: "Malformed Club Owner", clubId: "malformed-roster-club",
+      retired: false, freeAgent: false
+    }
+  }
+} };
+const hostileRosterPlayerCount = Object.keys(hostileRosterSave.worldSimulation.players).length;
+const hostileRosterNextGenerated = hostileRosterSave.worldSimulation.nextGeneratedPlayer;
+let hostileRosterWorld;
+assert.doesNotThrow(() => {
+  hostileRosterWorld = ai.ensureState(hostileRosterSave, db);
+}, "legacy roster migration must ignore hostile IDs without aborting save hydration");
+assert.equal(hostileRosterWorld.rosterMembershipSchemaVersion, 6,
+  "v5 saves must receive the safe roster-identifier migration exactly once");
+assert.deepEqual(hostileRosterWorld.clubs["safe-roster-club"].roster,
+  ["safe-roster-player", 7002, "hostile-owner-player"],
+  "safe string/numeric IDs must survive in their original saved representation, duplicate numeric aliases must collapse, and hostile IDs must be skipped");
+assert.deepEqual(hostileRosterWorld.clubs["fallback-roster-club"].roster,
+  ["fallback-roster-player"],
+  "legacy clubs without an explicit ID must use their saved object key as the canonical ID");
+assert.equal(hostileRosterWorld.players["hostile-owner-player"].clubId, "safe-roster-club",
+  "a player with a malformed legacy owner ID must recover from one safe roster membership");
+assert.equal(hostileRosterWorld.players["safe-roster-player"].country, "Legacy Country",
+  "malformed club country metadata must not overwrite a player's last known country");
+assert.equal(hostileRosterWorld.players["safe-roster-player"].leagueId, "legacy-league",
+  "malformed club league IDs must not overwrite a player's last known league");
+assert.equal(hostileRosterWorld.players["retired-hostile-player"].previousClubId, "safe-roster-club",
+  "a hostile previous-club ID must be safely replaced by the known former club");
+assert.equal(hostileRosterWorld.players["retired-hostile-player"].clubId, "",
+  "retired players must remain unattached after hostile-ID migration");
+assert.ok(hostileRosterWorld.players["malformed-owner-player"],
+  "players referenced only by a club with an invalid ID must remain stored");
+assert.equal(hostileRosterWorld.players["malformed-owner-player"].clubId, "malformed-roster-club",
+  "an invalid club ID must not be silently rewritten to the object's storage key");
+assert.deepEqual(hostileRosterWorld.clubs["malformed-roster-club"].roster, ["malformed-owner-player"],
+  "a malformed club's stored roster references must be preserved even though the club is excluded from active squads");
+assert.equal(ai.rosterPlayers(hostileRosterWorld, hostileRosterWorld.clubs["malformed-roster-club"]).length, 0,
+  "a club with an invalid explicit ID must not expose stale roster members as active players");
+assert.deepEqual(Array.from(ai.rosterPlayers(hostileRosterWorld, hostileRosterWorld.clubs["fallback-roster-club"]),
+  player => player.id), ["fallback-roster-player"],
+  "active roster reads must resolve a missing legacy club ID from its world-map key");
+assert.equal(Object.keys(hostileRosterWorld.players).length, hostileRosterPlayerCount,
+  "hostile roster migration must preserve every original player record");
+assert.equal(hostileRosterWorld.nextGeneratedPlayer, hostileRosterNextGenerated,
+  "identifier repair must not fabricate replacement players");
+assert.equal(hostileRosterWorld.projectionRevision, 13,
+  "the new roster migration must invalidate unfinished season projections once");
+const hostileLineupPlayer = {
+  id: hostileRosterValue, name: "Hostile lineup identity", clubId: "hostile-lineup-club",
+  group: "attacker", position: "ST", ovr: 70, retired: false, freeAgent: false
+};
+const hostileLineupWorld = {
+  players: { "hostile-lineup-player": hostileLineupPlayer },
+  clubs: { "hostile-lineup-club": {
+    id: "hostile-lineup-club", name: "Hostile Lineup Club",
+    roster: ["hostile-lineup-player"]
+  } }
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestMakeLineup(
+  hostileLineupWorld, hostileLineupWorld.clubs["hostile-lineup-club"]
+), "lineup tie-breaking must not coerce a malformed saved player ID");
+
 // A v4 save can already have a canonical clubId while retaining stale league metadata.
-// The one-time v5 migration must overwrite stale values from the canonical club in both
+// The one-time v6 migration must overwrite stale values from the canonical club in both
 // ownership paths: direct clubId ownership and a single unambiguous legacy roster link.
 const metadataSyncClubId = "metadata-sync-club";
 const metadataSyncSave = { season: 6, worldSimulation: {
@@ -648,7 +775,7 @@ const metadataSyncSave = { season: 6, worldSimulation: {
 } };
 const metadataSyncWorld = ai.ensureState(metadataSyncSave, db);
 const metadataSyncClub = metadataSyncWorld.clubs[metadataSyncClubId];
-assert.equal(metadataSyncWorld.rosterMembershipSchemaVersion, 5,
+assert.equal(metadataSyncWorld.rosterMembershipSchemaVersion, 6,
   "v4 saves must run the new canonical player-club metadata migration");
 for (const id of ["metadata-stale-owner", "metadata-stale-inferred"]) {
   const player = metadataSyncWorld.players[id];
@@ -1659,7 +1786,7 @@ const freeAgentReconcilePlayerName = "Free Agent Source Identity";
 const freeAgentReconcileWorld = {
   schemaVersion: ai.version, dbVersion: 1, currentSeason: 6,
   lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
-  rosterMembershipSchemaVersion: 5, completedSeasons: [],
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
   players: {
     [freeAgentReconcilePlayerId]: {
       id: freeAgentReconcilePlayerId, name: freeAgentReconcilePlayerName, clubId: "",
@@ -1737,7 +1864,7 @@ const transferReconcilePlayerName = "Transferred Source Identity";
 const transferReconcileWorld = {
   schemaVersion: ai.version, dbVersion: 1, currentSeason: 6,
   lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
-  rosterMembershipSchemaVersion: 5, completedSeasons: [],
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
   players: {
     [transferReconcilePlayerId]: {
       id: transferReconcilePlayerId, name: transferReconcilePlayerName,
@@ -2545,7 +2672,7 @@ const hostileEnsureStateIdentifier = {
 };
 const hostileEnsureStateWorld = {
   schemaVersion: 1, dbVersion: 1, currentSeason: 5, lastAdvancedTo: 0,
-  lastCompletedSeason: 4, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  lastCompletedSeason: 4, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6,
   clubs: {
     "ensure-safe-club": {
       id: "ensure-safe-club", name: "Ensure Safe Club", leagueId: "ensure-safe-league",
@@ -2964,7 +3091,7 @@ const archiveReplaceDb = {
 };
 const archiveReplaceWorld = {
   schemaVersion: ai.version, dbVersion: 1, currentSeason: 6, lastCompletedSeason: 5, lastAdvancedTo: 6,
-  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6,
   players: archiveReplacePlayers, clubs: { [archiveReplaceClubId]: archiveReplaceClub },
   playerHistory: { [archiveReplacePlayerId]: archiveReplaceHistory },
   seasonStats: {
@@ -3044,7 +3171,7 @@ assert.equal(completedProjectionWorld.seasonStats["6"][0].id, archiveReplaceStab
 
 // The one-time roster-membership migration also changes active squads, so it must invalidate only an unfinished projection.
 const membershipProjectionWorld = ai.ensureState(membershipProjectionSave, archiveReplaceDb);
-assert.equal(membershipProjectionWorld.rosterMembershipSchemaVersion, 5,
+assert.equal(membershipProjectionWorld.rosterMembershipSchemaVersion, 6,
   "the pending-projection fixture must complete the current roster-membership migration");
 for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competitionsBySeason"]) {
   assert.ok(!Object.prototype.hasOwnProperty.call(membershipProjectionWorld[field], "6"),
@@ -4103,7 +4230,7 @@ const retrySeasonWorld = {
   schemaVersion: ai.version, dbVersion: Number(db.version) || 0,
   currentSeason: 1, lastCompletedSeason: 0, lastAdvancedTo: 0,
   lastDevelopedSeason: 0, lastFreeAgentMarketSeason: 0,
-  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6,
   clubs: {
     [retrySeasonClubId]: {
       id: retrySeasonClubId, name: "Retry Season Recovery Club",
@@ -4229,7 +4356,7 @@ const reservedMarketWorld = {
   schemaVersion: ai.version, dbVersion: Number(db.version) || 0,
   currentSeason: 2, lastCompletedSeason: 1, lastAdvancedTo: 2,
   lastDevelopedSeason: 1, lastFreeAgentMarketSeason: 1,
-  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6,
   clubs: reservedMarketClubs, players: reservedMarketPlayers,
   playerHistory: {}, transferClubHistoryByPlayer: reservedHistory,
   transferClubHistorySchemaVersion: 1,
@@ -4851,7 +4978,7 @@ for (let index = 1; index <= 5; index++) cupFixtureClubs.push({
   division: 2, power: 45 + index, basePower: 45 + index, prestige: 40, roster: []
 });
 const cupWorld = {
-  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  schemaVersion: ai.version, dbVersion: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6,
   currentSeason: 1, lastAdvancedTo: 0, lastCompletedSeason: 0, completedSeasons: [],
   players: {}, clubs: Object.fromEntries(cupFixtureClubs.map(club => [club.id, club])),
   playerHistory: {}, seasonStats: {}, leagueTables: {}, matchesBySeason: {},

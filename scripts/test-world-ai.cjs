@@ -52,6 +52,7 @@ const fillRosterMarker = "  function fillRoster(world, club) {";
 const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
 const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
+const expandMatchesMarker = "  function expandWorldMatches(world, matches) {";
 const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
 const knockoutMarker = "  function knockout(world, season, def, participants) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
@@ -76,6 +77,7 @@ assert.ok(aiSourceRaw.includes(fillRosterMarker), "AI engine must retain the ros
 assert.ok(aiSourceRaw.includes(baseSeasonLinesMarker), "AI engine must retain projected season lines for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(baseCompleteSeasonMarker), "AI engine must retain the legacy season completion path for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(matchSeasonMarker), "AI engine must retain the match-based season simulator for division-status regression coverage");
+assert.ok(aiSourceRaw.includes(expandMatchesMarker), "AI engine must retain safe saved-match expansion for corrupted season snapshot regression coverage");
 assert.ok(aiSourceRaw.includes(competitionHistoryMarker), "AI engine must retain four seasons of continental qualification history");
 assert.ok(aiSourceRaw.includes(knockoutMarker), "AI engine must retain the knockout resolver for fair cup tiebreak regression coverage");
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
@@ -105,6 +107,7 @@ const aiSource = aiSourceRaw
   .replace(baseSeasonLinesMarker, "  global.__lwTestBaseGetSeasonLines = getSeasonLines;\n" + baseSeasonLinesMarker)
   .replace(baseCompleteSeasonMarker, "  global.__lwTestBaseCompleteSeason = completeSeason;\n" + baseCompleteSeasonMarker)
   .replace(matchSeasonMarker, "  global.__lwTestSimulateLeagueSeason = simulateLeagueSeason;\n" + matchSeasonMarker)
+  .replace(expandMatchesMarker, "  global.__lwTestExpandWorldMatches = expandWorldMatches;\n" + expandMatchesMarker)
   .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
   .replace(knockoutMarker, "  global.__lwTestKnockout = knockout;\n" + knockoutMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
@@ -3418,6 +3421,69 @@ assert.equal(legacyDivisionFirstTable.length, shortFirstTierEntries.length,
   "match simulation must retain every first-tier club from a legacy save with a missing division");
 assert.ok(legacyDivisionFirstTable.some(row => row.clubId === legacyMissingDivisionClubId),
   "a legacy club without division metadata must still appear in the first-tier standings");
+const matchExpansionWorld = {
+  clubs: {
+    home: { id: "home", name: "Home Club" },
+    away: { id: "away", name: "Away Club" }
+  }
+};
+const expandedValidMatch = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [{
+  season: "5", competitionId: "league", division: "2", matchday: "7",
+  homeClubId: "home", awayClubId: "away", homeGoals: "3", awayGoals: "1"
+}]);
+assert.equal(expandedValidMatch.length, 1,
+  "valid legacy numeric-string match records must still expand");
+assert.equal(expandedValidMatch[0].season, 5);
+assert.equal(expandedValidMatch[0].division, 2);
+assert.equal(expandedValidMatch[0].matchday, 7);
+assert.equal(expandedValidMatch[0].home, "Home Club");
+assert.equal(expandedValidMatch[0].away, "Away Club");
+assert.equal(expandedValidMatch[0].result, "home-win");
+const expandedLegacyMatch = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [{
+  homeClubId: "home", awayClubId: "away", homeGoals: 0, awayGoals: 0
+}]);
+assert.equal(expandedLegacyMatch.length, 1);
+assert.equal(expandedLegacyMatch[0].division, 1,
+  "legacy match records without a division must retain the first-tier fallback");
+for (const malformedContainer of [null, undefined, {}, "not-an-array", 7, Symbol("matches")]) {
+  assert.equal(sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, malformedContainer).length, 0,
+    "non-array saved match containers must safely expand to an empty list");
+}
+const hostileMatch = {
+  season: 5, matchday: 1, awayClubId: "away", homeGoals: 0, awayGoals: 0,
+  get homeClubId() { throw new Error("hostile saved match getter"); }
+};
+const malformedMatchRows = [
+  null, undefined, "not-a-match", 7, Symbol("not-a-match"), [],
+  { season: Symbol("season"), matchday: 1, homeClubId: "home", awayClubId: "away" },
+  { season: 5, matchday: Symbol("matchday"), homeClubId: "home", awayClubId: "away" },
+  { season: 5, matchday: 1, homeClubId: Symbol("club-id"), awayClubId: "away" },
+  { season: 5, matchday: 1, homeClubId: { toString() { throw new Error("hostile club id"); } }, awayClubId: "away" },
+  hostileMatch
+];
+const expandedMixedMatches = sandbox.window.__lwTestExpandWorldMatches(
+  matchExpansionWorld, [expandedValidMatch[0], ...malformedMatchRows]
+);
+assert.equal(expandedMixedMatches.length, 1,
+  "malformed match rows and hostile fields must be skipped without discarding valid history");
+
+const malformedSeasonSnapshotWorld = JSON.parse(JSON.stringify(legacyDivisionMatchWorld));
+malformedSeasonSnapshotWorld.matchesBySeason["1"] = { corrupt: true };
+malformedSeasonSnapshotWorld.seasonStats["1"] = { corrupt: true };
+malformedSeasonSnapshotWorld.leagueTables["1"] = [];
+malformedSeasonSnapshotWorld.competitionsBySeason["1"] = { corrupt: true };
+const malformedSeasonSnapshot = sandbox.window.__lwTestSimulateLeagueSeason(
+  { season: 1, worldSimulation: malformedSeasonSnapshotWorld }, 1, db
+);
+assert.deepEqual(Array.from(malformedSeasonSnapshot.rows), [],
+  "a malformed saved season-stat container must not escape as a non-array");
+assert.deepEqual(malformedSeasonSnapshot.tables, {},
+  "a malformed saved league-table container must not escape as an array");
+assert.deepEqual(Array.from(malformedSeasonSnapshot.matches), [],
+  "a malformed saved match container must not crash completed-season loading");
+assert.deepEqual(Array.from(malformedSeasonSnapshot.competitions), [],
+  "a malformed saved competition container must not escape as a non-array");
+
 
 const oldTransferCount = world.transfers.length;
 const transition = ai.advanceToSeason(save, 2, db);

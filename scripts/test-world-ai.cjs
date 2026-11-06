@@ -5976,12 +5976,7 @@ function installThrowingSchemaAccessor(record, field) {
   Object.defineProperty(record, field, {
     configurable: true,
     enumerable: true,
-    get() { throw new Error("unsafe saved schema getter: " + field); },
-    set(value) {
-      Object.defineProperty(this, field, {
-        configurable: true, enumerable: true, writable: true, value
-      });
-    }
+    get() { throw new Error("unsafe saved schema getter: " + field); }
   });
 }
 ["schemaVersion", "lastAdvancedTo", "rosterSchemaVersion", "rosterMembershipSchemaVersion"]
@@ -5994,9 +5989,14 @@ assert.strictEqual(throwingSchemaResult, throwingSchemaAccessorFixture.world,
   "throwing schema metadata getters must not trigger a replacement world");
 assert.strictEqual(throwingSchemaResult.players["schema-guard-player"], throwingSchemaAccessorFixture.player,
   "throwing schema metadata getters must preserve existing player records");
-assert.equal(throwingSchemaResult.lastAdvancedTo, 0);
-assert.equal(throwingSchemaResult.rosterSchemaVersion, 3);
-assert.equal(throwingSchemaResult.rosterMembershipSchemaVersion, 6);
+["schemaVersion", "lastAdvancedTo", "rosterSchemaVersion", "rosterMembershipSchemaVersion"]
+  .forEach(field => {
+    const descriptor = Object.getOwnPropertyDescriptor(throwingSchemaResult, field);
+    assert.equal(typeof descriptor.get, "function",
+      "a getter-only malformed " + field + " marker must remain intact after safe loading");
+    assert.equal(descriptor.set, undefined,
+      "schema recovery must not require a setter for " + field);
+  });
 
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

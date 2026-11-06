@@ -1038,8 +1038,8 @@
     });
     normalizeRosterMembership(world);
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
-    world.rosterSchemaVersion = 3;
-    world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
+    safeWorldSetField(world, "rosterSchemaVersion", 3);
+    safeWorldSetField(world, "rosterMembershipSchemaVersion", ROSTER_MEMBERSHIP_SCHEMA_VERSION);
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
     invalidateUnfinishedSeasonProjection(world);
     return world;
@@ -1065,14 +1065,14 @@
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
     const lastAdvancedTo = Math.max(0, int(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
-    world.lastAdvancedTo = lastAdvancedTo;
+    safeWorldSetField(world, "lastAdvancedTo", lastAdvancedTo);
     if (!Object.prototype.hasOwnProperty.call(world, "lastDevelopedSeason")) {
-      world.lastDevelopedSeason = Math.max(0, world.lastAdvancedTo - 1);
+      world.lastDevelopedSeason = Math.max(0, lastAdvancedTo - 1);
     } else {
       world.lastDevelopedSeason = Math.max(0, int(world.lastDevelopedSeason, 0));
     }
     if (!Object.prototype.hasOwnProperty.call(world, "lastFreeAgentMarketSeason")) {
-      world.lastFreeAgentMarketSeason = world.lastAdvancedTo;
+      world.lastFreeAgentMarketSeason = lastAdvancedTo;
     } else {
       world.lastFreeAgentMarketSeason = Math.max(0, int(world.lastFreeAgentMarketSeason, 0));
     }
@@ -1098,7 +1098,7 @@
     }
     if (safeNumber(safeWorldOwnValue(world, "rosterMembershipSchemaVersion"), NaN) !== ROSTER_MEMBERSHIP_SCHEMA_VERSION) {
       normalizeRosterMembership(world);
-      world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
+      safeWorldSetField(world, "rosterMembershipSchemaVersion", ROSTER_MEMBERSHIP_SCHEMA_VERSION);
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
       invalidateUnfinishedSeasonProjection(world);
     }

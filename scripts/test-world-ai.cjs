@@ -1009,6 +1009,125 @@ assert.equal(typeof sandbox.window.__lwTestGetProjectedSeasonRows, "function",
  assert.ok(!freeAgentSharedRows.some(row => row.id === freeAgentSeasonPlayer.id),
    "free agents without a club must be omitted from shared match-based season statistics");
 
+// Season projections and match simulation must use canonical player-map keys throughout.
+const canonicalSeasonSeed = db.clubs().find(club =>
+  club && club.leagueId && Number(club.division) === 1);
+assert.ok(canonicalSeasonSeed, "canonical season identity fixture needs a supported first-tier league");
+const canonicalSeasonSave = { season: 1 };
+const canonicalSeasonWorld = ai.ensureState(canonicalSeasonSave, db);
+const canonicalMembershipVersion = canonicalSeasonWorld.rosterMembershipSchemaVersion;
+canonicalSeasonWorld.clubs = {};
+canonicalSeasonWorld.players = {};
+canonicalSeasonWorld.dbVersion = Number.isSafeInteger(db.version)
+  ? db.version : canonicalSeasonWorld.dbVersion;
+canonicalSeasonWorld.schemaVersion = ai.version;
+canonicalSeasonWorld.rosterSchemaVersion = 3;
+canonicalSeasonWorld.rosterMembershipSchemaVersion = canonicalMembershipVersion;
+canonicalSeasonWorld.currentSeason = 1;
+canonicalSeasonWorld.lastAdvancedTo = 0;
+canonicalSeasonWorld.lastCompletedSeason = 0;
+canonicalSeasonWorld.lastDevelopedSeason = 0;
+canonicalSeasonWorld.lastFreeAgentMarketSeason = 0;
+canonicalSeasonWorld.completedSeasons = [];
+canonicalSeasonWorld.matchesBySeason = {};
+canonicalSeasonWorld.seasonStats = {};
+canonicalSeasonWorld.leagueTables = {};
+canonicalSeasonWorld.competitionsBySeason = {};
+canonicalSeasonWorld.transfers = [];
+canonicalSeasonWorld.marketReports = [];
+canonicalSeasonWorld.playerHistory = {};
+canonicalSeasonWorld.transferClubHistoryByPlayer = {};
+canonicalSeasonWorld.promotionHistory = [];
+canonicalSeasonWorld.notes = [];
+canonicalSeasonWorld.nextGeneratedPlayer = 1;
+canonicalSeasonWorld.transferSequence = 0;
+const canonicalSeasonGroups = [
+  "goalkeeper",
+  "defender", "defender", "defender", "defender",
+  "midfielder", "midfielder", "midfielder", "midfielder",
+  "attacker", "attacker"
+];
+const canonicalSeasonKeys = [];
+const canonicalSeasonPlayersByInternalId = new Map();
+for (const suffix of ["a", "b"]) {
+  const clubId = "canonical-season-club-" + suffix;
+  const club = {
+    id: clubId, name: "Canonical Season Club " + suffix.toUpperCase(),
+    country: canonicalSeasonSeed.country, leagueId: canonicalSeasonSeed.leagueId,
+    division: 1, power: 70, basePower: 70, prestige: 50, matchesPerSeason: 2, roster: []
+  };
+  canonicalSeasonWorld.clubs[clubId] = club;
+  canonicalSeasonGroups.forEach((group, index) => {
+    const playerMapKey = "canonical-season-" + suffix + "-player-" + String(index + 1).padStart(2, "0");
+    const sharedInternalId = (suffix === "a" && (index === 1 || index === 2))
+      || (suffix === "b" && index === 1);
+    const internalId = sharedInternalId ? "shared-stale-season-internal-id" : "legacy-" + suffix + "-" + index;
+    const position = group === "goalkeeper" ? "GK"
+      : group === "defender" ? "CB" : group === "midfielder" ? "CM" : "ST";
+    const player = {
+      id: internalId, name: "Canonical Season Player " + suffix + " " + index,
+      clubId, country: club.country, leagueId: club.leagueId, division: 1,
+      position, group, age: 25, ovr: 68 + index, potential: 78,
+      contractSeasons: 2, isGenerated: false, retired: false, freeAgent: false
+    };
+    canonicalSeasonWorld.players[playerMapKey] = player;
+    club.roster.push(playerMapKey);
+    canonicalSeasonKeys.push(playerMapKey);
+    if (!canonicalSeasonPlayersByInternalId.has(internalId)) canonicalSeasonPlayersByInternalId.set(internalId, []);
+    canonicalSeasonPlayersByInternalId.get(internalId).push(playerMapKey);
+  });
+}
+const canonicalMatchSeason = sandbox.window.__lwTestSimulateLeagueSeason(canonicalSeasonSave, 1, db);
+assert.equal(canonicalMatchSeason.rows.length, canonicalSeasonKeys.length,
+  "match-based season simulation must retain every player-map entry even when internal IDs collide");
+assert.equal(new Set(canonicalMatchSeason.rows.map(row => row.id)).size, canonicalSeasonKeys.length,
+  "match-based season rows must use unique canonical player-map keys");
+assert.ok(canonicalMatchSeason.rows.every(row => canonicalSeasonWorld.players[row.id]),
+  "every match-based season row must resolve through the canonical players map");
+for (const playerMapKeys of canonicalSeasonPlayersByInternalId.values()) {
+  if (playerMapKeys.length < 2) continue;
+  for (const playerMapKey of playerMapKeys) {
+    const row = canonicalMatchSeason.rows.find(entry => entry.id === playerMapKey);
+    assert.ok(row && row.appearances === 2,
+      "players sharing a stale internal ID must retain independent match appearances");
+    assert.equal(canonicalSeasonWorld.players[playerMapKey].id, "shared-stale-season-internal-id",
+      "season simulation must not rewrite the source player's internal ID");
+  }
+}
+assert.ok(canonicalMatchSeason.matches.every(match =>
+  (match.scorers || []).every(playerMapKey => !!canonicalSeasonWorld.players[playerMapKey])),
+  "match scorer references must resolve through canonical player-map keys");
+
+const canonicalProjectedSeasonRows = sandbox.window.__lwTestGetProjectedSeasonRows(
+  canonicalSeasonWorld, 2, db
+);
+assert.equal(canonicalProjectedSeasonRows.length, canonicalSeasonKeys.length);
+assert.deepEqual(new Set(canonicalProjectedSeasonRows.map(row => row.id)), new Set(canonicalSeasonKeys),
+  "unfinished-season projections must use canonical player-map keys");
+const canonicalCompletedSeason = sandbox.window.__lwTestBaseCompleteSeason(canonicalSeasonSave, 2, db);
+assert.equal(canonicalCompletedSeason.rows.length, canonicalSeasonKeys.length);
+assert.deepEqual(new Set(canonicalCompletedSeason.rows.map(row => row.id)), new Set(canonicalSeasonKeys),
+  "legacy season completion must persist canonical player-map keys");
+assert.ok(canonicalSeasonKeys.every(playerMapKey =>
+  canonicalSeasonWorld.players[playerMapKey] && canonicalSeasonWorld.players[playerMapKey].id),
+  "completed-season generation must preserve every original player record");
+
+const canonicalSeasonTarget = ai.transferTargets(canonicalSeasonSave, db).find(row =>
+  row.club === "Canonical Season Club A");
+assert.ok(canonicalSeasonTarget);
+assert.deepEqual(new Set(canonicalSeasonTarget.players.map(player => player.id)),
+  new Set(canonicalSeasonWorld.clubs["canonical-season-club-a"].roster),
+  "transfer-target snapshots must expose canonical roster keys");
+const canonicalFreeAgentKey = canonicalSeasonKeys[0];
+const canonicalFreeAgentPlayer = canonicalSeasonWorld.players[canonicalFreeAgentKey];
+canonicalFreeAgentPlayer.freeAgent = true;
+canonicalFreeAgentPlayer.clubId = "";
+canonicalFreeAgentPlayer.leagueId = "";
+canonicalFreeAgentPlayer.division = 0;
+const canonicalFreeAgentRows = sandbox.window.LWWorldAI.freeAgents(canonicalSeasonSave, db);
+assert.ok(canonicalFreeAgentRows.some(row => row.id === canonicalFreeAgentKey),
+  "free-agent snapshots must expose the canonical player-map key");
+
 const legacyDivisionStatsClubId = "legacy-stats-club";
 const legacyDivisionStatsWorld = {
   clubs: {

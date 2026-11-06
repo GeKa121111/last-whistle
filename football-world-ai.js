@@ -932,14 +932,17 @@
       } catch (_) {}
       const currentClubId = safeWorldRecordIdentifier(player, "clubId");
       if (hasUniqueLegacyAlias) {
-        mergeLegacyHistoryKey(world.playerHistory, playerId, internalPlayerId);
-        mergeLegacyHistoryKey(transferClubHistoryByPlayer, playerId, internalPlayerId);
         mergeLegacyHistoryKey(archivedPlayerHistory, playerId, internalPlayerId);
       }
-      const historyValue = playerId ? safeWorldOwnValue(world.playerHistory, playerId) : undefined;
+      const historyValue = playerId
+        ? (hasUniqueLegacyAlias
+          ? mergeLegacyHistoryKey(world.playerHistory, playerId, internalPlayerId)
+          : safeWorldOwnValue(world.playerHistory, playerId)) : undefined;
       const history = Array.isArray(historyValue) ? historyValue : [];
       const transferRowsValue = playerId
-        ? safeWorldOwnValue(transferClubHistoryByPlayer, playerId) : undefined;
+        ? (hasUniqueLegacyAlias
+          ? mergeLegacyHistoryKey(transferClubHistoryByPlayer, playerId, internalPlayerId)
+          : safeWorldOwnValue(transferClubHistoryByPlayer, playerId)) : undefined;
       const transferClubRows = Array.isArray(transferRowsValue) ? transferRowsValue : [];
       const hasFormerClubTrail = isDetachedPlayer
         || !!safeWorldRecordIdentifier(player, "previousClubId")

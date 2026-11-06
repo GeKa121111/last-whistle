@@ -122,7 +122,7 @@ assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 540);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 554);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 79);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
@@ -515,6 +515,86 @@ assert.equal(crossCompetitionHistory.careerMinutes, 180,
   "legacy career-stat rebuilding must preserve minutes from distinct competitions that reused an ID");
 assert.equal(crossCompetitionHistory.qualifyingAppearances, 2,
   "legacy career-stat rebuilding must retain both real fixtures across competition scopes");
+
+const malformedScopeValue = Symbol("malformed-scope");
+function makeLegacyScopeHistoryState() {
+  const duplicateIdentity = {
+    id: "scope-shared-fixture", competition: "Test League", leagueCompetition: "Test League",
+    season: 9, segmentId: "season-9", club: "Test FC", opponent: "Rival FC", day: 1,
+    scope: " LEAGUE ", minutes: 90, goals: 1, assists: 0, rating: 6
+  };
+  return {
+    apps: 6,
+    seasonLog: [
+      duplicateIdentity,
+      { id: "scope-uppercase-only", scope: " LEAGUE ", season: 9, competition: "Test League",
+        leagueCompetition: "Test League", club: "Test FC", opponent: "Rival 2", day: 2,
+        minutes: 90, goals: 0, assists: 1, rating: 8.1 },
+      { id: "scope-blank-legacy", scope: "   ", season: 9, competition: "Test League",
+        leagueCompetition: "Test League", club: "Test FC", opponent: "Rival 3", day: 3,
+        minutes: 90, goals: 0, assists: 0, rating: 7.4 },
+      { id: "scope-cup", scope: " CUP ", season: 9, competition: "National Cup",
+        leagueCompetition: "National Cup", club: "Test FC", opponent: "Cup Rival", day: 4,
+        minutes: 90, goals: 1, assists: 0, rating: 9.9 },
+      { id: "scope-international", scope: " International ", season: 9, competition: "International",
+        leagueCompetition: "International", club: "Egypt", opponent: "Other Country", day: 5,
+        minutes: 90, goals: 1, assists: 1, rating: 10 },
+      { id: "scope-malformed", scope: malformedScopeValue, season: 9, competition: "Unknown",
+        club: "Test FC", opponent: "Rival 4", day: 6,
+        minutes: 90, goals: 0, assists: 0, rating: 10 },
+      ["invalid-season-log-array-row"]
+    ],
+    careerMatchHistory: [{
+      ...duplicateIdentity, scope: " league ", minutes: 75, goals: 2, assists: 1, rating: 8.6
+    }]
+  };
+}
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const scopeState = makeLegacyScopeHistoryState();
+  const rebuilt = engine.rebuildLegacyCareerStats(scopeState);
+  assert.equal(rebuilt.length, 6,
+    engineName + " legacy history rebuilding must ignore array rows and deduplicate normalized legacy league scope copies");
+  assert.equal(JSON.stringify(rebuilt.map(row => row.scope)),
+    JSON.stringify(["league", "league", "league", "cup", "international", ""]),
+    engineName + " history scopes must be normalized without collapsing cup, international, or malformed scopes");
+  assert.equal(scopeState.careerMinutes, 525,
+    engineName + " career minutes must retain the latest 75-minute snapshot and five other unique fixtures");
+  assert.equal(scopeState.qualifyingAppearances, 6,
+    engineName + " all unique official competition rows must retain their qualifying appearances");
+  const scopeRatings = engine.deriveLeagueRatingStats(scopeState);
+  assert.equal(JSON.stringify(scopeRatings), JSON.stringify({ sum: 24.1, count: 3 }),
+    engineName + " league averages must include uppercase/whitespace legacy league scopes and exclude cup/international scopes");
+  assert.equal(scopeState.seasonLog[0].scope, " LEAGUE ",
+    engineName + " normalization must not mutate the original legacy season-log row");
+  assert.equal(scopeState.seasonLog[5].scope, malformedScopeValue,
+    engineName + " normalization must leave malformed saved scope fields untouched");
+  assert.equal(Array.isArray(scopeState.seasonLog[6]), true,
+    engineName + " migration must not rewrite the original malformed array row");
+}
+
+// Current-season award qualification must use the same canonical league-scope rules.
+function makeNormalizedScopeAwardState() {
+  return {
+    age: 24, pos: "مهاجم", clubName: "Test FC", leagueCountry: "England",
+    leagueCompetition: "Test League", season: 4, calendarDay: 120, money: 0,
+    topScorerAwards: 0, careerAwards: [], seasonLog: [],
+    careerMatchHistory: Array.from({ length: 3 }, (_, index) => ({
+      id: "normalized-scope-award-" + index, scope: index === 0 ? " LEAGUE " : "League ",
+      season: 4, competition: "Test League", leagueCompetition: "Test League",
+      leagueCountry: "England", club: "Test FC", opponent: "Award Rival " + index,
+      day: index + 1, minutes: 90, rating: 8.2, goals: 1, assists: 0
+    }))
+  };
+}
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const scopeAwardState = makeNormalizedScopeAwardState();
+  engine.seasonAwards(scopeAwardState, [{ name: "Test FC", power: 50 }], 1);
+  const scopeGoldenBoot = scopeAwardState.careerAwards.find(award => award.id === "golden-boot");
+  assert.ok(scopeGoldenBoot,
+    engineName + " season awards must count case/whitespace-normalized legacy league fixtures");
+  assert.equal(scopeGoldenBoot.note, "3 هدف في 3 مشاركة",
+    engineName + " season award appearances and goals must be rebuilt from normalized league scopes");
+}
 
 const malformedLegacyHistory = {
   apps: Symbol("legacy-apps"),
@@ -3291,5 +3371,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v553"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v554"),
  "service worker cache must be refreshed");

@@ -285,13 +285,20 @@
       return true;
     });
   }
+  function normalizeLegacyCareerScope(value) {
+    if (value === undefined || value === null
+      || (typeof value === "string" && value.trim() === "")) return "league";
+    return typeof value === "string" ? value.trim().toLowerCase() : "";
+  }
+
   function uniqueCareerHistory(state) {
+    const normalizeRow = row => ({ ...row, scope: normalizeLegacyCareerScope(row.scope) });
     const leagueRows = (Array.isArray(state.seasonLog) ? state.seasonLog : [])
-      .filter(row => row && typeof row === "object")
-      .map(row => ({ ...row, scope: row.scope || "league" }));
+      .filter(row => row && typeof row === "object" && !Array.isArray(row))
+      .map(normalizeRow);
     const careerRows = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [])
-      .map(row => row && typeof row === "object" && !Array.isArray(row)
-        ? { ...row, scope: row.scope || "league" } : row);
+      .filter(row => row && typeof row === "object" && !Array.isArray(row))
+      .map(normalizeRow);
     // Current history wins when both stores contain the same fixture; legacy rows only fill gaps.
     return uniqueMatchRows([...careerRows, ...leagueRows]);
   }
@@ -301,7 +308,7 @@
   function currentSeasonLeagueMatchRows(state) {
     const seasonValue = finiteLegacyNumber(state && state.season);
     const currentSeason = seasonValue !== null && seasonValue > 0 ? seasonValue : 1;
-    const isLeagueRow = row => !row.scope || String(row.scope) === "league";
+    const isLeagueRow = row => normalizeLegacyCareerScope(row && row.scope) === "league";
     const currentSeasonSegments = new Set(
       (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
         .filter(archive => archive && typeof archive === "object"
@@ -317,7 +324,7 @@
           || (typeof row.season === "string" && row.season.trim() === "")
           || finiteLegacyNumber(row.season) === currentSeason))
       .map(row => ({
-        ...row, scope: row.scope || "league",
+        ...row, scope: normalizeLegacyCareerScope(row.scope),
         season: row.season === undefined || row.season === null
           || (typeof row.season === "string" && row.season.trim() === "") ? currentSeason : row.season
       }));
@@ -334,9 +341,12 @@
         const segmentId = String(row.segmentId || "").trim();
         return !!segmentId && currentSeasonSegments.has(segmentId);
       })
-      .map(row => row.season === undefined || row.season === null
-        || (typeof row.season === "string" && row.season.trim() === "")
-        ? { ...row, season: currentSeason } : row);
+      .map(row => ({
+        ...row,
+        scope: "league",
+        season: row.season === undefined || row.season === null
+          || (typeof row.season === "string" && row.season.trim() === "") ? currentSeason : row.season
+      }));
     return uniqueMatchRows([...careerRows, ...legacySeasonRows]);
   }
 

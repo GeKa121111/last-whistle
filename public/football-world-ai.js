@@ -1703,17 +1703,24 @@
     const goalkeepers = rosterPlayers(world, club)
       .filter(player => (String(player.position || "").trim()
         ? groupForPosition(player.position) : player.group) === "goalkeeper")
-      .map(player => clamp(Number(player.goalkeeping) || Number(player.ovr) || 55, 35, 99))
+      .map(player => {
+        const savedGoalkeeping = safeNumber(player && player.goalkeeping, 0);
+        const fallbackOverall = safeNumber(player && player.ovr, 55);
+        return clamp(savedGoalkeeping > 0 ? savedGoalkeeping : fallbackOverall, 35, 99);
+      })
       .sort((a, b) => b - a);
     const starter = goalkeepers.length ? goalkeepers[0] : null;
     const backup = goalkeepers.length > 1 ? goalkeepers[1] : starter;
     const goalkeeping = starter == null ? null : clamp(Math.round(starter * 0.88 + backup * 0.12), 35, 99);
-    return { power: Number(club.power) || Number(club.basePower) || null, goalkeeping };
+    const clubPower = safeNumber(club.power, 0) || safeNumber(club.basePower, 0);
+    return { power: clubPower > 0 ? clubPower : null, goalkeeping };
   }
   function getClubPower(save, name, country, db) {
     const world = ensureState(save, db);
     const club = findClubByIdentity(world, name, country);
-    return club ? Number(club.power) || Number(club.basePower) || null : null;
+    if (!club) return null;
+    const clubPower = safeNumber(club.power, 0) || safeNumber(club.basePower, 0);
+    return clubPower > 0 ? clubPower : null;
   }
   function transferTargets(save, db) {
     const world = ensureState(save, db);
@@ -1722,7 +1729,8 @@
         id: player.id, name: player.name, position: player.position, ovr: player.ovr, potential: player.potential,
         age: player.age, contractSeasons: player.contractSeasons
       }));
-      const stars = players.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 7).map(player => player.name);
+      const stars = players.slice().sort((a, b) =>
+        safeNumber(b && b.ovr, 50) - safeNumber(a && a.ovr, 50)).slice(0, 7).map(player => player.name);
       const division = divisionForClub(club);
       // League membership can change after promotion/relegation. Resolve the competition
       // from the club's current division instead of reusing the seed-time tier-one label.
@@ -1863,6 +1871,10 @@
     };
   };
   const avg = rows => rows.length ? rows.reduce((sum, n) => sum + n, 0) / rows.length : 55;
+  function playerOverall(player, fallback = 50) {
+    return clamp(safeNumber(player && player.ovr, fallback), 1, 99);
+  }
+
   const normalize = value => String(value == null ? "" : value).normalize("NFKC").toLocaleLowerCase()
     .replace(/[\u064B-\u065F\u0670]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
     .replace(/[^a-z0-9\u0600-\u06FF]/g, "");
@@ -1894,10 +1906,10 @@
     ];
     quotas.forEach(([group, count]) => {
       rows.filter(player => player.group === group)
-        .sort((a, b) => Number(b.ovr || 50) - Number(a.ovr || 50) || String(a.id).localeCompare(String(b.id)))
+        .sort((a, b) => playerOverall(b) - playerOverall(a) || String(a.id).localeCompare(String(b.id)))
         .slice(0, count).forEach(player => { if (!selected.some(row => row.id === player.id)) selected.push(player); });
     });
-    rows.slice().sort((a, b) => Number(b.ovr || 50) - Number(a.ovr || 50))
+    rows.slice().sort((a, b) => playerOverall(b) - playerOverall(a))
       .forEach(player => { if (selected.length < 11 && !selected.some(row => row.id === player.id)) selected.push(player); });
     return selected.slice(0, 11);
   }
@@ -1932,7 +1944,8 @@
         : ({ attacker: 1.3, midfielder: 1.8, defender: 0.7, goalkeeper: 0.04 })[group];
       const role = typeof base.playerRoleWeight === "function"
         ? base.playerRoleWeight(player, purpose) : fallbackRole;
-      return Math.max(0.05, (Number(player.ovr) || 50) - 27) * (Number(role) || 1);
+      const roleWeight = safeNumber(role, fallbackRole) || 1;
+      return Math.max(0.05, playerOverall(player) - 27) * roleWeight;
     });
     let roll = rng() * weights.reduce((sum, value) => sum + value, 0);
     for (let i = 0; i < rows.length; i++) { roll -= weights[i]; if (roll <= 0) return rows[i]; }
@@ -1947,8 +1960,8 @@
     const seed = hash([season, division, matchday, home.id, away.id, competitionId || "league", "match-v2"].join("|"));
     const rng = random(seed);
     const homeLineup = lineupForMatch(world, home, lineupCache), awayLineup = lineupForMatch(world, away, lineupCache);
-    const homeStrength = Number(home.power || home.basePower || 55);
-    const awayStrength = Number(away.power || away.basePower || 55);
+    const homeStrength = clamp(safeNumber(home && home.power, safeNumber(home && home.basePower, 55)), 25, 95);
+    const awayStrength = clamp(safeNumber(away && away.power, safeNumber(away && away.basePower, 55)), 25, 95);
     const xgHome = clamp(1.28 + (homeStrength - awayStrength) * 0.027 + 0.16, 0.28, 3.05);
     const xgAway = clamp(1.24 + (awayStrength - homeStrength) * 0.027 - 0.06, 0.22, 2.9);
     const homeGoals = poisson(rng, xgHome), awayGoals = poisson(rng, xgAway);
@@ -1961,7 +1974,7 @@
         stat.clubId = clubId;
         stat.leagueId = String(world.clubs[clubId].leagueId || "");
         stat.division = divisionForClub(world.clubs[clubId]);
-        let rating = 6.12 + (Number(player.ovr || 55) - 65) * 0.012
+        let rating = 6.12 + (playerOverall(player, 55) - 65) * 0.012
           + (resultForClub === "win" ? 0.24 : resultForClub === "draw" ? 0.04 : -0.15)
           + (player.group === "goalkeeper" || player.group === "defender" ? (concedingGoals === 0 ? 0.3 : 0) : 0)
           + rng() * 0.48 - 0.24;
@@ -2005,7 +2018,7 @@
   }
   function tableRow(club, season, leagueId, division) {
     return { season: Number(season), leagueId: String(leagueId), division: Number(division) || 1,
-      country: club.country, clubId: club.id, club: club.name, power: Math.round(Number(club.power) || 55),
+      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 55)),
       played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0, form: 0, recentForm: "" };
   }
   function applyResult(tablesByClub, match) {

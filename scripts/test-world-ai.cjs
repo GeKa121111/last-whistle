@@ -3445,6 +3445,54 @@ const expandedLegacyMatch = sandbox.window.__lwTestExpandWorldMatches(matchExpan
 assert.equal(expandedLegacyMatch.length, 1);
 assert.equal(expandedLegacyMatch[0].division, 1,
   "legacy match records without a division must retain the first-tier fallback");
+
+const expectedSeasonLegacyMatch = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [{
+  homeClubId: "home", awayClubId: "away", homeGoals: 0, awayGoals: 0
+}], 8);
+assert.equal(expectedSeasonLegacyMatch.length, 1);
+assert.equal(expectedSeasonLegacyMatch[0].season, 8,
+  "legacy match snapshots without a season must inherit their containing season key");
+
+const invalidSavedMatchDivisions = [
+  [1], 0, -1, 1.5, "not-a-division", Symbol("invalid-division"),
+  { valueOf() { throw new Error("hostile saved match division"); } }
+];
+for (const invalidDivision of invalidSavedMatchDivisions) {
+  const invalidDivisionRows = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [{
+    season: 5, division: invalidDivision, matchday: 1,
+    homeClubId: "home", awayClubId: "away", homeGoals: 0, awayGoals: 0
+  }], 5);
+  assert.equal(invalidDivisionRows.length, 0,
+    "explicit malformed match divisions must be rejected instead of being exposed as division zero");
+}
+
+const invalidCompetitionRows = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [{
+  season: 5, division: 1, matchday: 1, competitionId: [],
+  homeClubId: "home", awayClubId: "away", homeGoals: 0, awayGoals: 0
+}], 5);
+assert.equal(invalidCompetitionRows.length, 0,
+  "an explicit malformed competition identifier must not silently become a league match");
+const selfFixtureRows = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [{
+  season: 5, division: 1, matchday: 1,
+  homeClubId: "home", awayClubId: "home", homeGoals: 0, awayGoals: 0
+}], 5);
+assert.equal(selfFixtureRows.length, 0,
+  "a club must never be expanded as both sides of the same fixture");
+
+const seasonScopedMatches = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [
+  { season: 5, division: 1, matchday: 1, homeClubId: "home", awayClubId: "away", homeGoals: 1, awayGoals: 0 },
+  { season: 6, division: 1, matchday: 1, homeClubId: "home", awayClubId: "away", homeGoals: 2, awayGoals: 0 }
+], 5);
+assert.equal(seasonScopedMatches.length, 1,
+  "a season snapshot must not leak fixtures belonging to a different season");
+
+const distinctFixtureIds = sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, [
+  { season: 5, competitionId: "league", division: 1, matchday: 7, homeClubId: "home", awayClubId: "away", homeGoals: 1, awayGoals: 0 },
+  { season: 5, competitionId: "league", division: 2, matchday: 7, homeClubId: "home", awayClubId: "away", homeGoals: 1, awayGoals: 0 },
+  { season: 5, competitionId: "cup", division: 1, matchday: 7, homeClubId: "home", awayClubId: "away", homeGoals: 1, awayGoals: 0 }
+], 5);
+assert.equal(new Set(distinctFixtureIds.map(match => match.id)).size, 3,
+  "fixture IDs must distinguish season, competition, and division context");
 for (const malformedContainer of [null, undefined, {}, "not-an-array", 7, Symbol("matches")]) {
   assert.equal(sandbox.window.__lwTestExpandWorldMatches(matchExpansionWorld, malformedContainer).length, 0,
     "non-array saved match containers must safely expand to an empty list");

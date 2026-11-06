@@ -1188,6 +1188,85 @@ assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].
 assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budgetedTransfer.fee,
   "the seller must receive the full recorded transfer fee after the market refreshes squad strength");
 
+// Paid transfer deals must carry the canonical player-map key through roster membership,
+// transfer records, career history, and compact transfer-club history.
+const canonicalTransferIdentityWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+const canonicalTransferSellerA = makeMarketTestClub(canonicalTransferIdentityWorld, "Canonical Transfer Seller A", 1, null);
+const canonicalTransferSellerB = makeMarketTestClub(canonicalTransferIdentityWorld, "Canonical Transfer Seller B", 1, null);
+makeMarketTestClub(canonicalTransferIdentityWorld, "Canonical Transfer Buyer A", 2, "defender");
+makeMarketTestClub(canonicalTransferIdentityWorld, "Canonical Transfer Buyer B", 2, "defender");
+for (const seller of [canonicalTransferSellerA, canonicalTransferSellerB]) {
+  seller.power = seller.basePower = 50;
+  seller.roster.filter(id => canonicalTransferIdentityWorld.players[id]?.group === "defender").forEach(id => {
+    canonicalTransferIdentityWorld.players[id].id = "stale-paid-transfer-internal-" + id;
+  });
+}
+const canonicalTransferMoves = sandbox.window.__lwTestRunTransferWindow(canonicalTransferIdentityWorld, 4);
+assert.ok(canonicalTransferMoves.length > 0,
+  "the canonical transfer identity fixture must complete at least one paid transfer");
+for (const move of canonicalTransferMoves) {
+  const movedPlayer = canonicalTransferIdentityWorld.players[move.playerId];
+  const seller = canonicalTransferIdentityWorld.clubs[move.fromClubId];
+  const buyer = canonicalTransferIdentityWorld.clubs[move.toClubId];
+  assert.ok(movedPlayer && movedPlayer.id.startsWith("stale-paid-transfer-internal-"),
+    "paid transfer records must resolve through the canonical player-map key without rewriting the internal ID");
+  assert.ok(seller && buyer);
+  assert.ok(!seller.roster.includes(move.playerId),
+    "the selling club must release the canonical roster key");
+  assert.ok(buyer.roster.includes(move.playerId),
+    "the buying club must receive the canonical roster key");
+  assert.ok(!buyer.roster.includes(movedPlayer.id),
+    "the buying club must not receive the stale internal player ID");
+  assert.ok(canonicalTransferIdentityWorld.playerHistory[move.playerId]?.some(row => row.type === "transfer-in"),
+    "paid transfer history must be stored under the canonical player-map key");
+  assert.ok(canonicalTransferIdentityWorld.transferClubHistoryByPlayer[move.playerId]?.length >= 2,
+    "compact transfer-club endpoints must use the canonical player-map key");
+  assert.ok(!Object.prototype.hasOwnProperty.call(canonicalTransferIdentityWorld.playerHistory, movedPlayer.id),
+    "paid transfer history must not be written under the stale internal ID");
+  assert.equal(movedPlayer.clubId, buyer.id);
+}
+
+// Free-agent signings use the same canonical identity contract as paid transfers.
+const canonicalFreeAgentMarketWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+makeMarketTestClub(canonicalFreeAgentMarketWorld, "Canonical Free Agent D1 Full", 1, null);
+const canonicalFreeAgentBuyer = makeMarketTestClub(
+  canonicalFreeAgentMarketWorld, "Canonical Free Agent D2 Keeper Vacancy", 2, "goalkeeper"
+);
+delete canonicalFreeAgentBuyer.division;
+const canonicalFreeAgentMarketKey = "canonical-free-agent-market-map-key";
+const staleFreeAgentMarketId = "stale-free-agent-market-internal-id";
+const canonicalFreeAgentMarketPlayer = {
+  id: staleFreeAgentMarketId, name: "Canonical Free Agent Market Player", clubId: "",
+  country: "Testland", leagueId: "", division: 0, position: "حارس مرمى", group: "goalkeeper",
+  ovr: 60, potential: 65, age: 26, contractSeasons: 0, freeAgent: true,
+  previousClubId: "", freeAgentSince: 0, transferListed: false, retired: false
+};
+canonicalFreeAgentMarketWorld.players[canonicalFreeAgentMarketKey] = canonicalFreeAgentMarketPlayer;
+const canonicalFreeAgentSignings = sandbox.window.__lwTestSignFreeAgents(canonicalFreeAgentMarketWorld, 3, []);
+assert.equal(canonicalFreeAgentSignings.length, 1,
+  "the canonical free-agent identity fixture must complete one eligible signing");
+assert.equal(canonicalFreeAgentSignings[0].playerId, canonicalFreeAgentMarketKey,
+  "free-agent transfer records must store the canonical player-map key");
+assert.ok(canonicalFreeAgentBuyer.roster.includes(canonicalFreeAgentMarketKey),
+  "free-agent recruitment must add the canonical roster key");
+assert.ok(!canonicalFreeAgentBuyer.roster.includes(staleFreeAgentMarketId),
+  "free-agent recruitment must not add the stale internal player ID");
+assert.equal(canonicalFreeAgentMarketPlayer.clubId, canonicalFreeAgentBuyer.id);
+assert.equal(canonicalFreeAgentMarketPlayer.id, staleFreeAgentMarketId,
+  "free-agent recruitment must preserve the original internal player ID");
+assert.ok(canonicalFreeAgentMarketWorld.playerHistory[canonicalFreeAgentMarketKey]?.some(row => row.type === "free-agent-signing"),
+  "free-agent career history must be stored under the canonical player-map key");
+assert.ok(canonicalFreeAgentMarketWorld.transferClubHistoryByPlayer[canonicalFreeAgentMarketKey]?.length >= 2,
+  "free-agent transfer-club endpoints must use the canonical player-map key");
+assert.ok(!Object.prototype.hasOwnProperty.call(canonicalFreeAgentMarketWorld.playerHistory, staleFreeAgentMarketId),
+  "free-agent history must not be written under the stale internal ID");
+
 // Legacy saved roster ratings can be arrays or numeric strings. They must not
 // concatenate into NaN role averages and silently disable otherwise valid transfers.
 const staleMarketHistoryWorld = {

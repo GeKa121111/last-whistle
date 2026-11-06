@@ -145,7 +145,7 @@ async function main() {
   const shellWorkerVersion = serviceWorkerSource.match(/\.\/football-world-worker\.js\?v=(\d+)/);
   assert.ok(pageAiVersion && workerAiVersion, "page and worker must declare their world-AI asset versions");
   assert.equal(workerAiVersion[1], pageAiVersion[1], "main thread and worker must run the same world-AI engine version");
-  assert.equal(pageAiVersion[1], "93", "the current page must load the expected world-AI asset");
+  assert.equal(pageAiVersion[1], "94", "the current page must load the expected world-AI asset");
   assert.ok(pageDbVersion && workerDbVersion && shellDbVersion, "page, worker, and offline shell must declare database asset versions");
   assert.equal(workerDbVersion[1], pageDbVersion[1], "main thread and worker must load the same world database version");
   assert.equal(shellDbVersion[1], pageDbVersion[1], "offline shell must precache the database version used by the page");

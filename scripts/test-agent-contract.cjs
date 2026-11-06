@@ -383,5 +383,38 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.equal(numericStringDebtState.agentFeeDebtLedger[0].paid, 125);
  assert.equal(numericStringDebtState.agentFeeDebtLedger[0].createdSeason, 3);
 
- console.log("PASS: agent debt migration, FIFO repayments, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
+
+ const malformedProfileRateState = makeMalformedFeeState(5000);
+ malformedProfileRateState.agentProfile.feeRate = [0.14];
+ malformedProfileRateState.agentProfile.customFeeRate = [0.14];
+ assert.equal(window.LWAgentRuntime.commissionRate(malformedProfileRateState), 0.06,
+   "array-shaped custom rates must not raise commission before save normalization");
+ const malformedProfileRateChanged = window.LWAgentRuntime.ensureState(malformedProfileRateState);
+ assert.equal(malformedProfileRateChanged, true, "malformed profile fee rates must be marked for persistence");
+ assert.equal(malformedProfileRateState.agentProfile.feeRate, 0.06);
+ assert.equal(malformedProfileRateState.agentProfile.customFeeRate, null);
+
+ const malformedQuoteState = makeMalformedFeeState(5000);
+ malformedQuoteState.agentNegotiationQuote = {
+   agentId: String(malformedQuoteState.agentProfile.id), feeRate: [0.14], season: 2, calendarDay: 30
+ };
+ const malformedQuoteChanged = window.LWAgentRuntime.ensureState(malformedQuoteState);
+ assert.equal(malformedQuoteChanged, true, "coercible saved quote rates must be discarded and persisted");
+ assert.equal(malformedQuoteState.agentNegotiationQuote, null,
+   "array-shaped saved negotiation rates must not become valid commission quotes");
+
+ const numericStringRateState = makeMalformedFeeState(5000);
+ numericStringRateState.agentProfile.feeRate = "0.08";
+ numericStringRateState.agentProfile.customFeeRate = "0.09";
+ numericStringRateState.agentNegotiationQuote = {
+   agentId: String(numericStringRateState.agentProfile.id), feeRate: "0.05", season: "2", calendarDay: "30"
+ };
+ window.LWAgentRuntime.ensureState(numericStringRateState);
+ assert.equal(numericStringRateState.agentProfile.feeRate, 0.08);
+ assert.equal(numericStringRateState.agentProfile.customFeeRate, 0.09);
+ assert.equal(numericStringRateState.agentNegotiationQuote.feeRate, 0.05,
+   "valid numeric-string fee rates must remain compatible with legacy saves");
+ assert.equal(window.LWAgentRuntime.commissionRate(numericStringRateState), 0.09);
+
+ console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

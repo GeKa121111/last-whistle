@@ -154,8 +154,10 @@
   }
   function ensureProfileShape(p,s){
     p.relationship=cap(p.relationship==null?52:p.relationship,0,100);
-    p.feeRate=Math.max(.02,Math.min(.14,Number(p.feeRate)||.06));
-    p.customFeeRate=p.customFeeRate==null?null:Math.max(.02,Math.min(.14,Number(p.customFeeRate)));
+    var profileFeeRate=finiteAgentNumber(p.feeRate);
+    p.feeRate=Math.max(.02,Math.min(.14,profileFeeRate===null||profileFeeRate===0?.06:profileFeeRate));
+    var customFeeRate=p.customFeeRate==null?null:finiteAgentNumber(p.customFeeRate);
+    p.customFeeRate=customFeeRate===null?null:Math.max(.02,Math.min(.14,customFeeRate));
     p.storyStage=cap(p.storyStage||0,0,2);
     p.hiredSeason=Math.max(1,Number(p.hiredSeason)||Number(s.season)||1);
     // Migrate old fixed-term saves to an open-ended representation contract.
@@ -291,8 +293,8 @@ function availableAgentBalance(s){
   function pendingAgentFeeQuote(s,id){
     var quote=s&&s.agentNegotiationQuote,agent=BY_ID[String(id||"")];
     if(!quote||!agent||String(quote.agentId)!==String(id))return null;
-    var rate=Number(quote.feeRate);
-    if(!Number.isFinite(rate)||rate<.035||rate>Number(agent.feeRate))return null;
+    var rate=finiteAgentNumber(quote.feeRate);
+    if(rate===null||rate<.035||rate>Number(agent.feeRate))return null;
     return Math.round(rate*1000)/1000;
   }
     function ensureState(s){
@@ -301,14 +303,14 @@ function availableAgentBalance(s){
     if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
     if(s.agent&&(!s.agentProfile||!BY_ID[s.agentProfile.id])){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
     if(s.agentProfile&&BY_ID[s.agentProfile.id]){
-      var oldContractMode=s.agentProfile.contractMode,oldExpiresSeason=s.agentProfile.expiresSeason,oldFeeDebt=s.agentProfile.feeDebt;
+      var oldContractMode=s.agentProfile.contractMode,oldExpiresSeason=s.agentProfile.expiresSeason,oldFeeDebt=s.agentProfile.feeDebt,oldFeeRate=s.agentProfile.feeRate,oldCustomFeeRate=s.agentProfile.customFeeRate;
       ensureProfileShape(s.agentProfile,s);
-      if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==s.agentProfile.feeDebt)changed=true;
+      if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==s.agentProfile.feeDebt||oldFeeRate!==s.agentProfile.feeRate||oldCustomFeeRate!==s.agentProfile.customFeeRate)changed=true;
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
     if(s.agentNegotiationQuote!=null){
-      var quote=s.agentNegotiationQuote,quoteId=String(quote.agentId||""),quoteAgent=BY_ID[quoteId],quoteRate=Number(quote.feeRate);
-      if(!quoteAgent||!Number.isFinite(quoteRate)||quoteRate<.035||quoteRate>Number(quoteAgent.feeRate)){
+      var quote=s.agentNegotiationQuote,quoteId=String(quote.agentId||""),quoteAgent=BY_ID[quoteId],quoteRate=finiteAgentNumber(quote.feeRate);
+      if(!quoteAgent||quoteRate===null||quoteRate<.035||quoteRate>Number(quoteAgent.feeRate)){
         s.agentNegotiationQuote=null;changed=true;
       }else{
         var normalizedRate=Math.round(quoteRate*1000)/1000;
@@ -599,7 +601,9 @@ function availableAgentBalance(s){
   }
   function feeRate(s){
     if(!s||!s.agent||!s.agentProfile)return 0;var cfg=agentConfig(s);if(!cfg)return 0;
-    return Math.max(.02,Math.min(.14,Number(s.agentProfile.customFeeRate==null?cfg.feeRate:s.agentProfile.customFeeRate)||cfg.feeRate));
+    var savedRate=finiteAgentNumber(s.agentProfile.customFeeRate==null?cfg.feeRate:s.agentProfile.customFeeRate);
+    if(savedRate===null||savedRate===0)savedRate=cfg.feeRate;
+    return Math.max(.02,Math.min(.14,savedRate));
   }
   function chargeFee(s,reason,gross){
     if(!s||!s.agent||!s.agentProfile)return 0;

@@ -79,6 +79,14 @@
       return record[key];
     } catch (_) { return undefined; }
   }
+  function safeWorldSchemaVersion(world) {
+    const value = safeWorldOwnValue(world, "schemaVersion");
+    // Schema metadata from legacy saves is untrusted. Only primitive numeric values
+    // participate in version comparison; Symbols, objects, and throwing getters must
+    // not make a valid saved world fall through to a destructive reseed.
+    if (typeof value !== "number" && typeof value !== "string") return VERSION;
+    return safeNumber(value, NaN);
+  }
   function safeWorldObjectKeys(record) {
     try { return record && typeof record === "object" ? Object.keys(record) : []; } catch (_) { return []; }
   }
@@ -1039,7 +1047,7 @@
   function ensureState(save, db) {
     if (!save || typeof save !== "object") return emptyWorld();
     let world = save.worldSimulation;
-    if (!world || typeof world !== "object" || !world.clubs || !world.players || Number(world.schemaVersion) !== VERSION) {
+    if (!world || typeof world !== "object" || !world.clubs || !world.players || safeWorldSchemaVersion(world) !== VERSION) {
       world = seedWorld(db);
       save.worldSimulation = world;
       return world;
@@ -1056,7 +1064,8 @@
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
-    world.lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const lastAdvancedTo = Math.max(0, int(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
+    world.lastAdvancedTo = lastAdvancedTo;
     if (!Object.prototype.hasOwnProperty.call(world, "lastDevelopedSeason")) {
       world.lastDevelopedSeason = Math.max(0, world.lastAdvancedTo - 1);
     } else {
@@ -1070,8 +1079,8 @@
     world.projectionRevision = Math.max(0, int(world.projectionRevision, 0));
     // Resolve the active world season before any roster migration invalidates cached projections.
     // Legacy saves can have a newer career season while the world-season marker still lags.
-    if (Number(world.lastAdvancedTo) > 0) {
-      world.currentSeason = Math.max(world.currentSeason, int(world.lastAdvancedTo, world.currentSeason));
+    if (lastAdvancedTo > 0) {
+      world.currentSeason = Math.max(world.currentSeason, int(lastAdvancedTo, world.currentSeason));
     } else {
       world.currentSeason = Math.max(world.currentSeason, Math.max(1, int(save.season, 1)));
     }
@@ -1084,10 +1093,10 @@
       return !!leagueId && !supportedLeagueIds.has(leagueId);
     });
     if (catalogueVersion !== int(world.dbVersion, 0)
-      || Number(world.rosterSchemaVersion) !== 3 || hasUnsupportedClub) {
+      || safeNumber(safeWorldOwnValue(world, "rosterSchemaVersion"), NaN) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }
-    if (Number(world.rosterMembershipSchemaVersion) !== ROSTER_MEMBERSHIP_SCHEMA_VERSION) {
+    if (safeNumber(safeWorldOwnValue(world, "rosterMembershipSchemaVersion"), NaN) !== ROSTER_MEMBERSHIP_SCHEMA_VERSION) {
       normalizeRosterMembership(world);
       world.rosterMembershipSchemaVersion = ROSTER_MEMBERSHIP_SCHEMA_VERSION;
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
@@ -3976,7 +3985,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=79");
+    const worker = new global.Worker("./football-world-worker.js?v=80");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

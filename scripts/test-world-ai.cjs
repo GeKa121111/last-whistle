@@ -5905,5 +5905,98 @@ assert.deepEqual(configuredContinentalPlaces.get("caf-confed"), [3, 4]);
 assert.deepEqual(configuredContinentalPlaces.get("libertadores"), [1, 2, 3, 4]);
 assert.deepEqual(configuredContinentalPlaces.get("sudamericana"), [5, 6, 7, 8, 9, 10]);
 
+
+// Malformed world schema metadata must never crash loading or erase a valid saved world.
+const schemaGuardDb = {
+  version: 1,
+  leagues: () => [],
+  clubs: () => [],
+  playerRecordsForClub: () => []
+};
+function createSchemaGuardFixture(overrides = {}) {
+  const player = {
+    id: "schema-guard-player", name: "Schema Guard Player", clubId: "",
+    country: "Testland", position: "وسط", group: "midfielder",
+    age: 24, ovr: 60, potential: 72, retired: false, freeAgent: false
+  };
+  const world = {
+    schemaVersion: ai.version, dbVersion: 1, currentSeason: 4, lastAdvancedTo: 4,
+    lastCompletedSeason: 3, lastDevelopedSeason: 3, lastFreeAgentMarketSeason: 4,
+    completedSeasons: [3], clubs: {}, players: { "schema-guard-player": player },
+    playerHistory: {}, transferClubHistoryByPlayer: {}, seasonStats: {}, leagueTables: {},
+    matchesBySeason: {}, competitionsBySeason: {}, transfers: [], marketReports: [],
+    notes: [], archive: {}, nextGeneratedPlayer: 1, transferSequence: 0,
+    projectionRevision: 0, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6,
+    transferClubHistorySchemaVersion: 1
+  };
+  Object.assign(world, overrides);
+  return { save: { season: 4, worldSimulation: world }, world, player };
+}
+const hostileSchemaVersion = {
+  toString() { throw new Error("unsafe world schema string coercion"); },
+  valueOf() { throw new Error("unsafe world schema numeric coercion"); }
+};
+const malformedSchemaFixture = createSchemaGuardFixture({
+  schemaVersion: hostileSchemaVersion,
+  lastAdvancedTo: Symbol("invalid-last-advanced-season"),
+  rosterSchemaVersion: Symbol("invalid-roster-schema"),
+  rosterMembershipSchemaVersion: Symbol("invalid-roster-membership-schema")
+});
+let malformedSchemaResult;
+assert.doesNotThrow(() => {
+  malformedSchemaResult = ai.ensureState(malformedSchemaFixture.save, schemaGuardDb);
+}, "untrusted world schema metadata must not throw or force a destructive world reseed");
+assert.strictEqual(malformedSchemaResult, malformedSchemaFixture.world,
+  "a structurally valid saved world must survive malformed schema metadata");
+assert.strictEqual(malformedSchemaResult.players["schema-guard-player"], malformedSchemaFixture.player,
+  "schema metadata recovery must preserve existing player records");
+assert.strictEqual(malformedSchemaResult.schemaVersion, hostileSchemaVersion,
+  "unreadable schema metadata must remain untouched rather than being coerced");
+assert.equal(malformedSchemaResult.currentSeason, 4,
+  "an unreadable last-advanced marker must fall back to the saved career season");
+assert.equal(malformedSchemaResult.lastAdvancedTo, 0,
+  "an invalid last-advanced marker must normalize safely to zero");
+assert.equal(malformedSchemaResult.rosterSchemaVersion, 3,
+  "an invalid roster schema marker must run the existing roster reconciliation");
+assert.equal(malformedSchemaResult.rosterMembershipSchemaVersion, 6,
+  "an invalid roster-membership marker must run the existing membership migration");
+assert.equal(malformedSchemaResult.nextGeneratedPlayer, 1,
+  "schema metadata recovery with no clubs must not create replacement players");
+
+const symbolSchemaFixture = createSchemaGuardFixture({ schemaVersion: Symbol("invalid-world-schema") });
+assert.doesNotThrow(() => ai.ensureState(symbolSchemaFixture.save, schemaGuardDb),
+  "a Symbol world schema version must be handled without Number(Symbol)");
+assert.strictEqual(symbolSchemaFixture.save.worldSimulation, symbolSchemaFixture.world,
+  "a Symbol schema marker must not replace the existing world save");
+assert.strictEqual(symbolSchemaFixture.world.players["schema-guard-player"], symbolSchemaFixture.player,
+  "a Symbol schema marker must not discard saved players");
+
+const throwingSchemaAccessorFixture = createSchemaGuardFixture();
+function installThrowingSchemaAccessor(record, field) {
+  Object.defineProperty(record, field, {
+    configurable: true,
+    enumerable: true,
+    get() { throw new Error("unsafe saved schema getter: " + field); },
+    set(value) {
+      Object.defineProperty(this, field, {
+        configurable: true, enumerable: true, writable: true, value
+      });
+    }
+  });
+}
+["schemaVersion", "lastAdvancedTo", "rosterSchemaVersion", "rosterMembershipSchemaVersion"]
+  .forEach(field => installThrowingSchemaAccessor(throwingSchemaAccessorFixture.world, field));
+let throwingSchemaResult;
+assert.doesNotThrow(() => {
+  throwingSchemaResult = ai.ensureState(throwingSchemaAccessorFixture.save, schemaGuardDb);
+}, "throwing schema metadata getters must not abort saved-world loading");
+assert.strictEqual(throwingSchemaResult, throwingSchemaAccessorFixture.world,
+  "throwing schema metadata getters must not trigger a replacement world");
+assert.strictEqual(throwingSchemaResult.players["schema-guard-player"], throwingSchemaAccessorFixture.player,
+  "throwing schema metadata getters must preserve existing player records");
+assert.equal(throwingSchemaResult.lastAdvancedTo, 0);
+assert.equal(throwingSchemaResult.rosterSchemaVersion, 3);
+assert.equal(throwingSchemaResult.rosterMembershipSchemaVersion, 6);
+
 console.log("PASS: persistent football world has " + clubCount + " clubs and " + playerCount
   + " players; " + transition.moves.length + " needs-based AI transfers; season stats, tables, and one-time progression all reconcile.");

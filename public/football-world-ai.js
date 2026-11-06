@@ -153,7 +153,7 @@
     // Never let a same-name club in another country supply the wrong match profile.
     return matches.length === 1 ? matches[0] : null;
   }
-  function syncClubDivisionMetadata(world, club, division, db, sourceRow) {
+  function syncClubDivisionMetadata(world, club, division, db, sourceRow, clubIdOverride) {
     if (!club) return null;
     const tier = Math.max(1, int(division, int(club.division, 1)));
     club.division = tier;
@@ -171,10 +171,15 @@
     const sourceMatches = sourceTier === tier && sourceRow ? sourceRow.matchesPerSeason : 0;
     const matches = Number(profileMatches || sourceMatches);
     if (Number.isFinite(matches) && matches > 0) club.matchesPerSeason = Math.max(20, Math.round(matches));
-    const clubId = String(club.id || "");
+    const safeIdentifier = value => {
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      return "";
+    };
+    const clubId = safeIdentifier(clubIdOverride) || safeIdentifier(club.id);
     if (clubId) {
       Object.values(world && world.players || {}).forEach(player => {
-        if (player && String(player.clubId || "") === clubId) player.division = tier;
+        if (player && safeIdentifier(player.clubId) === clubId) player.division = tier;
       });
     }
     return profile;
@@ -2891,16 +2896,29 @@
       if (b === null) return -1;
       return b - a;
     };
-    const leagueIds = new Set(Object.values(world.clubs || {}).map(club => String(club && club.leagueId || "")).filter(Boolean));
+    const safeIdentifier = value => {
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value);
+      return "";
+    };
+    const isMissingIdentifier = value => value === undefined || value === null
+      || (typeof value === "string" && value.trim() === "");
+    const leagueIds = new Set();
+    Object.values(world.clubs || {}).forEach(club => {
+      const leagueId = safeIdentifier(club && club.leagueId);
+      if (leagueId) leagueIds.add(leagueId);
+    });
     const eligibleTableRows = (rows, leagueId, expectedDivision) => {
       const eligible = [];
       let sourceIndex = 0;
       for (const row of Array.isArray(rows) ? rows : []) {
         const index = sourceIndex++;
-        const clubId = String(row && row.clubId || "");
+        const clubId = safeIdentifier(row && row.clubId);
         if (!clubId) continue;
         const club = world.clubs && world.clubs[clubId];
-        if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
+        if (!club || safeIdentifier(club.leagueId) !== leagueId) continue;
+        const savedClubId = safeIdentifier(club.id);
+        if (!isMissingIdentifier(club.id) && (!savedClubId || savedClubId !== clubId)) continue;
         // Only a genuinely absent legacy division defaults to the top flight.
         // Explicit but malformed tiers must not be coerced into division 1.
         const savedDivision = club.division;
@@ -2908,9 +2926,12 @@
           && !(typeof savedDivision === "string" && savedDivision.trim() === "");
         const clubDivision = hasExplicitDivision ? finiteStandingNumber(savedDivision) : 1;
         if (!Number.isInteger(clubDivision) || clubDivision < 1 || clubDivision !== expectedDivision) continue;
-        const rowLeagueId = String(row.leagueId || "").trim();
-        if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
-        if (row.division !== undefined && row.division !== null && String(row.division).trim() !== "") {
+        const rowLeagueMissing = isMissingIdentifier(row.leagueId);
+        const rowLeagueId = safeIdentifier(row.leagueId);
+        if (!rowLeagueMissing && (!rowLeagueId || rowLeagueId !== leagueId)) continue;
+        const hasExplicitRowDivision = row.division !== undefined && row.division !== null
+          && !(typeof row.division === "string" && row.division.trim() === "");
+        if (hasExplicitRowDivision) {
           const rowDivision = finiteStandingNumber(row.division);
           if (!Number.isInteger(rowDivision) || rowDivision !== expectedDivision) continue;
         }
@@ -2953,7 +2974,7 @@
         if (seen.has(entry.clubId)) return false;
         seen.add(entry.clubId);
         return true;
-      }).map(entry => entry.club);
+      });
     };
     const plannedMoves = [];
     const scheduledClubIds = new Set();
@@ -2966,12 +2987,14 @@
       if (!count) continue;
       const promoted = second.slice(0, count), relegated = first.slice(-count);
       for (let i = 0; i < count; i++) {
-        const up = promoted[i], down = relegated[i];
-        if (!up || !down || up.id === down.id
-          || scheduledClubIds.has(String(up.id)) || scheduledClubIds.has(String(down.id))) continue;
-        scheduledClubIds.add(String(up.id));
-        scheduledClubIds.add(String(down.id));
-        plannedMoves.push({ leagueId, up, down });
+        const upEntry = promoted[i], downEntry = relegated[i];
+        const up = upEntry && upEntry.club, down = downEntry && downEntry.club;
+        const upId = upEntry && upEntry.clubId, downId = downEntry && downEntry.clubId;
+        if (!up || !down || !upId || !downId || upId === downId
+          || scheduledClubIds.has(upId) || scheduledClubIds.has(downId)) continue;
+        scheduledClubIds.add(upId);
+        scheduledClubIds.add(downId);
+        plannedMoves.push({ leagueId, up, down, upId, downId });
       }
     }
     if (!plannedMoves.length) return [];
@@ -2982,8 +3005,7 @@
     const clubSnapshots = new Map();
     const clubFields = ["division", "leagueName", "leagueEnglish", "matchesPerSeason"];
     for (const plan of plannedMoves) {
-      for (const club of [plan.up, plan.down]) {
-        const id = String(club.id || "");
+      for (const [club, id] of [[plan.up, plan.upId], [plan.down, plan.downId]]) {
         affectedClubIds.add(id);
         if (!clubSnapshots.has(club)) {
           const snapshot = {};
@@ -2999,7 +3021,7 @@
     }
     const playerSnapshots = [];
     Object.values(world.players || {}).forEach(player => {
-      if (player && affectedClubIds.has(String(player.clubId || ""))) {
+      if (player && affectedClubIds.has(safeIdentifier(player.clubId))) {
         playerSnapshots.push({
           player,
           present: Object.prototype.hasOwnProperty.call(player, "division"),
@@ -3011,8 +3033,8 @@
     const moves = [];
     try {
       for (const plan of plannedMoves) {
-        base.syncClubDivisionMetadata(world, plan.up, 1, db);
-        base.syncClubDivisionMetadata(world, plan.down, 2, db);
+        base.syncClubDivisionMetadata(world, plan.up, 1, db, null, plan.upId);
+        base.syncClubDivisionMetadata(world, plan.down, 2, db, null, plan.downId);
         moves.push({
           leagueId: plan.leagueId,
           promoted: plan.up.name,

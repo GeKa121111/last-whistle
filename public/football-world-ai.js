@@ -96,15 +96,13 @@
     } catch (_) { return false; }
   }
   function safeWorldSetOwnValue(record, key, value) {
-    try {
-      if (!record || typeof record !== "object") return false;
-      if (key === "__proto__") {
-        Object.defineProperty(record, key, { value, writable: true, enumerable: true, configurable: true });
-      } else {
-        record[key] = value;
-      }
-      return true;
-    } catch (_) { return false; }
+    if (!record || typeof record !== "object") throw new TypeError("A transfer-history record is required");
+    if (key === "__proto__") {
+      Object.defineProperty(record, key, { value, writable: true, enumerable: true, configurable: true });
+    } else {
+      record[key] = value;
+    }
+    return true;
   }
   function safeWorldClubIdentifierForWorld(world, club) {
     if (!club || typeof club !== "object") return "";
@@ -409,17 +407,17 @@
     });
     if (duplicate) {
       if (endpointId && !safeWorldRecordIdentifier(duplicate, "clubId")) {
-        safeWorldSetField(duplicate, "clubId", endpointId);
+        safeWorldSetOwnValue(duplicate, "clubId", endpointId);
       }
       if (clubName && !safeWorldRecordText(duplicate, "name")) {
-        safeWorldSetField(duplicate, "name", clubName);
+        safeWorldSetOwnValue(duplicate, "name", clubName);
       }
       if (countryName && !safeWorldRecordText(duplicate, "country")) {
-        safeWorldSetField(duplicate, "country", countryName);
+        safeWorldSetOwnValue(duplicate, "country", countryName);
       }
       return;
     }
-    try { rows.push({ clubId: endpointId, name: clubName, country: countryName }); } catch (_) {}
+    rows.push({ clubId: endpointId, name: clubName, country: countryName });
   }
   function ensureTransferClubHistory(world) {
     if (!world || typeof world !== "object") return {};
@@ -466,7 +464,7 @@
     importPlayerHistory(safeWorldOwnValue(world, "playerHistory"));
     const archive = safeWorldOwnValue(world, "archive");
     importPlayerHistory(safeWorldOwnValue(archive, "playerHistory"));
-    safeWorldSetField(world, "transferClubHistorySchemaVersion", 1);
+    safeWorldSetOwnValue(world, "transferClubHistorySchemaVersion", 1);
     return history;
   }
   function rememberTransferClubEndpoints(world, transfer) {

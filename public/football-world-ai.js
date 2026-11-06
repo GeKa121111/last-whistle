@@ -1885,7 +1885,7 @@
     safeWorldSetField(player, "retirementReason", "age");
 
     let historyMap = safeWorldOwnValue(world, "playerHistory");
-    if (!historyMap || typeof historyMap !== "object" || Array.isArray(historyMap)) {
+    if (!historyMap || typeof historyMap !== "object") {
       historyMap = {};
       safeWorldSetField(world, "playerHistory", historyMap);
     }
@@ -1990,13 +1990,14 @@
         ? safeWorldOwnValue(clubs, orphanedClubId) : null;
       if (isTrueFlag(safeWorldOwnValue(player, "freeAgent")) || !orphanedClubId || !club) {
         const wasFreeAgent = isTrueFlag(safeWorldOwnValue(player, "freeAgent"));
-        const previousClubId = safeWorldRecordIdentifier(player, "previousClubId");
+        const previousClubIdValue = safeWorldOwnValue(player, "previousClubId");
+        const previousClubId = safeWorldIdentifier(previousClubIdValue || "");
         const hasStaleFreeAgentState = Boolean(orphanedClubId) || !wasFreeAgent
           || safeNumber(safeWorldOwnValue(player, "contractSeasons"), 0) > 0
           || Boolean(safeWorldRecordIdentifier(player, "leagueId"))
           || safeNumber(safeWorldOwnValue(player, "division"), 0) > 0
-          || isTrueFlag(safeWorldOwnValue(player, "transferListed"));
-        if (orphanedClubId && !previousClubId) safeWorldSetField(player, "previousClubId", orphanedClubId);
+          || safeWorldOwnValue(player, "transferListed") === true;
+        if (orphanedClubId && !previousClubIdValue) safeWorldSetField(player, "previousClubId", orphanedClubId);
         // Free-agent saves can retain a former-club roster entry even after clubId was cleared.
         const staleRosterClubIds = [orphanedClubId, previousClubId]
           .filter((clubId, index, ids) => clubId && ids.indexOf(clubId) === index);

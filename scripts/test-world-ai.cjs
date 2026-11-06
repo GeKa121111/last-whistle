@@ -2426,6 +2426,51 @@ assert.ok(!Object.prototype.hasOwnProperty.call(ambiguousLegacyHistoryWorld.play
 assert.ok(ambiguousLegacyHistoryWorld.transferClubHistoryByPlayer[ambiguousLegacyHistoryId],
   "ambiguous compact club history must remain preserved under its original ID");
 
+const collidingCanonicalHistoryWorld = {
+  schemaVersion: ai.version, dbVersion: 2, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
+  players: {
+    "canonical-collision-player-a": {
+      id: "canonical-collision-player-b", name: "Collision Player A",
+      clubId: "", previousClubId: "", country: "Testland", leagueId: "", division: 0,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 60, potential: 65,
+      retired: false, freeAgent: true, freeAgentSince: 6
+    },
+    "canonical-collision-player-b": {
+      id: "internal-collision-player-b", name: "Collision Player B",
+      clubId: "", previousClubId: "", country: "Testland", leagueId: "", division: 0,
+      position: "مهاجم", group: "attacker", age: 25, ovr: 60, potential: 65,
+      retired: false, freeAgent: true, freeAgentSince: 6
+    }
+  },
+  clubs: {},
+  playerHistory: {
+    "canonical-collision-player-b": [{ season: 3, type: "transfer", fromClubId: "collision-former-club" }]
+  },
+  transferClubHistoryByPlayer: {
+    "canonical-collision-player-b": [{
+      clubId: "collision-former-club", name: "Collision Former Club", country: "Testland"
+    }]
+  },
+  transferClubHistorySchemaVersion: 1,
+  archive: { playerHistory: {
+    "canonical-collision-player-b": [{ season: 2, type: "transfer", fromClubId: "collision-former-club" }]
+  } },
+  seasonStats: {}, leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [], nextGeneratedPlayer: 1,
+  transferSequence: 0, projectionRevision: 0
+};
+sandbox.window.__lwTestReconcileDatabase(collidingCanonicalHistoryWorld, {
+  version: 2, leagues: () => [], clubs: () => []
+});
+assert.ok(collidingCanonicalHistoryWorld.playerHistory["canonical-collision-player-b"],
+  "a canonical history key owned by another player must remain untouched");
+assert.ok(!Object.prototype.hasOwnProperty.call(collidingCanonicalHistoryWorld.playerHistory, "canonical-collision-player-a"),
+  "legacy alias migration must not steal another player's canonical history key");
+assert.ok(collidingCanonicalHistoryWorld.transferClubHistoryByPlayer["canonical-collision-player-b"],
+  "canonical compact history must not be reassigned to a different player");
+
 // An active player moved by the simulation must not be imported again into the
 // selling club when the source catalogue still lists them there after an age update.
 const transferReconcileOriginName = "Transfer Reconcile Origin";

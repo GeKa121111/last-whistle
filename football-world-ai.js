@@ -732,11 +732,10 @@
       } else {
         const club = world.clubs[id];
         const sourceDivision = Math.max(1, int(row.division, 1));
-        const savedDivision = Number(club.division);
-        // A saved in-game tier is authoritative after promotion/relegation. Resolve all
-        // division-dependent metadata from that tier, not from the source roster's seed tier.
-        const activeDivision = Number.isFinite(savedDivision) && savedDivision >= 1
-          ? Math.max(1, int(savedDivision, sourceDivision)) : sourceDivision;
+        const savedDivision = normalizeClubDivision(club.division, 0);
+        // A valid saved in-game tier remains authoritative after promotion/relegation.
+        // Malformed saved values fall back to the trusted database tier without coercion.
+        const activeDivision = savedDivision >= 1 ? savedDivision : sourceDivision;
         syncClubDivisionMetadata(world, club, activeDivision, db, row);
         // Migrate saves created before complete squads were stored. Replace only generated
         // placeholders; existing real players and their career history are preserved.

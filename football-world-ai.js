@@ -1971,12 +1971,16 @@
       const ratingTotal = Math.max(0, safeNumber(acc.ratingTotal, 0));
       const rating = apps ? Number((clamp(ratingTotal / apps, 0, 10)).toFixed(2)) : 0;
       const leagueId = String(acc.leagueId || player.leagueId || "");
-      const leagueDivision = Math.max(1, Math.round(safeNumber(acc.division || player.division || 1, 1)));
+      const accumulatorDivision = safeNumber(acc.division, NaN);
+      const playerDivision = safeNumber(player.division, NaN);
+      const leagueDivision = Math.max(1, Math.round(accumulatorDivision > 0
+        ? accumulatorDivision : playerDivision > 0 ? playerDivision : 1));
       const leagueStrength = leagueStrengthFor(leagueId, leagueDivision);
       const age = safeNumber(player.age, 18) || 18;
       const ovr = safeNumber(player.ovr, 50) || 50;
       const potential = safeNumber(player.potential, ovr) || ovr;
-      const savedDivision = safeNumber(acc.division || player.division, 0);
+      const savedDivision = accumulatorDivision > 0 ? accumulatorDivision
+        : playerDivision > 0 ? playerDivision : 0;
       const prestige = safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0);
       const row = {
         id: player.id, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",

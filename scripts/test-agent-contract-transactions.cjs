@@ -10,7 +10,7 @@ const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "
 assert.equal(source, deployed, "root/public agent runtimes must stay identical");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 555);
+require("./assert-static-cache-version.cjs")(sw, 556);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";

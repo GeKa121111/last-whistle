@@ -1975,6 +1975,58 @@ assert.equal(staleDivisionWorld.players["stale-relegated-player"].division, 2);
 
 
  
+// Imported standings may be shuffled. Promotion and relegation must follow the
+// explicit rank column rather than whichever club happens to appear first/last.
+const rankedPromotionClubs = [];
+for (let index = 1; index <= 6; index++) rankedPromotionClubs.push({
+  id: "ranked-first-" + index, name: "Ranked First " + index,
+  leagueId: "ranked-league", country: "Testland", division: 1,
+  power: index === 6 ? 999 : 1, leagueName: "Ranked Premier",
+  leagueEnglish: "Ranked Premier League", matchesPerSeason: 34, roster: []
+});
+for (let index = 1; index <= 3; index++) rankedPromotionClubs.push({
+  id: "ranked-second-" + index, name: "Ranked Second " + index,
+  leagueId: "ranked-league", country: "Testland", division: 2,
+  power: index === 3 ? 999 : 1, leagueName: "Ranked Second Division",
+  leagueEnglish: "Ranked Championship", matchesPerSeason: 22, roster: []
+});
+const rankedPromotionWorld = {
+  players: {},
+  clubs: Object.fromEntries(rankedPromotionClubs.map(club => [club.id, club])),
+  leagueTables: {
+    "6": {
+      "ranked-league": [6, 2, 5, 1, 4, 3].map(rank => ({
+        clubId: "ranked-first-" + rank, leagueId: "ranked-league",
+        division: 1, rank, pts: 30 - rank, gd: 12 - rank, gf: 20 - rank
+      })),
+      "ranked-league:2": [3, 2, 1].map(rank => ({
+        clubId: "ranked-second-" + rank, leagueId: "ranked-league",
+        division: 2, rank, pts: 15 - rank, gd: 8 - rank, gf: 12 - rank
+      }))
+    }
+  },
+  promotionHistory: [],
+  notes: []
+};
+const rankedPromotionDb = {
+  leagueFor: (_country, division) => Number(division) >= 2
+    ? { name: "Ranked Second Division", englishName: "Ranked Championship", matchesPerSeason: 22 }
+    : { name: "Ranked Premier", englishName: "Ranked Premier League", matchesPerSeason: 34 }
+};
+// Legacy top-flight clubs without a persisted division must still be ranked and relegated.
+const legacyDivisionPromotionWorld = JSON.parse(JSON.stringify(rankedPromotionWorld));
+delete legacyDivisionPromotionWorld.clubs["ranked-first-6"].division;
+const legacyDivisionPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+  legacyDivisionPromotionWorld, 6, rankedPromotionDb
+);
+assert.equal(legacyDivisionPromotionMoves.length, 1,
+  "a missing legacy club division must use the same first-tier default as the season table");
+assert.equal(legacyDivisionPromotionMoves[0].relegated, "Ranked First 6",
+  "a legacy first-tier club must remain eligible for relegation by its explicit final rank");
+assert.equal(legacyDivisionPromotionWorld.clubs["ranked-first-6"].division, 2,
+  "a legacy club relegated from the first tier must receive the destination division");
+const rankedPromotionBaseline = JSON.parse(JSON.stringify(rankedPromotionWorld));
+
 // Corrupted identifiers must be isolated to their own saved rows and never abort
 // a valid promotion/relegation batch or its player-division synchronization.
 const hostilePromotionIdentifier = {
@@ -2034,58 +2086,6 @@ assert.equal(hostileIdentifierPromotionWorld.players["safe-promoted-player"].div
   "player division synchronization must use the validated standings club ID");
 assert.equal(hostileIdentifierPromotionWorld.players["hostile-player-club-id"].division, 1,
   "a player with a malformed club identifier must be ignored without breaking the batch");
-
-// Imported standings may be shuffled. Promotion and relegation must follow the
-// explicit rank column rather than whichever club happens to appear first/last.
-const rankedPromotionClubs = [];
-for (let index = 1; index <= 6; index++) rankedPromotionClubs.push({
-  id: "ranked-first-" + index, name: "Ranked First " + index,
-  leagueId: "ranked-league", country: "Testland", division: 1,
-  power: index === 6 ? 999 : 1, leagueName: "Ranked Premier",
-  leagueEnglish: "Ranked Premier League", matchesPerSeason: 34, roster: []
-});
-for (let index = 1; index <= 3; index++) rankedPromotionClubs.push({
-  id: "ranked-second-" + index, name: "Ranked Second " + index,
-  leagueId: "ranked-league", country: "Testland", division: 2,
-  power: index === 3 ? 999 : 1, leagueName: "Ranked Second Division",
-  leagueEnglish: "Ranked Championship", matchesPerSeason: 22, roster: []
-});
-const rankedPromotionWorld = {
-  players: {},
-  clubs: Object.fromEntries(rankedPromotionClubs.map(club => [club.id, club])),
-  leagueTables: {
-    "6": {
-      "ranked-league": [6, 2, 5, 1, 4, 3].map(rank => ({
-        clubId: "ranked-first-" + rank, leagueId: "ranked-league",
-        division: 1, rank, pts: 30 - rank, gd: 12 - rank, gf: 20 - rank
-      })),
-      "ranked-league:2": [3, 2, 1].map(rank => ({
-        clubId: "ranked-second-" + rank, leagueId: "ranked-league",
-        division: 2, rank, pts: 15 - rank, gd: 8 - rank, gf: 12 - rank
-      }))
-    }
-  },
-  promotionHistory: [],
-  notes: []
-};
-const rankedPromotionDb = {
-  leagueFor: (_country, division) => Number(division) >= 2
-    ? { name: "Ranked Second Division", englishName: "Ranked Championship", matchesPerSeason: 22 }
-    : { name: "Ranked Premier", englishName: "Ranked Premier League", matchesPerSeason: 34 }
-};
-// Legacy top-flight clubs without a persisted division must still be ranked and relegated.
-const legacyDivisionPromotionWorld = JSON.parse(JSON.stringify(rankedPromotionWorld));
-delete legacyDivisionPromotionWorld.clubs["ranked-first-6"].division;
-const legacyDivisionPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
-  legacyDivisionPromotionWorld, 6, rankedPromotionDb
-);
-assert.equal(legacyDivisionPromotionMoves.length, 1,
-  "a missing legacy club division must use the same first-tier default as the season table");
-assert.equal(legacyDivisionPromotionMoves[0].relegated, "Ranked First 6",
-  "a legacy first-tier club must remain eligible for relegation by its explicit final rank");
-assert.equal(legacyDivisionPromotionWorld.clubs["ranked-first-6"].division, 2,
-  "a legacy club relegated from the first tier must receive the destination division");
-const rankedPromotionBaseline = JSON.parse(JSON.stringify(rankedPromotionWorld));
 
 // A null history row must not throw, and an array-wrapped season must not block
 // a valid promotion batch by coercing to the same numeric destination season.

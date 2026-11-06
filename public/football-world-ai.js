@@ -2824,9 +2824,13 @@
         if (!clubId) continue;
         const club = world.clubs && world.clubs[clubId];
         if (!club || String(club.leagueId || "") !== String(leagueId)) continue;
-        const rawClubDivision = finiteStandingNumber(club.division);
-        const clubDivision = rawClubDivision === null ? 1 : Math.max(1, Math.round(rawClubDivision));
-        if (!Number.isInteger(clubDivision) || clubDivision !== expectedDivision) continue;
+        // Only a genuinely absent legacy division defaults to the top flight.
+        // Explicit but malformed tiers must not be coerced into division 1.
+        const savedDivision = club.division;
+        const hasExplicitDivision = savedDivision !== undefined && savedDivision !== null
+          && !(typeof savedDivision === "string" && savedDivision.trim() === "");
+        const clubDivision = hasExplicitDivision ? finiteStandingNumber(savedDivision) : 1;
+        if (!Number.isInteger(clubDivision) || clubDivision < 1 || clubDivision !== expectedDivision) continue;
         const rowLeagueId = String(row.leagueId || "").trim();
         if (rowLeagueId && rowLeagueId !== String(leagueId)) continue;
         if (row.division !== undefined && row.division !== null && String(row.division).trim() !== "") {

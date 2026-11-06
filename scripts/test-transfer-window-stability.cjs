@@ -276,6 +276,48 @@ assert.equal(legacyWinterCompletion.state.contractOffer, null,
  assert.equal(legacyWinterCompletion.state.transferHistory.length, 1,
   "replaying transfer completion without a pending transfer must not duplicate history");
 
+// A malformed saved offer must not inject Infinity or array-coerced values into the
+// player's contract, club profile, bonuses, or wallet during transfer completion.
+Object.assign(legacyWinterCompletion.state, {
+  retired: false, age: 24, loan: null, freeAgent: false, contractType: "professional",
+  calendarDay: 190, season: 4, clubName: "نادي أ", leagueCountry: "مصر",
+  leagueDivision: 1, clubPower: 60,
+  pendingTransfer: {
+    club: "نادي ب", country: "مصر", league: "الدوري المصري", division: [2],
+    source: "LWWorldDB", season: "2026/27", power: "Infinity", wage: "700",
+    contractSeasons: [4], role: "أساسي", currency: "ج.م", signingBonus: "Infinity",
+    releaseClause: [1000], weeklyGoalBonus: "Infinity", weeklyCleanSheetBonus: [50]
+  },
+  lastOfferWindow: "", seasonApps: 12, seasonPhase: "secondHalf", winterBreakPending: false,
+  trust: 55, followers: 100, money: 500, weeklyWage: 250, contractSeasons: 2,
+  currentReleaseClause: 0, goalBonusPerGoal: 0, cleanSheetBonus: 0, transferCooldown: 0,
+  transferOffers: [], transferHistory: [], transferNegotiation: null, contractOffer: null
+});
+legacyWinterCompletion.transferTo();
+assert.equal(legacyWinterCompletion.state.clubName, "نادي ب",
+  "a listed transfer destination must still complete when malformed financial fields are present");
+assert.equal(legacyWinterCompletion.state.weeklyWage, 700,
+  "valid numeric-string wages must remain supported");
+assert.equal(legacyWinterCompletion.state.money, 1900,
+  "an invalid signing bonus must fall back to two valid weekly wages instead of corrupting the wallet");
+assert.equal(legacyWinterCompletion.state.clubPower, 65,
+  "a non-finite destination power must fall back to the known club-power lookup");
+assert.equal(legacyWinterCompletion.state.leagueDivision, 1,
+  "array-shaped division values must not be coerced into a valid destination division");
+assert.equal(legacyWinterCompletion.state.contractSeasons, 3,
+  "array-shaped contract terms must use the safe default term");
+assert.equal(legacyWinterCompletion.state.currentReleaseClause, 0,
+  "array-shaped release clauses must be rejected");
+assert.equal(legacyWinterCompletion.state.goalBonusPerGoal, 0,
+  "non-finite goal bonuses must be rejected");
+assert.equal(legacyWinterCompletion.state.cleanSheetBonus, 0,
+  "array-shaped clean-sheet bonuses must be rejected");
+for (const key of ["money", "weeklyWage", "clubPower", "leagueDivision", "contractSeasons",
+  "currentReleaseClause", "goalBonusPerGoal", "cleanSheetBonus"]) {
+  assert.equal(Number.isFinite(legacyWinterCompletion.state[key]), true,
+    "transfer completion must leave a finite " + key);
+}
+
 
  // Clubs with the same name in different countries are distinct destinations.
 const sameNameDifferentCountry = {
@@ -1366,8 +1408,8 @@ assert.equal(eliminatedCupScenario.state.cupHistory[0].abandoned, false,
 
 assert.match(transferToSource, /archiveCupForTransfer\(\)/, "transfer completion must archive the active cup before switching clubs");
 assert.doesNotMatch(transferToSource, /activeCupInProgress\(\)/, "transfer completion must not stay blocked by the active cup");
-assert.ok(transferToSource.includes("state.leagueDivision=Math.max(1,Number(p.division)||1)"),
-  "permanent transfer completion must apply the selected destination division");
+assert.ok(transferToSource.includes("state.leagueDivision=Math.max(1,finiteTransferInteger(p.division,1))"),
+  "permanent transfer completion must apply a validated destination division");
 
 
 const expiryTest=()=>{

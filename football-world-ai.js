@@ -2180,8 +2180,15 @@
   function playersForClub(world, club) {
     return base.rosterPlayers(world, club);
   }
+  function safeRecordIdentifier(record, field) {
+    try {
+      const value = record && record[field];
+      if (typeof value === "string") return value.trim();
+      return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    } catch (_) { return ""; }
+  }
   function activeRosterIdsForClub(world, club) {
-    return playersForClub(world, club).map(player => safeWorldRecordIdentifier(player, "id")).filter(Boolean);
+    return playersForClub(world, club).map(player => safeRecordIdentifier(player, "id")).filter(Boolean);
   }
   function makeLineup(world, club) {
     const rows = playersForClub(world, club);
@@ -2192,7 +2199,7 @@
     quotas.forEach(([group, count]) => {
       rows.filter(player => player.group === group)
         .sort((a, b) => playerOverall(b) - playerOverall(a)
-          || safeWorldRecordIdentifier(a, "id").localeCompare(safeWorldRecordIdentifier(b, "id")))
+          || safeRecordIdentifier(a, "id").localeCompare(safeRecordIdentifier(b, "id")))
         .slice(0, count).forEach(player => { if (!selected.some(row => row.id === player.id)) selected.push(player); });
     });
     rows.slice().sort((a, b) => playerOverall(b) - playerOverall(a))

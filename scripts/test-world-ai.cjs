@@ -732,6 +732,20 @@ assert.equal(hostileRosterWorld.nextGeneratedPlayer, hostileRosterNextGenerated,
   "identifier repair must not fabricate replacement players");
 assert.equal(hostileRosterWorld.projectionRevision, 13,
   "the new roster migration must invalidate unfinished season projections once");
+const hostileLineupPlayer = {
+  id: hostileRosterValue, name: "Hostile lineup identity", clubId: "hostile-lineup-club",
+  group: "attacker", position: "ST", ovr: 70, retired: false, freeAgent: false
+};
+const hostileLineupWorld = {
+  players: { "hostile-lineup-player": hostileLineupPlayer },
+  clubs: { "hostile-lineup-club": {
+    id: "hostile-lineup-club", name: "Hostile Lineup Club",
+    roster: ["hostile-lineup-player"]
+  } }
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestMakeLineup(
+  hostileLineupWorld, hostileLineupWorld.clubs["hostile-lineup-club"]
+), "lineup tie-breaking must not coerce a malformed saved player ID");
 
 // A v4 save can already have a canonical clubId while retaining stale league metadata.
 // The one-time v6 migration must overwrite stale values from the canonical club in both

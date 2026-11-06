@@ -680,6 +680,45 @@ assert.ok(budgetedTransfer.fee > Math.round(marketBudgetBefore[budgetSeller.id].
 assert.equal(budgetSeller.budget, expectedSeasonBudget(budgetSeller.id) + budgetedTransfer.fee,
   "the seller must receive the full recorded transfer fee after the market refreshes squad strength");
 
+// Legacy saved roster ratings can be arrays or numeric strings. They must not
+// concatenate into NaN role averages and silently disable otherwise valid transfers.
+const malformedMarketWorld = {
+  clubs: {}, players: {}, transfers: [], marketReports: [], playerHistory: {},
+  notes: [], nextGeneratedPlayer: 1, dbVersion: 0, transferSequence: 0
+};
+makeMarketTestClub(malformedMarketWorld, "Malformed Market Seller", 1, null);
+const malformedMarketBuyer = makeMarketTestClub(malformedMarketWorld, "Malformed Market Buyer", 2, "defender");
+const malformedBuyerDefenders = malformedMarketBuyer.roster
+  .map(id => malformedMarketWorld.players[id]).filter(player => player.group === "defender");
+assert.ok(malformedBuyerDefenders.length >= 2, "the malformed-market fixture needs multiple defenders");
+malformedBuyerDefenders[0].ovr = "64";
+malformedBuyerDefenders[1].ovr = [64, 65];
+const malformedSeller = malformedMarketWorld.clubs["Malformed Market Seller"];
+const malformedSellerListedPlayer = malformedSeller.roster
+  .map(id => malformedMarketWorld.players[id]).find(player => player.group === "defender" && player.potential === 97);
+assert.ok(malformedSellerListedPlayer, "the malformed-market seller needs a known listed defender");
+malformedSellerListedPlayer.ovr = [79, 80];
+malformedSellerListedPlayer.potential = [97, 98];
+malformedSellerListedPlayer.age = [30, 31];
+const malformedBuyerArrayOvr = malformedBuyerDefenders[1].ovr.slice();
+const malformedSellerArrayOvr = malformedSellerListedPlayer.ovr.slice();
+let malformedMarketMoves = [];
+assert.doesNotThrow(() => {
+  malformedMarketMoves = sandbox.window.__lwTestRunTransferWindow(malformedMarketWorld, 9);
+}, "malformed legacy roster ratings must not break transfer-window evaluation");
+assert.ok(malformedMarketMoves.length > 0,
+  "invalid array ratings must not turn role averages into NaN and suppress a valid transfer");
+assert.equal(malformedBuyerDefenders[0].ovr, "64",
+  "numeric-string player ratings must remain intact after transfer evaluation");
+assert.deepEqual(malformedBuyerDefenders[1].ovr, malformedBuyerArrayOvr,
+  "malformed buyer ratings must be read safely without rewriting saved player data");
+assert.deepEqual(malformedSellerListedPlayer.ovr, malformedSellerArrayOvr,
+  "malformed seller ratings must be read safely without rewriting saved player data");
+assert.deepEqual(malformedSellerListedPlayer.potential, [97, 98],
+  "transfer scoring must not rewrite the saved potential field");
+assert.deepEqual(malformedSellerListedPlayer.age, [30, 31],
+  "transfer scoring must not rewrite the saved age field");
+
 // Transfer-market phases are atomic: a late roster/history failure must not leave
 // half-applied fees, ownership changes, generated players, or history rows behind.
 const rollbackWorld = {

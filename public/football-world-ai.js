@@ -160,12 +160,36 @@
     const name = normalize(player && player.name);
     return name ? name + "|" + normalizePosition(player && player.position) : "";
   }
+  function marketPlayerRating(player, fallback = 50) {
+    const rating = safeNumber(player && player.ovr, fallback);
+    return rating > 0 ? clamp(rating, 1, 99) : fallback;
+  }
+  function marketPlayerPotential(player, fallback) {
+    const value = safeNumber(player && player.potential, fallback);
+    return value > 0 ? clamp(value, 1, 99) : fallback;
+  }
+  function marketPlayerAge(player, fallback = 26) {
+    const age = safeNumber(player && player.age, fallback);
+    return age > 0 ? clamp(age, 15, 45) : fallback;
+  }
+  function marketContractSeasons(player) {
+    return Math.max(0, Math.min(10, int(player && player.contractSeasons, 0)));
+  }
+  function marketClubPower(club, fallback = 55) {
+    const power = safeNumber(club && club.power, safeNumber(club && club.basePower, fallback));
+    return power > 0 ? clamp(power, 25, 100) : fallback;
+  }
+  function marketClubPrestige(club, fallback = 50) {
+    const prestige = safeNumber(club && club.prestige, fallback);
+    return prestige > 0 ? clamp(prestige, 0, 100) : fallback;
+  }
   function marketValue(player, seller) {
-    const ovr = clamp(player.ovr, 35, 99);
-    const potential = clamp(player.potential, ovr, 99);
+    const ovr = clamp(safeNumber(player && player.ovr, 0), 35, 99);
+    const potential = clamp(safeNumber(player && player.potential, ovr), ovr, 99);
+    const prestige = marketClubPrestige(seller);
     const rawValue = Math.pow(Math.max(1, ovr - 35), 2) * 0.18
-      + potential * 1.12 + Math.max(0, Number(seller && seller.prestige) || 50) * 0.28;
-    const term = Math.max(0, int(player && player.contractSeasons, 0));
+      + potential * 1.12 + Math.max(0, prestige) * 0.28;
+    const term = marketContractSeasons(player);
     const contractFactor = term <= 1 ? 0.72 : term >= 4 ? 1.16 : term === 3 ? 1.08 : 1;
     return Math.max(12, Math.round(rawValue * contractFactor));
   }
@@ -787,8 +811,9 @@
     const output = {};
     for (const group of Object.keys(TARGETS)) {
       const rows = rosterPlayers(world, club).filter(player => player.group === group);
-      output[group] = { count: rows.length, average: average(rows.map(player => Number(player.ovr) || 50)),
-        best: rows.length ? Math.max(...rows.map(player => Number(player.ovr) || 50)) : 0 };
+      const ratings = rows.map(player => marketPlayerRating(player));
+      output[group] = { count: rows.length, average: average(ratings),
+        best: ratings.length ? Math.max(...ratings) : 0 };
     }
     return output;
   }
@@ -1147,11 +1172,12 @@
     const stats = {};
     for (const group of Object.keys(TARGETS)) {
       const rows = all.filter(player => player.group === group);
-      const ages = rows.map(player => clamp(player.age, 15, 45));
+      const ratings = rows.map(player => marketPlayerRating(player));
+      const ages = rows.map(player => marketPlayerAge(player));
       stats[group] = {
         count: rows.length,
-        average: average(rows.map(player => player.ovr)),
-        best: rows.length ? Math.max(...rows.map(player => player.ovr)) : 0,
+        average: average(ratings),
+        best: ratings.length ? Math.max(...ratings) : 0,
         averageAge: ages.length ? average(ages) : 26,
         youthCount: ages.filter(age => age <= 23).length,
         primeCount: ages.filter(age => age >= 24 && age <= 30).length,
@@ -1166,9 +1192,10 @@
     // This market only adds players; never recruit beyond the squad's role target.
     if (row.count >= TARGETS[group]) return 0;
     const deficit = Math.max(0, TARGETS[group] - row.count);
-    const qualityGap = Math.max(0, club.power - row.average - 4);
-    const topQualityGap = Math.max(0, club.power - row.best - 6);
-    const weakUnitPenalty = row.average < club.power - 5 ? 5 : 0;
+    const clubPower = marketClubPower(club);
+    const qualityGap = Math.max(0, clubPower - row.average - 4);
+    const topQualityGap = Math.max(0, clubPower - row.best - 6);
+    const weakUnitPenalty = row.average < clubPower - 5 ? 5 : 0;
     const archetype = inferArchetype(club);
     let ageFit = 0;
     if (archetype === "youth-investor") ageFit += Math.max(0, 26 - row.averageAge) * 0.62 + row.youthCount * 0.12;
@@ -1182,14 +1209,24 @@
     const rows = rosterPlayers(world, seller).filter(player => player.group === group && !usedPlayers.has(player.id));
     if (rows.length <= Math.max(1, Math.min(2, TARGETS[group] - 1))) return null;
     const quality = roleStats(world, seller)[group];
-    const candidates = rows.filter(player => player.ovr < quality.best - 2 || player.age >= 29
-      || player.contractSeasons <= 1 || player.ovr < seller.power - 12);
+    const sellerPower = marketClubPower(seller);
+    const candidates = rows.filter(player => {
+      const rating = marketPlayerRating(player);
+      const age = marketPlayerAge(player);
+      const contract = marketContractSeasons(player);
+      return rating < quality.best - 2 || age >= 29 || contract <= 1 || rating < sellerPower - 12;
+    });
     candidates.sort((a, b) => {
-      const aScore = (a.age >= 29 ? 8 : 0) + (a.contractSeasons <= 1 ? 5 : 0)
-        + Math.max(0, seller.power - a.ovr) * 0.8 - a.potential * 0.13 + hash(a.id + "|" + seller.updatedSeason) % 17 / 10;
-      const bScore = (b.age >= 29 ? 8 : 0) + (b.contractSeasons <= 1 ? 5 : 0)
-        + Math.max(0, seller.power - b.ovr) * 0.8 - b.potential * 0.13 + hash(b.id + "|" + seller.updatedSeason) % 17 / 10;
-      return bScore - aScore;
+      const score = player => {
+        const age = marketPlayerAge(player);
+        const contract = marketContractSeasons(player);
+        const rating = marketPlayerRating(player);
+        const potential = marketPlayerPotential(player, rating);
+        return (age >= 29 ? 8 : 0) + (contract <= 1 ? 5 : 0)
+          + Math.max(0, sellerPower - rating) * 0.8 - potential * 0.13
+          + hash(player.id + "|" + seller.updatedSeason) % 17 / 10;
+      };
+      return score(b) - score(a);
     });
     return candidates[0] || null;
   }
@@ -1334,8 +1371,10 @@
     // Apply the new-season operating allocation before deals, while retaining leftover transfer cash.
     // The cap prevents balances from growing without bound over long simulated careers.
     for (const club of clubs) {
-      const budgetBase = Math.max(40, Math.round(70 + (Number(club.power) || Number(club.basePower) || 55) * 9 + (Number(club.prestige) || 50) * 2.2));
-      const existingBudget = Number(club.budget);
+      const power = marketClubPower(club);
+      const prestige = marketClubPrestige(club);
+      const budgetBase = Math.max(40, Math.round(70 + power * 9 + prestige * 2.2));
+      const existingBudget = safeNumber(club.budget, -1);
       const carriedBudget = Number.isFinite(existingBudget) && existingBudget >= 0
         ? Math.min(existingBudget, budgetBase * 2) : budgetBase;
       club.budget = Math.round(Math.min(budgetBase * 2, carriedBudget + Math.max(1, Math.round(budgetBase * 0.25))));
@@ -1350,8 +1389,8 @@
       buyersByDivision.get(division).push(club);
     }
     const buyerStrength = (a, b) => {
-      const aStrength = a.power + a.prestige * 0.04 + hash(a.id + "|" + season + "|buyer") % 29 / 100;
-      const bStrength = b.power + b.prestige * 0.04 + hash(b.id + "|" + season + "|buyer") % 29 / 100;
+      const aStrength = marketClubPower(a) + marketClubPrestige(a) * 0.04 + hash(a.id + "|" + season + "|buyer") % 29 / 100;
+      const bStrength = marketClubPower(b) + marketClubPrestige(b) * 0.04 + hash(b.id + "|" + season + "|buyer") % 29 / 100;
       return bStrength - aStrength || String(a.id).localeCompare(String(b.id));
     };
     const divisions = Array.from(buyersByDivision.keys()).sort((a, b) => a - b);
@@ -1382,29 +1421,35 @@
         if (!player) continue;
         const fee = marketValue(player, seller);
         if (fee > buyer.budget) continue;
-        const powerGap = buyer.power - player.ovr;
+        const playerOvr = marketPlayerRating(player);
+        const playerPotential = marketPlayerPotential(player, playerOvr);
+        const playerAge = marketPlayerAge(player);
+        const buyerPower = marketClubPower(buyer);
+        const buyerPrestige = marketClubPrestige(buyer);
+        const sellerPrestige = marketClubPrestige(seller);
+        const powerGap = buyerPower - playerOvr;
         if (powerGap < -14 || powerGap > 18) continue;
-        const ageFactor = player.age <= 23 ? 7 : player.age <= 27 ? 4 : player.age >= 31 ? -5 : 0;
-        const potentialFactor = (player.potential - player.ovr) * 0.65;
+        const ageFactor = playerAge <= 23 ? 7 : playerAge <= 27 ? 4 : playerAge >= 31 ? -5 : 0;
+        const potentialFactor = (playerPotential - playerOvr) * 0.65;
         const needsFactor = need.score * 0.8;
-        const prestigeFactor = (buyer.prestige - seller.prestige) * 0.04;
+        const prestigeFactor = (buyerPrestige - sellerPrestige) * 0.04;
         const distancePenalty = buyer.leagueId === seller.leagueId ? 0 : 1.5;
         const tie = hash(player.id + "|" + buyer.id + "|" + season) % 41 / 100;
         const archetype = inferArchetype(buyer);
         const coachStyle = inferCoachArchetype(buyer);
         const archetypeFactor = archetype === "youth-investor"
-          ? Math.max(0, player.potential - player.ovr) * 0.34 + (player.age <= 23 ? 4 : -2)
+          ? Math.max(0, playerPotential - playerOvr) * 0.34 + (playerAge <= 23 ? 4 : -2)
           : archetype === "title-chaser"
-            ? (player.age >= 24 && player.age <= 30 ? 5 : player.age >= 32 ? -5 : 0) + player.ovr * 0.035
-            : archetype === "academy-builder" ? (player.age <= 25 ? 2.5 : -1) : 0;
-        const coachFit = coachStyle === "develop-youth" && player.age <= 23 ? 2
-          : coachStyle === "win-now" && player.ovr >= buyer.power - 2 ? 1.8
-          : coachStyle === "technical-discipline" && player.potential >= player.ovr + 8 ? 1 : 0;
-        const score = player.ovr * 0.58 + potentialFactor + ageFactor + needsFactor + prestigeFactor
-          + archetypeFactor + coachFit - distancePenalty - fee / Math.max(1, buyer.budget) * 5 + tie;
+            ? (playerAge >= 24 && playerAge <= 30 ? 5 : playerAge >= 32 ? -5 : 0) + playerOvr * 0.035
+            : archetype === "academy-builder" ? (playerAge <= 25 ? 2.5 : -1) : 0;
+        const coachFit = coachStyle === "develop-youth" && playerAge <= 23 ? 2
+          : coachStyle === "win-now" && playerOvr >= buyerPower - 2 ? 1.8
+          : coachStyle === "technical-discipline" && playerPotential >= playerOvr + 8 ? 1 : 0;
+        const score = playerOvr * 0.58 + potentialFactor + ageFactor + needsFactor + prestigeFactor
+          + archetypeFactor + coachFit - distancePenalty - fee / Math.max(1, safeNumber(buyer.budget, 0)) * 5 + tie;
         candidates.push({ player, seller, fee, score, group: need.group });
       }
-      candidates.sort((a, b) => b.score - a.score || b.player.ovr - a.player.ovr);
+      candidates.sort((a, b) => b.score - a.score || marketPlayerRating(b.player) - marketPlayerRating(a.player));
       const candidate = candidates[0];
       if (!candidate || candidate.score < 37) continue;
       const { player, seller, fee, group } = candidate;
@@ -1417,8 +1462,8 @@
       buyer.roster = activeRosterIds(world, buyer).filter(id => id !== String(player.id));
       buyer.roster.push(String(player.id));
       // The recorded fee is a direct buyer-to-seller transaction; never discard part of it.
-      seller.budget = Math.max(0, Number(seller.budget) || 0) + fee;
-      buyer.budget = Math.max(0, buyer.budget - fee);
+      seller.budget = Math.max(0, safeNumber(seller.budget, 0)) + fee;
+      buyer.budget = Math.max(0, safeNumber(buyer.budget, 0) - fee);
       player.clubId = buyer.id; player.country = buyer.country; player.leagueId = buyer.leagueId;
       player.division = divisionForClub(buyer); player.contractSeasons = 2 + (hash(player.id + "|" + season + "|contract") % 4);
       player.transferListed = false;
@@ -1428,8 +1473,8 @@
         season: Number(season), day: 1, playerId: player.id, player: player.name, position: player.position,
         group, from: origin, fromCountry: seller.country, fromClubId: String(seller.id),
         to: buyer.name, toCountry: buyer.country, toClubId: String(buyer.id),
-        fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (player.age <= 23 ? "استثمار في المستقبل" : player.age >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
-        playerOvr: player.ovr, kind: "انتقال — محاكاة"
+        fee, currency: buyer.currency, reason: roleNeedsLabel(group) + " • " + (marketPlayerAge(player) <= 23 ? "استثمار في المستقبل" : marketPlayerAge(player) >= 30 ? "خبرة جاهزة" : "تعزيز فوري"),
+        playerOvr: marketPlayerRating(player), kind: "انتقال — محاكاة"
       };
       moves.push(transfer);
       world.transfers.unshift(transfer);
@@ -1443,9 +1488,11 @@
     // Refill every division after contract expirations; relegated clubs need a complete squad too.
     Object.values(world.clubs).forEach(club => {
       fillRoster(world, club);
-      const strength = rosterPlayers(world, club).slice().sort((a, b) => b.ovr - a.ovr).slice(0, 11);
-      const squadAverage = average(strength.map(player => player.ovr));
-      club.power = clamp(Math.round(club.basePower * 0.70 + squadAverage * 0.30), 35, 97);
+      const strength = rosterPlayers(world, club).slice()
+        .sort((a, b) => marketPlayerRating(b) - marketPlayerRating(a)).slice(0, 11);
+      const squadAverage = average(strength.map(player => marketPlayerRating(player)));
+      const basePower = safeNumber(club.basePower, marketClubPower(club));
+      club.power = clamp(Math.round(basePower * 0.70 + squadAverage * 0.30), 35, 97);
       club.updatedSeason = Number(season);
       // Keep the cash balance after fees; recomputing it here would erase the transfer's financial effect.
     });

@@ -2011,6 +2011,30 @@ assert.equal(legacyDivisionPromotionMoves[0].relegated, "Ranked First 6",
 assert.equal(legacyDivisionPromotionWorld.clubs["ranked-first-6"].division, 2,
   "a legacy club relegated from the first tier must receive the destination division");
 const rankedPromotionBaseline = JSON.parse(JSON.stringify(rankedPromotionWorld));
+
+// A null history row must not throw, and an array-wrapped season must not block
+// a valid promotion batch by coercing to the same numeric destination season.
+const malformedPromotionHistoryWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+malformedPromotionHistoryWorld.promotionHistory = [null, { season: [7], moves: [] }];
+let malformedPromotionHistoryMoves;
+assert.doesNotThrow(() => {
+  malformedPromotionHistoryMoves = sandbox.window.__lwTestApplyPromotionRelegation(
+    malformedPromotionHistoryWorld, 6, rankedPromotionDb
+  );
+}, "malformed promotion history rows must not abort promotion/relegation");
+assert.equal(malformedPromotionHistoryMoves.length, 1,
+  "an array-wrapped promotion season must not suppress the real destination-season move");
+assert.equal(malformedPromotionHistoryWorld.promotionHistory[0].season, 7);
+assert.equal(malformedPromotionHistoryWorld.promotionHistory[1], null,
+  "malformed legacy history rows must be preserved rather than silently deleted");
+assert.deepEqual(malformedPromotionHistoryWorld.promotionHistory[2].season, [7]);
+
+const numericStringPromotionHistoryWorld = JSON.parse(JSON.stringify(rankedPromotionBaseline));
+numericStringPromotionHistoryWorld.promotionHistory = [{ season: "7", moves: [] }];
+assert.equal(sandbox.window.__lwTestApplyPromotionRelegation(
+  numericStringPromotionHistoryWorld, 6, rankedPromotionDb
+).length, 0, "numeric-string promotion markers must retain idempotent legacy behavior");
+
 const rankedPromotionMoves = sandbox.window.__lwTestApplyPromotionRelegation(
   rankedPromotionWorld, 6, rankedPromotionDb
 );
@@ -2494,7 +2518,7 @@ const legacyCareerSeasonProjectionSave = {
 legacyCareerSeasonProjectionSave.worldSimulation.currentSeason = 6;
 legacyCareerSeasonProjectionSave.worldSimulation.lastAdvancedTo = 0;
 legacyCareerSeasonProjectionSave.worldSimulation.lastCompletedSeason = 5;
-legacyCareerSeasonProjectionSave.worldSimulation.completedSeasons = [5];
+legacyCareerSeasonProjectionSave.worldSimulation.completedSeasons = [5, [8]];
 legacyCareerSeasonProjectionSave.worldSimulation.dbVersion = Number(archiveReplaceDb.version);
 legacyCareerSeasonProjectionSave.worldSimulation.rosterMembershipSchemaVersion = 4;
 legacyCareerSeasonProjectionSave.worldSimulation.matchesBySeason["8"] = archiveReplaceMatches(8);
@@ -3489,10 +3513,11 @@ const reservedMarketWorld = {
     to: "Reserved Buyer", toCountry: reservedMarketCountry,
     toClubId: "retry-reserved-buyer", kind: "انتقال محاكاة"
   }],
-  marketReports: [{
-    season: 2, moves: 1, transferIds: [reservedPaidMoveId],
-    summary: "existing paid market report"
-  }],
+  marketReports: [
+    null,
+    { season: [2], moves: [99], transferIds: ["malformed-reserved-market-id"] },
+    { season: 2, moves: 1, transferIds: [reservedPaidMoveId], summary: "existing paid market report" }
+  ],
   notes: [], nextGeneratedPlayer: 1, transferSequence: 1, projectionRevision: 1
 };
 const reservedMarketSave = { season: 2, worldSimulation: reservedMarketWorld };
@@ -3787,6 +3812,21 @@ assert.equal(projectionCacheWorld.transfers.length, staleAdvanceTransferCount,
    "a stale completion must not fabricate historical player statistics");
  assert.equal(Object.prototype.hasOwnProperty.call(staleWrapperWorld.leagueTables, "2"), false,
    "a stale completion must not generate historical league tables");
+
+ // A null report row must be skipped, an array-wrapped season must not impersonate
+ // the requested year, and a numeric-string legacy report must remain readable.
+ const malformedMarketWorld = JSON.parse(JSON.stringify(staleWrapperWorld));
+ malformedMarketWorld.marketReports = [
+   null,
+   { season: [2], moves: [99], transferIds: ["malformed-market-row"] },
+   { season: "2", moves: "3", transferIds: ["legacy-numeric-string-market-row"] }
+ ];
+ const malformedMarketSave = { ...staleWrapperSave, worldSimulation: malformedMarketWorld };
+ const malformedMarketResult = ai.completeSeason(malformedMarketSave, 2, db);
+ assert.equal(malformedMarketResult.staleRequest, true,
+   "malformed market history must not turn a stale season completion into a live simulation");
+ assert.equal(malformedMarketResult.transfers, 3,
+   "market lookup must skip null/array season rows while preserving numeric-string report compatibility");
 
  const staleWrapperResult = ai.advanceToSeason(staleWrapperSave, 2, db);
  assert.equal(staleWrapperResult.alreadyAdvanced, true,

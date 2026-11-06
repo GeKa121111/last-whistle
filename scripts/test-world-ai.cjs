@@ -2607,6 +2607,8 @@ world.leagueTables["0"] = { japan: [{ leagueId: "japan", club: "Legacy Japan Clu
 world.matchesBySeason["0"] = [{ homeClubId: legacyClubId, awayClubId: "some-supported-club" }];
 world.competitionsBySeason["0"] = [{ id: "afc-cl", confederation: "AFC" }];
 ai.ensureState(save, db);
+// Isolate the season-cache assertion from the one-off lineup fixtures above.
+sandbox.window.__lwLineupBuildsByClub = {};
 assert.equal(world.clubs[legacyClubId], undefined, "unsupported clubs must leave the active simulation");
 assert.equal(world.players[legacyPlayerId], undefined, "unsupported players must leave the active player pool");
 assert.equal(world.archive.clubs[legacyClubId].name, "Legacy Japan Club", "the full club record must be retained in the archive");

@@ -2790,6 +2790,59 @@ assert.ok(symbolSeasonMarkerWorld.completedSeasons.some(marker => marker === 8),
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
   "database reconciliation must be exposed to the isolated regression test");
+
+const malformedReconcileDivisionValues = [
+  [1],
+  Symbol("invalid-saved-division"),
+  { valueOf() { throw new Error("unsafe saved division coercion"); } },
+  0,
+  -1,
+  1.5
+];
+for (let index = 0; index < malformedReconcileDivisionValues.length; index++) {
+  const clubName = "Division Reconcile Club " + index;
+  const country = "Testland";
+  const leagueId = "division-reconcile-league";
+  const clubId = ai.clubKey(clubName, country);
+  const roster = Array.from({ length: 16 }, (_, playerIndex) =>
+    "division-reconcile-player-" + index + "-" + playerIndex);
+  const club = {
+    id: clubId, name: clubName, country, leagueId,
+    division: malformedReconcileDivisionValues[index],
+    power: 60, basePower: 60, prestige: 50, matchesPerSeason: 30, roster: roster.slice()
+  };
+  const players = Object.fromEntries(roster.map((playerId, playerIndex) => [playerId, {
+    id: playerId, name: "Division Reconcile Player " + index + "-" + playerIndex,
+    clubId, country, leagueId, division: 1, position: "مهاجم", group: "attacker",
+    age: 24, ovr: 60, potential: 75, retired: false, freeAgent: false,
+    contractSeasons: 2, isGenerated: false
+  }]));
+  const reconcileWorld = {
+    clubs: { [clubId]: club }, players, playerHistory: {},
+    seasonStats: {}, leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+    transfers: [], marketReports: [], promotionHistory: [], notes: [],
+    completedSeasons: [], currentSeason: 4, lastCompletedSeason: 3,
+    nextGeneratedPlayer: 20, transferSequence: 0, projectionRevision: 0
+  };
+  const reconcileDb = {
+    version: 1,
+    leagues: () => [{ id: leagueId }],
+    clubs: () => [{ name: clubName, country, leagueId, division: 2, players: [] }],
+    playerRecordsForClub: () => [],
+    leagueFor: (_country, division) => ({
+      name: division === 2 ? "Trusted Second Division" : "Trusted First Division",
+      englishName: division === 2 ? "Trusted Championship" : "Trusted Premier League",
+      matchesPerSeason: 30
+    })
+  };
+  assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(reconcileWorld, reconcileDb),
+    "database reconciliation must safely recover malformed saved club divisions");
+  assert.equal(club.division, 2,
+    "an invalid saved division must fall back to the trusted database tier, not be coerced into tier one");
+  roster.forEach(playerId => assert.equal(players[playerId].division, 2,
+    "players must follow the recovered authoritative club division"));
+}
+
 const divisionPersistenceClub = Object.values(world.clubs).find(club => club.leagueId === "scotland");
 assert.ok(divisionPersistenceClub, "the roster fixture must include a club for the division-persistence regression");
 const sourceDivisionForClub = db.clubs().find(row => row.name === divisionPersistenceClub.name).division;

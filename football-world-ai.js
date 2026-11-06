@@ -2779,7 +2779,10 @@
       const group = player.group || base.groupForPosition(player.position);
       const roleTarget = ROLE_TARGETS[group];
       if (!roleTarget) continue;
-      const formerClubSince = safeNumber(player.freeAgentSince, 0);
+      const rawFormerClubSince = player.freeAgentSince;
+      const formerClubSince = (typeof rawFormerClubSince === "number"
+        || (typeof rawFormerClubSince === "string" && rawFormerClubSince.trim() !== ""))
+        ? Number(rawFormerClubSince) : NaN;
       // Legacy saves may store club IDs as numbers while the world catalogue uses strings.
       const previousClubId = player.previousClubId == null ? "" : String(player.previousClubId).trim();
       // Do not let a just-expired player bounce straight back to the same club.

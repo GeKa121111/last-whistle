@@ -1705,7 +1705,7 @@
         ? groupForPosition(player.position) : player.group) === "goalkeeper")
       .map(player => {
         const savedGoalkeeping = safeNumber(player && player.goalkeeping, 0);
-        const fallbackOverall = safeNumber(player && player.ovr, 55);
+        const fallbackOverall = safeNumber(player && player.ovr, 0) || 55;
         return clamp(savedGoalkeeping > 0 ? savedGoalkeeping : fallbackOverall, 35, 99);
       })
       .sort((a, b) => b - a);
@@ -1872,7 +1872,7 @@
   };
   const avg = rows => rows.length ? rows.reduce((sum, n) => sum + n, 0) / rows.length : 55;
   function playerOverall(player, fallback = 50) {
-    return clamp(safeNumber(player && player.ovr, fallback), 1, 99);
+    return clamp(safeNumber(player && player.ovr, 0) || fallback, 1, 99);
   }
 
   const normalize = value => String(value == null ? "" : value).normalize("NFKC").toLocaleLowerCase()
@@ -1960,8 +1960,8 @@
     const seed = hash([season, division, matchday, home.id, away.id, competitionId || "league", "match-v2"].join("|"));
     const rng = random(seed);
     const homeLineup = lineupForMatch(world, home, lineupCache), awayLineup = lineupForMatch(world, away, lineupCache);
-    const homeStrength = clamp(safeNumber(home && home.power, safeNumber(home && home.basePower, 55)), 25, 95);
-    const awayStrength = clamp(safeNumber(away && away.power, safeNumber(away && away.basePower, 55)), 25, 95);
+    const homeStrength = clamp(safeNumber(home && home.power, 0) || safeNumber(home && home.basePower, 55) || 55, 25, 95);
+    const awayStrength = clamp(safeNumber(away && away.power, 0) || safeNumber(away && away.basePower, 55) || 55, 25, 95);
     const xgHome = clamp(1.28 + (homeStrength - awayStrength) * 0.027 + 0.16, 0.28, 3.05);
     const xgAway = clamp(1.24 + (awayStrength - homeStrength) * 0.027 - 0.06, 0.22, 2.9);
     const homeGoals = poisson(rng, xgHome), awayGoals = poisson(rng, xgAway);
@@ -2018,7 +2018,7 @@
   }
   function tableRow(club, season, leagueId, division) {
     return { season: Number(season), leagueId: String(leagueId), division: Number(division) || 1,
-      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 55)),
+      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 0) || 55),
       played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0, form: 0, recentForm: "" };
   }
   function applyResult(tablesByClub, match) {

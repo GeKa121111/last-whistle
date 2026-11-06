@@ -1958,17 +1958,17 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function addCareerXP(state, amount) {
-    const amountValue = Number(amount);
-    const xp = Number.isFinite(amountValue) ? Math.max(0, Math.min(10000, Math.round(amountValue))) : 0;
-    const careerXPValue = Number(state.careerXP);
-    state.careerXP = Math.min(Number.MAX_SAFE_INTEGER, (Number.isFinite(careerXPValue)
+    const amountValue = finiteLegacyNumber(amount);
+    const xp = amountValue === null ? 0 : Math.max(0, Math.min(10000, Math.round(amountValue)));
+    const careerXPValue = finiteLegacyNumber(state.careerXP);
+    state.careerXP = Math.min(Number.MAX_SAFE_INTEGER, (careerXPValue !== null
       ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerXPValue))) : 0) + xp);
-    const careerLevelValue = Number(state.careerLevel);
-    state.careerLevel = Number.isFinite(careerLevelValue)
+    const careerLevelValue = finiteLegacyNumber(state.careerLevel);
+    state.careerLevel = careerLevelValue !== null
       ? Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(careerLevelValue))) : 1;
     const threshold = 100 + Math.min(80, (state.careerLevel - 1) * 8);
-    const levelXPValue = Number(state.levelXP);
-    state.levelXP = (Number.isFinite(levelXPValue)
+    const levelXPValue = finiteLegacyNumber(state.levelXP);
+    state.levelXP = (levelXPValue !== null
       ? Math.max(0, Math.min(threshold - 0.01, levelXPValue)) : 0) + xp;
     const oldLevel = state.careerLevel;
     while (state.levelXP >= 100 + Math.min(80, (state.careerLevel - 1) * 8)) {

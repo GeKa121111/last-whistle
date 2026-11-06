@@ -46,7 +46,18 @@
   const int = (value, fallback = 0) => Math.round(
     value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
   );
-  const divisionForClub = club => Math.max(1, int(club && club.division, 1));
+  function normalizeClubDivision(value, missingFallback = 1) {
+    if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) {
+      return missingFallback;
+    }
+    if (typeof value !== "number" && typeof value !== "string") return 0;
+    const numeric = typeof value === "string" ? Number(value.trim()) : value;
+    return Number.isSafeInteger(numeric) && numeric >= 1 ? numeric : 0;
+  }
+  const divisionForClub = club => {
+    if (!club || typeof club !== "object") return 0;
+    try { return normalizeClubDivision(club.division, 1); } catch (_) { return 0; }
+  };
   function isTrueFlag(value) {
     if (value === true || value === 1) return true;
     if (typeof value !== "string") return false;
@@ -386,7 +397,9 @@
     const leagueId = String(club.leagueId || "").trim();
     if (country) player.country = country;
     if (leagueId) player.leagueId = leagueId;
-    player.division = divisionForClub(club);
+    const division = divisionForClub(club);
+    // A corrupt explicit club tier must not overwrite a player's last known valid tier.
+    if (division >= 1) player.division = division;
   }
   function normalizeRosterMembership(world) {
     if (!world || !world.clubs || !world.players) return world;
@@ -845,6 +858,7 @@
     Object.values(world.clubs || {}).forEach(club => {
       if (!club || !club.leagueId) return;
       const division = divisionForClub(club);
+      if (division < 1) return;
       const key = String(club.leagueId) + "|" + division;
       if (!groups.has(key)) groups.set(key, { division, clubs: [] });
       groups.get(key).clubs.push(club);
@@ -883,6 +897,8 @@
   }
   function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
     const club = world.clubs[player.clubId];
+    const savedDivision = normalizeClubDivision(player && player.division, 0);
+    const division = savedDivision >= 1 ? savedDivision : divisionForClub(club);
     const rng = random(hash(player.id + "|" + season + "|season-stat-v" + VERSION));
     const power = club ? normalizedClubPower(club) : 55;
     const matches = club
@@ -903,13 +919,13 @@
     const fullGoals = Math.max(0, Math.round(expectedApps * rate * performanceMultiplier + rng() * (group === "attacker" ? 5.5 : 2.1) - 1));
     const fullAssists = Math.max(0, Math.round(expectedApps * assistRate * performanceMultiplier + rng() * 3.2 - 0.5));
     const fullRating = expectedApps > 0 ? clamp(6.15 + (ovr - 60) * 0.026 + (power - 65) * 0.004 + rng() * 0.65 - 0.30, 5.1, 8.95) : 0;
-    const leaguePower = leagueStrength(world, player.leagueId, player.division, strengthByLeague);
+    const leaguePower = leagueStrength(world, player.leagueId, division, strengthByLeague);
     const goals = Math.round(fullGoals * clamp(progress, 0, 1));
     const assists = Math.round(fullAssists * clamp(progress, 0, 1));
     const values = {
       id: player.id, season: Number(season), name: player.name, club: club ? club.name : "",
       clubName: club ? club.name : "", country: player.country, leagueId: player.leagueId,
-      division: Math.max(1, int(player.division, 1)), position: player.position, group,
+      division, position: player.position, group,
       age: clamp(safeNumber(player.age, 18) || 18, 14, 60), ovr,
       potential: clamp(safeNumber(player.potential, ovr) || ovr, 1, 99), appearances: expectedApps, goals: fullGoals, assists: fullAssists,
       averageRating: Number(fullRating.toFixed(2)), leagueStrength: leaguePower,
@@ -928,6 +944,7 @@
     Object.values(world.clubs || {}).forEach(club => {
       if (!club || !club.leagueId) return;
       const division = divisionForClub(club);
+      if (division < 1) return;
       const key = String(club.leagueId) + "|" + division;
       const row = totals.get(key) || { total: 0, count: 0 };
       row.total += normalizedClubPower(club);
@@ -939,7 +956,8 @@
     ]));
   }
   function leagueStrength(world, leagueId, division, strengthByLeague) {
-    const tier = Math.max(1, int(division, 1));
+    const tier = normalizeClubDivision(division, 1);
+    if (tier < 1) return 55;
     const key = String(leagueId || "") + "|" + tier;
     if (strengthByLeague && strengthByLeague.has(key)) return strengthByLeague.get(key);
     const clubs = Object.values(world.clubs || {}).filter(club =>
@@ -967,8 +985,11 @@
     if (!cached.rows.has(targetSeason)) {
       const strengthByLeague = buildLeagueStrengthLookup(world);
       const matchesByClub = buildLeagueMatchCountLookup(world, db);
-      const rows = Object.values(world.players || {}).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
-        generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
+      const rows = Object.values(world.players || {}).filter(player => {
+        const club = player && world.clubs && world.clubs[player.clubId];
+        return player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent)
+          && player.clubId && club && divisionForClub(club) >= 1;
+      }).map(player => generatePlayerSeason(world, player, targetSeason, 1, strengthByLeague, matchesByClub));
       cached.rows.set(targetSeason, rows);
       // Only unfinished projections need caching; keep the memory footprint bounded.
       if (cached.rows.size > 2) cached.rows.delete(cached.rows.keys().next().value);
@@ -1035,6 +1056,7 @@
       if (!club || !club.leagueId) continue;
       const leagueId = String(club.leagueId);
       const division = divisionForClub(club);
+      if (division < 1) continue;
       const tableKey = division === 1 ? leagueId : leagueId + ":" + division;
       if (!byLeague.has(tableKey)) byLeague.set(tableKey, { leagueId, division, clubs: [] });
       byLeague.get(tableKey).clubs.push(club);
@@ -1845,7 +1867,7 @@
     };
   }
   global.LWWorldAI = Object.freeze({
-    version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
+    version: VERSION, normalize, normalizePosition, normalizeClubDivision, divisionForClub, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
     sortCompletedSeasonMarkers,
     getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
@@ -1903,7 +1925,7 @@
     const basePower = safeNumber(club && club.basePower, 0);
     return clamp(currentPower > 0 ? currentPower : basePower > 0 ? basePower : fallback, 25, 100);
   }
-  const divisionForClub = club => Math.max(1, int(club && club.division, 1));
+  const divisionForClub = club => base.divisionForClub(club);
   const hash = value => {
     let h = 2166136261;
     for (const char of String(value)) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
@@ -1934,7 +1956,7 @@
       // Keep legacy saves consistent with addClub and simulateLeagueTables:
       // an absent/invalid division is the first tier, not a reason to omit the club.
       const division = divisionForClub(club);
-      if (division > 2) return;
+      if (division < 1 || division > 2) return;
       const key = String(club.leagueId) + ":" + String(division);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(club);
@@ -2094,7 +2116,9 @@
     const powerByLeagueDivision = new Map();
     Object.values(clubs).forEach(club => {
       if (!club) return;
-      const key = String(club.leagueId || "") + "|" + divisionForClub(club);
+      const division = divisionForClub(club);
+      if (division < 1) return;
+      const key = String(club.leagueId || "") + "|" + division;
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
       const savedPower = clubPowerForSimulation(club);
       summary.total += savedPower > 0 ? clamp(savedPower, 25, 100) : 55;
@@ -2102,7 +2126,8 @@
       powerByLeagueDivision.set(key, summary);
     });
     const leagueStrengthFor = (leagueId, division) => {
-      const divisionNumber = Math.max(1, Math.round(safeNumber(division, 1)));
+      const divisionNumber = base.normalizeClubDivision(division, 0);
+      if (divisionNumber < 1) return 55;
       const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + divisionNumber);
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
@@ -2122,22 +2147,22 @@
       const ratingTotal = Math.min(apps * 10, Math.max(0, safeNumber(acc.ratingTotal, 0)));
       const rating = apps ? Number((clamp(ratingTotal / apps, 0, 10)).toFixed(2)) : 0;
       const leagueId = String(acc.leagueId || player.leagueId || "");
-      const accumulatorDivision = safeNumber(acc.division, NaN);
-      const playerDivision = safeNumber(player.division, NaN);
-      const leagueDivision = Math.max(1, Math.round(accumulatorDivision > 0
-        ? accumulatorDivision : playerDivision > 0 ? playerDivision : 1));
-      const leagueStrength = leagueStrengthFor(leagueId, leagueDivision);
+      const accumulatorDivision = base.normalizeClubDivision(acc.division, 0);
+      const playerDivision = base.normalizeClubDivision(player.division, 0);
+      const historicalDivision = historicalClub ? divisionForClub(historicalClub) : 0;
+      const leagueDivision = accumulatorDivision >= 1 ? accumulatorDivision
+        : historicalClub ? historicalDivision : playerDivision;
+      const leagueStrength = leagueDivision >= 1 ? leagueStrengthFor(leagueId, leagueDivision) : 55;
       const age = clamp(safeNumber(player.age, 18) || 18, 14, 60);
       const ovr = clamp(safeNumber(player.ovr, 50) || 50, 1, 99);
       const potential = clamp(safeNumber(player.potential, ovr) || ovr, 1, 99);
-      const savedDivision = accumulatorDivision > 0 ? accumulatorDivision
-        : playerDivision > 0 ? playerDivision : 0;
+      const savedDivision = leagueDivision;
       const prestige = clamp(safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0), 0, 100);
       const row = {
         id: player.id, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",
         clubName: historicalClub ? historicalClub.name : "", clubId: acc.clubId || player.clubId || "",
         country: historicalClub ? historicalClub.country : player.country || "",
-        leagueId, division: Math.max(0, Math.round(savedDivision)),
+        leagueId, division: savedDivision,
         position: player.position, group: player.group || base.groupForPosition(player.position),
         age, ovr, potential,
         appearances: apps, goals, assists, averageRating: rating,

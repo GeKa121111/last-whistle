@@ -25,6 +25,10 @@
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
   }
+  function hasCompletedSeasonMarker(world, season) {
+    return Array.isArray(world && world.completedSeasons)
+      && world.completedSeasons.some(value => safeNumber(value, NaN) === season);
+  }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
   const int = (value, fallback = 0) => Math.round(
     value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
@@ -486,7 +490,7 @@
     const season = Math.max(1, int(world.currentSeason, int(world.lastAdvancedTo, 1)),
       int(world.lastAdvancedTo, 0));
     const completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
-    if (completedSeasons.some(value => Number(value) === season)
+    if (completedSeasons.some(value => safeNumber(value, NaN) === season)
       || Math.max(0, int(world.lastCompletedSeason, 0)) >= season) return false;
     const key = String(season);
     let invalidated = false;
@@ -1140,10 +1144,14 @@
   function completeSeason(save, season, db) {
     const world = ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
-    if (world.completedSeasons.includes(year)) return {
-      season: year, rows: world.seasonStats[String(year)] || [], tables: world.leagueTables[String(year)] || {},
-      alreadyCompleted: true, transfers: (world.marketReports.find(row => row.season === year) || {}).moves || 0
-    };
+    if (hasCompletedSeasonMarker(world, year)) {
+      const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
+      const market = marketReports.find(row => row && safeNumber(row.season, NaN) === year) || {};
+      return {
+        season: year, rows: world.seasonStats[String(year)] || [], tables: world.leagueTables[String(year)] || {},
+        alreadyCompleted: true, transfers: safeNumber(market.moves, 0)
+      };
+    }
     const strengthByLeague = buildLeagueStrengthLookup(world);
     const matchesByClub = buildLeagueMatchCountLookup(world, db);
     const rows = Object.values(world.players).filter(player => player && !isTrueFlag(player.retired) && !isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player =>
@@ -1153,7 +1161,7 @@
     world.leagueTables[String(year)] = tables;
     world.completedSeasons.push(year);
     world.completedSeasons = world.completedSeasons.sort((a, b) => a - b).slice(-20);
-    world.lastCompletedSeason = Math.max(world.lastCompletedSeason || 0, year);
+    world.lastCompletedSeason = Math.max(safeNumber(world.lastCompletedSeason, 0), year);
     world.currentSeason = year;
     return { season: year, rows, tables, alreadyCompleted: false, transfers: 0 };
   }
@@ -1809,8 +1817,7 @@
     const savedTable = tableKey ? savedTables[tableKey] : null;
     const hasSavedMatches = world.matchesBySeason
       && Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year));
-    const completedWithoutMatches = Array.isArray(world.completedSeasons)
-      && world.completedSeasons.includes(year) && !hasSavedMatches;
+    const completedWithoutMatches = hasCompletedSeasonMarker(world, year) && !hasSavedMatches;
     const projectedTables = tableKey && !Array.isArray(savedTable) && !completedWithoutMatches
       ? simulateLeagueTables(world, year, progress, db) : null;
     const table = Array.isArray(savedTable) ? savedTable.slice(0, 5)
@@ -1855,6 +1862,8 @@
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
   };
+  const hasCompletedSeasonMarker = (world, season) => Array.isArray(world && world.completedSeasons)
+    && world.completedSeasons.some(value => safeNumber(value, NaN) === season);
   // Persisted standings may contain arrays, boxed numbers, Symbols, or hostile objects.
   // Only primitive numeric values and numeric strings are valid table metrics.
   function hasStandingValue(value) {
@@ -2768,7 +2777,7 @@
   function applyPromotionRelegation(world, season, db) {
     world.promotionHistory = Array.isArray(world.promotionHistory) ? world.promotionHistory : [];
     const destinationSeason = Number(season) + 1;
-    if (world.promotionHistory.some(row => Number(row.season) === destinationSeason)) return [];
+    if (world.promotionHistory.some(row => safeNumber(row && row.season, NaN) === destinationSeason)) return [];
     const tables = world.leagueTables && world.leagueTables[String(season)] || {};
     const finiteStandingNumber = value => {
       if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -3075,8 +3084,10 @@
             + avg(top.map(player=>marketNumber(player.ovr,50))) * 0.3), 35, 97);
         }
       }
-      const report = world.marketReports && world.marketReports[0];
-      if (report && marketNumber(report.season, NaN) === seasonNumber) {
+      const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
+      const report = marketReports.find(row => row && typeof row === "object" && !Array.isArray(row)
+        && marketNumber(row.season, NaN) === seasonNumber);
+      if (report) {
         report.moves = marketNumber(report.moves || 0, 0) + signed.length;
         report.transferIds = signed.map(row => row.id).concat(Array.isArray(report.transferIds) ? report.transferIds : []);
         report.summary = String(report.summary || "") + " تم التعاقد مع " + signed.length + " لاعبًا حرًا بعد انتهاء عقودهم.";
@@ -3093,13 +3104,14 @@
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
     const stableCurrentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
-    const alreadyCompleted = Array.isArray(world.completedSeasons) && world.completedSeasons.includes(year);
+    const alreadyCompleted = hasCompletedSeasonMarker(world, year);
     // Do not fabricate an older season from today's squads when a stale completion request arrives.
     if (stableCurrentSeason > year && !alreadyCompleted) {
-      const market = (world.marketReports || []).find(row => Number(row.season) === year) || {};
+      const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
+      const market = marketReports.find(row => row && safeNumber(row.season, NaN) === year) || {};
       return {
         season: stableCurrentSeason, rows: [], tables: {}, matches: [], competitions: [],
-        alreadyCompleted: true, staleRequest: true, transfers: Number(market.moves) || 0
+        alreadyCompleted: true, staleRequest: true, transfers: safeNumber(market.moves, 0)
       };
     }
     if (alreadyCompleted) {
@@ -3108,9 +3120,10 @@
         return base.completeSeason(save, year, db);
       }
       const sim = simulateLeagueSeason(save, year, db);
-      const market = (world.marketReports || []).find(row => Number(row.season) === year) || {};
+      const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
+      const market = marketReports.find(row => row && safeNumber(row.season, NaN) === year) || {};
       return { season: year, rows: sim.rows, tables: sim.tables, matches: sim.matches,
-        competitions: sim.competitions, alreadyCompleted: true, transfers: Number(market.moves) || 0 };
+        competitions: sim.competitions, alreadyCompleted: true, transfers: safeNumber(market.moves, 0) };
     }
 
     // Simulate once and use those shared fixture results for both tables and player stats.
@@ -3118,9 +3131,9 @@
     // rows away and simulated the same season again.
     const sim = simulateLeagueSeason(save, year, db);
     world.completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
-    if (!world.completedSeasons.includes(year)) world.completedSeasons.push(year);
+    if (!hasCompletedSeasonMarker(world, year)) world.completedSeasons.push(year);
     world.completedSeasons = world.completedSeasons.sort((a, b) => a - b).slice(-20);
-    world.lastCompletedSeason = Math.max(Number(world.lastCompletedSeason) || 0, year);
+    world.lastCompletedSeason = Math.max(safeNumber(world.lastCompletedSeason, 0), year);
     world.currentSeason = year;
     return { season: year, rows: sim.rows, tables: sim.tables, matches: sim.matches,
       competitions: sim.competitions, alreadyCompleted: false, transfers: 0 };
@@ -3128,7 +3141,7 @@
   function getLeagueTable(save, leagueId, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
-    if (world.completedSeasons && world.completedSeasons.includes(year)
+    if (hasCompletedSeasonMarker(world, year)
       && (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year)))) {
       // Once detailed fixtures are pruned, only a saved standings snapshot is authoritative.
       // Never rebuild a completed historical table from clubs' current divisions.
@@ -3144,7 +3157,7 @@
     const year = Math.max(1, int(season, int(save.season, 1)));
     const divisionNumber = Math.max(1, int(division, 1));
     const tableKey = divisionNumber === 1 ? String(leagueId) : String(leagueId) + ":" + divisionNumber;
-    const completed = world.completedSeasons && world.completedSeasons.includes(year);
+    const completed = hasCompletedSeasonMarker(world, year);
     const hasSavedMatches = world.matchesBySeason
       && Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year));
     if (completed && !hasSavedMatches) {
@@ -3159,7 +3172,7 @@
   function getSeasonLines(save, season, progress, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
-    if (!(world.completedSeasons && world.completedSeasons.includes(year)
+    if (!(hasCompletedSeasonMarker(world, year)
       && (!world.matchesBySeason || !Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))))) {
       simulateLeagueSeason(save, year, db);
     }
@@ -3191,18 +3204,19 @@
     if (lastFreeAgentMarketSeason < next) {
       let paidMoves = Array.isArray(transition.moves) ? transition.moves.slice() : [];
       if (transition.alreadyAdvanced) {
-        const report = (world.marketReports || []).find(row => Number(row && row.season) === next);
+        const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
+        const report = marketReports.find(row => row && safeNumber(row.season, NaN) === next);
         const paidIds = new Set(Array.isArray(report && report.transferIds)
           ? report.transferIds.map(id => String(id || "")) : []);
-        paidMoves = (world.transfers || []).filter(move => move
-          && Number(move.season) === next && paidIds.has(String(move.id || "")));
+        const transfers = Array.isArray(world.transfers) ? world.transfers : [];
+        paidMoves = transfers.filter(move => move
+          && safeNumber(move.season, NaN) === next && paidIds.has(String(move.id || "")));
       }
       const freeAgentMoves = signFreeAgents(world, next, paidMoves);
       if (freeAgentMoves.length) {
         world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
         const nextKey = String(next);
-        const nextSeasonAlreadyCompleted = (Array.isArray(world.completedSeasons)
-          && world.completedSeasons.some(value => Number(value) === next))
+        const nextSeasonAlreadyCompleted = hasCompletedSeasonMarker(world, next)
           || Math.max(0, int(world.lastCompletedSeason, 0)) >= next;
         if (!nextSeasonAlreadyCompleted) {
           // A dashboard can materialize the new season while a failed free-agent phase

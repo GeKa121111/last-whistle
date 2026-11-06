@@ -175,10 +175,14 @@
   function marketContractSeasons(player) {
     return Math.max(0, Math.min(10, int(player && player.contractSeasons, 0)));
   }
-  function marketClubPower(club, fallback = 55) {
+  function positiveClubPower(club) {
     const savedPower = safeNumber(club && club.power, 0);
+    if (savedPower > 0) return savedPower;
     const basePower = safeNumber(club && club.basePower, 0);
-    const power = savedPower > 0 ? savedPower : basePower > 0 ? basePower : fallback;
+    return basePower > 0 ? basePower : 0;
+  }
+  function marketClubPower(club, fallback = 55) {
+    const power = positiveClubPower(club);
     return power > 0 ? clamp(power, 25, 100) : fallback;
   }
   function marketClubPrestige(club, fallback = 50) {
@@ -858,8 +862,7 @@
     return matchesByClub;
   }
   function normalizedClubPower(club) {
-    const power = safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55;
-    return power > 0 ? clamp(power, 25, 100) : 55;
+    return marketClubPower(club);
   }
   function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
     const club = world.clubs[player.clubId];
@@ -1715,14 +1718,14 @@
     const starter = goalkeepers.length ? goalkeepers[0] : null;
     const backup = goalkeepers.length > 1 ? goalkeepers[1] : starter;
     const goalkeeping = starter == null ? null : clamp(Math.round(starter * 0.88 + backup * 0.12), 35, 99);
-    const clubPower = safeNumber(club.power, 0) || safeNumber(club.basePower, 0);
+    const clubPower = positiveClubPower(club);
     return { power: clubPower > 0 ? clubPower : null, goalkeeping };
   }
   function getClubPower(save, name, country, db) {
     const world = ensureState(save, db);
     const club = findClubByIdentity(world, name, country);
     if (!club) return null;
-    const clubPower = safeNumber(club.power, 0) || safeNumber(club.basePower, 0);
+    const clubPower = positiveClubPower(club);
     return clubPower > 0 ? clubPower : null;
   }
   function transferTargets(save, db) {

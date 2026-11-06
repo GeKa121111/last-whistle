@@ -2228,6 +2228,24 @@ assert.equal(safeMalformedMatchProfile.goalkeeping, 55,
 assert.equal(ai.getClubPower(
   malformedMatchProfileSave, malformedMatchProfileClub.name, malformedMatchProfileClub.country, db
 ), 64, "club power lookup must use the safe base-power fallback");
+
+const negativeClubPowerSave = {
+  ...matchProfileSave,
+  worldSimulation: JSON.parse(JSON.stringify(matchProfileSave.worldSimulation))
+};
+const negativeClubPower = Object.values(negativeClubPowerSave.worldSimulation.clubs)
+  .find(club => club && club.id === matchProfileClub.id);
+negativeClubPower.power = -12;
+negativeClubPower.basePower = 64;
+assert.equal(ai.getClubPower(
+  negativeClubPowerSave, negativeClubPower.name, negativeClubPower.country, db
+), 64, "negative saved club power must not mask a valid positive basePower");
+assert.equal(ai.getClubMatchProfile(
+  negativeClubPowerSave, negativeClubPower.name, negativeClubPower.country, db
+).power, 64, "match profiles must use basePower when saved club power is non-positive");
+assert.equal(negativeClubPower.power, -12,
+  "reading a malformed club power must not rewrite the original saved value");
+
 let malformedRecruitmentRows;
 assert.doesNotThrow(() => {
   malformedRecruitmentRows = ai.recruitmentNeeds(malformedMatchProfileSave, db);
@@ -3929,6 +3947,23 @@ function makeLeagueMatchCountFixture(spec) {
   };
   return { save: { season: 1, worldSimulation: world }, world, fixtureDb };
 }
+
+const negativeBasePowerFixture = makeLeagueMatchCountFixture({
+  label: "Negative saved club power fallback", leagueId: "negative-base-power",
+  country: "Testland", division: 1, clubCount: 2, expectedTeamCount: 2, matchesPerSeason: 2
+});
+const negativeBasePowerClub = negativeBasePowerFixture.world.clubs["negative-base-power-schedule-01"];
+negativeBasePowerClub.power = -12;
+negativeBasePowerClub.basePower = 73;
+const negativeBasePowerSeason = ai.completeSeason(
+  negativeBasePowerFixture.save, 1, negativeBasePowerFixture.fixtureDb
+);
+const negativeBasePowerRow = (negativeBasePowerSeason.tables["negative-base-power"] || [])
+  .find(row => row.clubId === negativeBasePowerClub.id);
+assert.equal(negativeBasePowerRow && negativeBasePowerRow.power, 73,
+  "season table strength must fall back to positive basePower when saved power is negative");
+assert.equal(negativeBasePowerClub.power, -12,
+  "season simulation must not rewrite the original saved negative power");
 
 function assertLeagueMatchCountCase(spec) {
   const fixture = makeLeagueMatchCountFixture(spec);

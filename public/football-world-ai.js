@@ -2002,13 +2002,17 @@
       if (typeof value === "number" && Number.isFinite(value)) return String(value);
       return "";
     };
+    const isMissingLegacyValue = value => value === undefined || value === null
+      || (typeof value === "string" && value.trim() === "");
     const safePositiveInteger = (value, fallback) => {
+      if (isMissingLegacyValue(value)) return fallback;
       const numeric = safeNumber(value, NaN);
-      return Number.isSafeInteger(numeric) && numeric >= 1 ? numeric : fallback;
+      return Number.isSafeInteger(numeric) && numeric >= 1 ? numeric : null;
     };
-    const safeNonNegativeInteger = value => {
+    const safeNonNegativeInteger = (value, fallback = 0) => {
+      if (isMissingLegacyValue(value)) return fallback;
       const numeric = safeNumber(value, NaN);
-      return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : 0;
+      return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : null;
     };
     const expanded = [];
     for (const match of matches) {
@@ -2019,8 +2023,9 @@
         if (!homeClubId || !awayClubId) continue;
         const season = safePositiveInteger(match.season, 1);
         const matchday = safePositiveInteger(match.matchday, 1);
-        const homeGoals = safeNonNegativeInteger(match.homeGoals);
-        const awayGoals = safeNonNegativeInteger(match.awayGoals);
+        const homeGoals = safeNonNegativeInteger(match.homeGoals, 0);
+        const awayGoals = safeNonNegativeInteger(match.awayGoals, 0);
+        if (season === null || matchday === null || homeGoals === null || awayGoals === null) continue;
         const division = base.normalizeClubDivision(match.division, 1);
         const competitionId = safeText(match.competitionId) || "league";
         const home = clubs[homeClubId] || null;

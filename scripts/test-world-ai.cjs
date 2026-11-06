@@ -2621,6 +2621,62 @@ assert.equal(staleZeroAppearanceLeader.score, 0);
 assert.equal(staleZeroAppearanceLeader.weightedGoals, 0);
 world.seasonStats["1"][zeroAppearanceFixtureIndex] = originalZeroAppearanceFixture;
 
+// Projection and archived leaderboard paths must reject coercible arrays and unsafe numeric extremes.
+const boundedProjectionSave = { season: 1, name: "Bounded projection regression" };
+const boundedProjectionWorld = ai.ensureState(boundedProjectionSave, db);
+const boundedProjectionPlayer = Object.values(boundedProjectionWorld.players).find(player =>
+  player && player.clubId && !player.retired && !player.freeAgent);
+assert.ok(boundedProjectionPlayer, "the projection range fixture needs an attached player");
+const boundedProjectionClub = boundedProjectionWorld.clubs[boundedProjectionPlayer.clubId];
+boundedProjectionPlayer.age = 999;
+boundedProjectionPlayer.ovr = 999;
+boundedProjectionPlayer.potential = -1;
+boundedProjectionClub.power = Number.MAX_VALUE;
+boundedProjectionWorld.projectionRevision++;
+const boundedProjectionRows = sandbox.window.__lwTestBaseGetSeasonLines(
+  boundedProjectionSave, 2, 1, db
+);
+const boundedProjectionRow = boundedProjectionRows.find(row => row.id === boundedProjectionPlayer.id);
+assert.ok(boundedProjectionRow, "the changed player must remain in the projected season");
+assert.equal(boundedProjectionRow.age, 60);
+assert.equal(boundedProjectionRow.ovr, 99);
+assert.equal(boundedProjectionRow.potential, 1);
+assert.ok(Number.isFinite(boundedProjectionRow.leagueStrength)
+  && boundedProjectionRow.leagueStrength <= 100,
+  "projected league strength must remain bounded when a club has an extreme saved power");
+assert.ok(Number.isFinite(boundedProjectionRow.weightedGoals),
+  "projected weighted goals must remain finite");
+
+const malformedSavedSeasonSave = { season: 5, name: "Malformed archived leaderboard regression" };
+const malformedSavedSeasonWorld = ai.ensureState(malformedSavedSeasonSave, db);
+malformedSavedSeasonWorld.completedSeasons = [5];
+malformedSavedSeasonWorld.seasonStats["5"] = [
+  {
+    id: "array-season-stat-row", season: 5, appearances: [12], goals: [7], assists: [4],
+    averageRating: [8], ovr: [90], leagueStrength: [90],
+    seasonStats: { season: 5, appearances: [12], goals: [7], assists: [4], averageRating: [8], ovr: [90] }
+  },
+  {
+    id: "symbol-season-stat-row", season: 5, appearances: Symbol("bad-apps"),
+    goals: Symbol("bad-goals"), assists: Symbol("bad-assists"),
+    averageRating: Symbol("bad-rating"), ovr: Symbol("bad-ovr"), leagueStrength: Symbol("bad-strength"),
+    seasonStats: { season: 5, appearances: Symbol("bad-saved-apps"), goals: Symbol("bad-saved-goals") }
+  }
+];
+const malformedSavedLeaders = ai.leaderboard(malformedSavedSeasonSave, { season: 5, progress: 1 }, db);
+assert.equal(malformedSavedLeaders.length, 2);
+for (const row of malformedSavedLeaders) {
+  assert.equal(row.appearances, 0);
+  assert.equal(row.goals, 0);
+  assert.equal(row.assists, 0);
+  assert.equal(row.averageRating, 0);
+  assert.equal(row.score, 0);
+  assert.equal(row.weightedGoals, 0);
+  assert.ok(Number.isFinite(row.ovr) && Number.isFinite(row.leagueStrength));
+  assert.equal(row.seasonStats.appearances, 0);
+  assert.equal(row.seasonStats.goals, 0);
+}
+
 const egyptLeaders = ai.leaderboard(save, { season: 1, progress: 1, country: "مصر", leagueId: "egypt", division: 1 }, db);
 assert.ok(egyptLeaders.length > 0, "persistent stats must feed league leaderboards");
 assert.ok(egyptLeaders.some(row => row.goals > 0 || row.assists > 0), "the simulation should generate real statistical variation");

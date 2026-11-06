@@ -896,7 +896,7 @@
     const allClubs = Object.values(world.clubs || {});
     for (const [playerMapKey, player] of Object.entries(world.players || {})) {
       if (!player || typeof player !== "object") continue;
-      const playerId = safeWorldRecordIdentifier(player, "id") || safeWorldIdentifier(playerMapKey);
+      const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
       let isDetachedPlayer = false;
       try {
         isDetachedPlayer = isTrueFlag(safeWorldOwnValue(player, "retired"))

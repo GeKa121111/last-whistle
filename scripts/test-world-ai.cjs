@@ -2231,6 +2231,76 @@ assert.equal(freeAgentReconcileWorld.seasonStats["5"][0].goals, 4,
   "the free agent's saved season statistics must remain intact");
 
 
+// Reconciliation must resolve former-club history through the canonical map key
+// even when the player's internal ID is stale and previousClubId is absent.
+const canonicalHistoryReconcileMapKey = "canonical-history-reconcile-map-key";
+const staleHistoryReconcileInternalId = "stale-history-reconcile-internal-id";
+const canonicalHistoryReconcileWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 6,
+  lastCompletedSeason: 5, lastAdvancedTo: 6, rosterSchemaVersion: 3,
+  rosterMembershipSchemaVersion: 6, completedSeasons: [],
+  players: {
+    [canonicalHistoryReconcileMapKey]: {
+      id: staleHistoryReconcileInternalId, name: freeAgentReconcilePlayerName,
+      clubId: "", previousClubId: "", country: freeAgentReconcileCountry,
+      leagueId: "", division: 0, position: "جناح", group: "attacker",
+      ovr: 66, potential: 76, age: 24, contractSeasons: 0,
+      retired: false, freeAgent: true, freeAgentSince: 6,
+      isRealPlayer: true, isGenerated: false
+    }
+  },
+  clubs: {
+    [freeAgentReconcileClubId]: {
+      id: freeAgentReconcileClubId, name: freeAgentReconcileClubName,
+      country: freeAgentReconcileCountry, leagueId: freeAgentReconcileLeagueId,
+      division: 1, leagueName: "Free Agent Test League",
+      leagueEnglish: "Free Agent Test League", matchesPerSeason: 30,
+      power: 64, basePower: 64, prestige: 50, roster: []
+    }
+  },
+  playerHistory: {
+    [canonicalHistoryReconcileMapKey]: [{
+      season: 4, type: "contract-expiry", fromClubId: freeAgentReconcileClubId,
+      from: freeAgentReconcileClubName, fromCountry: freeAgentReconcileCountry
+    }]
+  },
+  transferClubHistoryByPlayer: {
+    [canonicalHistoryReconcileMapKey]: [{
+      clubId: freeAgentReconcileClubId, name: freeAgentReconcileClubName,
+      country: freeAgentReconcileCountry
+    }]
+  },
+  transferClubHistorySchemaVersion: 1,
+  seasonStats: { "5": [{
+    id: canonicalHistoryReconcileMapKey, playerId: canonicalHistoryReconcileMapKey,
+    season: 5, appearances: 18, goals: 4, assists: 2
+  }] },
+  leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 8
+};
+sandbox.window.__lwTestReconcileDatabase(canonicalHistoryReconcileWorld, freeAgentReconcileDb);
+const canonicalHistoryFreeAgent = canonicalHistoryReconcileWorld.players[canonicalHistoryReconcileMapKey];
+const canonicalHistoryDuplicates = Object.values(canonicalHistoryReconcileWorld.players).filter(player =>
+  player && player.name === freeAgentReconcilePlayerName
+  && String(player.clubId || "") === freeAgentReconcileClubId
+  && !player.retired && !player.freeAgent);
+assert.strictEqual(canonicalHistoryFreeAgent.id, staleHistoryReconcileInternalId,
+  "database reconciliation must preserve the original stale internal player ID");
+assert.equal(canonicalHistoryFreeAgent.freeAgent, true);
+assert.equal(canonicalHistoryFreeAgent.clubId, "",
+  "canonical former-club history must keep the saved free agent unattached");
+assert.equal(canonicalHistoryDuplicates.length, 0,
+  "reconciliation must not re-import a free agent when canonical player history records their former club");
+assert.ok(canonicalHistoryReconcileWorld.playerHistory[canonicalHistoryReconcileMapKey],
+  "career history must remain stored under the canonical player-map key");
+assert.ok(canonicalHistoryReconcileWorld.transferClubHistoryByPlayer[canonicalHistoryReconcileMapKey],
+  "compact former-club history must remain stored under the canonical player-map key");
+assert.ok(!Object.prototype.hasOwnProperty.call(canonicalHistoryReconcileWorld.playerHistory, staleHistoryReconcileInternalId),
+  "reconciliation must not move career history to the stale internal ID");
+assert.ok(!canonicalHistoryReconcileWorld.clubs[freeAgentReconcileClubId].roster.includes(canonicalHistoryReconcileMapKey),
+  "a detached free agent must remain outside the former club's active roster");
+
 // An active player moved by the simulation must not be imported again into the
 // selling club when the source catalogue still lists them there after an age update.
 const transferReconcileOriginName = "Transfer Reconcile Origin";

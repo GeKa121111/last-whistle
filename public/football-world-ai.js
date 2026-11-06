@@ -10,6 +10,8 @@
   // The full roster catalogue is available in the database/UI. The career save simulates a
   // compact 16-player matchday pool per club so long saves remain within browser storage limits.
   const SIMULATED_SQUAD_LIMIT = 16;
+  const MAX_WORLD_SEASON_APPEARANCES = 1000;
+  const MAX_WORLD_SEASON_STAT = 1000000;
   const seasonProjectionCache = new WeakMap();
   const POSITIONS = Object.freeze({
     goalkeeper: ["حارس مرمى"],
@@ -828,14 +830,18 @@
     });
     return matchesByClub;
   }
+  function normalizedClubPower(club) {
+    const power = safeNumber(club && club.power, 55);
+    return power > 0 ? clamp(power, 25, 100) : 55;
+  }
   function generatePlayerSeason(world, player, season, progress = 1, strengthByLeague, matchesByClub) {
     const club = world.clubs[player.clubId];
     const rng = random(hash(player.id + "|" + season + "|season-stat-v" + VERSION));
-    const power = club ? Number(club.power) || 55 : 55;
+    const power = club ? normalizedClubPower(club) : 55;
     const matches = club
       ? Math.max(0, Math.min(60, int(matchesByClub && matchesByClub.get(String(club.id)), Math.max(0, int(club.matchesPerSeason, 34)))))
       : 34;
-    const ovr = clamp(player.ovr, 35, 99);
+    const ovr = clamp(safeNumber(player.ovr, 55) || 55, 35, 99);
     const group = player.group || groupForPosition(player.position);
     const peers = club ? rosterPlayers(world, club).filter(row => row.group === group) : [player];
     const roleStrength = peers.length ? (peers.slice().sort((a, b) => b.ovr - a.ovr).findIndex(row => row.id === player.id)) : 0;
@@ -856,10 +862,11 @@
     const values = {
       id: player.id, season: Number(season), name: player.name, club: club ? club.name : "",
       clubName: club ? club.name : "", country: player.country, leagueId: player.leagueId,
-      division: player.division || 1, position: player.position, group, age: player.age, ovr,
-      potential: player.potential, appearances: expectedApps, goals: fullGoals, assists: fullAssists,
+      division: Math.max(1, int(player.division, 1)), position: player.position, group,
+      age: clamp(safeNumber(player.age, 18) || 18, 14, 60), ovr,
+      potential: clamp(safeNumber(player.potential, ovr) || ovr, 1, 99), appearances: expectedApps, goals: fullGoals, assists: fullAssists,
       averageRating: Number(fullRating.toFixed(2)), leagueStrength: leaguePower,
-      prestige: club ? club.prestige : player.prestige, confederation: club ? club.confederation : "",
+      prestige: clamp(safeNumber(club ? club.prestige : player.prestige, 0), 0, 100), confederation: club ? club.confederation : "",
       originConfederation: club ? club.confederation : "", isGenerated: !!player.isGenerated,
       realPlayer: !player.isGenerated, score: Number((fullRating * 9 + fullGoals * 0.95 + fullAssists * 0.62 + ovr * 0.08).toFixed(3)),
       weightedGoals: Number((fullGoals * (0.82 + leaguePower / 450)).toFixed(3))
@@ -876,7 +883,7 @@
       const division = divisionForClub(club);
       const key = String(club.leagueId) + "|" + division;
       const row = totals.get(key) || { total: 0, count: 0 };
-      row.total += Number(club.power) || 55;
+      row.total += normalizedClubPower(club);
       row.count++;
       totals.set(key, row);
     });
@@ -891,13 +898,13 @@
     const clubs = Object.values(world.clubs || {}).filter(club =>
       String(club.leagueId || "") === String(leagueId || "")
       && divisionForClub(club) === tier);
-    if (clubs.length) return Math.round(average(clubs.map(club => Number(club.power) || 55)));
+    if (clubs.length) return Math.round(average(clubs.map(normalizedClubPower)));
     if (tier !== 1 && strengthByLeague && strengthByLeague.has(String(leagueId || "") + "|1")) {
       return strengthByLeague.get(String(leagueId || "") + "|1");
     }
     return Math.round(average(Object.values(world.clubs || {}).filter(club =>
       String(club.leagueId || "") === String(leagueId || "") && divisionForClub(club) === 1)
-      .map(club => Number(club.power) || 55)));
+      .map(normalizedClubPower)));
   }
   function getProjectedSeasonRows(world, targetSeason, db) {
     const signature = [
@@ -927,21 +934,46 @@
     const scale = clamp(progress, 0, 1);
     const completed = world.seasonStats[String(targetSeason)];
     const fullRows = Array.isArray(completed) ? completed : getProjectedSeasonRows(world, targetSeason, db);
-    return fullRows.map(row => {
-      const rawAppearances = row.appearances !== undefined && row.appearances !== null
-        ? Number(row.appearances)
-        : Number(row.seasonStats && row.seasonStats.appearances) || 0;
-      const apps = Math.round(Math.max(0, Number.isFinite(rawAppearances) ? rawAppearances : 0) * scale);
-      const goals = apps > 0 ? Math.round(Math.max(0, Number(row.goals) || 0) * scale) : 0;
-      const assists = apps > 0 ? Math.round(Math.max(0, Number(row.assists) || 0) * scale) : 0;
-      const seasonStats = row.seasonStats || {
-        season: targetSeason, appearances: Number(row.appearances) || 0, goals: Number(row.goals) || 0,
-        assists: Number(row.assists) || 0, averageRating: Number(row.averageRating) || 0,
-        ovr: Number(row.ovr) || 50, club: row.club || row.clubName || "", country: row.country || ""
+    return (Array.isArray(fullRows) ? fullRows : []).filter(row =>
+      row && typeof row === "object" && !Array.isArray(row)).map(row => {
+      const savedStats = row.seasonStats && typeof row.seasonStats === "object" && !Array.isArray(row.seasonStats)
+        ? row.seasonStats : {};
+      const rawAppearances = safeNumber(row.appearances !== undefined && row.appearances !== null
+        ? row.appearances : savedStats.appearances, 0);
+      const fullAppearances = Math.min(MAX_WORLD_SEASON_APPEARANCES, Math.max(0, rawAppearances));
+      const fullGoals = Math.min(MAX_WORLD_SEASON_STAT,
+        Math.max(0, safeNumber(row.goals, safeNumber(savedStats.goals, 0))));
+      const fullAssists = Math.min(MAX_WORLD_SEASON_STAT,
+        Math.max(0, safeNumber(row.assists, safeNumber(savedStats.assists, 0))));
+      const apps = Math.round(fullAppearances * scale);
+      const goals = apps > 0 ? Math.round(fullGoals * scale) : 0;
+      const assists = apps > 0 ? Math.round(fullAssists * scale) : 0;
+      const rating = clamp(safeNumber(row.averageRating, safeNumber(savedStats.averageRating, 0)), 0, 10);
+      const ovr = clamp(safeNumber(row.ovr, safeNumber(savedStats.ovr, 50)) || 50, 1, 99);
+      const seasonStats = {
+        ...savedStats,
+        season: Math.max(1, int(savedStats.season, targetSeason)),
+        appearances: Math.min(MAX_WORLD_SEASON_APPEARANCES,
+          Math.max(0, safeNumber(savedStats.appearances, fullAppearances))),
+        goals: Math.min(MAX_WORLD_SEASON_STAT, Math.max(0, safeNumber(savedStats.goals, fullGoals))),
+        assists: Math.min(MAX_WORLD_SEASON_STAT, Math.max(0, safeNumber(savedStats.assists, fullAssists))),
+        averageRating: clamp(safeNumber(savedStats.averageRating, rating), 0, 10),
+        ovr: clamp(safeNumber(savedStats.ovr, ovr) || ovr, 1, 99),
+        club: savedStats.club || row.club || row.clubName || "",
+        country: savedStats.country || row.country || ""
       };
-      return { ...row, id: row.id, appearances: apps, goals, assists,
-        averageRating: apps > 0 ? Number(row.averageRating) || 0 : 0,
-        seasonStats: { ...seasonStats }, displayStats: { appearances: apps, goals, assists, averageRating: apps > 0 ? Number(row.averageRating) || 0 : 0 } };
+      return {
+        ...row, id: row.id,
+        age: clamp(safeNumber(row.age, 18) || 18, 14, 60),
+        ovr,
+        potential: clamp(safeNumber(row.potential, ovr) || ovr, 1, 99),
+        leagueStrength: clamp(safeNumber(row.leagueStrength, 60), 25, 100),
+        prestige: clamp(safeNumber(row.prestige, 0), 0, 100),
+        appearances: apps, goals, assists,
+        averageRating: apps > 0 ? rating : 0,
+        seasonStats,
+        displayStats: { appearances: apps, goals, assists, averageRating: apps > 0 ? rating : 0 }
+      };
     });
   }
   function promotionPlaces(firstTierCount, secondTierCount) {
@@ -1677,27 +1709,32 @@
     const lines = getSeasonLines(save, season, progress, db).filter(row =>
       (!country || normalize(row.country) === country)
       && (!leagueId || row.leagueId === leagueId)
-      && (!options.division || Number(row.division) === Number(options.division)));
+      && (!options.division || safeNumber(row.division, 0) === safeNumber(options.division, NaN)));
     return lines.map(row => {
-      const displayStats = row.displayStats && typeof row.displayStats === "object" ? row.displayStats : row;
-      const appearances = Math.max(0, Number(displayStats.appearances) || 0);
-      const goals = appearances > 0 ? Math.max(0, Number(displayStats.goals) || 0) : 0;
-      const assists = appearances > 0 ? Math.max(0, Number(displayStats.assists) || 0) : 0;
+      const displayStats = row.displayStats && typeof row.displayStats === "object" && !Array.isArray(row.displayStats)
+        ? row.displayStats : row;
+      const appearances = Math.min(MAX_WORLD_SEASON_APPEARANCES,
+        Math.max(0, safeNumber(displayStats.appearances, 0)));
+      const goals = appearances > 0 ? Math.min(MAX_WORLD_SEASON_STAT,
+        Math.max(0, safeNumber(displayStats.goals, 0))) : 0;
+      const assists = appearances > 0 ? Math.min(MAX_WORLD_SEASON_STAT,
+        Math.max(0, safeNumber(displayStats.assists, 0))) : 0;
       const averageRating = appearances > 0
-        ? Math.max(0, Number(displayStats.averageRating !== undefined ? displayStats.averageRating : row.averageRating) || 0)
-        : 0;
+        ? clamp(safeNumber(displayStats.averageRating !== undefined
+          ? displayStats.averageRating : row.averageRating, 0), 0, 10) : 0;
+      const ovr = clamp(safeNumber(row.ovr, 0), 0, 99);
+      const leagueStrength = clamp(safeNumber(row.leagueStrength, 60), 25, 100);
       const score = appearances > 0
-        ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + Number(row.ovr || 0) * 0.08).toFixed(3))
+        ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08).toFixed(3))
         : 0;
       const weightedGoals = appearances > 0
-        ? Number((goals * (0.82 + Number(row.leagueStrength || 60) / 450)).toFixed(3))
-        : 0;
-      return { ...row, appearances, goals, assists, averageRating, score, weightedGoals };
+        ? Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)) : 0;
+      return { ...row, appearances, goals, assists, averageRating, ovr, leagueStrength, score, weightedGoals };
     });
   }
   function dashboard(save, db) {
     const world = ensureState(save, db);
-    const progress = clamp(Number(save.seasonApps || 0) / Math.max(1, Number(save.seasonAppsTarget || 0)), 0, 1);
+    const progress = clamp(safeNumber(save.seasonApps, 0) / Math.max(1, safeNumber(save.seasonAppsTarget, 0)), 0, 1);
     const year = Math.max(1, int(save.season, 1));
     const rows = leaderboard(save, { season: year, progress }, db);
     const goals = rows.slice().sort((a, b) => b.goals - a.goals || b.averageRating - a.averageRating).slice(0, 5);

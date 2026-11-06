@@ -2018,7 +2018,7 @@
   }
   function tableRow(club, season, leagueId, division) {
     return { season: Number(season), leagueId: String(leagueId), division: Number(division) || 1,
-      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 0) || 55),
+      country: club.country, clubId: club.id, club: club.name, power: Math.round(safeNumber(club && club.power, 0) || safeNumber(club && club.basePower, 55) || 55),
       played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0, form: 0, recentForm: "" };
   }
   function applyResult(tablesByClub, match) {

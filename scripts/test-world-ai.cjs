@@ -2627,8 +2627,10 @@ assert.equal(world.archive.competitionsBySeason["0"].length, 1, "AFC competition
 const firstSeason = ai.completeSeason(save, 1, db);
 const lineupBuilds = Object.values(sandbox.window.__lwLineupBuildsByClub || {});
 assert.ok(lineupBuilds.length > 0, "season simulation must build lineups for clubs playing fixtures");
-assert.ok(lineupBuilds.every(count => count === 1),
-  "each club lineup should be built exactly once during a season simulation");
+const repeatedLineupBuilds = Object.entries(sandbox.window.__lwLineupBuildsByClub || {})
+  .filter(([, count]) => count !== 1);
+assert.deepEqual(repeatedLineupBuilds, [],
+  "each club lineup should be built exactly once during a season simulation: " + JSON.stringify(repeatedLineupBuilds));
 assert.ok(lineupBuilds.length < (world.matchesBySeason["1"] || []).length,
   "the lineup cache should avoid rebuilding a squad for each fixture");
 assert.equal(firstSeason.season, 1);

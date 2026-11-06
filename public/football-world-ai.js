@@ -913,7 +913,7 @@
         if (!mergedRows.includes(entry)) mergedRows.push(entry);
       });
       if (!safeWorldSetOwnValue(historyMap, canonicalPlayerId, mergedRows)) {
-        return Array.isArray(canonicalRows) ? canonicalRows : legacyRows;
+        return mergedRows;
       }
       try { delete historyMap[legacyPlayerId]; } catch (_) {}
       return mergedRows;

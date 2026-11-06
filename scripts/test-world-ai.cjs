@@ -527,6 +527,57 @@ const legacyDivisionStatsRows = sandbox.window.__lwTestBuildPlayerRows(
 assert.equal(legacyDivisionStatsRows[0].leagueStrength, 87,
   "player performance weighting must group a legacy club without division under the first tier");
 
+// Malformed saved player and accumulator numerics must not abort season-row generation.
+const malformedSeasonRowsWorld = {
+  clubs: {
+    "malformed-season-stats-club": {
+      id: "malformed-season-stats-club", name: "Malformed Stats Club",
+      country: "Testland", leagueId: "malformed-season-stats-league", division: [1],
+      power: [91], prestige: [80], confederation: "CAF"
+    }
+  },
+  players: {
+    "malformed-season-stats-player": {
+      id: "malformed-season-stats-player", name: "Malformed Stats Player",
+      clubId: "malformed-season-stats-club", country: "Testland",
+      leagueId: "malformed-season-stats-league", division: 1,
+      position: "مهاجم", group: "attacker", age: [24], ovr: [88],
+      potential: [95], prestige: [70], isGenerated: false
+    }
+  }
+};
+const malformedSeasonAccumulator = new Map([["malformed-season-stats-player", {
+  appearances: 10, goals: [3], assists: Symbol("invalid-assists"),
+  ratingTotal: Symbol("invalid-rating-total"), clubId: "malformed-season-stats-club",
+  leagueId: "malformed-season-stats-league", division: [1]
+}]]);
+let malformedSeasonRows;
+assert.doesNotThrow(() => {
+  malformedSeasonRows = sandbox.window.__lwTestBuildPlayerRows(
+    malformedSeasonRowsWorld, 5, malformedSeasonAccumulator
+  );
+}, "malformed player and accumulator values must not abort season leaderboard generation");
+assert.equal(malformedSeasonRows.length, 1);
+assert.equal(malformedSeasonRows[0].season, 5);
+assert.equal(malformedSeasonRows[0].appearances, 10);
+assert.equal(malformedSeasonRows[0].goals, 0,
+  "array-shaped goal totals must not be coerced into valid production");
+assert.equal(malformedSeasonRows[0].assists, 0);
+assert.equal(malformedSeasonRows[0].averageRating, 0,
+  "a malformed rating total must not throw or inflate a player's average");
+assert.equal(malformedSeasonRows[0].leagueStrength, 55,
+  "array-shaped club power must fall back to the neutral league-strength baseline");
+assert.equal(malformedSeasonRows[0].age, 18);
+assert.equal(malformedSeasonRows[0].ovr, 50);
+assert.equal(malformedSeasonRows[0].potential, 50);
+assert.equal(malformedSeasonRows[0].prestige, 0);
+assert.equal(
+  sandbox.window.__lwTestBuildPlayerRows(malformedSeasonRowsWorld, [5], malformedSeasonAccumulator).length,
+  0,
+  "array-shaped season identifiers must not create malformed season rows"
+);
+
+
 function makeMarketTestClub(world, id, division, deficitGroup) {
   const counts = { goalkeeper: 2, defender: 5, midfielder: 5, attacker: 4 };
   if (deficitGroup) { counts[deficitGroup]--; if (deficitGroup === "defender") counts.attacker++; }

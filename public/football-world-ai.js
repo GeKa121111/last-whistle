@@ -1749,8 +1749,19 @@
   const WORLD_CLUB_CUP_COMPETITION_WEIGHTS = Object.freeze({
     ucl: 7, libertadores: 7, "caf-cl": 6
   });
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
-  const int = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback;
+  // This extension is a separate IIFE from the core world engine. Parse only primitive
+  // numeric values so malformed arrays/objects/booleans cannot leak into season tables.
+  const safeNumber = (value, fallback = 0) => {
+    if (typeof value !== "number" && typeof value !== "string") return fallback;
+    if (typeof value === "string" && value.trim() === "") return fallback;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
+  const int = (value, fallback = 0) => {
+    const numeric = safeNumber(value, NaN);
+    return Number.isFinite(numeric) ? Math.round(numeric) : fallback;
+  };
   const divisionForClub = club => Math.max(1, int(club && club.division, 1));
   const hash = value => {
     let h = 2166136261;
@@ -1758,7 +1769,7 @@
     return h >>> 0;
   };
   const random = seed => {
-    let value = (Number(seed) >>> 0) || 0x9e3779b9;
+    let value = (safeNumber(seed, 0) >>> 0) || 0x9e3779b9;
     return () => {
       value += 0x6d2b79f5;
       let t = value;
@@ -1927,43 +1938,67 @@
     // Precompute club power averages once per league/division. The old implementation
     // rescanned every club twice for every player, adding millions of needless comparisons
     // whenever a complete world season was simulated.
+    if (!world || typeof world !== "object") return [];
+    const seasonNumber = safeNumber(season, NaN);
+    if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1) return [];
+    const clubs = world.clubs && typeof world.clubs === "object" ? world.clubs : {};
+    const players = world.players && typeof world.players === "object" ? world.players : {};
     const powerByLeagueDivision = new Map();
-    Object.values(world.clubs).forEach(club => {
+    Object.values(clubs).forEach(club => {
+      if (!club) return;
       const key = String(club.leagueId || "") + "|" + divisionForClub(club);
       const summary = powerByLeagueDivision.get(key) || { total: 0, count: 0 };
-      summary.total += Number(club.power) || 55;
+      const savedPower = safeNumber(club.power, 55);
+      summary.total += savedPower > 0 ? savedPower : 55;
       summary.count++;
       powerByLeagueDivision.set(key, summary);
     });
     const leagueStrengthFor = (leagueId, division) => {
-      const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + Number(division));
+      const divisionNumber = Math.max(1, Math.round(safeNumber(division, 1)));
+      const summary = powerByLeagueDivision.get(String(leagueId || "") + "|" + divisionNumber);
       return summary && summary.count ? Math.round(summary.total / summary.count) : 55;
     };
-    return Object.values(world.players).filter(player => player && !base.isTrueFlag(player.retired) && !base.isTrueFlag(player.freeAgent) && player.clubId && world.clubs[player.clubId]).map(player => {
-      const acc = accumulators.get(player.id) || playerAccumulator();
-      const historicalClub = world.clubs[acc.clubId || player.clubId] || null;
-      const apps = Number(acc.appearances) || 0, goals = Number(acc.goals) || 0, assists = Number(acc.assists) || 0;
-      const rating = apps ? Number((acc.ratingTotal / apps).toFixed(2)) : 0;
+    return Object.values(players).filter(player => player && !base.isTrueFlag(player.retired)
+      && !base.isTrueFlag(player.freeAgent) && player.clubId && clubs[player.clubId]).map(player => {
+      const savedAccumulator = accumulators && typeof accumulators.get === "function"
+        ? accumulators.get(player.id) : null;
+      const acc = savedAccumulator && typeof savedAccumulator === "object" && !Array.isArray(savedAccumulator)
+        ? savedAccumulator : playerAccumulator();
+      const historicalClub = clubs[acc.clubId || player.clubId] || null;
+      const apps = Math.max(0, Math.floor(safeNumber(acc.appearances, 0)));
+      const goals = Math.max(0, Math.floor(safeNumber(acc.goals, 0)));
+      const assists = Math.max(0, Math.floor(safeNumber(acc.assists, 0)));
+      const ratingTotal = Math.max(0, safeNumber(acc.ratingTotal, 0));
+      const rating = apps ? Number((clamp(ratingTotal / apps, 0, 10)).toFixed(2)) : 0;
       const leagueId = String(acc.leagueId || player.leagueId || "");
-      const leagueDivision = Number(acc.division || player.division || 1);
+      const accumulatorDivision = safeNumber(acc.division, NaN);
+      const playerDivision = safeNumber(player.division, NaN);
+      const leagueDivision = Math.max(1, Math.round(accumulatorDivision > 0
+        ? accumulatorDivision : playerDivision > 0 ? playerDivision : 1));
       const leagueStrength = leagueStrengthFor(leagueId, leagueDivision);
+      const age = safeNumber(player.age, 18) || 18;
+      const ovr = safeNumber(player.ovr, 50) || 50;
+      const potential = safeNumber(player.potential, ovr) || ovr;
+      const savedDivision = accumulatorDivision > 0 ? accumulatorDivision
+        : playerDivision > 0 ? playerDivision : 0;
+      const prestige = safeNumber(historicalClub ? historicalClub.prestige : player.prestige, 0);
       const row = {
-        id: player.id, season: Number(season), name: player.name, club: historicalClub ? historicalClub.name : "",
+        id: player.id, season: seasonNumber, name: player.name, club: historicalClub ? historicalClub.name : "",
         clubName: historicalClub ? historicalClub.name : "", clubId: acc.clubId || player.clubId || "",
         country: historicalClub ? historicalClub.country : player.country || "",
-        leagueId, division: Number(acc.division || player.division) || 0,
+        leagueId, division: Math.max(0, Math.round(savedDivision)),
         position: player.position, group: player.group || base.groupForPosition(player.position),
-        age: Number(player.age) || 18, ovr: Number(player.ovr) || 50, potential: Number(player.potential) || Number(player.ovr) || 50,
+        age, ovr, potential,
         appearances: apps, goals, assists, averageRating: rating,
         leagueStrength,
-        prestige: historicalClub ? historicalClub.prestige : player.prestige || 0,
+        prestige,
         confederation: historicalClub ? historicalClub.confederation : "",
         originConfederation: historicalClub ? historicalClub.confederation : "",
         isGenerated: !!player.isGenerated, realPlayer: !player.isGenerated,
-        score: Number((rating * 9 + goals * 0.95 + assists * 0.62 + (Number(player.ovr) || 0) * 0.08).toFixed(3)),
+        score: Number((rating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08).toFixed(3)),
         weightedGoals: Number((goals * (0.82 + (leagueStrength || 60) / 450)).toFixed(3)),
-        seasonStats: { season: Number(season), appearances: apps, goals, assists, averageRating: rating,
-          ovr: Number(player.ovr) || 50, club: historicalClub ? historicalClub.name : "", country: historicalClub ? historicalClub.country : "" }
+        seasonStats: { season: seasonNumber, appearances: apps, goals, assists, averageRating: rating,
+          ovr, club: historicalClub ? historicalClub.name : "", country: historicalClub ? historicalClub.country : "" }
       };
       row.displayStats = { appearances: apps, goals, assists, averageRating: rating };
       return row;

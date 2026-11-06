@@ -52,7 +52,7 @@ const fillRosterMarker = "  function fillRoster(world, club) {";
 const baseSeasonLinesMarker = "  function getSeasonLines(save, season, progress = 1, db) {";
 const baseCompleteSeasonMarker = "  function completeSeason(save, season, db) {";
 const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
-const expandMatchesMarker = "  function expandWorldMatches(world, matches) {";
+const expandMatchesMarker = "  function expandWorldMatches(world, matches, expectedSeason) {";
 const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
 const knockoutMarker = "  function knockout(world, season, def, participants) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";

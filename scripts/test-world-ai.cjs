@@ -55,6 +55,9 @@ const matchSeasonMarker = "  function simulateLeagueSeason(save, season, db) {";
 const competitionHistoryMarker = "  function retainCompetitionHistory(world, limit = WORLD_CLUB_CUP_CYCLE_YEARS) {";
 const knockoutMarker = "  function knockout(world, season, def, participants) {";
 const buildPlayerRowsMarker = "  function buildPlayerRows(world, season, accumulators) {";
+const weightedPickMarker = "  function weightedPick(rows, rng, purpose) {";
+const playMatchMarker = "  function playMatch(world, home, away, season, division, matchday, sequence, accumulators, competitionId, lineupCache) {";
+const tableRowMarker = "  function tableRow(club, season, leagueId, division) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 assert.ok(aiSourceRaw.includes(promotionMarker), "AI engine must retain the promotion/relegation entry point for the season-history regression guard");
 assert.ok(aiSourceRaw.includes(competitionsMarker), "AI engine must retain the continental competition selector for qualification regression coverage");
@@ -89,6 +92,9 @@ const aiSource = aiSourceRaw
   .replace(competitionHistoryMarker, "  global.__lwTestRetainCompetitionHistory = retainCompetitionHistory;\n" + competitionHistoryMarker)
   .replace(knockoutMarker, "  global.__lwTestKnockout = knockout;\n" + knockoutMarker)
   .replace(buildPlayerRowsMarker, "  global.__lwTestBuildPlayerRows = buildPlayerRows;\n" + buildPlayerRowsMarker)
+  .replace(weightedPickMarker, "  global.__lwTestWeightedPick = weightedPick;\n" + weightedPickMarker)
+  .replace(playMatchMarker, "  global.__lwTestPlayWorldMatch = playMatch;\n" + playMatchMarker)
+  .replace(tableRowMarker, "  global.__lwTestTableRow = tableRow;\n" + tableRowMarker)
   .replace(projectionCacheMarker, projectionCacheMarker)
   .replace("    if (!cached.rows.has(targetSeason)) {", "    if (!cached.rows.has(targetSeason)) {\n      global.__lwSeasonProjectionBuilds = (global.__lwSeasonProjectionBuilds || 0) + 1;");
 new vm.Script(dbSource, { filename: "public/football-world-db.js" }).runInContext(sandbox);
@@ -113,6 +119,68 @@ const retiredLineup = sandbox.window.__lwTestMakeLineup(retiredLineupWorld, {
 });
 assert.equal(retiredLineup.map(player => player.id).join(","), "active",
   "AI match lineups must exclude retired and free-agent players even when stale roster IDs remain");
+
+const hostileSavedNumber = {
+  valueOf() { throw new Error("hostile saved OVR conversion"); },
+  toString() { throw new Error("hostile saved OVR conversion"); }
+};
+const malformedMatchWorld = { players: {}, clubs: {} };
+function addMalformedMatchClub(id, power, basePower) {
+  const club = {
+    id, name: id, country: "Testland", leagueId: "malformed-match-test",
+    division: 1, power, basePower, roster: []
+  };
+  const roles = [["goalkeeper", 1], ["defender", 4], ["midfielder", 4], ["attacker", 3]];
+  roles.forEach(([group, count]) => {
+    for (let index = 0; index < count; index++) {
+      const playerId = id + "-" + group + "-" + index;
+      let ovr = 70 + (index % 4);
+      if (group === "attacker" && index === 0) ovr = hostileSavedNumber;
+      if (group === "attacker" && index === 1) ovr = [99, 100];
+      const player = {
+        id: playerId, name: playerId, clubId: id, group,
+        position: group === "goalkeeper" ? "حارس مرمى"
+          : group === "defender" ? "قلب دفاع"
+            : group === "midfielder" ? "وسط" : "مهاجم",
+        ovr, freeAgent: false, retired: false
+      };
+      if (group === "goalkeeper") player.goalkeeping = hostileSavedNumber;
+      malformedMatchWorld.players[playerId] = player;
+      club.roster.push(playerId);
+    }
+  });
+  malformedMatchWorld.clubs[id] = club;
+  return club;
+}
+const malformedHomeClub = addMalformedMatchClub("malformed-home", hostileSavedNumber, 64);
+const malformedAwayClub = addMalformedMatchClub("malformed-away", [90, 95], 60);
+const malformedHomeLineup = sandbox.window.__lwTestMakeLineup(malformedMatchWorld, malformedHomeClub);
+assert.equal(malformedHomeLineup.length, 11);
+assert.ok(malformedHomeLineup.some(player => player.id === "malformed-home-attacker-2"),
+  "a valid attacker rating must outrank malformed array/object ratings in the matchday lineup");
+const malformedWeightedPick = sandbox.window.__lwTestWeightedPick([
+  malformedMatchWorld.players["malformed-home-attacker-0"],
+  malformedMatchWorld.players["malformed-home-attacker-2"]
+], () => 0.5, "goal");
+assert.ok(malformedWeightedPick,
+  "goal-contributor weighting must fall back safely when a saved OVR is an object");
+const malformedMatchAccumulators = new Map(Object.values(malformedMatchWorld.players).map(player => [
+  player.id, { appearances: 0, goals: 0, assists: 0, ratingTotal: 0, clubId: "", leagueId: "", division: 0 }
+]));
+let malformedWorldMatch;
+assert.doesNotThrow(() => {
+  malformedWorldMatch = sandbox.window.__lwTestPlayWorldMatch(
+    malformedMatchWorld, malformedHomeClub, malformedAwayClub,
+    1, 1, 1, 1, malformedMatchAccumulators, "league", new Map()
+  );
+}, "world match simulation must tolerate malformed saved player OVR and club power values");
+assert.ok(Number.isInteger(malformedWorldMatch.homeGoals) && malformedWorldMatch.homeGoals >= 0);
+assert.ok(Number.isInteger(malformedWorldMatch.awayGoals) && malformedWorldMatch.awayGoals >= 0);
+assert.ok([...malformedMatchAccumulators.values()].every(row => Number.isFinite(row.ratingTotal)),
+  "malformed ratings must never poison generated season rating totals");
+const malformedPowerTableRow = sandbox.window.__lwTestTableRow(malformedHomeClub, 1, "test", 1);
+assert.equal(malformedPowerTableRow.power, 64,
+  "league-table tie-break power must fall back to the club's safe base power");
 
 // A stale free-agent ID must not occupy a squad slot or count toward recruitment needs.
 const staleFreeAgentRosterWorld = { players: {
@@ -2030,6 +2098,30 @@ assert.equal(typeof ai.getClubMatchProfile, "function");
 const matchProfile = ai.getClubMatchProfile(matchProfileSave, matchProfileClub.name, matchProfileClub.country, db);
 assert.equal(matchProfile.power, Number(matchProfileClub.power) || Number(matchProfileClub.basePower) || null);
 assert.equal(matchProfile.goalkeeping, 91);
+
+const malformedMatchProfileSave = {
+  ...matchProfileSave,
+  worldSimulation: JSON.parse(JSON.stringify(matchProfileSave.worldSimulation))
+};
+const malformedMatchProfileClub = Object.values(malformedMatchProfileSave.worldSimulation.clubs)
+  .find(club => club && club.id === matchProfileClub.id);
+const malformedMatchProfileKeeper = malformedMatchProfileClub.roster
+  .map(id => malformedMatchProfileSave.worldSimulation.players[id])
+  .find(player => player && player.group === "goalkeeper");
+malformedMatchProfileClub.power = hostileSavedNumber;
+malformedMatchProfileClub.basePower = 64;
+malformedMatchProfileKeeper.goalkeeping = hostileSavedNumber;
+malformedMatchProfileKeeper.ovr = [99, 100];
+const safeMalformedMatchProfile = ai.getClubMatchProfile(
+  malformedMatchProfileSave, malformedMatchProfileClub.name, malformedMatchProfileClub.country, db
+);
+assert.equal(safeMalformedMatchProfile.power, 64,
+  "club match profile must fall back to safe base power instead of coercing a hostile saved object");
+assert.equal(safeMalformedMatchProfile.goalkeeping, 55,
+  "goalkeeper profile must ignore malformed object/array ratings without inflating keeper skill");
+assert.equal(ai.getClubPower(
+  malformedMatchProfileSave, malformedMatchProfileClub.name, malformedMatchProfileClub.country, db
+), 64, "club power lookup must use the safe base-power fallback");
 
 const identityCollisionSave = {
   ...matchProfileSave,

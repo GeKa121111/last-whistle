@@ -6441,20 +6441,24 @@ function currentSeasonMatchRows(scopeFilter){
   if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value.trim());return Number.isFinite(numeric)?numeric:null;}
   return null;
  };
+ const segmentKey=value=>{
+  if(typeof value==="string")return value.trim();
+  return typeof value==="number"&&Number.isFinite(value)?String(value):"";
+ };
  const seasonValue=finitePrimitiveNumber(state&&state.season);
- const season=seasonValue!==null&&seasonValue>0?Math.floor(seasonValue):1;
+ const season=seasonValue!==null&&Number.isSafeInteger(seasonValue)&&seasonValue>0?seasonValue:1;
  const currentSegments=new Set((Array.isArray(state.leagueArchives)?state.leagueArchives:[])
   .filter(archive=>archive&&typeof archive==="object"&&!Array.isArray(archive)
    &&finitePrimitiveNumber(archive.season)===season)
-  .map(archive=>typeof archive.segmentId==="string"?archive.segmentId.trim():"").filter(Boolean));
- const activeSegmentId=typeof state.leagueSegmentId==="string"?state.leagueSegmentId.trim():"";
+  .map(archive=>segmentKey(archive.segmentId)).filter(Boolean));
+ const activeSegmentId=segmentKey(state&&state.leagueSegmentId);
  if(activeSegmentId)currentSegments.add(activeSegmentId);
  return allCareerMatchRowsForHistory().filter(row=>{
   if(!row||typeof row!=="object"||Array.isArray(row))return false;
   const rawSeason=row.season;
   const hasSeason=rawSeason!==undefined&&rawSeason!==null&&!(typeof rawSeason==="string"&&rawSeason.trim()==="");
   const savedSeason=finitePrimitiveNumber(rawSeason);
-  const segmentId=typeof row.segmentId==="string"?row.segmentId.trim():"";
+  const segmentId=segmentKey(row.segmentId);
   const segmentMatches=!!segmentId&&currentSegments.has(segmentId);
   const isSeasonLabel=typeof rawSeason==="string"&&/^\d{4}(?:[/-]\d{2,4})?$/.test(rawSeason.trim());
   const belongsToCurrentSeason=savedSeason!==null?savedSeason===season

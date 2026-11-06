@@ -4557,16 +4557,23 @@ malformedQualificationWorld.leagueTables["4"]["qualification-league-1"].push({
   clubId: malformedQualificationClubId, leagueId: "qualification-league-1",
   division: 1, rank: [1], pts: [9999], gd: Object(9999), gf: [9999], ga: [0]
 });
+const malformedQualificationDb = {
+  ...qualificationDb,
+  simulationCupDefinitions: () => [{
+    id: "test-caf-qualification", name: "Test CAF Qualification",
+    kind: "continental", confederation: "CAF", qualificationPlaces: [1, 2, 3]
+  }]
+};
 const malformedQualificationResult = sandbox.window.__lwTestSimulateCompetitions(
-  malformedQualificationWorld, 5, qualificationDb, currentQualificationStandings
+  malformedQualificationWorld, 5, malformedQualificationDb, currentQualificationStandings
 );
 const malformedQualificationTournament = malformedQualificationResult
   .find(row => row.id === "test-caf-qualification");
 assert.ok(malformedQualificationTournament, "valid continental qualification must survive malformed legacy rows");
 assert.ok(!malformedQualificationTournament.participants.includes(malformedQualificationClubId),
   "array ranks and boxed/array metrics must not steal a continental place");
-assert.ok(malformedQualificationTournament.participants.includes("qualification-1-4"),
-  "the valid fourth-place club must retain its continental place when a malformed row claims rank one");
+assert.ok(malformedQualificationTournament.participants.includes("qualification-1-3"),
+  "the valid third-place club must retain its continental place when a malformed row claims rank one");
 
 // Symbols and coercion-hostile objects in imported continental standings must fail closed, not throw.
 const hostileQualificationWorld = JSON.parse(JSON.stringify(qualificationWorld));

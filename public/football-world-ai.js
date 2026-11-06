@@ -29,6 +29,19 @@
     return Array.isArray(world && world.completedSeasons)
       && world.completedSeasons.some(value => safeNumber(value, NaN) === season);
   }
+  // Keep malformed legacy markers inert and intact without letting them coerce during sort
+  // or consume the 20-valid-season retention window.
+  function sortCompletedSeasonMarkers(values) {
+    const valid = [];
+    const invalid = [];
+    (Array.isArray(values) ? values : []).forEach((value, index) => {
+      const numeric = safeNumber(value, NaN);
+      if (Number.isSafeInteger(numeric) && numeric >= 1) valid.push({ value, numeric, index });
+      else invalid.push({ value, index });
+    });
+    valid.sort((a, b) => a.numeric - b.numeric || a.index - b.index);
+    return valid.slice(-20).map(entry => entry.value).concat(invalid.map(entry => entry.value));
+  }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
   const int = (value, fallback = 0) => Math.round(
     value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
@@ -1160,7 +1173,7 @@
     world.seasonStats[String(year)] = rows.map(row => ({ ...row, displayStats: undefined }));
     world.leagueTables[String(year)] = tables;
     world.completedSeasons.push(year);
-    world.completedSeasons = world.completedSeasons.sort((a, b) => a - b).slice(-20);
+    world.completedSeasons = sortCompletedSeasonMarkers(world.completedSeasons);
     world.lastCompletedSeason = Math.max(safeNumber(world.lastCompletedSeason, 0), year);
     world.currentSeason = year;
     return { season: year, rows, tables, alreadyCompleted: false, transfers: 0 };
@@ -1834,6 +1847,7 @@
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
     ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
+    sortCompletedSeasonMarkers,
     getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
     rememberTransferClubEndpoints, isTrueFlag
   });
@@ -3132,7 +3146,7 @@
     const sim = simulateLeagueSeason(save, year, db);
     world.completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
     if (!hasCompletedSeasonMarker(world, year)) world.completedSeasons.push(year);
-    world.completedSeasons = world.completedSeasons.sort((a, b) => a - b).slice(-20);
+    world.completedSeasons = base.sortCompletedSeasonMarkers(world.completedSeasons);
     world.lastCompletedSeason = Math.max(safeNumber(world.lastCompletedSeason, 0), year);
     world.currentSeason = year;
     return { season: year, rows: sim.rows, tables: sim.tables, matches: sim.matches,

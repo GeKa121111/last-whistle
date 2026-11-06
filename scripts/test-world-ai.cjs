@@ -2540,6 +2540,25 @@ for (const field of ["matchesBySeason", "seasonStats", "leagueTables", "competit
     "resolving a legacy career season must preserve completed historical projections: " + field);
 }
 
+// A malformed Symbol/array marker must stay inert during season completion: it cannot
+// crash numeric ordering or consume one of the 20 retained valid-season slots.
+const symbolSeasonMarkerSave = {
+  season: 8,
+  worldSimulation: JSON.parse(JSON.stringify(legacyCareerSeasonProjectionWorld))
+};
+const symbolSeasonMarkerWorld = ai.ensureState(symbolSeasonMarkerSave, archiveReplaceDb);
+const malformedArraySeasonMarker = [8];
+const malformedSymbolSeasonMarker = Symbol("invalid-completed-season");
+symbolSeasonMarkerWorld.completedSeasons = [5, malformedArraySeasonMarker, malformedSymbolSeasonMarker];
+assert.doesNotThrow(() => ai.completeSeason(symbolSeasonMarkerSave, 8, archiveReplaceDb),
+  "malformed completed-season markers must not throw while finalizing a season");
+assert.ok(symbolSeasonMarkerWorld.completedSeasons.includes(malformedArraySeasonMarker),
+  "malformed array markers must be preserved but remain invalid");
+assert.ok(symbolSeasonMarkerWorld.completedSeasons.includes(malformedSymbolSeasonMarker),
+  "malformed Symbol markers must be preserved but remain invalid");
+assert.ok(symbolSeasonMarkerWorld.completedSeasons.some(marker => marker === 8),
+  "the newly completed numeric season must still be recorded");
+
 // A catalogue refresh must not reset simulated promotion/relegation in an existing save.
 assert.equal(typeof sandbox.window.__lwTestReconcileDatabase, "function",
   "database reconciliation must be exposed to the isolated regression test");

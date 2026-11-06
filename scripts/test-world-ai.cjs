@@ -2241,17 +2241,17 @@ const strictDivisionDb = {
 const strictDivisionTables = sandbox.window.__lwTestSimulateLeagueTables(
   strictDivisionWorld, 8, 1, strictDivisionDb
 );
-assert.deepEqual((strictDivisionTables["strict-division-league"] || []).map(row => row.clubId).sort(),
+assert.deepEqual(Array.from(strictDivisionTables["strict-division-league"] || [], row => row.clubId).sort(),
   strictFirstTierIds.slice().sort(),
   "league simulation must exclude explicit malformed first-tier clubs while retaining legacy missing and numeric-string divisions");
-assert.deepEqual((strictDivisionTables["strict-division-league:2"] || []).map(row => row.clubId).sort(),
+assert.deepEqual(Array.from(strictDivisionTables["strict-division-league:2"] || [], row => row.clubId).sort(),
   strictSecondTierIds.slice().sort(),
   "league simulation must exclude explicit malformed second-tier clubs");
 const strictDivisionGroups = sandbox.window.__lwTestGroupRows(strictDivisionWorld);
-assert.deepEqual((strictDivisionGroups.get("strict-division-league:1") || []).map(club => club.id).sort(),
+assert.deepEqual(Array.from(strictDivisionGroups.get("strict-division-league:1") || [], club => club.id).sort(),
   strictFirstTierIds.slice().sort(),
   "world match grouping must use the same strict first-tier eligibility");
-assert.deepEqual((strictDivisionGroups.get("strict-division-league:2") || []).map(club => club.id).sort(),
+assert.deepEqual(Array.from(strictDivisionGroups.get("strict-division-league:2") || [], club => club.id).sort(),
   strictSecondTierIds.slice().sort(),
   "world match grouping must use the same strict second-tier eligibility");
 
@@ -2306,7 +2306,7 @@ const invalidDivisionProjectionWorld = {
 const strictProjectionRows = sandbox.window.__lwTestGetProjectedSeasonRows(
   invalidDivisionProjectionWorld, 4, strictDivisionDb
 );
-assert.deepEqual(strictProjectionRows.map(row => row.id), ["valid-projection-player"],
+assert.deepEqual(Array.from(strictProjectionRows, row => row.id), ["valid-projection-player"],
   "projected season statistics must not assign an invalid-tier club to a valid league division");
 
 const invalidDivisionStatsWorld = {

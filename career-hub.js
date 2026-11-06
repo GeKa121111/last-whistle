@@ -66,9 +66,14 @@
     if(relation<35)return {title:"حسّن التواصل مع المدرب",text:"العلاقة خارج الملعب محتاجة شغل. اختار جلسة الالتزام بدل الشكوى، وخلي الأداء في الملعب يدعم كلامك."};
     return {title:"جاهز تختار خطوتك",text:"طاقتك وإجهادك في نطاق معقول. اختار تدريبًا يناسب مركزك أو استعد للمباراة حسب جدولك."};
   }
+  function historyRowSignature(row){
+    if(!row||typeof row!=="object"||Array.isArray(row))return "-";
+    var minutes=finiteNumber(row.minutes),goals=finiteNumber(row.goals),assists=finiteNumber(row.assists);
+    var scope=typeof row.scope==="string"?row.scope:"";
+    return [minutes===null?0:minutes,scope,goals===null?0:goals,assists===null?0:assists].join(":");
+  }
   function historyTailSignature(history){
-    var row=history.length?history[history.length-1]:null;
-    return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
+    return history.length?historyRowSignature(history[history.length-1]):"-";
   }
   function stateSignature(s,revision,force){
     var history=Array.isArray(s.careerMatchHistory)?s.careerMatchHistory:[];
@@ -78,12 +83,8 @@
     if(force||revision===null||history!==lastHistoryRef||history.length!==lastHistoryLength||tail!==lastHistoryTail
       ||seasonLog!==lastSeasonLogRef||seasonLog.length!==lastSeasonLogLength||seasonTail!==lastSeasonLogTail
       ||revision!==lastHistoryRevision){
-      lastHistorySignature=history.map(function(row){
-        return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
-      }).join(",");
-      lastSeasonLogSignature=seasonLog.map(function(row){
-        return row?[Number(row.minutes)||0,String(row.scope||""),Number(row.goals)||0,Number(row.assists)||0].join(":"):"-";
-      }).join(",");
+      lastHistorySignature=history.map(historyRowSignature).join(",");
+      lastSeasonLogSignature=seasonLog.map(historyRowSignature).join(",");
       lastHistoryRef=history;lastHistoryLength=history.length;lastHistoryTail=tail;
       lastSeasonLogRef=seasonLog;lastSeasonLogLength=seasonLog.length;lastSeasonLogTail=seasonTail;
       lastHistoryRevision=revision;
@@ -131,26 +132,40 @@
     var daily=$("wellnessDailyActionLabel");
     if(daily)daily.textContent=used?"استخدمت نشاطك الجانبي اليوم: "+(s.dailyActionType||"نشاط يومي"):"النشاط الجانبي متاح النهارده";
     document.querySelectorAll('#page-wellness [data-action="coach"]').forEach(function(button){button.disabled=!!s.retired||used;});
+    var careerCount=function(value,maximum){
+      var parsed=finiteNumber(value);
+      var limit=typeof maximum==="number"&&Number.isFinite(maximum)&&maximum>=0?maximum:1000000;
+      return parsed===null?0:Math.floor(Math.max(0,Math.min(limit,parsed)));
+    };
     var normalizeHistoryRows=function(rows){
-      return (Array.isArray(rows)?rows:[]).filter(function(row){
-        return row&&typeof row==="object"&&!Array.isArray(row);
-      }).map(function(row){
-        return Object.assign({},row,{scope:row.scope||"league"});
-      });
+      return (Array.isArray(rows)?rows:[]).reduce(function(valid,row){
+        if(!row||typeof row!=="object"||Array.isArray(row))return valid;
+        var minutes=finiteNumber(row.minutes);
+        if(minutes===null||minutes<=0||minutes>120)return valid;
+        var rawScope=row.scope;
+        var scope=rawScope===undefined||rawScope===null||(typeof rawScope==="string"&&rawScope.trim()==="")
+          ?"league":typeof rawScope==="string"?rawScope.trim().toLowerCase():"";
+        if(!scope)return valid;
+        valid.push(Object.assign({},row,{
+          minutes:minutes,goals:careerCount(row.goals,20),assists:careerCount(row.assists,20),scope:scope
+        }));
+        return valid;
+      },[]);
     };
     var legacySeasonRows=normalizeHistoryRows(s.seasonLog);
     var historyRows=normalizeHistoryRows(s.careerMatchHistory);
     var combinedHistoryRows=legacySeasonRows.concat(historyRows);
     var uniqueHistoryRows=window.LWCareer&&typeof window.LWCareer.uniqueMatchRows==="function"
       ?window.LWCareer.uniqueMatchRows(combinedHistoryRows):combinedHistoryRows;
-    var careerRows=uniqueHistoryRows.filter(function(row){return row&&Number(row.minutes)>0&&row.scope!=="international";});
-    var careerMinutes=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.minutes)||0);},0);
-    var loggedGoals=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.goals)||0);},0);
-    var loggedAssists=careerRows.reduce(function(total,row){return total+Math.max(0,Number(row.assists)||0);},0);
+    var careerRows=uniqueHistoryRows.filter(function(row){return row&&row.scope!=="international";});
+    var careerMinutes=careerRows.reduce(function(total,row){return total+row.minutes;},0);
+    var loggedGoals=careerRows.reduce(function(total,row){return total+row.goals;},0);
+    var loggedAssists=careerRows.reduce(function(total,row){return total+row.assists;},0);
     var roleLabel=({"حارس مرمى":"حارس مرمى","قلب دفاع":"قلب دفاع","ظهير":"ظهير","وسط":"وسط","وسط دفاعي":"وسط دفاعي","وسط مهاجم":"وسط مهاجم","جناح":"جناح","مهاجم":"مهاجم متحرك","رأس حربة":"رأس حربة"})[String(s.pos||"")]||String(s.pos||"غير محدد");
     var roleAdvice=({"حارس مرمى":"قيّم الحارس بالتصديات والتقييمات والثبات؛ الأهداف ليست معيار مركزه.","قلب دفاع":"راقب الالتحامات والاعتراضات والتمريرات والتقييم، مش الأهداف بس.","ظهير":"السرعة واللياقة والمساهمات الهجومية مع الواجب الدفاعي أهم من عدد الأهداف وحده.","وسط":"دورك ربط الدفاع بالهجوم، وتوزيع اللعب بالتمرير والرؤية، مع المساهمة في افتكاك الكرة والحفاظ على اللياقة.","وسط دفاعي":"قيّم قطع الكرات وجودة التمرير والاستحواذ تحت الضغط بجانب التقييم.","وسط مهاجم":"الرؤية وصناعة الفرص والتمريرات الحاسمة مؤشرات أساسية بجانب التسجيل.","جناح":"تابع المراوغة والسرعة والتسديد وصناعة الفرص؛ مساهماتك التهديفية هي المقياس الهجومي الأوضح.","مهاجم":"دورك ربط الوسط بالهجوم وصناعة الفرص والتحرك بين الخطوط؛ قِس الأهداف والصناعة معًا.","رأس حربة":"دورك إنهاء الهجمة داخل المنطقة؛ تابع الأهداف والتسديدات ومعدل التسجيل لكل 90 دقيقة."})[String(s.pos||"")]||"الأداء يتقاس حسب مركز اللاعب ومساهمته في نتيجة الفريق.";
-    text("statsCareerApps",Math.max(Number(s.apps)||0,Number(s.totalCareerAppearances)||0));
-    text("statsCareerGoals",Number(s.goals)||0);text("statsCareerAssists",Number(s.assists)||0);text("statsSeasonApps",Number(s.seasonApps)||0);
+    text("statsCareerApps",Math.max(careerCount(s.apps,1000000),careerCount(s.totalCareerAppearances,1000000)));
+    text("statsCareerGoals",careerCount(s.goals,10000000));text("statsCareerAssists",careerCount(s.assists,10000000));
+    text("statsSeasonApps",careerCount(s.seasonApps,1000000));
     text("statsGoalsPer90",careerMinutes>0?(loggedGoals*90/careerMinutes).toFixed(2):"0.00");
     text("statsAssistsPer90",careerMinutes>0?(loggedAssists*90/careerMinutes).toFixed(2):"0.00");
     text("statsMinutesPerAppearance",careerRows.length?Math.round(careerMinutes/careerRows.length):0);

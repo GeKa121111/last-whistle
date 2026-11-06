@@ -4666,6 +4666,54 @@ assert.ok(hostileQualificationTournament, "hostile standings must not block vali
 assert.ok(!hostileQualificationTournament.participants.includes(hostileQualificationClubId),
   "hostile rank/division values must never qualify a club");
 
+// Configured qualification places are exact ranks, not a contiguous range. Malformed
+// definition values must be ignored without coercion, and duplicate eligible ranks must
+// not award the same configured place twice.
+const duplicateRankQualificationWorld = JSON.parse(JSON.stringify(qualificationWorld));
+const duplicateRankQualificationClubId = "qualification-1-duplicate-rank-one";
+duplicateRankQualificationWorld.clubs[duplicateRankQualificationClubId] = {
+  id: duplicateRankQualificationClubId, name: "Duplicate Rank Qualification Club",
+  leagueId: "qualification-league-1", country: "Qualification Country 1",
+  confederation: "CAF", division: 1, power: 99, roster: []
+};
+duplicateRankQualificationWorld.leagueTables["4"]["qualification-league-1"].push({
+  clubId: duplicateRankQualificationClubId, leagueId: "qualification-league-1",
+  division: 1, rank: 1, pts: 10000, gf: 10000, ga: 0
+});
+const preciseQualificationDb = {
+  ...qualificationDb,
+  simulationCupDefinitions: () => [{
+    id: "test-caf-qualification", name: "Test CAF Qualification",
+    kind: "continental", confederation: "CAF",
+    qualificationPlaces: [1, Symbol("invalid-place"), [3],
+      { valueOf() { throw new Error("unsafe qualification-place coercion"); } }, 3]
+  }]
+};
+let preciseQualificationResult;
+assert.doesNotThrow(() => {
+  preciseQualificationResult = sandbox.window.__lwTestSimulateCompetitions(
+    duplicateRankQualificationWorld, 5, preciseQualificationDb, currentQualificationStandings
+  );
+}, "malformed configured qualification places must be ignored without coercion");
+const preciseQualificationTournament = preciseQualificationResult
+  .find(row => row.id === "test-caf-qualification");
+assert.ok(preciseQualificationTournament,
+  "valid exact qualification places must still produce the continental tournament");
+assert.equal(preciseQualificationTournament.participants.length, 7,
+  "only unique eligible rank-one/rank-three places across the four leagues should qualify");
+assert.ok(preciseQualificationTournament.participants.includes("qualification-1-3"),
+  "the explicitly configured third place must qualify even when second place is not configured");
+assert.ok(!preciseQualificationTournament.participants.includes("qualification-1-2"),
+  "an unconfigured second place must not be substituted for third place");
+assert.ok(!preciseQualificationTournament.participants.includes("qualification-1-1")
+  && !preciseQualificationTournament.participants.includes(duplicateRankQualificationClubId),
+  "ambiguous duplicate eligible rank-one rows must not award either club the same slot");
+for (const leagueIndex of [2, 3, 4]) {
+  assert.ok(preciseQualificationTournament.participants.includes("qualification-" + leagueIndex + "-1"));
+  assert.ok(preciseQualificationTournament.participants.includes("qualification-" + leagueIndex + "-3"));
+  assert.ok(!preciseQualificationTournament.participants.includes("qualification-" + leagueIndex + "-2"));
+}
+
 assert.equal(Object.keys(qualificationWorld.players).length, 0,
   "continental qualification must not fabricate player records");
  

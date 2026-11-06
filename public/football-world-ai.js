@@ -1239,8 +1239,8 @@
 
   function getProjectedSeasonRows(world, targetSeason, db) {
     const signature = [
-      int(world.projectionRevision, 0), int(world.dbVersion, 0), int(world.rosterSchemaVersion, 0),
-      int(world.currentSeason, 1), int(world.lastAdvancedTo, 0), int(world.lastCompletedSeason, 0),
+      int(world.projectionRevision, 0), int(world.dbVersion, 0), safeNumber(safeWorldOwnValue(world, "rosterSchemaVersion"), 0),
+      int(world.currentSeason, 1), safeNumber(safeWorldOwnValue(world, "lastAdvancedTo"), 0), int(world.lastCompletedSeason, 0),
       int(world.transferSequence, 0), Object.keys(world.players || {}).length, Object.keys(world.clubs || {}).length
     ].join("|");
     let cached = seasonProjectionCache.get(world);
@@ -1989,7 +1989,7 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const lastAdvancedTo = Math.max(0, safeNumber(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
     const currentSeason = Math.max(1, int(world.currentSeason, 1));
     if (lastAdvancedTo >= next || currentSeason > next) {
       const stableSeason = Math.max(currentSeason, lastAdvancedTo);
@@ -2001,7 +2001,7 @@
     developPlayers(world, previous);
     const moves = runTransferWindow(world, next);
     world.currentSeason = next;
-    world.lastAdvancedTo = next;
+    safeWorldSetField(world, "lastAdvancedTo", next);
     world.notes.unshift({ season: next, type: "market", text: moves.length
       ? "أندية اللعبة نفذت " + moves.length + " انتقالًا بناءً على احتياجات التشكيل والإمكانات والميزانية."
       : "انتهت نافذة الانتقالات بمحاولات محدودة؛ الأندية انتظرت لاعبين يناسبوا احتياجاتها." });
@@ -3675,7 +3675,7 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = base.ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
-    const lastAdvancedTo = Math.max(0, int(world.lastAdvancedTo, 0));
+    const lastAdvancedTo = Math.max(0, safeNumber(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
     const currentSeason = Math.max(1, int(world.currentSeason, 1));
     // A stale request must never replay a market for an older season.
     if (lastAdvancedTo > next || currentSeason > next) return base.advanceToSeason(save, next, db);
@@ -3761,8 +3761,8 @@
       season, int(save.season, 1), int(save.seasonAppsTarget, 0),
       String(save.leagueCountry || ""), String(save.clubName || ""), int(save.leagueDivision, 0),
       int(world.dbVersion, 0), int(world.projectionRevision, 0),
-      int(world.rosterSchemaVersion, 0), int(world.rosterMembershipSchemaVersion, 0),
-      int(world.lastAdvancedTo, 0), int(world.lastCompletedSeason, 0),
+      safeNumber(safeWorldOwnValue(world, "rosterSchemaVersion"), 0), safeNumber(safeWorldOwnValue(world, "rosterMembershipSchemaVersion"), 0),
+      safeNumber(safeWorldOwnValue(world, "lastAdvancedTo"), 0), int(world.lastCompletedSeason, 0),
       Object.keys(world.clubs || {}).length,
       Object.keys(world.players || {}).length, (world.completedSeasons || []).length,
       Object.keys(matchesBySeason).length, Array.isArray(currentMatches) ? currentMatches.length : -1,

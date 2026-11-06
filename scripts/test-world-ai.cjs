@@ -5989,6 +5989,8 @@ assert.strictEqual(throwingSchemaResult, throwingSchemaAccessorFixture.world,
   "throwing schema metadata getters must not trigger a replacement world");
 assert.strictEqual(throwingSchemaResult.players["schema-guard-player"], throwingSchemaAccessorFixture.player,
   "throwing schema metadata getters must preserve existing player records");
+assert.doesNotThrow(() => ai.dashboard(throwingSchemaAccessorFixture.save, schemaGuardDb),
+  "dashboard and projection-cache reads must remain safe after loading getter-only schema metadata");
 ["schemaVersion", "lastAdvancedTo", "rosterSchemaVersion", "rosterMembershipSchemaVersion"]
   .forEach(field => {
     const descriptor = Object.getOwnPropertyDescriptor(throwingSchemaResult, field);

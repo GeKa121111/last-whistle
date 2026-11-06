@@ -1953,8 +1953,7 @@
     const groups = new Map();
     Object.values(world.clubs || {}).forEach(club => {
       if (!club || !club.leagueId) return;
-      // Keep legacy saves consistent with addClub and simulateLeagueTables:
-      // an absent/invalid division is the first tier, not a reason to omit the club.
+      // Missing legacy divisions remain first-tier compatible; explicit malformed tiers are excluded.
       const division = divisionForClub(club);
       if (division < 1 || division > 2) return;
       const key = String(club.leagueId) + ":" + String(division);

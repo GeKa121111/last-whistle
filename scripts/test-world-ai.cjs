@@ -159,9 +159,15 @@ function addMalformedMatchClub(id, power, basePower) {
 const malformedHomeClub = addMalformedMatchClub("malformed-home", hostileSavedNumber, 64);
 const malformedAwayClub = addMalformedMatchClub("malformed-away", [90, 95], 60);
 const malformedHomeLineup = sandbox.window.__lwTestMakeLineup(malformedMatchWorld, malformedHomeClub);
+const malformedAwayLineup = sandbox.window.__lwTestMakeLineup(malformedMatchWorld, malformedAwayClub);
 assert.equal(malformedHomeLineup.length, 11);
+assert.equal(malformedAwayLineup.length, 11);
 assert.ok(malformedHomeLineup.some(player => player.id === "malformed-home-attacker-2"),
   "a valid attacker rating must outrank malformed array/object ratings in the matchday lineup");
+const malformedLineupCache = new Map([
+  [malformedHomeClub.id, malformedHomeLineup],
+  [malformedAwayClub.id, malformedAwayLineup]
+]);
 const malformedWeightedPick = sandbox.window.__lwTestWeightedPick([
   malformedMatchWorld.players["malformed-home-attacker-0"],
   malformedMatchWorld.players["malformed-home-attacker-2"]
@@ -175,7 +181,7 @@ let malformedWorldMatch;
 assert.doesNotThrow(() => {
   malformedWorldMatch = sandbox.window.__lwTestPlayWorldMatch(
     malformedMatchWorld, malformedHomeClub, malformedAwayClub,
-    1, 1, 1, 1, malformedMatchAccumulators, "league", new Map()
+    1, 1, 1, 1, malformedMatchAccumulators, "league", malformedLineupCache
   );
 }, "world match simulation must tolerate malformed saved player OVR and club power values");
 assert.ok(Number.isInteger(malformedWorldMatch.homeGoals) && malformedWorldMatch.homeGoals >= 0);

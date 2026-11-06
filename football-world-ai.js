@@ -25,6 +25,21 @@
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
   }
+  // Persisted standings may contain arrays, boxed numbers, Symbols, or hostile objects.
+  // Only primitive numeric values and numeric strings are valid table metrics.
+  function hasStandingValue(value) {
+    return value !== null && value !== undefined
+      && !(typeof value === "string" && value.trim() === "");
+  }
+  function safeStandingText(value) {
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return "";
+  }
+  function safeStandingRank(value) {
+    const numeric = safeNumber(value, NaN);
+    return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+  }
   const clamp = (value, min, max) => Math.max(min, Math.min(max, safeNumber(value, 0)));
   const int = (value, fallback = 0) => Math.round(
     value === null || (typeof value === "string" && value.trim() === "") ? 0 : safeNumber(value, fallback)
@@ -2520,6 +2535,12 @@
       if (!Array.isArray(row.participants)) return false;
       return row.participants.some(participantId => String(participantId || "").trim() === id);
     };
+    const standingPoints = row => safeNumber(row && row.pts, 0);
+    const standingGoalDifference = row => {
+      const saved = safeNumber(row && row.gd, NaN);
+      return Number.isFinite(saved) ? saved
+        : safeNumber(row && row.gf, 0) - safeNumber(row && row.ga, 0);
+    };
     definitions.forEach(def => {
       if (!def || !def.id) return;
       let participants = [];
@@ -2555,34 +2576,39 @@
             }
           } catch (_) { profile = null; }
           const rankedRows = rows.map((row, index) => {
-            const savedRank = Number(row && row.rank);
-            return { row, rank: Number.isInteger(savedRank) && savedRank > 0 ? savedRank : index + 1 };
+            const savedRank = safeStandingRank(row && row.rank);
+            return { row, rank: savedRank || index + 1 };
           }).filter(entry => entry.rank >= slotStart)
             .sort((a, b) => a.rank - b.rank
-              || Number(b.row && b.row.pts || 0) - Number(a.row && a.row.pts || 0)
-              || (Number(b.row && b.row.gf || 0) - Number(b.row && b.row.ga || 0))
-                - (Number(a.row && a.row.gf || 0) - Number(a.row && a.row.ga || 0))
-              || String(a.row && a.row.clubId || "").localeCompare(String(b.row && b.row.clubId || "")));
+              || standingPoints(b.row) - standingPoints(a.row)
+              || standingGoalDifference(b.row) - standingGoalDifference(a.row)
+              || safeStandingText(a.row && a.row.clubId).localeCompare(safeStandingText(b.row && b.row.clubId)));
           const seenLeagueClubIds = new Set();
           let filledSlots = 0;
           for (const entry of rankedRows) {
             if (filledSlots >= slotCount) break;
             const row = entry.row || {};
-            const clubId = String(row.clubId || "");
+            const clubId = safeStandingText(row.clubId);
             if (!clubId || seenLeagueClubIds.has(clubId)) continue;
             const club = world.clubs && world.clubs[clubId];
             if (!club || String(club.leagueId || "") !== leagueId || divisionForClub(club) !== 1
               || String(club.confederation || "") !== String(def.confederation || "")) continue;
-            if (row.leagueId != null && String(row.leagueId).trim() && String(row.leagueId).trim() !== leagueId) continue;
-            if (row.division != null && String(row.division).trim() && Number(row.division) !== 1) continue;
+            if (hasStandingValue(row.leagueId)) {
+              const rowLeagueId = safeStandingText(row.leagueId);
+              if (!rowLeagueId || rowLeagueId !== leagueId) continue;
+            }
+            if (hasStandingValue(row.division)) {
+              const rowDivision = safeNumber(row.division, NaN);
+              if (!Number.isInteger(rowDivision) || rowDivision !== 1) continue;
+            }
             seenLeagueClubIds.add(clubId);
             filledSlots++;
             candidates.push({
               club, rank: entry.rank,
-              globalTier: Number(profile && profile.globalTier) || 99,
-              leagueStrength: Number(profile && profile.strength) || 0,
-              points: Number(row.pts) || 0,
-              goalDifference: Number(row.gd) || (Number(row.gf || 0) - Number(row.ga || 0))
+              globalTier: safeNumber(profile && profile.globalTier, 99) || 99,
+              leagueStrength: safeNumber(profile && profile.strength, 0),
+              points: standingPoints(row),
+              goalDifference: standingGoalDifference(row)
             });
           }
         }
@@ -2608,19 +2634,26 @@
           const leagueRows = Array.isArray(previousTables[leagueId]) ? previousTables[leagueId] : [];
           // Legacy tables may omit rank, but an explicit rank must never let a stale or
           // cross-league club claim the domestic supercup place.
-          const hasLeagueRowRanks = leagueRows.some(row => row && row.rank != null && String(row.rank).trim() !== "");
+          const hasLeagueRowRanks = leagueRows.some(row => row && hasStandingValue(row.rank));
           const leagueClubAtRank = rank => {
             const candidates = hasLeagueRowRanks
-              ? leagueRows.filter(row => row && Number(row.rank) === rank)
+              ? leagueRows.filter(row => row && safeStandingRank(row.rank) === rank)
               : [leagueRows[rank - 1]];
             return candidates.map(row => {
               if (!row) return null;
-              const club = world.clubs && world.clubs[row.clubId];
+              const clubId = safeStandingText(row.clubId);
+              if (!clubId) return null;
+              const club = world.clubs && world.clubs[clubId];
               const clubDivision = divisionForClub(club);
               if (!club || String(club.leagueId || "") !== leagueId || clubDivision !== 1) return null;
-              const rowLeagueId = String(row.leagueId || "").trim();
-              if (rowLeagueId && rowLeagueId !== leagueId) return null;
-              if (row.division != null && String(row.division).trim() !== "" && Number(row.division) !== 1) return null;
+              if (hasStandingValue(row.leagueId)) {
+                const rowLeagueId = safeStandingText(row.leagueId);
+                if (!rowLeagueId || rowLeagueId !== leagueId) return null;
+              }
+              if (hasStandingValue(row.division)) {
+                const rowDivision = safeNumber(row.division, NaN);
+                if (!Number.isInteger(rowDivision) || rowDivision !== 1) return null;
+              }
               return club;
             }).find(Boolean) || null;
           };

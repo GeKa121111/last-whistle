@@ -2145,13 +2145,16 @@ const malformedMatchProfileSave = {
 };
 const malformedMatchProfileClub = Object.values(malformedMatchProfileSave.worldSimulation.clubs)
   .find(club => club && club.id === matchProfileClub.id);
-const malformedMatchProfileKeeper = malformedMatchProfileClub.roster
+const malformedMatchProfileKeepers = malformedMatchProfileClub.roster
   .map(id => malformedMatchProfileSave.worldSimulation.players[id])
-  .find(player => player && player.group === "goalkeeper");
+  .filter(player => player && (player.group === "goalkeeper" || /حارس/.test(String(player.position || ""))));
 malformedMatchProfileClub.power = hostileSavedNumber;
 malformedMatchProfileClub.basePower = 64;
-malformedMatchProfileKeeper.goalkeeping = hostileSavedNumber;
-malformedMatchProfileKeeper.ovr = [99, 100];
+assert.ok(malformedMatchProfileKeepers.length > 0, "the malformed profile fixture must contain goalkeepers");
+malformedMatchProfileKeepers.forEach(player => {
+  player.goalkeeping = hostileSavedNumber;
+  player.ovr = [99, 100];
+});
 const safeMalformedMatchProfile = ai.getClubMatchProfile(
   malformedMatchProfileSave, malformedMatchProfileClub.name, malformedMatchProfileClub.country, db
 );

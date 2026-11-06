@@ -65,6 +65,10 @@ const playMatchMarker = "  function playMatch(world, home, away, season, divisio
 const tableRowMarker = "  function tableRow(club, season, leagueId, division) {";
 const projectionCacheMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 const divisionNormalizerMarker = "  function normalizeClubDivision(value, missingFallback = 1) {";
+const safeWorldIdentifierMarker = "  function safeWorldIdentifier(value) {";
+const matchLookupMarker = "  function buildLeagueMatchCountLookup(world, db) {";
+const ensureStateMarker = "  function ensureState(save, db) {";
+const leagueStrengthMarker = "  function leagueStrength(world, leagueId, division, strengthByLeague) {";
 const leagueTablesMarker = "  function simulateLeagueTables(world, season, progress = 1, db, suppliedMatchesByClub) {";
 const projectedRowsMarker = "  function getProjectedSeasonRows(world, targetSeason, db) {";
 const groupRowsMarker = "  function groupRows(world) {";
@@ -83,10 +87,18 @@ assert.ok(aiSourceRaw.includes(knockoutMarker), "AI engine must retain the knock
 assert.ok(aiSourceRaw.includes(buildPlayerRowsMarker), "AI engine must retain the shared season row builder for retired-player regression coverage");
 assert.ok(aiSourceRaw.includes(projectionCacheMarker), "AI engine must retain cached projection generation for performance regression coverage");
 assert.ok(aiSourceRaw.includes(divisionNormalizerMarker), "AI engine must validate explicit club divisions without coercion");
+assert.ok(aiSourceRaw.includes(safeWorldIdentifierMarker), "AI engine must read saved world identifiers without coercion");
+assert.ok(aiSourceRaw.includes(matchLookupMarker), "AI engine must retain the league match-count index");
+assert.ok(aiSourceRaw.includes(ensureStateMarker), "AI engine must validate saved-state league IDs safely");
+assert.ok(aiSourceRaw.includes(leagueStrengthMarker), "AI engine must retain safe league-strength lookup");
 assert.ok(aiSourceRaw.includes(leagueTablesMarker), "AI engine must retain league table simulation for strict division regression coverage");
 assert.ok(aiSourceRaw.includes(projectedRowsMarker), "AI engine must retain projected season generation for strict division regression coverage");
 assert.ok(aiSourceRaw.includes(groupRowsMarker), "AI engine must retain world match grouping for strict division regression coverage");
 const aiSource = aiSourceRaw
+  .replace(safeWorldIdentifierMarker, "  global.__lwTestSafeWorldIdentifier = safeWorldIdentifier;\n" + safeWorldIdentifierMarker)
+  .replace(matchLookupMarker, "  global.__lwTestBuildLeagueMatchCountLookup = buildLeagueMatchCountLookup;\n" + matchLookupMarker)
+  .replace(ensureStateMarker, "  global.__lwTestEnsureState = ensureState;\n" + ensureStateMarker)
+  .replace(leagueStrengthMarker, "  global.__lwTestLeagueStrength = leagueStrength;\n" + leagueStrengthMarker)
   .replace(divisionNormalizerMarker, "  global.__lwTestNormalizeClubDivision = normalizeClubDivision;\n" + divisionNormalizerMarker)
   .replace(leagueTablesMarker, "  global.__lwTestSimulateLeagueTables = simulateLeagueTables;\n" + leagueTablesMarker)
   .replace(projectedRowsMarker, "  global.__lwTestGetProjectedSeasonRows = getProjectedSeasonRows;\n" + projectedRowsMarker)
@@ -2321,6 +2333,104 @@ assert.deepEqual(Array.from(strictDivisionGroups.get("strict-division-league:1")
 assert.deepEqual(Array.from(strictDivisionGroups.get("strict-division-league:2") || [], club => club.id).sort(),
   strictSecondTierIds.slice().sort(),
   "world match grouping must use the same strict second-tier eligibility");
+
+
+// Malformed world identifiers must not collapse valid clubs into duplicate map keys
+// or abort league schedules, match-count indexing, strength calculations, or state validation.
+const hostileWorldIdentifier = {
+  toString() { throw new Error("hostile world identifier coercion"); }
+};
+assert.equal(sandbox.window.__lwTestSafeWorldIdentifier(hostileWorldIdentifier), "",
+  "object identifiers must be rejected without invoking toString");
+assert.equal(sandbox.window.__lwTestSafeWorldIdentifier(42), "42",
+  "finite numeric identifiers remain compatible");
+const safeWorldIdentifierFixture = { clubs: {} };
+const makeSafeWorldIdClub = (id, name) => ({
+  id, name, country: "Testland", leagueId: "safe-world-id-league",
+  division: 1, power: 60, basePower: 60, prestige: 50,
+  matchesPerSeason: 10, roster: []
+});
+safeWorldIdentifierFixture.clubs["alias-before-canonical"] =
+  makeSafeWorldIdClub("safe-world-id-1", "Stale Alias Club 1");
+safeWorldIdentifierFixture.clubs["safe-world-id-1"] =
+  makeSafeWorldIdClub("safe-world-id-1", "Canonical Club 1");
+for (let index = 2; index <= 6; index++) {
+  const id = "safe-world-id-" + index;
+  safeWorldIdentifierFixture.clubs[id] = makeSafeWorldIdClub(id, "Canonical Club " + index);
+}
+safeWorldIdentifierFixture.clubs["legacy-key-club"] = {
+  name: "Legacy Key Club", country: "Testland", leagueId: "safe-world-id-league",
+  division: 1, power: 60, basePower: 60, prestige: 50, matchesPerSeason: 10, roster: []
+};
+safeWorldIdentifierFixture.clubs["hostile-world-club-id"] = {
+  id: hostileWorldIdentifier, name: "Hostile Club ID", country: "Testland",
+  leagueId: "safe-world-id-league", division: 1, matchesPerSeason: 10, roster: []
+};
+safeWorldIdentifierFixture.clubs["hostile-world-league-id"] = {
+  id: "hostile-world-league-id", name: "Hostile League ID", country: "Testland",
+  leagueId: hostileWorldIdentifier, division: 1, matchesPerSeason: 10, roster: []
+};
+const safeWorldIdDb = { leagueFor: () => ({ teamCount: 0 }) };
+const safeWorldIdMatchLookup = sandbox.window.__lwTestBuildLeagueMatchCountLookup(
+  safeWorldIdentifierFixture, safeWorldIdDb
+);
+assert.equal(safeWorldIdMatchLookup.size, 7,
+  "match-count lookup must index only unique clubs with safe IDs and league IDs");
+assert.ok(safeWorldIdMatchLookup.has("legacy-key-club"),
+  "a genuinely missing legacy club.id may safely fall back to its dictionary key");
+assert.ok(!safeWorldIdMatchLookup.has("hostile-world-club-id")
+  && !safeWorldIdMatchLookup.has("hostile-world-league-id"),
+  "malformed club and league identifiers must not enter match-count indexes");
+const safeWorldIdTables = sandbox.window.__lwTestSimulateLeagueTables(
+  safeWorldIdentifierFixture, 9, 1, safeWorldIdDb, safeWorldIdMatchLookup
+);
+const safeWorldIdRows = safeWorldIdTables["safe-world-id-league"] || [];
+assert.equal(safeWorldIdRows.length, 7,
+  "league simulation must retain valid clubs while excluding malformed identifiers");
+assert.equal(safeWorldIdRows.filter(row => row.clubId === "safe-world-id-1").length, 1,
+  "duplicate dictionary aliases must not create duplicate standings rows");
+assert.equal(safeWorldIdRows.find(row => row.clubId === "safe-world-id-1").club, "Canonical Club 1",
+  "the canonical dictionary key must win over a stale alias");
+assert.ok(safeWorldIdRows.every(row => row.played === 10),
+  "all valid clubs must receive the same configured match count");
+assert.equal(sandbox.window.__lwTestLeagueStrength(
+  safeWorldIdentifierFixture, "safe-world-id-league", 1, new Map()
+), 60, "league strength must average only clubs with valid identifiers");
+assert.equal((sandbox.window.__lwTestGroupRows(safeWorldIdentifierFixture)
+  .get("safe-world-id-league:1") || []).length, 7,
+  "world match grouping must use the same safe club/league identifier index");
+
+const hostileEnsureStateIdentifier = {
+  toString() { throw new Error("hostile saved league identifier coercion"); }
+};
+const hostileEnsureStateWorld = {
+  schemaVersion: 1, dbVersion: 1, currentSeason: 5, lastAdvancedTo: 0,
+  lastCompletedSeason: 4, rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5,
+  clubs: {
+    "ensure-safe-club": {
+      id: "ensure-safe-club", name: "Ensure Safe Club", leagueId: "ensure-safe-league",
+      division: 1, roster: []
+    },
+    "ensure-hostile-league-club": {
+      id: "ensure-hostile-league-club", name: "Ensure Hostile League Club",
+      leagueId: hostileEnsureStateIdentifier, division: 1, roster: []
+    }
+  },
+  players: {}, completedSeasons: [], seasonStats: {}, leagueTables: {},
+  transfers: [], marketReports: [], playerHistory: {}, notes: [],
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0
+};
+const hostileEnsureStateSave = { season: 5, worldSimulation: hostileEnsureStateWorld };
+const hostileEnsureStateDb = {
+  version: 1,
+  leagues: () => [{ id: "ensure-safe-league" }, { id: hostileEnsureStateIdentifier }]
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestEnsureState(
+  hostileEnsureStateSave, hostileEnsureStateDb
+), "ensureState must ignore malformed catalogue and saved league IDs without coercion");
+assert.strictEqual(hostileEnsureStateWorld.clubs["ensure-hostile-league-club"].leagueId,
+  hostileEnsureStateIdentifier,
+  "safe state validation must preserve malformed source values rather than rewriting saved club data");
 
 const invalidDivisionMembershipWorld = {
   clubs: {

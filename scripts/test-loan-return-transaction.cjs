@@ -67,7 +67,8 @@ function makeHarness(options = {}) {
     weeklyWage: options.stateWeeklyWage === undefined ? 900 : options.stateWeeklyWage,
     contractSeasons: options.stateContractSeasons === undefined ? 3 : options.stateContractSeasons, freeAgent: false,
     contractType: "professional", role: "بديل",
-    transferCooldown: 0, pendingTransfer: { club: "Next FC" },
+    transferCooldown: options.transferCooldown === undefined ? 0 : options.transferCooldown,
+    pendingTransfer: { club: "Next FC" },
     transferHistory: [], leagueArchives: [],
     contractOffer: { club: "Parent FC", season: 4, wage: 900, seasons: 3 },
     loan: {
@@ -230,6 +231,24 @@ function makeHarness(options = {}) {
   assert.equal(h.state.loan, null);
   assert.equal(originalLoan.parentContractType.toString, 1,
     "the malformed source contract metadata must remain untouched");
+}
+
+{
+  const hostileNumber = JSON.parse('{"toString":1,"valueOf":1}');
+  for (const invalidParent of [false, true]) {
+    const h = makeHarness({ invalidParent, transferCooldown: hostileNumber });
+    let returned;
+    assert.doesNotThrow(() => { returned = h.sandbox.runReturnFromLoan(); },
+      "loan return must not coerce malformed transfer-cooldown state");
+    assert.equal(returned, true,
+      "a malformed cooldown must not block a valid return or legacy free-agent recovery");
+    assert.equal(h.state.transferCooldown, 7,
+      "a malformed cooldown must fall back to the safe post-transfer minimum");
+  }
+  const legacyCooldown = makeHarness({ transferCooldown: "12" });
+  assert.equal(legacyCooldown.sandbox.runReturnFromLoan(), true);
+  assert.equal(legacyCooldown.state.transferCooldown, 12,
+    "finite numeric-string cooldowns from older saves must remain supported");
 }
 
 {

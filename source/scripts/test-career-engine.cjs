@@ -913,7 +913,7 @@ assert.ok(rootHtml.includes('const parentFreeAgent=normalizeSavedBooleanFlag(l.p
   && rootHtml.includes('state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;')
   && rootHtml.includes('state.freeAgent=parentHasNoContract;'),
   "browser loan return must normalize legacy parentFreeAgent values and restore the parent contract consistently");
-assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
+assert.ok(rootHtml.includes('state.role=safeParentText(l.parentRole,safeParentText(state.role,"بديل"));'),
   "browser loan return must restore the parent club role while preserving legacy saves without it");
 assert.ok(rootHtml.includes('negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";'),
   "the contract screen must disable wage negotiation while the player is on loan");

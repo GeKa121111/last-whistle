@@ -419,5 +419,54 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "valid numeric-string fee rates must remain compatible with legacy saves");
  assert.equal(window.LWAgentRuntime.commissionRate(numericStringRateState), 0.09);
 
+ const coercionTrap = JSON.parse('{"toString":"not-callable","valueOf":"not-callable"}');
+
+ const hostileLedgerState = makeMalformedFeeState(5000);
+ hostileLedgerState.agentProfile.strategyOverride = coercionTrap;
+ hostileLedgerState.agentProfile.perks = { malformedValue: coercionTrap };
+ hostileLedgerState.agentFeeDebtLedger = [{
+   id: coercionTrap, agentId: coercionTrap, agentName: coercionTrap, reason: coercionTrap,
+   amount: "500", paid: "125", outstanding: "375", createdSeason: "3", createdDay: "4"
+ }];
+ hostileLedgerState.agentNegotiationQuote = {
+   agentId: coercionTrap, feeRate: "0.08", season: "2", calendarDay: "30"
+ };
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(hostileLedgerState),
+   "JSON-safe objects with non-callable toString fields must not crash agent state migration");
+ assert.equal(hostileLedgerState.agentProfile.strategyOverride, "",
+   "malformed strategy values must be replaced with a safe default");
+ assert.equal(hostileLedgerState.agentNegotiationQuote, null,
+   "an uncoercible saved quote agent id must be discarded safely");
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(hostileLedgerState), 375,
+   "malformed ledger labels must not erase a valid numeric debt balance");
+ assert.ok(/^agent-fee-debt-/.test(hostileLedgerState.agentFeeDebtLedger[0].id),
+   "an uncoercible legacy ledger id must receive a safe generated id");
+ assert.equal(hostileLedgerState.agentFeeDebtLedger[0].agentId, "legacy");
+ assert.equal(hostileLedgerState.agentFeeDebtLedger[0].agentName, "وكيل سابق");
+ assert.equal(hostileLedgerState.agentFeeDebtLedger[0].reason, "أتعاب وكالة غير مسددة");
+ assert.equal(hostileLedgerState.agentFeeDebtLedger[0].amount, 500);
+ assert.equal(hostileLedgerState.agentFeeDebtLedger[0].paid, 125);
+ assert.equal(hostileLedgerState.agentFeeDebtLedger[0].outstanding, 375);
+
+ const hostileProfileState = makeMalformedFeeState(5000);
+ hostileProfileState.agentProfile.id = coercionTrap;
+ hostileProfileState.agentProfile.strategyOverride = coercionTrap;
+ hostileProfileState.agentProfile.feeDebt = 250;
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(hostileProfileState),
+   "an uncoercible legacy agent profile id must not prevent loading the career");
+ assert.equal(hostileProfileState.agentProfile.id, "legacy",
+   "an unknown saved agent id must migrate to the legacy representative");
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(hostileProfileState), 250,
+   "the previous profile's outstanding debt must survive fallback to the legacy representative");
+ assert.equal(hostileProfileState.agentProfile.feeDebt, 250,
+   "the legacy profile must retain the migrated outstanding debt");
+
+ const prototypeAgentState = makeMalformedFeeState(5000);
+ prototypeAgentState.agentProfile.id = "__proto__";
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(prototypeAgentState),
+   "prototype keys must not be accepted as agent catalogue entries");
+ assert.equal(prototypeAgentState.agentProfile.id, "legacy",
+   "prototype-like unknown identifiers must safely fall back to the legacy agent");
+
  console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

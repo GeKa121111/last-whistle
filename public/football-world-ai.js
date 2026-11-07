@@ -1455,11 +1455,14 @@
   function ensureState(save, db) {
     if (!save || typeof save !== "object") return emptyWorld();
     let world = save.worldSimulation;
-    if (!world || typeof world !== "object" || Array.isArray(world) || safeWorldSchemaVersion(world) !== VERSION) {
+    if (!world || typeof world !== "object" || Array.isArray(world)) {
       world = seedWorld(db);
       save.worldSimulation = world;
       return world;
     }
+    // Older snapshots can be upgraded by the idempotent in-place normalizers below.
+    // A future schema marker must never cause this older client to replace the saved world.
+    const savedSchemaVersion = safeWorldSchemaVersion(world);
     // Keep a malformed archive untouched and defer normalization rather than
     // silently replacing legacy archive data with empty buckets.
     if (!ensureArchive(world)) return world;
@@ -1532,6 +1535,8 @@
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
       invalidateUnfinishedSeasonProjection(world);
     }
+    // Advance an older schema marker only after every in-place migration succeeded.
+    if (savedSchemaVersion < VERSION) safeWorldTrySetOwnValue(world, "schemaVersion", VERSION);
     return world;
   }
   function average(values) {

@@ -30,6 +30,14 @@
     if (typeof value === "boolean") return value ? "true" : "false";
     return "";
   }
+  // Career names are legacy save data. Accept primitives only so malformed
+  // JSON objects with a non-callable toString cannot break social feed creation.
+  function playerName(state, fallback) {
+    var value = state && state.name;
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return typeof fallback === "string" ? fallback : "اللاعب";
+  }
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(number(value, 0))));
@@ -417,7 +425,7 @@
     var post = addPost(state, {
       kind: "player",
       authorType: "player",
-      author: String(state.name || "أنت"),
+      author: playerName(state, "أنت"),
       avatar: "👤",
       body: body,
       sentiment: sentiment
@@ -438,7 +446,7 @@
   }
 
   function createMatchPost(state, match) {
-    var name = String(state.name || "اللاعب");
+    var name = playerName(state, "اللاعب");
     var opponent = String(match.opponent || "المنافس");
     var minutes = Math.max(0, number(match.minutes, 0) || 0);
     var rating = number(match.rating, 0) || 0;
@@ -475,7 +483,7 @@
   }
 
   function addEventPost(state, kind, item) {
-    var name = String(state.name || "اللاعب");
+    var name = playerName(state, "اللاعب");
     var title = String(item && (item.type || item.title || item.name) || "تطور جديد");
     var details = String(item && (item.text || item.outcome || item.choice) || "");
     var body = "";
@@ -521,7 +529,7 @@
     var league = String(offer.league || "الدوري المحلي");
     var role = String(offer.role || "دور لم يُحسم");
     var body = "رادار الانتقالات: " + club + " من " + country + " قدّم عرضًا رسميًا لضم "
-      + String(state.name || "اللاعب") + " في " + league + ". الدور المقترح: " + role
+      + playerName(state, "اللاعب") + " في " + league + ". الدور المقترح: " + role
       + ". العرض موجود في سوق اللعبة، والقرار لسه ما اتحسمش.";
     return addPost(state, {
       kind: "rumor", author: "رادار الانتقالات", authorType: "media", avatar: "🔁",
@@ -548,10 +556,10 @@
     var next = String(nextRole || "دور جديد");
     var improved = roleRank(next) > roleRank(previous);
     var body = improved
-      ? "تطور جديد في مسيرة " + String(state.name || "اللاعب") + ": دور اللاعب داخل الفريق ارتفع من «" + previous + "» إلى «" + next + "». الجماهير مستنية تشوف التغيير ده في دقائق اللعب."
+      ? "تطور جديد في مسيرة " + playerName(state, "اللاعب") + ": دور اللاعب داخل الفريق ارتفع من «" + previous + "» إلى «" + next + "». الجماهير مستنية تشوف التغيير ده في دقائق اللعب."
       : roleRank(next) < roleRank(previous)
-        ? "تراجع دور " + String(state.name || "اللاعب") + " داخل الفريق من «" + previous + "» إلى «" + next + "». القرار فتح نقاشًا حول فرص المشاركة في الفترة الجاية."
-        : "النادي غيّر توصيف دور " + String(state.name || "اللاعب") + " من «" + previous + "» إلى «" + next + "». تأثير القرار هيتحدد بالمشاركة والأداء.";
+        ? "تراجع دور " + playerName(state, "اللاعب") + " داخل الفريق من «" + previous + "» إلى «" + next + "». القرار فتح نقاشًا حول فرص المشاركة في الفترة الجاية."
+        : "النادي غيّر توصيف دور " + playerName(state, "اللاعب") + " من «" + previous + "» إلى «" + next + "». تأثير القرار هيتحدد بالمشاركة والأداء.";
     return addPost(state, {
       kind: "role", author: "كواليس النادي", authorType: "media", avatar: "👕",
       body: body, sentiment: improved ? 2 : roleRank(next) < roleRank(previous) ? -1 : 0
@@ -560,7 +568,7 @@
 
   function createBenchPost(state, recentMatches, unusedCount) {
     var matchCount = Array.isArray(recentMatches) ? recentMatches.length : 0;
-    var body = String(state.name || "اللاعب") + " لم يحصل على دقائق لعب في " + unusedCount
+    var body = playerName(state, "اللاعب") + " لم يحصل على دقائق لعب في " + unusedCount
       + " من آخر " + matchCount + " مباريات. تراجع المشاركة يثير تساؤلات حول دوره الحالي «"
       + String(state.role || "بديل") + "» وفرصته في اللقاء القادم.";
     return addPost(state, {

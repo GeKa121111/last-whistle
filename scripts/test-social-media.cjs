@@ -62,6 +62,77 @@ assert.equal(typeof numericStringSocialState.followers, "number",
   "numeric-string follower totals must remain compatible and become numeric before increments");
 assert.ok(numericStringSocialState.followers > 1200);
 
+// A malformed legacy name remains untouched in the career save but must not
+// break player, match, press, transfer, role, or bench stories in the social feed.
+const hostileName = JSON.parse('{"toString":1,"valueOf":1}');
+const hostileNameState = {
+  name: hostileName, careerStarted: true, retired: false, season: 2, day: 7, calendarDay: 7,
+  role: "بديل", teamChemistry: 60, followers: 1200, mediaReputation: 45,
+  professionalism: 65, coachRelationship: 60, trust: 55, morale: 60,
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: [], transferOffers: [],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "بديل", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 7, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+let hostilePlayerPost;
+assert.doesNotThrow(() => {
+  hostilePlayerPost = social.createPlayerPost(hostileNameState, "شكراً للجمهور على الدعم.");
+}, "a malformed legacy player name must not break a player-authored social post");
+assert.equal(hostilePlayerPost.ok, true);
+assert.equal(hostilePlayerPost.post.author, "أنت");
+let hostileMatchPost;
+assert.doesNotThrow(() => {
+  hostileMatchPost = social.createMatchPost(hostileNameState, {
+    opponent: "منافس الاختبار", minutes: 90, rating: 7.5, goals: 1, assists: 0, teamGoals: 1, oppGoals: 0
+  });
+}, "a malformed legacy player name must not break match-story generation");
+assert.match(hostileMatchPost.body, /اللاعب/);
+
+hostileNameState.careerMatchHistory.unshift({
+  id: "hostile-name-match", season: 2, day: 8, opponent: "منافس الاختبار",
+  teamGoals: 1, oppGoals: 0, minutes: 90, rating: 7.2, goals: 1, assists: 0
+});
+hostileNameState.pressHistory.unshift({
+  id: "hostile-name-press", season: 2, day: 8, type: "تصريح", text: "تصريح صحفي"
+});
+hostileNameState.transferOffers = [{
+  id: "hostile-name-offer", status: "pending", club: "نادي الاختبار",
+  country: "مصر", league: "الدوري المحلي", role: "أساسي"
+}];
+hostileNameState.role = "أساسي";
+assert.doesNotThrow(() => social.syncState(hostileNameState),
+  "automatic match, rumour, press and role stories must tolerate malformed legacy player names");
+const hostileKinds = new Set(hostileNameState.socialMedia.posts.map(post => post.kind));
+for (const kind of ["match", "rumor", "press", "role"]) {
+  assert.ok(hostileKinds.has(kind), "the safe-name regression must still create the " + kind + " story");
+}
+assert.strictEqual(hostileNameState.name, hostileName,
+  "social feed normalization must not overwrite or discard the original legacy name payload");
+
+const hostileBenchState = {
+  name: hostileName, careerStarted: true, retired: false, season: 3, day: 30, calendarDay: 40,
+  role: "بديل", teamChemistry: 60, followers: 500,
+  careerMatchHistory: [1, 2, 3].map(index => ({
+    id: "hostile-bench-" + index, season: 3, day: 27 + index, opponent: "منافس " + index,
+    minutes: 0, playerAvailable: false, rating: 0, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1
+  })),
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: []
+};
+const hostileBenchSocial = social.ensureState(hostileBenchState);
+hostileBenchSocial.initialized = true;
+hostileBenchSocial.lastBenchStoryCalendarDay = 1;
+hostileBenchSocial.lastBenchStoryMatchId = "previous-bench-match";
+assert.doesNotThrow(() => social.syncState(hostileBenchState),
+  "automatic bench stories must tolerate malformed legacy player names");
+const hostileBenchPost = hostileBenchState.socialMedia.posts.find(post => post.kind === "bench");
+assert.ok(hostileBenchPost, "the bench-story regression must still publish a playing-time story");
+assert.match(hostileBenchPost.body, /اللاعب/);
+assert.strictEqual(hostileBenchState.name, hostileName);
+
 const state = {
   name: "Test Player",
   careerStarted: true,

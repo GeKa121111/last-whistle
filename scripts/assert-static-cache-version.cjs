@@ -52,7 +52,7 @@ if (require.main === module) {
     ["career-experience.js", 9],
     ["career-experience.css", 2],
     ["story-mode.js", 14],
-    ["agent-system.js", 11],
+    ["agent-system.js", 12],
     ["career-hub.css", 2],
     ["career-hub.js", 5],
     ["season-objectives.js", 2],

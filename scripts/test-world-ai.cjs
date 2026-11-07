@@ -2675,7 +2675,7 @@ sandbox.window.__lwTestRememberTransferClubEndpoints(malformedPlayerClubHistoryW
 assert.deepEqual(malformedPlayerClubHistoryWorld.legacyRecoveryData["transferClubHistory:malformed-endpoint-player"],
   malformedPlayerClubHistoryPayload,
   "a malformed per-player compact history payload must be archived before the active endpoint list is replaced");
-assert.deepEqual(malformedPlayerClubHistoryWorld.transferClubHistoryByPlayer["malformed-endpoint-player"].map(row => row.clubId),
+assert.deepEqual(Array.from(malformedPlayerClubHistoryWorld.transferClubHistoryByPlayer["malformed-endpoint-player"], row => row.clubId),
   ["recovered-former-club", "recovered-current-club"],
   "new verified endpoints must still be recorded after preserving a malformed legacy payload");
 

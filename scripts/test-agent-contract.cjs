@@ -461,6 +461,39 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.equal(hostileProfileState.agentProfile.feeDebt, 250,
    "the legacy profile must retain the migrated outstanding debt");
 
+ const numericCoercionTrap = JSON.parse('{"toString":"not-callable","valueOf":"not-callable"}');
+ const hostileNumericState = makeMalformedFeeState(5000);
+ hostileNumericState.season = numericCoercionTrap;
+ hostileNumericState.day = numericCoercionTrap;
+ hostileNumericState.apps = numericCoercionTrap;
+ Object.assign(hostileNumericState.agentProfile, {
+   relationship: numericCoercionTrap,
+   hiredSeason: numericCoercionTrap,
+   signedApps: numericCoercionTrap,
+   lastChapterApps: numericCoercionTrap,
+   lastChapterSeason: numericCoercionTrap,
+   lastPerformanceMilestone: numericCoercionTrap,
+   storyStage: numericCoercionTrap,
+   contractMultiplierDelta: numericCoercionTrap,
+   negotiationRaiseBonusDelta: numericCoercionTrap
+ });
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(hostileNumericState),
+   "JSON-safe objects with non-callable numeric coercion hooks must not crash agent migration");
+ assert.equal(hostileNumericState.agentProfile.relationship, 0,
+   "an invalid explicit saved relationship must fail closed");
+ assert.equal(hostileNumericState.agentProfile.hiredSeason, 1,
+   "an invalid saved signing season must use a safe legacy fallback");
+ assert.equal(hostileNumericState.agentProfile.signedApps, 0);
+ assert.equal(hostileNumericState.agentProfile.lastChapterApps, 0);
+ assert.equal(hostileNumericState.agentProfile.lastChapterSeason, 1);
+ assert.equal(hostileNumericState.agentProfile.lastPerformanceMilestone, 0);
+ assert.equal(hostileNumericState.agentProfile.storyStage, 0);
+ assert.doesNotThrow(() => window.LWAgentRuntime.chapterProgress(hostileNumericState),
+   "story progress must remain readable when old numeric fields are malformed");
+ assert.doesNotThrow(() => window.LWAgentRuntime.contractTerms(hostileNumericState),
+   "agent contract bonuses must not coerce malformed saved deltas");
+ assert.ok(Number.isFinite(window.LWAgentRuntime.contractTerms(hostileNumericState).contractMultiplier));
+
  const prototypeAgentState = makeMalformedFeeState(5000);
  prototypeAgentState.agentProfile.id = "__proto__";
  assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(prototypeAgentState),

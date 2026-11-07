@@ -905,7 +905,7 @@
       return '<article class="lwsocial-post">' +
         '<div class="lwsocial-post-head"><span class="lwsocial-avatar">' + esc(post.avatar || "📣") + '</span><div class="lwsocial-author"><strong>' + esc(post.author || "صوت المدرج") + badge + '</strong><small>' + authorType + ' · الموسم ' + clamp(post.season, 1, 999) + ' / اليوم ' + clamp(post.day, 1, 99999) + '</small></div><span class="lwsocial-kind ' + kindClass + '">' + esc(kindLabels[kindKey] || "تفاعل") + '</span></div>' +
         '<p class="lwsocial-post-body">' + esc(post.body) + '</p>' +
-        '<div class="lwsocial-engagement"><span>♥ ' + clamp(post.likes, 0, 999999) + ' إعجاب</span><span>💬 ' + (post.comments || []).length + ' تعليق</span></div>' +
+        '<div class="lwsocial-engagement"><span>♥ ' + clamp(post.likes, 0, 999999) + ' إعجاب</span><span>💬 ' + (Array.isArray(post.comments) ? post.comments.length : 0) + ' تعليق</span></div>' +
         '<div class="lwsocial-comments">' + comments + '</div>' +
         actionHtml +
       '</article>';

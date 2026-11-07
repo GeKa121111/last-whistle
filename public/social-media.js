@@ -43,6 +43,26 @@
     var text = safeText(value, "");
     return text.trim() ? text : typeof fallback === "string" ? fallback : "";
   }
+
+  function isRenderablePost(post) {
+    return !!post && typeof post === "object" && !Array.isArray(post)
+      && typeof post.body === "string";
+  }
+
+  function validPostRows(posts) {
+    return (Array.isArray(posts) ? posts : []).filter(isRenderablePost).slice(0, MAX_POSTS);
+  }
+
+  // Keep malformed legacy rows in the save while applying the normal 80-post
+  // cap only to renderable feed entries.
+  function trimPostRows(posts) {
+    var validCount = 0;
+    return (Array.isArray(posts) ? posts : []).filter(function (post) {
+      if (!isRenderablePost(post)) return true;
+      validCount++;
+      return validCount <= MAX_POSTS;
+    });
+  }
   // Career names are legacy save data. Accept primitives only so malformed
   // JSON objects with a non-callable toString cannot break social feed creation.
   function playerName(state, fallback) {
@@ -284,10 +304,7 @@
     var social = state && state.socialMedia;
     if (!social || typeof social !== "object" || Array.isArray(social)) return { posts: [], lastReplyDay: "", nextId: 1 };
     if (!Array.isArray(social.posts)) return Object.assign({}, social, { posts: [] });
-    var posts = social.posts.filter(function (post) {
-      return post && typeof post === "object" && !Array.isArray(post)
-        && typeof post.body === "string";
-    });
+    var posts = validPostRows(social.posts);
     return posts.length === social.posts.length ? social : Object.assign({}, social, { posts: posts });
   }
 
@@ -438,7 +455,7 @@
     var social = ensureState(state);
     var post = makePost(state, options);
     social.posts.unshift(post);
-    social.posts = social.posts.slice(0, MAX_POSTS);
+    social.posts = trimPostRows(social.posts);
     return post;
   }
 
@@ -449,8 +466,8 @@
     if (body.length > 240) return { ok: false, reason: "post-too-long" };
     var social = ensureState(state);
     var today = dayKey(state);
-    var todayPosts = social.posts.filter(function (post) {
-      return post && post.authorType === "player" && keyPart(post.season) + ":" + keyPart(post.day) === today;
+    var todayPosts = validPostRows(social.posts).filter(function (post) {
+      return post.authorType === "player" && keyPart(post.season) + ":" + keyPart(post.day) === today;
     }).length;
     if (todayPosts >= 2) return { ok: false, reason: "daily-post-limit" };
 
@@ -742,7 +759,7 @@
     }
 
     if (created) {
-      social.posts = social.posts.slice(0, MAX_POSTS);
+      social.posts = trimPostRows(social.posts);
       return created;
     }
     return 0;
@@ -750,10 +767,7 @@
 
   function respond(state, postId, action) {
     var social = ensureState(state);
-    var post = social.posts.find(function (item) {
-      return item && typeof item === "object" && !Array.isArray(item)
-        && typeof item.body === "string" && item.id === postId;
-    });
+    var post = validPostRows(social.posts).find(function (item) { return item.id === postId; });
     if (!post) return { ok: false, reason: "post-not-found" };
     if (action === "like") {
       post.liked = !post.liked;

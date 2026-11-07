@@ -1463,6 +1463,8 @@
     // Older snapshots can be upgraded by the idempotent in-place normalizers below.
     // A future schema marker must never cause this older client to replace the saved world.
     const savedSchemaVersion = safeWorldSchemaVersion(world);
+    // A newer engine owns this save format. Do not let older normalizers rewrite its fields.
+    if (savedSchemaVersion > VERSION) return world;
     // Keep a malformed archive untouched and defer normalization rather than
     // silently replacing legacy archive data with empty buckets.
     if (!ensureArchive(world)) return world;

@@ -7323,7 +7323,14 @@ assert.strictEqual(deferredOlderSchemaResult, deferredOlderSchemaFixture.world,
 assert.equal(deferredOlderSchemaResult.schemaVersion, Math.max(0, ai.version - 1),
   "the schema marker must not advance when in-place migration is deferred");
 
-const futureSchemaFixture = createSchemaGuardFixture({ schemaVersion: ai.version + 1 });
+const futureSchemaFixture = createSchemaGuardFixture({
+  schemaVersion: ai.version + 1,
+  completedSeasons: { futureSeasonMarkers: [5, 6] },
+  transfers: { futureTransferRows: [{ id: "future-transfer" }] },
+  matchesBySeason: ["future-match-history"],
+  aiMetadata: ["future-ai-metadata"]
+});
+const futureSchemaSnapshot = JSON.stringify(futureSchemaFixture.world);
 const futureSchemaResult = ai.ensureState(futureSchemaFixture.save, schemaGuardDb);
 assert.strictEqual(futureSchemaResult, futureSchemaFixture.world,
   "a future world schema must not trigger a destructive world reseed");
@@ -7331,6 +7338,8 @@ assert.strictEqual(futureSchemaResult.players["schema-guard-player"], futureSche
   "loading a future world schema must preserve existing player records");
 assert.equal(futureSchemaResult.schemaVersion, ai.version + 1,
   "an older client must not downgrade a future world schema marker");
+assert.equal(JSON.stringify(futureSchemaResult), futureSchemaSnapshot,
+  "an older client must leave every field in a future-schema world unchanged");
 
 const hostileSchemaVersion = {
   toString() { throw new Error("unsafe world schema string coercion"); },

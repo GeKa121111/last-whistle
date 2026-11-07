@@ -5849,14 +5849,44 @@ function loanTo(target){
  const status=window.LWCareer?.loanTargetStatus(state,target,{cupActive:activeCupInProgress(),windowOpen:transferWindow().open,isListed})||"invalid-state";
  const messages={retired:"المسيرة انتهت بالاعتزال.","free-agent":"لا يمكن إعارة لاعب حر؛ وقّع عقدًا دائمًا أولًا.","already-loaned":"عندك إعارة نشطة بالفعل.","transfer-pending":"عندك انتقال متفق عليه ولسه ما اكتملش؛ احسمه الأول قبل الإعارة.","transfer-negotiation":"عندك مفاوضات انتقال مفتوحة؛ أنهِها أو ارفض العرض قبل طلب الإعارة.","cup-active":"تعذر تنفيذ الإعارة قبل إنهاء بطولة الكأس الحالية.","window-closed":"انتهت نافذة الإعارة؛ جرّب في فترة انتقالات جديدة.","appearances-required":"لازم تلعب مباراتين على الأقل قبل الإعارة.","invalid-target":"وجهة الإعارة غير صالحة.","same-club":"اختار ناديًا مختلفًا عن ناديك الحالي.","unlisted-target":"وجهة الإعارة لم تعد موجودة في الكتالوج الحالي."};
  if(status!=="ready"){toast(messages[status]||"تعذر تنفيذ الإعارة في الحالة الحالية.");return;}
- const hostRole=window.LWCareer?.loanSquadRole?.(state,target)||"بديل أساسي";
+ const finiteLoanNumber=value=>{
+  if(typeof value!=="number"&&typeof value!=="string")return null;
+  if(typeof value==="string"&&!value.trim())return null;
+  const numeric=Number(value);
+  return Number.isFinite(numeric)?numeric:null;
+ };
+ const loanText=(value,fallback)=>typeof value==="string"&&value.trim()?value.trim():fallback;
+ const savedTargetPower=finiteLoanNumber(target.power);
+ const lookedUpTargetPower=savedTargetPower!==null&&savedTargetPower>0?null:finiteLoanNumber(clubPowerFor(target.club.trim(),target.country.trim()));
+ const targetPowerCandidate=savedTargetPower!==null&&savedTargetPower>0?savedTargetPower
+  :lookedUpTargetPower!==null&&lookedUpTargetPower>0?lookedUpTargetPower:50;
+ const savedTargetDivision=finiteLoanNumber(target.division);
+ const normalizedTarget={
+  ...target,
+  club:target.club.trim(),
+  country:target.country.trim(),
+  league:loanText(target.league,"دوري محلي — محاكاة"),
+  division:savedTargetDivision!==null&&Number.isSafeInteger(savedTargetDivision)&&savedTargetDivision>0?savedTargetDivision:1,
+  power:Math.max(1,Math.min(100,targetPowerCandidate)),
+  source:loanText(target.source,"بيانات اللعبة"),
+  season:loanText(target.season,"2026/27")
+ };
+ const hostRole=window.LWCareer?.loanSquadRole?.(state,normalizedTarget)||"بديل أساسي";
  const previousTarget=seasonMatchTotal(),matchesAlreadyPlayed=Number(state.seasonApps)||0;
  const wasSecondHalf=state.seasonPhase==="secondHalf"||state.seasonPhase==="winterBreak"||!!state.winterBreakPending||matchesAlreadyPlayed>=Math.ceil(previousTarget/2);
  return withCareerStateTransaction("الإعارة",function(){
   archiveCupForTransfer();archiveLeagueSegment("loan");
  const original={parentClub:state.clubName,parentCountry:state.leagueCountry,parentDivision:state.leagueDivision,parentCompetition:state.leagueCompetition,parentSource:state.leagueSource,parentPower:state.clubPower,parentTier:state.clubTier,parentIndex:state.clubIndex,parentWage:state.weeklyWage,parentContractSeasons:state.contractSeasons,parentFreeAgent:state.freeAgent,parentContractType:state.contractType,parentRole:String(state.role||"بديل")};
- state.loan={...original,hostClub:target.club,hostCountry:target.country,startSeason:state.season,returnAfterSeason:state.season};
- state.clubName=target.club;state.leagueCountry=target.country;state.leagueDivision=Math.max(1,Math.floor(Number(target.division)||1));state.leagueCompetition=target.league;const loanSourceLabel=target.source==="LWWorldDB"?"قاعدة بيانات اللعبة":String(target.source||"بيانات اللعبة");state.leagueSource=`${loanSourceLabel} • ${target.season||"2026/27"}`;state.clubPower=target.power||clubPowerFor(target.club,target.country);state.clubTier=clubTierForPower(state.clubPower);state.clubIndex=state.clubTier;state.weeklyWage=Math.max(original.parentWage,Math.round(transferWage(target)*0.55));state.role=hostRole;state.trust=clamp(state.trust+3);state.daysSinceTransfer=0;state.transferCooldown=0;state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=Number(state.seasonApps)>0;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed);state.winterBreakPending=false;state.seasonPhase=wasSecondHalf?"secondHalf":"firstHalf";
+ state.loan={...original,hostClub:normalizedTarget.club,hostCountry:normalizedTarget.country,startSeason:state.season,returnAfterSeason:state.season};
+ state.clubName=normalizedTarget.club;state.leagueCountry=normalizedTarget.country;state.leagueDivision=normalizedTarget.division;state.leagueCompetition=normalizedTarget.league;const loanSourceLabel=normalizedTarget.source==="LWWorldDB"?"قاعدة بيانات اللعبة":normalizedTarget.source;state.leagueSource=`${loanSourceLabel} • ${normalizedTarget.season}`;
+ const parentWageValue=finiteLoanNumber(original.parentWage);
+ const safeParentWage=parentWageValue!==null&&parentWageValue>=0?Math.min(Number.MAX_SAFE_INTEGER,parentWageValue):0;
+ const destinationWageValue=finiteLoanNumber(transferWage(normalizedTarget));
+ const safeDestinationWage=destinationWageValue!==null&&destinationWageValue>=0?Math.min(Number.MAX_SAFE_INTEGER,destinationWageValue):250;
+ const hostTierValue=finiteLoanNumber(clubTierForPower(normalizedTarget.power));
+ const hostTier=hostTierValue!==null&&Number.isSafeInteger(hostTierValue)&&hostTierValue>=0?hostTierValue:0;
+ state.clubPower=normalizedTarget.power;state.clubTier=hostTier;state.clubIndex=hostTier;
+ state.weeklyWage=Math.min(Number.MAX_SAFE_INTEGER,Math.max(safeParentWage,Math.round(safeDestinationWage*0.55)));state.role=hostRole;state.trust=clamp(state.trust+3);state.daysSinceTransfer=0;state.transferCooldown=0;state.league=createLeague();state.leagueApps=0;state.leagueRoundIndex=0;state.leagueSegmentId="";state.leagueSegmentIsPartial=Number(state.seasonApps)>0;state.leagueRoundHistory=[];state.leagueCountrySnapshot=state.leagueCountry;state.leagueDivisionSnapshot=state.leagueDivision;state.fixtureSchedule=buildFixtureSchedule(state.league);state.seasonAppsTarget=seedDestinationLeagueProgress(previousTarget,matchesAlreadyPlayed);state.winterBreakPending=false;state.seasonPhase=wasSecondHalf?"secondHalf":"firstHalf";
  state.transferHistory.unshift({season:state.season,day:state.day,text:`إعارة لمدة موسم واحد إلى ${target.club} (${target.country}). النادي الأصلي: ${original.parentClub}. الرجوع مقرر بعد نهاية الموسم.`});log(`انتقلت إعارة إلى ${target.club} لمدة موسم واحد.`);setStory("فرصة إعارة جديدة",`انضممت مؤقتًا إلى ${target.club}. استغل الدقائق، وارجع لناديك الأصلي بمستوى أعلى.`);if(saveGame(true)===false)throw new Error("تعذر إضافة الإعارة إلى طابور الحفظ.");render();showPage("contract");toast("تم تسجيل الإعارة داخل المسيرة.");
   return true;
  });

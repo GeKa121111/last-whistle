@@ -104,6 +104,107 @@ assert.equal(secondDivisionLoan.source, "محاكاة عالم الكرة • 20
   "a loan destination must preserve its actual roster/league data source instead of being mislabeled as OpenFootball");
 assert.equal(runLoanDivisionCase(undefined).division, 1,
   "legacy loan destinations without a division must retain the first-division fallback");
+
+function runLoanMetadataCase(targetOverrides = {}, helperOverrides = {}) {
+  const target = {
+    club: "نادي اختبار الإعارة", country: "مصر", league: "الدوري الممتاز",
+    division: 2, power: 55, source: "محاكاة عالم الكرة", season: "2026/27",
+    ...targetOverrides
+  };
+  const loanState = {
+    clubName: "النادي الأصلي", leagueCountry: "مصر", leagueDivision: 1,
+    leagueCompetition: "الدوري الممتاز", leagueSource: "بيانات الاختبار",
+    clubPower: 62, clubTier: 1, clubIndex: 1, weeklyWage: 100,
+    contractSeasons: 2, freeAgent: false, role: "بديل", season: 1,
+    day: 1, calendarDay: 120, seasonApps: 10, seasonPhase: "firstHalf",
+    winterBreakPending: false, trust: 50, transferHistory: []
+  };
+  let rolePower = null;
+  let wagePower = null;
+  const sandbox = {
+    state: loanState,
+    withCareerStateTransaction: (label, operation) => operation(),
+    window: { LWCareer: {
+      loanTargetStatus: () => "ready",
+      loanSquadRole: (player, normalizedTarget) => { rolePower = normalizedTarget.power; return "أساسي"; }
+    } },
+    canAccessTransferMarket: () => true,
+    migrateLegacyPendingTransferOffer: () => null,
+    reconcileTransferNegotiation: () => false,
+    transferTargets: () => [target],
+    activeCupInProgress: () => false,
+    transferWindow: () => ({ open: true }),
+    seasonMatchTotal: () => 30,
+    archiveCupForTransfer: () => {},
+    archiveLeagueSegment: () => {},
+    clamp: value => Math.max(0, Math.min(100, Number(value) || 0)),
+    clubPowerFor: () => helperOverrides.clubPowerLookup === undefined ? 55 : helperOverrides.clubPowerLookup,
+    clubTierForPower: power => power >= 68 ? 2 : 1,
+    transferWage: normalizedTarget => {
+      wagePower = normalizedTarget.power;
+      return helperOverrides.transferWageResult === undefined ? 1000 : helperOverrides.transferWageResult;
+    },
+    createLeague: () => [],
+    buildFixtureSchedule: () => [],
+    seedDestinationLeagueProgress: () => 20,
+    log: () => {}, setStory: () => {}, saveGame: () => {},
+    render: () => {}, showPage: () => {}, toast: () => {}
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(loanToSource + "\\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo malformed metadata regression" });
+  sandbox.loanTo(target);
+  return { state: loanState, rolePower, wagePower };
+}
+
+const malformedLoanMetadata = runLoanMetadataCase({
+  division: ["2"], power: "Infinity", league: ["دوري غير صالح"],
+  source: ["LWWorldDB"], season: { year: 2026 }
+});
+assert.equal(malformedLoanMetadata.state.leagueDivision, 1,
+  "array-shaped host divisions must not be coerced into a valid loan division");
+assert.equal(malformedLoanMetadata.state.clubPower, 55,
+  "a non-finite host power must fall back to the verified club-power lookup");
+assert.equal(malformedLoanMetadata.state.clubTier, 1);
+assert.equal(malformedLoanMetadata.state.clubIndex, 1);
+assert.equal(malformedLoanMetadata.state.weeklyWage, 550,
+  "the host wage must be calculated from the normalized destination and remain finite");
+assert.equal(malformedLoanMetadata.state.leagueCompetition, "دوري محلي — محاكاة",
+  "malformed league labels must not leak into the saved career");
+assert.equal(malformedLoanMetadata.state.leagueSource, "بيانات اللعبة • 2026/27",
+  "malformed source and season metadata must use stable legacy-safe labels");
+assert.equal(malformedLoanMetadata.rolePower, 55,
+  "loan squad-role projection must receive the normalized host power");
+assert.equal(malformedLoanMetadata.wagePower, 55,
+  "loan wage calculation must receive the normalized host power");
+assert.equal(malformedLoanMetadata.state.loan.hostClub, "نادي اختبار الإعارة");
+for (const key of ["leagueDivision", "clubPower", "clubTier", "clubIndex", "weeklyWage"]) {
+  assert.equal(Number.isFinite(malformedLoanMetadata.state[key]), true,
+    "loan confirmation must leave a finite " + key + " after malformed destination metadata");
+}
+
+const numericStringLoanMetadata = runLoanMetadataCase({
+  division: "2", power: "68", league: "Premier League",
+  source: "LWWorldDB", season: "2027/28"
+});
+assert.equal(numericStringLoanMetadata.state.leagueDivision, 2,
+  "valid numeric-string host divisions must remain supported");
+assert.equal(numericStringLoanMetadata.state.clubPower, 68,
+  "valid numeric-string host power must remain supported");
+assert.equal(numericStringLoanMetadata.state.clubTier, 2);
+assert.equal(numericStringLoanMetadata.state.leagueCompetition, "Premier League");
+assert.equal(numericStringLoanMetadata.state.leagueSource, "قاعدة بيانات اللعبة • 2027/28");
+
+const invalidLoanFallbacks = runLoanMetadataCase({
+  division: "NaN", power: [], league: " ", source: {}, season: ""
+}, { clubPowerLookup: "Infinity", transferWageResult: Infinity });
+assert.equal(invalidLoanFallbacks.state.leagueDivision, 1);
+assert.equal(invalidLoanFallbacks.state.clubPower, 50,
+  "invalid saved and looked-up club powers must use the bounded neutral fallback");
+assert.equal(invalidLoanFallbacks.state.weeklyWage, 138,
+  "a non-finite destination wage must use the safe minimum estimate");
+assert.equal(invalidLoanFallbacks.state.leagueCompetition, "دوري محلي — محاكاة");
+assert.equal(invalidLoanFallbacks.state.leagueSource, "بيانات اللعبة • 2026/27");
+
 assert.ok(rootHtml.includes("state[key] = attributeValue !== null ? clamp(attributeValue, 0, 100) : 50;"),
   "the embedded browser career engine must clamp saved player attributes to the 0-100 range");
 assert.ok(rootHtml.includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -3393,5 +3494,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v619"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v620"),
  "service worker cache must be refreshed");

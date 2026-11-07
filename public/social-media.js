@@ -169,7 +169,7 @@
       window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
     }
     if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
-    owner = safeText(owner, "");
+    owner = typeof owner === "string" ? owner : "";
     if (!owner) return false;
     if (!coordinator.owner) {
       coordinator.owner = owner;

@@ -3887,6 +3887,69 @@ assert.deepEqual(removedClubIdentityCollisionWorld.transferClubHistoryByPlayer[s
 assert.equal(removedClubIdentityCollisionWorld.transferClubHistoryByPlayer[archiveReplacePlayerId], undefined,
   "legacy transfer endpoints must not migrate to the surviving player");
 
+// A unique legacy alias on a player removed with an unsupported club must be
+// archived under the authoritative player-map key, without overwriting older history.
+const removedClubUniqueLegacyHistoryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const uniqueRemovedClubId = "archive-replacement-unique-unsupported-club";
+const uniqueRemovedPlayerKey = "archive-replacement-unique-removed-player";
+const uniqueRemovedLegacyId = "archive-replacement-unique-legacy-id";
+const uniqueRemovedCanonicalHistory = [{ season: 2, type: "canonical-active-history" }];
+const uniqueRemovedLegacyHistory = [{ season: 3, type: "legacy-alias-history" }];
+const uniqueRemovedArchivedHistory = [{ season: 1, type: "previously-archived-history" }];
+const uniqueRemovedCanonicalTransfer = [{
+  clubId: "archive-replacement-earlier-club", name: "Earlier Club", country: archiveReplaceCountry
+}];
+const uniqueRemovedLegacyTransfer = [{
+  clubId: uniqueRemovedClubId, name: "Unique Unsupported Club", country: archiveReplaceCountry
+}];
+removedClubUniqueLegacyHistoryWorld.players[uniqueRemovedPlayerKey] = {
+  id: uniqueRemovedLegacyId, name: "Unique Legacy Player",
+  clubId: uniqueRemovedClubId, country: archiveReplaceCountry,
+  leagueId: "unsupported-legacy-league", division: 1, position: "مهاجم",
+  group: "attacker", age: 24, ovr: 60, potential: 65,
+  isGenerated: false, isRealPlayer: true, retired: false, freeAgent: false
+};
+removedClubUniqueLegacyHistoryWorld.clubs[uniqueRemovedClubId] = {
+  id: uniqueRemovedClubId, name: "Unique Unsupported Club",
+  country: archiveReplaceCountry, leagueId: "unsupported-legacy-league",
+  division: 1, roster: [uniqueRemovedPlayerKey]
+};
+removedClubUniqueLegacyHistoryWorld.playerHistory = {
+  [uniqueRemovedPlayerKey]: uniqueRemovedCanonicalHistory,
+  [uniqueRemovedLegacyId]: uniqueRemovedLegacyHistory
+};
+removedClubUniqueLegacyHistoryWorld.transferClubHistoryByPlayer = {
+  [uniqueRemovedPlayerKey]: uniqueRemovedCanonicalTransfer,
+  [uniqueRemovedLegacyId]: uniqueRemovedLegacyTransfer
+};
+removedClubUniqueLegacyHistoryWorld.transferClubHistorySchemaVersion = 1;
+removedClubUniqueLegacyHistoryWorld.archive = {
+  clubs: {}, players: {},
+  playerHistory: { [uniqueRemovedPlayerKey]: uniqueRemovedArchivedHistory },
+  seasonStats: {}, leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  removedClubUniqueLegacyHistoryWorld, removedClubIdentityCollisionDb
+), "removing a player with a unique legacy ID must archive its history safely");
+assert.equal(removedClubUniqueLegacyHistoryWorld.players[uniqueRemovedPlayerKey], undefined,
+  "the unsupported-club player must leave the active player map");
+assert.equal(removedClubUniqueLegacyHistoryWorld.archive.players[uniqueRemovedPlayerKey].id,
+  uniqueRemovedLegacyId, "the archived player record must retain its original internal ID");
+assert.deepEqual(removedClubUniqueLegacyHistoryWorld.archive.playerHistory[uniqueRemovedPlayerKey],
+  uniqueRemovedArchivedHistory.concat(uniqueRemovedCanonicalHistory, uniqueRemovedLegacyHistory),
+  "existing archived, canonical, and unique legacy career history must all be preserved");
+assert.equal(removedClubUniqueLegacyHistoryWorld.playerHistory[uniqueRemovedPlayerKey], undefined,
+  "canonical history must leave the active map after successful archival");
+assert.equal(removedClubUniqueLegacyHistoryWorld.playerHistory[uniqueRemovedLegacyId], undefined,
+  "a unique legacy history alias must leave the active map after successful archival");
+assert.deepEqual(removedClubUniqueLegacyHistoryWorld.transferClubHistoryByPlayer[uniqueRemovedPlayerKey],
+  uniqueRemovedCanonicalTransfer.concat(uniqueRemovedLegacyTransfer),
+  "unique legacy transfer-club endpoints must follow the archived player's canonical map key");
+assert.equal(removedClubUniqueLegacyHistoryWorld.transferClubHistoryByPlayer[uniqueRemovedLegacyId], undefined,
+  "the unique legacy transfer-history alias must not remain orphaned");
+
+// A shared legacy alias remains untouched; it must never be assigned to the removed
+// player or to a different surviving player during unsupported-club archival.
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

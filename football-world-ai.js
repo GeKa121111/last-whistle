@@ -817,14 +817,52 @@
         if (player && playerClubId && removedClubIds.has(playerClubId)) {
           removedPlayerIds.add(id);
           safeWorldSetOwnValue(archive.players, id, player);
-          let hasHistory = false;
-          try {
-            hasHistory = !!world.playerHistory && typeof world.playerHistory === "object"
-              && Object.prototype.hasOwnProperty.call(world.playerHistory, id);
-          } catch (_) {}
-          if (hasHistory) {
-            safeWorldSetOwnValue(archive.playerHistory, id, safeWorldOwnValue(world.playerHistory, id));
-            delete world.playerHistory[id];
+          const internalPlayerId = safeWorldRecordIdentifier(player, "id");
+          const hasUniqueLegacyAlias = !!internalPlayerId && internalPlayerId !== id
+            && internalPlayerIdCounts.get(internalPlayerId) === 1
+            && !safeWorldOwnValue(world.players, internalPlayerId);
+          const archiveRemovedPlayerHistory = (sourcePlayerId, canonicalPlayerId) => {
+            const sourceRows = safeWorldOwnValue(world.playerHistory, sourcePlayerId);
+            if (!Array.isArray(sourceRows)) return false;
+            const existingRows = safeWorldOwnValue(archive.playerHistory, canonicalPlayerId);
+            if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
+            const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
+            sourceRows.forEach(entry => {
+              if (!mergedRows.includes(entry)) mergedRows.push(entry);
+            });
+            if (!safeWorldSetOwnValue(archive.playerHistory, canonicalPlayerId, mergedRows)) return false;
+            try { delete world.playerHistory[sourcePlayerId]; } catch (_) {}
+            return true;
+          };
+          const mergeRemovedPlayerTransferHistory = (sourcePlayerId, canonicalPlayerId) => {
+            const sourceRows = safeWorldOwnValue(transferClubHistoryByPlayer, sourcePlayerId);
+            if (!Array.isArray(sourceRows)) return false;
+            const existingRows = safeWorldOwnValue(transferClubHistoryByPlayer, canonicalPlayerId);
+            if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
+            const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
+            sourceRows.forEach(endpoint => {
+              const endpointId = safeWorldRecordIdentifier(endpoint, "clubId");
+              const endpointName = normalize(safeWorldRecordText(endpoint, "name"));
+              const endpointCountry = normalize(safeWorldRecordText(endpoint, "country"));
+              const duplicate = mergedRows.some(existing => {
+                const existingId = safeWorldRecordIdentifier(existing, "clubId");
+                if (endpointId && existingId) return endpointId === existingId;
+                return !!endpointName
+                  && normalize(safeWorldRecordText(existing, "name")) === endpointName
+                  && normalize(safeWorldRecordText(existing, "country")) === endpointCountry;
+              });
+              if (!duplicate) mergedRows.push(endpoint);
+            });
+            if (!safeWorldSetOwnValue(transferClubHistoryByPlayer, canonicalPlayerId, mergedRows)) return false;
+            try { delete transferClubHistoryByPlayer[sourcePlayerId]; } catch (_) {}
+            return true;
+          };
+          archiveRemovedPlayerHistory(id, id);
+          if (hasUniqueLegacyAlias) {
+            // Only a unique legacy alias can be attached to this archived player.
+            // Ambiguous aliases remain under their original key for safety.
+            archiveRemovedPlayerHistory(internalPlayerId, id);
+            mergeRemovedPlayerTransferHistory(internalPlayerId, id);
           }
           delete world.players[id];
         }

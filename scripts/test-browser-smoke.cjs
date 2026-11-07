@@ -2013,6 +2013,85 @@ async function main() {
     assert.equal(modalFocusRestored, true, "closing a modal must restore focus to the control that opened it");
     results.push("modal focus entry, keyboard trap, Escape close, and focus restoration");
 
+    // Compact phones and landscape phones need their own pass: the regular mobile
+    // audit starts at 390px and the tablet audit starts at 820px.
+    const responsiveViewportAudits = [
+      { label: "compact portrait 320x720", width: 320, height: 720 },
+      { label: "compact landscape 740x360", width: 740, height: 360 }
+    ];
+    for (const viewport of responsiveViewportAudits) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.evaluate(() => new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      ));
+      const compactNavigation = await page.evaluate(() => {
+        const nav = document.querySelector(".bottomNav");
+        const buttons = nav ? [...nav.querySelectorAll("button")] : [];
+        const navRect = nav ? nav.getBoundingClientRect() : null;
+        return {
+          display: nav ? getComputedStyle(nav).display : "missing",
+          buttonCount: buttons.length,
+          navRect: navRect ? {
+            left: Math.round(navRect.left), right: Math.round(navRect.right),
+            top: Math.round(navRect.top), bottom: Math.round(navRect.bottom)
+          } : null,
+          buttons: buttons.map(button => {
+            const rect = button.getBoundingClientRect();
+            return {
+              label: (button.getAttribute("aria-label") || button.textContent || "").trim(),
+              left: Math.round(rect.left), right: Math.round(rect.right),
+              top: Math.round(rect.top), bottom: Math.round(rect.bottom),
+              height: Math.round(rect.height)
+            };
+          }),
+          documentWidth: document.documentElement.scrollWidth,
+          viewportWidth: window.innerWidth
+        };
+      });
+      assert.notEqual(compactNavigation.display, "none",
+        viewport.label + ": mobile bottom navigation must remain available");
+      assert.equal(compactNavigation.buttonCount, 5,
+        viewport.label + ": all five mobile destinations must remain present");
+      assert.ok(compactNavigation.navRect
+        && compactNavigation.navRect.left >= -1
+        && compactNavigation.navRect.right <= viewport.width + 1
+        && compactNavigation.navRect.bottom <= viewport.height + 1,
+        viewport.label + ": the bottom navigation container must stay inside the viewport: "
+          + JSON.stringify(compactNavigation));
+      assert.ok(compactNavigation.buttons.every(button =>
+        button.height >= 44 && button.left >= -1 && button.right <= viewport.width + 1
+          && button.top >= -1 && button.bottom <= viewport.height + 1
+      ), viewport.label + ": every navigation button must remain visible and comfortably tappable: "
+        + JSON.stringify(compactNavigation));
+      for (const section of ["home", "training", "stats", "wellness", "league",
+        "europe", "contract", "national", "shop", "life", "diary"]) {
+        await page.evaluate(value => {
+          window.LWStoryRuntime.showPage(value);
+          window.LWStoryRuntime.render();
+          window.scrollTo(0, 0);
+        }, section);
+        await page.waitForFunction(value => {
+          const active = document.querySelector(".page.active");
+          return active && active.id === "page-" + value;
+        }, section);
+        const pageLayout = await page.evaluate(() => ({
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+          viewportWidth: window.innerWidth,
+          activePageWidth: Math.round(document.querySelector(".page.active")?.getBoundingClientRect().width || 0)
+        }));
+        assert.ok(pageLayout.documentWidth <= pageLayout.viewportWidth + 1
+          && pageLayout.bodyWidth <= pageLayout.viewportWidth + 1,
+          viewport.label + ": page " + section + " must not create horizontal document overflow: "
+            + JSON.stringify(pageLayout));
+        assert.ok(pageLayout.activePageWidth >= pageLayout.viewportWidth * 0.82,
+          viewport.label + ": page " + section + " must keep a usable content width: "
+            + JSON.stringify(pageLayout));
+      }
+      results.push(viewport.label + " navigation and all-page responsive layout");
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+
     assert.deepEqual(pageErrors, [], "the game must not throw uncaught JavaScript errors in Chromium");
     assert.deepEqual(failedLocalRequests, [], "the game must not fail to load local JavaScript/CSS/assets");
     assert.deepEqual(badResponses, [], "all local page assets must return successful responses");

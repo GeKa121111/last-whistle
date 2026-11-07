@@ -3950,6 +3950,51 @@ assert.equal(removedClubUniqueLegacyHistoryWorld.transferClubHistoryByPlayer[uni
 
 // A shared legacy alias remains untouched; it must never be assigned to the removed
 // player or to a different surviving player during unsupported-club archival.
+// Season-stat rows can carry a stale id and a valid canonical playerId.
+// Either identity must match the removed player so the row cannot remain active.
+const stalePrimaryStatsWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const staleStatsUnsupportedClubId = "archive-replacement-stats-unsupported-club";
+const staleStatsRemovedPlayerKey = "archive-replacement-stats-removed-player";
+const staleStatsRow = {
+  id: "outdated-season-stat-player-id",
+  playerId: staleStatsRemovedPlayerKey,
+  clubId: archiveReplaceClubId,
+  leagueId: archiveReplaceLeagueId,
+  season: 5, appearances: 19, goals: 9, assists: 4
+};
+stalePrimaryStatsWorld.players[staleStatsRemovedPlayerKey] = {
+  id: "stale-stats-internal-player-id", name: "Removed Player With Stale Stats ID",
+  clubId: staleStatsUnsupportedClubId, country: archiveReplaceCountry,
+  leagueId: "unsupported-legacy-league", division: 1, position: "مهاجم",
+  group: "attacker", age: 25, ovr: 61, potential: 67,
+  isGenerated: false, isRealPlayer: true, retired: false, freeAgent: false
+};
+stalePrimaryStatsWorld.clubs[staleStatsUnsupportedClubId] = {
+  id: staleStatsUnsupportedClubId, name: "Stats Unsupported Club",
+  country: archiveReplaceCountry, leagueId: "unsupported-legacy-league",
+  division: 1, roster: [staleStatsRemovedPlayerKey]
+};
+stalePrimaryStatsWorld.seasonStats["5"].push(staleStatsRow);
+stalePrimaryStatsWorld.archive = {
+  clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
+  leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  stalePrimaryStatsWorld, removedClubIdentityCollisionDb
+), "a stale primary stats ID must not prevent archival when playerId identifies the removed player");
+assert.equal(stalePrimaryStatsWorld.players[staleStatsRemovedPlayerKey], undefined,
+  "the unsupported-club player must be removed from the active player map");
+assert.equal(stalePrimaryStatsWorld.seasonStats["5"].length, 1,
+  "the supported player's season statistics must remain active");
+assert.equal(stalePrimaryStatsWorld.seasonStats["5"][0].id, archiveReplacePlayerId,
+  "the active season row must still belong to the supported player");
+assert.equal(stalePrimaryStatsWorld.archive.seasonStats["5"].length, 1,
+  "the row identified by its valid playerId must be archived");
+assert.equal(stalePrimaryStatsWorld.archive.seasonStats["5"][0].id,
+  "outdated-season-stat-player-id", "archiving must preserve the original stale id value");
+assert.equal(stalePrimaryStatsWorld.archive.seasonStats["5"][0].playerId,
+  staleStatsRemovedPlayerKey, "archiving must preserve the canonical playerId value");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

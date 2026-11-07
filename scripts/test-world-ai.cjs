@@ -3777,6 +3777,52 @@ assert.equal(archiveReplaceStaleIdWorld.archive.players[archiveReplacePlayerId].
 assert.ok(!Object.prototype.hasOwnProperty.call(archiveReplaceStaleIdWorld.archive.players, "stale-internal-player-id"),
   "the stale internal ID must not become a second archive identity");
 
+// A unique legacy internal ID may still be the only key in older season-stat rows.
+// Archive both id and playerId aliases under the authoritative players-map key.
+const archiveReplaceLegacyStatsWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const archiveReplaceLegacyStatsId = "archive-replacement-legacy-stat-id";
+archiveReplaceLegacyStatsWorld.players[archiveReplacePlayerId].id = archiveReplaceLegacyStatsId;
+archiveReplaceLegacyStatsWorld.seasonStats["5"][0] = {
+  id: archiveReplaceLegacyStatsId, clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+  season: 5, appearances: 24, goals: 7, assists: 3
+};
+archiveReplaceLegacyStatsWorld.seasonStats["4"].push({
+  playerId: archiveReplaceLegacyStatsId, clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+  season: 4, appearances: 12, goals: 5, assists: 1
+});
+sandbox.window.__lwTestReconcileDatabase(archiveReplaceLegacyStatsWorld, archiveReplaceDb);
+assertArchivedReplacementUsesRosterKey(archiveReplaceLegacyStatsWorld, "unique legacy season-stat ID");
+assert.equal(archiveReplaceLegacyStatsWorld.archive.seasonStats["5"][0].id, archiveReplaceLegacyStatsId,
+  "archived legacy season rows must retain their original internal ID");
+assert.equal(archiveReplaceLegacyStatsWorld.archive.seasonStats["4"].length, 1,
+  "rows using only the legacy playerId field must also be archived");
+assert.equal(archiveReplaceLegacyStatsWorld.archive.seasonStats["4"][0].playerId, archiveReplaceLegacyStatsId,
+  "legacy playerId aliases must be preserved verbatim in the archive");
+assert.equal(archiveReplaceLegacyStatsWorld.seasonStats["4"].length, 1,
+  "unrelated players' completed-season statistics must remain active");
+
+// A shared internal ID is ambiguous and must never cause another player's stats
+// to be attached to the outgoing placeholder.
+const archiveReplaceAmbiguousStatsWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const archiveReplaceAmbiguousStatsId = "archive-replacement-shared-internal-id";
+archiveReplaceAmbiguousStatsWorld.players[archiveReplacePlayerId].id = archiveReplaceAmbiguousStatsId;
+archiveReplaceAmbiguousStatsWorld.players[archiveReplaceStablePlayerId].id = archiveReplaceAmbiguousStatsId;
+archiveReplaceAmbiguousStatsWorld.seasonStats["5"][0] = {
+  id: archiveReplaceAmbiguousStatsId, clubId: archiveReplaceClubId, leagueId: archiveReplaceLeagueId,
+  season: 5, appearances: 24, goals: 7, assists: 3
+};
+sandbox.window.__lwTestReconcileDatabase(archiveReplaceAmbiguousStatsWorld, archiveReplaceDb);
+assert.equal(archiveReplaceAmbiguousStatsWorld.players[archiveReplacePlayerId], undefined,
+  "the generated placeholder must still be replaced when its internal ID is ambiguous");
+assert.equal(archiveReplaceAmbiguousStatsWorld.archive.players[archiveReplacePlayerId].name,
+  "Archive Academy Placeholder 1");
+assert.equal(archiveReplaceAmbiguousStatsWorld.seasonStats["5"].length, 1,
+  "statistics under an ambiguous internal ID must remain available rather than being misattributed");
+assert.equal(archiveReplaceAmbiguousStatsWorld.seasonStats["5"][0].id, archiveReplaceAmbiguousStatsId);
+assert.ok(!archiveReplaceAmbiguousStatsWorld.archive.seasonStats["5"]
+  || archiveReplaceAmbiguousStatsWorld.archive.seasonStats["5"].length === 0,
+  "ambiguous legacy statistics must not be archived under the wrong player's canonical key");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

@@ -27,6 +27,7 @@ const transferOfferMatchSource = section("function transferOfferMatchesWindow(",
 const transferOfferCurrentMatchSource = section("function currentFreeAgentTransferWindowId()", "\nfunction canAccessTransferMarket(");
 const ensureOffersSource = section("function ensureTransferOffers(){", "\nfunction offerIsAvailable(");
 const offerAvailabilitySource = section("function offerIsAvailable(", "\nfunction beginTransferNegotiation(");
+const safeTransferCounterSource = section("function safeTransferCounter(", "\nfunction transferEligibilityReason(target){");
 const transferEligibilitySource = section("function transferEligibilityReason(target){", "\nfunction transferEligible(");
 const cupArchiveSource = section("function archiveCupForTransfer(){", "\nfunction leagueMatchTargetForCurrentClub()");
 const leagueArchiveSource = section("function ensureLeagueSegmentId(){", "\nfunction archiveSeasonRecord()");
@@ -160,7 +161,7 @@ assert.match(app, /if\(wages&&grossWeeklyWage>0&&careerMatchPlayerEligible\(stat
 vm.runInContext(
   transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
     + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + dedupeOffersSource + "\n"
-    + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+    + safeTransferCounterSource + "\n" + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   sandbox,
   { filename: "transfer-window-regression" }
 );
@@ -180,6 +181,19 @@ assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false, "an offer
 state.daysSinceTransfer = 14;
 state.transferCooldown = 2;
 assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false, "an offer must respect the explicit transfer cooldown");
+state.transferCooldown = 0;
+const hostileCooldown = JSON.parse('{"toString":1,"valueOf":1}');
+state.transferCooldown = hostileCooldown;
+assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
+  "a malformed saved cooldown must fail closed instead of coercing an object");
+assert.match(sandbox.transferEligibilityReason(state.transferOffers[0]), /7 أيام/,
+  "the transfer-market explanation must use a safe seven-day fallback for malformed cooldowns");
+state.transferCooldown = "2";
+assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
+  "numeric-string cooldowns from older saves must remain supported");
+state.transferCooldown = "0";
+assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), true,
+  "a legacy numeric-string zero must remain an available market state");
 state.transferCooldown = 0;
 
 state.winterBreakPending = false;
@@ -592,7 +606,7 @@ const cupScenario = {
   overall: () => 70
 };
 vm.createContext(cupScenario);
-vm.runInContext(transferEligibilitySource, cupScenario, { filename: "transferEligibilityReason" });
+vm.runInContext(safeTransferCounterSource + "\n" + transferEligibilitySource, cupScenario, { filename: "transferEligibilityReason" });
 assert.equal(cupScenario.transferEligibilityReason({ club: "نادي ب", country: "مصر", power: 50 }), "",
   "active cups must not block transfer approaches during an open window");
 
@@ -631,7 +645,7 @@ const offerScenario = {
   openModal: (title, body, actions) => { offerScenario.modalActions = actions; }
 };
 vm.createContext(offerScenario);
-vm.runInContext(maybeOfferTransferSource, offerScenario, { filename: "unified-second-tier-transfer-approach" });
+vm.runInContext(safeTransferCounterSource + "\n" + maybeOfferTransferSource, offerScenario, { filename: "unified-second-tier-transfer-approach" });
 offerScenario.maybeOfferTransfer();
 assert.equal(offerScenario.state.pendingTransfer, null,
   "an automatic approach must not create a separate direct-transfer transaction");
@@ -665,10 +679,32 @@ const blockedApproach = {
   openModal: () => { blockedModal = true; }
 };
 vm.createContext(blockedApproach);
-vm.runInContext(maybeOfferTransferSource, blockedApproach, { filename: "pending-transfer-guard" });
+vm.runInContext(safeTransferCounterSource + "\n" + maybeOfferTransferSource, blockedApproach, { filename: "pending-transfer-guard" });
 blockedApproach.maybeOfferTransfer();
 assert.equal(blockedEnsureCalls, 0, "a saved direct offer must block a second automatic offer batch");
 assert.equal(blockedModal, false, "a second automatic offer must not overlap an unresolved transfer");
+let hostileCooldownOfferGeneration = 0;
+const hostileCooldownApproach = {
+  state: { retired: false, age: 24, careerStarted: true, academyReserve: false,
+    academyGraduationPending: false, loan: null,
+    transferCooldown: JSON.parse('{"toString":1,"valueOf":1}'),
+    daysSinceTransfer: 14, apps: 12, trust: 60, lastOfferWindow: "",
+    pendingTransfer: null, transferNegotiation: null, transferOffers: [] },
+  window: { LWAgentRuntime: null },
+  canAccessTransferMarket: () => true,
+  migrateLegacyPendingTransferOffer: () => null,
+  transferWindow: () => ({ open: true, id: "summer-0" }),
+  ensureTransferOffers: () => { hostileCooldownOfferGeneration++; },
+  overall: () => 68, transferAverageRating: () => 7, randomUnit: () => 0,
+  openModal: () => { throw new Error("malformed cooldown must not open an offer modal"); }
+};
+vm.createContext(hostileCooldownApproach);
+vm.runInContext(safeTransferCounterSource + "\n" + maybeOfferTransferSource,
+  hostileCooldownApproach, { filename: "malformed-transfer-cooldown-guard" });
+assert.doesNotThrow(() => hostileCooldownApproach.maybeOfferTransfer(),
+  "automatic transfer offers must not coerce malformed cooldown values");
+assert.equal(hostileCooldownOfferGeneration, 0,
+  "a malformed cooldown must block automatic approaches until the safe fallback expires");
 
 const duplicateOfferScenario = {
   state: { transferOffers: [
@@ -1036,7 +1072,7 @@ const eligibilitySandbox = {
 vm.createContext(eligibilitySandbox);
 vm.runInContext(transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
   + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + dedupeOffersSource + "\n"
-  + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+  + safeTransferCounterSource + "\n" + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   eligibilitySandbox, { filename: "transfer-offer-eligibility-guard" });
 eligibilitySandbox.ensureTransferOffers();
 assert.equal(eligibilityGenerationCalls, 0, "low coach trust must prevent official offers from being generated");
@@ -1082,7 +1118,7 @@ const roleContractSandbox = {
 vm.createContext(roleContractSandbox);
 vm.runInContext(transferWindowSource + "\n" + transferOfferMatchSource + "\n" + transferOfferCurrentMatchSource + "\n"
   + normalizedTargetKeySource + "\n" + legacyMigrationSource + "\n" + reconciliationSource + "\n" + dedupeOffersSource + "\n"
-  + transferFactorsSource + "\n" + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
+  + transferFactorsSource + "\n" + safeTransferCounterSource + "\n" + transferEligibilitySource + "\n" + ensureOffersSource + "\n" + offerAvailabilitySource,
   roleContractSandbox, { filename: "transfer-offer-role-contract-retry" });
 roleContractSandbox.ensureTransferOffers();
 assert.equal(roleContractGenerationCalls, 1, "an unsuitable contract/role profile must be evaluated once in the active window");

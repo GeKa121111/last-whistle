@@ -57,6 +57,7 @@ function makeHarness(withStore = true) {
   };
   const sandbox = {
     API: () => api,
+    safeAgentNumber: (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && value.trim() && Number.isFinite(Number(value)) ? Number(value) : fallback,
     safeAgentText: (value, fallback) => typeof value === "string" ? value
       : typeof value === "number" && Number.isFinite(value) ? String(value)
         : typeof value === "boolean" ? (value ? "true" : "false")

@@ -5413,6 +5413,13 @@ function transferFactors(target){
  return {ageAdjustment,contractAdjustment,currentRoleAdjustment,positionFit,positionAdjustment,targetRole,targetRoleAdjustment};
 }
 function transferAverageRating(){return Number(state.leagueRatingCount)>0?(Number(state.leagueRatingSum)||0)/Number(state.leagueRatingCount):6.1;}
+function safeTransferCounter(value,fallback=0,minimum=0){
+ if(typeof value!=="number"&&typeof value!=="string")return fallback;
+ if(typeof value==="string"&&!value.trim())return fallback;
+ const numeric=Number(value);
+ if(!Number.isFinite(numeric))return fallback;
+ return Math.max(minimum,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(numeric)));
+}
 function transferEligibilityReason(target){
  if(state.retired)return "المسيرة انتهت بالاعتزال.";
  if(Number(state.age)<18)return "سوق انتقالات المحترفين متاح من سن 18 وبعد التصعيد المناسب.";
@@ -5426,9 +5433,9 @@ function transferEligibilityReason(target){
   const windowInfo=transferWindow();
  if(!windowInfo.open&&!state.freeAgent)return "السوق مغلق حاليًا. "+windowInfo.name+" بعد "+windowInfo.days+" يوم.";
  if(Number(state.apps||0)<2)return "لازم تلعب مباراتين رسميتين على الأقل عشان يبقى عندك سجل يقيّمك النادي.";
- const daysSince=Math.max(0,Number(state.daysSinceTransfer)||0);
+ const daysSince=safeTransferCounter(state.daysSinceTransfer,0);
  if(daysSince<7)return "لازم تستنى "+(7-daysSince)+" أيام بعد آخر انتقال.";
- const cooldown=Math.max(0,Number(state.transferCooldown)||0);
+ const cooldown=safeTransferCounter(state.transferCooldown,7);
  if(cooldown>0)return "طلب انتقال جديد متاح بعد "+cooldown+" أيام.";
  if(Number(state.trust||0)<20)return "ثقة الجهاز الفني أقل من المطلوب (20/100). ركّز على الأداء والانضباط.";
  const average=transferAverageRating();
@@ -5611,7 +5618,7 @@ function offerIsAvailable(offer){
  const windowMatches=transferOfferMatchesCurrentWindow(offer,windowInfo);
  return !!offer&&canAccessTransferMarket()&&offer.status==="pending"&&(windowInfo.open||state.freeAgent)
   &&windowMatches&&!state.retired&&!state.loan
-  &&Number(state.transferCooldown||0)<=0
+  &&safeTransferCounter(state.transferCooldown,7)<=0
   &&transferEligibilityReason(offer)==="";
 }
 function beginTransferNegotiation(id){
@@ -6076,9 +6083,9 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
  const requestedDays=Number(days),n=Number.isFinite(requestedDays)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(requestedDays))):0;if(!n)return;
  const rawOldDay=Number(state.calendarDay),oldDay=Number.isFinite(rawOldDay)?Math.max(1,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(rawOldDay))):1,newDay=Math.min(Number.MAX_SAFE_INTEGER,oldDay+n);
  const oldWeek=Math.floor((Math.max(1,oldDay)-1)/7),newWeek=Math.floor((Math.max(1,newDay)-1)/7);
- const finiteCounter=(value,min=0)=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(min,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(numeric))):min;};
+ const finiteCounter=(value,min=0,fallback=min)=>safeTransferCounter(value,fallback,min);
  state.calendarDay=newDay;state.day=Math.min(Number.MAX_SAFE_INTEGER,finiteCounter(state.day,1)+n);state.daysSinceTransfer=Math.min(Number.MAX_SAFE_INTEGER,finiteCounter(state.daysSinceTransfer)+n);state.daysSinceNegotiation=Math.min(Number.MAX_SAFE_INTEGER,finiteCounter(state.daysSinceNegotiation)+n);
- state.transferCooldown=Math.max(0,finiteCounter(state.transferCooldown)-n);
+ state.transferCooldown=Math.max(0,finiteCounter(state.transferCooldown,0,7)-n);
  const wages=Math.max(0,newWeek-oldWeek),wageValue=Number(state.weeklyWage),grossWeeklyWage=Number.isFinite(wageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(wageValue))):0;
  const moneyValue=Number(state.money),balance=Number.isFinite(moneyValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,moneyValue)):0;
  state.weeklyWage=grossWeeklyWage;state.money=balance;
@@ -8545,7 +8552,9 @@ function maybeOfferTransfer(){
  if(!canAccessTransferMarket())return;
  const w=transferWindow();
  migrateLegacyPendingTransferOffer();
- if(!w.open||state.lastOfferWindow===w.id||state.transferCooldown>0||state.daysSinceTransfer<7
+ const cooldown=safeTransferCounter(state.transferCooldown,7);
+ const daysSince=safeTransferCounter(state.daysSinceTransfer,0);
+ if(!w.open||state.lastOfferWindow===w.id||cooldown>0||daysSince<7
   ||state.pendingTransfer||state.transferNegotiation)return;
  if(state.apps<2||overall()<52||state.trust<30)return;
  const average=transferAverageRating();

@@ -4335,6 +4335,81 @@ assert.deepEqual(archiveReplaceBlockedWorld.archive.seasonStats["5"], { malforme
 
 // A malformed archive category or root container may hold legacy records.
 // Reconciliation must defer without replacing that data or changing the active roster.
+// A failed player-map deletion must leave the still-active player's live history and stats intact.
+const archiveReplaceDeleteFailureWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const lockedReplacementPlayer = archiveReplaceDeleteFailureWorld.players[archiveReplacePlayerId];
+Object.defineProperty(archiveReplaceDeleteFailureWorld.players, archiveReplacePlayerId, {
+  value: lockedReplacementPlayer, enumerable: true, writable: true, configurable: false
+});
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  archiveReplaceDeleteFailureWorld, archiveReplaceDb
+), "a non-configurable generated-player key must defer roster replacement without throwing");
+assert.strictEqual(archiveReplaceDeleteFailureWorld.players[archiveReplacePlayerId], lockedReplacementPlayer,
+  "a generated player that cannot be removed must remain active");
+assert.ok(archiveReplaceDeleteFailureWorld.clubs[archiveReplaceClubId].roster.includes(archiveReplacePlayerId),
+  "the roster must be restored when the generated player cannot be removed");
+assert.deepEqual(archiveReplaceDeleteFailureWorld.playerHistory[archiveReplacePlayerId], archiveReplaceHistory,
+  "active career history must remain available when the player deletion fails");
+assert.equal(archiveReplaceDeleteFailureWorld.seasonStats["5"].length, 1,
+  "active season statistics must remain available when the player deletion fails");
+assert.equal(archiveReplaceDeleteFailureWorld.seasonStats["5"][0].goals, 7,
+  "the still-active player's original goal total must remain unchanged");
+assert.strictEqual(archiveReplaceDeleteFailureWorld.archive.players[archiveReplacePlayerId], lockedReplacementPlayer,
+  "the backup copy may exist, but it must not replace the still-active player");
+assert.deepEqual(archiveReplaceDeleteFailureWorld.archive.playerHistory[archiveReplacePlayerId], archiveReplaceHistory,
+  "the archived backup must retain the player's career history");
+assert.equal(archiveReplaceDeleteFailureWorld.archive.seasonStats["5"].length, 1,
+  "the archived backup must retain the player's season statistics");
+
+// A later legacy-transfer-history failure must not remove the canonical or alias
+// career history from a player who therefore remains active.
+const unsupportedAliasTransferFailureWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const unsupportedAliasClubId = "archive-replacement-unsupported-alias-club";
+const unsupportedAliasPlayerKey = "archive-replacement-unsupported-alias-player";
+const unsupportedAliasInternalId = "archive-replacement-unsupported-alias-internal-id";
+const unsupportedAliasCanonicalHistory = [{ season: 4, type: "canonical-live-history" }];
+const unsupportedAliasLegacyHistory = [{ season: 3, type: "legacy-live-history" }];
+unsupportedAliasTransferFailureWorld.players[unsupportedAliasPlayerKey] = {
+  id: unsupportedAliasInternalId, name: "Unsupported Alias Transfer Player",
+  clubId: unsupportedAliasClubId, country: archiveReplaceCountry,
+  leagueId: "unsupported-legacy-league", division: 1, position: "مهاجم",
+  group: "attacker", age: 24, ovr: 60, potential: 66,
+  isGenerated: false, isRealPlayer: true, retired: false, freeAgent: false
+};
+unsupportedAliasTransferFailureWorld.clubs[unsupportedAliasClubId] = {
+  id: unsupportedAliasClubId, name: "Unsupported Alias Transfer Club",
+  country: archiveReplaceCountry, leagueId: "unsupported-legacy-league",
+  division: 1, roster: [unsupportedAliasPlayerKey]
+};
+unsupportedAliasTransferFailureWorld.playerHistory = {
+  [unsupportedAliasPlayerKey]: unsupportedAliasCanonicalHistory,
+  [unsupportedAliasInternalId]: unsupportedAliasLegacyHistory
+};
+unsupportedAliasTransferFailureWorld.transferClubHistoryByPlayer = {
+  [unsupportedAliasInternalId]: { malformed: true }
+};
+unsupportedAliasTransferFailureWorld.transferClubHistorySchemaVersion = 1;
+unsupportedAliasTransferFailureWorld.archive = {
+  clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
+  leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  unsupportedAliasTransferFailureWorld, removedClubIdentityCollisionDb
+), "a malformed legacy transfer alias must defer player removal safely");
+assert.ok(unsupportedAliasTransferFailureWorld.players[unsupportedAliasPlayerKey],
+  "the player must remain active when legacy transfer history cannot be reconciled");
+assert.ok(unsupportedAliasTransferFailureWorld.clubs[unsupportedAliasClubId].roster.includes(unsupportedAliasPlayerKey),
+  "the unsupported club must remain active while its player archival is incomplete");
+assert.deepEqual(unsupportedAliasTransferFailureWorld.playerHistory[unsupportedAliasPlayerKey],
+  unsupportedAliasCanonicalHistory,
+  "canonical career history must remain live when a later archive step fails");
+assert.deepEqual(unsupportedAliasTransferFailureWorld.playerHistory[unsupportedAliasInternalId],
+  unsupportedAliasLegacyHistory,
+  "legacy-alias career history must remain live when a later archive step fails");
+assert.deepEqual(unsupportedAliasTransferFailureWorld.archive.playerHistory[unsupportedAliasPlayerKey],
+  unsupportedAliasCanonicalHistory.concat(unsupportedAliasLegacyHistory),
+  "the archive may contain a safe backup while the active player remains available");
+
 const malformedArchiveBucketWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const preservedMalformedArchiveBucket = [{ legacyArchiveRecord: "keep-me" }];
 malformedArchiveBucketWorld.archive = {

@@ -88,6 +88,9 @@
     const numericVersion = safeNumber(value, NaN);
     return Number.isFinite(numericVersion) ? numericVersion : VERSION;
   }
+  function isFutureWorldSchema(world) {
+    return safeWorldSchemaVersion(world) > VERSION;
+  }
   function safeWorldObjectKeys(record) {
     try { return record && typeof record === "object" ? Object.keys(record) : []; } catch (_) { return []; }
   }
@@ -690,7 +693,8 @@
     return history;
   }
   function rememberTransferClubEndpoints(world, transfer) {
-    if (!world || !transfer || typeof transfer !== "object" || Array.isArray(transfer)) return;
+    if (!world || !transfer || typeof transfer !== "object" || Array.isArray(transfer)
+      || isFutureWorldSchema(world)) return;
     ensureTransferClubHistory(world);
     const playerId = safeWorldRecordIdentifier(transfer, "playerId");
     if (!playerId) return;
@@ -1463,6 +1467,8 @@
     // Older snapshots can be upgraded by the idempotent in-place normalizers below.
     // A future schema marker must never cause this older client to replace the saved world.
     const savedSchemaVersion = safeWorldSchemaVersion(world);
+    // A newer engine owns this save format. Do not let older normalizers rewrite its fields.
+    if (savedSchemaVersion > VERSION) return world;
     // Keep a malformed archive untouched and defer normalization rather than
     // silently replacing legacy archive data with empty buckets.
     if (!ensureArchive(world)) return world;
@@ -1889,6 +1895,10 @@
   function completeSeason(save, season, db) {
     const world = ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
+    if (isFutureWorldSchema(world)) {
+      return { season: year, rows: [], tables: {}, alreadyCompleted: true,
+        readOnly: true, futureSchema: true, transfers: 0 };
+    }
     if (hasCompletedSeasonMarker(world, year)) {
       const marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
       const market = marketReports.find(row => row && safeNumber(row.season, NaN) === year) || {};
@@ -2043,6 +2053,7 @@
     });
   }
   function withTransferMarketTransaction(world, operation) {
+    if (isFutureWorldSchema(world)) return { committed: false, readOnly: true, futureSchema: true };
     const playerMap = world && world.players && typeof world.players === "object" ? world.players : null;
     const originalPlayers = new Map(playerMap ? Object.entries(playerMap) : []);
     const originalPlayerIds = new Set(originalPlayers.keys());
@@ -2527,6 +2538,10 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
+    if (isFutureWorldSchema(world)) {
+      return { season: Math.max(1, int(safeWorldOwnValue(world, "currentSeason"), int(save.season, 1))),
+        moves: [], alreadyAdvanced: true, readOnly: true, futureSchema: true };
+    }
     const lastAdvancedTo = Math.max(0, safeNumber(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
     const currentSeason = Math.max(1, int(world.currentSeason, 1));
     if (lastAdvancedTo >= next || currentSeason > next) {
@@ -2647,6 +2662,24 @@
   function dashboard(save, db) {
     const world = ensureState(save, db);
     const progress = clamp(safeNumber(save.seasonApps, 0) / Math.max(1, safeNumber(save.seasonAppsTarget, 0)), 0, 1);
+    if (isFutureWorldSchema(world)) {
+      const objectMap = value => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+      const arrayValue = value => Array.isArray(value) ? value : [];
+      const clubs = objectMap(safeWorldOwnValue(world, "clubs"));
+      const players = objectMap(safeWorldOwnValue(world, "players"));
+      const transfers = arrayValue(safeWorldOwnValue(world, "transfers"));
+      const marketReports = arrayValue(safeWorldOwnValue(world, "marketReports"));
+      const completed = arrayValue(safeWorldOwnValue(world, "completedSeasons"));
+      return {
+        season: Math.max(1, int(safeWorldOwnValue(world, "currentSeason"), int(save.season, 1))),
+        clubCount: Object.keys(clubs).length, playerCount: Object.keys(players).length,
+        totalTransfers: transfers.length, lastMarket: marketReports[0] || null,
+        recentTransfers: transfers.slice(0, 6), goalsLeaders: [], assistLeaders: [], leagueTable: [],
+        progress: Math.round(progress * 100), completedSeasons: completed.length,
+        readOnly: true, futureSchema: true,
+        note: "الحفظ يستخدم إصدارًا أحدث من محرك العالم الحالي؛ تم فتحه للقراءة فقط دون تعديل بياناته."
+      };
+    }
     const year = Math.max(1, int(save.season, 1));
     const rows = leaderboard(save, { season: year, progress }, db);
     const goals = rows.slice().sort((a, b) => b.goals - a.goals || b.averageRating - a.averageRating).slice(0, 5);
@@ -2676,7 +2709,7 @@
   }
   global.LWWorldAI = Object.freeze({
     version: VERSION, normalize, normalizePosition, normalizeClubDivision, divisionForClub, clubKey, syncClubDivisionMetadata, groupForPosition, positionProductionProfile, playerRoleWeight,
-    ensureState, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
+    ensureState, isFutureWorldSchema, completeSeason, advanceToSeason, getSeasonLines, getClubPower, getClubMatchProfile, transferTargets,
     sortCompletedSeasonMarkers,
     getLeagueTable, leaderboard, dashboard, rosterPlayers, withTransferMarketTransaction,
     rememberTransferClubEndpoints, isTrueFlag, activeRosterIds
@@ -3236,11 +3269,30 @@
   }
   function simulateLeagueSeason(save, season, db) {
     const world = base.ensureState(save, db);
+    const year = Math.max(1, int(season, int(save.season, 1)));
+    if (base.isFutureWorldSchema(world)) {
+      const objectMap = field => {
+        const value = world[field];
+        return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+      };
+      const seasonKey = String(year);
+      const savedRows = objectMap("seasonStats")[seasonKey];
+      const savedTables = objectMap("leagueTables")[seasonKey];
+      const savedMatches = objectMap("matchesBySeason")[seasonKey];
+      const savedCompetitions = objectMap("competitionsBySeason")[seasonKey];
+      return {
+        season: year,
+        rows: Array.isArray(savedRows) ? savedRows : [],
+        tables: savedTables && typeof savedTables === "object" && !Array.isArray(savedTables) ? savedTables : {},
+        matches: Array.isArray(savedMatches) ? savedMatches.slice() : [],
+        competitions: Array.isArray(savedCompetitions) ? savedCompetitions.slice() : [],
+        readOnly: true, futureSchema: true
+      };
+    }
     world.matchesBySeason = world.matchesBySeason && typeof world.matchesBySeason === "object" ? world.matchesBySeason : {};
     world.leagueTables = world.leagueTables && typeof world.leagueTables === "object" ? world.leagueTables : {};
     world.seasonStats = world.seasonStats && typeof world.seasonStats === "object" ? world.seasonStats : {};
     world.competitionsBySeason = world.competitionsBySeason && typeof world.competitionsBySeason === "object" ? world.competitionsBySeason : {};
-    const year = Math.max(1, int(season, int(save.season, 1)));
     if (Object.prototype.hasOwnProperty.call(world.matchesBySeason, String(year))) {
       const seasonKey = String(year);
       const savedRows = world.seasonStats[seasonKey];
@@ -4195,6 +4247,10 @@
   function completeSeason(save, season, db) {
     const world = base.ensureState(save, db);
     const year = Math.max(1, int(season, int(save.season, 1)));
+    if (base.isFutureWorldSchema(world)) {
+      const snapshot = simulateLeagueSeason(save, year, db);
+      return Object.assign({}, snapshot, { alreadyCompleted: true, readOnly: true, futureSchema: true, transfers: 0 });
+    }
     const stableCurrentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     const alreadyCompleted = hasCompletedSeasonMarker(world, year);
     // Do not fabricate an older season from today's squads when a stale completion request arrives.
@@ -4273,6 +4329,10 @@
   function advanceToSeason(save, nextSeason, db) {
     const world = base.ensureState(save, db);
     const next = Math.max(1, int(nextSeason, int(save.season, 1)));
+    if (base.isFutureWorldSchema(world)) {
+      return { season: Math.max(1, int(world.currentSeason, int(save.season, 1))),
+        moves: [], alreadyAdvanced: true, readOnly: true, futureSchema: true };
+    }
     const lastAdvancedTo = Math.max(0, safeNumber(safeWorldOwnValue(world, "lastAdvancedTo"), 0));
     const currentSeason = Math.max(1, int(world.currentSeason, 1));
     // A stale request must never replay a market for an older season.
@@ -4336,6 +4396,18 @@
   const dashboardCache = new WeakMap();
   function dashboard(save, db) {
     const world = base.ensureState(save, db);
+    if (base.isFutureWorldSchema(world)) {
+      const summary = base.dashboard(save, db);
+      const matches = world.matchesBySeason && typeof world.matchesBySeason === "object" && !Array.isArray(world.matchesBySeason)
+        ? world.matchesBySeason : {};
+      const competitions = world.competitionsBySeason && typeof world.competitionsBySeason === "object"
+        && !Array.isArray(world.competitionsBySeason) ? world.competitionsBySeason : {};
+      const season = Math.max(1, int(world.currentSeason, int(save.season, 1)));
+      summary.matchesSimulated = Array.isArray(matches[String(season)]) ? matches[String(season)].length : 0;
+      summary.competitionsSimulated = Array.isArray(competitions[String(season)]) ? competitions[String(season)].length : 0;
+      summary.promotionHistory = Array.isArray(world.promotionHistory) ? world.promotionHistory : [];
+      return summary;
+    }
     const season = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     const matchesBySeason = world.matchesBySeason && typeof world.matchesBySeason === "object" ? world.matchesBySeason : {};
     const statsBySeason = world.seasonStats && typeof world.seasonStats === "object" ? world.seasonStats : {};
@@ -4408,12 +4480,17 @@
       const world = base.ensureState(save, db);
       simulateLeagueSeason(save, season, db);
       const year = Math.max(1, int(season, 1));
-      return expandWorldMatches(world, (world.matchesBySeason[String(year)] || []).slice(), year);
+      const savedMatches = world.matchesBySeason && typeof world.matchesBySeason === "object"
+        ? world.matchesBySeason[String(year)] : null;
+      return Array.isArray(savedMatches) ? expandWorldMatches(world, savedMatches.slice(), year) : [];
     },
     seasonCompetitions: function (save, season, db) {
       const world = base.ensureState(save, db);
       simulateLeagueSeason(save, season, db);
-      return (world.competitionsBySeason[String(Math.max(1, int(season, 1)))] || []).slice();
+      const year = Math.max(1, int(season, 1));
+      const savedCompetitions = world.competitionsBySeason && typeof world.competitionsBySeason === "object"
+        ? world.competitionsBySeason[String(year)] : null;
+      return Array.isArray(savedCompetitions) ? savedCompetitions.slice() : [];
     },
     freeAgents: function (save, db) {
       const world = base.ensureState(save, db);
@@ -4461,6 +4538,7 @@
   }
   function ensureProfiles(save, db) {
     const world = base.ensureState(save, db);
+    if (base.isFutureWorldSchema(world)) return world;
     Object.values(world.clubs || {}).forEach(club => {
       if (!club || typeof club !== "object") return;
       const profile = archetypeForClub(club);

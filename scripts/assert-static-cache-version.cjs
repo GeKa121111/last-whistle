@@ -27,7 +27,7 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 622;
+  const minimumCacheVersion = 623;
   assert.ok(
     /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
@@ -42,7 +42,7 @@ if (require.main === module) {
   const requiredAssets = [
     ["career-state-store.js", 8],
     ["ai-career-engine.js", 8],
-    ["data/career-engine.js", 82],
+    ["data/career-engine.js", 83],
     ["data/match-engine.js", 84],
     ["football-world-ai.js", 100],
     ["football-world-db.js", 11],

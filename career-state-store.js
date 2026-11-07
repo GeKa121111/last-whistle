@@ -43,7 +43,9 @@
       .replace(/[\u064B-\u065F\u0670]/g, "")
       .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
       .replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-    return POSITION_ALIASES[key] || rawPosition;
+    return Object.prototype.hasOwnProperty.call(POSITION_ALIASES, key)
+      ? POSITION_ALIASES[key]
+      : rawPosition;
   }
   const listeners = new Set();
   let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null, activeDefaultFlush = null, activeDefaultFlushRequested = false;

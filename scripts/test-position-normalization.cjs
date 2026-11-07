@@ -33,6 +33,10 @@ assert.equal(store.normalizePosition(["CM"]), "",
   "array-valued legacy positions must not be coerced into a valid squad role");
 assert.equal(store.normalizePosition(42), "42",
   "safe numeric legacy position values remain non-throwing and backward-compatible");
+for (const inheritedKey of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+  assert.equal(store.normalizePosition(inheritedKey), inheritedKey,
+    "unknown position labels that match Object.prototype keys must remain plain strings: " + inheritedKey);
+}
 assert.equal(read("career-state-store.js"), read("public/career-state-store.js"),
   "root and public state-store modules must remain byte-identical");
 assert.equal(read("sw.js"), read("public/sw.js"),

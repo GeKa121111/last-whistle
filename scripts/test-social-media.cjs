@@ -188,6 +188,59 @@ assert.ok(hostileOfferRole.socialMedia.posts.some(post => post.kind === "rumor")
 assert.strictEqual(hostileOfferRole.transferOffers[0].role, hostileRole,
   "social feed formatting must preserve the original offer role payload");
 
+// Transfer club/country/league labels are also legacy save data. A malformed
+// optional label must fall back safely; a malformed club identity must not
+// invent a club name or stop the rest of the social feed.
+const hostileOfferLabel = JSON.parse('{"toString":1,"valueOf":1}');
+const hostileOfferLabelsState = {
+  name: "Offer Label Player", careerStarted: true, season: 2, day: 9,
+  role: "أساسي", followers: 100, careerMatchHistory: [],
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: [],
+  transferOffers: [{
+    id: "hostile-offer-labels", status: "pending", club: "نادي الاختبار",
+    country: hostileOfferLabel, league: hostileOfferLabel, role: "أساسي"
+  }],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "أساسي", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 9, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+assert.doesNotThrow(() => social.syncState(hostileOfferLabelsState),
+  "malformed optional transfer labels must not interrupt social feed synchronization");
+const safeOfferLabelRumor = hostileOfferLabelsState.socialMedia.posts.find(post => post.kind === "rumor");
+assert.ok(safeOfferLabelRumor, "a valid club identity should still publish its transfer rumour");
+assert.match(safeOfferLabelRumor.body, /نادي الاختبار/);
+assert.match(safeOfferLabelRumor.body, /وجهة غير محددة/);
+assert.match(safeOfferLabelRumor.body, /الدوري المحلي/);
+assert.strictEqual(hostileOfferLabelsState.transferOffers[0].country, hostileOfferLabel,
+  "safe formatting must preserve the original country payload");
+assert.strictEqual(hostileOfferLabelsState.transferOffers[0].league, hostileOfferLabel,
+  "safe formatting must preserve the original league payload");
+
+const hostileClubOfferState = {
+  name: "Unknown Club Offer Player", careerStarted: true, season: 2, day: 9,
+  role: "أساسي", followers: 100, careerMatchHistory: [],
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: [],
+  transferOffers: [{
+    id: "hostile-club-label", status: "pending", club: hostileOfferLabel,
+    country: "مصر", league: "الدوري المحلي", role: "أساسي"
+  }],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "أساسي", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 9, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+assert.doesNotThrow(() => social.syncState(hostileClubOfferState),
+  "a malformed club identity must not abort social feed synchronization");
+assert.equal(hostileClubOfferState.socialMedia.posts.some(post => post.kind === "rumor"), false,
+  "the feed must not invent a club identity for an unrenderable transfer offer");
+assert.strictEqual(hostileClubOfferState.transferOffers[0].club, hostileOfferLabel,
+  "skipping a malformed club label must preserve the original offer payload");
+
 const roleTransitionState = {
   name: "Role Transition Player", careerStarted: true, season: 2, day: 8,
   role: "أساسي", followers: 100, careerMatchHistory: [],

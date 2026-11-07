@@ -44,6 +44,19 @@
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
     try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; }
   }
+  // Save-record metadata must never coerce arbitrary values from a legacy career.
+  // Keep numeric strings for older saves, but reject arrays/objects/booleans and non-finite numbers.
+  function finiteMetadataNumber(value) {
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value !== "string" || value.trim() === "") return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+  function safeMetadataText(value, fallback) {
+    if (typeof value === "string") return value.trim() ? value : fallback;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return fallback;
+  }
   function openDatabase() {
     if (database) return Promise.resolve(database);
     if (opening) return opening;
@@ -157,11 +170,16 @@
     if (!snapshot || typeof snapshot !== "object") return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
     const saveRevision = revision;
+    const schemaVersionValue = finiteMetadataNumber(snapshot.schemaVersion);
+    const seasonValue = finiteMetadataNumber(snapshot.season);
+    const fallbackLabel = id === DEFAULT_SLOT ? "المسيرة الرئيسية" : id;
+    const playerName = safeMetadataText(snapshot.name, "لاعب");
     const record = {
-      id, label: String(options.label || snapshot.name || (id === DEFAULT_SLOT ? "المسيرة الرئيسية" : id)),
+      id, label: safeMetadataText(options.label, safeMetadataText(snapshot.name, fallbackLabel)),
       updatedAt: new Date().toISOString(), game: "LAST WHISTLE",
-      schemaVersion: Number(snapshot.schemaVersion) || 10, season: Math.max(1, Number(snapshot.season) || 1),
-      playerName: String(snapshot.name || "لاعب"), state: snapshot
+      schemaVersion: schemaVersionValue === null || schemaVersionValue === 0 ? 10 : schemaVersionValue,
+      season: Math.max(1, seasonValue || 1),
+      playerName, state: snapshot
     };
     if (id !== DEFAULT_SLOT) {
       lastWrite = transact("saves", "readwrite", store => store.put(record));

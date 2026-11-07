@@ -4109,6 +4109,81 @@ assert.equal(archiveReplaceBlockedWorld.seasonStats["5"][0].goals, 7,
 assert.deepEqual(archiveReplaceBlockedWorld.archive.seasonStats["5"], { malformed: true },
   "the malformed archive bucket must remain untouched");
 
+// A malformed archive category or root container may hold legacy records.
+// Reconciliation must defer without replacing that data or changing the active roster.
+const malformedArchiveBucketWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const preservedMalformedArchiveBucket = [{ legacyArchiveRecord: "keep-me" }];
+malformedArchiveBucketWorld.archive = {
+  clubs: {}, players: {}, playerHistory: {},
+  seasonStats: preservedMalformedArchiveBucket,
+  leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+};
+const malformedArchiveBucketBefore = JSON.stringify(malformedArchiveBucketWorld);
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  malformedArchiveBucketWorld, archiveReplaceDb
+), "a malformed archive category must defer reconciliation safely");
+assert.strictEqual(malformedArchiveBucketWorld.archive.seasonStats, preservedMalformedArchiveBucket,
+  "a malformed archive category must remain intact rather than being replaced with an empty bucket");
+assert.equal(JSON.stringify(malformedArchiveBucketWorld), malformedArchiveBucketBefore,
+  "a malformed archive category must leave active players, statistics and rosters unchanged");
+
+const malformedArchiveRootWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const preservedMalformedArchiveRoot = [{ legacyArchiveRootRecord: "keep-me" }];
+malformedArchiveRootWorld.archive = preservedMalformedArchiveRoot;
+const malformedArchiveRootBefore = JSON.stringify(malformedArchiveRootWorld);
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  malformedArchiveRootWorld, archiveReplaceDb
+), "a malformed archive root must defer reconciliation safely");
+assert.strictEqual(malformedArchiveRootWorld.archive, preservedMalformedArchiveRoot,
+  "the original malformed archive root must remain available for recovery");
+assert.equal(JSON.stringify(malformedArchiveRootWorld), malformedArchiveRootBefore,
+  "a malformed archive root must not trigger player replacement or destructive normalization");
+
+// Frozen archive maps are valid objects but cannot accept new archive records.
+// Defer reconciliation before any active club/player/history data is changed.
+for (const bucketName of ["clubs", "players", "playerHistory"]) {
+  const frozenArchiveBucketWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+  frozenArchiveBucketWorld.archive = {
+    clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
+    leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+  };
+  Object.freeze(frozenArchiveBucketWorld.archive[bucketName]);
+  const frozenArchiveBucketBefore = JSON.stringify(frozenArchiveBucketWorld);
+  assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+    frozenArchiveBucketWorld, archiveReplaceDb
+  ), "a frozen archive bucket must defer reconciliation without throwing");
+  assert.equal(JSON.stringify(frozenArchiveBucketWorld), frozenArchiveBucketBefore,
+    "a frozen " + bucketName + " archive bucket must not allow partial world reconciliation");
+}
+
+const malformedArchiveStateWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+malformedArchiveStateWorld.archive = preservedMalformedArchiveRoot;
+const malformedArchiveStateSnapshot = {
+  players: JSON.stringify(malformedArchiveStateWorld.players),
+  roster: JSON.stringify(malformedArchiveStateWorld.clubs[archiveReplaceClubId].roster),
+  playerHistory: JSON.stringify(malformedArchiveStateWorld.playerHistory),
+  seasonStats: JSON.stringify(malformedArchiveStateWorld.seasonStats),
+  currentSeason: malformedArchiveStateWorld.currentSeason,
+  dbVersion: malformedArchiveStateWorld.dbVersion
+};
+const malformedArchiveStateSave = { season: 5, worldSimulation: malformedArchiveStateWorld };
+assert.strictEqual(ai.ensureState(malformedArchiveStateSave, db), malformedArchiveStateWorld,
+  "state loading must retain the original world when its archive container is malformed");
+assert.strictEqual(malformedArchiveStateWorld.archive, preservedMalformedArchiveRoot,
+  "state loading must preserve the original malformed archive container");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.players), malformedArchiveStateSnapshot.players,
+  "state loading must not replace or delete active players while the archive is malformed");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.clubs[archiveReplaceClubId].roster),
+  malformedArchiveStateSnapshot.roster, "state loading must preserve the active roster");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.playerHistory), malformedArchiveStateSnapshot.playerHistory,
+  "state loading must preserve career history");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.seasonStats), malformedArchiveStateSnapshot.seasonStats,
+  "state loading must preserve active season statistics");
+assert.equal(malformedArchiveStateWorld.currentSeason, malformedArchiveStateSnapshot.currentSeason,
+  "state loading must not advance the world season while archive recovery is pending");
+assert.equal(malformedArchiveStateWorld.dbVersion, malformedArchiveStateSnapshot.dbVersion,
+  "state loading must defer catalogue reconciliation while archive recovery is pending");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

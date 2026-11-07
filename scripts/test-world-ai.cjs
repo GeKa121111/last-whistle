@@ -7352,11 +7352,11 @@ assert.equal(futureAdvance.futureSchema, true,
 const futureDashboard = ai.dashboard(futureSchemaFixture.save, schemaGuardDb);
 assert.equal(futureDashboard.futureSchema, true,
   "the dashboard must expose a safe read-only summary for a future world schema");
-assert.deepEqual(ai.recruitmentNeeds(futureSchemaFixture.save, schemaGuardDb), [],
+assert.equal(ai.recruitmentNeeds(futureSchemaFixture.save, schemaGuardDb).length, 0,
   "recruitment analysis must not rewrite future-schema club AI metadata");
-assert.deepEqual(ai.seasonMatches(futureSchemaFixture.save, 5, schemaGuardDb), [],
+assert.equal(ai.seasonMatches(futureSchemaFixture.save, 5, schemaGuardDb).length, 0,
   "future-schema fixture reads must not generate or rewrite matches");
-assert.deepEqual(ai.seasonCompetitions(futureSchemaFixture.save, 5, schemaGuardDb), [],
+assert.equal(ai.seasonCompetitions(futureSchemaFixture.save, 5, schemaGuardDb).length, 0,
   "future-schema competition reads must not generate or rewrite competitions");
 let futureTransferCallbackRan = false;
 const futureTransaction = ai.withTransferMarketTransaction(futureSchemaFixture.world, () => {

@@ -3080,7 +3080,9 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v627"), "condition update must refresh the static cache");
-require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 528);
+const workerCacheMatch = workerCopies[0].match(/last-whistle-static-v(\\d+)/);
+assert.ok(workerCacheMatch && Number(workerCacheMatch[1]) >= 628,
+  "condition update must refresh the static cache");
+require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 628);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
   workerCopies[0], "data/match-engine.js", 84);

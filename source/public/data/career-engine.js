@@ -403,12 +403,14 @@
       state.age = savedAgeValue === null ? 18 : Math.max(0, Math.min(100, Math.floor(savedAgeValue)));
     }
     const hasActiveLoan = !!(state.loan && typeof state.loan === "object" && !Array.isArray(state.loan));
-    const savedParentContractType = hasActiveLoan ? state.loan.parentContractType : undefined;
-    const hasSavedParentContractType = savedParentContractType !== undefined
-      && savedParentContractType !== null
-      && !(typeof savedParentContractType === "string" && savedParentContractType.trim() === "");
-    const effectiveContractType = String(hasActiveLoan && hasSavedParentContractType
-      ? savedParentContractType : state.contractType || "").trim().toLowerCase();
+    // Saved loan metadata is JSON data: never coerce an object (its toString/valueOf
+    // may be malformed) into a contract type. Use only actual strings.
+    const savedParentContractType = hasActiveLoan && typeof state.loan.parentContractType === "string"
+      ? state.loan.parentContractType.trim() : "";
+    const hasSavedParentContractType = savedParentContractType !== "";
+    const savedStateContractType = typeof state.contractType === "string" ? state.contractType.trim() : "";
+    const effectiveContractType = (hasActiveLoan && hasSavedParentContractType
+      ? savedParentContractType : savedStateContractType).toLowerCase();
     const savedParentFreeAgent = hasActiveLoan ? state.loan.parentFreeAgent : undefined;
     const hasSavedParentFreeAgent = savedParentFreeAgent !== undefined
       && savedParentFreeAgent !== null

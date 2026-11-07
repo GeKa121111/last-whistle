@@ -2656,6 +2656,43 @@ sandbox.window.__lwTestRememberTransferClubEndpoints(enrichedClubHistoryWorld, {
 assert.equal(enrichedClubHistoryWorld.transferClubHistoryByPlayer["legacy-text-club-player"][0].clubId,
   "legacy-text-club-stable-id",
   "a newly available stable club ID must enrich an existing text-only endpoint instead of being discarded");
+
+const malformedPlayerClubHistoryPayload = {
+  legacyClubIds: ["malformed-former-club"],
+  note: "preserve this historical payload before normalization"
+};
+const malformedPlayerClubHistoryWorld = {
+  transferClubHistoryByPlayer: {
+    "malformed-endpoint-player": malformedPlayerClubHistoryPayload
+  },
+  transferClubHistorySchemaVersion: 1
+};
+sandbox.window.__lwTestRememberTransferClubEndpoints(malformedPlayerClubHistoryWorld, {
+  playerId: "malformed-endpoint-player",
+  from: "Recovered Former Club", fromCountry: "Testland", fromClubId: "recovered-former-club",
+  to: "Recovered Current Club", toCountry: "Testland", toClubId: "recovered-current-club"
+});
+assert.deepEqual(malformedPlayerClubHistoryWorld.legacyRecoveryData["transferClubHistory:malformed-endpoint-player"],
+  malformedPlayerClubHistoryPayload,
+  "a malformed per-player compact history payload must be archived before the active endpoint list is replaced");
+assert.deepEqual(malformedPlayerClubHistoryWorld.transferClubHistoryByPlayer["malformed-endpoint-player"].map(row => row.clubId),
+  ["recovered-former-club", "recovered-current-club"],
+  "new verified endpoints must still be recorded after preserving a malformed legacy payload");
+
+const blockedMalformedPlayerClubHistoryPayload = { legacyClubIds: ["keep-me"] };
+const blockedMalformedPlayerClubHistoryWorld = {
+  transferClubHistoryByPlayer: { "blocked-endpoint-player": blockedMalformedPlayerClubHistoryPayload },
+  transferClubHistorySchemaVersion: 1,
+  legacyRecoveryData: Object.freeze({}),
+  legacyRecoveryDataFallback: Object.freeze({})
+};
+sandbox.window.__lwTestRememberTransferClubEndpoints(blockedMalformedPlayerClubHistoryWorld, {
+  playerId: "blocked-endpoint-player", from: "Must Not Replace", fromClubId: "must-not-replace"
+});
+assert.equal(blockedMalformedPlayerClubHistoryWorld.transferClubHistoryByPlayer["blocked-endpoint-player"],
+  blockedMalformedPlayerClubHistoryPayload,
+  "an unarchivable malformed endpoint payload must remain untouched rather than being overwritten");
+
 sandbox.window.__lwTestRememberTransferClubEndpoints(prunedTransferLedgerWorld, {
   id: "old-transfer-before-pruning", playerId: transferReconcilePlayerId,
   from: transferReconcileOriginName, fromCountry: transferReconcileCountry,

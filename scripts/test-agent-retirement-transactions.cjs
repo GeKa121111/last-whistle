@@ -214,7 +214,8 @@ function makeHarness(stateOverrides = {}, options = {}) {
   assert.equal(safeRetirementResult.ok, true,
     "valid retirement capital should still work when optional legacy season/reputation fields are malformed");
   assert.equal(safeRetirementFallback.state.retirementCareer.season, 1);
-  assert.equal(safeRetirementFallback.state.retirementCareer.reputation, 50);
+  assert.equal(safeRetirementFallback.state.retirementCareer.reputation, 1,
+    "malformed reputation safely defaults to zero while the valid capital contribution remains applied");
 
   const noOverwrite = makeHarness({
     money: 6000000,

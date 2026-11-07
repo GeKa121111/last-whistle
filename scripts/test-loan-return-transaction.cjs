@@ -185,6 +185,16 @@ function makeHarness(options = {}) {
 }
 
 {
+  const h = makeHarness({ parentContractSeasons: "2", parentWage: [450] });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.contractSeasons, 2,
+    "a valid parent contract must remain active when only its saved wage is malformed");
+  assert.equal(h.state.weeklyWage, 0,
+    "an array-shaped parent wage must not be coerced while restoring an otherwise valid contract");
+  assert.equal(h.state.freeAgent, false);
+}
+
+{
   const h = makeHarness({
     parentContractSeasons: null, stateContractSeasons: [3], parentWage: "450"
   });

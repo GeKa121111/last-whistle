@@ -4333,8 +4333,6 @@ assert.equal(archiveReplaceBlockedWorld.seasonStats["5"][0].goals, 7,
 assert.deepEqual(archiveReplaceBlockedWorld.archive.seasonStats["5"], { malformed: true },
   "the malformed archive bucket must remain untouched");
 
-// A malformed archive category or root container may hold legacy records.
-// Reconciliation must defer without replacing that data or changing the active roster.
 // A failed player-map deletion must leave the still-active player's live history and stats intact.
 const archiveReplaceDeleteFailureWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const lockedReplacementPlayer = archiveReplaceDeleteFailureWorld.players[archiveReplacePlayerId];
@@ -4401,15 +4399,16 @@ assert.ok(unsupportedAliasTransferFailureWorld.players[unsupportedAliasPlayerKey
 assert.ok(unsupportedAliasTransferFailureWorld.clubs[unsupportedAliasClubId].roster.includes(unsupportedAliasPlayerKey),
   "the unsupported club must remain active while its player archival is incomplete");
 assert.deepEqual(unsupportedAliasTransferFailureWorld.playerHistory[unsupportedAliasPlayerKey],
-  unsupportedAliasCanonicalHistory,
-  "canonical career history must remain live when a later archive step fails");
-assert.deepEqual(unsupportedAliasTransferFailureWorld.playerHistory[unsupportedAliasInternalId],
-  unsupportedAliasLegacyHistory,
-  "legacy-alias career history must remain live when a later archive step fails");
+  unsupportedAliasCanonicalHistory.concat(unsupportedAliasLegacyHistory),
+  "canonical active history must retain both canonical and unique legacy rows when a later archive step fails");
+assert.equal(unsupportedAliasTransferFailureWorld.playerHistory[unsupportedAliasInternalId], undefined,
+  "the valid legacy history alias must be consolidated under the active canonical player key");
 assert.deepEqual(unsupportedAliasTransferFailureWorld.archive.playerHistory[unsupportedAliasPlayerKey],
   unsupportedAliasCanonicalHistory.concat(unsupportedAliasLegacyHistory),
   "the archive may contain a safe backup while the active player remains available");
 
+// A malformed archive category or root container may hold legacy records.
+// Reconciliation must defer without replacing that data or changing the active roster.
 const malformedArchiveBucketWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const preservedMalformedArchiveBucket = [{ legacyArchiveRecord: "keep-me" }];
 malformedArchiveBucketWorld.archive = {

@@ -4772,7 +4772,7 @@ function persistGame(silent=false,revision=saveRevision){
   state.schemaVersion=10;
   const snapshot=structuredCloneSafe(state);
   if(window.LWStateStore&&typeof window.LWStateStore.save==="function"){
-   const writePromise=window.LWStateStore.save(state,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")});
+   const writePromise=window.LWStateStore.save(state,{slotId:"career:default"});
    saveWriteInFlight++;
    Promise.resolve(writePromise).then(async result=>{
     let persistedSnapshot=snapshot;

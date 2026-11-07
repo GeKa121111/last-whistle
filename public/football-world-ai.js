@@ -422,7 +422,7 @@
     const existingArchivedHistory = safeWorldOwnValue(archive.playerHistory, playerId);
     const mergedHistory = historySourceRows && historySourceRows.length
       ? mergeRows(existingArchivedHistory, historySourceRows) : null;
-    if (historySourceRows.length && !mergedHistory) return false;
+    if (historySourceRows && historySourceRows.length && !mergedHistory) return false;
 
     const seasonStats = safeWorldOwnValue(world, "seasonStats");
     const seasonUpdates = [];

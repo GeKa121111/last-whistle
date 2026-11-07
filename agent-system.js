@@ -154,16 +154,16 @@
     return id&&Object.prototype.hasOwnProperty.call(BY_ID,id)?BY_ID[id]:null;
   }
   function esc(v){return safeAgentText(v,"").replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});}
-  function cap(v,min,max){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));}
+  function cap(v,min,max){return Math.max(min,Math.min(max,Math.round(safeAgentNumber(v,0))));}
   function agentConfig(s){var p=s&&s.agentProfile;return p?agentById(p.id):null;}
   function randomUnit(s){
-    var x=(Number(s.randomSeed)>>>0)||0x6d2b79f5;x=(x+0x6d2b79f5)>>>0;s.randomSeed=x;
+    var x=(safeAgentNumber(s&&s.randomSeed,0)>>>0)||0x6d2b79f5;x=(x+0x6d2b79f5)>>>0;s.randomSeed=x;
     var t=x;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);
     return ((t^(t>>>14))>>>0)/4294967296;
   }
   function boundedStat(s,key,delta){
     var bounded=["energy","morale","trust","fatigue","professionalism","mediaReputation","teamChemistry","coachRelationship","playerPotential","fitness","confidence"];
-    var next=(Number(s[key])||0)+Number(delta||0);
+    var next=safeAgentNumber(s[key],0)+safeAgentNumber(delta,0);
     if(bounded.indexOf(key)>=0)s[key]=cap(next,0,100);
     else if(key==="money"||key==="followers"||key==="injuryDays")s[key]=Math.max(0,Math.round(next));
     else s[key]=next;
@@ -175,14 +175,14 @@
     var customFeeRate=p.customFeeRate==null?null:finiteAgentNumber(p.customFeeRate);
     p.customFeeRate=customFeeRate===null?null:Math.max(.02,Math.min(.14,customFeeRate));
     p.storyStage=cap(p.storyStage||0,0,2);
-    p.hiredSeason=Math.max(1,Number(p.hiredSeason)||Number(s.season)||1);
+    p.hiredSeason=Math.max(1,safeAgentNumber(p.hiredSeason,safeAgentNumber(s.season,1)));
     // Migrate old fixed-term saves to an open-ended representation contract.
     p.contractMode="open-ended";
     p.expiresSeason=null;
-    p.signedApps=Math.max(0,Number(p.signedApps)||0);
-    p.lastChapterApps=Math.max(p.signedApps,Number(p.lastChapterApps)||p.signedApps);
-    p.lastChapterSeason=Math.max(p.hiredSeason,Number(p.lastChapterSeason)||p.hiredSeason);
-    p.lastPerformanceMilestone=Math.max(0,Number(p.lastPerformanceMilestone)||Math.floor((Number(s.apps)||0)/5));
+    p.signedApps=Math.max(0,safeAgentNumber(p.signedApps,0));
+    p.lastChapterApps=Math.max(p.signedApps,safeAgentNumber(p.lastChapterApps,p.signedApps));
+    p.lastChapterSeason=Math.max(p.hiredSeason,safeAgentNumber(p.lastChapterSeason,p.hiredSeason));
+    p.lastPerformanceMilestone=Math.max(0,safeAgentNumber(p.lastPerformanceMilestone,Math.floor(safeAgentNumber(s.apps,0)/5)));
     p.strategyOverride=safeAgentText(p.strategyOverride,"");
     p.perks=p.perks&&typeof p.perks==="object"?p.perks:{};
     p.feeDebt=safeWholeAmount(p.feeDebt);
@@ -193,6 +193,10 @@
     if(typeof value==="string"&&!value.trim())return null;
     var n=Number(value);
     return Number.isFinite(n)?n:null;
+  }
+  function safeAgentNumber(value,fallback){
+    var parsed=finiteAgentNumber(value);
+    return parsed===null?fallback:parsed;
   }
   function safeWholeAmount(value){
     var n=finiteAgentNumber(value);
@@ -299,8 +303,8 @@
   function makeProfile(id,s,legacy){
     var a=agentById(id)||LEGACY_AGENT;
     return ensureProfileShape({id:a.id,name:a.name,title:a.title,mark:a.mark,feeRate:a.feeRate,customFeeRate:null,relationship:52,
-      contractMode:"open-ended",hiredSeason:Number(s.season)||1,expiresSeason:null,signedDay:Number(s.day)||1,signedApps:Number(s.apps)||0,
-      lastChapterApps:Number(s.apps)||0,lastChapterSeason:Number(s.season)||1,lastPerformanceMilestone:Math.floor((Number(s.apps)||0)/5),
+      contractMode:"open-ended",hiredSeason:safeAgentNumber(s.season,1)||1,expiresSeason:null,signedDay:safeAgentNumber(s.day,1)||1,signedApps:safeAgentNumber(s.apps,0),
+      lastChapterApps:safeAgentNumber(s.apps,0),lastChapterSeason:safeAgentNumber(s.season,1)||1,lastPerformanceMilestone:Math.floor(safeAgentNumber(s.apps,0)/5),
       storyStage:0,strategyOverride:"",perks:{},feeDebt:0,legacyMigrated:!!legacy,contractMultiplierDelta:0,negotiationRaiseBonusDelta:0},s);
   }
   function current(s){return s&&s.agent?agentById(s.agentProfile&&s.agentProfile.id):null;}
@@ -337,7 +341,7 @@ function availableAgentBalance(s){
       }else{
         var normalizedRate=Math.round(quoteRate*1000)/1000;
         if(quote.agentId!==quoteId||quote.feeRate!==normalizedRate){
-          s.agentNegotiationQuote={agentId:quoteId,feeRate:normalizedRate,season:Number(quote.season)||Number(s.season)||1,calendarDay:Number(quote.calendarDay)||Number(s.calendarDay||s.day)||1};
+          s.agentNegotiationQuote={agentId:quoteId,feeRate:normalizedRate,season:safeAgentNumber(quote.season,safeAgentNumber(s.season,1))||1,calendarDay:safeAgentNumber(quote.calendarDay,safeAgentNumber(s.calendarDay,safeAgentNumber(s.day,1)))||1};
           changed=true;
         }
       }
@@ -347,7 +351,7 @@ function availableAgentBalance(s){
   }
   function record(s,title,text,silent){
     if(!Array.isArray(s.agentHistory))s.agentHistory=[];
-    var e={season:Number(s.season)||1,day:Number(s.day)||1,title:safeAgentText(title,"حدث مع الوكيل"),text:safeAgentText(text,"")};
+    var e={season:safeAgentNumber(s.season,1)||1,day:safeAgentNumber(s.day,1)||1,title:safeAgentText(title,"حدث مع الوكيل"),text:safeAgentText(text,"")};
     s.agentHistory.unshift(e);s.agentHistory=s.agentHistory.slice(0,40);
     if(!silent){var api=API();if(api&&api.log)api.log(e.title+": "+e.text);}
   }
@@ -359,17 +363,17 @@ function availableAgentBalance(s){
   function canUseAgent(s){return !!(s&&s.careerStarted&&!s.retired);}
   function currentChapter(s){
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p||p.storyStage>=cfg.chapters.length)return null;
-    var stage=Number(p.storyStage)||0,apps=Number(s.apps)||0;
-    var ready=stage===0?(apps-Number(p.signedApps||0)>=3||!!s.seasonFinished):(apps-Number(p.lastChapterApps||0)>=4||Number(s.season)>Number(p.lastChapterSeason||0));
+    var stage=safeAgentNumber(p.storyStage,0),apps=safeAgentNumber(s.apps,0);
+    var ready=stage===0?(apps-safeAgentNumber(p.signedApps,0)>=3||!!s.seasonFinished):(apps-safeAgentNumber(p.lastChapterApps,0)>=4||safeAgentNumber(s.season,1)>safeAgentNumber(p.lastChapterSeason,0));
     return ready?cfg.chapters[stage]:null;
   }
   function progress(s){
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p)return {stage:0,total:2,ready:false,remaining:0,complete:false};
-    var stage=Math.min(cfg.chapters.length,Number(p.storyStage)||0),apps=Number(s.apps)||0;
-    var need=stage===0?Math.max(0,3-(apps-Number(p.signedApps||0))):stage===1?Math.max(0,4-(apps-Number(p.lastChapterApps||0))):0;
+    var stage=Math.min(cfg.chapters.length,safeAgentNumber(p.storyStage,0)),apps=safeAgentNumber(s.apps,0);
+    var need=stage===0?Math.max(0,3-(apps-safeAgentNumber(p.signedApps,0))):stage===1?Math.max(0,4-(apps-safeAgentNumber(p.lastChapterApps,0))):0;
     return {stage:stage,total:cfg.chapters.length,ready:!!currentChapter(s),remaining:need,complete:stage>=cfg.chapters.length};
   }
-  function addTrust(s,delta){if(s.agentProfile)s.agentProfile.relationship=cap(Number(s.agentProfile.relationship||0)+Number(delta||0),0,100);}
+  function addTrust(s,delta){if(s.agentProfile)s.agentProfile.relationship=cap(safeAgentNumber(s.agentProfile.relationship,0)+safeAgentNumber(delta,0),0,100);}
 
   function ensurePanel(){
     panel=document.getElementById("lwa-agent-system");if(panel)return true;
@@ -697,8 +701,8 @@ function availableAgentBalance(s){
     var hasAgentState=!!s.agent||!!(s.agentProfile&&typeof s.agentProfile==="object")
       ||(Array.isArray(s.agentHistory)&&s.agentHistory.length>0)
       ||(Array.isArray(s.agentFeeDebtLedger)&&s.agentFeeDebtLedger.length>0)||!!s.agentNegotiationQuote
-      ||Number(s.agentFeeDebtSequence)>0||Number(s.agentDebtPaid)>0
-      ||Number(s.agentCommissionPaid)>0;
+      ||safeAgentNumber(s.agentFeeDebtSequence,0)>0||safeAgentNumber(s.agentDebtPaid,0)>0
+      ||safeAgentNumber(s.agentCommissionPaid,0)>0;
     if(hasAgentState){
       var preview=cloneAgentMaintenancePreview(s);if(!preview)return;
       var changed=ensureState(preview);
@@ -767,7 +771,7 @@ function availableAgentBalance(s){
   // Stage 2: post-retirement career paths. Actions are deterministic and persist in the career state.
   function postRetirementOptions(s){
     if(!s||!s.retired)return {available:false,reason:"لازم تعتزل الأول."};
-    var wealth=safeWholeAmount(s.money),rawFame=Number(s.mediaReputation),fame=Number.isFinite(rawFame)?Math.max(0,rawFame):0;
+    var wealth=safeWholeAmount(s.money),fame=Math.max(0,safeAgentNumber(s.mediaReputation,0));
     return {
       available:true,
       agent:{available:wealth>=250000,minimumCapital:250000,networkScore:Math.round(Math.min(100,fame*.55+wealth/500000))},
@@ -929,14 +933,14 @@ function availableAgentBalance(s){
   async function startPostRetirementAgency(s,capital){
     if(!s||!s.retired)return {ok:false,reason:"لازم تعتزل الأول."};
     if(s.retirementCareer)return {ok:false,reason:"مسار ما بعد الاعتزال بدأ بالفعل؛ لا يمكن استبداله وفقدان سجله."};
-    var options=postRetirementOptions(s),rawAmount=capital==null?250000:Number(capital);
+    var options=postRetirementOptions(s),rawAmount=capital==null?250000:finiteAgentNumber(capital);
     if(rawAmount===0)rawAmount=250000;
     if(!Number.isFinite(rawAmount))return {ok:false,reason:"قيمة رأس المال غير صالحة."};
     var amount=Math.round(rawAmount),available=safeWholeAmount(s.money);
     if(!options.available||!options.agent.available||!Number.isSafeInteger(amount)||amount<250000||amount>available)return {ok:false,reason:"رأس المال غير كافٍ أو المسيرة لم تنتهِ."};
     return runPostRetirementMutation(s,function(){
       s.money=available-amount;
-      s.retirementCareer={type:"agency",capital:amount,players:[],reputation:Math.round(Math.min(100,(Number(s.mediaReputation)||0)*.55+amount/500000)),season:Number(s.season)||1,history:[]};
+      s.retirementCareer={type:"agency",capital:amount,players:[],reputation:Math.round(Math.min(100,safeAgentNumber(s.mediaReputation,0)*.55+amount/500000)),season:safeAgentNumber(s.season,1)||1,history:[]};
       s.retirementCareer.history.push({type:"founded",season:s.retirementCareer.season,capital:amount});
       return {career:s.retirementCareer};
     });
@@ -946,12 +950,12 @@ function availableAgentBalance(s){
     if(s.retirementCareer)return {ok:false,reason:"مسار ما بعد الاعتزال بدأ بالفعل؛ لا يمكن استبداله وفقدان سجله."};
     var options=postRetirementOptions(s),clubName=safeAgentText(club,"").trim(),rawValue=finiteAgentNumber(clubValue);
     if(!options.available||!options.clubOwner.available||!clubName||!Number.isFinite(rawValue)||rawValue<=0)return {ok:false,reason:"قيمة النادي أو بيانات الملكية غير صالحة."};
-    var value=Math.ceil(rawValue),rawShare=Number(share),portion=Math.max(51,Math.min(100,Number.isFinite(rawShare)&&rawShare!==0?rawShare:51));
+    var value=Math.ceil(rawValue),rawShare=finiteAgentNumber(share),portion=Math.max(51,Math.min(100,rawShare!==null&&rawShare!==0?rawShare:51));
     var cost=Math.ceil(value*portion/100),available=safeWholeAmount(s.money);
     if(!Number.isSafeInteger(value)||!Number.isSafeInteger(cost)||cost<=0||cost>available)return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
     return runPostRetirementMutation(s,function(){
       s.money=available-cost;
-      s.retirementCareer={type:"club-owner",club:clubName,share:portion,investment:cost,academyBudget:Math.round(cost*.08),season:Number(s.season)||1,history:[{type:"acquisition",club:clubName,share:portion,cost:cost}]};
+      s.retirementCareer={type:"club-owner",club:clubName,share:portion,investment:cost,academyBudget:Math.round(cost*.08),season:safeAgentNumber(s.season,1)||1,history:[{type:"acquisition",club:clubName,share:portion,cost:cost}]};
       return {career:s.retirementCareer};
     });
   }
@@ -965,11 +969,11 @@ function availableAgentBalance(s){
       var current=s.retirementCareer;
       current.players=Array.isArray(current.players)?current.players:[];
       if(current.players.some(function(p){return safeAgentId(p&&p.id,"")===playerId;}))return false;
-      var registered={id:playerId,name:safeAgentText(player.name,"لاعب جديد"),club:safeAgentText(player.club,""),joinedSeason:Number(s.season)||1,appearancesAtSigning:Math.max(0,Number(player.appearances)||0)};
+      var registered={id:playerId,name:safeAgentText(player.name,"لاعب جديد"),club:safeAgentText(player.club,""),joinedSeason:safeAgentNumber(s.season,1)||1,appearancesAtSigning:Math.max(0,safeAgentNumber(player.appearances,0))};
       current.players.push(registered);
-      current.reputation=Math.min(100,(Number(current.reputation)||0)+1);
+      current.reputation=Math.min(100,safeAgentNumber(current.reputation,0)+1);
       current.history=Array.isArray(current.history)?current.history:[];
-      current.history.unshift({type:"player-signed",playerId:playerId,season:Number(s.season)||1});
+      current.history.unshift({type:"player-signed",playerId:playerId,season:safeAgentNumber(s.season,1)||1});
       return {career:current,player:registered};
     });
   }

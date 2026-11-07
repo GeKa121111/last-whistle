@@ -585,7 +585,7 @@ function availableAgentBalance(s){
       record(s,"تغيير الوكيل","أنهيت اتفاق "+old.name+" ودفعت "+fee+" جنيه داخل اللعبة لاختيار "+a.name+".");
       s.agent=false;s.agentProfile=null;
       applyAgentSigning(s,id,a,savedQuote);
-      return {exitFee:fee,agentId:id,feeRate:Number(s.agentProfile.customFeeRate)};
+      return {exitFee:fee,agentId:id,feeRate:safeAgentNumber(s.agentProfile.customFeeRate,0)};
     },"تم تغيير الوكيل وحفظ الاتفاق الجديد.");
     if(result.ok)closeDialog();
     return result;
@@ -652,7 +652,7 @@ function availableAgentBalance(s){
   }
   function onContractRenewal(s,offer){
     if(!s||!s.agent||!s.agentProfile)return 0;addTrust(s,4);
-    return chargeFee(s,"تجديد العقد",Math.max(0,Number(offer&&offer.wage)||safeAgentNumber(s.weeklyWage,0)));
+    return chargeFee(s,"تجديد العقد",Math.max(0,safeAgentNumber(offer&&offer.wage,safeAgentNumber(s.weeklyWage,0))));
   }
   function sponsorshipMultiplier(s){if(!s||!s.agent||!s.agentProfile)return 1;return Math.max(1,Math.min(1.45,1+profileValue(s,"sponsorshipBonus",.1)+(rel(s)-50)*.001));}
   function matchPayMultiplier(s){if(!s||!s.agent||!s.agentProfile)return 1;return Math.max(1,Math.min(1.15,1+profileValue(s,"matchPayBonus",.02)));}

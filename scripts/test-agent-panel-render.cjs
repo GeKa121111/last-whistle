@@ -17,6 +17,11 @@ const safeTextStart = source.indexOf("  function safeAgentText(value,fallback){"
 const safeTextEnd = source.indexOf("\n  function safeAgentId", safeTextStart);
 assert.ok(safeTextStart >= 0 && safeTextEnd > safeTextStart, "safe persisted-text helper must exist");
 const safeTextSource = source.slice(safeTextStart, safeTextEnd);
+const finiteNumberStart = source.indexOf("  function finiteAgentNumber(value){");
+const safeNumberEnd = source.indexOf("\n  function safeWholeAmount", finiteNumberStart);
+assert.ok(finiteNumberStart >= 0 && safeNumberEnd > finiteNumberStart,
+  "safe persisted-number helpers must exist");
+const safeNumberSource = source.slice(finiteNumberStart, safeNumberEnd);
 assert.ok(tickSource.includes("panelWasRendered"), "panel render state must handle late DOM mounting");
 assert.ok(!tickSource.includes("checkExpiry(s)"),
   "the render optimization must not reintroduce automatic expiry for open-ended agent contracts");
@@ -65,7 +70,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext("var agentContractMutationPending=false; var postRetirementMutationPending=false;", sandbox);
-vm.runInContext(safeTextSource + "\n" + tickSource, sandbox, { filename: "agent-system.tick" });
+vm.runInContext(safeTextSource + "\n" + safeNumberSource + "\n" + tickSource, sandbox, { filename: "agent-system.tick" });
 
 sandbox.tick();
 sandbox.tick();

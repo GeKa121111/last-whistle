@@ -14,9 +14,9 @@ const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(source, publicSource, "agent root/public runtimes must match");
 assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
-assert.match(html, /agent-system\.js\?v=12/);
-require("./assert-static-cache-version.cjs")(sw, 604);
-assert.match(sw, /agent-system\.js\?v=12/);
+assert.match(html, /agent-system\.js\?v=14/);
+require("./assert-static-cache-version.cjs")(sw, 606);
+assert.match(sw, /agent-system\.js\?v=14/);
 assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 
 const tickStart = source.indexOf("  function tick(force){");
@@ -57,6 +57,8 @@ function makeHarness(withStore = true) {
   };
   const sandbox = {
     API: () => api,
+    safeAgentNumber: (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && value.trim() && Number.isFinite(Number(value)) ? Number(value) : fallback,
+    safeAgentNumber: (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && value.trim() && Number.isFinite(Number(value)) ? Number(value) : fallback,
     safeAgentText: (value, fallback) => typeof value === "string" ? value
       : typeof value === "number" && Number.isFinite(value) ? String(value)
         : typeof value === "boolean" ? (value ? "true" : "false")

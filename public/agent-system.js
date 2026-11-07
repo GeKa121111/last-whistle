@@ -950,7 +950,9 @@ function availableAgentBalance(s){
     if(s.retirementCareer)return {ok:false,reason:"مسار ما بعد الاعتزال بدأ بالفعل؛ لا يمكن استبداله وفقدان سجله."};
     var options=postRetirementOptions(s),clubName=safeAgentText(club,"").trim(),rawValue=finiteAgentNumber(clubValue);
     if(!options.available||!options.clubOwner.available||!clubName||!Number.isFinite(rawValue)||rawValue<=0)return {ok:false,reason:"قيمة النادي أو بيانات الملكية غير صالحة."};
-    var value=Math.ceil(rawValue),rawShare=finiteAgentNumber(share),portion=Math.max(51,Math.min(100,rawShare!==null&&rawShare!==0?rawShare:51));
+    var rawShare=share==null?51:finiteAgentNumber(share);
+    if(rawShare===null)return {ok:false,reason:"نسبة الملكية غير صالحة."};
+    var value=Math.ceil(rawValue),portion=Math.max(51,Math.min(100,rawShare||51));
     var cost=Math.ceil(value*portion/100),available=safeWholeAmount(s.money);
     if(!Number.isSafeInteger(value)||!Number.isSafeInteger(cost)||cost<=0||cost>available)return {ok:false,reason:"لا يمكن شراء حصة حاكمة بهذه الميزانية."};
     return runPostRetirementMutation(s,function(){

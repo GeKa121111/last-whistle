@@ -771,17 +771,43 @@
     const ovr = clamp(row && (row.ovr || row.power) || marketClubPower(club) - 5 + Math.round(rng() * 9 - 5), 38, 96);
     const age = Math.max(16, Math.min(37, int(row && row.age, 18 + Math.floor(rng() * 15))));
     const sourceIdentity = sourcePlayerIdentityKey({ name: row && row.name, position, age });
-    const id = generated
+    const playerName = String(row && row.name || (club.name + " • ناشئ " + String(index + 1).padStart(2, "0")));
+    const generatedRecord = !!generated || !!(row && row.isRealPlayer === false);
+    const baseId = generated
       ? "academy-" + hash(clubId + "|" + index + "|" + (row && row.name || "player")).toString(36)
       : "player-" + hash(clubId + "|" + (sourceIdentity || index)).toString(36);
-    if (world.players[id]) return world.players[id];
+    const sameIdentity = existing => {
+      if (!existing || typeof existing !== "object" || Array.isArray(existing)) return false;
+      return safeWorldRecordIdentifier(existing, "clubId") === clubId
+        && normalize(safeWorldRecordText(existing, "name")) === normalize(playerName)
+        && normalizePosition(safeWorldRecordText(existing, "position")) === normalizePosition(position)
+        && int(safeWorldOwnValue(existing, "age"), 0) === age
+        && isTrueFlag(safeWorldOwnValue(existing, "isGenerated")) === generatedRecord;
+    };
+    let id = baseId;
+    let existingPlayer = safeWorldOwnValue(world.players, id);
+    if (existingPlayer !== undefined) {
+      if (sameIdentity(existingPlayer)) return existingPlayer;
+      // Keep the legacy ID when it is free, but never let a 32-bit hash collision
+      // silently reuse another player's record or suppress a real roster entry.
+      const collisionIdentity = sourceIdentity || [normalize(playerName), normalizePosition(position), age].join("|");
+      const collisionSuffix = hash(clubId + "|" + collisionIdentity + "|"
+        + (generatedRecord ? "generated" : "sourced") + "|player-id-collision-v1").toString(36);
+      const collisionBaseId = baseId + "-" + collisionSuffix;
+      id = collisionBaseId;
+      let suffix = 1;
+      while ((existingPlayer = safeWorldOwnValue(world.players, id)) !== undefined) {
+        if (sameIdentity(existingPlayer)) return existingPlayer;
+        id = collisionBaseId + "-" + suffix++;
+      }
+    }
     if (hasPendingClubRosterRecovery(world, clubId)) return null;
     const player = {
-      id, name: String(row && row.name || (club.name + " • ناشئ " + String(index + 1).padStart(2, "0"))),
+      id, name: playerName,
       clubId, country: club.country, leagueId: club.leagueId, division: club.division,
       position, group, ovr, potential: clamp(row && row.potential || ovr + 3 + Math.floor(rng() * 18), ovr, 97),
       age, prestige: club.prestige, contractSeasons: 1 + Math.floor(rng() * 5),
-      isGenerated: !!generated || !!(row && row.isRealPlayer === false), isRealPlayer: !generated && !!row && row.isRealPlayer !== false,
+      isGenerated: generatedRecord, isRealPlayer: !generated && !!row && row.isRealPlayer !== false,
       lastRating: 0, transferListed: false
     };
     world.players[id] = player;

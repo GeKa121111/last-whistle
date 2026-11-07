@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 25);
+assert.equal(engine.version, 26);
 
 const malformedAwardNumbers = [
   { label: "Symbol", value: Symbol("season-stat") },
@@ -770,6 +770,42 @@ const counter = engine.evaluateNegotiation(offer, {
 }, 100, 0);
 assert.equal(counter.status, "counter", "an excessive first request should trigger a counter-offer");
 assert.ok(counter.patience < 100);
+const highPressureTerms = {
+  weeklyWage: offer.wage * 2,
+  signingBonus: offer.signingBonus * 3,
+  goalBonus: offer.goalBonus * 2,
+  cleanSheetBonus: offer.cleanSheetBonus * 2,
+  contractSeasons: 2,
+  releaseClause: offer.releaseClause * 2
+};
+const legacyPatienceCases = [
+  ["missing", undefined],
+  ["null", null],
+  ["blank", ""],
+  ["NaN", NaN],
+  ["Infinity", Infinity],
+  ["Symbol", Symbol("patience")]
+];
+for (const [label, savedPatience] of legacyPatienceCases) {
+  const legacyOffer = { ...offer };
+  if (label === "missing") delete legacyOffer.patience;
+  else legacyOffer.patience = savedPatience;
+  const legacyCounter = engine.evaluateNegotiation(legacyOffer, highPressureTerms, undefined, 0);
+  assert.equal(legacyCounter.status, "counter",
+    label + " legacy patience must default safely instead of withdrawing after the first counter");
+  assert.ok(legacyCounter.patience > 0,
+    label + " legacy patience must retain enough room for another negotiation round");
+}
+const savedOfferPatienceFallback = engine.evaluateNegotiation(
+  { ...offer, patience: 70 }, highPressureTerms, Symbol("invalid-patience"), 0
+);
+assert.equal(savedOfferPatienceFallback.status, "counter",
+  "an invalid explicit patience argument must fall back to the saved offer's valid patience");
+assert.equal(savedOfferPatienceFallback.patience, 2,
+  "a valid saved offer patience must be reduced by the normal negotiation loss");
+const explicitZeroPatience = engine.evaluateNegotiation(offer, highPressureTerms, 0, 0);
+assert.equal(explicitZeroPatience.status, "withdrawn",
+  "an explicit zero patience value must remain meaningful and allow the club to withdraw");
 
 const withdrawn = engine.evaluateNegotiation(offer, {
   weeklyWage: offer.wage * 10,

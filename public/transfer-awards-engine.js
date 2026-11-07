@@ -584,7 +584,12 @@
       return number === null ? 0 : number;
     };
     const roundedNonNegative = value => Math.max(0, Math.round(numericOrZero(value)));
-    const currentPatience = clamp(patience === undefined ? offer.patience : patience, 0, 100);
+    const suppliedPatience = finiteNumericValue(patience);
+    const savedOfferPatience = finiteNumericValue(offer.patience);
+    const currentPatience = clamp(
+      suppliedPatience !== null ? suppliedPatience : savedOfferPatience !== null ? savedOfferPatience : 100,
+      0, 100
+    );
     const roundValue = finiteNumericValue(round);
     const currentRound = Math.max(0, Math.floor(roundValue === null ? 0 : roundValue));
     const pressure = negotiationPressure(offer, terms);
@@ -993,7 +998,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 25,
+    version: 26,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

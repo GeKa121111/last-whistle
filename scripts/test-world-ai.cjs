@@ -7327,7 +7327,8 @@ const futureSchemaFixture = createSchemaGuardFixture({
   schemaVersion: ai.version + 1,
   completedSeasons: { futureSeasonMarkers: [5, 6] },
   transfers: { futureTransferRows: [{ id: "future-transfer" }] },
-  matchesBySeason: ["future-match-history"],
+  matchesBySeason: { "5": { futureMatchPayload: true } },
+  competitionsBySeason: { "5": { futureCompetitionPayload: true } },
   aiMetadata: ["future-ai-metadata"]
 });
 const futureSchemaSnapshot = JSON.stringify(futureSchemaFixture.world);

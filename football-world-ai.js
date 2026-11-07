@@ -4480,12 +4480,17 @@
       const world = base.ensureState(save, db);
       simulateLeagueSeason(save, season, db);
       const year = Math.max(1, int(season, 1));
-      return expandWorldMatches(world, (world.matchesBySeason[String(year)] || []).slice(), year);
+      const savedMatches = world.matchesBySeason && typeof world.matchesBySeason === "object"
+        ? world.matchesBySeason[String(year)] : null;
+      return Array.isArray(savedMatches) ? expandWorldMatches(world, savedMatches.slice(), year) : [];
     },
     seasonCompetitions: function (save, season, db) {
       const world = base.ensureState(save, db);
       simulateLeagueSeason(save, season, db);
-      return (world.competitionsBySeason[String(Math.max(1, int(season, 1)))] || []).slice();
+      const year = Math.max(1, int(season, 1));
+      const savedCompetitions = world.competitionsBySeason && typeof world.competitionsBySeason === "object"
+        ? world.competitionsBySeason[String(year)] : null;
+      return Array.isArray(savedCompetitions) ? savedCompetitions.slice() : [];
     },
     freeAgents: function (save, db) {
       const world = base.ensureState(save, db);

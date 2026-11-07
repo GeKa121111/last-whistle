@@ -4078,6 +4078,37 @@ assert.equal(archiveWriteFailureWorld.archive.matchesBySeason["5"].length, 0,
 assert.equal(archiveWriteFailureWorld.archive.competitionsBySeason["5"].length, 0,
   "a failed competition archive write must not overwrite the locked archive bucket");
 
+// If a required archive bucket is malformed, roster replacement must stop
+// before removing the generated player or clearing its live history/statistics.
+const archiveReplaceBlockedWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+archiveReplaceBlockedWorld.archive = {
+  clubs: {}, players: {}, playerHistory: {},
+  seasonStats: { "5": { malformed: true } },
+  leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  archiveReplaceBlockedWorld, archiveReplaceDb
+), "a malformed generated-player archive bucket must not abort reconciliation");
+assert.equal(archiveReplaceBlockedWorld.players[archiveReplacePlayerId].name,
+  "Archive Academy Placeholder 1",
+  "the generated player must remain active when its season statistics cannot be archived");
+assert.ok(archiveReplaceBlockedWorld.clubs[archiveReplaceClubId].roster.includes(archiveReplacePlayerId),
+  "the generated player must remain in the club roster when archival is incomplete");
+assert.equal(archiveReplaceBlockedWorld.clubs[archiveReplaceClubId].roster.length, 16,
+  "a failed archival must not create an empty squad slot");
+assert.equal(archiveReplaceBlockedWorld.clubs[archiveReplaceClubId].roster.some(id => {
+  const player = archiveReplaceBlockedWorld.players[id];
+  return player && player.name === "New Officially Sourced Player";
+}), false, "the sourced replacement must wait until the outgoing player is safely archived");
+assert.equal(archiveReplaceBlockedWorld.archive.players[archiveReplacePlayerId], undefined,
+  "preflight failure must not partially archive the player record");
+assert.equal(archiveReplaceBlockedWorld.playerHistory[archiveReplacePlayerId].length,
+  archiveReplaceHistory.length, "career history must remain active after a failed archive preflight");
+assert.equal(archiveReplaceBlockedWorld.seasonStats["5"][0].goals, 7,
+  "season statistics must remain active after a failed archive preflight");
+assert.deepEqual(archiveReplaceBlockedWorld.archive.seasonStats["5"], { malformed: true },
+  "the malformed archive bucket must remain untouched");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

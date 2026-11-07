@@ -24,6 +24,23 @@ for (const [alias, expected] of [
 assert.equal(store.normalizePosition("central_midfielder"), "وسط");
 assert.equal(store.normalizePosition("مركز غير معروف"), "مركز غير معروف");
 assert.equal(store.normalizePosition(""), "");
+const hostilePosition = JSON.parse('{"toString":1,"valueOf":1}');
+assert.doesNotThrow(() => store.normalizePosition(hostilePosition),
+  "a JSON object with shadowed coercion methods must not crash position normalization");
+assert.equal(store.normalizePosition(hostilePosition), "",
+  "an object-valued legacy position must be treated as an invalid label without mutating the save");
+assert.equal(store.normalizePosition(["CM"]), "",
+  "array-valued legacy positions must not be coerced into a valid squad role");
+assert.equal(store.normalizePosition(42), "42",
+  "safe numeric legacy position values remain non-throwing and backward-compatible");
+for (const inheritedKey of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+  assert.equal(store.normalizePosition(inheritedKey), inheritedKey,
+    "unknown position labels that match Object.prototype keys must remain plain strings: " + inheritedKey);
+}
+assert.equal(read("career-state-store.js"), read("public/career-state-store.js"),
+  "root and public state-store modules must remain byte-identical");
+assert.equal(read("sw.js"), read("public/sw.js"),
+  "root and public service workers must remain byte-identical");
 
 const extendedPositionAliases = [
   ["left wing back", "ظهير"], ["right wing back", "ظهير"],

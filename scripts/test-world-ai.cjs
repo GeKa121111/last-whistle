@@ -4522,11 +4522,14 @@ assert.ok(recoveredActiveHistoryWorld.transferClubHistoryByPlayer
 const blockedRecoveryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 blockedRecoveryWorld.legacyRecoveryData = ["unusable-recovery-container"];
 blockedRecoveryWorld.transfers = { legacyTransferRows: [{ id: "must-not-be-dropped" }] };
-const blockedRecoverySnapshot = JSON.stringify(blockedRecoveryWorld);
+const blockedTransferSnapshot = JSON.stringify(blockedRecoveryWorld.transfers);
+const blockedRecoveryBucketSnapshot = JSON.stringify(blockedRecoveryWorld.legacyRecoveryData);
 assert.strictEqual(ai.ensureState({ season: 5, worldSimulation: blockedRecoveryWorld }, archiveReplaceDb),
   blockedRecoveryWorld, "an unusable recovery container must defer active-history normalization");
-assert.equal(JSON.stringify(blockedRecoveryWorld), blockedRecoverySnapshot,
+assert.equal(JSON.stringify(blockedRecoveryWorld.transfers), blockedTransferSnapshot,
   "when recovery storage is malformed, world repair must leave the original transfer payload untouched");
+assert.equal(JSON.stringify(blockedRecoveryWorld.legacyRecoveryData), blockedRecoveryBucketSnapshot,
+  "world repair must not overwrite an unusable recovery bucket while deferring normalization");
 
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {

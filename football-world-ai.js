@@ -900,81 +900,118 @@
     };
     countInternalPlayerIds(world.players);
     countInternalPlayerIds(safeWorldOwnValue(archive, "players"));
+    const archiveRecordFields = {
+      club: ["id", "name", "country", "leagueId", "division"],
+      player: ["id", "name", "country", "clubId", "position", "age"]
+    };
+    const sameArchivedRecord = (existing, source, kind) => {
+      if (existing === source) return true;
+      if (!existing || typeof existing !== "object" || !source || typeof source !== "object") return false;
+      const fields = archiveRecordFields[kind] || [];
+      if (!fields.some(field => safeWorldOwnValue(source, field) !== undefined)) return false;
+      return fields.every(field => safeWorldOwnValue(existing, field) === safeWorldOwnValue(source, field));
+    };
+    const archiveRecordCanAccept = (bucket, key, source, kind) => {
+      let hasExisting = false;
+      try { hasExisting = Object.prototype.hasOwnProperty.call(bucket, key); } catch (_) { return false; }
+      if (!hasExisting) return true;
+      return sameArchivedRecord(safeWorldOwnValue(bucket, key), source, kind);
+    };
+    const archiveRecordIfUnconflicted = (bucket, key, source, kind) => {
+      if (!archiveRecordCanAccept(bucket, key, source, kind)) return false;
+      let hasExisting = false;
+      try { hasExisting = Object.prototype.hasOwnProperty.call(bucket, key); } catch (_) { return false; }
+      if (hasExisting) return true;
+      return safeWorldTrySetOwnValue(bucket, key, source)
+        && safeWorldOwnValue(bucket, key) === source;
+    };
+    const archiveRemovedPlayerHistory = (sourcePlayerId, canonicalPlayerId) => {
+      const sourceRows = safeWorldOwnValue(world.playerHistory, sourcePlayerId);
+      if (sourceRows === undefined) return true;
+      if (!Array.isArray(sourceRows)) return false;
+      const existingRows = safeWorldOwnValue(archive.playerHistory, canonicalPlayerId);
+      if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
+      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
+      sourceRows.forEach(entry => {
+        if (!mergedRows.includes(entry)) mergedRows.push(entry);
+      });
+      if (!safeWorldTrySetOwnValue(archive.playerHistory, canonicalPlayerId, mergedRows)) return false;
+      try { delete world.playerHistory[sourcePlayerId]; } catch (_) {}
+      return true;
+    };
+    const mergeRemovedPlayerTransferHistory = (sourcePlayerId, canonicalPlayerId) => {
+      const sourceRows = safeWorldOwnValue(transferClubHistoryByPlayer, sourcePlayerId);
+      if (sourceRows === undefined) return true;
+      if (!Array.isArray(sourceRows)) return false;
+      const existingRows = safeWorldOwnValue(transferClubHistoryByPlayer, canonicalPlayerId);
+      if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
+      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
+      sourceRows.forEach(endpoint => {
+        const endpointId = safeWorldRecordIdentifier(endpoint, "clubId");
+        const endpointName = normalize(safeWorldRecordText(endpoint, "name"));
+        const endpointCountry = normalize(safeWorldRecordText(endpoint, "country"));
+        const duplicate = mergedRows.some(existing => {
+          const existingId = safeWorldRecordIdentifier(existing, "clubId");
+          if (endpointId && existingId) return endpointId === existingId;
+          return !!endpointName
+            && normalize(safeWorldRecordText(existing, "name")) === endpointName
+            && normalize(safeWorldRecordText(existing, "country")) === endpointCountry;
+        });
+        if (!duplicate) mergedRows.push(endpoint);
+      });
+      if (!safeWorldTrySetOwnValue(transferClubHistoryByPlayer, canonicalPlayerId, mergedRows)) return false;
+      try { delete transferClubHistoryByPlayer[sourcePlayerId]; } catch (_) {}
+      return true;
+    };
     if (supportedLeagueIds.size) {
-      for (const [id, club] of Object.entries(world.clubs)) {
+      for (const [clubId, club] of Object.entries(world.clubs)) {
         const leagueId = safeWorldLeagueIdentifier(club);
-        if (club && leagueId && !supportedLeagueIds.has(leagueId)) {
-          removedClubIds.add(id);
-          safeWorldSetOwnValue(archive.clubs, id, club);
-          delete world.clubs[id];
-        }
-      }
-    }
-    if (removedClubIds.size) {
-      for (const [id, player] of Object.entries(world.players || {})) {
-        const playerClubId = safeWorldRecordIdentifier(player, "clubId");
-        if (player && playerClubId && removedClubIds.has(playerClubId)) {
-          removedPlayerIds.add(id);
-          safeWorldSetOwnValue(archive.players, id, player);
+        if (!club || !leagueId || supportedLeagueIds.has(leagueId)) continue;
+        // Do not discard the active club if its archive key already belongs to a
+        // different historical club record.
+        if (!archiveRecordCanAccept(archive.clubs, clubId, club, "club")) continue;
+        const playersForClub = Object.entries(world.players || {}).filter(([, player]) =>
+          player && safeWorldRecordIdentifier(player, "clubId") === clubId);
+        for (const [playerId, player] of playersForClub) {
+          // Archive player/history data before removing the live player. A conflicting
+          // archived record or an unwritable history bucket keeps the player active.
+          if (!archiveRecordIfUnconflicted(archive.players, playerId, player, "player")) continue;
           const internalPlayerId = safeWorldRecordIdentifier(player, "id");
-          const hasUniqueLegacyAlias = !!internalPlayerId && internalPlayerId !== id
+          const hasUniqueLegacyAlias = !!internalPlayerId && internalPlayerId !== playerId
             && internalPlayerIdCounts.get(internalPlayerId) === 1
             && !safeWorldOwnValue(world.players, internalPlayerId);
-          const archiveRemovedPlayerHistory = (sourcePlayerId, canonicalPlayerId) => {
-            const sourceRows = safeWorldOwnValue(world.playerHistory, sourcePlayerId);
-            if (!Array.isArray(sourceRows)) return false;
-            const existingRows = safeWorldOwnValue(archive.playerHistory, canonicalPlayerId);
-            if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
-            const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();
-            sourceRows.forEach(entry => {
-              if (!mergedRows.includes(entry)) mergedRows.push(entry);
-            });
-            if (!safeWorldSetOwnValue(archive.playerHistory, canonicalPlayerId, mergedRows)) return false;
-            try { delete world.playerHistory[sourcePlayerId]; } catch (_) {}
-            return true;
-          };
-          const mergeRemovedPlayerTransferHistory = (sourcePlayerId, canonicalPlayerId) => {
-            const sourceRows = safeWorldOwnValue(transferClubHistoryByPlayer, sourcePlayerId);
-            if (!Array.isArray(sourceRows)) return false;
-            const existingRows = safeWorldOwnValue(transferClubHistoryByPlayer, canonicalPlayerId);
-            if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
-            const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();
-            sourceRows.forEach(endpoint => {
-              const endpointId = safeWorldRecordIdentifier(endpoint, "clubId");
-              const endpointName = normalize(safeWorldRecordText(endpoint, "name"));
-              const endpointCountry = normalize(safeWorldRecordText(endpoint, "country"));
-              const duplicate = mergedRows.some(existing => {
-                const existingId = safeWorldRecordIdentifier(existing, "clubId");
-                if (endpointId && existingId) return endpointId === existingId;
-                return !!endpointName
-                  && normalize(safeWorldRecordText(existing, "name")) === endpointName
-                  && normalize(safeWorldRecordText(existing, "country")) === endpointCountry;
-              });
-              if (!duplicate) mergedRows.push(endpoint);
-            });
-            if (!safeWorldSetOwnValue(transferClubHistoryByPlayer, canonicalPlayerId, mergedRows)) return false;
-            try { delete transferClubHistoryByPlayer[sourcePlayerId]; } catch (_) {}
-            return true;
-          };
-          archiveRemovedPlayerHistory(id, id);
+          if (!archiveRemovedPlayerHistory(playerId, playerId)) continue;
           if (hasUniqueLegacyAlias) {
-            // Only a unique legacy alias can be attached to this archived player.
-            // Ambiguous aliases remain under their original key for safety.
-            archiveRemovedPlayerHistory(internalPlayerId, id);
-            mergeRemovedPlayerTransferHistory(internalPlayerId, id);
+            if (!archiveRemovedPlayerHistory(internalPlayerId, playerId)) continue;
+            if (!mergeRemovedPlayerTransferHistory(internalPlayerId, playerId)) continue;
           }
-          delete world.players[id];
+          try { delete world.players[playerId]; } catch (_) { continue; }
+          if (safeWorldOwnValue(world.players, playerId) !== undefined) continue;
+          removedPlayerIds.add(playerId);
         }
+        const hasRemainingPlayers = Object.values(world.players || {}).some(player =>
+          player && safeWorldRecordIdentifier(player, "clubId") === clubId);
+        if (hasRemainingPlayers) continue;
+        // Only archive/remove the club after every attached player has been safely
+        // archived and removed; this prevents active players pointing at a missing club.
+        if (!archiveRecordIfUnconflicted(archive.clubs, clubId, club, "club")) continue;
+        try { delete world.clubs[clubId]; } catch (_) { continue; }
+        if (safeWorldOwnValue(world.clubs, clubId) !== undefined) continue;
+        removedClubIds.add(clubId);
       }
-      Object.values(world.clubs).forEach(club => {
-        if (!club || typeof club !== "object") return;
-        const roster = safeWorldArrayField(club, "roster");
-        safeWorldSetOwnValue(club, "roster", roster.filter(rawId => {
-          const playerId = safeWorldIdentifier(rawId);
-          return !!playerId && !removedPlayerIds.has(playerId)
-            && !!safeWorldOwnValue(world.players, playerId);
-        }));
-      });
+    }
+    if (removedClubIds.size || removedPlayerIds.size) {
+      if (removedPlayerIds.size) {
+        Object.values(world.clubs).forEach(club => {
+          if (!club || typeof club !== "object") return;
+          const roster = safeWorldArrayField(club, "roster");
+          safeWorldSetOwnValue(club, "roster", roster.filter(rawId => {
+            const playerId = safeWorldIdentifier(rawId);
+            return !!playerId && !removedPlayerIds.has(playerId)
+              && !!safeWorldOwnValue(world.players, playerId);
+          }));
+        });
+      }
       const mergeArchiveRows = (existingRows, sourceRows) => {
         if (existingRows !== undefined && !Array.isArray(existingRows)) return null;
         const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();

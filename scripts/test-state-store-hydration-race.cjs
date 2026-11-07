@@ -184,6 +184,37 @@ function createHarness() {
   assert.equal(numericStringMetadata.completeWrite(), true);
   await numericStringSave;
 
+  const hostileSlotId = JSON.parse('{"toString":1,"valueOf":1}');
+  const invalidSlotSave = createHarness();
+  const revisionBeforeInvalidSlot = invalidSlotSave.store.getRevision();
+  let invalidSlotSavePromise;
+  assert.doesNotThrow(() => {
+    invalidSlotSavePromise = invalidSlotSave.store.save(
+      { name: "Must not be written to an invalid slot" }, { slotId: hostileSlotId });
+  }, "invalid JSON slot identifiers must be rejected asynchronously without coercion");
+  await assert.rejects(invalidSlotSavePromise, /Invalid save-slot id/,
+    "an object-valued slot id must not be converted into a string key");
+  assert.equal(invalidSlotSave.writes.length, 0,
+    "an invalid slot id must not create or overwrite any IndexedDB save record");
+  assert.equal(invalidSlotSave.store.getRevision(), revisionBeforeInvalidSlot,
+    "rejecting an invalid slot id must not publish or mutate the active career");
+
+  const invalidSlotLoad = createHarness();
+  assert.equal(await invalidSlotLoad.store.load(hostileSlotId), null,
+    "loading with an invalid slot id must return no record without coercion");
+  await assert.rejects(invalidSlotLoad.store.deleteSave(hostileSlotId), /valid save-slot id/,
+    "deleting with an invalid slot id must reject before issuing an IndexedDB request");
+
+  const numericSlot = createHarness();
+  await numericSlot.resolveStartupRead(null);
+  const numericSlotSave = numericSlot.store.save(
+    { name: "Numeric legacy slot" }, { slotId: 7 });
+  await numericSlot.waitForWrite();
+  assert.equal(numericSlot.writes[0].id, "7",
+    "finite numeric legacy slot ids must remain compatible as string IndexedDB keys");
+  assert.equal(numericSlot.completeWrite(), true);
+  await numericSlotSave;
+
   const flushRace = createHarness();
   const staleFlushCareer = { name: "Career queued before import", money: 700 };
   const flushRacePromise = flushRace.store.flush(staleFlushCareer);

@@ -353,11 +353,29 @@
     };
   }
   function ensureArchive(world) {
-    if (!world.archive || typeof world.archive !== "object" || Array.isArray(world.archive)) world.archive = {};
-    for (const key of ["clubs", "players", "playerHistory", "seasonStats", "leagueTables", "leagueTableRows", "matchesBySeason", "competitionsBySeason"]) {
-      if (!world.archive[key] || typeof world.archive[key] !== "object" || Array.isArray(world.archive[key])) world.archive[key] = {};
+    if (!world || typeof world !== "object") return null;
+    let hasArchive = false;
+    try { hasArchive = Object.prototype.hasOwnProperty.call(world, "archive"); } catch (_) { return null; }
+    let archive = safeWorldOwnValue(world, "archive");
+    if (!hasArchive) {
+      archive = emptyArchive();
+      if (!safeWorldTrySetOwnValue(world, "archive", archive)) return null;
+    } else if (!archive || typeof archive !== "object" || Array.isArray(archive)) {
+      // A malformed archive may still contain irreplaceable legacy data. Do not
+      // replace it with an empty object and continue a destructive reconciliation.
+      return null;
     }
-    return world.archive;
+    for (const key of ["clubs", "players", "playerHistory", "seasonStats", "leagueTables", "leagueTableRows", "matchesBySeason", "competitionsBySeason"]) {
+      let hasBucket = false;
+      try { hasBucket = Object.prototype.hasOwnProperty.call(archive, key); } catch (_) { return null; }
+      const bucket = safeWorldOwnValue(archive, key);
+      if (!hasBucket) {
+        if (!safeWorldTrySetOwnValue(archive, key, {})) return null;
+        continue;
+      }
+      if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) return null;
+    }
+    return archive;
   }
   function archiveGeneratedPlayerBeforeRosterReplacement(world, player, playerMapKey) {
     // The players-map key and club roster entry are authoritative. A legacy internal
@@ -856,9 +874,10 @@
   }
   function reconcileDatabase(world, db) {
     if (!world || !world.clubs) return seedWorld(db);
+    const archive = ensureArchive(world);
+    if (!archive) return world;
     world.players = world.players && typeof world.players === "object" ? world.players : {};
     world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
-    const archive = ensureArchive(world);
     const transferClubHistoryByPlayer = ensureTransferClubHistory(world);
     // Unsupported competitions leave the active simulation, but their saved data is archived rather than destroyed.
     const supportedLeagueIds = supportedWorldLeagueIds(db);
@@ -1291,6 +1310,9 @@
       save.worldSimulation = world;
       return world;
     }
+    // Keep a malformed archive untouched and defer normalization rather than
+    // silently replacing legacy archive data with empty buckets.
+    if (!ensureArchive(world)) return world;
     world.currentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     world.completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
     world.seasonStats = world.seasonStats && typeof world.seasonStats === "object" ? world.seasonStats : {};
@@ -1298,7 +1320,6 @@
     world.transfers = Array.isArray(world.transfers) ? world.transfers : [];
     world.marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
     world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
-    ensureArchive(world);
     ensureTransferClubHistory(world);
     world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));

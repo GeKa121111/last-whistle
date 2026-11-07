@@ -64,7 +64,8 @@ function makeHarness(options = {}) {
     clubName: "Host FC", leagueCountry: "Spain", leagueDivision: 1,
     leagueCompetition: "Host League", leagueSource: "host roster",
     clubPower: 65, clubTier: 2, clubIndex: 2,
-    weeklyWage: 900, contractSeasons: 3, freeAgent: false,
+    weeklyWage: options.stateWeeklyWage === undefined ? 900 : options.stateWeeklyWage,
+    contractSeasons: options.stateContractSeasons === undefined ? 3 : options.stateContractSeasons, freeAgent: false,
     contractType: "professional", role: "بديل",
     transferCooldown: 0, pendingTransfer: { club: "Next FC" },
     transferHistory: [], leagueArchives: [],
@@ -75,7 +76,8 @@ function makeHarness(options = {}) {
       parentDivision: options.parentDivision === undefined ? 2 : options.parentDivision, parentCompetition: "Parent League",
       parentSource: "verified parent roster", parentPower: options.parentPower === undefined ? 0 : options.parentPower,
       parentTier: options.parentTier === undefined ? 2 : options.parentTier,
-      parentIndex: options.parentIndex === undefined ? 2 : options.parentIndex, parentWage: 450,
+      parentIndex: options.parentIndex === undefined ? 2 : options.parentIndex,
+      parentWage: options.parentWage === undefined ? 450 : options.parentWage,
       parentContractSeasons: options.parentContractSeasons === undefined ? 2 : options.parentContractSeasons,
       parentFreeAgent: options.parentFreeAgent === undefined ? false : options.parentFreeAgent,
       parentContractType: "professional", parentRole: "أساسي"
@@ -159,6 +161,48 @@ function makeHarness(options = {}) {
   assert.equal(h.state.clubPower, 68, "valid numeric-string parent power must remain supported");
   assert.equal(h.state.clubTier, 3, "valid numeric-string parent tiers must remain supported");
   assert.equal(h.state.clubIndex, 4, "valid numeric-string parent indices must remain supported");
+}
+
+{
+  const h = makeHarness({ parentContractSeasons: "2", parentWage: "450" });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.contractSeasons, 2,
+    "valid numeric-string parent contract terms must remain supported");
+  assert.equal(h.state.weeklyWage, 450,
+    "valid numeric-string parent wages must remain supported");
+  assert.equal(h.state.freeAgent, false);
+}
+
+{
+  const h = makeHarness({ parentContractSeasons: [2], parentWage: [450] });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.contractSeasons, 0,
+    "array-shaped parent contract terms must not be coerced into a valid contract");
+  assert.equal(h.state.weeklyWage, 0,
+    "array-shaped parent wages must not be coerced into a numeric salary");
+  assert.equal(h.state.freeAgent, true);
+  assert.equal(h.state.contractType, "free-agent");
+}
+
+{
+  const h = makeHarness({ parentContractSeasons: "2", parentWage: [450] });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.contractSeasons, 2,
+    "a valid parent contract must remain active when only its saved wage is malformed");
+  assert.equal(h.state.weeklyWage, 0,
+    "an array-shaped parent wage must not be coerced while restoring an otherwise valid contract");
+  assert.equal(h.state.freeAgent, false);
+}
+
+{
+  const h = makeHarness({
+    parentContractSeasons: null, stateContractSeasons: [3], parentWage: "450"
+  });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.contractSeasons, 0,
+    "an invalid fallback host term must not be mistaken for the missing parent contract term");
+  assert.equal(h.state.weeklyWage, 0);
+  assert.equal(h.state.freeAgent, true);
 }
 
 {

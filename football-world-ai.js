@@ -116,27 +116,51 @@
   function safeWorldTrySetOwnValue(record, key, value) {
     try { return safeWorldSetOwnValue(record, key, value) === true; } catch (_) { return false; }
   }
-  // Preserve malformed active-world payloads before replacing them with usable containers.
-  // Recovery data stays in the same save so old transfer/stat records remain available for repair.
-  function preserveMalformedWorldField(world, field, value) {
-    if (value === undefined) return true;
-    let recovery = safeWorldOwnValue(world, "legacyRecoveryData");
-    if (recovery === undefined) {
-      recovery = {};
-      if (!safeWorldTrySetOwnValue(world, "legacyRecoveryData", recovery)) return false;
-    } else if (!recovery || typeof recovery !== "object" || Array.isArray(recovery)) {
-      return false;
+  // Use the primary recovery bucket when possible, then a fallback bucket if the
+  // primary itself is malformed or read-only. Never overwrite either original bucket.
+  function getWorldRecoveryBucket(world, fieldName) {
+    let bucket = safeWorldOwnValue(world, fieldName);
+    if (bucket === undefined) {
+      bucket = {};
+      if (!safeWorldTrySetOwnValue(world, fieldName, bucket)) return null;
     }
+    if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) return null;
+    try { if (!Object.isExtensible(bucket)) return null; } catch (_) { return null; }
+    return bucket;
+  }
+  function preserveRecoveryEntry(bucket, field, value) {
     let hasExisting = false;
-    try { hasExisting = Object.prototype.hasOwnProperty.call(recovery, field); } catch (_) { return false; }
-    if (!hasExisting) return safeWorldTrySetOwnValue(recovery, field, value);
-    const existing = safeWorldOwnValue(recovery, field);
-    if (existing === undefined || existing === value) return safeWorldTrySetOwnValue(recovery, field, value);
+    try { hasExisting = Object.prototype.hasOwnProperty.call(bucket, field); } catch (_) { return false; }
+    if (!hasExisting) return safeWorldTrySetOwnValue(bucket, field, value);
+    const existing = safeWorldOwnValue(bucket, field);
+    if (existing === undefined || existing === value) return safeWorldTrySetOwnValue(bucket, field, value);
     if (Array.isArray(existing)) {
       if (existing.includes(value)) return true;
-      return safeWorldTrySetOwnValue(recovery, field, existing.concat([value]));
+      return safeWorldTrySetOwnValue(bucket, field, existing.concat([value]));
     }
-    return safeWorldTrySetOwnValue(recovery, field, [existing, value]);
+    return safeWorldTrySetOwnValue(bucket, field, [existing, value]);
+  }
+  function preserveMalformedWorldField(world, field, value) {
+    if (value === undefined) return true;
+    const primary = getWorldRecoveryBucket(world, "legacyRecoveryData");
+    if (primary && preserveRecoveryEntry(primary, field, value)) return true;
+    const fallback = getWorldRecoveryBucket(world, "legacyRecoveryDataFallback");
+    if (!fallback) return false;
+    const originalRecovery = safeWorldOwnValue(world, "legacyRecoveryData");
+    if (originalRecovery !== undefined) {
+      let hasPrevious = false;
+      try { hasPrevious = Object.prototype.hasOwnProperty.call(fallback, "previousRecoveryData"); } catch (_) { return false; }
+      if (!hasPrevious) {
+        if (!safeWorldTrySetOwnValue(fallback, "previousRecoveryData", originalRecovery)) return false;
+      } else {
+        const previous = safeWorldOwnValue(fallback, "previousRecoveryData");
+        if (previous !== originalRecovery) {
+          const combined = Array.isArray(previous) ? previous.concat([originalRecovery]) : [previous, originalRecovery];
+          if (!safeWorldTrySetOwnValue(fallback, "previousRecoveryData", combined)) return false;
+        }
+      }
+    }
+    return preserveRecoveryEntry(fallback, field, value);
   }
   function normalizeWorldArrayField(world, field) {
     const value = safeWorldOwnValue(world, field);
@@ -1461,6 +1485,10 @@
       || !normalizeWorldArrayField(world, "marketReports")
       || !normalizeWorldMapField(world, "playerHistory")
       || !normalizeWorldArrayField(world, "notes")
+      || !normalizeWorldMapField(world, "matchesBySeason", true)
+      || !normalizeWorldMapField(world, "competitionsBySeason", true)
+      || !normalizeWorldArrayField(world, "promotionHistory")
+      || !normalizeWorldMapField(world, "aiMetadata", true)
       || !normalizeWorldMapField(world, "transferClubHistoryByPlayer", true)) return world;
     world.currentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     ensureTransferClubHistory(world);

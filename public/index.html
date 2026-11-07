@@ -5905,7 +5905,30 @@ function returnFromLoan(){
  const restoredParentContractSeasons=Number.isFinite(parentContractSeasonsValue)
   ?Math.max(0,Math.min(10,Math.floor(parentContractSeasonsValue))):0;
  const parentHasNoContract=parentIsFreeAgent||restoredParentContractSeasons<=0;
- state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;state.leagueDivision=Math.max(1,Number(l.parentDivision)||1);state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");state.clubPower=Math.max(1,Number(l.parentPower)||clubPowerFor(l.parentClub,l.parentCountry));state.clubTier=Number.isFinite(Number(l.parentTier))?Number(l.parentTier):clubTierForPower(state.clubPower);state.clubIndex=Number.isFinite(Number(l.parentIndex))?Number(l.parentIndex):state.clubTier;
+ const finiteParentNumber=value=>{
+  if(typeof value!=="number"&&typeof value!=="string")return null;
+  if(typeof value==="string"&&!value.trim())return null;
+  const numeric=Number(value);
+  return Number.isFinite(numeric)?numeric:null;
+ };
+ const savedParentPower=finiteParentNumber(l.parentPower);
+ const lookedUpParentPower=finiteParentNumber(clubPowerFor(l.parentClub,l.parentCountry));
+ const parentPowerCandidate=savedParentPower!==null&&savedParentPower>0
+  ?savedParentPower:lookedUpParentPower!==null&&lookedUpParentPower>0?lookedUpParentPower:60;
+ const boundedParentPower=Math.max(1,Math.min(100,parentPowerCandidate));
+ const savedParentTier=finiteParentNumber(l.parentTier);
+ const lookedUpParentTier=finiteParentNumber(clubTierForPower(boundedParentPower));
+ const savedParentIndex=finiteParentNumber(l.parentIndex);
+ const savedParentDivision=finiteParentNumber(l.parentDivision);
+ state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;
+ state.leagueDivision=savedParentDivision!==null&&Number.isSafeInteger(savedParentDivision)&&savedParentDivision>0?savedParentDivision:1;
+ state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");
+ state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");
+ state.clubPower=boundedParentPower;
+ state.clubTier=savedParentTier!==null&&Number.isSafeInteger(savedParentTier)&&savedParentTier>0
+  ?savedParentTier:lookedUpParentTier!==null&&Number.isSafeInteger(lookedUpParentTier)&&lookedUpParentTier>0?lookedUpParentTier:1;
+ state.clubIndex=savedParentIndex!==null&&Number.isSafeInteger(savedParentIndex)&&savedParentIndex>0
+  ?savedParentIndex:state.clubTier;
  const parentWageValue=Number(l.parentWage);const restoredParentWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;
  state.weeklyWage=parentHasNoContract?0:restoredParentWage;state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;state.freeAgent=parentHasNoContract;state.contractType=parentHasNoContract?"free-agent":parentContractType;state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;if(parentHasNoContract)state.contractOffer=null;
  const returnMessage=parentHasNoContract

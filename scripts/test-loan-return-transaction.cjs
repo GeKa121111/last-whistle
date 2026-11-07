@@ -72,9 +72,10 @@ function makeHarness(options = {}) {
     loan: {
       parentClub: options.invalidParent ? "" : "Parent FC",
       parentCountry: options.invalidParent ? "" : "Egypt",
-      parentDivision: 2, parentCompetition: "Parent League",
-      parentSource: "verified parent roster", parentPower: 0,
-      parentTier: 2, parentIndex: 2, parentWage: 450,
+      parentDivision: options.parentDivision === undefined ? 2 : options.parentDivision, parentCompetition: "Parent League",
+      parentSource: "verified parent roster", parentPower: options.parentPower === undefined ? 0 : options.parentPower,
+      parentTier: options.parentTier === undefined ? 2 : options.parentTier,
+      parentIndex: options.parentIndex === undefined ? 2 : options.parentIndex, parentWage: 450,
       parentContractSeasons: options.parentContractSeasons === undefined ? 2 : options.parentContractSeasons,
       parentFreeAgent: options.parentFreeAgent === undefined ? false : options.parentFreeAgent,
       parentContractType: "professional", parentRole: "أساسي"
@@ -126,6 +127,38 @@ function makeHarness(options = {}) {
   assert.equal(h.state.contractOffer.club, "Parent FC", "a valid parent renewal offer must survive a return to an active parent contract");
   assert.deepEqual(h.events.archives, ["loan-return"]);
   assert.equal(h.events.persisted.length, 0, "a successful return must not run rollback persistence");
+}
+
+{
+  const h = makeHarness({
+    parentDivision: "Infinity", parentPower: "Infinity", parentTier: ["3"], parentIndex: "NaN"
+  });
+  assert.equal(h.sandbox.runReturnFromLoan(), true,
+    "a legacy loan with malformed numeric parent metadata must still recover safely");
+  assert.equal(h.state.clubName, "Parent FC");
+  assert.equal(h.state.leagueDivision, 1,
+    "a non-finite parent division must fall back to a valid division");
+  assert.equal(h.state.clubPower, 55,
+    "a non-finite saved parent power must fall back to the verified club lookup");
+  assert.equal(h.state.clubTier, 2,
+    "an array-shaped parent tier must fall back to the tier derived from verified club power");
+  assert.equal(h.state.clubIndex, 2,
+    "a malformed parent index must fall back to the restored club tier");
+  for (const key of ["leagueDivision", "clubPower", "clubTier", "clubIndex"]) {
+    assert.equal(Number.isFinite(h.state[key]), true,
+      "loan return must leave finite " + key + " after malformed parent metadata");
+  }
+}
+
+{
+  const h = makeHarness({
+    parentDivision: "3", parentPower: "68", parentTier: "3", parentIndex: "4"
+  });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.leagueDivision, 3, "valid numeric-string parent divisions must remain supported");
+  assert.equal(h.state.clubPower, 68, "valid numeric-string parent power must remain supported");
+  assert.equal(h.state.clubTier, 3, "valid numeric-string parent tiers must remain supported");
+  assert.equal(h.state.clubIndex, 4, "valid numeric-string parent indices must remain supported");
 }
 
 {

@@ -30,6 +30,19 @@
     if (typeof value === "boolean") return value ? "true" : "false";
     return "";
   }
+
+  // Persisted social metadata is untrusted legacy data. Convert only primitives;
+  // never invoke object coercion hooks while building stories or rendering posts.
+  function safeText(value, fallback) {
+    if (typeof value === "string") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return typeof fallback === "string" ? fallback : "";
+  }
+
+  function safeLabel(value, fallback) {
+    var text = safeText(value, "");
+    return text.trim() ? text : typeof fallback === "string" ? fallback : "";
+  }
   // Career names are legacy save data. Accept primitives only so malformed
   // JSON objects with a non-callable toString cannot break social feed creation.
   function playerName(state, fallback) {
@@ -50,9 +63,7 @@
   // Transfer-offer labels are persisted data. Accept only safe primitives so
   // malformed club/country/league objects cannot abort automatic feed sync.
   function offerLabel(value, fallback) {
-    if (typeof value === "string" && value.trim()) return value;
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
-    return typeof fallback === "string" ? fallback : "";
+    return safeLabel(value, fallback);
   }
 
   function clamp(value, min, max) {
@@ -60,7 +71,7 @@
   }
 
   function hash(value) {
-    var text = String(value || "");
+    var text = safeText(value, "");
     var result = 2166136261;
     for (var i = 0; i < text.length; i++) {
       result ^= text.charCodeAt(i);
@@ -74,7 +85,7 @@
   }
 
   function esc(value) {
-    return String(value == null ? "" : value).replace(/[&<>\"']/g, function (ch) {
+    return safeText(value, "").replace(/[&<>\"']/g, function (ch) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch];
     });
   }
@@ -118,18 +129,18 @@
       if (!social.lastBenchStoryMatchId) {
         var oldDomestic = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [])
           .filter(function (match) { return match && match.scope !== "international"; });
-        social.lastBenchStoryMatchId = oldDomestic[0] ? String(oldDomestic[0].id || matchKey(oldDomestic[0])) : "";
+        social.lastBenchStoryMatchId = oldDomestic[0] ? (keyPart(oldDomestic[0].id) || matchKey(oldDomestic[0])) : "";
       }
     }
     if (typeof social.observedRole !== "string") social.observedRole = roleLabel(state.role, "");
     if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
     social.lastBenchStoryCalendarDay = Math.max(0, number(social.lastBenchStoryCalendarDay, 0) || 0);
-    social.lastBenchStoryMatchId = String(social.lastBenchStoryMatchId || "");
+    social.lastBenchStoryMatchId = keyPart(social.lastBenchStoryMatchId);
     social.version = 3;
     social.posts = social.posts.filter(function (post) {
       return post && typeof post === "object" && typeof post.body === "string";
     }).slice(0, MAX_POSTS);
-    social.lastReplyDay = String(social.lastReplyDay || "");
+    social.lastReplyDay = keyPart(social.lastReplyDay);
     return social;
   }
 
@@ -158,7 +169,7 @@
       window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
     }
     if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
-    owner = String(owner || "");
+    owner = typeof owner === "string" ? owner : "";
     if (!owner) return false;
     if (!coordinator.owner) {
       coordinator.owner = owner;
@@ -272,7 +283,11 @@
   function readSocialState(state) {
     var social = state && state.socialMedia;
     if (!social || typeof social !== "object" || Array.isArray(social)) return { posts: [], lastReplyDay: "", nextId: 1 };
-    return Array.isArray(social.posts) ? social : Object.assign({}, social, { posts: [] });
+    if (!Array.isArray(social.posts)) return Object.assign({}, social, { posts: [] });
+    var posts = social.posts.filter(function (post) {
+      return post && typeof post === "object" && !Array.isArray(post);
+    });
+    return posts.length === social.posts.length ? social : Object.assign({}, social, { posts: posts });
   }
 
   function matchKey(match) {
@@ -304,7 +319,7 @@
   }
 
   function textSentiment(text) {
-    var value = String(text || "").toLowerCase();
+    var value = safeText(text, "").toLowerCase();
     if (/اعتذر|آسف|شكرا|شكرًا|ممتن|الجمهور|الفريق|زمايلي|زملائي|هنشتغل|هشتغل|التعب|الحمد/.test(value)) return 2;
     if (/ظلم|الحكم|تحكيم|مش هكمل|مش عاجبني|مش طايق|أستحق|استحق|أنا الأفضل|انا الافضل|المدرب مش فاهم|فضيحة|خيانة|جدل|أزمة|توتر|خلاف|مشادة|شائعة|تسريب|اتهام|غضب|رحيل/.test(value)) return -2;
     if (/تدريب|تطور|أتعلم|اتعلم|جاهز|مستمر|هدفي|حلمي|تركيز|شغل/.test(value)) return 1;
@@ -398,16 +413,17 @@
     var social = ensureState(state);
     var id = nextId(social);
     var sentiment = number(options.sentiment, 0) || 0;
-    var seed = id + "|" + options.body;
-    var authorType = options.authorType || "media";
+    var body = safeText(options.body, "");
+    var seed = id + "|" + body;
+    var authorType = safeLabel(options.authorType, "media");
     return {
       id: id,
-      kind: options.kind || "news",
-      author: String(options.author || "صوت المدرج"),
+      kind: safeLabel(options.kind, "news"),
+      author: safeLabel(options.author, "صوت المدرج"),
       authorType: authorType,
       verified: authorType !== "player",
-      avatar: String(options.avatar || (authorType === "player" ? "👤" : "📣")),
-      body: String(options.body || ""),
+      avatar: safeLabel(options.avatar, authorType === "player" ? "👤" : "📣"),
+      body: body,
       season: Math.max(1, number(state.season, 1) || 1),
       day: Math.max(1, number(state.day, 0) || 1),
       likes: engagement(state, seed, sentiment),
@@ -427,13 +443,13 @@
 
   function createPlayerPost(state, text) {
     if (!state || !state.careerStarted || state.retired) return { ok: false, reason: "career-unavailable" };
-    var body = String(text || "").trim();
+    var body = safeText(text, "").trim();
     if (body.length < 3) return { ok: false, reason: "post-too-short" };
     if (body.length > 240) return { ok: false, reason: "post-too-long" };
     var social = ensureState(state);
     var today = dayKey(state);
     var todayPosts = social.posts.filter(function (post) {
-      return post.authorType === "player" && String(post.season) + ":" + String(post.day) === today;
+      return post && post.authorType === "player" && keyPart(post.season) + ":" + keyPart(post.day) === today;
     }).length;
     if (todayPosts >= 2) return { ok: false, reason: "daily-post-limit" };
 
@@ -462,8 +478,9 @@
   }
 
   function createMatchPost(state, match) {
+    match = match && typeof match === "object" ? match : {};
     var name = playerName(state, "اللاعب");
-    var opponent = String(match.opponent || "المنافس");
+    var opponent = safeLabel(match.opponent, "المنافس");
     var minutes = Math.max(0, number(match.minutes, 0) || 0);
     var rating = number(match.rating, 0) || 0;
     var goals = Math.max(0, number(match.goals, 0) || 0);
@@ -499,9 +516,10 @@
   }
 
   function addEventPost(state, kind, item) {
+    item = item && typeof item === "object" ? item : {};
     var name = playerName(state, "اللاعب");
-    var title = String(item && (item.type || item.title || item.name) || "تطور جديد");
-    var details = String(item && (item.text || item.outcome || item.choice) || "");
+    var title = safeLabel(item.type || item.title || item.name, "تطور جديد");
+    var details = safeText(item.text || item.outcome || item.choice, "");
     var body = "";
     var author = "رادار الملاعب";
     var avatar = "📰";
@@ -624,7 +642,7 @@
     social.lastBenchStoryCalendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
     var domestic = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [])
       .filter(function (match) { return match && match.scope !== "international"; });
-    social.lastBenchStoryMatchId = domestic[0] ? String(domestic[0].id || matchKey(domestic[0])) : "";
+    social.lastBenchStoryMatchId = domestic[0] ? (keyPart(domestic[0].id) || matchKey(domestic[0])) : "";
     social.initialized = true;
   }
 
@@ -682,7 +700,7 @@
       var pending = collectNew(state, key, source[1], source[2], 1);
       if (!pending.length) return;
       var item = pending[0].item;
-      if (source[0] === "transfer" && /وصلت عروض انتقال رسمية/.test(String(item && item.text || ""))) return;
+      if (source[0] === "transfer" && /وصلت عروض انتقال رسمية/.test(safeText(item && item.text, ""))) return;
       addEventPost(state, source[0], item);
       created++;
     });
@@ -712,7 +730,7 @@
     }).length;
     var calendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
     var lastBenchDay = Math.max(0, number(social.lastBenchStoryCalendarDay, 0) || 0);
-    var latestMatchId = recentDomestic[0] ? String(recentDomestic[0].id || matchKey(recentDomestic[0])) : "";
+    var latestMatchId = recentDomestic[0] ? (keyPart(recentDomestic[0].id) || matchKey(recentDomestic[0])) : "";
     if (created < 8 && recentDomestic.length === 3 && unusedCount >= 2 && isBenchRole(currentRole)
       && latestMatchId && latestMatchId !== social.lastBenchStoryMatchId
       && (!lastBenchDay || calendarDay - lastBenchDay >= 14)) {
@@ -826,10 +844,12 @@
       var store = window.LWStateStore;
       if (store && typeof store.getRevision === "function") stateRevision = number(store.getRevision(), -1);
     } catch (error) {}
-    var signature = [stateRevision, social.posts.length, social.posts[0] && social.posts[0].id,
-      social.posts[0] && social.posts[0].liked, social.posts[0] && social.posts[0].likes,
-      activeFilter, state.followers, state.mediaReputation, state.teamChemistry,
-      state.coachRelationship, roleLabel(state.role, "بديل"), social.lastReplyDay, draft, socialMutationPending].join("|");
+    var firstPost = social.posts[0];
+    var signature = [stateRevision, social.posts.length, keyPart(firstPost && firstPost.id),
+      keyPart(firstPost && firstPost.liked), keyPart(firstPost && firstPost.likes),
+      activeFilter, keyPart(state.followers), keyPart(state.mediaReputation), keyPart(state.teamChemistry),
+      keyPart(state.coachRelationship), roleLabel(state.role, "بديل"), keyPart(social.lastReplyDay),
+      draft, socialMutationPending].join("|");
     if (signature === lastRenderedSignature && feed.dataset.ready === "true") return;
     lastRenderedSignature = signature;
     feed.dataset.ready = "true";
@@ -857,13 +877,15 @@
       return;
     }
     feed.innerHTML = rows.map(function (post) {
-      var comments = (Array.isArray(post.comments) ? post.comments : []).slice(0, MAX_COMMENTS).map(function (comment) {
+      var comments = (Array.isArray(post.comments) ? post.comments : []).slice(0, MAX_COMMENTS).map(function (rawComment) {
+        var comment = rawComment && typeof rawComment === "object" && !Array.isArray(rawComment) ? rawComment : {};
         return '<div class="lwsocial-comment"><span class="lwsocial-comment-avatar">' + esc(comment.avatar || "💬") + '</span><div><strong>' + esc(comment.author || "متابع") + ' <small>' + esc(comment.role || "متابع") + '</small></strong><p>' + esc(comment.body || "") + '</p><span class="lwsocial-comment-likes">♥ ' + clamp(comment.likes, 0, 999999) + '</span></div></div>';
       }).join("");
       var authorType = post.authorType === "player" ? "حساب اللاعب" : "حساب كروي";
       var badge = post.verified ? '<span class="lwsocial-verified">✓</span>' : "";
       var kindLabels = { match: "بعد المباراة", player: "بوست جديد", press: "تصريح", transfer: "انتقالات", rumor: "شائعة انتقال", role: "دورك في الفريق", bench: "دقائق اللعب", conflict: "غرفة الملابس", relationship: "داخل النادي", award: "إنجاز" };
-      var kindClass = "lwsocial-kind-" + String(post.kind || "news").replace(/[^a-z0-9-]/gi, "");
+      var kindKey = safeLabel(post.kind, "news");
+      var kindClass = "lwsocial-kind-" + kindKey.replace(/[^a-z0-9-]/gi, "");
       var actionHtml = '<div class="lwsocial-actions"><button type="button" data-sm-like="' + esc(post.id) + '">' + (post.liked ? "♥ أعجبني" : "♡ إعجاب") + '</button>';
       if (!post.playerResponse) {
         if (post.kind === "rumor" || post.kind === "transfer") {
@@ -877,13 +899,13 @@
         }
       } else {
         var responseLabels = { respect: "رددت باحترام", bold: "رديت بثقة", "deny-rumor": "نفيت الشائعة", "fuel-rumor": "لمّحت للرحيل", "support-team": "اخترت تهدئة الأجواء", "fuel-conflict": "صعّدت الخلاف" };
-        actionHtml += '<span class="lwsocial-response">' + esc(responseLabels[post.playerResponse] || "تم تسجيل ردك") + '</span>';
+        actionHtml += '<span class="lwsocial-response">' + esc(responseLabels[safeLabel(post.playerResponse, "")] || "تم تسجيل ردك") + '</span>';
       }
       actionHtml += '</div>';
       return '<article class="lwsocial-post">' +
-        '<div class="lwsocial-post-head"><span class="lwsocial-avatar">' + esc(post.avatar || "📣") + '</span><div class="lwsocial-author"><strong>' + esc(post.author || "صوت المدرج") + badge + '</strong><small>' + authorType + ' · الموسم ' + clamp(post.season, 1, 999) + ' / اليوم ' + clamp(post.day, 1, 99999) + '</small></div><span class="lwsocial-kind ' + kindClass + '">' + esc(kindLabels[post.kind] || "تفاعل") + '</span></div>' +
+        '<div class="lwsocial-post-head"><span class="lwsocial-avatar">' + esc(post.avatar || "📣") + '</span><div class="lwsocial-author"><strong>' + esc(post.author || "صوت المدرج") + badge + '</strong><small>' + authorType + ' · الموسم ' + clamp(post.season, 1, 999) + ' / اليوم ' + clamp(post.day, 1, 99999) + '</small></div><span class="lwsocial-kind ' + kindClass + '">' + esc(kindLabels[kindKey] || "تفاعل") + '</span></div>' +
         '<p class="lwsocial-post-body">' + esc(post.body) + '</p>' +
-        '<div class="lwsocial-engagement"><span>♥ ' + clamp(post.likes, 0, 999999) + ' إعجاب</span><span>💬 ' + (post.comments || []).length + ' تعليق</span></div>' +
+        '<div class="lwsocial-engagement"><span>♥ ' + clamp(post.likes, 0, 999999) + ' إعجاب</span><span>💬 ' + (Array.isArray(post.comments) ? post.comments.length : 0) + ' تعليق</span></div>' +
         '<div class="lwsocial-comments">' + comments + '</div>' +
         actionHtml +
       '</article>';

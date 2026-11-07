@@ -923,15 +923,17 @@
     for (const entry of clubEntries) {
       const roster = activeRosterIds(world, entry.club, entry.clubId)
         .filter(id => !ambiguous.has(safeWorldIdentifier(id)));
-      if (!safeWorldTrySetOwnValue(entry.club, "roster", roster)) return false;
+      const currentRoster = safeWorldArrayField(entry.club, "roster");
+      const unchanged = currentRoster.length === roster.length
+        && currentRoster.every((id, index) => safeWorldIdentifier(id) === roster[index]);
+      if (!unchanged && !safeWorldTrySetOwnValue(entry.club, "roster", roster)) return false;
     }
     return world;
   }
   function fillRoster(world, club) {
     const clubId = safeWorldClubIdentifierForWorld(world, club);
     if (!clubId) return;
-    const activeRoster = activeRosterIds(world, club, clubId);
-    if (!safeWorldTrySetOwnValue(club, "roster", activeRoster)) return;
+    club.roster = activeRosterIds(world, club, clubId);
     // Do not invent replacement players while a malformed legacy roster awaits recovery.
     if (hasPendingClubRosterRecovery(world, clubId)) return;
     const minimum = 16;

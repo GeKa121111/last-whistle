@@ -9,12 +9,16 @@
   var cachedSeasonLines = [];
   var refreshQueued = false;
 
+  function finiteNumber(value) {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    var valueNumber = Number(value);
+    return Number.isFinite(valueNumber) ? valueNumber : null;
+  }
   function num(value, fallback) {
     var safeFallback = Number.isFinite(fallback) ? fallback : 0;
-    if (typeof value !== "number" && typeof value !== "string") return safeFallback;
-    if (typeof value === "string" && value.trim() === "") return safeFallback;
-    var valueNumber = Number(value);
-    return Number.isFinite(valueNumber) ? valueNumber : safeFallback;
+    var parsed = finiteNumber(value);
+    return parsed === null ? safeFallback : parsed;
   }
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, num(value, 0)));
@@ -38,8 +42,7 @@
     var rawSeason = row && row.season;
     if (rawSeason == null || (typeof rawSeason === "string" && rawSeason.trim() === "")) return season;
     if (typeof rawSeason !== "number" && typeof rawSeason !== "string") return null;
-    var parsed = Number(rawSeason);
-    return Number.isFinite(parsed) ? parsed : null;
+    return finiteNumber(rawSeason);
   }
   function roleGroup(position) {
     var world = global.LWWorldAI;
@@ -259,7 +262,7 @@
     var challenge = leadership.challenge && typeof leadership.challenge === "object"
       ? leadership.challenge : null;
     var activeChallenge = challenge && challenge.clubKey === clubKey
-      && Number(challenge.season) === seasonOf(state) ? challenge : null;
+      && finiteNumber(challenge.season) === seasonOf(state) ? challenge : null;
     var activeCaptain = leadership.activeCaptain && typeof leadership.activeCaptain === "object"
       ? leadership.activeCaptain : null;
     var isCaptain = !!(activeCaptain && activeCaptain.clubKey === clubKey);

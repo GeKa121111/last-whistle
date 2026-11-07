@@ -67,6 +67,17 @@
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
     return fallback;
   }
+  // Slot identifiers can come from imported UI state. Never coerce objects or arrays.
+  // Preserve the existing default-slot behavior for omitted/empty/falsy legacy values.
+  function normalizeSlotId(value, fallback) {
+    if (value === undefined || value === null || value === "" || value === 0 || value === false) return fallback;
+    if (typeof value === "string") {
+      const normalized = value.trim();
+      return normalized || fallback;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return null;
+  }
   function openDatabase() {
     if (database) return Promise.resolve(database);
     if (opening) return opening;
@@ -175,7 +186,8 @@
   }
   function save(state, options) {
     options = typeof options === "string" ? { slotId: options } : (options || {});
-    const id = String(options.slotId || DEFAULT_SLOT);
+    const id = normalizeSlotId(options.slotId, DEFAULT_SLOT);
+    if (id === null) return Promise.reject(new Error("Invalid save-slot id"));
     const snapshot = safeClone(state);
     if (!snapshot || typeof snapshot !== "object") return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
@@ -251,7 +263,8 @@
     return lastWrite;
   }
   async function load(slotId) {
-    const id = String(slotId || DEFAULT_SLOT);
+    const id = normalizeSlotId(slotId, DEFAULT_SLOT);
+    if (id === null) return null;
     const loadRevision = revision;
     const record = await readRecord(id);
     if (!record || !record.state) return null;
@@ -278,8 +291,8 @@
     });
   }
   async function deleteSave(slotId) {
-    const id = String(slotId || "");
-    if (!id) throw new Error("A save-slot id is required");
+    const id = normalizeSlotId(slotId, "");
+    if (id === null || !id) throw new Error("A valid save-slot id is required");
     if (id === DEFAULT_SLOT) throw new Error("The default career slot cannot be deleted");
     await transact("saves", "readwrite", store => store.delete(id)); return true;
   }

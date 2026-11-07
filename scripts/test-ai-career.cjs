@@ -16,6 +16,58 @@ assert.equal(typeof sandbox.window.LWCareer.uniqueMatchRows, "function",
   "the shared career engine must expose the match-history deduplicator before career AI runs");
 assert.ok(ai && ai.version === 1, "career AI module must initialize");
 
+const hostileNumericValue = { valueOf: null, toString: null };
+const malformedLedgerState = {
+  season: 3, day: 15, calendarDay: 15, age: 25, pos: "وسط",
+  clubName: "Test FC", energy: 80, fatigue: 10, trust: 65, coachRelationship: 65,
+  contractSeasons: 2, careerMatchHistory: [],
+  aiMemoryLedger: {
+    version: hostileNumericValue,
+    nextId: hostileNumericValue,
+    events: [
+      { id: "kept-event", type: "coach-recommendation", key: "kept", season: 3 },
+      { id: "bad-event", type: "coach-recommendation", key: "bad", season: hostileNumericValue }
+    ],
+    decisions: [
+      { id: "kept-decision", signature: "legacy-decision", type: "legacy",
+        season: 3, day: 1, followUpAt: 1, outcome: "pending" }
+    ]
+  }
+};
+assert.doesNotThrow(() => ai.hasEvent(malformedLedgerState, "coach-recommendation", "kept", 3),
+  "malformed saved ledger metadata must not throw during event lookup");
+assert.equal(ai.hasEvent(malformedLedgerState, "coach-recommendation", "kept", 3), true,
+  "a malformed ledger version must not discard valid saved career-AI history");
+assert.equal(ai.hasEvent(malformedLedgerState, "coach-recommendation", "bad", 3), false,
+  "a malformed event season must not be coerced into a current-season event");
+assert.equal(malformedLedgerState.aiMemoryLedger.version, 1);
+assert.equal(malformedLedgerState.aiMemoryLedger.events.length, 2);
+assert.equal(malformedLedgerState.aiMemoryLedger.decisions.length, 1);
+assert.equal(ai.recordEvent(malformedLedgerState, { type: "test", key: "new", season: 3 }), true,
+  "new AI events must append safely after repairing malformed ledger metadata");
+assert.ok(malformedLedgerState.aiMemoryLedger.events.some(row => row.key === "kept")
+  && malformedLedgerState.aiMemoryLedger.events.some(row => row.key === "new"),
+  "ledger repair must retain old valid events while accepting new events");
+assert.ok(ai.decisionConsequences(malformedLedgerState).some(row => row.decisionId === "kept-decision"),
+  "ledger repair must retain pending saved decisions");
+
+const malformedSavedNumbers = ai.utilityScores({
+  pos: "حارس مرمى", age: 29, energy: 85, fatigue: 15, trust: 65, contractSeasons: 3,
+  clubName: "Test FC", league: [{ name: "Test FC", pts: hostileNumericValue, rank: 2 }],
+  careerMatchHistory: [{
+    scope: "league", minutes: 90, rating: 6.5, goals: 0, assists: 0,
+    oppGoals: hostileNumericValue, stats: { saves: 3, cleanSheet: true }
+  }]
+}, 70);
+assert.equal(malformedSavedNumbers.context.cleanSheetsLastFive, 0,
+  "malformed conceded-goal values must not create a false clean sheet");
+assert.equal(malformedSavedNumbers.context.leaguePoints, null,
+  "malformed saved league points must be ignored without throwing");
+assert.doesNotThrow(() => ai.coachAdvice({
+  pos: "مهاجم", age: 25, energy: hostileNumericValue, fatigue: 10,
+  trust: 65, morale: 65, contractSeasons: 2, careerMatchHistory: []
+}, 70), "career AI coaching must safely handle malformed numeric player fields");
+
 const duplicateRecentMatch = {
   id: "recent-form-duplicate-1", scope: "league", season: 3, segmentId: "segment-3-a",
   competition: "Test League", club: "Test FC", opponent: "Opponent FC", day: 12,

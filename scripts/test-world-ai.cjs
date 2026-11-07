@@ -3857,6 +3857,7 @@ const currentVersionMissingClubMapWorld = JSON.parse(JSON.stringify(missingClubM
 currentVersionMissingClubMapWorld.dbVersion = Number(archiveReplaceDb.version);
 currentVersionMissingClubMapWorld.rosterSchemaVersion = 3;
 currentVersionMissingClubMapWorld.rosterMembershipSchemaVersion = 6;
+delete currentVersionMissingClubMapWorld.clubs;
 const currentVersionMissingClubMapSave = { season: 6, worldSimulation: currentVersionMissingClubMapWorld };
 const currentVersionMissingClubMapRecovered = ai.ensureState(currentVersionMissingClubMapSave, archiveReplaceDb);
 assert.ok(currentVersionMissingClubMapRecovered.clubs[archiveReplaceClubId],

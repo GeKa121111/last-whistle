@@ -7469,6 +7469,87 @@ assert.equal(JSON.stringify(blockedRosterFixture.world.players), blockedRosterPl
 assert.equal(blockedRosterFixture.world.nextGeneratedPlayer, 1,
   "a deferred roster repair must not generate replacement players");
 
+// Deterministic 32-bit player IDs can collide. A collision must preserve the
+// existing record and assign the sourced player a stable disambiguated ID.
+function hashWorldPlayerId(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  }
+  return hash >>> 0;
+}
+const collisionClubId = "testland|collisionclub";
+const collisionSourceRow = {
+  name: "Collision Target", position: "مهاجم", age: 22, ovr: 61, potential: 75, isRealPlayer: true
+};
+const collisionSourceIdentity = [
+  ai.normalize(collisionSourceRow.name),
+  ai.normalizePosition(collisionSourceRow.position),
+  collisionSourceRow.age
+].join("|");
+const collisionBaseId = "player-" + hashWorldPlayerId(
+  collisionClubId + "|" + collisionSourceIdentity
+).toString(36);
+const collisionOccupant = {
+  id: collisionBaseId, name: "Unrelated Collision Occupant", clubId: "another-club",
+  country: "Otherland", leagueId: "other-league", division: 1,
+  position: "حارس مرمى", group: "goalkeeper", age: 35, ovr: 80, potential: 82,
+  isGenerated: false, isRealPlayer: true
+};
+const collisionRosterEntries = Array.from({ length: 15 }, (_, index) => {
+  const id = "collision-roster-player-" + index;
+  return [id, {
+    id, name: "Existing Squad Player " + index, clubId: collisionClubId,
+    country: "Testland", leagueId: "collision-league", division: 1,
+    position: "وسط", group: "midfielder", age: 24, ovr: 58, potential: 64,
+    isGenerated: false, isRealPlayer: true
+  }];
+});
+const collisionClub = {
+  id: collisionClubId, name: "Collision Club", country: "Testland",
+  leagueId: "collision-league", division: 1, power: 60, basePower: 60,
+  prestige: 55, roster: collisionRosterEntries.map(([id]) => id)
+};
+const collisionPlayers = Object.fromEntries(collisionRosterEntries);
+collisionPlayers[collisionBaseId] = collisionOccupant;
+const collisionWorld = {
+  schemaVersion: ai.version, dbVersion: 1, currentSeason: 1,
+  lastCompletedSeason: 0, lastAdvancedTo: 0, lastDevelopedSeason: 0,
+  lastFreeAgentMarketSeason: 0, completedSeasons: [],
+  clubs: { [collisionClubId]: collisionClub }, players: collisionPlayers,
+  playerHistory: {}, transferClubHistoryByPlayer: {}, transferClubHistorySchemaVersion: 1,
+  seasonStats: {}, leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+  transfers: [], marketReports: [], notes: [], archive: {},
+  nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
+  rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 6
+};
+const collisionDb = {
+  version: 2,
+  leagues: () => [{ id: "collision-league" }],
+  clubs: () => [{
+    name: "Collision Club", country: "Testland", leagueId: "collision-league", division: 1
+  }],
+  playerRecordsForClub: () => [collisionSourceRow],
+  leagueFor: () => ({ name: "Collision League", matchesPerSeason: 34 })
+};
+const collisionResult = ai.ensureState({ season: 1, worldSimulation: collisionWorld }, collisionDb);
+const collisionCreatedPlayers = Object.entries(collisionResult.players)
+  .filter(([, player]) => player && player.name === "Collision Target");
+assert.strictEqual(collisionResult.players[collisionBaseId], collisionOccupant,
+  "a colliding deterministic player ID must never overwrite the existing player record");
+assert.equal(collisionCreatedPlayers.length, 1,
+  "the sourced player must still be imported exactly once after an ID collision");
+assert.ok(collisionCreatedPlayers[0][0].startsWith(collisionBaseId + "-"),
+  "the colliding sourced player must receive a deterministic disambiguated ID");
+assert.equal(collisionCreatedPlayers[0][1].id, collisionCreatedPlayers[0][0],
+  "the player's stored ID must match its disambiguated map key");
+assert.equal(collisionCreatedPlayers[0][1].clubId, collisionClubId,
+  "the colliding sourced player must retain the correct club ownership");
+assert.ok(collisionClub.roster.includes(collisionCreatedPlayers[0][0]),
+  "the new player must be linked into the club roster rather than silently dropped");
+assert.equal(collisionResult.nextGeneratedPlayer, 1,
+  "resolving a sourced ID collision must not generate replacement players");
+
 const hostileSchemaVersion = {
   toString() { throw new Error("unsafe world schema string coercion"); },
   valueOf() { throw new Error("unsafe world schema numeric coercion"); }

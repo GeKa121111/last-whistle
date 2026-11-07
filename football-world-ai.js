@@ -409,15 +409,18 @@
 
     // Preflight every archive destination before changing active player/history/stats.
     const playerHistory = safeWorldOwnValue(world, "playerHistory");
-    const historySourceRows = [];
+    let historySourceRows = null;
     for (const key of historyKeys) {
       const historyRows = safeWorldOwnValue(playerHistory, key);
       if (historyRows === undefined) continue;
       if (!Array.isArray(historyRows)) return false;
-      historyRows.forEach(row => historySourceRows.push(row));
+      if (!historySourceRows) historySourceRows = historyRows.slice();
+      else historyRows.forEach(row => {
+        if (!historySourceRows.includes(row)) historySourceRows.push(row);
+      });
     }
     const existingArchivedHistory = safeWorldOwnValue(archive.playerHistory, playerId);
-    const mergedHistory = historySourceRows.length
+    const mergedHistory = historySourceRows && historySourceRows.length
       ? mergeRows(existingArchivedHistory, historySourceRows) : null;
     if (historySourceRows.length && !mergedHistory) return false;
 

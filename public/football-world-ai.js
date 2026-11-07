@@ -113,6 +113,29 @@
     }
     return false;
   }
+  function prepareClubRosterRecovery(world) {
+    const clubs = safeWorldOwnValue(world, "clubs");
+    if (!clubs || typeof clubs !== "object" || Array.isArray(clubs)) return false;
+    const malformedRosters = [];
+    for (const key of safeWorldObjectKeys(clubs)) {
+      const club = safeWorldOwnValue(clubs, key);
+      if (!club || typeof club !== "object" || Array.isArray(club)) continue;
+      const clubId = safeWorldClubIdentifier(club, key);
+      if (!clubId) continue;
+      const savedRoster = safeWorldOwnValue(club, "roster");
+      if (savedRoster !== undefined && !Array.isArray(savedRoster)) {
+        malformedRosters.push({ club, clubId, value: savedRoster });
+      }
+    }
+    // Preserve every malformed payload before replacing any of the active fields.
+    for (const item of malformedRosters) {
+      if (!preserveMalformedWorldField(world, "clubRoster:" + item.clubId, item.value)) return false;
+    }
+    for (const item of malformedRosters) {
+      if (!safeWorldTrySetOwnValue(item.club, "roster", [])) return false;
+    }
+    return true;
+  }
   function safeWorldSetField(record, field, value) {
     try {
       if (!record || typeof record !== "object") return false;
@@ -808,10 +831,10 @@
     if (!clubs || typeof clubs !== "object" || Array.isArray(clubs)
       || !players || typeof players !== "object" || Array.isArray(players)) return world;
 
+    if (!prepareClubRosterRecovery(world)) return false;
     const memberships = new Map();
     const clubEntries = [];
     const clubById = new Map();
-    const malformedRosters = [];
     for (const key of safeWorldObjectKeys(clubs)) {
       const club = safeWorldOwnValue(clubs, key);
       if (!club || typeof club !== "object" || Array.isArray(club)) continue;
@@ -821,19 +844,6 @@
       clubEntries.push(entry);
       const current = clubById.get(clubId);
       if (!current || (key === clubId && current.key !== current.clubId)) clubById.set(clubId, entry);
-
-      const savedRoster = safeWorldOwnValue(club, "roster");
-      if (savedRoster !== undefined && !Array.isArray(savedRoster)) {
-        malformedRosters.push({ club, clubId, value: savedRoster });
-      }
-    }
-    // A malformed roster can still contain the only surviving references to players.
-    // Preserve the exact payload before replacing it with a safe working array.
-    for (const item of malformedRosters) {
-      if (!preserveMalformedWorldField(world, "clubRoster:" + item.clubId, item.value)) return false;
-    }
-    for (const item of malformedRosters) {
-      if (!safeWorldTrySetOwnValue(item.club, "roster", [])) return false;
     }
     for (const entry of clubEntries) {
       const localSeen = new Set();
@@ -1010,9 +1020,9 @@
     } else if (typeof savedPlayerHistory !== "object" || Array.isArray(savedPlayerHistory)) {
       return world;
     }
-    // Restore authoritative player links and preserve malformed roster payloads before
-    // unsupported-club cleanup or catalogue reconciliation can change the active world.
-    if (normalizeRosterMembership(world) === false) return world;
+    // Preserve malformed roster payloads before any unsupported-club cleanup or
+    // catalogue reconciliation can replace the only surviving player references.
+    if (!prepareClubRosterRecovery(world)) return world;
     const transferClubHistoryByPlayer = ensureTransferClubHistory(world);
     // Unsupported competitions leave the active simulation, but their saved data is archived rather than destroyed.
     const supportedLeagueIds = supportedWorldLeagueIds(db);
@@ -1278,6 +1288,9 @@
         safeWorldTrySetOwnValue(competitionsBySeason, season, items.filter(item => !isUnsupportedCompetition(item)));
       }
     }
+    // Rebuild player-to-club membership only after unsupported-club records have
+    // been archived, preserving the established reconciliation order.
+    if (normalizeRosterMembership(world) === false) return world;
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});

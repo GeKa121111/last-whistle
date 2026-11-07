@@ -3029,6 +3029,11 @@ assert.equal(JSON.stringify(browserEngine.simulateMatch(moraleParityOptions)), J
   "embedded and shared match engines must apply morale to player performance identically");
 
 // Multi-day recovery remains linear when recovery-room and physio bonuses are active.
+const safeCounterStart = html.indexOf("function safeTransferCounter(");
+const safeCounterEnd = html.indexOf("\nfunction transferEligibilityReason(", safeCounterStart);
+assert.ok(safeCounterStart >= 0 && safeCounterEnd > safeCounterStart,
+  "the shared safe transfer counter must be available to calendar recovery");
+const safeCounterSource = html.slice(safeCounterStart, safeCounterEnd);
 const recoveryStart = html.indexOf("function advanceCalendarDays(");
 const recoveryEnd = html.indexOf("\nfunction calendarHasConflict(", recoveryStart);
 assert.ok(recoveryStart >= 0 && recoveryEnd > recoveryStart,
@@ -3048,7 +3053,7 @@ const recoveryContext = {
   log: () => {}
 };
 vm.createContext(recoveryContext);
-vm.runInContext(html.slice(recoveryStart, recoveryEnd)
+vm.runInContext(safeCounterSource + "\n" + html.slice(recoveryStart, recoveryEnd)
   + "\nthis.advanceCalendarDaysForTest = advanceCalendarDays;", recoveryContext);
 recoveryContext.advanceCalendarDaysForTest(3, "اختبار استشفاء", { rest: true });
 assert.equal(recoveryState.energy, 100, "three days of rest must recover energy at the configured daily rate");
@@ -3075,7 +3080,7 @@ assert.equal(normalRestState.fatigue, 54,
 const workerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(__dirname, "..", "..", file), "utf8"));
 assert.equal(workerCopies[0], workerCopies[1], "root and public service workers must stay synchronized");
-assert.ok(workerCopies[0].includes("last-whistle-static-v623"), "condition update must refresh the static cache");
+assert.ok(workerCopies[0].includes("last-whistle-static-v624"), "condition update must refresh the static cache");
 require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 528);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
   workerCopies[0], "data/match-engine.js", 84);

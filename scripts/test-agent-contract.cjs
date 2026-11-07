@@ -114,20 +114,26 @@ const calendarEnd = html.indexOf("\nfunction ", calendarStart + 10);
 assert.ok(calendarStart >= 0 && calendarEnd > calendarStart,
   "the shared calendar function must be available for payroll regression testing");
 const calendarSource = html.slice(calendarStart, calendarEnd);
+const counterStart = html.indexOf("function safeTransferCounter(");
+const counterEnd = html.indexOf("\nfunction transferEligibilityReason(", counterStart + 10);
+assert.ok(counterStart >= 0 && counterEnd > counterStart,
+  "the shared safe transfer counter must be available to calendar payroll");
+const safeTransferCounterSource = html.slice(counterStart, counterEnd);
 const eligibilityStart = html.indexOf("function careerMatchPlayerEligible(");
 const eligibilityEnd = html.indexOf("\nfunction simulateCareerMatch(", eligibilityStart + 10);
 assert.ok(eligibilityStart >= 0 && eligibilityEnd > eligibilityStart,
   "the shared club-contract eligibility helper must be available for payroll regression testing");
 const eligibilitySource = html.slice(eligibilityStart, eligibilityEnd);
 const payrollLogs = [];
-function payOneWeek() {
+function payOneWeek(calendarState = state) {
   const calendarContext = {
-    state, window,
+    state: calendarState, window,
     clamp(value, min = 0, max = 100) { return Math.max(min, Math.min(max, Number(value) || 0)); },
     log(message) { payrollLogs.push(String(message)); },
     resetDailyActions() {}
   };
   vm.createContext(calendarContext);
+  vm.runInContext(safeTransferCounterSource, calendarContext, { filename: "safeTransferCounter" });
   vm.runInContext(eligibilitySource, calendarContext, { filename: "careerMatchPlayerEligible" });
   vm.runInContext(calendarSource, calendarContext, { filename: "advanceCalendarDays" });
   calendarContext.advanceCalendarDays(7, "اختبار صرف المرتب");
@@ -137,6 +143,17 @@ function resetCalendarForPayroll() {
   state.daysSinceNegotiation = 0; state.transferCooldown = 0;
   state.agentDebtLastPayrollDay = 0;
 }
+const hostileCooldownState = JSON.parse(JSON.stringify(state));
+hostileCooldownState.calendarDay = 1;
+hostileCooldownState.day = 1;
+hostileCooldownState.daysSinceTransfer = 0;
+hostileCooldownState.daysSinceNegotiation = 0;
+hostileCooldownState.transferCooldown = JSON.parse('{"toString":1,"valueOf":1}');
+hostileCooldownState.agentDebtLastPayrollDay = 0;
+assert.doesNotThrow(() => payOneWeek(hostileCooldownState),
+  "calendar progression must not coerce a malformed saved transfer cooldown");
+assert.equal(hostileCooldownState.transferCooldown, 0,
+  "a malformed cooldown must use a conservative seven-day fallback that expires after a week");
 const signedAgent = state.agent;
 const signedProfile = state.agentProfile;
 state.agent = false;

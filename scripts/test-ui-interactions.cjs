@@ -20,6 +20,7 @@ const functions = [
   "canUseDailyAction",
   "useDailyAction",
   "careerMatchPlayerEligible",
+  "safeTransferCounter",
   "advanceCalendarDays",
   "rest",
   "talkCoach",

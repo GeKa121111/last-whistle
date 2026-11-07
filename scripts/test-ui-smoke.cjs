@@ -1157,6 +1157,7 @@ assert.ok(interactionMessages.some(message => message.includes("سن 18")), "aca
 
 
 const offerGenerationSource = extractTopLevelFunction(html, "ensureTransferOffers");
+const safeTransferCounterSource = extractTopLevelFunction(html, "safeTransferCounter");
 const transferEligibilitySource = extractTopLevelFunction(html, "transferEligibilityReason");
 const legacyOfferMigrationSource = extractTopLevelFunction(html, "migrateLegacyPendingTransferOffer");
 const negotiationReconciliationSource = extractTopLevelFunction(html, "reconcileTransferNegotiation");
@@ -1197,7 +1198,7 @@ const offerSandbox = {
 vm.createContext(offerSandbox);
 vm.runInContext(offerWindowMatchSource + "\n" + currentFreeAgentWindowSource + "\n" + offerCurrentWindowMatchSource
   + "\n" + normalizedTargetKeySource + "\n" + legacyOfferMigrationSource + "\n" + negotiationReconciliationSource + "\n" + duplicateOfferDedupeSource
-  + "\n" + transferEligibilitySource, offerSandbox, { filename: "transferOfferWindowValidators" });
+  + "\n" + safeTransferCounterSource + "\n" + transferEligibilitySource, offerSandbox, { filename: "transferOfferWindowValidators" });
 vm.runInContext(offerGenerationSource, offerSandbox, { filename: "ensureTransferOffers" });
 vm.runInContext(offerAvailabilitySource, offerSandbox, { filename: "offerIsAvailable" });
 offerSandbox.ensureTransferOffers();
@@ -1263,7 +1264,7 @@ function evaluateTransferEligibility(state, options = {}) {
     overall: () => options.overall == null ? 70 : options.overall
   };
   vm.createContext(sandbox);
-  vm.runInContext(eligibilitySource, sandbox, { filename: "transferEligibility" });
+  vm.runInContext(safeTransferCounterSource + "\n" + eligibilitySource, sandbox, { filename: "transferEligibility" });
   return sandbox.transferEligibilityReason({ club: "Next FC", country: "Egypt", power: 75 });
 }
 const transferReadyState = {

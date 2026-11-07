@@ -7340,6 +7340,37 @@ assert.equal(futureSchemaResult.schemaVersion, ai.version + 1,
   "an older client must not downgrade a future world schema marker");
 assert.equal(JSON.stringify(futureSchemaResult), futureSchemaSnapshot,
   "an older client must leave every field in a future-schema world unchanged");
+assert.equal(ai.isFutureWorldSchema(futureSchemaResult), true,
+  "the public world API must identify a newer save format");
+const futureCompletion = ai.completeSeason(futureSchemaFixture.save, 5, schemaGuardDb);
+assert.equal(futureCompletion.futureSchema, true,
+  "season completion must remain read-only for a future world schema");
+const futureAdvance = ai.advanceToSeason(futureSchemaFixture.save, 5, schemaGuardDb);
+assert.equal(futureAdvance.futureSchema, true,
+  "season advancement and transfer windows must remain read-only for a future world schema");
+const futureDashboard = ai.dashboard(futureSchemaFixture.save, schemaGuardDb);
+assert.equal(futureDashboard.futureSchema, true,
+  "the dashboard must expose a safe read-only summary for a future world schema");
+assert.deepEqual(ai.recruitmentNeeds(futureSchemaFixture.save, schemaGuardDb), [],
+  "recruitment analysis must not rewrite future-schema club AI metadata");
+assert.deepEqual(ai.seasonMatches(futureSchemaFixture.save, 5, schemaGuardDb), [],
+  "future-schema fixture reads must not generate or rewrite matches");
+assert.deepEqual(ai.seasonCompetitions(futureSchemaFixture.save, 5, schemaGuardDb), [],
+  "future-schema competition reads must not generate or rewrite competitions");
+let futureTransferCallbackRan = false;
+const futureTransaction = ai.withTransferMarketTransaction(futureSchemaFixture.world, () => {
+  futureTransferCallbackRan = true;
+  futureSchemaFixture.world.futureTransferMutation = true;
+});
+assert.equal(futureTransaction.futureSchema, true,
+  "direct transfer transactions must be blocked for a future world schema");
+assert.equal(futureTransferCallbackRan, false,
+  "a future-schema world must never enter a transfer transaction");
+ai.rememberTransferClubEndpoints(futureSchemaFixture.world, {
+  playerId: "schema-guard-player", from: "Old Club", to: "New Club"
+});
+assert.equal(JSON.stringify(futureSchemaFixture.world), futureSchemaSnapshot,
+  "all public world operations must leave a future-schema save unchanged");
 
 const hostileSchemaVersion = {
   toString() { throw new Error("unsafe world schema string coercion"); },

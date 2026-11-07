@@ -5895,6 +5895,12 @@ function loanTo(target){
 function returnFromLoan(){
  const l=state.loan;if(!l)return false;
  const safeParentText=(value,fallback)=>typeof value==="string"&&value.trim()?value.trim():fallback;
+ const finiteParentNumber=value=>{
+  if(typeof value!=="number"&&typeof value!=="string")return null;
+  if(typeof value==="string"&&!value.trim())return null;
+  const numeric=Number(value);
+  return Number.isFinite(numeric)?numeric:null;
+ };
  const parentClub=safeParentText(l.parentClub,"");
  const parentCountry=safeParentText(l.parentCountry,"");
  const hasRestorableParent=!!parentClub&&!!parentCountry;
@@ -5907,7 +5913,7 @@ function returnFromLoan(){
   state.loan=null;state.weeklyWage=0;state.contractSeasons=0;state.freeAgent=true;state.contractType="free-agent";
   state.contractOffer=null;state.pendingTransfer=null;state.transferNegotiation=null;
   state.daysSinceNegotiation=7;state.contractNegotiationWait=0;
-  state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);
+  state.transferCooldown=Math.max(7,finiteParentNumber(state.transferCooldown)??0);
   state.transferHistory=Array.isArray(state.transferHistory)?state.transferHistory:[];
   state.transferHistory.unshift({season:state.season,day:state.day,
    text:"تعذر استعادة النادي الأصلي بعد الإعارة من "+hostClub+"؛ تم إنهاء الإعارة والتحويل إلى سوق اللاعبين الأحرار دون الاحتفاظ بعقد أو مرتب مؤقت."});
@@ -5922,12 +5928,6 @@ function returnFromLoan(){
  const savedParentContractType=safeParentText(l.parentContractType,"");
   const savedStateContractType=safeParentText(state.contractType,"");
   const parentContractType=savedParentContractType||savedStateContractType||(parentFreeAgent?"free-agent":"professional");
- const finiteParentNumber=value=>{
-  if(typeof value!=="number"&&typeof value!=="string")return null;
-  if(typeof value==="string"&&!value.trim())return null;
-  const numeric=Number(value);
-  return Number.isFinite(numeric)?numeric:null;
- };
  const parentIsFreeAgent=parentFreeAgent||parentContractType.toLowerCase()==="free-agent";
  const savedParentContractSeasons=l.parentContractSeasons;
  const parentTermMissing=savedParentContractSeasons===undefined||savedParentContractSeasons===null
@@ -5961,7 +5961,7 @@ function returnFromLoan(){
  state.clubIndex=savedParentIndex!==null&&Number.isSafeInteger(savedParentIndex)&&savedParentIndex>=0
   ?savedParentIndex:state.clubTier;
  const parentWageValue=finiteParentNumber(l.parentWage);const restoredParentWage=parentWageValue!==null?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;
- state.weeklyWage=parentHasNoContract?0:restoredParentWage;state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;state.freeAgent=parentHasNoContract;state.contractType=parentHasNoContract?"free-agent":parentContractType;state.role=safeParentText(l.parentRole,safeParentText(state.role,"بديل"));state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;if(parentHasNoContract)state.contractOffer=null;
+ state.weeklyWage=parentHasNoContract?0:restoredParentWage;state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;state.freeAgent=parentHasNoContract;state.contractType=parentHasNoContract?"free-agent":parentContractType;state.role=safeParentText(l.parentRole,safeParentText(state.role,"بديل"));state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,finiteParentNumber(state.transferCooldown)??0);state.pendingTransfer=null;if(parentHasNoContract)state.contractOffer=null;
  const returnMessage=parentHasNoContract
   ?`انتهت الإعارة من ${hostClub} وعدت إلى سوق اللاعبين الأحرار بعد انتهاء عقدك مع ${state.clubName}.`
   :`انتهت الإعارة من ${hostClub} وعدت إلى ${state.clubName}.`;

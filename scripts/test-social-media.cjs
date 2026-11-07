@@ -133,6 +133,84 @@ assert.ok(hostileBenchPost, "the bench-story regression must still publish a pla
 assert.match(hostileBenchPost.body, /اللاعب/);
 assert.strictEqual(hostileBenchState.name, hostileName);
 
+// Role values are also legacy save data. Hostile JSON objects must not break
+// migration, role/bench stories, offer rumours, or the render signature.
+const hostileRole = JSON.parse('{"toString":1,"valueOf":1}');
+const hostileRoleState = {
+  name: "Legacy Role Player", careerStarted: true, retired: false,
+  season: 4, day: 30, calendarDay: 30, role: hostileRole,
+  teamChemistry: 60, followers: 300, mediaReputation: 40,
+  professionalism: 60, coachRelationship: 60, trust: 50, morale: 50,
+  careerMatchHistory: [1, 2, 3].map(index => ({
+    id: "hostile-role-bench-" + index, season: 4, day: 27 + index,
+    opponent: "منافس " + index, minutes: 0, playerAvailable: false,
+    rating: 0, goals: 0, assists: 0, teamGoals: 0, oppGoals: 1
+  })),
+  pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: hostileRole, lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 1, lastBenchStoryMatchId: "previous-role-match", lastReplyDay: ""
+  }
+};
+assert.doesNotThrow(() => social.ensureState(hostileRoleState),
+  "hostile current and saved role values must be normalized without coercion");
+assert.equal(hostileRoleState.socialMedia.observedRole, "",
+  "invalid saved role metadata should use a safe empty baseline");
+assert.strictEqual(hostileRoleState.role, hostileRole,
+  "role normalization must not overwrite the original career role payload");
+assert.doesNotThrow(() => social.syncState(hostileRoleState),
+  "malformed roles must not interrupt role and bench story synchronization");
+assert.ok(hostileRoleState.socialMedia.posts.some(post => post.kind === "bench"),
+  "a malformed role should use the safe substitute fallback for bench-story eligibility");
+assert.strictEqual(hostileRoleState.role, hostileRole);
+
+const hostileOfferRole = {
+  name: "Offer Role Player", careerStarted: true, season: 2, day: 8,
+  role: "أساسي", followers: 100, careerMatchHistory: [],
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: [],
+  transferOffers: [{
+    id: "hostile-offer-role", status: "pending", club: "نادي الاختبار",
+    country: "مصر", league: "الدوري المحلي", role: hostileRole
+  }],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "أساسي", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 8, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+assert.doesNotThrow(() => social.syncState(hostileOfferRole),
+  "a malformed proposed squad role in a real transfer offer must not break the feed");
+assert.ok(hostileOfferRole.socialMedia.posts.some(post => post.kind === "rumor"));
+assert.strictEqual(hostileOfferRole.transferOffers[0].role, hostileRole,
+  "social feed formatting must preserve the original offer role payload");
+
+const roleTransitionState = {
+  name: "Role Transition Player", careerStarted: true, season: 2, day: 8,
+  role: "أساسي", followers: 100, careerMatchHistory: [],
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "بديل", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 8, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+assert.equal(social.syncState(roleTransitionState), 1,
+  "valid squad-role changes must still publish their normal story");
+assert.equal(roleTransitionState.socialMedia.posts[0].kind, "role");
+
+const roleRenderFeed = { dataset: {}, innerHTML: "" };
+sandbox.document = {
+  getElementById(id) { return id === "lw-social-feed" ? roleRenderFeed : null; }
+};
+assert.doesNotThrow(() => social.render(hostileRoleState),
+  "render signature generation must tolerate a malformed saved role");
+assert.equal(roleRenderFeed.dataset.ready, "true");
+
 const state = {
   name: "Test Player",
   careerStarted: true,

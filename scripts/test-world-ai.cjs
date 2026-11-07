@@ -4143,6 +4143,10 @@ assert.equal(JSON.stringify(malformedArchiveRootWorld), malformedArchiveRootBefo
 // Defer reconciliation before any active club/player/history data is changed.
 for (const bucketName of ["clubs", "players", "playerHistory"]) {
   const frozenArchiveBucketWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+  frozenArchiveBucketWorld.archive = {
+    clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
+    leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+  };
   Object.freeze(frozenArchiveBucketWorld.archive[bucketName]);
   const frozenArchiveBucketBefore = JSON.stringify(frozenArchiveBucketWorld);
   assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(

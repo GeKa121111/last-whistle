@@ -137,9 +137,25 @@
   var ALL_AGENTS=AGENTS.concat([LEGACY_AGENT]),BY_ID={};
   ALL_AGENTS.forEach(function(a){BY_ID[a.id]=a;});
 
-  function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});}
+  // Saved JSON is user-controlled data: never coerce an object with String().
+  // A plain JSON object may own a non-callable "toString" field and throw during coercion.
+  function safeAgentText(value,fallback){
+    if(typeof value==="string")return value;
+    if(typeof value==="number"&&Number.isFinite(value))return String(value);
+    if(typeof value==="boolean")return value?"true":"false";
+    return typeof fallback==="string"?fallback:"";
+  }
+  function safeAgentId(value,fallback){
+    var id=safeAgentText(value,"").trim();
+    return id||(typeof fallback==="string"?fallback:"");
+  }
+  function agentById(value){
+    var id=safeAgentId(value,"");
+    return id&&Object.prototype.hasOwnProperty.call(BY_ID,id)?BY_ID[id]:null;
+  }
+  function esc(v){return safeAgentText(v,"").replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});}
   function cap(v,min,max){return Math.max(min,Math.min(max,Math.round(Number(v)||0)));}
-  function agentConfig(s){var p=s&&s.agentProfile;return p&&BY_ID[p.id]?BY_ID[p.id]:null;}
+  function agentConfig(s){var p=s&&s.agentProfile;return p?agentById(p.id):null;}
   function randomUnit(s){
     var x=(Number(s.randomSeed)>>>0)||0x6d2b79f5;x=(x+0x6d2b79f5)>>>0;s.randomSeed=x;
     var t=x;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);
@@ -167,7 +183,7 @@
     p.lastChapterApps=Math.max(p.signedApps,Number(p.lastChapterApps)||p.signedApps);
     p.lastChapterSeason=Math.max(p.hiredSeason,Number(p.lastChapterSeason)||p.hiredSeason);
     p.lastPerformanceMilestone=Math.max(0,Number(p.lastPerformanceMilestone)||Math.floor((Number(s.apps)||0)/5));
-    p.strategyOverride=String(p.strategyOverride||"");
+    p.strategyOverride=safeAgentText(p.strategyOverride,"");
     p.perks=p.perks&&typeof p.perks==="object"?p.perks:{};
     p.feeDebt=safeWholeAmount(p.feeDebt);
     return p;
@@ -184,9 +200,9 @@
   }
   function outstandingFeeDebt(s,agentId){
     var ledger=s&&Array.isArray(s.agentFeeDebtLedger)?s.agentFeeDebtLedger:[];
-    var target=agentId==null?null:String(agentId);
+    var target=agentId==null?null:safeAgentId(agentId,"legacy");
     return ledger.reduce(function(total,entry){
-      if(!entry||typeof entry!=="object"||(target!==null&&String(entry.agentId||"legacy")!==target))return total;
+      if(!entry||typeof entry!=="object"||(target!==null&&safeAgentId(entry.agentId,"legacy")!==target))return total;
       var outstanding=entry.outstanding==null
         ?Math.max(0,safeWholeAmount(entry.amount)-safeWholeAmount(entry.paid))
         :safeWholeAmount(entry.outstanding);
@@ -194,7 +210,9 @@
     },0);
   }
   function syncCurrentAgentDebt(s){
-    if(s&&s.agentProfile)s.agentProfile.feeDebt=outstandingFeeDebt(s,s.agentProfile.id);
+    var profile=s&&s.agentProfile;
+    if(profile&&typeof profile==="object"&&!Array.isArray(profile))
+      profile.feeDebt=outstandingFeeDebt(s,profile.id);
   }
   function appendFeeDebt(s,amount,reason){
     var value=safeWholeAmount(amount);
@@ -204,8 +222,8 @@
     var p=s.agentProfile||{},cfg=agentConfig(s)||LEGACY_AGENT;
     var entry={
       id:"agent-fee-debt-"+(safeWholeAmount(s.season)||1)+"-"+(safeWholeAmount(s.day)||1)+"-"+s.agentFeeDebtSequence,
-      agentId:String(p.id||"legacy"),agentName:String(p.name||cfg.name||"وكيل سابق"),
-      reason:String(reason||"أتعاب وكالة غير مسددة"),amount:value,paid:0,outstanding:value,
+      agentId:safeAgentId(p.id,"legacy"),agentName:safeAgentText(p.name,safeAgentText(cfg.name,"وكيل سابق")),
+      reason:safeAgentText(reason,"أتعاب وكالة غير مسددة"),amount:value,paid:0,outstanding:value,
       createdSeason:safeWholeAmount(s.season)||1,createdDay:safeWholeAmount(s.day)||1
     };
     s.agentFeeDebtLedger.push(entry);
@@ -223,8 +241,8 @@
       if(!amount&&raw.outstanding!=null)amount=Math.min(Number.MAX_SAFE_INTEGER,safeWholeAmount(raw.outstanding)+paid);
       paid=Math.min(amount,paid);
       var entry={
-        id:String(raw.id||""),agentId:String(raw.agentId||"legacy"),
-        agentName:String(raw.agentName||"وكيل سابق"),reason:String(raw.reason||"أتعاب وكالة غير مسددة"),
+        id:safeAgentId(raw.id,""),agentId:safeAgentId(raw.agentId,"legacy"),
+        agentName:safeAgentText(raw.agentName,"وكيل سابق"),reason:safeAgentText(raw.reason,"أتعاب وكالة غير مسددة"),
         amount:amount,paid:paid,outstanding:Math.max(0,amount-paid),
         createdSeason:safeWholeAmount(raw.createdSeason)||1,createdDay:safeWholeAmount(raw.createdDay)||1
       };
@@ -242,7 +260,7 @@
     if(paidTotal!==s.agentDebtPaid){s.agentDebtPaid=paidTotal;changed=true;}
     var lastPayrollDay=safeWholeAmount(s.agentDebtLastPayrollDay);
     if(lastPayrollDay!==s.agentDebtLastPayrollDay){s.agentDebtLastPayrollDay=lastPayrollDay;changed=true;}
-    if(s.agentProfile){
+    if(s.agentProfile&&typeof s.agentProfile==="object"&&!Array.isArray(s.agentProfile)){
       var profileDebt=safeWholeAmount(s.agentProfile.feeDebt);
       var tracked=outstandingFeeDebt(s,s.agentProfile.id);
       if(profileDebt>tracked){
@@ -279,20 +297,21 @@
     return {paid:paid,netPay:remainingPay,remaining:outstandingFeeDebt(s),duplicate:false};
   }
   function makeProfile(id,s,legacy){
-    var a=BY_ID[id]||LEGACY_AGENT;
+    var a=agentById(id)||LEGACY_AGENT;
     return ensureProfileShape({id:a.id,name:a.name,title:a.title,mark:a.mark,feeRate:a.feeRate,customFeeRate:null,relationship:52,
       contractMode:"open-ended",hiredSeason:Number(s.season)||1,expiresSeason:null,signedDay:Number(s.day)||1,signedApps:Number(s.apps)||0,
       lastChapterApps:Number(s.apps)||0,lastChapterSeason:Number(s.season)||1,lastPerformanceMilestone:Math.floor((Number(s.apps)||0)/5),
       storyStage:0,strategyOverride:"",perks:{},feeDebt:0,legacyMigrated:!!legacy,contractMultiplierDelta:0,negotiationRaiseBonusDelta:0},s);
   }
-  function current(s){return s&&s.agent&&s.agentProfile&&BY_ID[s.agentProfile.id]?BY_ID[s.agentProfile.id]:null;}
+  function current(s){return s&&s.agent?agentById(s.agentProfile&&s.agentProfile.id):null;}
 function availableAgentBalance(s){
     var value=finiteAgentNumber(s&&s.money);
     return value===null?0:Math.max(0,value);
   }
   function pendingAgentFeeQuote(s,id){
-    var quote=s&&s.agentNegotiationQuote,agent=BY_ID[String(id||"")];
-    if(!quote||!agent||String(quote.agentId)!==String(id))return null;
+    var quote=s&&s.agentNegotiationQuote,agent=agentById(id),targetId=safeAgentId(id,"");
+    var quoteId=safeAgentId(quote&&quote.agentId,"");
+    if(!quote||!agent||!targetId||quoteId!==targetId)return null;
     var rate=finiteAgentNumber(quote.feeRate);
     if(rate===null||rate<.035||rate>Number(agent.feeRate))return null;
     return Math.round(rate*1000)/1000;
@@ -300,16 +319,19 @@ function availableAgentBalance(s){
     function ensureState(s){
     if(!s||typeof s!=="object")return false;
     var changed=false;
+    // Normalize the debt ledger before replacing an unknown legacy profile so its
+    // outstanding balance is retained even when the saved agent id is malformed.
+    if(ensureFeeDebtLedger(s))changed=true;
     if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
-    if(s.agent&&(!s.agentProfile||!BY_ID[s.agentProfile.id])){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
-    if(s.agentProfile&&BY_ID[s.agentProfile.id]){
+    if(s.agent&&(!s.agentProfile||!agentById(s.agentProfile.id))){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
+    if(s.agentProfile&&agentById(s.agentProfile.id)){
       var oldContractMode=s.agentProfile.contractMode,oldExpiresSeason=s.agentProfile.expiresSeason,oldFeeDebt=s.agentProfile.feeDebt,oldFeeRate=s.agentProfile.feeRate,oldCustomFeeRate=s.agentProfile.customFeeRate;
       ensureProfileShape(s.agentProfile,s);
       if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==s.agentProfile.feeDebt||oldFeeRate!==s.agentProfile.feeRate||oldCustomFeeRate!==s.agentProfile.customFeeRate)changed=true;
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
     if(s.agentNegotiationQuote!=null){
-      var quote=s.agentNegotiationQuote,quoteId=String(quote.agentId||""),quoteAgent=BY_ID[quoteId],quoteRate=finiteAgentNumber(quote.feeRate);
+      var quote=s.agentNegotiationQuote,quoteId=safeAgentId(quote.agentId,""),quoteAgent=agentById(quoteId),quoteRate=finiteAgentNumber(quote.feeRate);
       if(!quoteAgent||quoteRate===null||quoteRate<.035||quoteRate>Number(quoteAgent.feeRate)){
         s.agentNegotiationQuote=null;changed=true;
       }else{
@@ -325,7 +347,7 @@ function availableAgentBalance(s){
   }
   function record(s,title,text,silent){
     if(!Array.isArray(s.agentHistory))s.agentHistory=[];
-    var e={season:Number(s.season)||1,day:Number(s.day)||1,title:String(title||"حدث مع الوكيل"),text:String(text||"")};
+    var e={season:Number(s.season)||1,day:Number(s.day)||1,title:safeAgentText(title,"حدث مع الوكيل"),text:safeAgentText(text,"")};
     s.agentHistory.unshift(e);s.agentHistory=s.agentHistory.slice(0,40);
     if(!silent){var api=API();if(api&&api.log)api.log(e.title+": "+e.text);}
   }
@@ -409,7 +431,7 @@ function availableAgentBalance(s){
     var x=host.querySelector(".lwa-dialog-close");if(x)x.focus();
   }
   function option(action,title,detail,attrs){return '<button type="button" class="lwa-option" data-lwag-action="'+esc(action)+'"'+(attrs||"")+'><span><strong>'+esc(title)+'</strong>'+(detail?'<small>'+esc(detail)+'</small>':'')+'</span><b aria-hidden="true">←</b></button>';}
-  function candidate(id){return BY_ID[id]&&id!=="legacy"?BY_ID[id]:null;}
+  function candidate(id){var agent=agentById(id);return agent&&agent.id!=="legacy"?agent:null;}
   function meetingBody(a,s,fee){
     var rate=fee==null?a.feeRate:fee;
     return '<div class="lwa-meeting-card"><div class="lwa-meeting-card-top"><span class="lwa-agent-monogram">'+esc(a.mark)+'</span><div><span class="lwa-market-kicker">'+esc(a.title)+'</span><h3>'+esc(a.name)+'</h3><p>'+esc(a.style)+'</p></div></div><div class="lwa-meeting-quote">«'+esc(a.pitch)+'»</div><p class="lwa-meeting-story">'+esc(a.origin)+'</p><div class="lwa-meeting-terms"><div><small>عمولة الوكيل</small><strong>'+Math.round(rate*100)+'%</strong><span>من مكافأة الانتقال أو خدمة تفاوض داخل اللعبة</span></div><div><small>مدة التمثيل</small><strong>مفتوح</strong><span>يستمر لحد ما تختار تنهي الاتفاق</span></div></div><div class="lwa-agent-tradeoffs"><div><small>نقطة القوة</small><p>'+esc(a.strength)+'</p></div><div><small>المقابل</small><p>'+esc(a.weakness)+'</p></div></div></div>';
@@ -417,7 +439,7 @@ function availableAgentBalance(s){
   function openMeeting(id){
     var s=API().getState();if(!canUseAgent(s)){API().toast(s&&s.retired?"المسيرة انتهت بالاعتزال.":"ابدأ مسيرتك الأول علشان تقابل الوكلاء.");return;}
     var a=candidate(id);if(!a)return;
-    if(s.agent&&s.agentProfile&&s.agentProfile.id===id){openActive();return;}
+    if(s.agent&&s.agentProfile&&safeAgentId(s.agentProfile.id,"")===safeAgentId(id,"")){openActive();return;}
     selectedAgentId=id;
     var savedQuote=pendingAgentFeeQuote(s,id);
     quotedFeeRate=savedQuote==null?a.feeRate:savedQuote;
@@ -469,7 +491,7 @@ function availableAgentBalance(s){
   async function signAgent(id,newFee,exitPaid){
     var api=API(),s=api&&api.getState(),a=candidate(id);
     if(!a||!canUseAgent(s))return {ok:false,reason:"اتفاق الوكالة غير متاح حاليًا."};
-    if(s.agent&&s.agentProfile&&String(s.agentProfile.id)===String(id)){
+    if(s.agent&&s.agentProfile&&safeAgentId(s.agentProfile.id,"")===safeAgentId(id,"")){
       if(api.toast)api.toast("أنت متعاقد بالفعل مع الوكيل ده.");
       return {ok:false,reason:"already-signed"};
     }
@@ -547,7 +569,7 @@ function availableAgentBalance(s){
   async function switchAgent(id){
     var api=API(),s=api&&api.getState(),old=s&&(agentConfig(s)||LEGACY_AGENT),p=s&&s.agentProfile,a=candidate(id);
     if(!a||!p||!s.agent||!canUseAgent(s))return {ok:false,reason:"تغيير الوكيل غير متاح حاليًا."};
-    if(String(p.id)===String(id)){
+    if(safeAgentId(p.id,"")===safeAgentId(id,"")){
       if(api.toast)api.toast("ده وكيلك الحالي بالفعل.");
       return {ok:false,reason:"already-current-agent"};
     }
@@ -578,16 +600,16 @@ function availableAgentBalance(s){
   function prioritizeTargets(s,targets){
     if(!Array.isArray(targets)||!targets.length)return targets||[];
     var cfg=agentConfig(s),p=s&&s.agentProfile;if(!cfg||!p)return targets;
-    var strategy=p.strategyOverride||cfg.strategy,currentPower=Number(s.clubPower)||50,currentCountry=String(s.leagueCountry||"");
+    var strategy=p.strategyOverride||cfg.strategy,currentPower=Number(s.clubPower)||50,currentCountry=safeAgentText(s.leagueCountry,"");
     var scored=targets.map(function(t,i){
       var power=Number(t.power)||50,d=power-currentPower,score=0;
-      if(strategy==="local"){score+=String(t.country||"")===currentCountry?45:-5;score+=d>=-8&&d<=16?18:-Math.abs(d-3)*.35;}
-      else if(strategy==="ambitious"){score+=d>0?25+Math.min(15,d):-18;score+=String(t.country||"")!==currentCountry?6:0;}
-      else if(strategy==="brand"){score+=power*.38+(String(t.country||"")!==currentCountry?12:0);}
+      if(strategy==="local"){score+=safeAgentText(t.country,"")===currentCountry?45:-5;score+=d>=-8&&d<=16?18:-Math.abs(d-3)*.35;}
+      else if(strategy==="ambitious"){score+=d>0?25+Math.min(15,d):-18;score+=safeAgentText(t.country,"")!==currentCountry?6:0;}
+      else if(strategy==="brand"){score+=power*.38+(safeAgentText(t.country,"")!==currentCountry?12:0);}
       else if(strategy==="salary"){score+=power*.22+Math.min(18,Math.max(-18,d));}
-      else if(strategy==="rapid"){score+=24-Math.abs(d)*.7+(String(t.country||"")===currentCountry?8:0);}
-      else if(strategy==="role"||strategy==="long-term"){score+=d>=-8&&d<=12?26:-Math.abs(d)*.5;score+=String(t.country||"")===currentCountry?6:0;}
-      else{score+=d>=-5&&d<=15?25:-Math.abs(d)*.4;score+=String(t.country||"")!==currentCountry?4:0;}
+      else if(strategy==="rapid"){score+=24-Math.abs(d)*.7+(safeAgentText(t.country,"")===currentCountry?8:0);}
+      else if(strategy==="role"||strategy==="long-term"){score+=d>=-8&&d<=12?26:-Math.abs(d)*.5;score+=safeAgentText(t.country,"")===currentCountry?6:0;}
+      else{score+=d>=-5&&d<=15?25:-Math.abs(d)*.4;score+=safeAgentText(t.country,"")!==currentCountry?4:0;}
       return {target:t,score:score,index:i};
     });
     scored.sort(function(a,b){return b.score-a.score||a.index-b.index;});
@@ -613,7 +635,7 @@ function availableAgentBalance(s){
     s.money=available-paid;
     if(paid<requested){appendFeeDebt(s,requested-paid,reason);addTrust(s,-2);}else addTrust(s,1);
     var cfg=agentConfig(s)||LEGACY_AGENT;
-    record(s,"أتعاب "+cfg.name,"دفع الوكيل مقابل خدمة "+String(reason||"تمثيل")+" أتعابًا قدرها "+paid+" جنيه داخل اللعبة"+(paid<requested?"، والمتبقي المسجل "+(requested-paid)+" جنيه.":"."));
+    record(s,"أتعاب "+cfg.name,"دفع الوكيل مقابل خدمة "+safeAgentText(reason,"تمثيل")+" أتعابًا قدرها "+paid+" جنيه داخل اللعبة"+(paid<requested?"، والمتبقي المسجل "+(requested-paid)+" جنيه.":"."));
     return paid;
   }
   function afterNegotiation(s,result){
@@ -694,7 +716,7 @@ function availableAgentBalance(s){
     }
     var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
     var lead=s.agentLead&&typeof s.agentLead==="object"?{id:s.agentLead.id,agentId:s.agentLead.agentId,status:s.agentLead.status,season:s.agentLead.season,day:s.agentLead.day}:s.agentLead;
-    var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+String(p.perks[key]);}).join(","):"";
+    var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+safeAgentText(p.perks[key],"");}).join(","):"";
     var snapshot=[
       s.careerStarted,s.agent,JSON.stringify(lead||null),s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
@@ -703,7 +725,7 @@ function availableAgentBalance(s){
       s.agentNegotiationQuote&&JSON.stringify(s.agentNegotiationQuote),
       s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
       history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season
-    ].join("|");
+    ].map(function(value){return safeAgentText(value,"");}).join("|");
     var ready=ensurePanel();
     if(ready&&(force||snapshot!==lastSnapshot||!panelWasRendered)){
       if(!document.hidden){renderPanel(s);panelWasRendered=true;}
@@ -761,7 +783,7 @@ function availableAgentBalance(s){
       window.__LW_DURABLE_MUTATION_LOCK__ = coordinator;
     }
     if (!Array.isArray(coordinator.queue)) coordinator.queue = [];
-    owner = String(owner || "");
+    owner = safeAgentText(owner,"");
     if (!owner) return false;
     if (!coordinator.owner) {
       coordinator.owner = owner;
@@ -922,7 +944,7 @@ function availableAgentBalance(s){
   async function acquireClubControl(s,club,clubValue,share){
     if(!s||!s.retired)return {ok:false,reason:"لازم تعتزل الأول."};
     if(s.retirementCareer)return {ok:false,reason:"مسار ما بعد الاعتزال بدأ بالفعل؛ لا يمكن استبداله وفقدان سجله."};
-    var options=postRetirementOptions(s),clubName=String(club==null?"":club).trim(),rawValue=Number(clubValue);
+    var options=postRetirementOptions(s),clubName=safeAgentText(club,"").trim(),rawValue=finiteAgentNumber(clubValue);
     if(!options.available||!options.clubOwner.available||!clubName||!Number.isFinite(rawValue)||rawValue<=0)return {ok:false,reason:"قيمة النادي أو بيانات الملكية غير صالحة."};
     var value=Math.ceil(rawValue),rawShare=Number(share),portion=Math.max(51,Math.min(100,Number.isFinite(rawShare)&&rawShare!==0?rawShare:51));
     var cost=Math.ceil(value*portion/100),available=safeWholeAmount(s.money);
@@ -935,15 +957,15 @@ function availableAgentBalance(s){
   }
   async function registerAgencyPlayer(s,player){
     if(!s||!s.retired||!s.retirementCareer||s.retirementCareer.type!=="agency"||!player||player.id==null)return {ok:false,reason:"مسار الوكالة غير متاح أو بيانات اللاعب ناقصة."};
-    var playerId=String(player.id).trim();
+    var playerId=safeAgentId(player.id,"");
     if(!playerId)return {ok:false,reason:"معرّف اللاعب غير صالح."};
     var career=s.retirementCareer,players=Array.isArray(career.players)?career.players:[];
-    if(players.some(function(p){return String(p&&p.id)===playerId;}))return {ok:false,reason:"اللاعب مسجل بالفعل."};
+    if(players.some(function(p){return safeAgentId(p&&p.id,"")===playerId;}))return {ok:false,reason:"اللاعب مسجل بالفعل."};
     return runPostRetirementMutation(s,function(){
       var current=s.retirementCareer;
       current.players=Array.isArray(current.players)?current.players:[];
-      if(current.players.some(function(p){return String(p&&p.id)===playerId;}))return false;
-      var registered={id:playerId,name:String(player.name||"لاعب جديد"),club:String(player.club||""),joinedSeason:Number(s.season)||1,appearancesAtSigning:Math.max(0,Number(player.appearances)||0)};
+      if(current.players.some(function(p){return safeAgentId(p&&p.id,"")===playerId;}))return false;
+      var registered={id:playerId,name:safeAgentText(player.name,"لاعب جديد"),club:safeAgentText(player.club,""),joinedSeason:Number(s.season)||1,appearancesAtSigning:Math.max(0,Number(player.appearances)||0)};
       current.players.push(registered);
       current.reputation=Math.min(100,(Number(current.reputation)||0)+1);
       current.history=Array.isArray(current.history)?current.history:[];

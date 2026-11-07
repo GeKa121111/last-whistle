@@ -40,7 +40,14 @@ function makeHarness(flush) {
     },
     console
   };
-  const sandbox = { API: () => api, window, console, Promise, renderPanel() { renders += 1; } };
+  const sandbox = {
+    API: () => api, window, console, Promise,
+    safeAgentText: (value, fallback) => typeof value === "string" ? value
+      : typeof value === "number" && Number.isFinite(value) ? String(value)
+        : typeof value === "boolean" ? (value ? "true" : "false")
+          : (typeof fallback === "string" ? fallback : ""),
+    renderPanel() { renders += 1; }
+  };
   vm.createContext(sandbox);
   vm.runInContext(runtimeSource, sandbox, { filename: "agent-system-maintenance-transactions" });
   return { sandbox, api, notices, counts: () => ({ saves, flushes, renders }) };

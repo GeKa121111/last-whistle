@@ -37,6 +37,9 @@ function extractFunction(name) {
 const names = [
   "acquireSharedMutationLock",
   "releaseSharedMutationLock",
+  "safeAgentText",
+  "safeAgentId",
+  "agentById",
   "finiteAgentNumber",
   "safeWholeAmount",
   "postRetirementOptions",

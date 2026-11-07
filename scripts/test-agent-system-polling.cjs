@@ -14,9 +14,9 @@ const publicSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(source, publicSource, "agent root/public runtimes must match");
 assert.equal(html, publicHtml, "root/public HTML must match");
 assert.equal(sw, publicSw, "root/public service workers must match");
-assert.match(html, /agent-system\.js\?v=11/);
-require("./assert-static-cache-version.cjs")(sw, 557);
-assert.match(sw, /agent-system\.js\?v=11/);
+assert.match(html, /agent-system\.js\?v=12/);
+require("./assert-static-cache-version.cjs")(sw, 604);
+assert.match(sw, /agent-system\.js\?v=12/);
 assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 
 const tickStart = source.indexOf("  function tick(force){");
@@ -56,7 +56,12 @@ function makeHarness(withStore = true) {
     addEventListener(name, callback) { (documentListeners[name] ||= []).push(callback); }
   };
   const sandbox = {
-    API: () => api, ensureState: state => { if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; return true; } return false; }, renewRelationship: () => false,
+    API: () => api,
+    safeAgentText: (value, fallback) => typeof value === "string" ? value
+      : typeof value === "number" && Number.isFinite(value) ? String(value)
+        : typeof value === "boolean" ? (value ? "true" : "false")
+          : (typeof fallback === "string" ? fallback : ""),
+    ensureState: state => { if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; return true; } return false; }, renewRelationship: () => false,
     cloneAgentMaintenancePreview: state => Object.assign({}, state),
     runAgentContractMutation: (state, operation) => { maintenanceCalls++; operation(); return Promise.resolve({ ok: true }); },
     agentContractMutationPending: false, postRetirementMutationPending: false,

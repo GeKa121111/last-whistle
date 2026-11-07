@@ -883,11 +883,13 @@
         const archivedRows = rows.filter(row => {
           if (!row || typeof row !== "object") return false;
           const leagueId = safeWorldRecordIdentifier(row, "leagueId");
-          const playerId = safeWorldRecordIdentifier(row, "id")
-            || safeWorldRecordIdentifier(row, "playerId");
+          const playerIds = [
+            safeWorldRecordIdentifier(row, "id"),
+            safeWorldRecordIdentifier(row, "playerId")
+          ].filter(Boolean);
           const clubId = safeWorldRecordIdentifier(row, "clubId");
           return (leagueId && !supportedLeagueIds.has(leagueId))
-            || (playerId && removedPlayerIds.has(playerId))
+            || playerIds.some(playerId => removedPlayerIds.has(playerId))
             || (clubId && removedClubIds.has(clubId));
         });
         if (archivedRows.length) {

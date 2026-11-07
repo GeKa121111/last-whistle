@@ -210,7 +210,9 @@
     },0);
   }
   function syncCurrentAgentDebt(s){
-    if(s&&s.agentProfile)s.agentProfile.feeDebt=outstandingFeeDebt(s,s.agentProfile.id);
+    var profile=s&&s.agentProfile;
+    if(profile&&typeof profile==="object"&&!Array.isArray(profile))
+      profile.feeDebt=outstandingFeeDebt(s,profile.id);
   }
   function appendFeeDebt(s,amount,reason){
     var value=safeWholeAmount(amount);
@@ -258,7 +260,7 @@
     if(paidTotal!==s.agentDebtPaid){s.agentDebtPaid=paidTotal;changed=true;}
     var lastPayrollDay=safeWholeAmount(s.agentDebtLastPayrollDay);
     if(lastPayrollDay!==s.agentDebtLastPayrollDay){s.agentDebtLastPayrollDay=lastPayrollDay;changed=true;}
-    if(s.agentProfile){
+    if(s.agentProfile&&typeof s.agentProfile==="object"&&!Array.isArray(s.agentProfile)){
       var profileDebt=safeWholeAmount(s.agentProfile.feeDebt);
       var tracked=outstandingFeeDebt(s,s.agentProfile.id);
       if(profileDebt>tracked){

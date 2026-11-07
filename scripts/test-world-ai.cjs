@@ -4141,12 +4141,31 @@ assert.equal(JSON.stringify(malformedArchiveRootWorld), malformedArchiveRootBefo
 
 const malformedArchiveStateWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 malformedArchiveStateWorld.archive = preservedMalformedArchiveRoot;
-const malformedArchiveStateBefore = JSON.stringify(malformedArchiveStateWorld);
+const malformedArchiveStateSnapshot = {
+  players: JSON.stringify(malformedArchiveStateWorld.players),
+  roster: JSON.stringify(malformedArchiveStateWorld.clubs[archiveReplaceClubId].roster),
+  playerHistory: JSON.stringify(malformedArchiveStateWorld.playerHistory),
+  seasonStats: JSON.stringify(malformedArchiveStateWorld.seasonStats),
+  currentSeason: malformedArchiveStateWorld.currentSeason,
+  dbVersion: malformedArchiveStateWorld.dbVersion
+};
 const malformedArchiveStateSave = { season: 5, worldSimulation: malformedArchiveStateWorld };
 assert.strictEqual(ai.ensureState(malformedArchiveStateSave, db), malformedArchiveStateWorld,
   "state loading must retain the original world when its archive container is malformed");
-assert.equal(JSON.stringify(malformedArchiveStateWorld), malformedArchiveStateBefore,
-  "state loading must not normalize other world fields before validating the archive");
+assert.strictEqual(malformedArchiveStateWorld.archive, preservedMalformedArchiveRoot,
+  "state loading must preserve the original malformed archive container");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.players), malformedArchiveStateSnapshot.players,
+  "state loading must not replace or delete active players while the archive is malformed");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.clubs[archiveReplaceClubId].roster),
+  malformedArchiveStateSnapshot.roster, "state loading must preserve the active roster");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.playerHistory), malformedArchiveStateSnapshot.playerHistory,
+  "state loading must preserve career history");
+assert.equal(JSON.stringify(malformedArchiveStateWorld.seasonStats), malformedArchiveStateSnapshot.seasonStats,
+  "state loading must preserve active season statistics");
+assert.equal(malformedArchiveStateWorld.currentSeason, malformedArchiveStateSnapshot.currentSeason,
+  "state loading must not advance the world season while archive recovery is pending");
+assert.equal(malformedArchiveStateWorld.dbVersion, malformedArchiveStateSnapshot.dbVersion,
+  "state loading must defer catalogue reconciliation while archive recovery is pending");
 
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {

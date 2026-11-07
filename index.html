@@ -5948,7 +5948,7 @@ function returnFromLoan(){
   :lookedUpParentPower!==null&&lookedUpParentPower>0?lookedUpParentPower:60;
  const boundedParentPower=Math.max(1,Math.min(100,parentPowerCandidate));
  const savedParentTier=finiteParentNumber(l.parentTier);
- const validSavedParentTier=savedParentTier!==null&&Number.isSafeInteger(savedParentTier)&&savedParentTier>0;
+ const validSavedParentTier=savedParentTier!==null&&Number.isSafeInteger(savedParentTier)&&savedParentTier>=0;
  const lookedUpParentTier=validSavedParentTier?null:finiteParentNumber(clubTierForPower(boundedParentPower));
  const savedParentIndex=finiteParentNumber(l.parentIndex);
  const savedParentDivision=finiteParentNumber(l.parentDivision);
@@ -5957,9 +5957,9 @@ function returnFromLoan(){
  state.leagueCompetition=String(l.parentCompetition||"دوري محلي — محاكاة");
  state.leagueSource=String(l.parentSource||"قائمة محلية قديمة");
  state.clubPower=boundedParentPower;
- state.clubTier=savedParentTier!==null&&Number.isSafeInteger(savedParentTier)&&savedParentTier>0
-  ?savedParentTier:lookedUpParentTier!==null&&Number.isSafeInteger(lookedUpParentTier)&&lookedUpParentTier>0?lookedUpParentTier:1;
- state.clubIndex=savedParentIndex!==null&&Number.isSafeInteger(savedParentIndex)&&savedParentIndex>0
+ state.clubTier=savedParentTier!==null&&Number.isSafeInteger(savedParentTier)&&savedParentTier>=0
+  ?savedParentTier:lookedUpParentTier!==null&&Number.isSafeInteger(lookedUpParentTier)&&lookedUpParentTier>=0?lookedUpParentTier:0;
+ state.clubIndex=savedParentIndex!==null&&Number.isSafeInteger(savedParentIndex)&&savedParentIndex>=0
   ?savedParentIndex:state.clubTier;
  const parentWageValue=Number(l.parentWage);const restoredParentWage=Number.isFinite(parentWageValue)?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(parentWageValue))):0;
  state.weeklyWage=parentHasNoContract?0:restoredParentWage;state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;state.freeAgent=parentHasNoContract;state.contractType=parentHasNoContract?"free-agent":parentContractType;state.role=String(l.parentRole||state.role||"بديل");state.loan=null;state.daysSinceTransfer=0;state.transferCooldown=Math.max(7,Number(state.transferCooldown)||0);state.pendingTransfer=null;if(parentHasNoContract)state.contractOffer=null;

@@ -96,9 +96,9 @@ function makeHarness(options = {}) {
     },
     clubPowerFor() {
       if (options.failAfterArchive) throw new Error("synthetic parent-club lookup failure");
-      return 55;
+      return options.clubPowerLookup === undefined ? 55 : options.clubPowerLookup;
     },
-    clubTierForPower(power) { return power >= 70 ? 3 : power >= 50 ? 2 : 1; },
+    clubTierForPower(power) { return power >= 70 ? 3 : power >= 50 ? 2 : 0; },
     log(message) { events.logs.push(String(message)); },
     render() { events.renders++; },
     toast(message) { events.toasts.push(String(message)); },
@@ -159,6 +159,33 @@ function makeHarness(options = {}) {
   assert.equal(h.state.clubPower, 68, "valid numeric-string parent power must remain supported");
   assert.equal(h.state.clubTier, 3, "valid numeric-string parent tiers must remain supported");
   assert.equal(h.state.clubIndex, 4, "valid numeric-string parent indices must remain supported");
+}
+
+{
+  const h = makeHarness({
+    parentDivision: 2, parentPower: 48, parentTier: "0", parentIndex: "0"
+  });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.leagueDivision, 2);
+  assert.equal(h.state.clubPower, 48);
+  assert.equal(h.state.clubTier, 0,
+    "zero is a valid saved tier for second-division and academy-origin clubs");
+  assert.equal(h.state.clubIndex, 0,
+    "zero is a valid saved club index and must not be replaced by the tier fallback");
+}
+
+{
+  const h = makeHarness({
+    parentDivision: "2", parentPower: "Infinity", parentTier: ["0"], parentIndex: "NaN",
+    clubPowerLookup: 48
+  });
+  assert.equal(h.sandbox.runReturnFromLoan(), true);
+  assert.equal(h.state.leagueDivision, 2);
+  assert.equal(h.state.clubPower, 48);
+  assert.equal(h.state.clubTier, 0,
+    "a verified club-power lookup may legitimately derive tier zero");
+  assert.equal(h.state.clubIndex, 0,
+    "an invalid saved index must fall back to a valid derived zero tier");
 }
 
 {

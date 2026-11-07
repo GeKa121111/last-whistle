@@ -7313,6 +7313,16 @@ assert.strictEqual(olderSchemaResult.players["schema-guard-player"], olderSchema
 assert.equal(olderSchemaResult.schemaVersion, ai.version,
   "a supported older world schema must be marked with the current schema version");
 
+const deferredOlderSchemaFixture = createSchemaGuardFixture({
+  schemaVersion: Math.max(0, ai.version - 1),
+  archive: ["legacy-archive-payload"]
+});
+const deferredOlderSchemaResult = ai.ensureState(deferredOlderSchemaFixture.save, schemaGuardDb);
+assert.strictEqual(deferredOlderSchemaResult, deferredOlderSchemaFixture.world,
+  "a malformed archive must defer an older-schema migration without replacing the saved world");
+assert.equal(deferredOlderSchemaResult.schemaVersion, Math.max(0, ai.version - 1),
+  "the schema marker must not advance when in-place migration is deferred");
+
 const futureSchemaFixture = createSchemaGuardFixture({ schemaVersion: ai.version + 1 });
 const futureSchemaResult = ai.ensureState(futureSchemaFixture.save, schemaGuardDb);
 assert.strictEqual(futureSchemaResult, futureSchemaFixture.world,

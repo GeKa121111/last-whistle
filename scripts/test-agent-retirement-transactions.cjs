@@ -184,6 +184,38 @@ function makeHarness(stateOverrides = {}, options = {}) {
     assert.equal(invalid.events.saves, 0);
   }
 
+  const jsonCoercionTrap = JSON.parse('{"toString":"not-callable","valueOf":"not-callable"}');
+  const malformedCapital = makeHarness({ money: 500000 });
+  const malformedCapitalResult = await malformedCapital.runtime.startPostRetirementAgency(
+    malformedCapital.state, jsonCoercionTrap
+  );
+  assert.equal(malformedCapitalResult.ok, false,
+    "JSON-safe objects with non-callable numeric hooks must not become retirement capital");
+  assert.equal(malformedCapital.state.money, 500000);
+  assert.equal(malformedCapital.state.retirementCareer, undefined);
+  assert.equal(malformedCapital.events.saves, 0);
+
+  const malformedShare = makeHarness({ money: 6000000 });
+  const malformedShareResult = await malformedShare.runtime.acquireClubControl(
+    malformedShare.state, "Test FC", 1000000, jsonCoercionTrap
+  );
+  assert.equal(malformedShareResult.ok, false,
+    "an uncoercible ownership percentage must be rejected instead of defaulting to a 51% purchase");
+  assert.equal(malformedShare.state.money, 6000000);
+  assert.equal(malformedShare.state.retirementCareer, undefined);
+  assert.equal(malformedShare.events.saves, 0);
+
+  const safeRetirementFallback = makeHarness({
+    money: 500000, season: jsonCoercionTrap, mediaReputation: jsonCoercionTrap
+  });
+  const safeRetirementResult = await safeRetirementFallback.runtime.startPostRetirementAgency(
+    safeRetirementFallback.state, 250000
+  );
+  assert.equal(safeRetirementResult.ok, true,
+    "valid retirement capital should still work when optional legacy season/reputation fields are malformed");
+  assert.equal(safeRetirementFallback.state.retirementCareer.season, 1);
+  assert.equal(safeRetirementFallback.state.retirementCareer.reputation, 50);
+
   const noOverwrite = makeHarness({
     money: 6000000,
     retirementCareer: { type: "agency", capital: 250000, players: [{ id: "existing" }], history: [] }
@@ -205,6 +237,20 @@ function makeHarness(stateOverrides = {}, options = {}) {
   assert.equal(signing.state.retirementCareer.reputation, 41);
   assert.equal(signing.state.retirementCareer.history[0].playerId, "verified-player-1");
   assert.equal(signing.events.flushes, 1);
+
+  const malformedAppearanceState = makeHarness({
+    retirementCareer: { type: "agency", capital: 250000, players: [], reputation: jsonCoercionTrap, history: [] },
+    season: jsonCoercionTrap
+  });
+  const malformedAppearance = await malformedAppearanceState.runtime.registerAgencyPlayer(malformedAppearanceState.state, {
+    id: "verified-player-numeric-fallback", name: "Legacy Player", appearances: jsonCoercionTrap
+  });
+  assert.equal(malformedAppearance.ok, true,
+    "an otherwise valid player can still be registered when old numeric career fields are malformed");
+  assert.equal(malformedAppearanceState.state.retirementCareer.players[0].appearancesAtSigning, 0);
+  assert.equal(malformedAppearanceState.state.retirementCareer.players[0].joinedSeason, 1);
+  assert.equal(malformedAppearanceState.state.retirementCareer.reputation, 1);
+  assert.equal(malformedAppearanceState.state.retirementCareer.history[0].season, 1);
 
   const duplicatePlayer = await signing.runtime.registerAgencyPlayer(signing.state, {
     id: "verified-player-1", name: "Test Player"

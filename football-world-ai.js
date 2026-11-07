@@ -361,33 +361,68 @@
   }
   function archiveGeneratedPlayerBeforeRosterReplacement(world, player, playerMapKey) {
     // The players-map key and club roster entry are authoritative. A legacy internal
-    // ID is usable as an alias only when it is unique and is not another player's map key.
+    // ID is usable as an alias only when it is unique across active and archived players.
     const playerId = safeWorldIdentifier(playerMapKey) || safeWorldRecordIdentifier(player, "id");
     if (!world || !playerId || !player || typeof player !== "object") return false;
     const players = safeWorldOwnValue(world, "players");
     const playerMapKeys = safeWorldObjectKeys(players);
+    const archive = ensureArchive(world);
+    const archivedPlayers = safeWorldOwnValue(archive, "players");
+    const existingArchivedPlayer = safeWorldOwnValue(archivedPlayers, playerId);
+    if (existingArchivedPlayer !== undefined && existingArchivedPlayer !== player) return false;
+
     const internalPlayerId = safeWorldRecordIdentifier(player, "id");
     let internalPlayerIdCount = 0;
+    const countInternalPlayerIds = source => {
+      for (const key of safeWorldObjectKeys(source)) {
+        const candidate = safeWorldOwnValue(source, key);
+        if (!candidate || candidate === player) continue;
+        if (safeWorldRecordIdentifier(candidate, "id") === internalPlayerId) internalPlayerIdCount++;
+      }
+    };
     if (internalPlayerId && internalPlayerId !== playerId) {
       for (const key of playerMapKeys) {
         const candidate = safeWorldOwnValue(players, key);
         if (safeWorldRecordIdentifier(candidate, "id") === internalPlayerId) internalPlayerIdCount++;
       }
+      countInternalPlayerIds(archivedPlayers);
     }
     const hasUniqueLegacyAlias = !!internalPlayerId && internalPlayerId !== playerId
-      && internalPlayerIdCount === 1 && !playerMapKeys.includes(internalPlayerId);
+      && internalPlayerIdCount === 1
+      && !playerMapKeys.includes(internalPlayerId)
+      && !safeWorldOwnValue(archivedPlayers, internalPlayerId);
     const playerIdentityIds = new Set([playerId]);
-    if (hasUniqueLegacyAlias) playerIdentityIds.add(internalPlayerId);
-
-    const archive = ensureArchive(world);
-    safeWorldSetOwnValue(archive.players, playerId, player);
-    const playerHistory = safeWorldOwnValue(world, "playerHistory");
-    if (playerHistory && typeof playerHistory === "object"
-      && Object.prototype.hasOwnProperty.call(playerHistory, playerId)) {
-      safeWorldSetOwnValue(archive.playerHistory, playerId, safeWorldOwnValue(playerHistory, playerId));
-      try { delete playerHistory[playerId]; } catch (_) {}
+    const historyKeys = [playerId];
+    if (hasUniqueLegacyAlias) {
+      playerIdentityIds.add(internalPlayerId);
+      historyKeys.push(internalPlayerId);
     }
+
+    const mergeRows = (existingRows, sourceRows) => {
+      if (existingRows !== undefined && !Array.isArray(existingRows)) return null;
+      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();
+      sourceRows.forEach(row => {
+        if (!mergedRows.includes(row)) mergedRows.push(row);
+      });
+      return mergedRows;
+    };
+
+    // Preflight every archive destination before changing active player/history/stats.
+    const playerHistory = safeWorldOwnValue(world, "playerHistory");
+    const historySourceRows = [];
+    for (const key of historyKeys) {
+      const historyRows = safeWorldOwnValue(playerHistory, key);
+      if (historyRows === undefined) continue;
+      if (!Array.isArray(historyRows)) return false;
+      historyRows.forEach(row => historySourceRows.push(row));
+    }
+    const existingArchivedHistory = safeWorldOwnValue(archive.playerHistory, playerId);
+    const mergedHistory = historySourceRows.length
+      ? mergeRows(existingArchivedHistory, historySourceRows) : null;
+    if (historySourceRows.length && !mergedHistory) return false;
+
     const seasonStats = safeWorldOwnValue(world, "seasonStats");
+    const seasonUpdates = [];
     for (const season of safeWorldObjectKeys(seasonStats)) {
       const rows = safeWorldOwnValue(seasonStats, season);
       if (!Array.isArray(rows)) continue;
@@ -398,22 +433,58 @@
       });
       if (!archivedRows.length) continue;
       const existingRows = safeWorldOwnValue(archive.seasonStats, season);
-      // Do not overwrite an unexpected archive value or remove active rows unless
-      // their archival write succeeds. This keeps malformed saves non-destructive.
-      if (existingRows !== undefined && !Array.isArray(existingRows)) continue;
-      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
-      archivedRows.forEach(row => {
-        if (!mergedRows.includes(row)) mergedRows.push(row);
-      });
-      let archived = false;
-      try {
-        safeWorldSetOwnValue(archive.seasonStats, season, mergedRows);
-        archived = true;
-      } catch (_) {}
-      if (!archived) continue;
-      try {
-        safeWorldSetOwnValue(seasonStats, season, rows.filter(row => !archivedRows.includes(row)));
-      } catch (_) {}
+      const mergedRows = mergeRows(existingRows, archivedRows);
+      if (!mergedRows) return false;
+      seasonUpdates.push({ season, rows, archivedRows, mergedRows });
+    }
+
+    const transferHistory = safeWorldOwnValue(world, "transferClubHistoryByPlayer");
+    let mergedTransferRows = null;
+    if (hasUniqueLegacyAlias && transferHistory && typeof transferHistory === "object"
+      && !Array.isArray(transferHistory)) {
+      const legacyTransferRows = safeWorldOwnValue(transferHistory, internalPlayerId);
+      if (legacyTransferRows !== undefined) {
+        if (!Array.isArray(legacyTransferRows)) return false;
+        const canonicalTransferRows = safeWorldOwnValue(transferHistory, playerId);
+        if (canonicalTransferRows !== undefined && !Array.isArray(canonicalTransferRows)) return false;
+        mergedTransferRows = Array.isArray(canonicalTransferRows)
+          ? canonicalTransferRows.slice() : legacyTransferRows.slice();
+        legacyTransferRows.forEach(endpoint => {
+          const endpointId = safeWorldRecordIdentifier(endpoint, "clubId");
+          const endpointName = normalize(safeWorldRecordText(endpoint, "name"));
+          const endpointCountry = normalize(safeWorldRecordText(endpoint, "country"));
+          const duplicate = mergedTransferRows.some(existing => {
+            const existingId = safeWorldRecordIdentifier(existing, "clubId");
+            if (endpointId && existingId) return endpointId === existingId;
+            return !!endpointName
+              && normalize(safeWorldRecordText(existing, "name")) === endpointName
+              && normalize(safeWorldRecordText(existing, "country")) === endpointCountry;
+          });
+          if (!duplicate) mergedTransferRows.push(endpoint);
+        });
+      }
+    }
+
+    if (!safeWorldTrySetOwnValue(archive.players, playerId, player)) return false;
+    if (mergedHistory && !safeWorldTrySetOwnValue(archive.playerHistory, playerId, mergedHistory)) return false;
+    for (const update of seasonUpdates) {
+      if (!safeWorldTrySetOwnValue(archive.seasonStats, update.season, update.mergedRows)) return false;
+    }
+    if (mergedTransferRows && !safeWorldTrySetOwnValue(transferHistory, playerId, mergedTransferRows)) return false;
+
+    // Active copies are removed only after every corresponding archive write succeeds.
+    for (const key of historyKeys) {
+      if (safeWorldOwnValue(playerHistory, key) === undefined) continue;
+      try { delete playerHistory[key]; } catch (_) { return false; }
+      if (safeWorldOwnValue(playerHistory, key) !== undefined) return false;
+    }
+    if (mergedTransferRows) {
+      try { delete transferHistory[internalPlayerId]; } catch (_) { return false; }
+      if (safeWorldOwnValue(transferHistory, internalPlayerId) !== undefined) return false;
+    }
+    for (const update of seasonUpdates) {
+      if (!safeWorldTrySetOwnValue(seasonStats, update.season,
+        update.rows.filter(row => !update.archivedRows.includes(row)))) return false;
     }
     return true;
   }
@@ -1172,9 +1243,18 @@
             const replace = generated[0];
             const replaceId = safeWorldIdentifier(replace.playerId);
             if (!replaceId) break;
-            club.roster = club.roster.filter(playerId => playerId !== replace.playerId);
-            archiveGeneratedPlayerBeforeRosterReplacement(world, replace.player, replaceId);
-            delete world.players[replace.playerId];
+            if (!archiveGeneratedPlayerBeforeRosterReplacement(world, replace.player, replaceId)) break;
+            const previousRoster = safeWorldArrayField(club, "roster");
+            const nextRoster = previousRoster.filter(playerId => safeWorldIdentifier(playerId) !== replaceId);
+            if (!safeWorldTrySetOwnValue(club, "roster", nextRoster)) break;
+            try { delete world.players[replaceId]; } catch (_) {
+              safeWorldTrySetOwnValue(club, "roster", previousRoster);
+              break;
+            }
+            if (safeWorldOwnValue(world.players, replaceId) !== undefined) {
+              safeWorldTrySetOwnValue(club, "roster", previousRoster);
+              break;
+            }
             knownForClub.delete(rosterIdentityKey(replace.player));
           }
           if ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) break;

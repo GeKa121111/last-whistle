@@ -47,6 +47,14 @@
     return typeof fallback === "string" ? fallback : "بديل";
   }
 
+  // Transfer-offer labels are persisted data. Accept only safe primitives so
+  // malformed club/country/league objects cannot abort automatic feed sync.
+  function offerLabel(value, fallback) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return typeof fallback === "string" ? fallback : "";
+  }
+
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(number(value, 0))));
   }
@@ -531,10 +539,11 @@
   }
 
   function createTransferRumorPost(state, offer) {
-    var club = String(offer && offer.club || "").trim();
-    if (!club || !offer || offer.status !== "pending") return null;
-    var country = String(offer.country || "وجهة غير محددة");
-    var league = String(offer.league || "الدوري المحلي");
+    if (!offer || offer.status !== "pending") return null;
+    var club = offerLabel(offer.club, "").trim();
+    if (!club) return null;
+    var country = offerLabel(offer.country, "وجهة غير محددة");
+    var league = offerLabel(offer.league, "الدوري المحلي");
     var role = roleLabel(offer.role, "دور لم يُحسم");
     var body = "رادار الانتقالات: " + club + " من " + country + " قدّم عرضًا رسميًا لضم "
       + playerName(state, "اللاعب") + " في " + league + ". الدور المقترح: " + role

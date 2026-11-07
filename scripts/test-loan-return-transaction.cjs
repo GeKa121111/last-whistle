@@ -67,20 +67,24 @@ function makeHarness(options = {}) {
     weeklyWage: options.stateWeeklyWage === undefined ? 900 : options.stateWeeklyWage,
     contractSeasons: options.stateContractSeasons === undefined ? 3 : options.stateContractSeasons, freeAgent: false,
     contractType: "professional", role: "بديل",
-    transferCooldown: 0, pendingTransfer: { club: "Next FC" },
+    transferCooldown: options.transferCooldown === undefined ? 0 : options.transferCooldown,
+    pendingTransfer: { club: "Next FC" },
     transferHistory: [], leagueArchives: [],
     contractOffer: { club: "Parent FC", season: 4, wage: 900, seasons: 3 },
     loan: {
       parentClub: options.invalidParent ? "" : "Parent FC",
       parentCountry: options.invalidParent ? "" : "Egypt",
-      parentDivision: options.parentDivision === undefined ? 2 : options.parentDivision, parentCompetition: "Parent League",
-      parentSource: "verified parent roster", parentPower: options.parentPower === undefined ? 0 : options.parentPower,
+      parentDivision: options.parentDivision === undefined ? 2 : options.parentDivision,
+      parentCompetition: options.parentCompetition === undefined ? "Parent League" : options.parentCompetition,
+      parentSource: options.parentSource === undefined ? "verified parent roster" : options.parentSource,
+      parentPower: options.parentPower === undefined ? 0 : options.parentPower,
       parentTier: options.parentTier === undefined ? 2 : options.parentTier,
       parentIndex: options.parentIndex === undefined ? 2 : options.parentIndex,
       parentWage: options.parentWage === undefined ? 450 : options.parentWage,
       parentContractSeasons: options.parentContractSeasons === undefined ? 2 : options.parentContractSeasons,
       parentFreeAgent: options.parentFreeAgent === undefined ? false : options.parentFreeAgent,
-      parentContractType: "professional", parentRole: "أساسي"
+      parentContractType: options.parentContractType === undefined ? "professional" : options.parentContractType,
+      parentRole: options.parentRole === undefined ? "أساسي" : options.parentRole
     }
   };
   const events = { archives: [], logs: [], toasts: [], renders: 0, persisted: [] };
@@ -203,6 +207,48 @@ function makeHarness(options = {}) {
     "an invalid fallback host term must not be mistaken for the missing parent contract term");
   assert.equal(h.state.weeklyWage, 0);
   assert.equal(h.state.freeAgent, true);
+}
+
+{
+  const hostileText = JSON.parse('{"toString":1,"valueOf":1}');
+  const h = makeHarness({
+    parentContractType: hostileText,
+    parentCompetition: hostileText,
+    parentSource: hostileText,
+    parentRole: hostileText
+  });
+  const originalLoan = h.state.loan;
+  let returned;
+  assert.doesNotThrow(() => { returned = h.sandbox.runReturnFromLoan(); },
+    "loan return must not coerce malformed parent contract or display metadata");
+  assert.equal(returned, true, "a valid parent identity must still be restored when optional text metadata is malformed");
+  assert.equal(h.state.contractType, "professional",
+    "malformed parent contract type must fall back to the valid saved contract type");
+  assert.equal(h.state.freeAgent, false);
+  assert.equal(h.state.role, "بديل", "malformed parent role must fall back to the current safe role");
+  assert.equal(h.state.leagueCompetition, "دوري محلي — محاكاة");
+  assert.equal(h.state.leagueSource, "قائمة محلية قديمة");
+  assert.equal(h.state.loan, null);
+  assert.equal(originalLoan.parentContractType.toString, 1,
+    "the malformed source contract metadata must remain untouched");
+}
+
+{
+  const hostileNumber = JSON.parse('{"toString":1,"valueOf":1}');
+  for (const invalidParent of [false, true]) {
+    const h = makeHarness({ invalidParent, transferCooldown: hostileNumber });
+    let returned;
+    assert.doesNotThrow(() => { returned = h.sandbox.runReturnFromLoan(); },
+      "loan return must not coerce malformed transfer-cooldown state");
+    assert.equal(returned, true,
+      "a malformed cooldown must not block a valid return or legacy free-agent recovery");
+    assert.equal(h.state.transferCooldown, 7,
+      "a malformed cooldown must fall back to the safe post-transfer minimum");
+  }
+  const legacyCooldown = makeHarness({ transferCooldown: "12" });
+  assert.equal(legacyCooldown.sandbox.runReturnFromLoan(), true);
+  assert.equal(legacyCooldown.state.transferCooldown, 12,
+    "finite numeric-string cooldowns from older saves must remain supported");
 }
 
 {

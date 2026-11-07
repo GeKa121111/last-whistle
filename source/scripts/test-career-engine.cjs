@@ -224,7 +224,7 @@ const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
 require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 557);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 82);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 83);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -913,7 +913,7 @@ assert.ok(rootHtml.includes('const parentFreeAgent=normalizeSavedBooleanFlag(l.p
   && rootHtml.includes('state.contractSeasons=parentHasNoContract?0:restoredParentContractSeasons;')
   && rootHtml.includes('state.freeAgent=parentHasNoContract;'),
   "browser loan return must normalize legacy parentFreeAgent values and restore the parent contract consistently");
-assert.ok(rootHtml.includes('state.role=String(l.parentRole||state.role||"بديل");'),
+assert.ok(rootHtml.includes('state.role=safeParentText(l.parentRole,safeParentText(state.role,"بديل"));'),
   "browser loan return must restore the parent club role while preserving legacy saves without it");
 assert.ok(rootHtml.includes('negotiationButton.disabled=!!state.loan||negotiationStatus!=="ready";'),
   "the contract screen must disable wage negotiation while the player is on loan");
@@ -2930,6 +2930,21 @@ for (const [engineName, engine] of careerEngineCases) {
   };
   assert.equal(engine.contractStateForSeasonTransition(malformedType).contractType, "professional",
     engineName + " a malformed parent contract type must fall back to the valid saved contract type");
+
+  // JSON can preserve own toString/valueOf properties that make String(object) throw.
+  const hostileParentContractType = JSON.parse('{"toString":1,"valueOf":1}');
+  const hostileParentContract = {
+    ...loanBase,
+    pos: "مهاجم",
+    age: 24,
+    loan: { ...loanBase.loan, parentContractType: hostileParentContractType }
+  };
+  assert.doesNotThrow(() => engine.ensureState(hostileParentContract),
+    engineName + " ensureState must not invoke object coercion on malformed loan contract metadata");
+  assert.equal(engine.contractStateForSeasonTransition(hostileParentContract).contractType, "professional",
+    engineName + " a non-string parent type must fall back to the valid saved contract type");
+  assert.equal(hostileParentContract.loan.parentContractType.toString, 1,
+    engineName + " normalization must leave the malformed source snapshot untouched");
 }
 
 // Career role selection must react to sustained output without bypassing academy graduation.
@@ -3494,5 +3509,5 @@ assert.ok(rootHtml.includes("const savedEnergy = finiteLegacyNumber(state.energy
 assert.ok(engineCopies[0].includes("const savedEnergy = finiteLegacyNumber(state.energy);")
  && engineCopies[0].includes("const savedMorale = finiteLegacyNumber(state.morale);"),
  "shared engine mirrors must normalize energy and morale");
-assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v622"),
+assert.ok(serviceWorkerCopies[0].includes("last-whistle-static-v623"),
  "service worker cache must be refreshed");

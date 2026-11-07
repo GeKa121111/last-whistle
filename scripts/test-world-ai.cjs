@@ -4493,6 +4493,10 @@ const malformedActiveHistoryPayloads = {
   marketReports: { legacyMarketRows: [{ season: 4, moves: 1 }] },
   playerHistory: "legacy-player-history-payload",
   notes: { legacyNotes: ["legacy-world-note"] },
+  matchesBySeason: [{ legacyMatchRows: [{ season: 4, id: "legacy-match" }] }],
+  competitionsBySeason: [{ legacyCompetitionRows: [{ season: 4, id: "legacy-competition" }] }],
+  promotionHistory: { legacyPromotionRows: [{ season: 4, moves: [] }] },
+  aiMetadata: "legacy-ai-metadata-payload",
   transferClubHistoryByPlayer: [{ playerId: archiveReplacePlayerId, clubs: ["legacy-club"] }]
 };
 malformedActiveHistoryWorld.legacyRecoveryData = { priorRecoveryMarker: "keep-existing-recovery" };
@@ -4514,22 +4518,48 @@ assert.ok(Array.isArray(recoveredActiveHistoryWorld.notes));
 assert.ok(recoveredActiveHistoryWorld.seasonStats && typeof recoveredActiveHistoryWorld.seasonStats === "object");
 assert.ok(recoveredActiveHistoryWorld.leagueTables && typeof recoveredActiveHistoryWorld.leagueTables === "object");
 assert.ok(recoveredActiveHistoryWorld.playerHistory && typeof recoveredActiveHistoryWorld.playerHistory === "object");
+assert.ok(recoveredActiveHistoryWorld.matchesBySeason && typeof recoveredActiveHistoryWorld.matchesBySeason === "object"
+  && !Array.isArray(recoveredActiveHistoryWorld.matchesBySeason));
+assert.ok(recoveredActiveHistoryWorld.competitionsBySeason && typeof recoveredActiveHistoryWorld.competitionsBySeason === "object"
+  && !Array.isArray(recoveredActiveHistoryWorld.competitionsBySeason));
+assert.ok(Array.isArray(recoveredActiveHistoryWorld.promotionHistory));
+assert.ok(recoveredActiveHistoryWorld.aiMetadata && typeof recoveredActiveHistoryWorld.aiMetadata === "object"
+  && !Array.isArray(recoveredActiveHistoryWorld.aiMetadata));
 assert.ok(recoveredActiveHistoryWorld.transferClubHistoryByPlayer
   && typeof recoveredActiveHistoryWorld.transferClubHistoryByPlayer === "object"
   && !Array.isArray(recoveredActiveHistoryWorld.transferClubHistoryByPlayer),
   "the compact transfer-history index must be normalized only after its original payload is retained");
 
+const fallbackRecoveryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+fallbackRecoveryWorld.legacyRecoveryData = ["unusable-primary-recovery"];
+const fallbackTransferPayload = { legacyTransferRows: [{ id: "fallback-preserved-transfer" }] };
+fallbackRecoveryWorld.transfers = fallbackTransferPayload;
+const recoveredFallbackWorld = ai.ensureState({ season: 5, worldSimulation: fallbackRecoveryWorld }, archiveReplaceDb);
+assert.ok(Array.isArray(recoveredFallbackWorld.legacyRecoveryData),
+  "the malformed primary recovery bucket must remain untouched");
+assert.deepEqual(recoveredFallbackWorld.legacyRecoveryDataFallback.previousRecoveryData,
+  ["unusable-primary-recovery"], "the fallback bucket must retain the malformed primary recovery bucket");
+assert.deepEqual(recoveredFallbackWorld.legacyRecoveryDataFallback.transfers, fallbackTransferPayload,
+  "the fallback bucket must retain the malformed active transfer payload");
+assert.ok(Array.isArray(recoveredFallbackWorld.transfers));
+
 const blockedRecoveryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
-blockedRecoveryWorld.legacyRecoveryData = ["unusable-recovery-container"];
+blockedRecoveryWorld.legacyRecoveryData = ["unusable-primary-recovery"];
+blockedRecoveryWorld.legacyRecoveryDataFallback = ["unusable-fallback-recovery"];
 blockedRecoveryWorld.transfers = { legacyTransferRows: [{ id: "must-not-be-dropped" }] };
 const blockedTransferSnapshot = JSON.stringify(blockedRecoveryWorld.transfers);
-const blockedRecoveryBucketSnapshot = JSON.stringify(blockedRecoveryWorld.legacyRecoveryData);
+const blockedRecoveryBucketSnapshot = JSON.stringify([
+  blockedRecoveryWorld.legacyRecoveryData,
+  blockedRecoveryWorld.legacyRecoveryDataFallback
+]);
 assert.strictEqual(ai.ensureState({ season: 5, worldSimulation: blockedRecoveryWorld }, archiveReplaceDb),
-  blockedRecoveryWorld, "an unusable recovery container must defer active-history normalization");
+  blockedRecoveryWorld, "unusable primary and fallback recovery containers must defer active-history normalization");
 assert.equal(JSON.stringify(blockedRecoveryWorld.transfers), blockedTransferSnapshot,
-  "when recovery storage is malformed, world repair must leave the original transfer payload untouched");
-assert.equal(JSON.stringify(blockedRecoveryWorld.legacyRecoveryData), blockedRecoveryBucketSnapshot,
-  "world repair must not overwrite an unusable recovery bucket while deferring normalization");
+  "when no recovery bucket is writable, world repair must leave the original transfer payload untouched");
+assert.equal(JSON.stringify([
+  blockedRecoveryWorld.legacyRecoveryData,
+  blockedRecoveryWorld.legacyRecoveryDataFallback
+]), blockedRecoveryBucketSnapshot, "world repair must not overwrite unusable recovery buckets");
 
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {

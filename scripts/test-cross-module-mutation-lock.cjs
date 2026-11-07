@@ -50,7 +50,10 @@ const sharedWindow = { structuredClone, console: { warn() {} } };
 const helperContexts = moduleSpecs.map((spec, index) => {
   const sandbox = { window: sharedWindow, Promise };
   vm.createContext(sandbox);
-  vm.runInContext(extractFunction(sources[index], "acquireSharedMutationLock") + "\n" +
+  const dependencies = spec.file === "agent-system.js"
+    ? extractFunction(sources[index], "safeAgentText") + "\n"
+    : "";
+  vm.runInContext(dependencies + extractFunction(sources[index], "acquireSharedMutationLock") + "\n" +
     extractFunction(sources[index], "releaseSharedMutationLock"), sandbox);
   return { acquire: sandbox.acquireSharedMutationLock, release: sandbox.releaseSharedMutationLock };
 });

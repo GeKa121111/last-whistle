@@ -137,9 +137,9 @@
     social.lastBenchStoryCalendarDay = Math.max(0, number(social.lastBenchStoryCalendarDay, 0) || 0);
     social.lastBenchStoryMatchId = keyPart(social.lastBenchStoryMatchId);
     social.version = 3;
-    social.posts = social.posts.filter(function (post) {
-      return post && typeof post === "object" && typeof post.body === "string";
-    }).slice(0, MAX_POSTS);
+    // Keep legacy rows in the career save. Invalid feed rows are excluded only
+    // from the read/render view; normalization must not erase saved history.
+    // New feed writes continue to enforce MAX_POSTS in addPost/syncState.
     social.lastReplyDay = keyPart(social.lastReplyDay);
     return social;
   }
@@ -285,7 +285,8 @@
     if (!social || typeof social !== "object" || Array.isArray(social)) return { posts: [], lastReplyDay: "", nextId: 1 };
     if (!Array.isArray(social.posts)) return Object.assign({}, social, { posts: [] });
     var posts = social.posts.filter(function (post) {
-      return post && typeof post === "object" && !Array.isArray(post);
+      return post && typeof post === "object" && !Array.isArray(post)
+        && typeof post.body === "string";
     });
     return posts.length === social.posts.length ? social : Object.assign({}, social, { posts: posts });
   }
@@ -749,7 +750,10 @@
 
   function respond(state, postId, action) {
     var social = ensureState(state);
-    var post = social.posts.find(function (item) { return item.id === postId; });
+    var post = social.posts.find(function (item) {
+      return item && typeof item === "object" && !Array.isArray(item)
+        && typeof item.body === "string" && item.id === postId;
+    });
     if (!post) return { ok: false, reason: "post-not-found" };
     if (action === "like") {
       post.liked = !post.liked;

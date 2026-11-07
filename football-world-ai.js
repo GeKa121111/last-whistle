@@ -1026,14 +1026,15 @@
         if (!Array.isArray(rows)) continue;
         const archivedRows = rows.filter(row => {
           if (!row || typeof row !== "object") return false;
-          const leagueId = safeWorldRecordIdentifier(row, "leagueId");
           const playerIds = [
             safeWorldRecordIdentifier(row, "id"),
             safeWorldRecordIdentifier(row, "playerId")
           ].filter(Boolean);
           const clubId = safeWorldRecordIdentifier(row, "clubId");
-          return (leagueId && !supportedLeagueIds.has(leagueId))
-            || playerIds.some(playerId => removedPlayerIds.has(playerId))
+          // Unsupported league metadata alone is not proof that a player row can
+          // be removed. Keep statistics active unless their player or club was
+          // successfully archived in this reconciliation pass.
+          return playerIds.some(playerId => removedPlayerIds.has(playerId))
             || (clubId && removedClubIds.has(clubId));
         });
         if (!archivedRows.length) continue;

@@ -7443,7 +7443,7 @@ assert.strictEqual(
 assert.deepEqual(fallbackRosterResult.legacyRecoveryDataFallback.previousRecoveryData,
   ["legacy-primary-recovery-payload"],
   "fallback roster recovery must retain the unusable primary recovery bucket");
-assert.deepEqual(fallbackRosterFixture.club.roster, ["attached-roster-player"],
+assert.deepEqual([...fallbackRosterFixture.club.roster], ["attached-roster-player"],
   "only authoritative player-to-club links may be rebuilt into the active roster");
 assert.strictEqual(fallbackRosterResult.players["orphan-roster-player"], fallbackRosterFixture.orphanPlayer,
   "players referenced only by an opaque malformed roster must remain in the player map");

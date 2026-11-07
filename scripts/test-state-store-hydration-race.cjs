@@ -146,6 +146,44 @@ function createHarness() {
   assert.equal(JSON.stringify(normalWrite.store.getStartupSave()), JSON.stringify(savedCareer),
     "a successful current save must still become the startup save");
 
+  const malformedMetadata = createHarness();
+  await malformedMetadata.resolveStartupRead(null);
+  const hostileMetadataValue = JSON.parse('{"toString":1,"valueOf":1}');
+  const malformedMetadataCareer = {
+    name: hostileMetadataValue, schemaVersion: hostileMetadataValue,
+    season: hostileMetadataValue, money: 1800
+  };
+  let malformedMetadataSave;
+  assert.doesNotThrow(() => {
+    malformedMetadataSave = malformedMetadata.store.save(malformedMetadataCareer);
+  }, "hostile JSON-compatible schema, season, and name metadata must not throw during save setup");
+  await malformedMetadata.waitForWrite();
+  assert.equal(malformedMetadata.writes[0].schemaVersion, 10,
+    "a malformed saved schema version must use the safe metadata default");
+  assert.equal(malformedMetadata.writes[0].season, 1,
+    "a malformed saved season must use the safe metadata default");
+  assert.equal(malformedMetadata.writes[0].playerName, "لاعب",
+    "an object-valued legacy player name must not be coerced into save metadata");
+  assert.equal(malformedMetadata.writes[0].label, "المسيرة الرئيسية",
+    "an object-valued legacy player name must not break the save-slot label");
+  assert.deepEqual(JSON.parse(JSON.stringify(malformedMetadata.writes[0].state)), malformedMetadataCareer,
+    "sanitizing IndexedDB metadata must preserve the original career payload without deleting malformed legacy fields");
+  assert.equal(malformedMetadata.completeWrite(), true);
+  await malformedMetadataSave;
+
+  const numericStringMetadata = createHarness();
+  await numericStringMetadata.resolveStartupRead(null);
+  const numericStringCareer = { name: "Legacy Numeric Save", schemaVersion: "9", season: "4", money: 900 };
+  const numericStringSave = numericStringMetadata.store.save(numericStringCareer);
+  await numericStringMetadata.waitForWrite();
+  assert.equal(numericStringMetadata.writes[0].schemaVersion, 9,
+    "valid numeric-string schema versions from older saves must remain supported");
+  assert.equal(numericStringMetadata.writes[0].season, 4,
+    "valid numeric-string seasons from older saves must remain supported");
+  assert.equal(numericStringMetadata.writes[0].playerName, "Legacy Numeric Save");
+  assert.equal(numericStringMetadata.completeWrite(), true);
+  await numericStringSave;
+
   const flushRace = createHarness();
   const staleFlushCareer = { name: "Career queued before import", money: 700 };
   const flushRacePromise = flushRace.store.flush(staleFlushCareer);

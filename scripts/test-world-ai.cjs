@@ -7373,6 +7373,102 @@ ai.rememberTransferClubEndpoints(futureSchemaFixture.world, {
 assert.equal(JSON.stringify(futureSchemaFixture.world), futureSchemaSnapshot,
   "all public world operations must leave a future-schema save unchanged");
 
+// A malformed club roster may contain the only surviving player references.
+// Preserve the raw payload, rebuild only from authoritative player.clubId links,
+// and defer catalogue/academy filling until that roster can be recovered safely.
+const malformedRosterClubId = "testland|testclub";
+function createMalformedRosterFixture(recoveryMode = "fallback") {
+  const rawRoster = {
+    "slot-1": "orphan-roster-player",
+    "slot-2": "attached-roster-player"
+  };
+  const club = {
+    id: malformedRosterClubId, name: "Test Club", country: "Testland",
+    leagueId: "test-league", division: 1, power: 65, basePower: 65,
+    prestige: 60, roster: rawRoster
+  };
+  const attachedPlayer = {
+    id: "attached-roster-player", name: "Attached Player", clubId: malformedRosterClubId,
+    country: "Testland", leagueId: "test-league", division: 1,
+    position: "وسط", age: 24, ovr: 60, potential: 70
+  };
+  const orphanPlayer = {
+    id: "orphan-roster-player", name: "Orphan Roster Player", clubId: "",
+    country: "Testland", position: "مهاجم", age: 22, ovr: 58, potential: 68
+  };
+  const world = {
+    schemaVersion: ai.version, dbVersion: 1, currentSeason: 1,
+    lastCompletedSeason: 0, lastAdvancedTo: 0, lastDevelopedSeason: 0,
+    lastFreeAgentMarketSeason: 0, completedSeasons: [],
+    clubs: { [malformedRosterClubId]: club },
+    players: {
+      "attached-roster-player": attachedPlayer,
+      "orphan-roster-player": orphanPlayer
+    },
+    playerHistory: {}, transferClubHistoryByPlayer: {}, transferClubHistorySchemaVersion: 1,
+    seasonStats: {}, leagueTables: {}, matchesBySeason: {}, competitionsBySeason: {},
+    transfers: [], marketReports: [], notes: [], archive: {},
+    nextGeneratedPlayer: 1, transferSequence: 0, projectionRevision: 0,
+    rosterSchemaVersion: 3, rosterMembershipSchemaVersion: 5
+  };
+  if (recoveryMode === "fallback") {
+    world.legacyRecoveryData = ["legacy-primary-recovery-payload"];
+    world.legacyRecoveryDataFallback = {};
+  } else if (recoveryMode === "blocked") {
+    world.legacyRecoveryData = ["legacy-primary-recovery-payload"];
+    world.legacyRecoveryDataFallback = Object.preventExtensions({});
+  }
+  return { save: { season: 1, worldSimulation: world }, world, club, rawRoster, attachedPlayer, orphanPlayer };
+}
+const malformedRosterDb = {
+  version: 2,
+  leagues: () => [{ id: "test-league" }],
+  clubs: () => [{
+    name: "Test Club", country: "Testland", leagueId: "test-league", division: 1
+  }],
+  playerRecordsForClub: () => [{
+    name: "Catalog Candidate", position: "مهاجم", age: 22, ovr: 58
+  }],
+  leagueFor: () => ({ name: "Test League", matchesPerSeason: 34 })
+};
+const fallbackRosterFixture = createMalformedRosterFixture("fallback");
+const fallbackRosterResult = ai.ensureState(fallbackRosterFixture.save, malformedRosterDb);
+assert.strictEqual(fallbackRosterResult, fallbackRosterFixture.world,
+  "malformed roster recovery must preserve the original world object");
+assert.strictEqual(
+  fallbackRosterResult.legacyRecoveryDataFallback["clubRoster:" + malformedRosterClubId],
+  fallbackRosterFixture.rawRoster,
+  "the exact malformed roster payload must survive in the fallback recovery bucket"
+);
+assert.deepEqual(fallbackRosterResult.legacyRecoveryDataFallback.previousRecoveryData,
+  ["legacy-primary-recovery-payload"],
+  "fallback roster recovery must retain the unusable primary recovery bucket");
+assert.deepEqual([...fallbackRosterFixture.club.roster], ["attached-roster-player"],
+  "only authoritative player-to-club links may be rebuilt into the active roster");
+assert.strictEqual(fallbackRosterResult.players["orphan-roster-player"], fallbackRosterFixture.orphanPlayer,
+  "players referenced only by an opaque malformed roster must remain in the player map");
+assert.equal(fallbackRosterFixture.orphanPlayer.clubId, "",
+  "an opaque roster payload must not be guessed into a new player-club relationship");
+assert.equal(Object.keys(fallbackRosterResult.players).length, 2,
+  "catalogue reconciliation must not import or fabricate players while roster recovery is pending");
+assert.equal(fallbackRosterResult.nextGeneratedPlayer, 1,
+  "academy filling must pause instead of replacing an unrecovered roster");
+
+const blockedRosterFixture = createMalformedRosterFixture("blocked");
+const blockedRosterPayload = blockedRosterFixture.club.roster;
+const blockedRosterPlayersSnapshot = JSON.stringify(blockedRosterFixture.world.players);
+const blockedRosterResult = ai.ensureState(blockedRosterFixture.save, malformedRosterDb);
+assert.strictEqual(blockedRosterResult, blockedRosterFixture.world,
+  "an unrecoverable roster must defer reconciliation without replacing the world");
+assert.strictEqual(blockedRosterFixture.club.roster, blockedRosterPayload,
+  "a roster must remain untouched when neither recovery bucket can accept its payload");
+assert.equal(blockedRosterFixture.world.dbVersion, 1,
+  "a deferred roster repair must not mark catalogue reconciliation as complete");
+assert.equal(JSON.stringify(blockedRosterFixture.world.players), blockedRosterPlayersSnapshot,
+  "a deferred roster repair must not add, remove, or rewrite player records");
+assert.equal(blockedRosterFixture.world.nextGeneratedPlayer, 1,
+  "a deferred roster repair must not generate replacement players");
+
 const hostileSchemaVersion = {
   toString() { throw new Error("unsafe world schema string coercion"); },
   valueOf() { throw new Error("unsafe world schema numeric coercion"); }

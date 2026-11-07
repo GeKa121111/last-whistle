@@ -56,7 +56,7 @@ if (require.main === module) {
     ["career-hub.css", 2],
     ["career-hub.js", 5],
     ["season-objectives.js", 2],
-    ["team-dynamics.js", 3],
+    ["team-dynamics.js", 4],
     ["social-media.js", 4]
   ];
   requiredAssets.forEach(([asset, minimum]) => {

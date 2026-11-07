@@ -1,8 +1,17 @@
 /* Deterministic career AI for LAST WHISTLE. Runs locally; no external API or secret keys. */
 (function (global) {
   "use strict";
-  const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
-  const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const finiteNumber = value => {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const number = (value, fallback = 0) => {
+    const parsed = finiteNumber(value);
+    return parsed === null ? fallback : parsed;
+  };
+  const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, number(value, 0)));
   const POSITION_ALIASES = Object.freeze({
     gk: "حارس مرمى", goalkeeper: "حارس مرمى", keeper: "حارس مرمى", goalie: "حارس مرمى",
     cb: "قلب دفاع", lcb: "قلب دفاع", rcb: "قلب دفاع", centerback: "قلب دفاع", "center back": "قلب دفاع",
@@ -170,7 +179,7 @@
     const ownTactic = TACTIC_LABELS[input.ourTactic] ? input.ourTactic : "balanced";
     const ours = clamp(input.teamPower, 25, 95);
     const theirs = clamp(input.opponentPower, 25, 95);
-    const managerIQ = clamp(input.managerIQ ?? (theirs * 0.82 + Number(input.opponentPrestige || theirs) * 0.18), 25, 98);
+    const managerIQ = clamp(input.managerIQ ?? (theirs * 0.82 + number(input.opponentPrestige || theirs, theirs) * 0.18), 25, 98);
     const rating = formRating(state);
     const goals = number(state.seasonGoals, 0);
     const history = recentRows(state);
@@ -277,8 +286,17 @@
   "use strict";
   const base = global.LWCareerAI;
   if (!base) return;
-  const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
-  const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const finiteNumber = value => {
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const num = (value, fallback = 0) => {
+    const parsed = finiteNumber(value);
+    return parsed === null ? fallback : parsed;
+  };
+  const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, num(value, 0)));
   const LEDGER_VERSION = 1, LEDGER_LIMIT = 180;
   const AGE_STAGES = Object.freeze({
     academy: { min: 0, max: 18, label: "ناشئ في الأكاديمية" },
@@ -291,25 +309,39 @@
   function ledgerOf(state) {
     if (!state || typeof state !== "object") return { version: LEDGER_VERSION, events: [], decisions: [] };
     let ledger = state.aiMemoryLedger;
-    if (!ledger || typeof ledger !== "object" || Number(ledger.version) !== LEDGER_VERSION) {
+    if (!ledger || typeof ledger !== "object" || Array.isArray(ledger)) {
       ledger = { version: LEDGER_VERSION, events: [], decisions: [], nextId: 1 };
       state.aiMemoryLedger = ledger;
+    } else {
+      const savedVersion = finiteNumber(ledger.version);
+      if (savedVersion !== null && savedVersion !== LEDGER_VERSION) {
+        ledger = { version: LEDGER_VERSION, events: [], decisions: [], nextId: 1 };
+        state.aiMemoryLedger = ledger;
+      } else {
+        // An invalid/missing version marker is metadata noise; preserve usable history.
+        ledger.version = LEDGER_VERSION;
+      }
     }
     if (!Array.isArray(ledger.events)) ledger.events = [];
     if (!Array.isArray(ledger.decisions)) ledger.decisions = [];
-    if (!Number.isFinite(Number(ledger.nextId))) ledger.nextId = ledger.events.length + ledger.decisions.length + 1;
+    const savedNextId = finiteNumber(ledger.nextId);
+    if (savedNextId === null || !Number.isSafeInteger(savedNextId) || savedNextId < 1) {
+      ledger.nextId = ledger.events.length + ledger.decisions.length + 1;
+    } else {
+      ledger.nextId = savedNextId;
+    }
     return ledger;
   }
   function hasEvent(state, type, key, season) {
     const ledger = ledgerOf(state);
     return ledger.events.some(item => item && item.type === String(type) && item.key === String(key)
-      && Number(item.season) === Math.max(1, num(season, seasonOf(state))));
+      && finiteNumber(item.season) === Math.max(1, num(season, seasonOf(state))));
   }
   function recordEvent(state, event) {
     if (!state || typeof state !== "object" || !event || !event.type || !event.key) return false;
     const ledger = ledgerOf(state), season = Math.max(1, num(event.season, seasonOf(state)));
     const type = String(event.type), key = String(event.key);
-    if (ledger.events.some(item => item && item.type === type && item.key === key && Number(item.season) === season)) return false;
+    if (ledger.events.some(item => item && item.type === type && item.key === key && finiteNumber(item.season) === season)) return false;
     ledger.events.unshift({
       id: "ai-event-" + ledger.nextId++, type, key, season, day: dayOf(state),
       context: event.context && typeof event.context === "object" ? event.context : {},
@@ -371,7 +403,7 @@
     if (!row) return { rank: null, points: null, teams: rows.length };
     const rank = num(row.rank, num(row.position, rows.indexOf(row) + 1));
     const pointsValue = row.pts ?? row.points;
-    return { rank, points: Number.isFinite(Number(pointsValue)) ? num(pointsValue) : null, teams: rows.length };
+    return { rank, points: finiteNumber(pointsValue), teams: rows.length };
   }
   function contextSnapshot(state, overall) {
     state = state || {};
@@ -401,7 +433,7 @@
     const cleanSheets = cleanSheetEligible
       ? played.filter(row => {
         const conceded = row.oppGoals ?? row.scoreAgainst ?? row.goalsAgainst ?? row.stats?.goalsAgainst;
-        const scoreAllowsCleanSheet = conceded == null || conceded === "" || Number(conceded) === 0;
+        const scoreAllowsCleanSheet = conceded == null || conceded === "" || finiteNumber(conceded) === 0;
         return (row.cleanSheet === true || row.stats?.cleanSheet === true)
           && num(row.minutes, 0) >= 60 && scoreAllowsCleanSheet;
       }).length
@@ -418,7 +450,7 @@
       || goals > 0 || assists > 0 || keyPasses >= 2;
     const minutesLastFive = played.reduce((sum, row) => sum + Math.max(0, num(row.minutes, 0)), 0);
     const ledger = ledgerOf(state), currentSeason = seasonOf(state);
-    const recentDecision = ledger.decisions.find(row => row && Number(row.season) === currentSeason);
+    const recentDecision = ledger.decisions.find(row => row && finiteNumber(row.season) === currentSeason);
     const daysSinceDecision = recentDecision ? dayOf(state) - num(recentDecision.day, dayOf(state)) : null;
     const coachRelationship = clamp(num(state.coachRelationship, num(state.trust, 50)), 0, 100);
     const freeAgent = !!state.freeAgent;
@@ -494,7 +526,7 @@
       report.actionLabel = context.contractSeasons <= 2 ? "راجع العقد" : "افتح التدريب";
     } else report.id = context.stage === "development" ? "development-plan" : "position-plan";
     const seen = new Set(ledgerOf(state).events.filter(item => item && item.type === "coach-recommendation"
-      && Number(item.season) === context.season).map(item => String(item.key)));
+      && finiteNumber(item.season) === context.season).map(item => String(item.key)));
     if (seen.has(report.id) && report.id !== "recovery") {
       const options = [
         { id: "position-plan", title: "تطوير مهارة مرتبطة بمركزك", summary: "استخدم خطة تدريب ثابتة لمهارة مرتبطة بمركزك، ثم قارن متوسط آخر خمس مباريات بدل الحكم من مباراة واحدة.", page: "training", actionLabel: "افتح التدريب", focus: core.focus },

@@ -41,6 +41,7 @@ const names = [
   "safeAgentId",
   "agentById",
   "finiteAgentNumber",
+  "safeAgentNumber",
   "safeWholeAmount",
   "postRetirementOptions",
   "clonePostRetirementMutationState",

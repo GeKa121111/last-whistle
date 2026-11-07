@@ -29,13 +29,21 @@
     "centre forward": "رأس حربة", "center forward": "رأس حربة"
   });
   function normalizePosition(position) {
-    const raw = String(position == null ? "" : position).normalize("NFKC").trim();
-    if (!raw) return "";
-    const key = raw.toLocaleLowerCase("en")
+    // Position fields come from imported/legacy saves. Only coerce safe
+    // primitives; JSON objects and arrays can shadow toString/valueOf and throw.
+    const raw = typeof position === "string"
+      ? position
+      : typeof position === "number" && Number.isFinite(position)
+        ? String(position)
+        : "";
+    const normalized = raw.normalize("NFKC").trim();
+    if (!normalized) return "";
+    const rawPosition = normalized;
+    const key = rawPosition.toLocaleLowerCase("en")
       .replace(/[\u064B-\u065F\u0670]/g, "")
       .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي")
       .replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-    return POSITION_ALIASES[key] || raw;
+    return POSITION_ALIASES[key] || rawPosition;
   }
   const listeners = new Set();
   let database = null, opening = null, currentState = null, startupSave = null, revision = 0, lastWrite = Promise.resolve(), pendingDefaultWrite = null, activeDefaultFlush = null, activeDefaultFlushRequested = false;

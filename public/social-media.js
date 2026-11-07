@@ -39,6 +39,14 @@
     return typeof fallback === "string" ? fallback : "اللاعب";
   }
 
+  // Squad roles are save data too. Never coerce objects or symbols through
+  // String(), because legacy/corrupt values can throw during feed sync/render.
+  function roleLabel(value, fallback) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return typeof fallback === "string" ? fallback : "بديل";
+  }
+
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(number(value, 0))));
   }
@@ -73,7 +81,7 @@
       state.socialMedia = {
         version: 3, nextId: 1, initialized: false, posts: [],
         seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
-        observedRole: String(state.role || ""),
+        observedRole: roleLabel(state.role, ""),
         lockerRoomCrisisActive: number(state.teamChemistry, 50) <= 28,
         lastBenchStoryCalendarDay: 0, lastBenchStoryMatchId: "", lastReplyDay: ""
       };
@@ -96,7 +104,7 @@
       if (!hadOfferCursor) {
         social.seen.offers = (Array.isArray(state.transferOffers) ? state.transferOffers : []).map(offerKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
       }
-      if (typeof social.observedRole !== "string" || !social.observedRole) social.observedRole = String(state.role || "");
+      if (typeof social.observedRole !== "string" || !social.observedRole) social.observedRole = roleLabel(state.role, "");
       if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
       if (!number(social.lastBenchStoryCalendarDay, 0)) social.lastBenchStoryCalendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
       if (!social.lastBenchStoryMatchId) {
@@ -105,7 +113,7 @@
         social.lastBenchStoryMatchId = oldDomestic[0] ? String(oldDomestic[0].id || matchKey(oldDomestic[0])) : "";
       }
     }
-    if (typeof social.observedRole !== "string") social.observedRole = String(state.role || "");
+    if (typeof social.observedRole !== "string") social.observedRole = roleLabel(state.role, "");
     if (typeof social.lockerRoomCrisisActive !== "boolean") social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
     social.lastBenchStoryCalendarDay = Math.max(0, number(social.lastBenchStoryCalendarDay, 0) || 0);
     social.lastBenchStoryMatchId = String(social.lastBenchStoryMatchId || "");
@@ -527,7 +535,7 @@
     if (!club || !offer || offer.status !== "pending") return null;
     var country = String(offer.country || "وجهة غير محددة");
     var league = String(offer.league || "الدوري المحلي");
-    var role = String(offer.role || "دور لم يُحسم");
+    var role = roleLabel(offer.role, "دور لم يُحسم");
     var body = "رادار الانتقالات: " + club + " من " + country + " قدّم عرضًا رسميًا لضم "
       + playerName(state, "اللاعب") + " في " + league + ". الدور المقترح: " + role
       + ". العرض موجود في سوق اللعبة، والقرار لسه ما اتحسمش.";
@@ -538,7 +546,7 @@
   }
 
   function roleRank(value) {
-    var role = String(value || "").trim();
+    var role = roleLabel(value, "").trim();
     if (/نجم/.test(role)) return 5;
     if (/بديل أساسي/.test(role)) return 3;
     if (/أساسي/.test(role)) return 4;
@@ -548,12 +556,12 @@
   }
 
   function isBenchRole(value) {
-    return /بديل|احتياطي|تناوب|رديف|تحت التقييم|ناشئ|صاعد/.test(String(value || ""));
+    return /بديل|احتياطي|تناوب|رديف|تحت التقييم|ناشئ|صاعد/.test(roleLabel(value, ""));
   }
 
   function createRolePost(state, previousRole, nextRole) {
-    var previous = String(previousRole || "دور سابق");
-    var next = String(nextRole || "دور جديد");
+    var previous = roleLabel(previousRole, "دور سابق");
+    var next = roleLabel(nextRole, "دور جديد");
     var improved = roleRank(next) > roleRank(previous);
     var body = improved
       ? "تطور جديد في مسيرة " + playerName(state, "اللاعب") + ": دور اللاعب داخل الفريق ارتفع من «" + previous + "» إلى «" + next + "». الجماهير مستنية تشوف التغيير ده في دقائق اللعب."
@@ -570,7 +578,7 @@
     var matchCount = Array.isArray(recentMatches) ? recentMatches.length : 0;
     var body = playerName(state, "اللاعب") + " لم يحصل على دقائق لعب في " + unusedCount
       + " من آخر " + matchCount + " مباريات. تراجع المشاركة يثير تساؤلات حول دوره الحالي «"
-      + String(state.role || "بديل") + "» وفرصته في اللقاء القادم.";
+      + roleLabel(state.role, "بديل") + "» وفرصته في اللقاء القادم.";
     return addPost(state, {
       kind: "bench", author: "كواليس التشكيل", authorType: "media", avatar: "🪑",
       body: body, sentiment: -1
@@ -602,7 +610,7 @@
     var offers = Array.isArray(state.transferOffers) ? state.transferOffers : [];
     social.seen.awards = awards.map(eventKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
     social.seen.offers = offers.map(offerKey).filter(Boolean).slice(0, MAX_SEEN_ITEMS);
-    social.observedRole = String(state.role || "");
+    social.observedRole = roleLabel(state.role, "");
     social.lockerRoomCrisisActive = number(state.teamChemistry, 50) <= 28;
     social.lastBenchStoryCalendarDay = Math.max(1, number(state.calendarDay, 0) || number(state.day, 0) || 1);
     var domestic = (Array.isArray(state.careerMatchHistory) ? state.careerMatchHistory : [])
@@ -670,8 +678,8 @@
       created++;
     });
 
-    var currentRole = String(state.role || "بديل");
-    var previousRole = String(social.observedRole || currentRole);
+    var currentRole = roleLabel(state.role, "بديل");
+    var previousRole = roleLabel(social.observedRole, currentRole);
     if (currentRole !== previousRole && created < 8) {
       createRolePost(state, previousRole, currentRole);
       social.observedRole = currentRole;
@@ -812,7 +820,7 @@
     var signature = [stateRevision, social.posts.length, social.posts[0] && social.posts[0].id,
       social.posts[0] && social.posts[0].liked, social.posts[0] && social.posts[0].likes,
       activeFilter, state.followers, state.mediaReputation, state.teamChemistry,
-      state.coachRelationship, state.role, social.lastReplyDay, draft, socialMutationPending].join("|");
+      state.coachRelationship, roleLabel(state.role, "بديل"), social.lastReplyDay, draft, socialMutationPending].join("|");
     if (signature === lastRenderedSignature && feed.dataset.ready === "true") return;
     lastRenderedSignature = signature;
     feed.dataset.ready = "true";

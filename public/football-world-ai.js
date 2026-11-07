@@ -787,6 +787,20 @@
     const supportedLeagueIds = supportedWorldLeagueIds(db);
     const removedClubIds = new Set();
     const removedPlayerIds = new Set();
+    // Snapshot identity collisions before unsupported clubs/players are removed.
+    // Otherwise deleting one colliding player can make another player's legacy ID
+    // appear unique and incorrectly transfer the removed player's history.
+    const internalPlayerIdCounts = new Map();
+    const countInternalPlayerIds = players => {
+      for (const key of safeWorldObjectKeys(players)) {
+        const player = safeWorldOwnValue(players, key);
+        const internalPlayerId = safeWorldRecordIdentifier(player, "id");
+        if (!internalPlayerId) continue;
+        internalPlayerIdCounts.set(internalPlayerId, (internalPlayerIdCounts.get(internalPlayerId) || 0) + 1);
+      }
+    };
+    countInternalPlayerIds(world.players);
+    countInternalPlayerIds(safeWorldOwnValue(archive, "players"));
     if (supportedLeagueIds.size) {
       for (const [id, club] of Object.entries(world.clubs)) {
         const leagueId = safeWorldLeagueIdentifier(club);
@@ -924,12 +938,6 @@
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
-    const internalPlayerIdCounts = new Map();
-    for (const player of Object.values(world.players || {})) {
-      const internalPlayerId = safeWorldRecordIdentifier(player, "id");
-      if (!internalPlayerId) continue;
-      internalPlayerIdCounts.set(internalPlayerId, (internalPlayerIdCounts.get(internalPlayerId) || 0) + 1);
-    }
     const mergeLegacyHistoryKey = (historyMap, canonicalPlayerId, legacyPlayerId) => {
       if (!historyMap || typeof historyMap !== "object" || Array.isArray(historyMap)
         || !canonicalPlayerId || !legacyPlayerId || canonicalPlayerId === legacyPlayerId) {

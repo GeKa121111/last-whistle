@@ -5912,12 +5912,14 @@ function returnFromLoan(){
   return Number.isFinite(numeric)?numeric:null;
  };
  const savedParentPower=finiteParentNumber(l.parentPower);
- const lookedUpParentPower=finiteParentNumber(clubPowerFor(l.parentClub,l.parentCountry));
- const parentPowerCandidate=savedParentPower!==null&&savedParentPower>0
-  ?savedParentPower:lookedUpParentPower!==null&&lookedUpParentPower>0?lookedUpParentPower:60;
+ const validSavedParentPower=savedParentPower!==null&&savedParentPower>0;
+ const lookedUpParentPower=validSavedParentPower?null:finiteParentNumber(clubPowerFor(l.parentClub,l.parentCountry));
+ const parentPowerCandidate=validSavedParentPower?savedParentPower
+  :lookedUpParentPower!==null&&lookedUpParentPower>0?lookedUpParentPower:60;
  const boundedParentPower=Math.max(1,Math.min(100,parentPowerCandidate));
  const savedParentTier=finiteParentNumber(l.parentTier);
- const lookedUpParentTier=finiteParentNumber(clubTierForPower(boundedParentPower));
+ const validSavedParentTier=savedParentTier!==null&&Number.isSafeInteger(savedParentTier)&&savedParentTier>0;
+ const lookedUpParentTier=validSavedParentTier?null:finiteParentNumber(clubTierForPower(boundedParentPower));
  const savedParentIndex=finiteParentNumber(l.parentIndex);
  const savedParentDivision=finiteParentNumber(l.parentDivision);
  state.clubName=l.parentClub;state.leagueCountry=l.parentCountry;

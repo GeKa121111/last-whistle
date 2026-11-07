@@ -7264,6 +7264,32 @@ assert.strictEqual(symbolSchemaFixture.save.worldSimulation, symbolSchemaFixture
 assert.strictEqual(symbolSchemaFixture.world.players["schema-guard-player"], symbolSchemaFixture.player,
   "a Symbol schema marker must not discard saved players");
 
+const malformedStringSchemaFixture = createSchemaGuardFixture({
+  schemaVersion: "unrecognized-world-schema"
+});
+let malformedStringSchemaResult;
+assert.doesNotThrow(() => {
+  malformedStringSchemaResult = ai.ensureState(malformedStringSchemaFixture.save, schemaGuardDb);
+}, "an invalid primitive schema string must not trigger a destructive world reseed");
+assert.strictEqual(malformedStringSchemaResult, malformedStringSchemaFixture.world,
+  "an unparseable schema string must preserve the existing world object");
+assert.strictEqual(malformedStringSchemaResult.players["schema-guard-player"], malformedStringSchemaFixture.player,
+  "an unparseable schema string must preserve existing player records");
+assert.strictEqual(malformedStringSchemaResult.schemaVersion, "unrecognized-world-schema",
+  "unparseable schema metadata must remain untouched rather than being coerced");
+
+const nonFiniteSchemaFixture = createSchemaGuardFixture({ schemaVersion: Number.NaN });
+let nonFiniteSchemaResult;
+assert.doesNotThrow(() => {
+  nonFiniteSchemaResult = ai.ensureState(nonFiniteSchemaFixture.save, schemaGuardDb);
+}, "a non-finite numeric schema marker must not trigger a destructive world reseed");
+assert.strictEqual(nonFiniteSchemaResult, nonFiniteSchemaFixture.world,
+  "a non-finite schema marker must preserve the existing world object");
+assert.strictEqual(nonFiniteSchemaResult.players["schema-guard-player"], nonFiniteSchemaFixture.player,
+  "a non-finite schema marker must preserve existing player records");
+assert.ok(Number.isNaN(nonFiniteSchemaResult.schemaVersion),
+  "non-finite schema metadata must remain untouched");
+
 const throwingSchemaAccessorFixture = createSchemaGuardFixture();
 function installThrowingSchemaAccessor(record, field) {
   Object.defineProperty(record, field, {

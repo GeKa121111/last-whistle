@@ -81,11 +81,12 @@
   }
   function safeWorldSchemaVersion(world) {
     const value = safeWorldOwnValue(world, "schemaVersion");
-    // Schema metadata from legacy saves is untrusted. Only primitive numeric values
-    // participate in version comparison; Symbols, objects, and throwing getters must
-    // not make a valid saved world fall through to a destructive reseed.
+    // Only finite primitive numeric values participate in version comparison.
+    // Invalid strings and non-finite numbers are metadata noise, not proof that the
+    // saved world is incompatible; preserve the existing player and club data.
     if (typeof value !== "number" && typeof value !== "string") return VERSION;
-    return safeNumber(value, NaN);
+    const numericVersion = safeNumber(value, NaN);
+    return Number.isFinite(numericVersion) ? numericVersion : VERSION;
   }
   function safeWorldObjectKeys(record) {
     try { return record && typeof record === "object" ? Object.keys(record) : []; } catch (_) { return []; }
@@ -4515,7 +4516,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=84");
+    const worker = new global.Worker("./football-world-worker.js?v=85");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

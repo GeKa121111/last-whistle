@@ -3823,6 +3823,70 @@ assert.ok(!archiveReplaceAmbiguousStatsWorld.archive.seasonStats["5"]
   || archiveReplaceAmbiguousStatsWorld.archive.seasonStats["5"].length === 0,
   "ambiguous legacy statistics must not be archived under the wrong player's canonical key");
 
+// Removing an unsupported club must not make a colliding legacy player ID
+// appear unique and transfer the removed player's history to a surviving player.
+const removedClubIdentityCollisionWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const removedClubIdentityCollisionId = "archive-replacement-unsupported-club";
+const removedPlayerIdentityCollisionKey = "archive-replacement-removed-player";
+const sharedLegacyPlayerIdentityId = "archive-replacement-shared-legacy-id";
+const removedPlayerLegacyHistory = [{
+  season: 3, type: "transfer-out", fromClubId: removedClubIdentityCollisionId,
+  from: "Removed Unsupported Club", fromCountry: archiveReplaceCountry
+}];
+const removedPlayerLegacyTransferTrail = [{
+  clubId: removedClubIdentityCollisionId, name: "Removed Unsupported Club", country: archiveReplaceCountry
+}];
+removedClubIdentityCollisionWorld.players[archiveReplacePlayerId].id = sharedLegacyPlayerIdentityId;
+removedClubIdentityCollisionWorld.players[removedPlayerIdentityCollisionKey] = {
+  id: sharedLegacyPlayerIdentityId, name: "Removed Unsupported Club Player",
+  clubId: removedClubIdentityCollisionId, country: archiveReplaceCountry,
+  leagueId: "unsupported-legacy-league", division: 1, position: "مهاجم",
+  group: "attacker", age: 24, ovr: 60, potential: 65,
+  isGenerated: false, isRealPlayer: true, retired: false, freeAgent: false
+};
+removedClubIdentityCollisionWorld.clubs[removedClubIdentityCollisionId] = {
+  id: removedClubIdentityCollisionId, name: "Removed Unsupported Club",
+  country: archiveReplaceCountry, leagueId: "unsupported-legacy-league",
+  division: 1, roster: [removedPlayerIdentityCollisionKey]
+};
+delete removedClubIdentityCollisionWorld.playerHistory[archiveReplacePlayerId];
+removedClubIdentityCollisionWorld.playerHistory[sharedLegacyPlayerIdentityId] = removedPlayerLegacyHistory;
+removedClubIdentityCollisionWorld.transferClubHistoryByPlayer = {
+  [sharedLegacyPlayerIdentityId]: removedPlayerLegacyTransferTrail
+};
+removedClubIdentityCollisionWorld.transferClubHistorySchemaVersion = 1;
+removedClubIdentityCollisionWorld.archive = {
+  clubs: {}, players: {}, playerHistory: { [sharedLegacyPlayerIdentityId]: removedPlayerLegacyHistory },
+  seasonStats: {}, leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+};
+const removedClubIdentityCollisionDb = {
+  version: 2,
+  leagues: () => [{ id: archiveReplaceLeagueId }],
+  leagueFor: () => ({ name: "Archive Test League", englishName: "Archive Test League", matchesPerSeason: 30 }),
+  clubs: () => []
+};
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  removedClubIdentityCollisionWorld, removedClubIdentityCollisionDb
+), "removing an unsupported club must not break reconciliation when legacy player IDs collide");
+assert.equal(removedClubIdentityCollisionWorld.players[removedPlayerIdentityCollisionKey], undefined,
+  "the unsupported-club player must leave the active player map");
+assert.equal(removedClubIdentityCollisionWorld.archive.players[removedPlayerIdentityCollisionKey].name,
+  "Removed Unsupported Club Player", "the removed player record must remain archived");
+assert.equal(removedClubIdentityCollisionWorld.players[archiveReplacePlayerId].name,
+  "Archive Academy Placeholder 1", "the supported-club player must remain active");
+assert.deepEqual(removedClubIdentityCollisionWorld.playerHistory[sharedLegacyPlayerIdentityId],
+  removedPlayerLegacyHistory, "ambiguous legacy career history must remain under its original key");
+assert.equal(removedClubIdentityCollisionWorld.playerHistory[archiveReplacePlayerId], undefined,
+  "the removed player's legacy career history must not be attributed to the surviving player");
+assert.deepEqual(removedClubIdentityCollisionWorld.archive.playerHistory[sharedLegacyPlayerIdentityId],
+  removedPlayerLegacyHistory, "ambiguous archived history must remain under its original key");
+assert.equal(removedClubIdentityCollisionWorld.archive.playerHistory[archiveReplacePlayerId], undefined,
+  "ambiguous archived history must not be merged into the surviving player's archive");
+assert.deepEqual(removedClubIdentityCollisionWorld.transferClubHistoryByPlayer[sharedLegacyPlayerIdentityId],
+  removedPlayerLegacyTransferTrail, "legacy transfer endpoints must remain under the ambiguous ID");
+assert.equal(removedClubIdentityCollisionWorld.transferClubHistoryByPlayer[archiveReplacePlayerId], undefined,
+  "legacy transfer endpoints must not migrate to the surviving player");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

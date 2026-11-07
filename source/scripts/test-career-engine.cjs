@@ -151,7 +151,7 @@ function runLoanMetadataCase(targetOverrides = {}, helperOverrides = {}) {
     render: () => {}, showPage: () => {}, toast: () => {}
   };
   vm.createContext(sandbox);
-  vm.runInContext(loanToSource + "\\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo malformed metadata regression" });
+  vm.runInContext(loanToSource + "\nthis.loanTo = loanTo;", sandbox, { filename: "loanTo malformed metadata regression" });
   sandbox.loanTo(target);
   return { state: loanState, rolePower, wagePower };
 }

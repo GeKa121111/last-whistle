@@ -623,5 +623,16 @@ assert.match(roleRenderFeed.innerHTML, /محتوى محفوظ/,
 assert.doesNotMatch(roleRenderFeed.innerHTML, /legacy-array-row|legacy-invalid-body|\[object Object\]/);
 assert.strictEqual(preservedFeedState.socialMedia.posts, originalPreservedRows,
   "render-only filtering must never rewrite the saved social history");
+const postAfterLegacyRows = social.createPlayerPost(preservedFeedState, "بوست جديد بعد إصلاح الحفظ.");
+assert.equal(postAfterLegacyRows.ok, true,
+  "creating a normal post must continue to work with malformed legacy rows present");
+assert.ok(preservedFeedState.socialMedia.posts.includes(null),
+  "adding a new post must not discard a saved null row");
+assert.ok(preservedFeedState.socialMedia.posts.includes(preservedFeedRows[1]),
+  "adding a new post must not discard a saved array row");
+assert.ok(preservedFeedState.socialMedia.posts.includes(preservedFeedRows[2]),
+  "adding a new post must not discard a saved malformed object row");
+assert.ok(preservedFeedState.socialMedia.posts.some(post => post && post.id === postAfterLegacyRows.post.id),
+  "the new valid post must be stored alongside preserved legacy rows");
 
 console.log("PASS: social posts, legacy-data safety, non-destructive feed hydration, contextual replies and migration.");

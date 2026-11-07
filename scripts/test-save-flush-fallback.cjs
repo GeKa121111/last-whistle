@@ -20,6 +20,7 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
   const warnings = [];
   const flushCalls = [];
   const saveCalls = [];
+  const saveOptionsCalls = [];
   const publishCalls = [];
   const flushImpl = flush || (async () => true);
   const saveImpl = save || (async () => {});
@@ -51,7 +52,7 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
     window: {
       LWStateStore: {
         flush(value) { flushCalls.push(value); return flushImpl(value); },
-        save(value) { saveCalls.push(value); return saveImpl(value); },
+        save(value, options) { saveCalls.push(value); saveOptionsCalls.push(options); return saveImpl(value, options); },
         getState() { return sandbox.state; },
         publish(value, meta) { publishCalls.push({ value, meta }); }
       }
@@ -71,6 +72,7 @@ function makeSandbox({ state, queued = true, flush, save, storageFails = false, 
     warnings,
     flushCalls,
     saveCalls,
+    saveOptionsCalls,
     publishCalls,
     get storedValue() { return storedValue; },
     set storedValue(value) { storedValue = value; }
@@ -271,13 +273,28 @@ function selectLoadSource({ indexedSave, fallbackRaw, legacyRaw = null } = {}) {
     "pagehide must request a synchronous fallback snapshot before awaiting IndexedDB");
   assert.ok(rootHtml.includes('document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushQueuedSave({backupFirst:true});});'),
     "backgrounding the app must also preserve the latest state before an asynchronous flush");
-  assert.ok(rootHtml.includes('window.LWStateStore.save(state,{slotId:"career:default",label:String(snapshot.name||"المسيرة الرئيسية")})'),
+  assert.ok(rootHtml.includes('window.LWStateStore.save(state,{slotId:"career:default"})'),
     "direct saves must give the state store the live career object, not the detached persistence snapshot");
   assert.ok(rootHtml.includes("await window.LWStateStore.flush(state);"),
     "queued flushes must publish the live career object to state subscribers");
   assert.ok(!rootHtml.includes('window.LWStateStore.publish(state,{source:"save"});'),
     "direct persistence must not double-publish a live state followed by a detached clone");
 
+
+  const hostileCareerName = JSON.parse('{"toString":1,"valueOf":1}');
+  const hostileNameSave = makeSandbox({
+    state: { name: hostileCareerName, season: 3, money: 500 },
+    queued: false
+  });
+  assert.doesNotThrow(() => hostileNameSave.sandbox.runPersistGame(true),
+    "direct save must not coerce a malformed legacy player name before the state store can sanitize its metadata");
+  assert.equal(hostileNameSave.saveCalls.length, 1,
+    "a malformed legacy player name must still reach the durable state-store save");
+  assert.strictEqual(hostileNameSave.saveCalls[0], hostileNameSave.sandbox.state);
+  assert.equal(hostileNameSave.saveOptionsCalls[0].slotId, "career:default");
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileNameSave.saveOptionsCalls[0], "label"), false,
+    "the state store must derive the label from its already-safe metadata path");
+  await new Promise(resolve => setImmediate(resolve));
 
   const supersededManualSave = makeSandbox({
     queued: false,

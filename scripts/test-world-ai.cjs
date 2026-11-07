@@ -3995,6 +3995,89 @@ assert.equal(stalePrimaryStatsWorld.archive.seasonStats["5"][0].id,
 assert.equal(stalePrimaryStatsWorld.archive.seasonStats["5"][0].playerId,
   staleStatsRemovedPlayerKey, "archiving must preserve the canonical playerId value");
 
+// Archival is backup-first: a locked/malformed archive bucket must never cause
+// active season data to be deleted or abort reconciliation.
+const archiveWriteFailureWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const archiveWriteFailureClubId = "archive-replacement-write-failure-club";
+const archiveWriteFailurePlayerId = "archive-replacement-write-failure-player";
+archiveWriteFailureWorld.players[archiveWriteFailurePlayerId] = {
+  id: archiveWriteFailurePlayerId, name: "Archive Write Failure Player",
+  clubId: archiveWriteFailureClubId, country: archiveReplaceCountry,
+  leagueId: "unsupported-legacy-league", division: 1, position: "مهاجم",
+  group: "attacker", age: 24, ovr: 60, potential: 66,
+  isGenerated: false, isRealPlayer: true, retired: false, freeAgent: false
+};
+archiveWriteFailureWorld.clubs[archiveWriteFailureClubId] = {
+  id: archiveWriteFailureClubId, name: "Archive Write Failure Club",
+  country: archiveReplaceCountry, leagueId: "unsupported-legacy-league",
+  division: 1, roster: [archiveWriteFailurePlayerId]
+};
+const archiveWriteFailureStats = {
+  id: archiveWriteFailurePlayerId, playerId: archiveWriteFailurePlayerId,
+  clubId: archiveWriteFailureClubId, leagueId: "unsupported-legacy-league",
+  season: 5, appearances: 17, goals: 6, assists: 2
+};
+const archiveWriteFailureTableRow = {
+  clubId: archiveWriteFailureClubId, leagueId: archiveReplaceLeagueId,
+  division: 1, rank: 8, pts: 20
+};
+archiveWriteFailureWorld.seasonStats["5"].push(archiveWriteFailureStats);
+archiveWriteFailureWorld.leagueTables["5"] = {
+  "unsupported-legacy-league": [{ clubId: archiveWriteFailureClubId, leagueId: "unsupported-legacy-league", rank: 1 }],
+  [archiveReplaceLeagueId]: [archiveWriteFailureTableRow]
+};
+archiveWriteFailureWorld.matchesBySeason["5"] = [{
+  season: 5, homeClubId: archiveWriteFailureClubId, awayClubId: archiveReplaceClubId,
+  homeGoals: 1, awayGoals: 0
+}];
+archiveWriteFailureWorld.competitionsBySeason["5"] = [{
+  id: "afc-cl", confederation: "AFC", season: 5, winnerId: archiveWriteFailureClubId
+}];
+const lockedSeasonRows = [];
+const lockedMatchRows = [];
+const lockedCompetitionRows = [];
+const lockedArchiveLeagueTables = Object.freeze({});
+const lockedArchiveLeagueTableRows = Object.freeze({});
+archiveWriteFailureWorld.archive = {
+  clubs: {}, players: {}, playerHistory: {},
+  seasonStats: {}, leagueTables: {}, leagueTableRows: {},
+  matchesBySeason: {}, competitionsBySeason: {}
+};
+Object.defineProperty(archiveWriteFailureWorld.archive.seasonStats, "5", {
+  value: lockedSeasonRows, enumerable: true, writable: false, configurable: false
+});
+Object.defineProperty(archiveWriteFailureWorld.archive.matchesBySeason, "5", {
+  value: lockedMatchRows, enumerable: true, writable: false, configurable: false
+});
+Object.defineProperty(archiveWriteFailureWorld.archive.competitionsBySeason, "5", {
+  value: lockedCompetitionRows, enumerable: true, writable: false, configurable: false
+});
+Object.defineProperty(archiveWriteFailureWorld.archive.leagueTables, "5", {
+  value: lockedArchiveLeagueTables, enumerable: true, writable: false, configurable: false
+});
+Object.defineProperty(archiveWriteFailureWorld.archive.leagueTableRows, "5", {
+  value: lockedArchiveLeagueTableRows, enumerable: true, writable: false, configurable: false
+});
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  archiveWriteFailureWorld, removedClubIdentityCollisionDb
+), "unwritable archive buckets must not abort world reconciliation");
+assert.ok(archiveWriteFailureWorld.seasonStats["5"].includes(archiveWriteFailureStats),
+  "season statistics must remain active when the archive bucket cannot be written");
+assert.ok(archiveWriteFailureWorld.leagueTables["5"]["unsupported-legacy-league"],
+  "unsupported league tables must remain active when their archive bucket is locked");
+assert.ok(archiveWriteFailureWorld.leagueTables["5"][archiveReplaceLeagueId].includes(archiveWriteFailureTableRow),
+  "table rows for removed clubs must remain active when archived-row storage is locked");
+assert.equal(archiveWriteFailureWorld.matchesBySeason["5"].length, 1,
+  "fixtures must remain active when their archive bucket cannot be written");
+assert.equal(archiveWriteFailureWorld.competitionsBySeason["5"].length, 1,
+  "unsupported competitions must remain active when their archive bucket cannot be written");
+assert.equal(archiveWriteFailureWorld.archive.seasonStats["5"].length, 0,
+  "a failed season-stat archive write must not overwrite the locked archive bucket");
+assert.equal(archiveWriteFailureWorld.archive.matchesBySeason["5"].length, 0,
+  "a failed match archive write must not overwrite the locked archive bucket");
+assert.equal(archiveWriteFailureWorld.archive.competitionsBySeason["5"].length, 0,
+  "a failed competition archive write must not overwrite the locked archive bucket");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

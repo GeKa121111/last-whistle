@@ -112,6 +112,9 @@
     }
     return true;
   }
+  function safeWorldTrySetOwnValue(record, key, value) {
+    try { return safeWorldSetOwnValue(record, key, value) === true; } catch (_) { return false; }
+  }
   function safeWorldClubIdentifierForWorld(world, club) {
     if (!club || typeof club !== "object") return "";
     let value;
@@ -876,6 +879,14 @@
             && !!safeWorldOwnValue(world.players, playerId);
         }));
       });
+      const mergeArchiveRows = (existingRows, sourceRows) => {
+        if (existingRows !== undefined && !Array.isArray(existingRows)) return null;
+        const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();
+        sourceRows.forEach(row => {
+          if (!mergedRows.includes(row)) mergedRows.push(row);
+        });
+        return mergedRows;
+      };
       const seasonStats = safeWorldOwnValue(world, "seasonStats");
       for (const season of safeWorldObjectKeys(seasonStats)) {
         const rows = safeWorldOwnValue(seasonStats, season);
@@ -892,23 +903,35 @@
             || playerIds.some(playerId => removedPlayerIds.has(playerId))
             || (clubId && removedClubIds.has(clubId));
         });
-        if (archivedRows.length) {
-          const previousRows = safeWorldArrayField(archive.seasonStats, season);
-          safeWorldSetOwnValue(archive.seasonStats, season, previousRows.concat(archivedRows));
-          safeWorldSetOwnValue(seasonStats, season, rows.filter(row => !archivedRows.includes(row)));
-        }
+        if (!archivedRows.length) continue;
+        const previousRows = safeWorldOwnValue(archive.seasonStats, season);
+        const mergedRows = mergeArchiveRows(previousRows, archivedRows);
+        if (!mergedRows) continue;
+        // Commit the archive copy first. If it cannot be written, retain every active row.
+        if (!safeWorldTrySetOwnValue(archive.seasonStats, season, mergedRows)) continue;
+        safeWorldTrySetOwnValue(seasonStats, season, rows.filter(row => !archivedRows.includes(row)));
       }
+
       const leagueTables = safeWorldOwnValue(world, "leagueTables");
       for (const season of safeWorldObjectKeys(leagueTables)) {
         const tables = safeWorldOwnValue(leagueTables, season);
         if (!tables || typeof tables !== "object" || Array.isArray(tables)) continue;
         const savedArchiveTables = safeWorldOwnValue(archive.leagueTables, season);
-        const archivedTables = savedArchiveTables && typeof savedArchiveTables === "object"
-          && !Array.isArray(savedArchiveTables) ? savedArchiveTables : {};
+        const archivedTables = savedArchiveTables === undefined ? {}
+          : savedArchiveTables && typeof savedArchiveTables === "object" && !Array.isArray(savedArchiveTables)
+            ? savedArchiveTables : null;
         for (const key of safeWorldObjectKeys(tables)) {
           if (!supportedLeagueIds.has(key.split(":")[0])) {
-            safeWorldSetOwnValue(archivedTables, key, safeWorldOwnValue(tables, key));
-            delete tables[key];
+            if (!archivedTables) continue;
+            const tableValue = safeWorldOwnValue(tables, key);
+            const previousTable = safeWorldOwnValue(archivedTables, key);
+            const mergedTable = Array.isArray(previousTable) && Array.isArray(tableValue)
+              ? mergeArchiveRows(previousTable, tableValue)
+              : previousTable === undefined ? tableValue : null;
+            if (mergedTable === null) continue;
+            if (!safeWorldTrySetOwnValue(archivedTables, key, mergedTable)) continue;
+            if (!safeWorldTrySetOwnValue(archive.leagueTables, season, archivedTables)) continue;
+            try { delete tables[key]; } catch (_) {}
             continue;
           }
           const rows = safeWorldOwnValue(tables, key);
@@ -920,22 +943,21 @@
             return (leagueId && !supportedLeagueIds.has(leagueId))
               || (clubId && removedClubIds.has(clubId));
           });
-          if (archivedRows.length) {
-            let archivedRowsBySeason = safeWorldOwnValue(archive.leagueTableRows, season);
-            if (!archivedRowsBySeason || typeof archivedRowsBySeason !== "object"
-              || Array.isArray(archivedRowsBySeason)) {
-              archivedRowsBySeason = {};
-              safeWorldSetOwnValue(archive.leagueTableRows, season, archivedRowsBySeason);
-            }
-            const previousRows = safeWorldArrayField(archivedRowsBySeason, key);
-            safeWorldSetOwnValue(archivedRowsBySeason, key, previousRows.concat(archivedRows));
-            safeWorldSetOwnValue(tables, key, rows.filter(row => !archivedRows.includes(row)));
-          }
-        }
-        if (safeWorldObjectKeys(archivedTables).length) {
-          safeWorldSetOwnValue(archive.leagueTables, season, archivedTables);
+          if (!archivedRows.length) continue;
+          const savedArchiveRowsBySeason = safeWorldOwnValue(archive.leagueTableRows, season);
+          const archivedRowsBySeason = savedArchiveRowsBySeason === undefined ? {}
+            : savedArchiveRowsBySeason && typeof savedArchiveRowsBySeason === "object"
+              && !Array.isArray(savedArchiveRowsBySeason) ? savedArchiveRowsBySeason : null;
+          if (!archivedRowsBySeason) continue;
+          const previousRows = safeWorldOwnValue(archivedRowsBySeason, key);
+          const mergedRows = mergeArchiveRows(previousRows, archivedRows);
+          if (!mergedRows) continue;
+          if (!safeWorldTrySetOwnValue(archivedRowsBySeason, key, mergedRows)) continue;
+          if (!safeWorldTrySetOwnValue(archive.leagueTableRows, season, archivedRowsBySeason)) continue;
+          safeWorldTrySetOwnValue(tables, key, rows.filter(row => !archivedRows.includes(row)));
         }
       }
+
       const matchesBySeason = safeWorldOwnValue(world, "matchesBySeason");
       for (const season of safeWorldObjectKeys(matchesBySeason)) {
         const matches = safeWorldOwnValue(matchesBySeason, season);
@@ -946,12 +968,14 @@
           return (homeClubId && removedClubIds.has(homeClubId))
             || (awayClubId && removedClubIds.has(awayClubId));
         });
-        if (archivedMatches.length) {
-          const previousMatches = safeWorldArrayField(archive.matchesBySeason, season);
-          safeWorldSetOwnValue(archive.matchesBySeason, season, previousMatches.concat(archivedMatches));
-          safeWorldSetOwnValue(matchesBySeason, season, matches.filter(match => !archivedMatches.includes(match)));
-        }
+        if (!archivedMatches.length) continue;
+        const previousMatches = safeWorldOwnValue(archive.matchesBySeason, season);
+        const mergedMatches = mergeArchiveRows(previousMatches, archivedMatches);
+        if (!mergedMatches) continue;
+        if (!safeWorldTrySetOwnValue(archive.matchesBySeason, season, mergedMatches)) continue;
+        safeWorldTrySetOwnValue(matchesBySeason, season, matches.filter(match => !archivedMatches.includes(match)));
       }
+
       const competitionsBySeason = safeWorldOwnValue(world, "competitionsBySeason");
       const unsupportedCompetitionIds = ["afc-cl", "afc-cl-two", "japanese-cup", "japanese-super-cup"];
       for (const season of safeWorldObjectKeys(competitionsBySeason)) {
@@ -965,11 +989,12 @@
           return confederation === "AFC" || unsupportedCompetitionIds.includes(competitionId);
         };
         const archivedItems = items.filter(isUnsupportedCompetition);
-        if (archivedItems.length) {
-          const previousItems = safeWorldArrayField(archive.competitionsBySeason, season);
-          safeWorldSetOwnValue(archive.competitionsBySeason, season, previousItems.concat(archivedItems));
-          safeWorldSetOwnValue(competitionsBySeason, season, items.filter(item => !isUnsupportedCompetition(item)));
-        }
+        if (!archivedItems.length) continue;
+        const previousItems = safeWorldOwnValue(archive.competitionsBySeason, season);
+        const mergedItems = mergeArchiveRows(previousItems, archivedItems);
+        if (!mergedItems) continue;
+        if (!safeWorldTrySetOwnValue(archive.competitionsBySeason, season, mergedItems)) continue;
+        safeWorldTrySetOwnValue(competitionsBySeason, season, items.filter(item => !isUnsupportedCompetition(item)));
       }
     }
     // Restore authoritative player-to-club links before database reconciliation can

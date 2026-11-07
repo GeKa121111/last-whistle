@@ -188,6 +188,10 @@ assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
   "a malformed saved cooldown must fail closed instead of coercing an object");
 assert.match(sandbox.transferEligibilityReason(state.transferOffers[0]), /7 أيام/,
   "the transfer-market explanation must use a safe seven-day fallback for malformed cooldowns");
+assert.doesNotThrow(() => sandbox.ensureTransferOffers(),
+  "official offer generation must not coerce malformed cooldown values");
+assert.equal(generatedOffers, 0,
+  "a malformed cooldown must prevent the official offer generator from bypassing the safe fallback");
 state.transferCooldown = "2";
 assert.equal(sandbox.offerIsAvailable(state.transferOffers[0]), false,
   "numeric-string cooldowns from older saves must remain supported");

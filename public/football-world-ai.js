@@ -876,11 +876,27 @@
     return invalidated;
   }
   function reconcileDatabase(world, db) {
-    if (!world || !world.clubs) return seedWorld(db);
+    if (!world || typeof world !== "object" || Array.isArray(world)) return seedWorld(db);
     const archive = ensureArchive(world);
     if (!archive) return world;
-    world.players = world.players && typeof world.players === "object" ? world.players : {};
-    world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
+    const savedClubs = safeWorldOwnValue(world, "clubs");
+    if (savedClubs === undefined || savedClubs === null) {
+      if (!safeWorldTrySetOwnValue(world, "clubs", {})) return world;
+    } else if (typeof savedClubs !== "object" || Array.isArray(savedClubs)) {
+      return world;
+    }
+    const savedPlayers = safeWorldOwnValue(world, "players");
+    if (savedPlayers === undefined || savedPlayers === null) {
+      if (!safeWorldTrySetOwnValue(world, "players", {})) return world;
+    } else if (typeof savedPlayers !== "object" || Array.isArray(savedPlayers)) {
+      return world;
+    }
+    const savedPlayerHistory = safeWorldOwnValue(world, "playerHistory");
+    if (savedPlayerHistory === undefined || savedPlayerHistory === null) {
+      if (!safeWorldTrySetOwnValue(world, "playerHistory", {})) return world;
+    } else if (typeof savedPlayerHistory !== "object" || Array.isArray(savedPlayerHistory)) {
+      return world;
+    }
     const transferClubHistoryByPlayer = ensureTransferClubHistory(world);
     // Unsupported competitions leave the active simulation, but their saved data is archived rather than destroyed.
     const supportedLeagueIds = supportedWorldLeagueIds(db);
@@ -1277,7 +1293,7 @@
       const records = Array.isArray(sourceRows) ? sourceRows.slice(0, SIMULATED_SQUAD_LIMIT) : [];
       if (!world.clubs[id]) {
         const club = addClub(world, row, db);
-        const knownForClub = new Set();
+        const knownForClub = new Set(knownPlayersByClub.get(id) || []);
         const unavailableForClub = unavailableIdentitiesByClub.get(id) || new Set();
         let index = 0;
         records.forEach(player => {
@@ -1287,7 +1303,6 @@
           knownForClub.add(identityKey);
         });
         knownPlayersByClub.set(id, knownForClub);
-        fillRoster(world, club);
       } else {
         const club = world.clubs[id];
         const sourceDivision = Math.max(1, int(row.division, 1));
@@ -1354,7 +1369,7 @@
   function ensureState(save, db) {
     if (!save || typeof save !== "object") return emptyWorld();
     let world = save.worldSimulation;
-    if (!world || typeof world !== "object" || !world.clubs || !world.players || safeWorldSchemaVersion(world) !== VERSION) {
+    if (!world || typeof world !== "object" || Array.isArray(world) || safeWorldSchemaVersion(world) !== VERSION) {
       world = seedWorld(db);
       save.worldSimulation = world;
       return world;
@@ -1362,6 +1377,19 @@
     // Keep a malformed archive untouched and defer normalization rather than
     // silently replacing legacy archive data with empty buckets.
     if (!ensureArchive(world)) return world;
+    // Missing legacy maps are recoverable. Rebuild only the absent maps in place
+    // so the existing player records, history, archive, and season data survive.
+    let recoveredWorldMap = false;
+    for (const field of ["clubs", "players"]) {
+      const savedMap = safeWorldOwnValue(world, field);
+      if (savedMap === undefined || savedMap === null) {
+        if (!safeWorldTrySetOwnValue(world, field, {})) return world;
+        recoveredWorldMap = true;
+      } else if (typeof savedMap !== "object" || Array.isArray(savedMap)) {
+        // A malformed map may still contain legacy data; do not overwrite it.
+        return world;
+      }
+    }
     world.currentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
     world.completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
     world.seasonStats = world.seasonStats && typeof world.seasonStats === "object" ? world.seasonStats : {};

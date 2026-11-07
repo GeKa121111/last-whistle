@@ -3731,6 +3731,126 @@ const archiveReplaceWorld = {
   },
   marketReports: [], notes: []
 };
+// A missing club map in an otherwise valid save must be reconstructed in place.
+// Keep its players, career history, and archived records, and do not import a second
+// copy of a player that is already present under a legacy map key.
+const missingClubMapWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const missingClubMapPlayerKey = "missing-club-map-saved-player";
+const missingClubMapPlayerName = "New Officially Sourced Player";
+const missingClubMapPlayer = {
+  id: "missing-club-map-legacy-internal-id",
+  name: missingClubMapPlayerName,
+  clubId: archiveReplaceClubId,
+  country: archiveReplaceCountry,
+  leagueId: archiveReplaceLeagueId,
+  division: 1,
+  position: "مهاجم",
+  group: "attacker",
+  age: 23,
+  ovr: 68,
+  potential: 79,
+  isGenerated: false,
+  isRealPlayer: true,
+  retired: false,
+  freeAgent: false
+};
+missingClubMapWorld.players[missingClubMapPlayerKey] = missingClubMapPlayer;
+const missingClubMapHistory = [{ season: 4, type: "saved-career-history", note: "preserve missing-map career history" }];
+missingClubMapWorld.playerHistory[missingClubMapPlayerKey] = missingClubMapHistory;
+const preservedArchivedPlayerKey = "missing-club-map-previously-archived-player";
+const preservedArchivedPlayer = {
+  id: preservedArchivedPlayerKey,
+  name: "Previously Archived Player",
+  clubId: "missing-club-map-former-club",
+  country: archiveReplaceCountry,
+  leagueId: "missing-club-map-former-league",
+  position: "مهاجم",
+  age: 29
+};
+const preservedArchivedHistory = [{ season: 2, type: "archived-career-history" }];
+const preservedArchivedSeasonStats = [{
+  id: preservedArchivedPlayerKey,
+  playerId: preservedArchivedPlayerKey,
+  season: 2,
+  appearances: 12,
+  goals: 4,
+  assists: 1
+}];
+missingClubMapWorld.archive = {
+  clubs: {},
+  players: { [preservedArchivedPlayerKey]: preservedArchivedPlayer },
+  playerHistory: { [preservedArchivedPlayerKey]: preservedArchivedHistory },
+  seasonStats: { "2": preservedArchivedSeasonStats },
+  leagueTables: {},
+  leagueTableRows: {},
+  matchesBySeason: {},
+  competitionsBySeason: {}
+};
+delete missingClubMapWorld.clubs;
+const missingClubMapSave = { season: 6, worldSimulation: missingClubMapWorld };
+const recoveredMissingClubMap = ai.ensureState(missingClubMapSave, archiveReplaceDb);
+assert.strictEqual(recoveredMissingClubMap, missingClubMapWorld,
+  "a valid save with a missing club map must be repaired in place rather than reseeded");
+assert.strictEqual(missingClubMapSave.worldSimulation, missingClubMapWorld,
+  "the recovered world must remain the original saved world object");
+assert.ok(recoveredMissingClubMap.clubs[archiveReplaceClubId],
+  "the missing club map must be rebuilt from the current catalogue");
+assert.ok(recoveredMissingClubMap.clubs[archiveReplaceClubId].roster.includes(missingClubMapPlayerKey),
+  "existing saved players must be relinked to the rebuilt club");
+assert.strictEqual(recoveredMissingClubMap.players[missingClubMapPlayerKey], missingClubMapPlayer,
+  "the saved player record must survive map recovery without replacement");
+assert.deepEqual(recoveredMissingClubMap.playerHistory[missingClubMapPlayerKey], missingClubMapHistory,
+  "the saved player's career history must survive missing club-map recovery");
+assert.strictEqual(recoveredMissingClubMap.archive.players[preservedArchivedPlayerKey], preservedArchivedPlayer,
+  "previously archived player records must survive missing club-map recovery");
+assert.deepEqual(recoveredMissingClubMap.archive.playerHistory[preservedArchivedPlayerKey], preservedArchivedHistory,
+  "previously archived career history must survive missing club-map recovery");
+assert.deepEqual(recoveredMissingClubMap.archive.seasonStats["2"], preservedArchivedSeasonStats,
+  "previously archived season statistics must survive missing club-map recovery");
+assert.equal(Object.values(recoveredMissingClubMap.players).filter(player =>
+  player && player.name === missingClubMapPlayerName && player.position === "مهاجم").length, 1,
+  "rebuilding a missing club map must not duplicate an already saved sourced player");
+assert.equal(recoveredMissingClubMap.currentSeason, 6,
+  "missing club-map recovery must preserve the active world season");
+assert.equal(recoveredMissingClubMap.lastCompletedSeason, 5,
+  "missing club-map recovery must preserve completed-season history");
+
+// A missing player map is also recoverable without replacing the archive or
+// the saved world container; the catalogue can repopulate the active roster.
+const missingPlayersMapWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const missingPlayersMapArchivePlayerKey = "missing-players-map-archived-player";
+const missingPlayersMapArchivePlayer = {
+  id: missingPlayersMapArchivePlayerKey,
+  name: "Archived Before Player Map Recovery",
+  clubId: "missing-players-map-former-club",
+  country: archiveReplaceCountry,
+  leagueId: "missing-players-map-former-league",
+  position: "مدافع",
+  age: 31
+};
+missingPlayersMapWorld.archive = {
+  clubs: {},
+  players: { [missingPlayersMapArchivePlayerKey]: missingPlayersMapArchivePlayer },
+  playerHistory: { [missingPlayersMapArchivePlayerKey]: [{ season: 1, type: "archived-before-player-map-recovery" }] },
+  seasonStats: {},
+  leagueTables: {},
+  leagueTableRows: {},
+  matchesBySeason: {},
+  competitionsBySeason: {}
+};
+delete missingPlayersMapWorld.players;
+const missingPlayersMapSave = { season: 6, worldSimulation: missingPlayersMapWorld };
+const recoveredMissingPlayersMap = ai.ensureState(missingPlayersMapSave, archiveReplaceDb);
+assert.strictEqual(recoveredMissingPlayersMap, missingPlayersMapWorld,
+  "a valid save with a missing player map must be repaired in place rather than reseeded");
+assert.ok(recoveredMissingPlayersMap.players && typeof recoveredMissingPlayersMap.players === "object",
+  "missing player maps must be recreated safely");
+assert.strictEqual(recoveredMissingPlayersMap.archive.players[missingPlayersMapArchivePlayerKey],
+  missingPlayersMapArchivePlayer,
+  "the archive must remain intact while the active player map is rebuilt");
+assert.ok(Object.keys(recoveredMissingPlayersMap.players).length > 0,
+  "the current roster catalogue must repopulate an absent active player map");
+
 const completedProjectionWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 completedProjectionWorld.completedSeasons = [5, 6];
 completedProjectionWorld.lastCompletedSeason = 6;

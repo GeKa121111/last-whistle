@@ -496,19 +496,34 @@
     }
     if (mergedTransferRows && !safeWorldTrySetOwnValue(transferHistory, playerId, mergedTransferRows)) return false;
 
-    // Active copies are removed only after every corresponding archive write succeeds.
-    for (const key of historyKeys) {
-      if (safeWorldOwnValue(playerHistory, key) === undefined) continue;
-      try { delete playerHistory[key]; } catch (_) { return false; }
-      if (safeWorldOwnValue(playerHistory, key) !== undefined) return false;
+    // Keep live records until the caller confirms that the player was removed.
+    // A failed roster write or non-configurable player key must not strand an active
+    // player without the career history and season statistics it still owns.
+    return {
+      historyKeys,
+      seasonUpdates,
+      transferAlias: mergedTransferRows ? internalPlayerId : ""
+    };
+  }
+  function removeArchivedGeneratedPlayerLiveRecords(world, archivePlan) {
+    if (!world || !archivePlan) return false;
+    const playerHistory = safeWorldOwnValue(world, "playerHistory");
+    for (const key of Array.isArray(archivePlan.historyKeys) ? archivePlan.historyKeys : []) {
+      if (!playerHistory || typeof playerHistory !== "object"
+        || safeWorldOwnValue(playerHistory, key) === undefined) continue;
+      try { delete playerHistory[key]; } catch (_) {}
     }
-    if (mergedTransferRows) {
-      try { delete transferHistory[internalPlayerId]; } catch (_) { return false; }
-      if (safeWorldOwnValue(transferHistory, internalPlayerId) !== undefined) return false;
+    const transferAlias = safeWorldIdentifier(archivePlan.transferAlias);
+    const transferHistory = safeWorldOwnValue(world, "transferClubHistoryByPlayer");
+    if (transferAlias && transferHistory && typeof transferHistory === "object" && !Array.isArray(transferHistory)) {
+      try { delete transferHistory[transferAlias]; } catch (_) {}
     }
-    for (const update of seasonUpdates) {
-      if (!safeWorldTrySetOwnValue(seasonStats, update.season,
-        update.rows.filter(row => !update.archivedRows.includes(row)))) return false;
+    const seasonStats = safeWorldOwnValue(world, "seasonStats");
+    for (const update of Array.isArray(archivePlan.seasonUpdates) ? archivePlan.seasonUpdates : []) {
+      const rows = safeWorldOwnValue(seasonStats, update.season);
+      if (!Array.isArray(rows)) continue;
+      safeWorldTrySetOwnValue(seasonStats, update.season,
+        rows.filter(row => !update.archivedRows.includes(row)));
     }
     return true;
   }
@@ -952,7 +967,7 @@
         if (!mergedRows.includes(entry)) mergedRows.push(entry);
       });
       if (!safeWorldTrySetOwnValue(archive.playerHistory, canonicalPlayerId, mergedRows)) return false;
-      try { delete world.playerHistory[sourcePlayerId]; } catch (_) {}
+      // Keep the active copy until the player-map deletion is confirmed.
       return true;
     };
     const mergeRemovedPlayerTransferHistory = (sourcePlayerId, canonicalPlayerId) => {
@@ -976,7 +991,7 @@
         if (!duplicate) mergedRows.push(endpoint);
       });
       if (!safeWorldTrySetOwnValue(transferClubHistoryByPlayer, canonicalPlayerId, mergedRows)) return false;
-      try { delete transferClubHistoryByPlayer[sourcePlayerId]; } catch (_) {}
+      // Keep the alias until the player-map deletion is confirmed.
       return true;
     };
     // Index players by their current club once. Re-scanning the full player map
@@ -1011,6 +1026,13 @@
           }
           try { delete world.players[playerId]; } catch (_) { continue; }
           if (safeWorldOwnValue(world.players, playerId) !== undefined) continue;
+          const historyKeysToRemove = hasUniqueLegacyAlias ? [playerId, internalPlayerId] : [playerId];
+          historyKeysToRemove.forEach(historyKey => {
+            try { delete world.playerHistory[historyKey]; } catch (_) {}
+          });
+          if (hasUniqueLegacyAlias) {
+            try { delete transferClubHistoryByPlayer[internalPlayerId]; } catch (_) {}
+          }
           removedPlayerIds.add(playerId);
         }
         const hasRemainingPlayers = playersForClub.some(([playerId]) =>
@@ -1329,7 +1351,8 @@
             const replace = generated[0];
             const replaceId = safeWorldIdentifier(replace.playerId);
             if (!replaceId) break;
-            if (!archiveGeneratedPlayerBeforeRosterReplacement(world, replace.player, replaceId)) break;
+            const archivePlan = archiveGeneratedPlayerBeforeRosterReplacement(world, replace.player, replaceId);
+            if (!archivePlan) break;
             const previousRoster = safeWorldArrayField(club, "roster");
             const nextRoster = previousRoster.filter(playerId => safeWorldIdentifier(playerId) !== replaceId);
             if (!safeWorldTrySetOwnValue(club, "roster", nextRoster)) break;
@@ -1341,6 +1364,7 @@
               safeWorldTrySetOwnValue(club, "roster", previousRoster);
               break;
             }
+            removeArchivedGeneratedPlayerLiveRecords(world, archivePlan);
             knownForClub.delete(rosterIdentityKey(replace.player));
           }
           if ((club.roster || []).length >= SIMULATED_SQUAD_LIMIT) break;
@@ -4491,7 +4515,7 @@
 
   function getWorldWorker() {
     if (sharedWorldWorker) return sharedWorldWorker;
-    const worker = new global.Worker("./football-world-worker.js?v=83");
+    const worker = new global.Worker("./football-world-worker.js?v=84");
     sharedWorldWorker = worker;
     worker.onmessage = event => {
       if (sharedWorldWorker !== worker) return;

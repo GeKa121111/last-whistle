@@ -116,6 +116,40 @@
   function safeWorldTrySetOwnValue(record, key, value) {
     try { return safeWorldSetOwnValue(record, key, value) === true; } catch (_) { return false; }
   }
+  // Preserve malformed active-world payloads before replacing them with usable containers.
+  // Recovery data stays in the same save so old transfer/stat records remain available for repair.
+  function preserveMalformedWorldField(world, field, value) {
+    if (value === undefined) return true;
+    let recovery = safeWorldOwnValue(world, "legacyRecoveryData");
+    if (recovery === undefined) {
+      recovery = {};
+      if (!safeWorldTrySetOwnValue(world, "legacyRecoveryData", recovery)) return false;
+    } else if (!recovery || typeof recovery !== "object" || Array.isArray(recovery)) {
+      return false;
+    }
+    let hasExisting = false;
+    try { hasExisting = Object.prototype.hasOwnProperty.call(recovery, field); } catch (_) { return false; }
+    if (!hasExisting) return safeWorldTrySetOwnValue(recovery, field, value);
+    const existing = safeWorldOwnValue(recovery, field);
+    if (existing === undefined || existing === value) return safeWorldTrySetOwnValue(recovery, field, value);
+    if (Array.isArray(existing)) {
+      if (existing.includes(value)) return true;
+      return safeWorldTrySetOwnValue(recovery, field, existing.concat([value]));
+    }
+    return safeWorldTrySetOwnValue(recovery, field, [existing, value]);
+  }
+  function normalizeWorldArrayField(world, field) {
+    const value = safeWorldOwnValue(world, field);
+    if (Array.isArray(value)) return true;
+    if (value !== undefined && !preserveMalformedWorldField(world, field, value)) return false;
+    return safeWorldTrySetOwnValue(world, field, []);
+  }
+  function normalizeWorldMapField(world, field, rejectArrays = false) {
+    const value = safeWorldOwnValue(world, field);
+    if (value && typeof value === "object" && (!rejectArrays || !Array.isArray(value))) return true;
+    if (value !== undefined && !preserveMalformedWorldField(world, field, value)) return false;
+    return safeWorldTrySetOwnValue(world, field, {});
+  }
   function safeWorldClubIdentifierForWorld(world, club) {
     if (!club || typeof club !== "object") return "";
     let value;
@@ -585,7 +619,10 @@
     const currentHistory = safeWorldOwnValue(world, "transferClubHistoryByPlayer");
     const hasHistory = currentHistory && typeof currentHistory === "object" && !Array.isArray(currentHistory);
     const history = hasHistory ? currentHistory : {};
-    if (!hasHistory && !safeWorldSetField(world, "transferClubHistoryByPlayer", history)) return {};
+    if (!hasHistory) {
+      if (currentHistory !== undefined && !preserveMalformedWorldField(world, "transferClubHistoryByPlayer", currentHistory)) return {};
+      if (!safeWorldTrySetOwnValue(world, "transferClubHistoryByPlayer", history)) return {};
+    }
     const schemaVersion = safeNumber(safeWorldOwnValue(world, "transferClubHistorySchemaVersion"), 0);
     if (hasHistory && schemaVersion >= 1) return history;
 
@@ -1415,15 +1452,18 @@
         return world;
       }
     }
+    // Back up malformed active history containers before normalizing them. If the
+    // recovery bucket itself is unusable, defer repair rather than discard another payload.
+    if (!normalizeWorldArrayField(world, "completedSeasons")
+      || !normalizeWorldMapField(world, "seasonStats")
+      || !normalizeWorldMapField(world, "leagueTables")
+      || !normalizeWorldArrayField(world, "transfers")
+      || !normalizeWorldArrayField(world, "marketReports")
+      || !normalizeWorldMapField(world, "playerHistory")
+      || !normalizeWorldArrayField(world, "notes")
+      || !normalizeWorldMapField(world, "transferClubHistoryByPlayer", true)) return world;
     world.currentSeason = Math.max(1, int(world.currentSeason, int(save.season, 1)));
-    world.completedSeasons = Array.isArray(world.completedSeasons) ? world.completedSeasons : [];
-    world.seasonStats = world.seasonStats && typeof world.seasonStats === "object" ? world.seasonStats : {};
-    world.leagueTables = world.leagueTables && typeof world.leagueTables === "object" ? world.leagueTables : {};
-    world.transfers = Array.isArray(world.transfers) ? world.transfers : [];
-    world.marketReports = Array.isArray(world.marketReports) ? world.marketReports : [];
-    world.playerHistory = world.playerHistory && typeof world.playerHistory === "object" ? world.playerHistory : {};
     ensureTransferClubHistory(world);
-    world.notes = Array.isArray(world.notes) ? world.notes : [];
     world.nextGeneratedPlayer = Math.max(1, int(world.nextGeneratedPlayer, 1));
     world.transferSequence = Math.max(0, int(world.transferSequence, 0));
     const lastAdvancedTo = Math.max(0, int(safeWorldOwnValue(world, "lastAdvancedTo"), 0));

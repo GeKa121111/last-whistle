@@ -4482,6 +4482,55 @@ assert.equal(malformedArchiveStateWorld.currentSeason, malformedArchiveStateSnap
 assert.equal(malformedArchiveStateWorld.dbVersion, malformedArchiveStateSnapshot.dbVersion,
   "state loading must defer catalogue reconciliation while archive recovery is pending");
 
+// Active world-history containers can be malformed without being empty. Keep their
+// exact payloads in the save before normalizing the fields used by the simulation.
+const malformedActiveHistoryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+const malformedActiveHistoryPayloads = {
+  completedSeasons: { legacySeasonMarkers: [3, 4] },
+  seasonStats: "legacy-season-statistics-payload",
+  leagueTables: "legacy-league-table-payload",
+  transfers: { legacyTransferRows: [{ id: "legacy-transfer", playerId: archiveReplacePlayerId }] },
+  marketReports: { legacyMarketRows: [{ season: 4, moves: 1 }] },
+  playerHistory: "legacy-player-history-payload",
+  notes: { legacyNotes: ["legacy-world-note"] },
+  transferClubHistoryByPlayer: [{ playerId: archiveReplacePlayerId, clubs: ["legacy-club"] }]
+};
+malformedActiveHistoryWorld.legacyRecoveryData = { priorRecoveryMarker: "keep-existing-recovery" };
+Object.assign(malformedActiveHistoryWorld, malformedActiveHistoryPayloads);
+const malformedActiveHistorySave = { season: 5, worldSimulation: malformedActiveHistoryWorld };
+const recoveredActiveHistoryWorld = ai.ensureState(malformedActiveHistorySave, archiveReplaceDb);
+assert.strictEqual(recoveredActiveHistoryWorld, malformedActiveHistoryWorld,
+  "malformed active history must be repaired in place without replacing the saved world");
+assert.equal(recoveredActiveHistoryWorld.legacyRecoveryData.priorRecoveryMarker, "keep-existing-recovery",
+  "active-history recovery must not overwrite earlier recovery payloads");
+for (const [field, payload] of Object.entries(malformedActiveHistoryPayloads)) {
+  assert.deepEqual(recoveredActiveHistoryWorld.legacyRecoveryData[field], payload,
+    "malformed " + field + " data must be retained in the save recovery bucket");
+}
+assert.ok(Array.isArray(recoveredActiveHistoryWorld.completedSeasons));
+assert.ok(Array.isArray(recoveredActiveHistoryWorld.transfers));
+assert.ok(Array.isArray(recoveredActiveHistoryWorld.marketReports));
+assert.ok(Array.isArray(recoveredActiveHistoryWorld.notes));
+assert.ok(recoveredActiveHistoryWorld.seasonStats && typeof recoveredActiveHistoryWorld.seasonStats === "object");
+assert.ok(recoveredActiveHistoryWorld.leagueTables && typeof recoveredActiveHistoryWorld.leagueTables === "object");
+assert.ok(recoveredActiveHistoryWorld.playerHistory && typeof recoveredActiveHistoryWorld.playerHistory === "object");
+assert.ok(recoveredActiveHistoryWorld.transferClubHistoryByPlayer
+  && typeof recoveredActiveHistoryWorld.transferClubHistoryByPlayer === "object"
+  && !Array.isArray(recoveredActiveHistoryWorld.transferClubHistoryByPlayer),
+  "the compact transfer-history index must be normalized only after its original payload is retained");
+
+const blockedRecoveryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+blockedRecoveryWorld.legacyRecoveryData = ["unusable-recovery-container"];
+blockedRecoveryWorld.transfers = { legacyTransferRows: [{ id: "must-not-be-dropped" }] };
+const blockedTransferSnapshot = JSON.stringify(blockedRecoveryWorld.transfers);
+const blockedRecoveryBucketSnapshot = JSON.stringify(blockedRecoveryWorld.legacyRecoveryData);
+assert.strictEqual(ai.ensureState({ season: 5, worldSimulation: blockedRecoveryWorld }, archiveReplaceDb),
+  blockedRecoveryWorld, "an unusable recovery container must defer active-history normalization");
+assert.equal(JSON.stringify(blockedRecoveryWorld.transfers), blockedTransferSnapshot,
+  "when recovery storage is malformed, world repair must leave the original transfer payload untouched");
+assert.equal(JSON.stringify(blockedRecoveryWorld.legacyRecoveryData), blockedRecoveryBucketSnapshot,
+  "world repair must not overwrite an unusable recovery bucket while deferring normalization");
+
 const archiveReplaceHostileIdWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 const hostileArchivePlayerId = {
   toString() { throw new Error("unsafe generated-player ID coercion"); },

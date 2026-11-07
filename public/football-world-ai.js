@@ -653,6 +653,10 @@
     }
     let rows = safeWorldOwnValue(history, key);
     if (!Array.isArray(rows)) {
+      // A malformed per-player endpoint list may be the only surviving copy of
+      // former-club data. Archive it before replacing the active index entry.
+      if (rows !== undefined
+        && !preserveMalformedWorldField(world, "transferClubHistory:" + key, rows)) return;
       rows = [];
       if (!safeWorldSetOwnValue(history, key, rows)) return;
     }

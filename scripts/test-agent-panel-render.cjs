@@ -46,6 +46,10 @@ let saves = 0;
 const api = { getState: () => state, save: () => { saves++; } };
 const sandbox = {
   API: () => api,
+  safeAgentText: (value, fallback) => typeof value === "string" ? value
+    : typeof value === "number" && Number.isFinite(value) ? String(value)
+      : typeof value === "boolean" ? (value ? "true" : "false")
+        : (typeof fallback === "string" ? fallback : ""),
   ensureState: () => false,
   renewRelationship: () => false,
   cloneAgentMaintenancePreview: value => Object.assign({}, value),

@@ -581,4 +581,47 @@ const injection = social.createPlayerPost(injectionState, "<img src=x onerror=al
 assert.equal(injection.ok, true);
 assert.equal(injection.post.body, "<img src=x onerror=alert(1)>", "user text must be preserved as data; the renderer escapes it");
 
-console.log("PASS: social posts, real transfer rumours, squad-role and bench stories, locker-room events, migration and contextual replies.");
+// ensureState must never discard malformed legacy feed rows from the saved
+// career. The renderer gets a filtered view, while the persisted array stays intact.
+const preservedFeedRows = [
+  null,
+  ["legacy-array-row"],
+  { id: "legacy-invalid-body", body: hostileOfferLabel, authorType: "media" },
+  { id: "legacy-valid-row", kind: "news", author: "صوت المدرج", authorType: "media",
+    avatar: "📣", body: "محتوى محفوظ", season: 1, day: 1, likes: 0, comments: [] }
+];
+const preservedFeedState = {
+  careerStarted: true, retired: false, season: 1, day: 1, role: "أساسي",
+  teamChemistry: 50, followers: 10, mediaReputation: 50, coachRelationship: 50,
+  careerMatchHistory: [], pressHistory: [], relationshipHistory: [], transferHistory: [],
+  careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: 3, nextId: 2, initialized: true, posts: preservedFeedRows,
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "أساسي", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 1, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+const originalPreservedRows = preservedFeedState.socialMedia.posts;
+assert.strictEqual(social.ensureState(preservedFeedState).posts, originalPreservedRows,
+  "legacy post normalization must retain the original persisted posts array");
+assert.strictEqual(originalPreservedRows[0], null);
+assert.strictEqual(originalPreservedRows[1], preservedFeedRows[1]);
+assert.strictEqual(originalPreservedRows[2], preservedFeedRows[2]);
+assert.equal(social.syncState(preservedFeedState), 0,
+  "feed sync without new events must not rewrite malformed legacy post rows");
+assert.strictEqual(preservedFeedState.socialMedia.posts, originalPreservedRows,
+  "feed sync must preserve the original legacy post array");
+const missingLegacyPost = social.respond(preservedFeedState, "legacy-invalid-body", "like");
+assert.equal(missingLegacyPost.reason, "post-not-found",
+  "actions must ignore malformed saved rows without throwing");
+roleRenderFeed.dataset.ready = "false";
+assert.doesNotThrow(() => social.render(preservedFeedState),
+  "rendering should filter malformed rows without mutating the career save");
+assert.match(roleRenderFeed.innerHTML, /محتوى محفوظ/,
+  "valid saved posts should remain visible beside malformed legacy rows");
+assert.doesNotMatch(roleRenderFeed.innerHTML, /legacy-array-row|legacy-invalid-body|\[object Object\]/);
+assert.strictEqual(preservedFeedState.socialMedia.posts, originalPreservedRows,
+  "render-only filtering must never rewrite the saved social history");
+
+console.log("PASS: social posts, legacy-data safety, non-destructive feed hydration, contextual replies and migration.");

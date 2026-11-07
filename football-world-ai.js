@@ -931,7 +931,7 @@
       if (!Array.isArray(sourceRows)) return false;
       const existingRows = safeWorldOwnValue(archive.playerHistory, canonicalPlayerId);
       if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
-      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
+      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();
       sourceRows.forEach(entry => {
         if (!mergedRows.includes(entry)) mergedRows.push(entry);
       });
@@ -945,7 +945,7 @@
       if (!Array.isArray(sourceRows)) return false;
       const existingRows = safeWorldOwnValue(transferClubHistoryByPlayer, canonicalPlayerId);
       if (existingRows !== undefined && !Array.isArray(existingRows)) return false;
-      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : [];
+      const mergedRows = Array.isArray(existingRows) ? existingRows.slice() : sourceRows.slice();
       sourceRows.forEach(endpoint => {
         const endpointId = safeWorldRecordIdentifier(endpoint, "clubId");
         const endpointName = normalize(safeWorldRecordText(endpoint, "name"));

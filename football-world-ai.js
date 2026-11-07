@@ -100,6 +100,19 @@
       return Array.isArray(value) ? value : [];
     } catch (_) { return []; }
   }
+  function hasPendingClubRosterRecovery(world, clubId) {
+    const id = safeWorldIdentifier(clubId);
+    if (!id) return false;
+    const recoveryKey = "clubRoster:" + id;
+    for (const bucketName of ["legacyRecoveryData", "legacyRecoveryDataFallback"]) {
+      const bucket = safeWorldOwnValue(world, bucketName);
+      if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) continue;
+      try {
+        if (Object.prototype.hasOwnProperty.call(bucket, recoveryKey)) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
   function safeWorldSetField(record, field, value) {
     try {
       if (!record || typeof record !== "object") return false;
@@ -739,6 +752,7 @@
       ? "academy-" + hash(clubId + "|" + index + "|" + (row && row.name || "player")).toString(36)
       : "player-" + hash(clubId + "|" + (sourceIdentity || index)).toString(36);
     if (world.players[id]) return world.players[id];
+    if (hasPendingClubRosterRecovery(world, clubId)) return null;
     const player = {
       id, name: String(row && row.name || (club.name + " • ناشئ " + String(index + 1).padStart(2, "0"))),
       clubId, country: club.country, leagueId: club.leagueId, division: club.division,
@@ -797,6 +811,7 @@
     const memberships = new Map();
     const clubEntries = [];
     const clubById = new Map();
+    const malformedRosters = [];
     for (const key of safeWorldObjectKeys(clubs)) {
       const club = safeWorldOwnValue(clubs, key);
       if (!club || typeof club !== "object" || Array.isArray(club)) continue;
@@ -807,13 +822,27 @@
       const current = clubById.get(clubId);
       if (!current || (key === clubId && current.key !== current.clubId)) clubById.set(clubId, entry);
 
+      const savedRoster = safeWorldOwnValue(club, "roster");
+      if (savedRoster !== undefined && !Array.isArray(savedRoster)) {
+        malformedRosters.push({ club, clubId, value: savedRoster });
+      }
+    }
+    // A malformed roster can still contain the only surviving references to players.
+    // Preserve the exact payload before replacing it with a safe working array.
+    for (const item of malformedRosters) {
+      if (!preserveMalformedWorldField(world, "clubRoster:" + item.clubId, item.value)) return false;
+    }
+    for (const item of malformedRosters) {
+      if (!safeWorldTrySetOwnValue(item.club, "roster", [])) return false;
+    }
+    for (const entry of clubEntries) {
       const localSeen = new Set();
-      for (const rosterId of safeWorldArrayField(club, "roster")) {
+      for (const rosterId of safeWorldArrayField(entry.club, "roster")) {
         const playerId = safeWorldIdentifier(rosterId);
         if (!playerId || localSeen.has(playerId)) continue;
         localSeen.add(playerId);
         if (!memberships.has(playerId)) memberships.set(playerId, []);
-        memberships.get(playerId).push(clubId);
+        memberships.get(playerId).push(entry.clubId);
       }
     }
 
@@ -884,14 +913,17 @@
     for (const entry of clubEntries) {
       const roster = activeRosterIds(world, entry.club, entry.clubId)
         .filter(id => !ambiguous.has(safeWorldIdentifier(id)));
-      safeWorldSetField(entry.club, "roster", roster);
+      if (!safeWorldTrySetOwnValue(entry.club, "roster", roster)) return false;
     }
     return world;
   }
   function fillRoster(world, club) {
     const clubId = safeWorldClubIdentifierForWorld(world, club);
     if (!clubId) return;
-    club.roster = activeRosterIds(world, club, clubId);
+    const activeRoster = activeRosterIds(world, club, clubId);
+    if (!safeWorldTrySetOwnValue(club, "roster", activeRoster)) return;
+    // Do not invent replacement players while a malformed legacy roster awaits recovery.
+    if (hasPendingClubRosterRecovery(world, clubId)) return;
     const minimum = 16;
     const counts = Object.fromEntries(Object.keys(TARGETS).map(key => [key, 0]));
     club.roster.forEach(id => {
@@ -978,6 +1010,9 @@
     } else if (typeof savedPlayerHistory !== "object" || Array.isArray(savedPlayerHistory)) {
       return world;
     }
+    // Restore authoritative player links and preserve malformed roster payloads before
+    // unsupported-club cleanup or catalogue reconciliation can change the active world.
+    if (normalizeRosterMembership(world) === false) return world;
     const transferClubHistoryByPlayer = ensureTransferClubHistory(world);
     // Unsupported competitions leave the active simulation, but their saved data is archived rather than destroyed.
     const supportedLeagueIds = supportedWorldLeagueIds(db);
@@ -1243,9 +1278,6 @@
         safeWorldTrySetOwnValue(competitionsBySeason, season, items.filter(item => !isUnsupportedCompetition(item)));
       }
     }
-    // Restore authoritative player-to-club links before database reconciliation can
-    // refill a missing squad slot with a generated placeholder.
-    normalizeRosterMembership(world);
     const rows = db && typeof db.clubs === "function" ? db.clubs() : [];
     const unavailableIdentitiesByClub = new Map();
     const allClubs = Object.values(world.clubs || {});
@@ -1403,6 +1435,10 @@
         // placeholders; existing real players and their career history are preserved.
         const knownForClub = knownPlayersByClub.get(id) || new Set();
         const unavailableForClub = unavailableIdentitiesByClub.get(id) || new Set();
+        if (hasPendingClubRosterRecovery(world, id)) {
+          knownPlayersByClub.set(id, knownForClub);
+          continue;
+        }
         let index = 0;
         for (const playerRow of records) {
           const identityKey = rosterIdentityKey(playerRow);
@@ -1448,7 +1484,7 @@
     Object.values(world.players).forEach(player => {
       player.group = groupForPosition(player.position);
     });
-    normalizeRosterMembership(world);
+    if (normalizeRosterMembership(world) === false) return world;
     Object.values(world.clubs).forEach(club => fillRoster(world, club));
     safeWorldSetField(world, "rosterSchemaVersion", 3);
     safeWorldSetField(world, "rosterMembershipSchemaVersion", ROSTER_MEMBERSHIP_SCHEMA_VERSION);
@@ -1536,8 +1572,8 @@
       reconcileDatabase(world, db);
     }
     if (safeNumber(safeWorldOwnValue(world, "rosterMembershipSchemaVersion"), NaN) !== ROSTER_MEMBERSHIP_SCHEMA_VERSION) {
-      normalizeRosterMembership(world);
-      safeWorldSetField(world, "rosterMembershipSchemaVersion", ROSTER_MEMBERSHIP_SCHEMA_VERSION);
+      if (normalizeRosterMembership(world) === false) return world;
+      if (!safeWorldTrySetOwnValue(world, "rosterMembershipSchemaVersion", ROSTER_MEMBERSHIP_SCHEMA_VERSION)) return world;
       world.projectionRevision = Math.max(0, int(world.projectionRevision, 0)) + 1;
       invalidateUnfinishedSeasonProjection(world);
     }

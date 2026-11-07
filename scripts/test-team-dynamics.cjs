@@ -156,6 +156,17 @@ assert.equal(Array.from(malformedSeasonHistoryView.stats.formRows,row=>row.id).s
   "season-current-number,season-current-string,season-missing",
   "malformed season objects, arrays, booleans and strings must not be relabelled as current-season matches");
 
+const malformedChallengeSeasonState=Object.assign({},state,{
+  teamLeadership:{challenge:{
+    clubKey:"egypt|test fc",
+    season:{valueOf:null,toString:null},
+    startAppearances:8
+  }}
+});
+const malformedChallengeSeasonView=dynamics.snapshot(malformedChallengeSeasonState);
+assert.equal(malformedChallengeSeasonView.challenge,null,
+  "a malformed saved captaincy season must be ignored without throwing or activating the challenge");
+
 const legacySeasonRows = Array.from({length:8},(_,i)=>match("legacy-"+(i+1),2,5+(i*0.4),0,0));
 const legacyOnlyState = Object.assign({},state,{careerMatchHistory:[],seasonLog:legacySeasonRows});
 const legacyOnlyView = dynamics.snapshot(legacyOnlyState);

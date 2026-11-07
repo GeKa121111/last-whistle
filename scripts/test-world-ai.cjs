@@ -7304,6 +7304,24 @@ function createSchemaGuardFixture(overrides = {}) {
   Object.assign(world, overrides);
   return { save: { season: 4, worldSimulation: world }, world, player };
 }
+const olderSchemaFixture = createSchemaGuardFixture({ schemaVersion: Math.max(0, ai.version - 1) });
+const olderSchemaResult = ai.ensureState(olderSchemaFixture.save, schemaGuardDb);
+assert.strictEqual(olderSchemaResult, olderSchemaFixture.world,
+  "older world schemas must be upgraded in place instead of replacing the saved world");
+assert.strictEqual(olderSchemaResult.players["schema-guard-player"], olderSchemaFixture.player,
+  "in-place schema upgrades must preserve existing player records");
+assert.equal(olderSchemaResult.schemaVersion, ai.version,
+  "a supported older world schema must be marked with the current schema version");
+
+const futureSchemaFixture = createSchemaGuardFixture({ schemaVersion: ai.version + 1 });
+const futureSchemaResult = ai.ensureState(futureSchemaFixture.save, schemaGuardDb);
+assert.strictEqual(futureSchemaResult, futureSchemaFixture.world,
+  "a future world schema must not trigger a destructive world reseed");
+assert.strictEqual(futureSchemaResult.players["schema-guard-player"], futureSchemaFixture.player,
+  "loading a future world schema must preserve existing player records");
+assert.equal(futureSchemaResult.schemaVersion, ai.version + 1,
+  "an older client must not downgrade a future world schema marker");
+
 const hostileSchemaVersion = {
   toString() { throw new Error("unsafe world schema string coercion"); },
   valueOf() { throw new Error("unsafe world schema numeric coercion"); }

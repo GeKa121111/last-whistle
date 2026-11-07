@@ -264,6 +264,91 @@ assert.doesNotThrow(() => social.render(hostileRoleState),
   "render signature generation must tolerate a malformed saved role");
 assert.equal(roleRenderFeed.dataset.ready, "true");
 
+// Legacy social cursors and match IDs may be objects. Migration must fall back
+// to the stable composite match key without coercing or rewriting source history.
+const hostileHistoryMatch = {
+  id: hostileOfferLabel, season: 2, day: 5, opponent: hostileOfferLabel,
+  minutes: 0, playerAvailable: false, rating: 0, goals: 0, assists: 0,
+  teamGoals: 0, oppGoals: 1
+};
+const hostileHistoryState = {
+  name: "Legacy History Player", careerStarted: true, season: 2, day: 5, calendarDay: 5,
+  role: "بديل", followers: 100, careerMatchHistory: [hostileHistoryMatch],
+  pressHistory: [], relationshipHistory: [], transferHistory: [], careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: 2, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "بديل", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 1, lastBenchStoryMatchId: "", lastReplyDay: hostileOfferLabel
+  }
+};
+assert.doesNotThrow(() => social.ensureState(hostileHistoryState),
+  "malformed legacy match and reply cursors must not break social-state migration");
+assert.equal(hostileHistoryState.socialMedia.lastBenchStoryMatchId, social.matchKey(hostileHistoryMatch),
+  "migration must fall back to a safe composite match key when the saved ID is malformed");
+assert.equal(hostileHistoryState.socialMedia.lastReplyDay, "",
+  "malformed reply-day metadata must reset to an empty cursor");
+assert.strictEqual(hostileHistoryMatch.id, hostileOfferLabel,
+  "cursor migration must preserve the original saved match ID");
+assert.strictEqual(hostileHistoryMatch.opponent, hostileOfferLabel,
+  "cursor migration must preserve the original opponent payload");
+
+hostileHistoryState.socialMedia.lastBenchStoryMatchId = hostileOfferLabel;
+hostileHistoryState.socialMedia.lastReplyDay = hostileOfferLabel;
+assert.doesNotThrow(() => social.ensureState(hostileHistoryState),
+  "already-versioned hostile social cursors must normalize without coercion");
+assert.equal(hostileHistoryState.socialMedia.lastBenchStoryMatchId, "");
+assert.equal(hostileHistoryState.socialMedia.lastReplyDay, "");
+const legacyReplyPost = social.createPlayerPost(hostileHistoryState, "شكراً للجمهور على الدعم.");
+assert.equal(legacyReplyPost.ok, true);
+assert.doesNotThrow(() => social.respond(hostileHistoryState, legacyReplyPost.post.id, "respect"),
+  "a recovered reply cursor must allow a normal social response");
+
+const hostileOpponentPost = social.createMatchPost(hostileHistoryState, {
+  opponent: hostileOfferLabel, minutes: 90, rating: 7.2, goals: 0, assists: 0, teamGoals: 1, oppGoals: 0
+});
+assert.match(hostileOpponentPost.body, /المنافس/,
+  "malformed opponent labels must use a safe match-story fallback");
+assert.doesNotMatch(hostileOpponentPost.body, /\[object Object\]/);
+
+const hostileEventState = {
+  name: "Legacy Event Player", careerStarted: true, season: 2, day: 6, role: "بديل",
+  followers: 100, careerMatchHistory: [],
+  pressHistory: [{ id: "hostile-press-label", type: hostileOfferLabel, text: hostileOfferLabel }],
+  relationshipHistory: [], transferHistory: [{ id: "hostile-transfer-label", text: hostileOfferLabel }],
+  careerAwards: [], trophyCabinet: [],
+  socialMedia: {
+    version: 3, nextId: 1, initialized: true, posts: [],
+    seen: { matches: [], press: [], relationships: [], transfers: [], awards: [], offers: [] },
+    observedRole: "بديل", lockerRoomCrisisActive: false,
+    lastBenchStoryCalendarDay: 6, lastBenchStoryMatchId: "", lastReplyDay: ""
+  }
+};
+assert.doesNotThrow(() => social.syncState(hostileEventState),
+  "malformed press and transfer history labels must not interrupt feed synchronization");
+assert.ok(hostileEventState.socialMedia.posts.some(post => post.kind === "press" && /تطور جديد/.test(post.body)));
+assert.ok(hostileEventState.socialMedia.posts.some(post => post.kind === "transfer" && /تطور جديد/.test(post.body)));
+
+const hostileSavedPostState = {
+  followers: 100, mediaReputation: 50, teamChemistry: 50, coachRelationship: 50, role: "أساسي",
+  socialMedia: {
+    version: 3, nextId: 2, initialized: true,
+    posts: [null, {
+      id: hostileOfferLabel, kind: hostileOfferLabel, author: hostileOfferLabel, authorType: "media",
+      avatar: hostileOfferLabel, body: "محتوى محفوظ", season: hostileOfferLabel, day: hostileOfferLabel,
+      likes: hostileOfferLabel, liked: false,
+      comments: [null, { avatar: hostileOfferLabel, author: hostileOfferLabel, role: hostileOfferLabel,
+        body: "تعليق محفوظ", likes: hostileOfferLabel }],
+      playerResponse: hostileOfferLabel
+    }],
+    lastReplyDay: hostileOfferLabel
+  }
+};
+assert.doesNotThrow(() => social.render(hostileSavedPostState),
+  "rendering legacy post metadata and comments must never invoke hostile object coercion");
+assert.match(roleRenderFeed.innerHTML, /محتوى محفوظ/);
+assert.doesNotMatch(roleRenderFeed.innerHTML, /\[object Object\]/);
+
 const state = {
   name: "Test Player",
   careerStarted: true,

@@ -963,6 +963,15 @@
       try { delete transferClubHistoryByPlayer[sourcePlayerId]; } catch (_) {}
       return true;
     };
+    // Index players by their current club once. Re-scanning the full player map
+    // for every unsupported club made large-world reconciliation unnecessarily O(clubs × players).
+    const playersByClubId = new Map();
+    for (const [playerId, player] of Object.entries(world.players || {})) {
+      const playerClubId = safeWorldRecordIdentifier(player, "clubId");
+      if (!playerClubId) continue;
+      if (!playersByClubId.has(playerClubId)) playersByClubId.set(playerClubId, []);
+      playersByClubId.get(playerClubId).push([playerId, player]);
+    }
     if (supportedLeagueIds.size) {
       for (const [clubId, club] of Object.entries(world.clubs)) {
         const leagueId = safeWorldLeagueIdentifier(club);
@@ -970,8 +979,7 @@
         // Do not discard the active club if its archive key already belongs to a
         // different historical club record.
         if (!archiveRecordCanAccept(archive.clubs, clubId, club, "club")) continue;
-        const playersForClub = Object.entries(world.players || {}).filter(([, player]) =>
-          player && safeWorldRecordIdentifier(player, "clubId") === clubId);
+        const playersForClub = playersByClubId.get(clubId) || [];
         for (const [playerId, player] of playersForClub) {
           // Archive player/history data before removing the live player. A conflicting
           // archived record or an unwritable history bucket keeps the player active.
@@ -989,8 +997,8 @@
           if (safeWorldOwnValue(world.players, playerId) !== undefined) continue;
           removedPlayerIds.add(playerId);
         }
-        const hasRemainingPlayers = Object.values(world.players || {}).some(player =>
-          player && safeWorldRecordIdentifier(player, "clubId") === clubId);
+        const hasRemainingPlayers = playersForClub.some(([playerId]) =>
+          safeWorldOwnValue(world.players, playerId) !== undefined);
         if (hasRemainingPlayers) continue;
         // Only archive/remove the club after every attached player has been safely
         // archived and removed; this prevents active players pointing at a missing club.

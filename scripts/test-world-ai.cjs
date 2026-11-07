@@ -3887,6 +3887,82 @@ assert.deepEqual(removedClubIdentityCollisionWorld.transferClubHistoryByPlayer[s
 assert.equal(removedClubIdentityCollisionWorld.transferClubHistoryByPlayer[archiveReplacePlayerId], undefined,
   "legacy transfer endpoints must not migrate to the surviving player");
 
+// Existing archive keys are authoritative: a different archived club/player must
+// never be overwritten, and the live records must remain attached to their club.
+function makeArchiveConflictWorld(conflictKind) {
+  const world = JSON.parse(JSON.stringify(archiveReplaceWorld));
+  const clubId = "archive-conflict-unsupported-club";
+  const playerId = "archive-conflict-unsupported-player";
+  const player = {
+    id: playerId, name: "Active Unsupported Player", clubId, country: archiveReplaceCountry,
+    leagueId: "unsupported-legacy-league", division: 1, position: "مهاجم",
+    age: 24, ovr: 60, potential: 66, isGenerated: false, isRealPlayer: true
+  };
+  const club = {
+    id: clubId, name: "Active Unsupported Club", country: archiveReplaceCountry,
+    leagueId: "unsupported-legacy-league", division: 1, roster: [playerId]
+  };
+  world.players[playerId] = player;
+  world.clubs[clubId] = club;
+  world.playerHistory[playerId] = [{ season: 4, type: "development", note: "preserve active history" }];
+  world.seasonStats["5"].push({
+    id: playerId, playerId, clubId, leagueId: "unsupported-legacy-league",
+    season: 5, appearances: 14, goals: 5, assists: 2
+  });
+  world.archive = {
+    clubs: {}, players: {}, playerHistory: {}, seasonStats: {},
+    leagueTables: {}, leagueTableRows: {}, matchesBySeason: {}, competitionsBySeason: {}
+  };
+  if (conflictKind === "club") {
+    world.archive.clubs[clubId] = { ...club, name: "Older Archived Club Snapshot" };
+  }
+  if (conflictKind === "player") {
+    world.archive.players[playerId] = { ...player, name: "Older Archived Player Snapshot" };
+  }
+  return { world, clubId, playerId };
+}
+for (const conflictKind of ["club", "player"]) {
+  const fixture = makeArchiveConflictWorld(conflictKind);
+  const archiveBucket = fixture.world.archive[conflictKind === "club" ? "clubs" : "players"];
+  const archiveKey = conflictKind === "club" ? fixture.clubId : fixture.playerId;
+  const existingArchiveSnapshot = JSON.stringify(archiveBucket[archiveKey]);
+  assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+    fixture.world, removedClubIdentityCollisionDb
+  ), "a conflicting archived " + conflictKind + " record must not throw");
+  assert.equal(JSON.stringify(archiveBucket[archiveKey]), existingArchiveSnapshot,
+    "a conflicting archived " + conflictKind + " record must not be overwritten");
+  assert.ok(fixture.world.clubs[fixture.clubId],
+    "the unsupported club must remain active while an archive identity conflicts");
+  assert.ok(fixture.world.players[fixture.playerId],
+    "the player must remain active while its archive identity conflicts");
+  assert.ok(fixture.world.clubs[fixture.clubId].roster.includes(fixture.playerId),
+    "the active player must remain linked to the active club");
+  assert.ok(fixture.world.playerHistory[fixture.playerId].length,
+    "the active player's career history must remain available");
+  assert.ok(fixture.world.seasonStats["5"].some(row => row.playerId === fixture.playerId),
+    "the active player's season statistics must remain available");
+}
+
+// A locked history key is not a successful archive write. Keep the player and club
+// active rather than throwing or removing the only recoverable copy.
+const lockedPlayerHistoryWorld = makeArchiveConflictWorld("none");
+const lockedPlayerHistoryRows = [];
+Object.defineProperty(lockedPlayerHistoryWorld.world.archive.playerHistory, lockedPlayerHistoryWorld.playerId, {
+  value: lockedPlayerHistoryRows, enumerable: true, writable: false, configurable: false
+});
+assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+  lockedPlayerHistoryWorld.world, removedClubIdentityCollisionDb
+), "a non-writable archived player-history key must defer player removal safely");
+assert.ok(lockedPlayerHistoryWorld.world.players[lockedPlayerHistoryWorld.playerId],
+  "a player must remain active when its history archive cannot be written");
+assert.ok(lockedPlayerHistoryWorld.world.clubs[lockedPlayerHistoryWorld.clubId],
+  "the club must remain active while one of its players cannot be archived");
+assert.ok(lockedPlayerHistoryWorld.world.playerHistory[lockedPlayerHistoryWorld.playerId].length,
+  "career history must remain active when its archive write fails");
+assert.ok(lockedPlayerHistoryWorld.world.seasonStats["5"].some(row =>
+  row.playerId === lockedPlayerHistoryWorld.playerId),
+  "season statistics must remain active when player archival is incomplete");
+
 // A unique legacy alias on a player removed with an unsupported club must be
 // archived under the authoritative player-map key, without overwriting older history.
 const removedClubUniqueLegacyHistoryWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));

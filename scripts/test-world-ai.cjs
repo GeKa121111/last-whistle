@@ -4139,6 +4139,19 @@ assert.strictEqual(malformedArchiveRootWorld.archive, preservedMalformedArchiveR
 assert.equal(JSON.stringify(malformedArchiveRootWorld), malformedArchiveRootBefore,
   "a malformed archive root must not trigger player replacement or destructive normalization");
 
+// Frozen archive maps are valid objects but cannot accept new archive records.
+// Defer reconciliation before any active club/player/history data is changed.
+for (const bucketName of ["clubs", "players", "playerHistory"]) {
+  const frozenArchiveBucketWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+  Object.freeze(frozenArchiveBucketWorld.archive[bucketName]);
+  const frozenArchiveBucketBefore = JSON.stringify(frozenArchiveBucketWorld);
+  assert.doesNotThrow(() => sandbox.window.__lwTestReconcileDatabase(
+    frozenArchiveBucketWorld, archiveReplaceDb
+  ), "a frozen archive bucket must defer reconciliation without throwing");
+  assert.equal(JSON.stringify(frozenArchiveBucketWorld), frozenArchiveBucketBefore,
+    "a frozen " + bucketName + " archive bucket must not allow partial world reconciliation");
+}
+
 const malformedArchiveStateWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 malformedArchiveStateWorld.archive = preservedMalformedArchiveRoot;
 const malformedArchiveStateSnapshot = {

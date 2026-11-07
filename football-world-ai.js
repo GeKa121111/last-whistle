@@ -374,6 +374,9 @@
         continue;
       }
       if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) return null;
+      // Archive maps must be able to accept new keys. A frozen/sealed bucket
+      // cannot safely receive removed clubs or player records.
+      try { if (!Object.isExtensible(bucket)) return null; } catch (_) { return null; }
     }
     return archive;
   }

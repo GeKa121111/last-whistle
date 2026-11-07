@@ -1429,7 +1429,7 @@
       const leagueId = safeWorldLeagueIdentifier(club);
       return !!leagueId && !supportedLeagueIds.has(leagueId);
     });
-    if (catalogueVersion !== int(world.dbVersion, 0)
+    if (recoveredWorldMap || catalogueVersion !== int(world.dbVersion, 0)
       || safeNumber(safeWorldOwnValue(world, "rosterSchemaVersion"), NaN) !== 3 || hasUnsupportedClub) {
       reconcileDatabase(world, db);
     }

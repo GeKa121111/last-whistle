@@ -3851,6 +3851,33 @@ assert.strictEqual(recoveredMissingPlayersMap.archive.players[missingPlayersMapA
 assert.ok(Object.keys(recoveredMissingPlayersMap.players).length > 0,
   "the current roster catalogue must repopulate an absent active player map");
 
+// Missing-map recovery must force one catalogue reconciliation even when the saved
+// catalogue and roster schema versions already match the current database.
+const currentVersionMissingClubMapWorld = JSON.parse(JSON.stringify(missingClubMapWorld));
+currentVersionMissingClubMapWorld.dbVersion = Number(archiveReplaceDb.version);
+currentVersionMissingClubMapWorld.rosterSchemaVersion = 3;
+currentVersionMissingClubMapWorld.rosterMembershipSchemaVersion = 6;
+const currentVersionMissingClubMapSave = { season: 6, worldSimulation: currentVersionMissingClubMapWorld };
+const currentVersionMissingClubMapRecovered = ai.ensureState(currentVersionMissingClubMapSave, archiveReplaceDb);
+assert.ok(currentVersionMissingClubMapRecovered.clubs[archiveReplaceClubId],
+  "a missing club map must trigger catalogue reconciliation even when db and roster schema versions match");
+assert.ok(currentVersionMissingClubMapRecovered.clubs[archiveReplaceClubId].roster.includes(missingClubMapPlayerKey),
+  "same-version club-map recovery must relink the saved player before filling the roster");
+
+const currentVersionMissingPlayersWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
+currentVersionMissingPlayersWorld.dbVersion = Number(archiveReplaceDb.version);
+currentVersionMissingPlayersWorld.rosterSchemaVersion = 3;
+currentVersionMissingPlayersWorld.rosterMembershipSchemaVersion = 6;
+currentVersionMissingPlayersWorld.archive = JSON.parse(JSON.stringify(missingPlayersMapWorld.archive));
+delete currentVersionMissingPlayersWorld.players;
+const currentVersionMissingPlayersSave = { season: 6, worldSimulation: currentVersionMissingPlayersWorld };
+const currentVersionMissingPlayersRecovered = ai.ensureState(currentVersionMissingPlayersSave, archiveReplaceDb);
+assert.ok(Object.keys(currentVersionMissingPlayersRecovered.players).length > 0,
+  "a missing player map must repopulate from the verified catalogue even when db and roster schema versions match");
+assert.strictEqual(currentVersionMissingPlayersRecovered.archive.players[missingPlayersMapArchivePlayerKey].name,
+  missingPlayersMapArchivePlayer.name,
+  "same-version player-map recovery must preserve archived player identity");
+
 const completedProjectionWorld = JSON.parse(JSON.stringify(archiveReplaceWorld));
 completedProjectionWorld.completedSeasons = [5, 6];
 completedProjectionWorld.lastCompletedSeason = 6;

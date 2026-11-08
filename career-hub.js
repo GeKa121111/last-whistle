@@ -99,7 +99,7 @@
   
   function renderSeasonDevelopmentArchiveBreakdown(state){
     var root=$("seasonDevelopmentArchive");
-    if(!root)return;
+    if(!root||typeof root.querySelectorAll!=="function")return;
     var current=state||(api()&&api().getState?api().getState():null);
     var history=Array.isArray(current&&current.seasonDevelopmentHistory)?current.seasonDevelopmentHistory:[];
     var rows=history.filter(function(row){

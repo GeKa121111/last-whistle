@@ -1047,6 +1047,13 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
           <p class="muted small">قراءة مبنية على مبارياتك المسجلة فعلًا، مش أرقام عشوائية. تابع متوسط تقييمك ومساهماتك وأفضل خطوة تساعدك تطور مستواك.</p>
           <div id="performanceInsights"><div class="empty">العب أول مباراة عشان يظهر تحليل مستواك.</div></div>
         </article>
+        <article class="card span12 season-development-archive-card">
+          <div class="cardHead"><div><h2>📚 أرشيف تطور المواسم</h2><div class="subline">افتح أي موسم لمراجعة تطور التقييم، التدريب اليدوي والآلي، الخبرة والإصابات.</div></div><span class="pill indigo" id="seasonDevelopmentArchiveCount">0 موسم</span></div>
+          <p class="muted small" id="seasonDevelopmentArchiveStatus" role="status" aria-live="polite">بعد اعتماد نهاية أول موسم، هتظهر هنا تفاصيل تطور اللاعب عبر المواسم.</p>
+          <div id="seasonDevelopmentArchive" class="season-development-archive" aria-live="polite">
+            <div class="empty">سجل تطور المواسم هيظهر هنا بعد نهاية أول موسم.</div>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -7171,6 +7178,170 @@ function performanceAdviceForRole(position,metrics={},rating=6.2,energy=100,fati
  return "حافظ على طاقتك، واختار تدريب يناسب مركزك بدل ما تستهلك نفسك.";
 }
 
+function renderSeasonDevelopmentArchive(){
+ const root=$("seasonDevelopmentArchive");
+ if(!root)return;
+ const parseNumber=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:NaN;
+  if(typeof value==="string"&&value.trim()!==""){
+   const parsed=Number(value);
+   return Number.isFinite(parsed)?parsed:NaN;
+  }
+  return NaN;
+ };
+ const nonnegative=value=>{
+  const parsed=parseNumber(value);
+  return Number.isFinite(parsed)?Math.max(0,parsed):0;
+ };
+ const isRecord=value=>!!value&&typeof value==="object"&&!Array.isArray(value);
+ const history=Array.isArray(state.seasonDevelopmentHistory)?state.seasonDevelopmentHistory:[];
+ const rows=history.filter(row=>isRecord(row)&&Number.isSafeInteger(parseNumber(row.season))&&parseNumber(row.season)>0)
+  .slice().sort((a,b)=>parseNumber(b.season)-parseNumber(a.season));
+ const countNode=$("seasonDevelopmentArchiveCount");
+ const statusNode=$("seasonDevelopmentArchiveStatus");
+ if(countNode)countNode.textContent=rows.length.toLocaleString("en-US")+" موسم";
+ if(statusNode)statusNode.textContent=rows.length
+  ?"السجل مرتب من الأحدث إلى الأقدم. افتح أي موسم لمراجعة تفاصيل التدريب والتطور."
+  :history.length
+   ?"فيه بيانات تاريخية محفوظة، لكن مفيش سجل موسم صالح للعرض؛ البيانات الأصلية لم تتغير."
+   :"بعد اعتماد نهاية أول موسم، هتظهر هنا تفاصيل تطور اللاعب عبر المواسم.";
+ root.replaceChildren();
+ if(!rows.length){
+  const empty=document.createElement("div");
+  empty.className="empty";
+  empty.textContent=history.length
+   ?"لا توجد سجلات موسم صالحة للعرض. البيانات التاريخية الأصلية محفوظة كما هي."
+   :"لسه مفيش موسم مكتمل؛ تقرير التطور هيظهر هنا بعد نهاية أول موسم.";
+  root.append(empty);
+  return;
+ }
+ const labels={shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",defending:"الدفاع",goalkeeping:"حراسة المرمى",vision:"الرؤية",physical:"القوة البدنية"};
+ const labelFor=key=>Object.prototype.hasOwnProperty.call(labels,key)?labels[key]:key;
+ const formatValue=value=>Number.isInteger(value)?String(value):value.toFixed(1);
+ const addMetric=(grid,label,value)=>{
+  const item=document.createElement("div");
+  item.className="kpi";
+  const number=document.createElement("div");
+  number.className="kpiNum";
+  number.textContent=Math.round(nonnegative(value)).toLocaleString("en-US");
+  const caption=document.createElement("div");
+  caption.className="kpiLabel";
+  caption.textContent=label;
+  item.append(number,caption);
+  grid.append(item);
+ };
+ for(const row of rows){
+  const season=Math.floor(parseNumber(row.season));
+  const before=parseNumber(row.ovrBefore);
+  const after=parseNumber(row.ovrAfter);
+  const delta=Number.isFinite(before)&&Number.isFinite(after)?after-before:NaN;
+  const item=document.createElement("details");
+  item.className="dataCard season-development-item";
+  item.style.marginBottom="10px";
+  item.style.padding="12px";
+  const summary=document.createElement("summary");
+  summary.className="season-development-summary";
+  summary.style.display="flex";
+  summary.style.alignItems="center";
+  summary.style.justifyContent="space-between";
+  summary.style.flexWrap="wrap";
+  summary.style.gap="8px";
+  const title=document.createElement("strong");
+  title.textContent="الموسم "+season;
+  const rating=document.createElement("span");
+  rating.className="pill"+(Number.isFinite(delta)&&delta>0?" green":Number.isFinite(delta)&&delta<0?" red":"");
+  rating.textContent=Number.isFinite(before)&&Number.isFinite(after)
+   ?"التقييم "+formatValue(before)+" ← "+formatValue(after)+" ("+(delta>0?"+":"")+formatValue(delta)+")"
+   :"التقييم غير متاح";
+  summary.append(title,rating);
+  item.append(summary);
+
+  const metrics=document.createElement("div");
+  metrics.className="kpiGrid";
+  metrics.style.margin="10px 0";
+  const totalSessionsValue=parseNumber(row.totalSessions);
+  const totalXpValue=parseNumber(row.totalXP);
+  const totalInjuriesValue=parseNumber(row.totalInjuries);
+  addMetric(metrics,"إجمالي الحصص",Number.isFinite(totalSessionsValue)?totalSessionsValue:nonnegative(row.sessions)+nonnegative(row.manualSessions));
+  addMetric(metrics,"تدريب آلي",row.sessions);
+  addMetric(metrics,"تدريب يدوي",row.manualSessions);
+  addMetric(metrics,"إجمالي XP",Number.isFinite(totalXpValue)?totalXpValue:nonnegative(row.xp)+nonnegative(row.manualXP));
+  addMetric(metrics,"إصابات التدريب",Number.isFinite(totalInjuriesValue)?totalInjuriesValue:nonnegative(row.injuries)+nonnegative(row.manualInjuries));
+  addMetric(metrics,"الحصص المخططة",row.plannedSessions);
+  item.append(metrics);
+
+  const status=document.createElement("p");
+  status.className="sectionNote";
+  status.textContent=row.trainingSkipped===true
+   ?"حالة الخطة: تم تجاوز بقية الخطة بناءً على اختيارك."
+   :row.trainingCompleted===true
+    ?"حالة الخطة: اكتملت الخطة السنوية."
+    :"حالة الخطة: غير مكتملة أو لا يوجد تأكيد محفوظ.";
+  item.append(status);
+
+  const focus=document.createElement("p");
+  focus.className="muted small";
+  focus.textContent=typeof row.lastFocus==="string"&&row.lastFocus.trim()
+   ?"آخر تركيز تدريبي: "+labelFor(row.lastFocus)
+   :"لم يتم تسجيل تركيز تدريبي أخير.";
+  item.append(focus);
+
+  const distribution=new Map();
+  const combinedSkills=isRecord(row.trainingBySkill)&&Object.keys(row.trainingBySkill).length>0;
+  if(combinedSkills){
+   for(const [key,value] of Object.entries(row.trainingBySkill))distribution.set(key,nonnegative(value));
+  }else{
+   for(const source of [row.automaticTrainingBySkill,row.manualTrainingBySkill]){
+    if(!isRecord(source))continue;
+    for(const [key,value] of Object.entries(source))distribution.set(key,(distribution.get(key)||0)+nonnegative(value));
+   }
+  }
+  const skillRows=Array.from(distribution.entries()).filter(entry=>entry[1]>0).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  const skillTitle=document.createElement("p");
+  skillTitle.className="muted small";
+  skillTitle.textContent="توزيع حصص التدريب على المهارات";
+  item.append(skillTitle);
+  const skillBadges=document.createElement("div");
+  skillBadges.className="badgeGrid";
+  if(skillRows.length){
+   for(const [key,value] of skillRows){
+    const chip=document.createElement("span");
+    chip.className="pill";
+    chip.textContent=labelFor(key)+": "+Math.floor(value);
+    skillBadges.append(chip);
+   }
+  }else{
+   const emptySkills=document.createElement("span");
+   emptySkills.className="muted small";
+   emptySkills.textContent="لا يوجد توزيع مهارات مسجل لهذا الموسم.";
+   skillBadges.append(emptySkills);
+  }
+  item.append(skillBadges);
+
+  if(Array.isArray(row.skills)){
+   const changes=row.skills.filter(change=>isRecord(change)&&typeof change.key==="string"&&change.key)
+    .map(change=>({key:change.key,delta:parseNumber(change.delta)}))
+    .filter(change=>Number.isFinite(change.delta)&&change.delta>0);
+   if(changes.length){
+    const changesTitle=document.createElement("p");
+    changesTitle.className="muted small";
+    changesTitle.textContent="أبرز التحسينات المسجلة";
+    item.append(changesTitle);
+    const changeBadges=document.createElement("div");
+    changeBadges.className="badgeGrid";
+    for(const change of changes){
+     const chip=document.createElement("span");
+     chip.className="pill";
+     chip.textContent=labelFor(change.key)+" +"+formatValue(change.delta);
+     changeBadges.append(chip);
+    }
+    item.append(changeBadges);
+   }
+  }
+  root.append(item);
+ }
+}
+
 function renderStatsSummary(){
  const nonnegative=value=>{const numeric=Number(value);return Number.isFinite(numeric)?Math.max(0,numeric):0;};
  const careerApps=Math.floor(nonnegative(state.apps));
@@ -7325,6 +7496,7 @@ function render(){
   case "stats":
    renderAchievements();
    renderStatsSummary();
+   renderSeasonDevelopmentArchive();
    renderPerformanceInsights();
    break;
   case "league":

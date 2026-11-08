@@ -195,6 +195,32 @@ if (!html.includes("function renderStatsSummary(){")
   console.error("Player statistics summary must be populated from reconciled career and current-season match ledgers.");
   process.exit(1);
 }
+const seasonArchiveMarkupStart = html.indexOf('<article class="card span12 season-development-archive-card">');
+const seasonArchiveMarkupEnd = html.indexOf("</article>", seasonArchiveMarkupStart);
+const seasonArchivePageStart = html.indexOf('id="page-stats"');
+const seasonArchivePageEnd = html.indexOf('id="page-wellness"', seasonArchivePageStart);
+const seasonArchiveRendererStart = html.indexOf("function renderSeasonDevelopmentArchive(){");
+const seasonArchiveRendererEnd = html.indexOf("\nfunction renderStatsSummary()", seasonArchiveRendererStart);
+const seasonArchiveRenderer = seasonArchiveRendererStart >= 0 && seasonArchiveRendererEnd > seasonArchiveRendererStart
+  ? html.slice(seasonArchiveRendererStart, seasonArchiveRendererEnd) : "";
+const seasonArchiveStatsStart = html.indexOf('case "stats":');
+const seasonArchiveStatsEnd = html.indexOf('case "league":', seasonArchiveStatsStart);
+const seasonArchiveStatsBranch = seasonArchiveStatsStart >= 0 && seasonArchiveStatsEnd > seasonArchiveStatsStart
+  ? html.slice(seasonArchiveStatsStart, seasonArchiveStatsEnd) : "";
+if (seasonArchiveMarkupStart < seasonArchivePageStart || seasonArchiveMarkupStart >= seasonArchivePageEnd
+  || seasonArchiveMarkupEnd < seasonArchiveMarkupStart
+  || !html.includes('id="seasonDevelopmentArchiveCount"')
+  || !html.includes('id="seasonDevelopmentArchiveStatus"')
+  || !html.includes('id="seasonDevelopmentArchive"')
+  || !seasonArchiveStatsBranch.includes("renderSeasonDevelopmentArchive();")
+  || !seasonArchiveRenderer.includes("replaceChildren")
+  || !seasonArchiveRenderer.includes("textContent")
+  || !seasonArchiveRenderer.includes("manualTrainingBySkill")
+  || seasonArchiveRenderer.includes("innerHTML")) {
+  console.error("Season development archive UI must render all saved seasons with safe text-only DOM updates.");
+  process.exit(1);
+}
+
 const statsPageBranchStart = html.indexOf('case "stats":');
 const statsPageBranchEnd = html.indexOf('case "league":', statsPageBranchStart);
 const statsPageBranch = statsPageBranchStart >= 0 && statsPageBranchEnd > statsPageBranchStart

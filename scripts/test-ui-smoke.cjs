@@ -216,10 +216,73 @@ if (seasonArchiveMarkupStart < seasonArchivePageStart || seasonArchiveMarkupStar
   || !seasonArchiveRenderer.includes("replaceChildren")
   || !seasonArchiveRenderer.includes("textContent")
   || !seasonArchiveRenderer.includes("manualTrainingBySkill")
+  || !seasonArchiveRenderer.includes('item.setAttribute("data-season",String(season));')
+  || !seasonArchiveRenderer.includes("expandedSeasons.add(savedSeason)")
+  || !seasonArchiveRenderer.includes("item.open=expandedSeasons.has(season);")
   || seasonArchiveRenderer.includes("innerHTML")) {
   console.error("Season development archive UI must render all saved seasons with safe text-only DOM updates.");
   process.exit(1);
 }
+
+
+
+// Re-rendering the statistics page must not collapse season cards the player has opened.
+class SeasonArchiveTestNode {
+  constructor(tagName) {
+    this.tagName = tagName;
+    this.children = [];
+    this.attributes = Object.create(null);
+    this.style = {};
+    this.className = "";
+    this.textContent = "";
+    this.open = false;
+  }
+  append(...nodes) { this.children.push(...nodes); }
+  appendChild(node) { this.children.push(node); return node; }
+  replaceChildren(...nodes) { this.children = [...nodes]; }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null; }
+  querySelectorAll(selector) {
+    if (selector !== "details.season-development-item") return [];
+    return this.children.filter(node => node.tagName === "details"
+      && node.className.split(/\s+/).includes("season-development-item"));
+  }
+}
+const archiveRoot = new SeasonArchiveTestNode("div");
+const archiveNodes = {
+  seasonDevelopmentArchive: archiveRoot,
+  seasonDevelopmentArchiveCount: new SeasonArchiveTestNode("span"),
+  seasonDevelopmentArchiveStatus: new SeasonArchiveTestNode("p")
+};
+const archiveState = {
+  seasonDevelopmentHistory: [
+    { season: 1, ovrBefore: 60, ovrAfter: 62, sessions: 3, manualSessions: 1, xp: 30, manualXP: 10 },
+    { season: 2, ovrBefore: 62, ovrAfter: 65, sessions: 4, manualSessions: 2, xp: 40, manualXP: 20 }
+  ]
+};
+const archiveSandbox = {
+  state: archiveState,
+  document: { createElement: tagName => new SeasonArchiveTestNode(tagName) },
+  $(id) { return archiveNodes[id] || null; }
+};
+vm.createContext(archiveSandbox);
+vm.runInContext(seasonArchiveRenderer + "\nrenderSeasonDevelopmentArchive();", archiveSandbox,
+  { filename: "season-development-archive-open-state" });
+let archiveCards = archiveRoot.querySelectorAll("details.season-development-item");
+assert.equal(archiveCards.length, 2, "the archive fixture should render both saved seasons");
+archiveCards.find(card => card.getAttribute("data-season") === "1").open = true;
+archiveCards.find(card => card.getAttribute("data-season") === "2").open = true;
+archiveState.seasonDevelopmentHistory[1].ovrAfter = 68;
+vm.runInContext("renderSeasonDevelopmentArchive();", archiveSandbox,
+  { filename: "season-development-archive-open-state-refresh" });
+archiveCards = archiveRoot.querySelectorAll("details.season-development-item");
+assert.equal(archiveCards.find(card => card.getAttribute("data-season") === "1").open, true,
+  "refreshing the archive must preserve the expanded state of older seasons");
+assert.equal(archiveCards.find(card => card.getAttribute("data-season") === "2").open, true,
+  "refreshing the archive must preserve the expanded state of the latest season");
+const latestCard = archiveCards.find(card => card.getAttribute("data-season") === "2");
+assert.ok(latestCard.children[0].children[1].textContent.includes("68"),
+  "the refreshed archive must still render updated season data while preserving expansion");
 
 
 const careerHub = fs.readFileSync(path.join(root, "public", "career-hub.js"), "utf8");

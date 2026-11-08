@@ -7197,6 +7197,14 @@ function renderSeasonDevelopmentArchive(){
  const history=Array.isArray(state.seasonDevelopmentHistory)?state.seasonDevelopmentHistory:[];
  const rows=history.filter(row=>isRecord(row)&&Number.isSafeInteger(parseNumber(row.season))&&parseNumber(row.season)>0)
   .slice().sort((a,b)=>parseNumber(b.season)-parseNumber(a.season));
+ const expandedSeasons=new Set();
+ if(typeof root.querySelectorAll==="function"){
+  Array.from(root.querySelectorAll("details.season-development-item")).forEach(item=>{
+   if(!item||item.open!==true||typeof item.getAttribute!=="function")return;
+   const savedSeason=parseNumber(item.getAttribute("data-season"));
+   if(Number.isSafeInteger(savedSeason)&&savedSeason>0)expandedSeasons.add(savedSeason);
+  });
+ }
  const countNode=$("seasonDevelopmentArchiveCount");
  const statusNode=$("seasonDevelopmentArchiveStatus");
  if(countNode)countNode.textContent=rows.length.toLocaleString("en-US")+" موسم";
@@ -7237,6 +7245,8 @@ function renderSeasonDevelopmentArchive(){
   const delta=Number.isFinite(before)&&Number.isFinite(after)?after-before:NaN;
   const item=document.createElement("details");
   item.className="dataCard season-development-item";
+  item.setAttribute("data-season",String(season));
+  item.open=expandedSeasons.has(season);
   item.style.marginBottom="10px";
   item.style.padding="12px";
   const summary=document.createElement("summary");

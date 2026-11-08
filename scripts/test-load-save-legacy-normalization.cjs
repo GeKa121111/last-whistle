@@ -268,7 +268,7 @@ function load(saved) {
   const validTrainingReport = load({
     ...INITIAL,
     seasonTrainingReport: {
-      sessions: "4", skills: { shooting: "2", passing: 3, defending: hostile },
+      sessions: "4", skills: { shooting: "2", passing: 3, defending: hostile, futureSkill: "4" },
       xp: "24.5", injuries: "1", plannedSessions: "12", manualSessions: "3",
       manualSkills: { shooting: "3", futureSkill: 2, invalid: hostile }, manualXP: "18.5", manualInjuries: "2",
       completed: true, completedSeason: "5", skipped: false, lastFocus: "shooting"
@@ -276,7 +276,7 @@ function load(saved) {
   });
   assert.equal(validTrainingReport.state.seasonTrainingReport.sessions, 4);
   assert.deepEqual(JSON.parse(JSON.stringify(validTrainingReport.state.seasonTrainingReport.skills)),
-    { shooting: 2, passing: 3, defending: 0 },
+    { shooting: 2, passing: 3, defending: 0, futureSkill: 4 },
     "valid training counters and numeric-string legacy skill values must survive normalization");
   assert.equal(validTrainingReport.state.seasonTrainingReport.xp, 24.5);
   assert.equal(validTrainingReport.state.seasonTrainingReport.injuries, 1);

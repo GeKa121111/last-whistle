@@ -789,6 +789,20 @@ async function main() {
     }, null, { timeout: 20000 });
     results.push("career and store ownership persist after reload");
 
+    // Older world history must survive backup import; routine local-save compaction trims it.
+    const backupHistoryMarker = "LAST_WHISTLE_BACKUP_HISTORY_SENTINEL";
+    await page.evaluate(marker => {
+      const world = window.LWStoryRuntime.getState().worldSimulation;
+      if (!world || !world.clubs || !world.players) throw new Error("world simulation is not ready for backup test");
+      world.leagueTables = { ...(world.leagueTables || {}), "1900": [{ marker }] };
+      world.playerHistory = {
+        ...(world.playerHistory || {}),
+        "backup-history-sentinel": Array.from({ length: 6 }, (_, index) => ({
+          season: index + 1, marker: marker + ":" + index
+        }))
+      };
+    }, backupHistoryMarker);
+
     // Full backup must remain portable with the multi-thousand-player world simulation.
     await page.locator("#mobileMore").click();
     const [backupDownload] = await Promise.all([
@@ -814,7 +828,9 @@ async function main() {
         xpMultiplier: !!save.xpMultiplier,
         worldPlayers: Object.keys(save.worldSimulation?.players || {}).length,
         worldClubs: Object.keys(save.worldSimulation?.clubs || {}).length,
-        hasSeasonDevelopment: !!save.seasonTrainingReport || !!save.seasonDevelopmentSnapshot
+        hasSeasonDevelopment: !!save.seasonTrainingReport || !!save.seasonDevelopmentSnapshot,
+        backupHistoryRows: save.worldSimulation?.playerHistory?.["backup-history-sentinel"]?.length || 0,
+        backupLegacyTableMarker: save.worldSimulation?.leagueTables?.["1900"]?.[0]?.marker || ""
       };
     }, backupPayload.career);
     assert.equal(exportedBackupFacts.name, "Mohamed Ahmed");
@@ -822,6 +838,10 @@ async function main() {
     assert.equal(exportedBackupFacts.xpMultiplier, true);
     assert.ok(exportedBackupFacts.worldPlayers > 1000, "backup must include the full player-world database");
     assert.ok(exportedBackupFacts.worldClubs > 100, "backup must include the world club database");
+    assert.equal(exportedBackupFacts.backupHistoryRows, 6,
+      "backup export must include every historical player-history row");
+    assert.equal(exportedBackupFacts.backupLegacyTableMarker, backupHistoryMarker,
+      "backup export must include older world-simulation league tables");
     // Make the live state observably different so the restore assertion cannot pass
     // against the pre-import career before the asynchronous file parser finishes.
     await page.evaluate(() => {
@@ -870,18 +890,21 @@ async function main() {
     });
     assert.ok(restoreNotice.includes("تمت استعادة"),
       "backup restore must complete successfully; observed notices: " + restoreNotice);
-    await page.waitForFunction(() => {
+    await page.waitForFunction(marker => {
       const state = window.LWStoryRuntime?.getState();
       return state && state.name === "Mohamed Ahmed" && state.xpMultiplier === true
         && Number(state.money) === 600
         && Object.keys(state.worldSimulation?.players || {}).length > 1000
-        && Object.keys(state.worldSimulation?.clubs || {}).length > 100;
-    }, null, { timeout: 30000 });
+        && Object.keys(state.worldSimulation?.clubs || {}).length > 100
+        && state.worldSimulation?.playerHistory?.["backup-history-sentinel"]?.length === 6
+        && state.worldSimulation?.playerHistory?.["backup-history-sentinel"]?.[5]?.marker === marker + ":5"
+        && state.worldSimulation?.leagueTables?.["1900"]?.[0]?.marker === marker;
+    }, backupHistoryMarker, { timeout: 30000 });
     await page.waitForFunction(() => {
       const drawer = document.querySelector("#drawer");
       return drawer && !drawer.classList.contains("open");
     }, null, { timeout: 10000 });
-    results.push("compressed backup exports and restores the player career and full world AI database");
+    results.push("compressed backup restores the full player career, world AI database, and older world history");
 
     await page.locator("#mobileMore").click();
     await page.locator('#drawer .navBtn[data-page="home"]').click();

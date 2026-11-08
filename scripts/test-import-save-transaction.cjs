@@ -33,6 +33,11 @@ function extractFunction(source, signature) {
 }
 
 const importSource = extractFunction(html, "async function importSaveFile(file)");
+const importFallbackSource = extractFunction(html, "function encodeImportFallback(value)");
+assert.match(importSource, /encodeImportFallback\(restored\)/,
+  "imports must use the full-snapshot fallback encoder");
+assert.doesNotMatch(importFallbackSource, /compactSnapshotForStorage/,
+  "the import fallback encoder must not trim world-simulation history");
 assert.match(html, /function loadGame\(options = \{\}\)\s*\{\s*const requireLocalFallback = options && options\.requireLocalFallback === true;/,
   "loadGame must support strict import-only fallback loading");
 assert.match(importSource, /loadGame\(\{requireLocalFallback:true\}\)/,
@@ -54,7 +59,7 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
   const originalState = { ...INITIAL, name: "Current In-Memory Career", money: 777 };
   const storage = new Map(previousRaw === null ? [] : [[STORAGE_KEY, previousRaw]]);
   const published = [];
-  const calls = { saves: 0, saveGame: 0, loadGame: [], renders: 0, toasts: [] };
+  const calls = { saves: 0, saveGame: 0, encodeImportFallback: 0, loadGame: [], renders: 0, toasts: [] };
   const shared = {
     current: originalState,
     publish(value, meta) { this.current = value; published.push({ value, source: meta && meta.source }); },
@@ -85,7 +90,8 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
         ensureState() {},
         rebuildLegacyCareerStats() {},
         deriveLeagueRatingStats() {}
-      }
+      },
+      LZString: { compressToUTF16(value) { return value; } }
     },
     loadGame(options = {}) {
       calls.loadGame.push(options);
@@ -125,6 +131,12 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
     console
   };
   vm.createContext(sandbox);
+  new vm.Script(importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback;", { filename: "encodeImportFallback" }).runInContext(sandbox);
+  const actualImportFallbackEncoder = sandbox.runImportFallbackEncoder;
+  sandbox.encodeImportFallback = value => {
+    calls.encodeImportFallback++;
+    return corruptEncodedFallback ? "not-json" : actualImportFallbackEncoder(value);
+  };
   new vm.Script(importSource + "\nglobalThis.runImport = importSaveFile;", { filename: "importSaveFile" }).runInContext(sandbox);
   return { sandbox, originalState, storage, published, calls, shared };
 }
@@ -133,7 +145,15 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
   const importedCareer = {
     name: "Imported Career", age: 26, season: 5, day: 30, calendarDay: 30,
     money: 2500, league: [], cupState: null, transferNegotiation: null,
-    careerStarted: true, schemaVersion: 10
+    careerStarted: true, schemaVersion: 10,
+    worldSimulation: {
+      clubs: { club1: { id: "club1" } },
+      players: { player1: { id: "player1" } },
+      leagueTables: { "1900": [{ marker: "old-season-table" }] },
+      playerHistory: {
+        player1: Array.from({ length: 6 }, (_, index) => ({ season: index + 1, marker: "history-" + index }))
+      }
+    }
   };
   const file = { size: 200, async text() {
     return JSON.stringify({ game: "LAST WHISTLE", version: 6, career: importedCareer });
@@ -147,6 +167,17 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
     "import must explicitly require the temporary fallback instead of accepting a stale startup record");
   assert.ok(String(success.storage.get(STORAGE_KEY)).startsWith("LWIDB1:"),
     "the imported fallback must carry the priority marker consumed by loadGame");
+  assert.equal(success.calls.encodeImportFallback, 1,
+    "import must use the dedicated full-snapshot fallback encoder");
+  const importedFallback = JSON.parse(success.storage.get(STORAGE_KEY).slice("LWIDB1:".length));
+  assert.equal(importedFallback.worldSimulation.playerHistory.player1.length, 6,
+    "the import fallback must preserve every historical player-history row");
+  assert.ok(importedFallback.worldSimulation.leagueTables["1900"],
+    "the import fallback must preserve older world-simulation league tables");
+  assert.equal(success.sandbox.state.worldSimulation.playerHistory.player1.length, 6,
+    "the loaded career must retain all imported player-history rows");
+  assert.ok(success.sandbox.state.worldSimulation.leagueTables["1900"],
+    "the loaded career must retain older world-simulation league tables");
   assert.equal(success.shared.current, success.sandbox.state,
     "successful import must publish the exact live state object loaded by the game");
   assert.equal(success.published.at(-1).source, "import");

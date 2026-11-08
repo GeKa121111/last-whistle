@@ -4719,6 +4719,15 @@ function compactSnapshotForStorage(value){
  };
  return snapshot;
 }
+function encodeImportFallback(value){
+ const serialized=JSON.stringify(value);
+ if(typeof serialized!=="string")throw new Error("invalid import snapshot");
+ if(!window.LZString||typeof window.LZString.compressToUTF16!=="function")return serialized;
+ try{
+  const compressed=window.LZString.compressToUTF16(serialized);
+  return typeof compressed==="string"&&compressed.length+5<serialized.length?"LWZ1:"+compressed:serialized;
+ }catch(error){return serialized;}
+}
 function encodeStoredSave(value){
  const compacted=compactSnapshotForStorage(value);
  const serialized=JSON.stringify(compacted);
@@ -4950,7 +4959,7 @@ async function importSaveFile(file){
  const previousState=state;
  const previous=localStorage.getItem(STORAGE_KEY);
  try{
-  localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeStoredSave(restored));
+  localStorage.setItem(STORAGE_KEY,FALLBACK_STORAGE_PREFIX+encodeImportFallback(restored));
   if(!loadGame({requireLocalFallback:true}))throw new Error("restore failed");
   if(window.LWStateStore&&typeof window.LWStateStore.publish==="function")window.LWStateStore.publish(state,{source:"import"});
   saveGame(true);render();showPage(state.currentPage||"home");closeDrawer();toast("تمت استعادة المسيرة وعالم الكرة بنجاح.");

@@ -14,9 +14,9 @@ assert.ok(start >= 0 && end > start, "season training AI functions must exist in
 const source = html.slice(start, end);
 
 const historyStart = html.indexOf("function upsertSeasonDevelopmentHistory(");
-const historyEnd = html.indexOf("\\nfunction simulateSeasonBlock(targetApps)", historyStart);
+const historyEnd = html.indexOf("\nfunction simulateSeasonBlock(targetApps)", historyStart);
 assert.ok(historyStart >= 0 && historyEnd > historyStart, "season development history helper must exist");
-const historySource = html.slice(historyStart, historyEnd) + "\\nglobalThis.__upsertSeasonHistory = upsertSeasonDevelopmentHistory;";
+const historySource = html.slice(historyStart, historyEnd) + "\nglobalThis.__upsertSeasonHistory = upsertSeasonDevelopmentHistory;";
 const historySandbox = {};
 vm.createContext(historySandbox);
 new vm.Script(historySource, { filename: "season-development-history.js" }).runInContext(historySandbox);

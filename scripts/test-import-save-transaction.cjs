@@ -33,6 +33,8 @@ function extractFunction(source, signature) {
 }
 
 const importSource = extractFunction(html, "async function importSaveFile(file)");
+const validateBackupSource = extractFunction(html, "function validateBackupValue(value,depth=0)");
+const physicalFallbackSource = extractFunction(html, "function legacyPhysicalFallback(position,skills)");
 const importFallbackSource = extractFunction(html, "function encodeImportFallback(value)");
 assert.match(importSource, /encodeImportFallback\(restored\)/,
   "imports must use the full-snapshot fallback encoder");
@@ -72,9 +74,16 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
     INITIAL,
     STORAGE_KEY,
     structuredCloneSafe(value) { return JSON.parse(JSON.stringify(value)); },
-    legacyPhysicalFallback() { return 55; },
-    normalizeSavedBooleanFlag(value) { return value === true || value === 1 || ["true","1","yes","on"].includes(String(value).toLowerCase()); },
-    validateBackupValue(value) { return value; },
+    clamp(value, min = 0, max = 100) {
+      const numeric = typeof value === "number" && Number.isFinite(value) ? value : 0;
+      return Math.max(min, Math.min(max, Math.round(numeric)));
+    },
+    normalizeSavedBooleanFlag(value) {
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") return Number.isFinite(value) ? value !== 0 : false;
+      if (typeof value === "string") return ["true","1","yes","on"].includes(value.trim().toLowerCase());
+      return false;
+    },
     encodeStoredSave(value) { return corruptEncodedFallback ? "not-json" : JSON.stringify(value); },
     decodeStoredSave(value) { return value; },
     FALLBACK_STORAGE_PREFIX: "LWIDB1:",
@@ -131,7 +140,7 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
     console
   };
   vm.createContext(sandbox);
-  new vm.Script(importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback;", { filename: "encodeImportFallback" }).runInContext(sandbox);
+  new vm.Script(validateBackupSource + "\n" + physicalFallbackSource + "\n" + importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback;", { filename: "backup-import-helpers" }).runInContext(sandbox);
   const actualImportFallbackEncoder = sandbox.runImportFallbackEncoder;
   sandbox.encodeImportFallback = value => {
     calls.encodeImportFallback++;
@@ -155,9 +164,10 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
       }
     }
   };
-  const file = { size: 200, async text() {
-    return JSON.stringify({ game: "LAST WHISTLE", version: 6, career: importedCareer });
-  } };
+  const makeBackupFile = career => ({ size: 200, async text() {
+    return JSON.stringify({ game: "LAST WHISTLE", version: 6, career });
+  } });
+  const file = makeBackupFile(importedCareer);
 
   const success = createHarness();
   await success.sandbox.runImport(file);
@@ -178,6 +188,58 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
     "the loaded career must retain all imported player-history rows");
   assert.ok(success.sandbox.state.worldSimulation.leagueTables["1900"],
     "the loaded career must retain older world-simulation league tables");
+
+  const hostileMetadata = JSON.parse('{"toString":1,"valueOf":1}');
+  const malformedMetadataCareer = {
+    ...importedCareer,
+    age: hostileMetadata, season: hostileMetadata, day: hostileMetadata,
+    calendarDay: hostileMetadata, seasonApps: hostileMetadata, leagueApps: hostileMetadata,
+    leagueSegmentIsPartial: hostileMetadata, clubName: hostileMetadata, leagueDivision: hostileMetadata,
+    pos: "حارس مرمى", physical: undefined, fitness: hostileMetadata, composure: "70",
+    transferHistory: [{ season: hostileMetadata, text: hostileMetadata }],
+    leagueRoundIndex: hostileMetadata,
+    leagueRoundHistory: [{ matchday: hostileMetadata }, { matchday: "4" }]
+  };
+  const malformedMetadata = createHarness();
+  await malformedMetadata.sandbox.runImport(makeBackupFile(malformedMetadataCareer));
+  assert.equal(malformedMetadata.sandbox.state.name, "Imported Career",
+    "malformed optional metadata must not reject an otherwise valid career backup");
+  assert.equal(malformedMetadata.sandbox.state.age, 18);
+  assert.equal(malformedMetadata.sandbox.state.season, 1);
+  assert.equal(malformedMetadata.sandbox.state.day, 1);
+  assert.equal(malformedMetadata.sandbox.state.calendarDay, 1);
+  assert.equal(malformedMetadata.sandbox.state.seasonApps, 0);
+  assert.equal(malformedMetadata.sandbox.state.leagueApps, 0);
+  assert.equal(malformedMetadata.sandbox.state.leagueRoundIndex, 4);
+  assert.equal(malformedMetadata.sandbox.state.leagueSegmentIsPartial, false);
+  assert.equal(malformedMetadata.sandbox.state.clubName, INITIAL.clubName);
+  assert.equal(malformedMetadata.sandbox.state.contractType, "youth-amateur");
+  assert.equal(malformedMetadata.sandbox.state.physical, 55);
+  assert.equal(typeof malformedMetadata.sandbox.state.transferHistory[0].text, "object",
+    "metadata normalization must not delete the original transfer-history row");
+  assert.equal(malformedMetadata.calls.saveGame, 1);
+  assert.ok(malformedMetadata.calls.toasts.some(message => message.includes("بنجاح")));
+
+  const numericMetadataCareer = {
+    ...importedCareer,
+    age: "21", season: "5", day: "12", calendarDay: "30",
+    leagueDivision: "1", seasonApps: "8", leagueApps: "0",
+    leagueSegmentIsPartial: "false", clubName: "Club A",
+    transferHistory: [{ season: "5", text: "Transferred from Club A" }],
+    leagueRoundIndex: "6", leagueRoundHistory: [{ matchday: "7" }],
+    pos: "مهاجم", physical: "63"
+  };
+  const numericMetadata = createHarness();
+  await numericMetadata.sandbox.runImport(makeBackupFile(numericMetadataCareer));
+  assert.equal(numericMetadata.sandbox.state.season, 5);
+  assert.equal(numericMetadata.sandbox.state.day, 12);
+  assert.equal(numericMetadata.sandbox.state.calendarDay, 30);
+  assert.equal(numericMetadata.sandbox.state.seasonApps, 8);
+  assert.equal(numericMetadata.sandbox.state.leagueApps, 8);
+  assert.equal(numericMetadata.sandbox.state.leagueRoundIndex, 6);
+  assert.equal(numericMetadata.sandbox.state.leagueSegmentIsPartial, true);
+  assert.equal(numericMetadata.sandbox.state.clubName, "Club A",
+    "valid legacy club names must remain unchanged");
   assert.equal(success.shared.current, success.sandbox.state,
     "successful import must publish the exact live state object loaded by the game");
   assert.equal(success.published.at(-1).source, "import");

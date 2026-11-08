@@ -229,8 +229,9 @@
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
     const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
     const safeIdentityText = value => {
-      if (value === undefined || value === null) return "";
-      try { return String(value).trim(); } catch (error) { return ""; }
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value).trim();
+      return "";
     };
     const identityValue = (row, field) => {
       const value = field === "competition"
@@ -330,9 +331,9 @@
       (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
         .filter(archive => archive && typeof archive === "object"
           && finiteLegacyNumber(archive.season) === currentSeason)
-        .map(archive => String(archive.segmentId || "").trim()).filter(Boolean)
+        .map(archive => safeLegacyText(archive.segmentId).trim()).filter(Boolean)
     );
-    const activeSegmentId = String(state && state.leagueSegmentId || "").trim();
+    const activeSegmentId = safeLegacyText(state && state.leagueSegmentId).trim();
     if (activeSegmentId) currentSeasonSegments.add(activeSegmentId);
     const legacySeasonRows = (Array.isArray(state && state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object" && !Array.isArray(row)
@@ -355,7 +356,7 @@
           const savedSeason = finiteLegacyNumber(rawSeason);
           return savedSeason !== null && savedSeason === currentSeason;
         }
-        const segmentId = String(row.segmentId || "").trim();
+        const segmentId = safeLegacyText(row.segmentId).trim();
         return !!segmentId && currentSeasonSegments.has(segmentId);
       })
       .map(row => ({
@@ -787,15 +788,18 @@
     };
     const goals = safeMatchCount(data.goals, 20);
     const assists = safeMatchCount(data.assists, 20);
-    const matchId = String(data.matchId || ("legacy:" + (state.season || 1) + ":" + (state.apps || 0)
-      + ":" + (state.seasonLog?.length || 0) + ":" + played));
+    const fallbackSeason = safeLegacyText(state.season) || "1";
+    const fallbackApps = safeLegacyText(state.apps) || "0";
+    const seasonLogLength = Array.isArray(state.seasonLog) ? state.seasonLog.length : 0;
+    const matchId = safeLegacyText(data.matchId)
+      || ("legacy:" + fallbackSeason + ":" + fallbackApps + ":" + seasonLogLength + ":" + played);
     if (state.progressionMatchIds.includes(matchId)) return { gained: 0, skill: "", duplicate: true, qualifying: played >= 20, milestones: [] };
     state.progressionMatchIds.push(matchId);
     if (state.progressionMatchIds.length > 5000) state.progressionMatchIds.splice(0, state.progressionMatchIds.length - 5000);
     state.careerAppearances = Math.min(Number.MAX_SAFE_INTEGER, state.careerAppearances + 1);
     state.careerMinutes = Math.min(Number.MAX_SAFE_INTEGER, state.careerMinutes + played);
     const qualifying = played >= 20;
-    const competitionKey = String(data.competitionKey || "club|unknown");
+    const competitionKey = safeLegacyText(data.competitionKey) || "club|unknown";
     const competition = state.competitionStats[competitionKey] || (state.competitionStats[competitionKey] = {
       appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
     });
@@ -835,14 +839,15 @@
     const recoveries = safeMatchCount(matchStats.ballRecoveries);
     const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
-    const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
-    const creativeMidfieldPosition = ["وسط", "وسط مهاجم"].includes(String(state.pos || ""));
-    const positionActionXP = state.pos === "حارس مرمى"
+    const safePositionLabel = safeLegacyText(state.pos);
+    const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(safePositionLabel);
+    const creativeMidfieldPosition = ["وسط", "وسط مهاجم"].includes(safePositionLabel);
+    const positionActionXP = safePositionLabel === "حارس مرمى"
       ? Math.min(18, saves * 2 + penaltiesSaved * 5 + (cleanSheet ? 5 : 0))
       : defensivePosition
         ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
         : creativeMidfieldPosition
-          ? state.pos === "وسط"
+          ? safePositionLabel === "وسط"
             ? Math.min(12, keyPasses * 1.1 + recoveries * 0.8 + tackles * 0.3)
             : Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
           : Math.min(12, goals * 4 + assists * 2);

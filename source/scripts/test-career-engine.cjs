@@ -224,7 +224,7 @@ const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
 require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 557);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 86);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 87);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -1851,6 +1851,47 @@ const deployedMalformedPendingClub = {
 assert.equal(deployedCareer.resolveContractDecision(deployedMalformedPendingClub, "accept",
   { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "stale-offer");
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
+
+const hostileLegacyMatchIdentity = JSON.parse('{"toString":1,"valueOf":1}');
+const hostileLegacySegmentIdentity = JSON.parse('{"toString":1,"valueOf":1}');
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const malformedMatchIdentityState = makeProgressionFixture(false);
+  const malformedMatchIdentity = {
+    matchId: hostileLegacyMatchIdentity, competitionKey: hostileLegacyMatchIdentity,
+    minutes: 90, rating: 8, goals: 1, assists: 1
+  };
+  let malformedMatchProgress;
+  assert.doesNotThrow(() => {
+    malformedMatchProgress = engine.matchDevelopment(malformedMatchIdentityState, malformedMatchIdentity);
+  }, engineName + " progression must safely handle hostile legacy match and competition identifiers");
+  assert.equal(malformedMatchProgress.duplicate, undefined,
+    engineName + " the first malformed-ID fixture must still award progression once");
+  assert.equal(malformedMatchIdentityState.progressionMatchIds.length, 1,
+    engineName + " malformed match IDs must receive one deterministic legacy fallback ID");
+  assert.match(malformedMatchIdentityState.progressionMatchIds[0], /^legacy:/,
+    engineName + " malformed match IDs must not be coerced into arbitrary strings");
+  assert.equal(malformedMatchIdentityState.competitionStats["club|unknown"].appearances, 1,
+    engineName + " malformed competition keys must use the established unknown-competition bucket");
+  const repeatedMalformedMatch = engine.matchDevelopment(malformedMatchIdentityState, malformedMatchIdentity);
+  assert.equal(repeatedMalformedMatch.duplicate, true,
+    engineName + " the deterministic fallback ID must still prevent duplicate progression");
+  assert.equal(malformedMatchIdentityState.careerAppearances, 1,
+    engineName + " duplicate malformed-ID fixtures must not inflate career appearances");
+
+  const malformedSegmentState = makeHostileAwardLabelState();
+  malformedSegmentState.leagueArchives = [{ season: 1, segmentId: hostileLegacySegmentIdentity }];
+  malformedSegmentState.leagueSegmentId = hostileLegacySegmentIdentity;
+  malformedSegmentState.careerMatchHistory = [{
+    matchId: "hostile-segment-history", scope: "league", segmentId: hostileLegacySegmentIdentity,
+    minutes: 90, rating: 8, goals: 1, assists: 1
+  }];
+  assert.doesNotThrow(() => engine.seasonAwards(malformedSegmentState,
+    [{ name: hostileLegacyAwardLabel, power: 50 }], 1),
+    engineName + " season award filtering must safely reject malformed archive and match segment IDs");
+  assert.ok(malformedSegmentState.careerAwards.some(award => award && award.id === "golden-boot"),
+    engineName + " valid legacy season-log stats must still award the golden boot when segment labels are malformed");
+}
+
 
 const hostileLegacyPosition = JSON.parse('{"toString":1,"valueOf":1}');
 const hostileLegacyRole = JSON.parse('{"toString":1,"valueOf":1}');

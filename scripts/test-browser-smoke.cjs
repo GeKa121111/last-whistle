@@ -811,8 +811,17 @@ async function main() {
       const hostile = JSON.parse('{"toString":1,"valueOf":1}');
       live.name = hostile;
       live.season = hostile;
-      return previous;
+      window.LWStoryRuntime.render();
+      return {
+        ...previous,
+        renderedName: document.querySelector("#playerName")?.textContent || "",
+        renderedSeason: document.querySelector("#seasonProgress")?.textContent || ""
+      };
     });
+    assert.equal(previousBackupFilenameFields.renderedName, "اللاعب",
+      "rendering an invalid saved player name must use a safe label without coercing the object");
+    assert.match(previousBackupFilenameFields.renderedSeason, /^الموسم 1\b/,
+      "rendering an invalid saved season must use the safe season fallback");
     const [malformedFilenameDownload] = await Promise.all([
       page.waitForEvent("download"),
       page.locator("#exportSaveBtn").click()
@@ -823,6 +832,7 @@ async function main() {
       const live = window.LWStoryRuntime.getState();
       live.name = previous.name;
       live.season = previous.season;
+      window.LWStoryRuntime.render();
     }, previousBackupFilenameFields);
 
     const [backupDownload] = await Promise.all([

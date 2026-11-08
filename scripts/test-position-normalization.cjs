@@ -71,6 +71,24 @@ assert.deepEqual(selectedNotifications.map(item => item.previous), [null, 100]);
 
 vm.runInContext(read("data/career-engine.js"), sandbox, { filename: "data/career-engine.js" });
 vm.runInContext(read("data/match-engine.js"), sandbox, { filename: "data/match-engine.js" });
+assert.doesNotThrow(() => window.LWCareer.normalizeCareerPosition(hostilePosition));
+assert.equal(window.LWCareer.normalizeCareerPosition(hostilePosition), "",
+  "career engine must reject hostile position objects even when the shared normalizer is installed");
+assert.doesNotThrow(() => window.LWMatch.normalizePosition(hostilePosition));
+assert.equal(window.LWMatch.normalizePosition(hostilePosition), "",
+  "match engine must reject hostile position objects even when the shared normalizer is installed");
+assert.equal(window.LWMatch.normalizePosition(["CM"]), "",
+  "match engine must not coerce array-valued legacy positions");
+assert.equal(window.LWMatch.normalizePosition(42), "42",
+  "match engine must preserve finite numeric legacy labels");
+for (const inheritedKey of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+  assert.equal(window.LWMatch.normalizePosition(inheritedKey), inheritedKey,
+    "match engine must not resolve inherited object-prototype aliases: " + inheritedKey);
+}
+assert.deepEqual(window.LWMatch.positionProfile("constructor"), { shooter: 0.2, creator: 0.2, defender: 0.15 },
+  "prototype property names must use the neutral fallback position profile");
+assert.deepEqual(window.LWMatch.positionProfile("__proto__"), { shooter: 0.2, creator: 0.2, defender: 0.15 },
+  "the prototype key must not be mistaken for a match position profile");
 assert.equal(window.LWCareer.normalizeCareerPosition("CM"), "وسط");
 assert.equal(window.LWCareer.normalizeCareerPosition("CDM"), "وسط دفاعي");
 assert.equal(window.LWMatch.normalizePosition("CAM"), "وسط مهاجم");

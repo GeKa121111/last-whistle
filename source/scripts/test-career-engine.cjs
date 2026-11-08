@@ -224,7 +224,7 @@ const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
 require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 557);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 87);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 88);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -1817,6 +1817,107 @@ const deployedContext = { window: {} };
 vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
+
+const prototypeLookupKeys = ["constructor", "toString", "hasOwnProperty", "__proto__"];
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const wingerPlan = engine.positionDevelopmentPlan("جناح");
+  const wingerStats = engine.startingStatsForPosition("جناح", () => 0.5);
+  const wingerOverallState = makeProgressionFixture(false);
+  wingerOverallState.pos = "جناح";
+  const wingerOverall = engine.overall(wingerOverallState);
+
+  for (const key of prototypeLookupKeys) {
+    const plan = engine.positionDevelopmentPlan(key);
+    assert.equal(plan.title, wingerPlan.title,
+      engineName + " prototype-like position keys must use the normal winger development fallback: " + key);
+    assert.equal(JSON.stringify(plan.primary), JSON.stringify(wingerPlan.primary),
+      engineName + " prototype-like position keys must not expose inherited plan members: " + key);
+
+    const stats = engine.startingStatsForPosition(key, () => 0.5);
+    assert.equal(JSON.stringify(stats), JSON.stringify(wingerStats),
+      engineName + " prototype-like position keys must use the established winger starting ranges: " + key);
+
+    const overallState = makeProgressionFixture(false);
+    overallState.pos = key;
+    assert.equal(engine.overall(overallState), wingerOverall,
+      engineName + " prototype-like position keys must use the established OVR weights: " + key);
+
+    const matchState = makeProgressionFixture(false);
+    matchState.pos = key;
+    const progression = engine.matchDevelopment(matchState, {
+      matchId: "prototype-position-" + key, minutes: 90, rating: 8
+    });
+    assert.equal(progression.skill, "passing",
+      engineName + " unknown prototype-like positions must use the safe match-development skill: " + key);
+
+    const trainingState = makeProgressionFixture(false);
+    engine.ensureState(trainingState);
+    const beforeTraining = {
+      energy: trainingState.energy,
+      money: trainingState.money,
+      sessions: trainingState.trainingSessions,
+      trainedToday: trainingState.trainedToday,
+      trainingXP: JSON.stringify(trainingState.trainingXP)
+    };
+    const trainingResult = engine.train(trainingState, key, { random: () => 0.5 });
+    assert.equal(trainingResult.ok, false,
+      engineName + " prototype-like training names must be rejected as unknown skills: " + key);
+    assert.equal(trainingState.energy, beforeTraining.energy,
+      engineName + " rejected prototype-like training must not consume energy: " + key);
+    assert.equal(trainingState.money, beforeTraining.money,
+      engineName + " rejected prototype-like training must not change money: " + key);
+    assert.equal(trainingState.trainingSessions, beforeTraining.sessions,
+      engineName + " rejected prototype-like training must not count a session: " + key);
+    assert.equal(trainingState.trainedToday, beforeTraining.trainedToday,
+      engineName + " rejected prototype-like training must not lock the daily session: " + key);
+    assert.equal(JSON.stringify(trainingState.trainingXP), beforeTraining.trainingXP,
+      engineName + " rejected prototype-like training must not award skill XP: " + key);
+  }
+
+  const prototypeStatsFields = ["appearances", "qualifyingAppearances", "minutes", "goals", "assists"];
+  const savedPrototypeDescriptors = new Map(prototypeStatsFields.map(field =>
+    [field, Object.getOwnPropertyDescriptor(Object.prototype, field)]));
+  try {
+    for (const key of prototypeLookupKeys) {
+      const state = makeProgressionFixture(false);
+      const originalStatsPrototype = Object.getPrototypeOf(state.competitionStats);
+      const result = engine.matchDevelopment(state, {
+        matchId: "prototype-competition-" + key,
+        competitionKey: key,
+        minutes: 90,
+        rating: 8,
+        goals: 1,
+        assists: 1
+      });
+      assert.equal(result.duplicate, undefined,
+        engineName + " prototype-like competition keys must record a first appearance: " + key);
+      assert.ok(Object.prototype.hasOwnProperty.call(state.competitionStats, key),
+        engineName + " competition stats must be stored as an own data property: " + key);
+      assert.equal(Object.getPrototypeOf(state.competitionStats), originalStatsPrototype,
+        engineName + " competition stats must not mutate their prototype: " + key);
+      const savedStats = Object.getOwnPropertyDescriptor(state.competitionStats, key).value;
+      assert.equal(savedStats.appearances, 1,
+        engineName + " prototype-like competition keys must count one appearance: " + key);
+      assert.equal(savedStats.minutes, 90,
+        engineName + " prototype-like competition keys must preserve match minutes: " + key);
+      assert.equal(savedStats.goals, 1,
+        engineName + " prototype-like competition keys must preserve match goals: " + key);
+      assert.equal(savedStats.assists, 1,
+        engineName + " prototype-like competition keys must preserve match assists: " + key);
+    }
+    for (const field of prototypeStatsFields) {
+      assert.deepEqual(Object.getOwnPropertyDescriptor(Object.prototype, field), savedPrototypeDescriptors.get(field),
+        engineName + " competition stats must never write counters onto Object.prototype: " + field);
+    }
+  } finally {
+    for (const field of prototypeStatsFields) {
+      const descriptor = savedPrototypeDescriptors.get(field);
+      if (descriptor) Object.defineProperty(Object.prototype, field, descriptor);
+      else delete Object.prototype[field];
+    }
+  }
+}
+
 
 const deployedHostileAwardState = makeHostileAwardLabelState();
 assert.doesNotThrow(() => deployedCareer.seasonAwards(deployedHostileAwardState,

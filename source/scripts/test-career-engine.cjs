@@ -637,13 +637,18 @@ assert.equal(malformedLegacyHistory.careerAppearances, 0,
 const malformedLegacyRatings = {
   seasonLog: [
     { matchId: "symbol-rating", scope: "league", minutes: 90, rating: Symbol("rating") },
-    { matchId: "numeric-string-rating", scope: "league", minutes: "90", rating: "8.5" }
+    { matchId: "numeric-string-rating", scope: "league", minutes: "90", rating: "8.5" },
+    { matchId: "zero-rating", scope: "league", minutes: 90, rating: 0 },
+    { matchId: "negative-rating", scope: "league", minutes: 90, rating: -1 },
+    { matchId: "fraction-over-rating", scope: "league", minutes: 90, rating: 10.5 },
+    { matchId: "excessive-rating", scope: "league", minutes: 90, rating: 99 },
+    { matchId: "valid-max-rating", scope: "league", minutes: 90, rating: "10" }
   ]
 };
 assert.doesNotThrow(() => career.deriveLeagueRatingStats(malformedLegacyRatings),
-  "league rating rebuilding must ignore Symbol ratings without crashing");
-assert.deepEqual(career.deriveLeagueRatingStats(malformedLegacyRatings), { sum: 8.5, count: 1 },
-  "valid numeric-string ratings must remain in the league average");
+  "league rating rebuilding must ignore Symbol and out-of-range ratings without crashing");
+assert.deepEqual(career.deriveLeagueRatingStats(malformedLegacyRatings), { sum: 18.5, count: 2 },
+  "only ratings in the supported (0, 10] range may contribute to the league average; numeric strings remain valid");
 
 const malformedSavedCareer = {
   pos: "CM", age: Symbol("age"), apps: Symbol("apps"),
@@ -3036,6 +3041,22 @@ const deployedMalformedRoleDecision = deployedCareer.evaluateSquadRole(
   });
 assert.equal(JSON.stringify(deployedMalformedRoleDecision), JSON.stringify(malformedRoleDecision),
   "embedded browser role evaluation must match the sanitized career engine");
+
+const inflatedRatingHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "inflated-rating-" + index, scope: "league", minutes: 90, rating: 99, goals: 0, assists: 0
+}));
+const inflatedRatingDecision = career.evaluateSquadRole({
+  pos: "وسط دفاعي", role: "بديل", apps: 16, goals: 0, assists: 0, trust: 55
+}, inflatedRatingHistory);
+assert.equal(inflatedRatingDecision.role, "بديل",
+  "out-of-range ratings must not manufacture enough form evidence to promote a substitute");
+assert.equal(inflatedRatingDecision.recentAverageRating, 0,
+  "invalid high ratings must be excluded rather than clamped to a perfect 10");
+const deployedInflatedRatingDecision = deployedCareer.evaluateSquadRole({
+  pos: "وسط دفاعي", role: "بديل", apps: 16, goals: 0, assists: 0, trust: 55
+}, inflatedRatingHistory);
+assert.equal(JSON.stringify(deployedInflatedRatingDecision), JSON.stringify(inflatedRatingDecision),
+  "embedded browser role evaluation must reject invalid ratings exactly like the shared engine");
 
 
 

@@ -42,7 +42,7 @@ if (require.main === module) {
   const requiredAssets = [
     ["career-state-store.js", 8],
     ["ai-career-engine.js", 8],
-    ["data/career-engine.js", 83],
+    ["data/career-engine.js", 84],
     ["data/match-engine.js", 84],
     ["football-world-ai.js", 100],
     ["football-world-db.js", 11],

@@ -10,6 +10,13 @@
     return Number.isFinite(numeric) ? numeric : null;
   };
 
+  // Match ratings are meaningful only inside the game's 0–10 rating scale.
+  // Zero is the legacy "not rated" sentinel, not a poor performance.
+  const validLegacyRating = value => {
+    const numeric = finiteLegacyNumber(value);
+    return numeric !== null && numeric > 0 && numeric <= 10;
+  };
+
   const CONFIG = {
     shooting: { cost: 18, xp: 28, secondary: { composure: 7 } },
     dribbling: { cost: 16, xp: 27, secondary: { speed: 7 } },
@@ -107,7 +114,7 @@
     const recentMinutes = sum(recent, "minutes");
     const recentContributions = sum(recent, "goals") + sum(recent, "assists");
     const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
-    const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
+    const ratedRows = recent.filter(row => validLegacyRating(row.rating));
     const ratedMinutes = ratedRows.reduce((total, row) => total + safeMetric(row.minutes, 120), 0);
     // A five-minute cameo must not carry the same weight as a full match when judging squad form.
     const recentAverageRating = ratedMinutes > 0
@@ -369,10 +376,7 @@
     const numeric = finiteLegacyNumber(value);
     return numeric === null ? 0 : Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(numeric)));
   };
-  const safeLegacyRating = value => {
-    const numeric = finiteLegacyNumber(value);
-    return numeric === null ? 0 : Math.max(0, Math.min(10, numeric));
-  };
+  const safeLegacyRating = value => validLegacyRating(value) ? finiteLegacyNumber(value) : 0;
 
   function rebuildLegacyCareerStats(state) {
     const rows = uniqueCareerHistory(state);
@@ -386,9 +390,8 @@
   }
 
   function deriveLeagueRatingStats(state) {
-    const hasUsableRating = value => finiteLegacyNumber(value) !== null;
     const rows = uniqueCareerHistory(state).filter(row => row.scope === "league"
-      && safeLegacyMinutes(row.minutes) > 0 && hasUsableRating(row.rating));
+      && safeLegacyMinutes(row.minutes) > 0 && validLegacyRating(row.rating));
     state.leagueRatingSum = rows.reduce((sum, row) => sum + safeLegacyRating(row.rating), 0);
     state.leagueRatingCount = rows.length;
     return { sum: state.leagueRatingSum, count: state.leagueRatingCount };

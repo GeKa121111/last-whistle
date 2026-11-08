@@ -403,7 +403,7 @@ function makeHostileAwardLabelState() {
     ]
   };
 }
-for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+for (const [engineName, engine] of [["shared", career]]) {
   const hostileAwardState = makeHostileAwardLabelState();
   assert.doesNotThrow(() => engine.seasonAwards(hostileAwardState,
     [{ name: hostileLegacyAwardLabel, power: 50 }], 1),
@@ -1094,7 +1094,7 @@ assert.equal(renewal.contractSeasons, 4);
 assert.equal(renewal.contractType, "professional", "renewing a contract must keep the player professionally signed");
 
 const hostileLegacyContractLabel = JSON.parse('{"toString":1,"valueOf":1}');
-for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+for (const [engineName, engine] of [["shared", career]]) {
   const malformedContractTypeState = {
     ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 1,
     freeAgent: false, clubName: "Test FC", daysSinceNegotiation: 7, apps: 10
@@ -1817,6 +1817,39 @@ const deployedContext = { window: {} };
 vm.createContext(deployedContext);
 vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bundle" });
 const deployedCareer = deployedContext.window.LWCareer;
+
+const deployedHostileAwardState = makeHostileAwardLabelState();
+assert.doesNotThrow(() => deployedCareer.seasonAwards(deployedHostileAwardState,
+  [{ name: hostileLegacyAwardLabel, power: 50 }], 1),
+  "deployed season awards must not coerce hostile club, league, or saved-award labels");
+const deployedSafeAward = deployedHostileAwardState.careerAwards.find(award => award.id === "golden-boot");
+assert.ok(deployedSafeAward, "deployed season awards must still process valid match stats with malformed labels");
+assert.equal(deployedSafeAward.club, "");
+assert.equal(deployedSafeAward.country, "");
+assert.equal(deployedSafeAward.competition, "");
+
+const deployedHostileContractTypeState = {
+  ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 1,
+  freeAgent: false, clubName: "Test FC", daysSinceNegotiation: 7, apps: 10
+};
+assert.equal(deployedCareer.wageNegotiationStatus(deployedHostileContractTypeState), "ready");
+assert.equal(deployedCareer.loanRequestStatus(deployedHostileContractTypeState, { windowOpen: true }), "ready");
+assert.equal(deployedCareer.makeContractOffer({ ...renewalBase, clubName: hostileLegacyContractLabel }).club, "");
+const deployedSafeTypeRenewal = { ...deployedHostileContractTypeState };
+assert.equal(deployedCareer.resolveContractDecision(deployedSafeTypeRenewal, "accept",
+  { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "renewed");
+const deployedMalformedCurrentClub = { ...renewalBase, clubName: hostileLegacyContractLabel, contractSeasons: 1 };
+assert.equal(deployedCareer.resolveContractDecision(deployedMalformedCurrentClub, "accept",
+  { club: "Test FC", wage: 650, seasons: 3 }).status, "invalid-contract");
+const deployedMalformedOfferedClub = { ...renewalBase, clubName: "Test FC", contractSeasons: 1 };
+assert.equal(deployedCareer.resolveContractDecision(deployedMalformedOfferedClub, "accept",
+  { club: hostileLegacyContractLabel, wage: 650, seasons: 3 }).status, "invalid-offer");
+const deployedMalformedPendingClub = {
+  ...renewalBase, clubName: "Test FC", contractSeasons: 1, season: 1,
+  contractOffer: { club: hostileLegacyContractLabel, season: 1, wage: 650, seasons: 3 }
+};
+assert.equal(deployedCareer.resolveContractDecision(deployedMalformedPendingClub, "accept",
+  { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "stale-offer");
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
 
 const hostileLegacyPosition = JSON.parse('{"toString":1,"valueOf":1}');

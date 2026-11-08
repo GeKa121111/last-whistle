@@ -45,13 +45,21 @@
     "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
     "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
   };
+  // Legacy position/role labels are untrusted JSON data. Never invoke object coercion hooks.
+  function safeLegacyText(value, fallback = "") {
+    if (typeof value === "string") return value || fallback;
+    if (typeof value === "number" && Number.isFinite(value) && value !== 0) return String(value);
+    return fallback;
+  }
+
   function normalizeCareerPosition(position) {
-    const raw = String(position || "").trim();
+    const raw = safeLegacyText(position).trim();
     if (!raw) return "";
     const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
     const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
       && window.LWStateStore.normalizePosition;
-    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
+    if (typeof sharedNormalizer === "function") return sharedNormalizer(raw);
+    return Object.prototype.hasOwnProperty.call(POSITION_ALIASES, key) ? POSITION_ALIASES[key] : raw;
   }
 
   const CAREER_ATTRIBUTE = {
@@ -72,7 +80,9 @@
     "رأس حربة": { title: "رأس حربة هدّاف", summary: "مهمتك الأساسية إنهاء الهجمة داخل المنطقة، استغلال العرضيات والكرات البينية، وحماية الكرة تحت ضغط المدافعين. ركّز على التسديد والهدوء والقوة البدنية.", primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
-    const rawPosition = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const rawPosition = typeof state === "string"
+      ? state
+      : state && typeof state === "object" && !Array.isArray(state) ? state.pos : "";
     const position = normalizeCareerPosition(rawPosition) || "جناح";
     const plan = DEVELOPMENT_PLANS[position] || DEVELOPMENT_PLANS["جناح"];
     return { position, title: plan.title, summary: plan.summary, primary: plan.primary.slice(), secondary: plan.secondary.slice(), matchSkill: plan.matchSkill };
@@ -87,7 +97,7 @@
 // Select a squad role from recent form and career output, not a single unusually high rating.
   // The caller passes post-match career totals and the match that has just been completed.
   function evaluateSquadRole(state, matchHistory = [], currentMatch = null) {
-    const originalRole = String(state && state.role || "بديل");
+    const originalRole = safeLegacyText(state && state.role, "بديل");
     if (!state || state.academyCareer || state.academyReserve || normalizeLegacyBoolean(state.retired)) {
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
@@ -402,7 +412,11 @@
   }
 
   function ensureState(state) {
-    if (state.pos && String(state.pos).trim()) state.pos = normalizeCareerPosition(state.pos);
+    if (state.pos) {
+      const normalizedPosition = normalizeCareerPosition(state.pos);
+      // Invalid object/array labels must not reach position-keyed OVR or training lookups.
+      state.pos = normalizedPosition || "جناح";
+    }
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
     const savedAgeValue = finiteLegacyNumber(state.age);
     if (state.age !== undefined && state.age !== null

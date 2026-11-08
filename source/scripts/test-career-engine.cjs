@@ -1750,6 +1750,44 @@ vm.runInContext(careerBundle, deployedContext, { filename: "index.html career bu
 const deployedCareer = deployedContext.window.LWCareer;
 assert.ok(deployedCareer && typeof deployedCareer.matchDevelopment === "function", "deployed career engine must initialise");
 
+const hostileLegacyPosition = JSON.parse('{"toString":1,"valueOf":1}');
+const hostileLegacyRole = JSON.parse('{"toString":1,"valueOf":1}');
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  assert.doesNotThrow(() => engine.normalizeCareerPosition(hostileLegacyPosition),
+    engineName + " position normalization must not coerce hostile legacy objects");
+  assert.equal(engine.normalizeCareerPosition(hostileLegacyPosition), "",
+    engineName + " object-valued positions must be rejected without mutation");
+  assert.equal(engine.normalizeCareerPosition(["CM"]), "",
+    engineName + " array-valued positions must not be coerced into aliases");
+  assert.equal(engine.normalizeCareerPosition(42), "42",
+    engineName + " finite numeric legacy positions must remain safely representable");
+  for (const inheritedKey of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+    assert.equal(engine.normalizeCareerPosition(inheritedKey), inheritedKey,
+      engineName + " unknown prototype property names must remain plain position labels: " + inheritedKey);
+  }
+  assert.doesNotThrow(() => engine.positionDevelopmentPlan({ pos: hostileLegacyPosition }),
+    engineName + " development-plan lookup must safely handle object-valued positions");
+  assert.equal(engine.positionDevelopmentPlan({ pos: hostileLegacyPosition }).position, "جناح",
+    engineName + " invalid position labels must use the existing winger fallback plan");
+  const malformedPositionState = { pos: hostileLegacyPosition, age: 22, role: "بديل", goalkeeping: 90 };
+  assert.doesNotThrow(() => engine.ensureState(malformedPositionState),
+    engineName + " save normalization must not coerce hostile position objects");
+  assert.equal(malformedPositionState.pos, "جناح",
+    engineName + " malformed position labels must normalize to the established safe fallback");
+  assert.equal(malformedPositionState.goalkeeping, 0,
+    engineName + " the safe outfield fallback must not retain goalkeeper skill");
+  assert.ok(Number.isFinite(engine.overall(malformedPositionState)),
+    engineName + " overall calculation must remain safe after malformed position recovery");
+  const malformedRoleDecision = engine.evaluateSquadRole({
+    pos: "وسط", role: hostileLegacyRole, apps: 0, retired: false
+  }, []);
+  assert.equal(malformedRoleDecision.role, "بديل",
+    engineName + " malformed role labels must use the safe substitute fallback");
+  assert.equal(malformedRoleDecision.reason, "no-appearances",
+    engineName + " malformed role metadata must not bypass appearance requirements");
+}
+
+
 const malformedScopeValue = Symbol("malformed-scope");
 function makeLegacyScopeHistoryState() {
   const duplicateIdentity = {

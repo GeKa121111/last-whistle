@@ -1829,7 +1829,7 @@ assert.equal(deployedSafeAward.country, "");
 assert.equal(deployedSafeAward.competition, "");
 
 const deployedHostileContractTypeState = {
-  ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 1,
+  ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 2,
   freeAgent: false, clubName: "Test FC", daysSinceNegotiation: 7, apps: 10
 };
 assert.equal(deployedCareer.wageNegotiationStatus(deployedHostileContractTypeState), "ready");

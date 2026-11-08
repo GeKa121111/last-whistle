@@ -805,6 +805,26 @@ async function main() {
 
     // Full backup must remain portable with the multi-thousand-player world simulation.
     await page.locator("#mobileMore").click();
+    const previousBackupFilenameFields = await page.evaluate(() => {
+      const live = window.LWStoryRuntime.getState();
+      const previous = { name: live.name, season: live.season };
+      const hostile = JSON.parse('{"toString":1,"valueOf":1}');
+      live.name = hostile;
+      live.season = hostile;
+      return previous;
+    });
+    const [malformedFilenameDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator("#exportSaveBtn").click()
+    ]);
+    assert.equal(malformedFilenameDownload.suggestedFilename(), "last-whistle-career-season-1.json",
+      "malformed backup name/season metadata must fall back to a safe filename");
+    await page.evaluate(previous => {
+      const live = window.LWStoryRuntime.getState();
+      live.name = previous.name;
+      live.season = previous.season;
+    }, previousBackupFilenameFields);
+
     const [backupDownload] = await Promise.all([
       page.waitForEvent("download"),
       page.locator("#exportSaveBtn").click()

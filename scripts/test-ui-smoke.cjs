@@ -237,6 +237,8 @@ if (rootCareerHub !== careerHub
   || !archiveBreakdownSource.includes("manualInjuries")
   || !archiveBreakdownSource.includes("textContent")
   || archiveBreakdownSource.includes("innerHTML")
+  || archiveBreakdownSource.includes('if(card.querySelector(".season-development-breakdown"))return;')
+  || !archiveBreakdownSource.includes("if(number.textContent!==next)number.textContent=next;")
   || !careerHubRenderSource.includes("renderSeasonDevelopmentArchiveBreakdown(s);")
   || !careerHub.includes("archiveObserver.observe(archiveRoot,{childList:true});")) {
   console.error("Season archive XP/injury breakdown must stay mirrored and render safely from saved season records.");

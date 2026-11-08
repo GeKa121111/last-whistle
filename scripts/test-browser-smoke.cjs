@@ -1916,9 +1916,6 @@ async function main() {
         injectedElements: archive?.querySelectorAll("img,script,iframe").length || 0,
         malformedRowPreserved: state.seasonDevelopmentHistory.length === 26
       };
-      state.seasonDevelopmentHistory = window.__seasonArchiveOriginalHistory;
-      delete window.__seasonArchiveOriginalHistory;
-      runtime.render();
       return result;
     });
     assert.equal(seasonArchiveProbe.count, 25,
@@ -1946,6 +1943,37 @@ async function main() {
       && seasonArchiveProbe.breakdownText.includes("2")
       && seasonArchiveProbe.breakdownText.includes("1"),
       "the XP/injury breakdown must display the exact saved automatic and manual values");
+    await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const latest = state.seasonDevelopmentHistory.find(row => Number(row.season) === 25);
+      latest.xp = 240;
+      latest.manualXP = 90;
+      latest.injuries = 4;
+      latest.manualInjuries = 2;
+      window.dispatchEvent(new Event("pageshow"));
+    });
+    await page.waitForFunction(() => {
+      const card = document.querySelector("#seasonDevelopmentArchive details.season-development-item");
+      const text = card?.querySelector(".season-development-breakdown")?.textContent || "";
+      return text.includes("240") && text.includes("90") && text.includes("4") && text.includes("2");
+    }, null, { timeout: 5000 });
+    const refreshedBreakdown = await page.evaluate(() => {
+      const state = window.LWStoryRuntime.getState();
+      const latest = state.seasonDevelopmentHistory.find(row => Number(row.season) === 25);
+      const text = document.querySelector("#seasonDevelopmentArchive details.season-development-item .season-development-breakdown")?.textContent || "";
+      const savedValues = [latest.xp,latest.manualXP,latest.injuries,latest.manualInjuries];
+      state.seasonDevelopmentHistory = window.__seasonArchiveOriginalHistory;
+      delete window.__seasonArchiveOriginalHistory;
+      window.dispatchEvent(new Event("pageshow"));
+      return {text,savedValues};
+    });
+    assert.deepEqual(refreshedBreakdown.savedValues,[240,90,4,2],
+      "refreshing the archive must not mutate the saved season record");
+    assert.ok(refreshedBreakdown.text.includes("240")
+      && refreshedBreakdown.text.includes("90")
+      && refreshedBreakdown.text.includes("4")
+      && refreshedBreakdown.text.includes("2"),
+      "existing archive cards must refresh their metrics when the same season record changes");
     assert.equal(seasonArchiveProbe.injectedElements, 0,
       "legacy skill names and focus labels must never be interpreted as HTML");
     assert.equal(seasonArchiveProbe.malformedRowPreserved, true,

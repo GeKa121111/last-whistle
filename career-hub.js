@@ -110,40 +110,74 @@
     var cards=Array.prototype.slice.call(root.querySelectorAll("details.season-development-item"));
     if(!cards.length||cards.length!==rows.length)return;
     cards.forEach(function(card,index){
-      if(card.querySelector(".season-development-breakdown"))return;
       var row=rows[index]||{};
-      var section=document.createElement("div");
-      section.className="season-development-breakdown";
-      var heading=document.createElement("p");
-      heading.className="muted small";
-      heading.textContent="تفصيل الخبرة والإصابات";
-      var grid=document.createElement("div");
-      grid.className="kpiGrid";
-      grid.style.margin="8px 0";
-      function addMetric(label,value){
-        var item=document.createElement("div");
-        item.className="kpi";
-        var number=document.createElement("div");
-        number.className="kpiNum";
-        var parsed=finiteNumber(value);
-        number.textContent=parsed===null?"—":Math.round(Math.max(0,parsed)).toLocaleString("en-US");
-        var caption=document.createElement("div");
-        caption.className="kpiLabel";
-        caption.textContent=label;
-        item.append(number,caption);
-        grid.append(item);
+      var section=card.querySelector(".season-development-breakdown");
+      if(!section){
+        section=document.createElement("div");
+        section.className="season-development-breakdown";
+        var heading=document.createElement("p");
+        heading.className="muted small";
+        heading.textContent="تفصيل الخبرة والإصابات";
+        section.appendChild(heading);
+        var initialGrid=document.createElement("div");
+        initialGrid.className="kpiGrid";
+        initialGrid.style.margin="8px 0";
+        section.appendChild(initialGrid);
+        var existingMetrics=card.querySelector(".kpiGrid");
+        if(existingMetrics&&existingMetrics.parentNode)existingMetrics.parentNode.insertBefore(section,existingMetrics.nextSibling);
+        else card.appendChild(section);
       }
-      addMetric("XP التدريب الآلي",row.xp);
-      addMetric("XP التدريب اليدوي",row.manualXP);
-      addMetric("إصابات التدريب الآلي",row.injuries);
-      addMetric("إصابات التدريب اليدوي",row.manualInjuries);
-      section.append(heading,grid);
-      var existingMetrics=card.querySelector(".kpiGrid");
-      if(existingMetrics&&existingMetrics.parentNode)existingMetrics.parentNode.insertBefore(section,existingMetrics.nextSibling);
-      else card.append(section);
+      var headingNode=section.querySelector("p");
+      if(!headingNode){
+        headingNode=document.createElement("p");
+        headingNode.className="muted small";
+        section.insertBefore(headingNode,section.firstChild);
+      }
+      if(headingNode.textContent!=="تفصيل الخبرة والإصابات")headingNode.textContent="تفصيل الخبرة والإصابات";
+      var grid=section.querySelector(".kpiGrid");
+      if(!grid){
+        grid=document.createElement("div");
+        grid.className="kpiGrid";
+        grid.style.margin="8px 0";
+        section.appendChild(grid);
+      }
+      var metrics=[
+        {label:"XP التدريب الآلي",value:row.xp},
+        {label:"XP التدريب اليدوي",value:row.manualXP},
+        {label:"إصابات التدريب الآلي",value:row.injuries},
+        {label:"إصابات التدريب اليدوي",value:row.manualInjuries}
+      ];
+      var items=Array.prototype.slice.call(grid.querySelectorAll(".kpi"));
+      if(items.length!==metrics.length){
+        grid.textContent="";
+        items=[];
+      }
+      metrics.forEach(function(metric,metricIndex){
+        var item=items[metricIndex];
+        if(!item){
+          item=document.createElement("div");
+          item.className="kpi";
+          grid.appendChild(item);
+        }
+        var number=item.querySelector(".kpiNum");
+        if(!number){
+          number=document.createElement("div");
+          number.className="kpiNum";
+          item.insertBefore(number,item.firstChild);
+        }
+        var caption=item.querySelector(".kpiLabel");
+        if(!caption){
+          caption=document.createElement("div");
+          caption.className="kpiLabel";
+          item.appendChild(caption);
+        }
+        var parsed=finiteNumber(metric.value);
+        var next=parsed===null?"—":Math.round(Math.max(0,parsed)).toLocaleString("en-US");
+        if(number.textContent!==next)number.textContent=next;
+        if(caption.textContent!==metric.label)caption.textContent=metric.label;
+      });
     });
   }
-
   function render(force){
     var runtime=api(),s=runtime&&runtime.getState?runtime.getState():null;
     if(!s){lastSnapshot="";lastRuntime=null;lastHistoryRef=null;lastHistoryLength=-1;lastHistoryTail="";lastHistoryRevision=null;lastHistorySignature="";lastSeasonLogRef=null;lastSeasonLogLength=-1;lastSeasonLogTail="";lastSeasonLogSignature="";return;}

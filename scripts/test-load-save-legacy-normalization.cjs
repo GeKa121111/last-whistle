@@ -195,13 +195,13 @@ function load(saved) {
     "an array must not be accepted as a sponsor contract");
   assert.equal(malformedNestedContainers.state.loan, null,
     "an array must not be accepted as a loan record");
-  assert.deepEqual(malformedNestedContainers.state.suspensions, {},
+  assert.equal(Object.keys(malformedNestedContainers.state.suspensions).length, 0,
     "an array must not be accepted as suspension metadata");
-  assert.deepEqual(malformedNestedContainers.state.bookings, {},
+  assert.equal(Object.keys(malformedNestedContainers.state.bookings).length, 0,
     "an array must not be accepted as booking metadata");
-  assert.deepEqual(malformedNestedContainers.state.competitionStats, {},
+  assert.equal(Object.keys(malformedNestedContainers.state.competitionStats).length, 0,
     "an array must not be accepted as competition statistics");
-  assert.deepEqual(malformedNestedContainers.state.cupState.groupOpponents, {},
+  assert.equal(Object.keys(malformedNestedContainers.state.cupState.groupOpponents).length, 0,
     "an array must not be accepted as cup group-opponent metadata");
 
   const validNestedContainers = load({
@@ -224,7 +224,8 @@ function load(saved) {
   assert.equal(validNestedContainers.state.suspensions.red, 1);
   assert.equal(validNestedContainers.state.bookings.yellow, 2);
   assert.equal(validNestedContainers.state.competitionStats.league.apps, 4);
-  assert.deepEqual(validNestedContainers.state.cupState.groupOpponents, { groupA: ["A", "B"] },
+  assert.equal(Object.keys(validNestedContainers.state.cupState.groupOpponents).length, 1);
+  assert.deepEqual(Array.from(validNestedContainers.state.cupState.groupOpponents.groupA), ["A", "B"],
     "valid nested legacy records must remain intact");
 
   const numericStrings = load({

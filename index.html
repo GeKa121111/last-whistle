@@ -7910,6 +7910,88 @@ function ensureSeasonDevelopmentSnapshot(){
   ?snapshotSessions:fallbackBaseline;
  state.seasonDevelopmentSnapshot={season:currentSeason,ovr:currentOvr,attributes,sessions:baselineSessions};
 }
+function upsertSeasonDevelopmentHistory(history,season,dev,training,ovrAfter,skillChanges){
+ const isRecord=value=>!!value&&typeof value==="object"&&!Array.isArray(value);
+ const finiteNumber=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:NaN;
+  if(typeof value==="string"&&value.trim()!==""){
+   const parsed=Number(value);
+   return Number.isFinite(parsed)?parsed:NaN;
+  }
+  return NaN;
+ };
+ const safeCount=(value,fallback=0)=>{
+  const parsed=finiteNumber(value);
+  return Number.isFinite(parsed)?Math.max(0,Math.floor(parsed)):fallback;
+ };
+ const safeAmount=(value,fallback=0)=>{
+  const parsed=finiteNumber(value);
+  return Number.isFinite(parsed)?Math.max(0,parsed):fallback;
+ };
+ const rows=Array.isArray(history)?history.slice():(history==null?[]:[{legacyHistoryValue:history}]);
+ const parsedSeason=finiteNumber(season);
+ if(!Number.isFinite(parsedSeason)||parsedSeason<1)return rows;
+ const currentSeason=Math.floor(parsedSeason);
+ const report=isRecord(training)?training:{};
+ const snapshot=isRecord(dev)?dev:{};
+ const existingIndex=rows.findIndex(row=>isRecord(row)&&finiteNumber(row.season)===currentSeason);
+ const existing=existingIndex>=0&&isRecord(rows[existingIndex])?rows[existingIndex]:{};
+ const beforeValue=finiteNumber(snapshot.ovr);
+ const afterValue=finiteNumber(ovrAfter);
+ const oldBefore=finiteNumber(existing.ovrBefore);
+ const oldAfter=finiteNumber(existing.ovrAfter);
+ const ovrBefore=Number.isFinite(beforeValue)?beforeValue:(Number.isFinite(oldBefore)?oldBefore:(Number.isFinite(afterValue)?afterValue:0));
+ const nextOvr=Number.isFinite(afterValue)?afterValue:(Number.isFinite(oldAfter)?oldAfter:ovrBefore);
+ const sessions=safeCount(report.sessions,safeCount(existing.sessions));
+ const manualSessions=safeCount(report.manualSessions,safeCount(existing.manualSessions));
+ const plannedSessions=safeCount(report.plannedSessions,safeCount(existing.plannedSessions));
+ const xp=safeAmount(report.xp,safeAmount(existing.xp));
+ const injuries=safeCount(report.injuries,safeCount(existing.injuries));
+ const skillCounts=new Map();
+ const oldSkillCounts=isRecord(existing.trainingBySkill)?existing.trainingBySkill:{};
+ const currentSkillCounts=isRecord(report.skills)?report.skills:{};
+ for(const [key,value] of Object.entries(oldSkillCounts))skillCounts.set(key,safeCount(value));
+ for(const [key,value] of Object.entries(currentSkillCounts))skillCounts.set(key,safeCount(value));
+ const trainingBySkill=Object.fromEntries(skillCounts);
+ const changeRows=new Map();
+ const previousChanges=Array.isArray(existing.skills)?existing.skills:[];
+ const currentChanges=Array.isArray(skillChanges)?skillChanges:[];
+ for(const row of previousChanges){
+  if(!isRecord(row)||typeof row.key!=="string"||!row.key)continue;
+  const delta=finiteNumber(row.delta);
+  if(Number.isFinite(delta)&&delta>0)changeRows.set(row.key,{key:row.key,delta});
+ }
+ for(const row of currentChanges){
+  if(!isRecord(row)||typeof row.key!=="string"||!row.key)continue;
+  const delta=finiteNumber(row.delta);
+  if(Number.isFinite(delta)&&delta>0)changeRows.set(row.key,{key:row.key,delta});
+ }
+ const normalizedChanges=Array.from(changeRows.values()).sort((a,b)=>b.delta-a.delta).slice(0,10);
+ const trainingCompleted=typeof report.completed==="boolean"?report.completed:existing.trainingCompleted===true;
+ const trainingSkipped=typeof report.skipped==="boolean"?report.skipped:existing.trainingSkipped===true;
+ const lastFocus=typeof report.lastFocus==="string"?report.lastFocus:(typeof existing.lastFocus==="string"?existing.lastFocus:"");
+ const record={
+  ...existing,
+  season:currentSeason,
+  ovrBefore,
+  ovrAfter:nextOvr,
+  sessions,
+  manualSessions,
+  plannedSessions,
+  totalSessions:sessions+manualSessions,
+  xp,
+  injuries,
+  skills:normalizedChanges,
+  trainingBySkill,
+  trainingCompleted,
+  trainingSkipped,
+  lastFocus
+ };
+ if(existingIndex>=0)rows[existingIndex]=record;
+ else rows.unshift(record);
+ // Keep the complete career timeline; each record is small and older seasons must remain inspectable.
+ return rows;
+}
 function simulateSeasonBlock(targetApps){
  if(reconcileWinterBreakState())saveGame(true);
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
@@ -8527,11 +8609,9 @@ function finishSeasonInternal(skipAnnualTraining=false){
   const labels={shooting:"التسديد",dribbling:"المراوغة",passing:"التمرير",speed:"السرعة",fitness:"اللياقة",composure:"الهدوء",defending:"الدفاع",goalkeeping:"حراسة المرمى",vision:"الرؤية",physical:"القوة البدنية"};
   const delta=overall()-(Number(dev.ovr)||overall());
   developmentNote="\n\nتقرير تطور اللاعب بالـ AI: التقييم العام "+dev.ovr+" ← "+overall()+" ("+(delta>=0?"+":"")+delta+"). حصص التدريب التلقائية: "+(Number(training?.sessions)||0)+"، خبرة تدريب: "+(Number(training?.xp)||0)+". "+(changes.length?"أبرز التحسينات: "+changes.slice(0,4).map(row=>labels[row.key]+" +"+row.delta).join("، ")+".":"لم ترتفع المهارات الأساسية نقطة كاملة خلال هذا الموسم.")+(Number(training?.sessions)>0?" الخطة الآلية اتحددت حسب المركز والإمكانات والجاهزية.":" التغيرات محسوبة مقارنة ببداية الموسم.")+(training?.skipped?" تم تجاوز بقية خطة التطوير السنوية بناءً على اختيارك.":"");
-  state.seasonDevelopmentHistory=Array.isArray(state.seasonDevelopmentHistory)?state.seasonDevelopmentHistory:[];
-  if(!state.seasonDevelopmentHistory.some(row=>Number(row.season)===Number(state.season))){
-   state.seasonDevelopmentHistory.unshift({season:Number(state.season),ovrBefore:dev.ovr,ovrAfter:overall(),sessions:Number(training?.sessions)||0,xp:Number(training?.xp)||0,skills:changes.slice(0,10),injuries:Number(training?.injuries)||0});
-   state.seasonDevelopmentHistory=state.seasonDevelopmentHistory.slice(0,20);
-  }
+  state.seasonDevelopmentHistory=upsertSeasonDevelopmentHistory(
+   state.seasonDevelopmentHistory,state.season,dev,training,overall(),changes
+  );
  }
  const summary=`النادي الحالي: المركز ${place} من ${state.league.length} • سجل النادي في المرحلة الحالية: ${state.seasonW} فوز / ${state.seasonD} تعادل / ${state.seasonL} خسارة • أهدافك وصناعاتك محسوبة للموسم عبر الأندية: ${state.seasonGoals} هدف و${state.seasonAssists} صناعة.`+developmentNote+prize;
  state.seasonSummary=summary;archiveLeagueSegment("season-end",place);archiveSeasonRecord();log("نهاية الموسم "+state.season+": "+summary);

@@ -5156,10 +5156,14 @@ function loadGame(options = {}){
   // while hostile legacy scalar objects can throw during Number(...) at season finalization.
   const trainingSkillKeys=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"];
   if(!state.seasonTrainingReport||typeof state.seasonTrainingReport!=="object"||Array.isArray(state.seasonTrainingReport)){
-   state.seasonTrainingReport={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,completed:false,completedSeason:0,skipped:false,lastFocus:""};
+   state.seasonTrainingReport={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,manualSkills:{},manualXP:0,manualInjuries:0,completed:false,completedSeason:0,skipped:false,lastFocus:""};
   }else{
    const report=state.seasonTrainingReport;
    report.skills=report.skills&&typeof report.skills==="object"&&!Array.isArray(report.skills)?report.skills:{};
+   report.manualSkills=report.manualSkills&&typeof report.manualSkills==="object"&&!Array.isArray(report.manualSkills)?report.manualSkills:{};
+   for(const [key,value] of Object.entries(report.manualSkills))report.manualSkills[key]=safeLegacyInteger(value,0,0);
+   const manualReportXp=safeLegacyNumber(report.manualXP);report.manualXP=Number.isFinite(manualReportXp)?Math.max(0,manualReportXp):0;
+   report.manualInjuries=safeLegacyInteger(report.manualInjuries,0,0);
    for(const key of ["sessions","injuries","plannedSessions","manualSessions"])report[key]=safeLegacyInteger(report[key],0,0);
    const reportXp=safeLegacyNumber(report.xp);report.xp=Number.isFinite(reportXp)?Math.max(0,reportXp):0;
    report.completed=safeLegacyFlag(report.completed);
@@ -7381,6 +7385,40 @@ function checkAction(kind,cost){
  if(state.energy<cost){openModal("طاقتك مش كفاية",`طاقتك الحالية ${state.energy}، والنشاط ده محتاج ${cost}. لو ضغطت على نفسك ممكن تتعرض لإصابة. خُد راحة الأول.`,[{label:"أرتاح دلوقتي",className:"primary",action:rest},{label:"مش دلوقتي",action:()=>{}}]);return false;}
  return true;
 }
+function recordManualTrainingSession(rawReport,type,result){
+ const isRecord=value=>!!value&&typeof value==="object"&&!Array.isArray(value);
+ const finiteNumber=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:NaN;
+  if(typeof value==="string"&&value.trim()!==""){
+   const parsed=Number(value);
+   return Number.isFinite(parsed)?parsed:NaN;
+  }
+  return NaN;
+ };
+ const safeCount=value=>{
+  const parsed=finiteNumber(value);
+  return Number.isFinite(parsed)?Math.max(0,Math.floor(parsed)):0;
+ };
+ const safeAmount=value=>{
+  const parsed=finiteNumber(value);
+  return Number.isFinite(parsed)?Math.max(0,parsed):0;
+ };
+ const report=isRecord(rawReport)?rawReport:(Array.isArray(rawReport)?{
+  sessions:rawReport.sessions,skills:rawReport.skills,xp:rawReport.xp,injuries:rawReport.injuries,
+  plannedSessions:rawReport.plannedSessions,manualSessions:rawReport.manualSessions,
+  manualSkills:rawReport.manualSkills,manualXP:rawReport.manualXP,manualInjuries:rawReport.manualInjuries,
+  completed:rawReport.completed,completedSeason:rawReport.completedSeason,skipped:rawReport.skipped,lastFocus:rawReport.lastFocus
+ }:{sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,manualSkills:{},manualXP:0,manualInjuries:0,completed:false,completedSeason:0,skipped:false,lastFocus:""});
+ report.manualSkills=isRecord(report.manualSkills)?report.manualSkills:{};
+ if(typeof type==="string"&&type.trim()){
+  report.manualSkills[type]=safeCount(report.manualSkills[type])+1;
+  report.manualSessions=safeCount(report.manualSessions)+1;
+  report.lastFocus=type;
+ }
+ report.manualXP=safeAmount(report.manualXP)+safeAmount(result?.xp);
+ if(result?.injured===true)report.manualInjuries=safeCount(report.manualInjuries)+1;
+ return report;
+}
 function train(type){
  if(state.retired){toast("المسيرة انتهت بالاعتزال.");return;}
  const costs={shooting:18,dribbling:16,fitness:22,passing:14,defending:18,goalkeeping:19,vision:12,composure:10,speed:20,physical:20};
@@ -7395,6 +7433,7 @@ function train(type){
   else toast(result.message);
   return;
  }
+ state.seasonTrainingReport=recordManualTrainingSession(state.seasonTrainingReport,type,result);
  const trainingEnergySpent=Math.max(0,energyBeforeTraining-(Number(state.energy)||0));
  if(state.homeGym&&trainingEnergySpent>0)state.energy=clamp(state.energy+Math.min(4,trainingEnergySpent));
  state.trust=clamp(state.trust+1);if(state.trainingIntensity!=="intense")state.coachRelationship=clamp((Number(state.coachRelationship??35))+1);
@@ -7872,8 +7911,13 @@ function ensureSeasonDevelopmentSnapshot(){
  const knownSeasonMismatch=!!snapshot&&Number.isFinite(savedSeason)&&Math.floor(savedSeason)!==currentSeason;
  const reportWasRecord=isRecord(state.seasonTrainingReport);
  let report=knownSeasonMismatch?null:(reportWasRecord?state.seasonTrainingReport:null);
- if(!report)report={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,completed:false,completedSeason:0,skipped:false,lastFocus:""};
+ if(!report)report={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,manualSkills:{},manualXP:0,manualInjuries:0,completed:false,completedSeason:0,skipped:false,lastFocus:""};
  report.skills=isRecord(report.skills)?report.skills:{};
+ report.manualSkills=isRecord(report.manualSkills)?report.manualSkills:{};
+ for(const [key,value] of Object.entries(report.manualSkills))report.manualSkills[key]=nonNegativeInteger(value);
+ const manualReportXp=finiteNumber(report.manualXP);
+ report.manualXP=Number.isFinite(manualReportXp)?Math.max(0,manualReportXp):0;
+ report.manualInjuries=nonNegativeInteger(report.manualInjuries);
  for(const key of ["sessions","injuries","plannedSessions","manualSessions","completedSeason"])report[key]=nonNegativeInteger(report[key]);
  const reportXp=finiteNumber(report.xp);
  report.xp=Number.isFinite(reportXp)?Math.max(0,reportXp):0;
@@ -7946,13 +7990,25 @@ function upsertSeasonDevelopmentHistory(history,season,dev,training,ovrAfter,ski
  const manualSessions=safeCount(report.manualSessions,safeCount(existing.manualSessions));
  const plannedSessions=safeCount(report.plannedSessions,safeCount(existing.plannedSessions));
  const xp=safeAmount(report.xp,safeAmount(existing.xp));
+ const manualXP=safeAmount(report.manualXP,safeAmount(existing.manualXP));
  const injuries=safeCount(report.injuries,safeCount(existing.injuries));
- const skillCounts=new Map();
- const oldSkillCounts=isRecord(existing.trainingBySkill)?existing.trainingBySkill:{};
- const currentSkillCounts=isRecord(report.skills)?report.skills:{};
- for(const [key,value] of Object.entries(oldSkillCounts))skillCounts.set(key,safeCount(value));
- for(const [key,value] of Object.entries(currentSkillCounts))skillCounts.set(key,safeCount(value));
- const trainingBySkill=Object.fromEntries(skillCounts);
+ const manualInjuries=safeCount(report.manualInjuries,safeCount(existing.manualInjuries));
+ const automaticSkillCounts=new Map();
+ const oldAutomaticSkills=isRecord(existing.automaticTrainingBySkill)?existing.automaticTrainingBySkill:(isRecord(existing.trainingBySkill)?existing.trainingBySkill:{});
+ const currentAutomaticSkills=isRecord(report.skills)?report.skills:{};
+ for(const [key,value] of Object.entries(oldAutomaticSkills))automaticSkillCounts.set(key,safeCount(value));
+ for(const [key,value] of Object.entries(currentAutomaticSkills))automaticSkillCounts.set(key,safeCount(value));
+ const automaticTrainingBySkill=Object.fromEntries(automaticSkillCounts);
+ const manualSkillCounts=new Map();
+ const oldManualSkills=isRecord(existing.manualTrainingBySkill)?existing.manualTrainingBySkill:{};
+ const currentManualSkills=isRecord(report.manualSkills)?report.manualSkills:{};
+ for(const [key,value] of Object.entries(oldManualSkills))manualSkillCounts.set(key,safeCount(value));
+ for(const [key,value] of Object.entries(currentManualSkills))manualSkillCounts.set(key,safeCount(value));
+ const manualTrainingBySkill=Object.fromEntries(manualSkillCounts);
+ const combinedSkillCounts=new Map();
+ for(const [key,value] of Object.entries(automaticTrainingBySkill))combinedSkillCounts.set(key,value);
+ for(const [key,value] of Object.entries(manualTrainingBySkill))combinedSkillCounts.set(key,(combinedSkillCounts.get(key)||0)+value);
+ const trainingBySkill=Object.fromEntries(combinedSkillCounts);
  const changeRows=new Map();
  const previousChanges=Array.isArray(existing.skills)?existing.skills:[];
  const currentChanges=Array.isArray(skillChanges)?skillChanges:[];
@@ -7980,8 +8036,14 @@ function upsertSeasonDevelopmentHistory(history,season,dev,training,ovrAfter,ski
   plannedSessions,
   totalSessions:sessions+manualSessions,
   xp,
+  manualXP,
+  totalXP:xp+manualXP,
   injuries,
+  manualInjuries,
+  totalInjuries:injuries+manualInjuries,
   skills:normalizedChanges,
+  automaticTrainingBySkill,
+  manualTrainingBySkill,
   trainingBySkill,
   trainingCompleted,
   trainingSkipped,
@@ -8530,10 +8592,17 @@ function skipSeasonTrainingAndFinish(){
  const report=isRecord(rawReport)?rawReport:(Array.isArray(rawReport)?{
   sessions:rawReport.sessions,skills:rawReport.skills,xp:rawReport.xp,injuries:rawReport.injuries,
   plannedSessions:rawReport.plannedSessions,manualSessions:rawReport.manualSessions,
+  manualSkills:rawReport.manualSkills,manualXP:rawReport.manualXP,manualInjuries:rawReport.manualInjuries,
   completed:rawReport.completed,completedSeason:rawReport.completedSeason,
   skipped:rawReport.skipped,lastFocus:rawReport.lastFocus,error:rawReport.error
- }:{sessions:0,skills:{},xp:0,injuries:0});
+ }:{sessions:0,skills:{},xp:0,injuries:0,manualSkills:{},manualXP:0,manualInjuries:0});
  const rawSkills=isRecord(report.skills)?report.skills:{};
+ const rawManualSkills=isRecord(report.manualSkills)?report.manualSkills:{};
+ const manualSkills={};
+ for(const [key,value] of Object.entries(rawManualSkills))manualSkills[key]=safeInteger(value);
+ report.manualSkills=manualSkills;
+ report.manualXP=nonNegative(report.manualXP);
+ report.manualInjuries=safeInteger(report.manualInjuries);
  const skills={};
  for(const key of ["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"]){
   if(Object.prototype.hasOwnProperty.call(rawSkills,key))skills[key]=safeInteger(rawSkills[key]);

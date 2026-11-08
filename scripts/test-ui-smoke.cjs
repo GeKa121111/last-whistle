@@ -221,6 +221,28 @@ if (seasonArchiveMarkupStart < seasonArchivePageStart || seasonArchiveMarkupStar
   process.exit(1);
 }
 
+
+const careerHub = fs.readFileSync(path.join(root, "public", "career-hub.js"), "utf8");
+const rootCareerHub = fs.readFileSync(path.join(root, "career-hub.js"), "utf8");
+const archiveBreakdownStart = careerHub.indexOf("function renderSeasonDevelopmentArchiveBreakdown(state)");
+const archiveBreakdownEnd = careerHub.indexOf("\n  function render(force)", archiveBreakdownStart);
+const archiveBreakdownSource = archiveBreakdownStart >= 0 && archiveBreakdownEnd > archiveBreakdownStart
+  ? careerHub.slice(archiveBreakdownStart, archiveBreakdownEnd) : "";
+const careerHubRenderStart = careerHub.indexOf("function render(force)");
+const careerHubRenderEnd = careerHub.indexOf("\n  function scheduleRender", careerHubRenderStart);
+const careerHubRenderSource = careerHubRenderStart >= 0 && careerHubRenderEnd > careerHubRenderStart
+  ? careerHub.slice(careerHubRenderStart, careerHubRenderEnd) : "";
+if (rootCareerHub !== careerHub
+  || !archiveBreakdownSource.includes("manualXP")
+  || !archiveBreakdownSource.includes("manualInjuries")
+  || !archiveBreakdownSource.includes("textContent")
+  || archiveBreakdownSource.includes("innerHTML")
+  || !careerHubRenderSource.includes("renderSeasonDevelopmentArchiveBreakdown(s);")
+  || !careerHub.includes("archiveObserver.observe(archiveRoot,{childList:true});")) {
+  console.error("Season archive XP/injury breakdown must stay mirrored and render safely from saved season records.");
+  process.exit(1);
+}
+
 const statsPageBranchStart = html.indexOf('case "stats":');
 const statsPageBranchEnd = html.indexOf('case "league":', statsPageBranchStart);
 const statsPageBranch = statsPageBranchStart >= 0 && statsPageBranchEnd > statsPageBranchStart

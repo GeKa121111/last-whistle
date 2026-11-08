@@ -1866,10 +1866,10 @@ async function main() {
     assert.deepEqual(statsDataProbe.incomplete, {
       goalsPer90: "—", assistsPer90: "—", minutesPerAppearance: "—"
     }, "the stats dashboard must not publish rates or average minutes from a truncated career ledger");
-    const seasonArchiveProbe = await page.evaluate(() => {
+    await page.evaluate(() => {
       const runtime = window.LWStoryRuntime;
       const state = runtime.getState();
-      const originalHistory = state.seasonDevelopmentHistory;
+      window.__seasonArchiveOriginalHistory = state.seasonDevelopmentHistory;
       const maliciousKey = '<img src=x onerror="window.__seasonArchiveXss=1">';
       state.seasonDevelopmentHistory = Array.from({ length: 25 }, (_, index) => ({
         season: index + 1,
@@ -1895,6 +1895,14 @@ async function main() {
       })).concat([{ season: { toString: 1, valueOf: 1 }, legacyMarker: "preserve" }]);
       runtime.showPage("stats");
       runtime.render();
+    });
+    await page.waitForFunction(() => {
+      const card = document.querySelector("#seasonDevelopmentArchive details.season-development-item");
+      return !!card && !!card.querySelector(".season-development-breakdown");
+    }, null, { timeout: 8000 });
+    const seasonArchiveProbe = await page.evaluate(() => {
+      const runtime = window.LWStoryRuntime;
+      const state = runtime.getState();
       const archive = document.querySelector("#seasonDevelopmentArchive");
       const cards = archive ? Array.from(archive.querySelectorAll("details")) : [];
       const result = {
@@ -1903,10 +1911,13 @@ async function main() {
         firstSeason: cards[0]?.querySelector("summary")?.textContent.trim() || "",
         lastSeason: cards[cards.length - 1]?.querySelector("summary")?.textContent.trim() || "",
         text: archive?.textContent || "",
+        breakdownText: archive?.querySelector(".season-development-breakdown")?.textContent || "",
+        breakdownCount: cards.filter(card => !!card.querySelector(".season-development-breakdown")).length,
         injectedElements: archive?.querySelectorAll("img,script,iframe").length || 0,
         malformedRowPreserved: state.seasonDevelopmentHistory.length === 26
       };
-      state.seasonDevelopmentHistory = originalHistory;
+      state.seasonDevelopmentHistory = window.__seasonArchiveOriginalHistory;
+      delete window.__seasonArchiveOriginalHistory;
       runtime.render();
       return result;
     });
@@ -1923,6 +1934,18 @@ async function main() {
       "the archive must show manual workload, combined XP and explicit skip status");
     assert.ok(seasonArchiveProbe.text.includes('<img src=x onerror="window.__seasonArchiveXss=1">'),
       "unknown/future skill labels must remain visible as literal text");
+    assert.equal(seasonArchiveProbe.breakdownCount, 25,
+      "every archived season must expose its own XP and injury breakdown");
+    assert.ok(seasonArchiveProbe.breakdownText.includes("XP التدريب الآلي")
+      && seasonArchiveProbe.breakdownText.includes("XP التدريب اليدوي")
+      && seasonArchiveProbe.breakdownText.includes("إصابات التدريب الآلي")
+      && seasonArchiveProbe.breakdownText.includes("إصابات التدريب اليدوي"),
+      "the archive must distinguish automatic and manual XP/injury totals");
+    assert.ok(seasonArchiveProbe.breakdownText.includes("120")
+      && seasonArchiveProbe.breakdownText.includes("45")
+      && seasonArchiveProbe.breakdownText.includes("2")
+      && seasonArchiveProbe.breakdownText.includes("1"),
+      "the XP/injury breakdown must display the exact saved automatic and manual values");
     assert.equal(seasonArchiveProbe.injectedElements, 0,
       "legacy skill names and focus labels must never be interpreted as HTML");
     assert.equal(seasonArchiveProbe.malformedRowPreserved, true,

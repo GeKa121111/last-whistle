@@ -4901,7 +4901,12 @@ function exportSave(){
   const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
   if(blob.size>5000000){toast("النسخة الاحتياطية أكبر من الحد الآمن للتصدير؛ احفظ اللعبة محليًا وجرّب لاحقًا.");return;}
   const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;
-  a.download="last-whistle-"+String(state.name||"career").replace(/[^\p{L}\p{N}-]+/gu,"-")+"-season-"+(state.season||1)+".json";
+  const rawName=state&&state.name;
+  const safeName=(typeof rawName==="string"&&rawName.trim())?rawName:(typeof rawName==="number"&&Number.isFinite(rawName)?String(rawName):"career");
+  const rawSeason=state&&state.season;
+  const seasonNumber=typeof rawSeason==="number"?rawSeason:(typeof rawSeason==="string"&&rawSeason.trim()?Number(rawSeason):NaN);
+  const safeSeason=Number.isSafeInteger(seasonNumber)&&seasonNumber>0?String(seasonNumber):"1";
+  a.download="last-whistle-"+safeName.replace(/[^\p{L}\p{N}-]+/gu,"-")+"-season-"+safeSeason+".json";
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   toast("تم تنزيل نسخة احتياطية مضغوطة من مسيرتك وعالم الكرة.");
  }catch(err){toast("تعذر إنشاء النسخة الاحتياطية؛ تأكد أن أدوات الضغط متاحة ومساحة الجهاز كافية.");}

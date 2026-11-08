@@ -57,6 +57,38 @@ assert.equal(engine.validateResult(malformedPositionRoleResult).ok, true,
 assert.equal(JSON.stringify(browserEngine.simulateMatch(malformedPositionRoleOptions)), JSON.stringify(malformedPositionRoleResult),
   "embedded match simulation must safely normalize hostile position and role labels exactly like the shared engine");
 
+const hostileLegacyDisplayLabel = JSON.parse('{"toString":1,"valueOf":1}');
+const malformedDisplayOptions = {
+  seed: 991206, teamName: hostileLegacyDisplayLabel, opponentName: hostileLegacyDisplayLabel,
+  competition: hostileLegacyDisplayLabel, mode: hostileLegacyDisplayLabel,
+  player: {
+    ...malformedPositionRoleOptions.player, name: hostileLegacyDisplayLabel,
+    position: "CM", role: "بديل", squadRole: hostileLegacyDisplayLabel,
+    playingTime: hostileLegacyDisplayLabel
+  }
+};
+const safeDisplayResult = engine.simulateMatch(malformedDisplayOptions);
+assert.equal(engine.validateResult(safeDisplayResult).ok, true,
+  "hostile legacy player/team/competition labels must not interrupt a full match simulation");
+assert.ok(safeDisplayResult.events.some(event => event.actor === "اللاعب"),
+  "malformed player names must use the established player fallback in match events");
+assert.equal(safeDisplayResult.metadata.competition, "",
+  "malformed competition labels must be omitted from match metadata");
+assert.equal(safeDisplayResult.metadata.mode, "manual",
+  "malformed match modes must use the existing manual-mode fallback");
+assert.equal(JSON.stringify(browserEngine.simulateMatch(malformedDisplayOptions)), JSON.stringify(safeDisplayResult),
+  "embedded and shared match engines must normalize hostile display labels identically");
+const hostileReportEvent = {
+  minute: 12, type: hostileLegacyDisplayLabel, side: hostileLegacyDisplayLabel,
+  description: hostileLegacyDisplayLabel, text: hostileLegacyDisplayLabel
+};
+for (const [engineName, targetEngine] of [["shared", engine], ["embedded", browserEngine]]) {
+  const safeReport = targetEngine.buildStoryReport({ ...safeDisplayResult, events: [hostileReportEvent] }, {});
+  assert.equal(JSON.stringify(safeReport.events[0]),
+    JSON.stringify({ minute: 12, type: "", side: "", description: "" }),
+    engineName + " story reports must reject object-valued event labels without coercion");
+}
+
  // Malformed legacy numeric fields must not crash the core match simulator.
  // Symbols and objects with throwing coercion hooks are treated as missing values.
  const hostileLegacyNumber = {
@@ -3111,4 +3143,4 @@ assert.ok(workerCacheMatch && Number(workerCacheMatch[1]) >= 631,
   "condition update must refresh the static cache");
 require("../../scripts/assert-static-cache-version.cjs")(workerCopies[0], 631);
 require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(
-  workerCopies[0], "data/match-engine.js", 84);
+  workerCopies[0], "data/match-engine.js", 86);

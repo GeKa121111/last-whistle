@@ -71,8 +71,40 @@ jobs:
             git rebase "origin/$target_branch"
             git push origin "HEAD:$target_branch"
           fi
+      - name: Synchronize canonical runtime mirrors before integration tests
+        run: node scripts/build-static.cjs
       - run: npm test
       - run: npm run build
+
+      - name: Commit generated runtime mirrors on repair branches
+        if: github.event_name == 'pull_request' && github.base_ref == 'integration/repair-batch-20261027' && startsWith(github.head_ref, 'fix/')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mirror_dir="$(mktemp -d)"
+          cp data/career-engine.js "$mirror_dir/root-career-engine.js"
+          cp public/data/career-engine.js "$mirror_dir/public-career-engine.js"
+          cp data/match-engine.js "$mirror_dir/root-match-engine.js"
+          cp public/data/match-engine.js "$mirror_dir/public-match-engine.js"
+          cp index.html "$mirror_dir/index.html"
+          cp public/index.html "$mirror_dir/public-index.html"
+          cp public/sw.js "$mirror_dir/public-sw.js"
+          git fetch origin "$GITHUB_HEAD_REF"
+          git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
+          cp "$mirror_dir/root-career-engine.js" data/career-engine.js
+          cp "$mirror_dir/public-career-engine.js" public/data/career-engine.js
+          cp "$mirror_dir/root-match-engine.js" data/match-engine.js
+          cp "$mirror_dir/public-match-engine.js" public/data/match-engine.js
+          cp "$mirror_dir/index.html" index.html
+          cp "$mirror_dir/public-index.html" public/index.html
+          cp "$mirror_dir/public-sw.js" public/sw.js
+          git add data/career-engine.js public/data/career-engine.js data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js
+          if git diff --cached --quiet; then
+            echo "Generated runtime mirrors already match their canonical sources."
+          else
+            git commit -m "chore(build): sync generated runtime mirrors"
+            git push origin "HEAD:$GITHUB_HEAD_REF"
+          fi
 
       - name: Install Playwright and Chromium
         run: |

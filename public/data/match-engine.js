@@ -14,6 +14,12 @@
     return parsed === null ? fallback : parsed;
   };
   const clamp = (value, min, max) => Math.max(min, Math.min(max, numberOr(value, 0)));
+  // Legacy labels come from save data. Accept only primitives; never invoke object coercion hooks.
+  function safeLegacyText(value, fallback = "") {
+    if (typeof value === "string") return value.trim() ? value : fallback;
+    if (typeof value === "number" && Number.isFinite(value) && value !== 0) return String(value);
+    return fallback;
+  }
   function seededRandom(seed) {
     const parsedSeed = finiteLegacyNumber(seed);
     let value = ((parsedSeed === null ? 0 : parsedSeed) >>> 0) || 0x9e3779b9;
@@ -315,7 +321,7 @@
     const events = [];
     if (playerStartMinute > 0 && minutes > 0) {
       events.push({ type: "substitution-on", minute: playerStartMinute, side: "player",
-        actor: String(player.name || "اللاعب"), reason: "دخول من مقاعد البدلاء", description: "دخل اللاعب من مقاعد البدلاء" });
+        actor: safeLegacyText(player.name, "اللاعب"), reason: "دخول من مقاعد البدلاء", description: "دخل اللاعب من مقاعد البدلاء" });
     }
     const stats = {
       minutes, goals: 0, assists: 0, shots: 0, shotsOnTarget: 0, chances: 0,
@@ -328,20 +334,20 @@
     const regulation = { for: 0, against: 0 };
     const shootout = { used: false, won: null, scoreFor: 0, scoreAgainst: 0, attempts: [] };
     const extraTime = { played: false, for: 0, against: 0, periods: [] };
-    const teamName = String(options.teamName || "فريق اللاعب");
-    const opponentName = String(options.opponentName || "المنافس");
+    const teamName = safeLegacyText(options.teamName, "فريق اللاعب");
+    const opponentName = safeLegacyText(options.opponentName, "المنافس");
     const position = player.position || player.pos || "";
     const matchPosition = normalizePosition(position);
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);
     if (redCard) {
       stats.redCards = 1;
-      events.push({ type: "red-card", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد مباشر في محاكاة اللعبة" });
+      events.push({ type: "red-card", minute: redMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب"), reason: "طرد مباشر في محاكاة اللعبة" });
     }
-    if (injured) events.push({ type: "injury", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), days: stats.injuryDays });
+    if (injured) events.push({ type: "injury", minute: injuryMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب"), days: stats.injuryDays });
     if (minutes > 0 && !redCard && random() < 0.105) {
       stats.yellowCards = 1;
-      events.push({ type: "yellow-card", minute: playerStartMinute + 1 + Math.floor(random() * minutes), side: "player", actor: String(player.name || "اللاعب") });
+      events.push({ type: "yellow-card", minute: playerStartMinute + 1 + Math.floor(random() * minutes), side: "player", actor: safeLegacyText(player.name, "اللاعب") });
     }
     function createPeriod(periodStart, duration, isExtra) {
       const relativeGap = teamPower + homeAdvantage - opponentPower;
@@ -415,7 +421,7 @@
           if (!isGoal) {
             if (!isOurs && keeperActive && minute >= playerStartMinute && minute <= playerEndMinute && shotEvent.onTarget) {
               stats.saves++;
-              events.push({ type: "save", minute, side: "team", actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true });
+              events.push({ type: "save", minute, side: "team", actor: safeLegacyText(player.name, "حارس اللاعب"), creditedToPlayer: true });
             }
             continue;
           }
@@ -428,7 +434,7 @@
           if (isOurs && !byPlayer && playerCanAct && !profile.goalkeeper && random() < clamp(0.005 + clamp(player.passing, 0, 100) * 0.00065 + clamp(player.vision, 0, 100) * 0.00055 + profile.creator * 0.12, 0.04, 0.24)) {
             stats.assists++;
             stats.keyPasses++;
-            events.push({ type: "assist", goalEventId, minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: String(player.name || "اللاعب"), goalMinute: minute, creditedToPlayer: true });
+            events.push({ type: "assist", goalEventId, minute: Math.max(playerStartMinute > 0 ? playerStartMinute : 1, minute - 1), side: "team", actor: safeLegacyText(player.name, "اللاعب"), goalMinute: minute, creditedToPlayer: true });
           }
         }
       }
@@ -448,23 +454,23 @@
           if (defensiveRandom() < tackleChance) {
             stats.tackles++; stats.tacklesWon++;
             const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
-            events.push({ type: "tackle", minute, side: "player", actor: String(player.name || "اللاعب") });
+            events.push({ type: "tackle", minute, side: "player", actor: safeLegacyText(player.name, "اللاعب") });
           }
           if (defensiveRandom() < interceptionChance) {
             stats.interceptions++;
             const minute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
-            events.push({ type: "interception", minute, side: "player", actor: String(player.name || "اللاعب") });
+            events.push({ type: "interception", minute, side: "player", actor: safeLegacyText(player.name, "اللاعب") });
             if (defensiveRandom() < 0.48) {
               stats.ballRecoveries++;
               const recoveryMinute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
-              events.push({ type: "recovery", minute: recoveryMinute, side: "player", actor: String(player.name || "اللاعب") });
+              events.push({ type: "recovery", minute: recoveryMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب") });
             }
           }
           const clearanceChance = clamp((0.025 + defenderWeight * 0.30) * activityFactor, 0.02, 0.34);
           if (defensiveRandom() < clearanceChance) {
             stats.clearances++;
             const clearanceMinute = playerPeriodStart + 1 + Math.floor(defensiveRandom() * playerActiveDuration);
-            events.push({ type: "clearance", minute: clearanceMinute, side: "player", actor: String(player.name || "اللاعب") });
+            events.push({ type: "clearance", minute: clearanceMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب") });
           }
         }
         const passTrials = Math.max(1, Math.floor(playerActiveDuration / 3));
@@ -485,7 +491,7 @@
           if (foulRandom() < foulChance) {
             stats.fouls++;
             const minute = playerPeriodStart + 1 + Math.floor(foulRandom() * playerActiveDuration);
-            events.push({ type: "foul", minute, side: "player", actor: String(player.name || "اللاعب") });
+            events.push({ type: "foul", minute, side: "player", actor: safeLegacyText(player.name, "اللاعب") });
           }
         }
       }
@@ -519,7 +525,7 @@
             redMinute = extraTimeExit.minute;
             stats.redCards = 1;
             events.push({ type: "red-card", minute: redMinute, side: "player",
-              actor: String(player.name || "اللاعب"), reason: "طرد مباشر في الوقت الإضافي" });
+              actor: safeLegacyText(player.name, "اللاعب"), reason: "طرد مباشر في الوقت الإضافي" });
           } else {
             injured = true;
             injuryMinute = extraTimeExit.minute;
@@ -527,7 +533,7 @@
               : extraTimeEventRandom() < 0.60 ? 5
                 : extraTimeEventRandom() < 0.75 ? 10 : 21;
             events.push({ type: "injury", minute: injuryMinute, side: "player",
-              actor: String(player.name || "اللاعب"), days: stats.injuryDays });
+              actor: safeLegacyText(player.name, "اللاعب"), days: stats.injuryDays });
           }
         }
       }
@@ -566,7 +572,7 @@
           if (savedByPlayer) {
             stats.penaltiesSaved++;
             events.push({ type: "penalty-save", minute: 120, side: "team",
-              actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true,
+              actor: safeLegacyText(player.name, "حارس اللاعب"), creditedToPlayer: true,
               attemptNumber: round, shootoutSide: "opponent" });
           }
         }
@@ -594,7 +600,7 @@
           if (savedByPlayer) {
             stats.penaltiesSaved++;
             events.push({ type: "penalty-save", minute: 120, side: "team",
-              actor: String(player.name || "حارس اللاعب"), creditedToPlayer: true,
+              actor: safeLegacyText(player.name, "حارس اللاعب"), creditedToPlayer: true,
               attemptNumber: 31, shootoutSide: "opponent" });
           }
         }
@@ -631,9 +637,9 @@
       const impactConfidence = 0.65 + 0.35 * scale;
       stats.rating = Math.round(clamp((6.05 + impact * impactConfidence + resultBonus * scale + (clamp(player.trust, 0, 100) - 50) * 0.004 + (clamp(player.fitness, 0, 100) - 50) * 0.003 + (morale - 50) * 0.003 - fatigue * 0.004), 4.0, 9.7) * 10) / 10;
     }
-    if (minutes > 0 && playerEndMinute < 90 && !redCard && !injured) events.push({ type: "substitution", minute: playerEndMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "قرار فني" });
-    if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "إصابة" });
-    if (redCard) events.push({ type: "substitution", minute: redMinute, side: "player", actor: String(player.name || "اللاعب"), reason: "طرد" });
+    if (minutes > 0 && playerEndMinute < 90 && !redCard && !injured) events.push({ type: "substitution", minute: playerEndMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب"), reason: "قرار فني" });
+    if (injured) events.push({ type: "substitution", minute: injuryMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب"), reason: "إصابة" });
+    if (redCard) events.push({ type: "substitution", minute: redMinute, side: "player", actor: safeLegacyText(player.name, "اللاعب"), reason: "طرد" });
     events.sort((a, b) => a.minute - b.minute || sameMinuteEventPriority(a) - sameMinuteEventPriority(b));
     return {
       home: Boolean(options.home), teamName, opponentName, tactic, regulation, extraTime, shootout,
@@ -641,7 +647,7 @@
       outcome: win ? "فوز" : draw ? "تعادل" : "خسارة",
       officialOutcome, advancementWinner, matchOutcome,
       player: stats, events,
-      metadata: { seed: simulationSeed, extraTimeEventSeed, competition: String(options.competition || ""), mode: String(options.mode || "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
+      metadata: { seed: simulationSeed, extraTimeEventSeed, competition: safeLegacyText(options.competition), mode: safeLegacyText(options.mode, "manual"), position, opponentTactic, tacticalIQ, aggregateOffset }
     };
   }
   function validateResultUnchecked(result) {
@@ -1235,9 +1241,9 @@
       .filter(event => event && typeof event === "object")
       .map(event => ({
         minute: finiteNumber(event.minute),
-        type: String(event.type || ""),
-        side: String(event.side || ""),
-        description: String(event.description || event.text || "")
+        type: safeLegacyText(event.type),
+        side: safeLegacyText(event.side),
+        description: safeLegacyText(event.description, safeLegacyText(event.text))
       })) : [];
     return {
       season: finiteNumber(context.season, 1) || 1,

@@ -79,16 +79,21 @@
     "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
   };
   function normalizePosition(position) {
-    const raw = String(position || "").trim();
+    const raw = typeof position === "string"
+      ? position.trim()
+      : typeof position === "number" && Number.isFinite(position) && position !== 0
+        ? String(position).trim() : "";
+    if (!raw) return "";
     const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
     const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
       && window.LWStateStore.normalizePosition;
-    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
+    if (typeof sharedNormalizer === "function") return sharedNormalizer(raw);
+    return Object.prototype.hasOwnProperty.call(POSITION_ALIASES, key) ? POSITION_ALIASES[key] : raw;
   }
 
   function positionProfile(position) {
     position = normalizePosition(position);
-    return ({
+    const profiles = {
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
       "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
       "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
@@ -98,10 +103,14 @@
       "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
       "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
       "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
-    })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
+    };
+    return Object.prototype.hasOwnProperty.call(profiles, position)
+      ? profiles[position] : { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function normalizeSquadRole(value) {
-    return String(value == null ? "" : value).normalize("NFD")
+    const raw = typeof value === "string" ? value
+      : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    return raw.normalize("NFD")
       .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
       .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
@@ -251,7 +260,7 @@
     // Morale is a confidence signal, not a squad-role override. Missing legacy values stay neutral.
     const morale = player.morale === undefined || player.morale === null ? 50 : clamp(player.morale, 0, 100);
     const confidenceFactor = 0.96 + morale * 0.0008;
-    const profile = positionProfile(String(player.position || player.pos || ""));
+    const profile = positionProfile(player.position || player.pos || "");
     const fallbackTeamGoalkeeping = clamp(options.teamGoalkeeping ?? 55, 25, 95);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
@@ -321,7 +330,7 @@
     const extraTime = { played: false, for: 0, against: 0, periods: [] };
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
-    const position = String(player.position || player.pos || "");
+    const position = player.position || player.pos || "";
     const matchPosition = normalizePosition(position);
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);

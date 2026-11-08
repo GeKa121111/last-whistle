@@ -1341,13 +1341,21 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "st": "رأس حربة", "fw": "رأس حربة", "fwd": "رأس حربة", "striker": "رأس حربة",
     "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
   };
+  // Legacy position/role labels are untrusted JSON data. Never invoke object coercion hooks.
+  function safeLegacyText(value, fallback = "") {
+    if (typeof value === "string") return value || fallback;
+    if (typeof value === "number" && Number.isFinite(value) && value !== 0) return String(value);
+    return fallback;
+  }
+
   function normalizeCareerPosition(position) {
-    const raw = String(position || "").trim();
+    const raw = safeLegacyText(position).trim();
     if (!raw) return "";
     const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
     const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
       && window.LWStateStore.normalizePosition;
-    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
+    if (typeof sharedNormalizer === "function") return sharedNormalizer(raw);
+    return Object.prototype.hasOwnProperty.call(POSITION_ALIASES, key) ? POSITION_ALIASES[key] : raw;
   }
 
   const CAREER_ATTRIBUTE = {
@@ -1368,7 +1376,9 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     "رأس حربة": { title: "رأس حربة هدّاف", summary: "مهمتك الأساسية إنهاء الهجمة داخل المنطقة، استغلال العرضيات والكرات البينية، وحماية الكرة تحت ضغط المدافعين. ركّز على التسديد والهدوء والقوة البدنية.", primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"], matchSkill: "shooting" }
   };
   function positionDevelopmentPlan(state) {
-    const rawPosition = typeof state === "string" ? state : String(state && state.pos || "جناح");
+    const rawPosition = typeof state === "string"
+      ? state
+      : state && typeof state === "object" && !Array.isArray(state) ? state.pos : "";
     const position = normalizeCareerPosition(rawPosition) || "جناح";
     const plan = DEVELOPMENT_PLANS[position] || DEVELOPMENT_PLANS["جناح"];
     return { position, title: plan.title, summary: plan.summary, primary: plan.primary.slice(), secondary: plan.secondary.slice(), matchSkill: plan.matchSkill };
@@ -1383,7 +1393,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
 // Select a squad role from recent form and career output, not a single unusually high rating.
   // The caller passes post-match career totals and the match that has just been completed.
   function evaluateSquadRole(state, matchHistory = [], currentMatch = null) {
-    const originalRole = String(state && state.role || "بديل");
+    const originalRole = safeLegacyText(state && state.role, "بديل");
     if (!state || state.academyCareer || state.academyReserve || normalizeLegacyBoolean(state.retired)) {
       return { role: originalRole, changed: false, reason: "protected-career", recentAverageRating: 0,
         recentContributionsPer90: 0, careerContributionsPer90: 0 };
@@ -1698,7 +1708,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
   }
 
   function ensureState(state) {
-    if (state.pos && String(state.pos).trim()) state.pos = normalizeCareerPosition(state.pos);
+    if (state.pos) {
+      const normalizedPosition = normalizeCareerPosition(state.pos);
+      // Invalid object/array labels must not reach position-keyed OVR or training lookups.
+      state.pos = normalizedPosition || "جناح";
+    }
     state.freeAgent = normalizeLegacyBoolean(state.freeAgent);
     const savedAgeValue = finiteLegacyNumber(state.age);
     if (state.age !== undefined && state.age !== null
@@ -2982,16 +2996,21 @@ function seasonAwards(state, league, teamRank) {
     "forward": "رأس حربة", "centre forward": "رأس حربة", "center forward": "رأس حربة"
   };
   function normalizePosition(position) {
-    const raw = String(position || "").trim();
+    const raw = typeof position === "string"
+      ? position.trim()
+      : typeof position === "number" && Number.isFinite(position) && position !== 0
+        ? String(position).trim() : "";
+    if (!raw) return "";
     const key = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
     const sharedNormalizer = typeof window !== "undefined" && window.LWStateStore
       && window.LWStateStore.normalizePosition;
-    return typeof sharedNormalizer === "function" ? sharedNormalizer(raw) : (POSITION_ALIASES[key] || raw);
+    if (typeof sharedNormalizer === "function") return sharedNormalizer(raw);
+    return Object.prototype.hasOwnProperty.call(POSITION_ALIASES, key) ? POSITION_ALIASES[key] : raw;
   }
 
   function positionProfile(position) {
     position = normalizePosition(position);
-    return ({
+    const profiles = {
       "حارس مرمى": { shooter: 0, creator: 0.04, defender: 0.06, goalkeeper: true },
       "قلب دفاع": { shooter: 0.045, creator: 0.08, defender: 0.35 },
       "ظهير": { shooter: 0.06, creator: 0.18, defender: 0.25 },
@@ -3001,10 +3020,14 @@ function seasonAwards(state, league, teamRank) {
       "جناح": { shooter: 0.19, creator: 0.25, defender: 0.10, finishingBonus: 0 },
       "مهاجم": { shooter: 0.19, creator: 0.24, defender: 0.05, finishingBonus: -0.005 },
       "رأس حربة": { shooter: 0.21, creator: 0.08, defender: 0.04, finishingBonus: 0.055 }
-    })[position] || { shooter: 0.2, creator: 0.2, defender: 0.15 };
+    };
+    return Object.prototype.hasOwnProperty.call(profiles, position)
+      ? profiles[position] : { shooter: 0.2, creator: 0.2, defender: 0.15 };
   }
   function normalizeSquadRole(value) {
-    return String(value == null ? "" : value).normalize("NFD")
+    const raw = typeof value === "string" ? value
+      : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    return raw.normalize("NFD")
       .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
       .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
@@ -3154,7 +3177,7 @@ function seasonAwards(state, league, teamRank) {
     // Morale is a confidence signal, not a squad-role override. Missing legacy values stay neutral.
     const morale = player.morale === undefined || player.morale === null ? 50 : clamp(player.morale, 0, 100);
     const confidenceFactor = 0.96 + morale * 0.0008;
-    const profile = positionProfile(String(player.position || player.pos || ""));
+    const profile = positionProfile(player.position || player.pos || "");
     const fallbackTeamGoalkeeping = clamp(options.teamGoalkeeping ?? 55, 25, 95);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);
@@ -3224,7 +3247,7 @@ function seasonAwards(state, league, teamRank) {
     const extraTime = { played: false, for: 0, against: 0, periods: [] };
     const teamName = String(options.teamName || "فريق اللاعب");
     const opponentName = String(options.opponentName || "المنافس");
-    const position = String(player.position || player.pos || "");
+    const position = player.position || player.pos || "";
     const matchPosition = normalizePosition(position);
     const fatigue = clamp(player.fatigue, 0, 100);
     const energy = clamp(player.energy, 0, 100);

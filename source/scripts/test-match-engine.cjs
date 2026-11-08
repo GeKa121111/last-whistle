@@ -31,6 +31,32 @@ vm.runInContext(matchBundle, browserContext, { filename: "index.html match bundl
 const browserEngine = browserContext.window.LWMatch;
 assert.ok(browserEngine && typeof browserEngine.simulateMatch === "function", "deployed match engine must initialise");
 
+const hostileLegacyPositionLabel = JSON.parse('{"toString":1,"valueOf":1}');
+const hostileLegacyRoleLabel = JSON.parse('{"toString":1,"valueOf":1}');
+for (const [engineName, targetEngine] of [["shared", engine], ["embedded", browserEngine]]) {
+  assert.doesNotThrow(() => targetEngine.normalizePosition(hostileLegacyPositionLabel),
+    engineName + " match-position normalization must not coerce hostile legacy objects");
+  assert.equal(targetEngine.normalizePosition(hostileLegacyPositionLabel), "",
+    engineName + " malformed match positions must be rejected safely");
+  assert.equal(JSON.stringify(targetEngine.positionProfile("constructor")), JSON.stringify({ shooter: 0.2, creator: 0.2, defender: 0.15 }),
+    engineName + " inherited prototype names must use the neutral fallback position profile");
+}
+const malformedPositionRoleOptions = {
+  seed: 991205, teamPower: 66, opponentPower: 61,
+  player: {
+    name: "اختبار مركز ودور تالف", position: hostileLegacyPositionLabel, role: hostileLegacyRoleLabel,
+    squadRole: hostileLegacyRoleLabel, playingTime: hostileLegacyRoleLabel,
+    morale: 70, injuryDays: 0, suspensionMatches: 0, energy: 90, fatigue: 10, trust: 40,
+    fitness: 70, shooting: 60, composure: 60, passing: 60, vision: 60,
+    speed: 60, physical: 60, dribbling: 60
+  }
+};
+const malformedPositionRoleResult = engine.simulateMatch(malformedPositionRoleOptions);
+assert.equal(engine.validateResult(malformedPositionRoleResult).ok, true,
+  "hostile legacy position and role labels must not crash or corrupt the match result");
+assert.equal(JSON.stringify(browserEngine.simulateMatch(malformedPositionRoleOptions)), JSON.stringify(malformedPositionRoleResult),
+  "embedded match simulation must safely normalize hostile position and role labels exactly like the shared engine");
+
  // Malformed legacy numeric fields must not crash the core match simulator.
  // Symbols and objects with throwing coercion hooks are treated as missing values.
  const hostileLegacyNumber = {

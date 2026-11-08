@@ -82,7 +82,9 @@ function createHarness(saved) {
       if (!Array.isArray(sandbox.state.league)) sandbox.state.league = sandbox.createLeague();
     },
     ensureFixtureSchedule() {
-      if (!Array.isArray(sandbox.state.fixtureSchedule)) sandbox.state.fixtureSchedule = [];
+      if (!Array.isArray(sandbox.state.fixtureSchedule) || sandbox.state.fixtureSchedule.length === 0) {
+        sandbox.state.fixtureSchedule = Array.from({ length: 10 }, () => []);
+      }
     },
     clubNameForLeague() { return sandbox.state.clubName; },
     closeUnfinishedCupAtSeasonEnd() {},

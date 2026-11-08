@@ -224,7 +224,7 @@ const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
 require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 557);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 83);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 86);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -385,6 +385,35 @@ assert.equal(malformedAwardState.topScorerAwards, 0,
   "an invalid scorer-award counter must be normalized without granting an award");
 assert.ok(Number.isFinite(malformedAwardState.money),
   "award processing must leave a finite balance after malformed match stats");
+
+const hostileLegacyAwardLabel = JSON.parse('{"toString":1,"valueOf":1}');
+function makeHostileAwardLabelState() {
+  return {
+    age: 24, pos: "مهاجم", clubName: hostileLegacyAwardLabel,
+    leagueCountry: hostileLegacyAwardLabel, leagueCompetition: hostileLegacyAwardLabel,
+    season: 1, calendarDay: 120, money: 0, topScorerAwards: 0,
+    careerAwards: [{
+      season: hostileLegacyAwardLabel, country: hostileLegacyAwardLabel,
+      competition: hostileLegacyAwardLabel, id: hostileLegacyAwardLabel
+    }],
+    seasonLog: [
+      { matchId: "hostile-award-1", minutes: 90, rating: 8, goals: 1, assists: 1 },
+      { matchId: "hostile-award-2", minutes: 90, rating: 8, goals: 1, assists: 1 },
+      { matchId: "hostile-award-3", minutes: 90, rating: 8, goals: 1, assists: 1 }
+    ]
+  };
+}
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const hostileAwardState = makeHostileAwardLabelState();
+  assert.doesNotThrow(() => engine.seasonAwards(hostileAwardState,
+    [{ name: hostileLegacyAwardLabel, power: 50 }], 1),
+    engineName + " season awards must not coerce hostile club, league, or saved-award labels");
+  const safeAward = hostileAwardState.careerAwards.find(award => award.id === "golden-boot");
+  assert.ok(safeAward, engineName + " season awards must still process valid match statistics with malformed display labels");
+  assert.equal(safeAward.club, "", engineName + " awards must store a safe fallback for a malformed player-club label");
+  assert.equal(safeAward.country, "", engineName + " awards must store a safe fallback for a malformed country label");
+  assert.equal(safeAward.competition, "", engineName + " awards must store a safe fallback for a malformed competition label");
+}
 
 
 const inlineRangesStart = rootHtml.indexOf("  const POSITION_ALIASES = {");
@@ -1063,6 +1092,46 @@ assert.equal(career.resolveContractDecision(renewal, "accept", { wage: 650, seas
 assert.equal(renewal.weeklyWage, 650);
 assert.equal(renewal.contractSeasons, 4);
 assert.equal(renewal.contractType, "professional", "renewing a contract must keep the player professionally signed");
+
+const hostileLegacyContractLabel = JSON.parse('{"toString":1,"valueOf":1}');
+for (const [engineName, engine] of [["shared", career], ["deployed", deployedCareer]]) {
+  const malformedContractTypeState = {
+    ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 1,
+    freeAgent: false, clubName: "Test FC", daysSinceNegotiation: 7, apps: 10
+  };
+  assert.equal(engine.wageNegotiationStatus(malformedContractTypeState), "ready",
+    engineName + " wage negotiation must safely ignore malformed legacy contract-type labels");
+  assert.equal(engine.loanRequestStatus(malformedContractTypeState, { windowOpen: true }), "ready",
+    engineName + " loan eligibility must safely ignore malformed legacy contract-type labels");
+  assert.equal(engine.makeContractOffer({ ...renewalBase, clubName: hostileLegacyContractLabel }).club, "",
+    engineName + " contract offers must use an empty safe club label for malformed saved club names");
+
+  const safeTypeRenewal = { ...malformedContractTypeState };
+  assert.equal(engine.resolveContractDecision(safeTypeRenewal, "accept",
+    { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "renewed",
+    engineName + " unknown malformed contract-type labels must not be coerced or misclassified as free-agent");
+
+  const malformedCurrentClub = { ...renewalBase, clubName: hostileLegacyContractLabel, contractSeasons: 1 };
+  const malformedCurrentClubBefore = JSON.stringify(malformedCurrentClub);
+  assert.equal(engine.resolveContractDecision(malformedCurrentClub, "accept",
+    { club: "Test FC", wage: 650, seasons: 3 }).status, "invalid-contract",
+    engineName + " contract renewal must reject an unreadable saved current-club label");
+  assert.equal(JSON.stringify(malformedCurrentClub), malformedCurrentClubBefore,
+    engineName + " rejected malformed current-club data must remain unchanged");
+
+  const malformedOfferedClub = { ...renewalBase, clubName: "Test FC", contractSeasons: 1 };
+  assert.equal(engine.resolveContractDecision(malformedOfferedClub, "accept",
+    { club: hostileLegacyContractLabel, wage: 650, seasons: 3 }).status, "invalid-offer",
+    engineName + " contract renewal must reject an unreadable offered-club label");
+
+  const malformedPendingClub = {
+    ...renewalBase, clubName: "Test FC", contractSeasons: 1, season: 1,
+    contractOffer: { club: hostileLegacyContractLabel, season: 1, wage: 650, seasons: 3 }
+  };
+  assert.equal(engine.resolveContractDecision(malformedPendingClub, "accept",
+    { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "stale-offer",
+    engineName + " pending contract comparison must reject an unreadable saved club label");
+}
 
 const malformedWageCases = [
   [Infinity, 0], ["Infinity", 0], [NaN, 0], [-250, 0], [3.9, 3], [700, 700],

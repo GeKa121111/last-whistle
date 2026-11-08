@@ -84,7 +84,8 @@ const hostileReportEvent = {
 };
 for (const [engineName, targetEngine] of [["shared", engine], ["embedded", browserEngine]]) {
   const safeReport = targetEngine.buildStoryReport({ ...safeDisplayResult, events: [hostileReportEvent] }, {});
-  assert.deepEqual(safeReport.events[0], { minute: 12, type: "", side: "", description: "" },
+  assert.equal(JSON.stringify(safeReport.events[0]),
+    JSON.stringify({ minute: 12, type: "", side: "", description: "" }),
     engineName + " story reports must reject object-valued event labels without coercion");
 }
 

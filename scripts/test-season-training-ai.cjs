@@ -23,9 +23,9 @@ new vm.Script(historySource, { filename: "season-development-history.js" }).runI
 const upsertSeasonHistory = historySandbox.__upsertSeasonHistory;
 
 const manualHelperStart = html.indexOf("function recordManualTrainingSession(");
-const manualHelperEnd = html.indexOf("\\nfunction train(type)", manualHelperStart);
+const manualHelperEnd = html.indexOf("\nfunction train(type)", manualHelperStart);
 assert.ok(manualHelperStart >= 0 && manualHelperEnd > manualHelperStart, "manual training recorder must exist");
-const manualHelperSource = html.slice(manualHelperStart, manualHelperEnd) + "\\nglobalThis.__recordManualTrainingSession = recordManualTrainingSession;";
+const manualHelperSource = html.slice(manualHelperStart, manualHelperEnd) + "\nglobalThis.__recordManualTrainingSession = recordManualTrainingSession;";
 const manualHelperSandbox = {};
 vm.createContext(manualHelperSandbox);
 new vm.Script(manualHelperSource, { filename: "manual-training-recorder.js" }).runInContext(manualHelperSandbox);

@@ -1108,7 +1108,7 @@ for (const [engineName, engine] of [["shared", career]]) {
 
   const safeTypeRenewal = { ...malformedContractTypeState, contractSeasons: 1 };
   assert.equal(engine.resolveContractDecision(safeTypeRenewal, "accept",
-    { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "renewed",
+    { club: "Test FC", wage: 650, seasons: 3 }).status, "renewed",
     engineName + " unknown malformed contract-type labels must not be coerced or misclassified as free-agent");
 
   const malformedCurrentClub = { ...renewalBase, clubName: hostileLegacyContractLabel, contractSeasons: 1 };
@@ -1837,7 +1837,7 @@ assert.equal(deployedCareer.loanRequestStatus(deployedHostileContractTypeState, 
 assert.equal(deployedCareer.makeContractOffer({ ...renewalBase, clubName: hostileLegacyContractLabel }).club, "");
 const deployedSafeTypeRenewal = { ...deployedHostileContractTypeState, contractSeasons: 1 };
 assert.equal(deployedCareer.resolveContractDecision(deployedSafeTypeRenewal, "accept",
-  { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "renewed");
+  { club: "Test FC", wage: 650, seasons: 3 }).status, "renewed");
 const deployedMalformedCurrentClub = { ...renewalBase, clubName: hostileLegacyContractLabel, contractSeasons: 1 };
 assert.equal(deployedCareer.resolveContractDecision(deployedMalformedCurrentClub, "accept",
   { club: "Test FC", wage: 650, seasons: 3 }).status, "invalid-contract");

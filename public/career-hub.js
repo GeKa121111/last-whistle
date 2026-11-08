@@ -68,9 +68,24 @@
   }
   function historyRowSignature(row){
     if(!row||typeof row!=="object"||Array.isArray(row))return "-";
-    var minutes=finiteNumber(row.minutes),goals=finiteNumber(row.goals),assists=finiteNumber(row.assists);
-    var scope=typeof row.scope==="string"?row.scope:"";
-    return [minutes===null?0:minutes,scope,goals===null?0:goals,assists===null?0:assists].join(":");
+    // Keep the cache key aligned with uniqueMatchRows(): match identity metadata
+    // can change deduplication even when minutes/goals/assists stay unchanged.
+    try{
+      var signature=JSON.stringify(Object.keys(row).sort().map(function(key){return [key,row[key]];}));
+      if(typeof signature==="string")return signature;
+    }catch(error){}
+    var fields=["id","matchId","scope","competition","leagueCompetition","season","segmentId","club","opponent","day","calendarDay","matchday","minutes","goals","assists"];
+    return JSON.stringify(fields.map(function(key){
+      var value;
+      try{value=row[key];}catch(error){return [key,"[unreadable]"];}
+      if(value===undefined)return [key,null];
+      if(value===null||typeof value==="string"||typeof value==="boolean")return [key,value];
+      if(typeof value==="number")return [key,Number.isFinite(value)?value:String(value)];
+      try{
+        var nested=JSON.stringify(value);
+        return [key,nested===undefined?"["+typeof value+"]":nested];
+      }catch(error){return [key,"["+typeof value+"]"];}
+    }));
   }
   function historyTailSignature(history){
     return history.length?historyRowSignature(history[history.length-1]):"-";

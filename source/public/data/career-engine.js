@@ -229,8 +229,9 @@
     const eventIdentityFields = ["opponent", "day", "calendarDay", "matchday"];
     const fallbackTemporalFields = ["day", "calendarDay", "matchday"];
     const safeIdentityText = value => {
-      if (value === undefined || value === null) return "";
-      try { return String(value).trim(); } catch (error) { return ""; }
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) return String(value).trim();
+      return "";
     };
     const identityValue = (row, field) => {
       const value = field === "competition"
@@ -330,9 +331,9 @@
       (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
         .filter(archive => archive && typeof archive === "object"
           && finiteLegacyNumber(archive.season) === currentSeason)
-        .map(archive => String(archive.segmentId || "").trim()).filter(Boolean)
+        .map(archive => safeLegacyText(archive.segmentId).trim()).filter(Boolean)
     );
-    const activeSegmentId = String(state && state.leagueSegmentId || "").trim();
+    const activeSegmentId = safeLegacyText(state && state.leagueSegmentId).trim();
     if (activeSegmentId) currentSeasonSegments.add(activeSegmentId);
     const legacySeasonRows = (Array.isArray(state && state.seasonLog) ? state.seasonLog : [])
       .filter(row => row && typeof row === "object" && !Array.isArray(row)
@@ -355,7 +356,7 @@
           const savedSeason = finiteLegacyNumber(rawSeason);
           return savedSeason !== null && savedSeason === currentSeason;
         }
-        const segmentId = String(row.segmentId || "").trim();
+        const segmentId = safeLegacyText(row.segmentId).trim();
         return !!segmentId && currentSeasonSegments.has(segmentId);
       })
       .map(row => ({
@@ -787,15 +788,18 @@
     };
     const goals = safeMatchCount(data.goals, 20);
     const assists = safeMatchCount(data.assists, 20);
-    const matchId = String(data.matchId || ("legacy:" + (state.season || 1) + ":" + (state.apps || 0)
-      + ":" + (state.seasonLog?.length || 0) + ":" + played));
+    const fallbackSeason = safeLegacyText(state.season) || "1";
+    const fallbackApps = safeLegacyText(state.apps) || "0";
+    const seasonLogLength = Array.isArray(state.seasonLog) ? state.seasonLog.length : 0;
+    const matchId = safeLegacyText(data.matchId)
+      || ("legacy:" + fallbackSeason + ":" + fallbackApps + ":" + seasonLogLength + ":" + played);
     if (state.progressionMatchIds.includes(matchId)) return { gained: 0, skill: "", duplicate: true, qualifying: played >= 20, milestones: [] };
     state.progressionMatchIds.push(matchId);
     if (state.progressionMatchIds.length > 5000) state.progressionMatchIds.splice(0, state.progressionMatchIds.length - 5000);
     state.careerAppearances = Math.min(Number.MAX_SAFE_INTEGER, state.careerAppearances + 1);
     state.careerMinutes = Math.min(Number.MAX_SAFE_INTEGER, state.careerMinutes + played);
     const qualifying = played >= 20;
-    const competitionKey = String(data.competitionKey || "club|unknown");
+    const competitionKey = safeLegacyText(data.competitionKey) || "club|unknown";
     const competition = state.competitionStats[competitionKey] || (state.competitionStats[competitionKey] = {
       appearances: 0, qualifyingAppearances: 0, minutes: 0, goals: 0, assists: 0
     });
@@ -835,14 +839,15 @@
     const recoveries = safeMatchCount(matchStats.ballRecoveries);
     const keyPasses = safeMatchCount(matchStats.keyPasses);
     const cleanSheet = matchStats.cleanSheet === true;
-    const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(String(state.pos || ""));
-    const creativeMidfieldPosition = ["وسط", "وسط مهاجم"].includes(String(state.pos || ""));
-    const positionActionXP = state.pos === "حارس مرمى"
+    const safePositionLabel = safeLegacyText(state.pos);
+    const defensivePosition = ["قلب دفاع", "ظهير", "وسط دفاعي"].includes(safePositionLabel);
+    const creativeMidfieldPosition = ["وسط", "وسط مهاجم"].includes(safePositionLabel);
+    const positionActionXP = safePositionLabel === "حارس مرمى"
       ? Math.min(18, saves * 2 + penaltiesSaved * 5 + (cleanSheet ? 5 : 0))
       : defensivePosition
         ? Math.min(20, tackles * 1.8 + interceptions * 2.5 + clearances * 1.2 + recoveries * 1.1 + (cleanSheet ? 4 : 0))
         : creativeMidfieldPosition
-          ? state.pos === "وسط"
+          ? safePositionLabel === "وسط"
             ? Math.min(12, keyPasses * 1.1 + recoveries * 0.8 + tackles * 0.3)
             : Math.min(12, keyPasses * 1.4 + recoveries * 0.6)
           : Math.min(12, goals * 4 + assists * 2);
@@ -913,8 +918,8 @@
 function seasonAwards(state, league, teamRank) {
     ensureState(state);
     const log = currentSeasonLeagueMatchRows(state);
-    const competition = String(state.leagueCompetition || "");
-    const country = String(state.leagueCountry || "");
+    const competition = safeLegacyText(state.leagueCompetition);
+    const country = safeLegacyText(state.leagueCountry);
     const seasonValue = finiteLegacyNumber(state.season);
     const currentSeason = seasonValue !== null && seasonValue > 0 ? Math.max(1, Math.floor(seasonValue)) : 1;
     const divisionValue = finiteLegacyNumber(state.leagueDivision);
@@ -944,8 +949,12 @@ function seasonAwards(state, league, teamRank) {
     const assists = playerMatches.reduce((sum, row) => sum + awardCount(row.assists), 0);
     const average = playerMatches.reduce((sum, row) => sum + awardRating(row.rating), 0) / appearances;
     const playerScore = average * 10 + goals * 0.34 + assists * 0.28 + Math.max(0, 6 - safeTeamRank) * 0.7;
-    const opponents = (Array.isArray(league) ? league : []).filter(team => team && team.name !== state.clubName).map(team => {
-      const rng = seeded(hash(String(currentSeason) + "|" + String(state.leagueCountry) + "|" + team.name));
+    const currentClubName = safeLegacyText(state.clubName);
+    const opponents = (Array.isArray(league) ? league : [])
+      .map(team => ({ team, name: safeLegacyText(team && team.name) }))
+      .filter(entry => entry.team && entry.name && entry.name !== currentClubName)
+      .map(({ team, name }) => {
+      const rng = seeded(hash(String(currentSeason) + "|" + country + "|" + name));
       const powerValue = finiteLegacyNumber(team.power);
       const power = Number.isFinite(powerValue) && powerValue !== 0
         ? Math.max(0, Math.min(100, powerValue)) : 50;
@@ -963,10 +972,12 @@ function seasonAwards(state, league, teamRank) {
       club.country === country && Math.max(1, Math.floor(finiteLegacyNumber(club.division) || 1)) === currentDivision
     );
     for (const club of realLeagueClubs) {
+      const clubName = safeLegacyText(club && club.name);
+      if (!clubName) continue;
       const profile = database?.leagueById?.(club.leagueId) || {};
       for (const player of club.players || []) {
         const simulated = window.LWTransferAwards?.simulatePlayerSeason({
-          ...player, clubName: club.name, country: club.country,
+          ...player, clubName, country: club.country,
           prestige: club.prestige, leagueStrength: finiteLegacyNumber(leagueProfile.strength) || 60,
           confederation: profile.confederation || "",
           originConfederation: profile.confederation || "",
@@ -985,8 +996,13 @@ function seasonAwards(state, league, teamRank) {
     const eligible = ageValue !== null && currentAge <= 21;
     const youngOpponents = opponents.filter(player => player.age <= 21);
     const awardScope = String(currentSeason) + "|" + country + "|" + competition;
-    const alreadyWon = new Set((state.careerAwards || []).map(award =>
-      String(award.season) + "|" + (award.country || "") + "|" + (award.competition || "") + "|" + award.id));
+    const alreadyWon = new Set((Array.isArray(state.careerAwards) ? state.careerAwards : []).map(award => {
+      const savedAward = award && typeof award === "object" ? award : {};
+      return [
+        safeLegacyText(savedAward.season), safeLegacyText(savedAward.country),
+        safeLegacyText(savedAward.competition), safeLegacyText(savedAward.id)
+      ].join("|");
+    }));
     const definitions = [
       { id: "league-player", title: "لاعب الموسم — محاكاة", value: playerScore,
         compare: Math.max(0, ...opponents.map(p => p.score)), minimum: 69,
@@ -1007,7 +1023,7 @@ function seasonAwards(state, league, teamRank) {
       if (definition.value < definition.minimum || definition.value <= definition.compare) continue;
       const award = {
         id: definition.id, title: definition.title, season: currentSeason,
-        club: String(state.clubName || ""), country, competition, note: definition.note,
+        club: safeLegacyText(state.clubName), country, competition, note: definition.note,
         date: calendarGameDateISO(state)
       };
       state.careerAwards.unshift(award);
@@ -1124,7 +1140,7 @@ function seasonAwards(state, league, teamRank) {
     if (!state || typeof state !== "object" || Array.isArray(state)) return "invalid-state";
     if (normalizeLegacyBoolean(state.retired)) return "retired";
     if (state.loan) return "loaned";
-    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") return "free-agent";
+    if (normalizeLegacyBoolean(state.freeAgent) || safeLegacyText(state.contractType).toLowerCase() === "free-agent") return "free-agent";
     const contractSeasons = finiteLegacyNumber(state.contractSeasons);
     if (contractSeasons === null) return "contract-expiring";
     if (contractSeasons <= 0) return "free-agent";
@@ -1140,7 +1156,7 @@ function seasonAwards(state, league, teamRank) {
     options = options && typeof options === "object" && !Array.isArray(options) ? options : {};
     if (normalizeLegacyBoolean(state.retired)) return "retired";
     const contractSeasons = finiteLegacyNumber(state.contractSeasons);
-    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent"
+    if (normalizeLegacyBoolean(state.freeAgent) || safeLegacyText(state.contractType).toLowerCase() === "free-agent"
       || contractSeasons === null || contractSeasons <= 0) return "free-agent";
     if (state.loan) return "already-loaned";
     if (state.pendingTransfer) return "transfer-pending";
@@ -1276,7 +1292,7 @@ function seasonAwards(state, league, teamRank) {
     const calculatedWage = Math.round(currentWage * (0.9 + rating / 500 + trust / 1000) * contractMultiplier);
     const wage = Math.max(currentWage, Math.min(Number.MAX_SAFE_INTEGER, calculatedWage));
     const savedSeason = finiteLegacyNumber(safeState.season);
-    return { club: String(safeState.clubName || ""), wage, seasons: 3, season: savedSeason || 1 };
+    return { club: safeLegacyText(safeState.clubName), wage, seasons: 3, season: savedSeason || 1 };
   }
 
   function resolveContractDecision(state, decision, offer) {
@@ -1285,15 +1301,19 @@ function seasonAwards(state, league, teamRank) {
     if (normalizeLegacyBoolean(state.retired)) return { ok: false, status: "retired" };
     if (state.loan) return { ok: false, status: "loaned" };
     if (!offer || typeof offer !== "object" || Array.isArray(offer)) return { ok: false, status: "invalid-offer" };
-    if (normalizeLegacyBoolean(state.freeAgent) || String(state.contractType || "").toLowerCase() === "free-agent") {
+    if (normalizeLegacyBoolean(state.freeAgent) || safeLegacyText(state.contractType).toLowerCase() === "free-agent") {
       return { ok: false, status: "free-agent" };
     }
     const contractSeasonsValue = finiteLegacyNumber(state.contractSeasons);
     if (contractSeasonsValue === null || contractSeasonsValue < 0) return { ok: false, status: "invalid-contract" };
     if (contractSeasonsValue > 1) return { ok: false, status: "not-expiring" };
 
-    const currentClub = String(state.clubName || "").trim();
-    const offeredClub = String(offer.club || "").trim();
+    const rawCurrentClub = state.clubName;
+    const rawOfferedClub = offer.club;
+    const currentClub = safeLegacyText(rawCurrentClub).trim();
+    const offeredClub = safeLegacyText(rawOfferedClub).trim();
+    if (rawCurrentClub && !currentClub) return { ok: false, status: "invalid-contract" };
+    if (rawOfferedClub && !offeredClub) return { ok: false, status: "invalid-offer" };
     if (currentClub && offeredClub && currentClub !== offeredClub) return { ok: false, status: "club-mismatch" };
     const hasOfferSeason = offer.season !== undefined && offer.season !== null && offer.season !== "";
     if (hasOfferSeason) {
@@ -1311,7 +1331,11 @@ function seasonAwards(state, league, teamRank) {
         const pendingValue = pendingOffer[key], suppliedValue = offer[key];
         if (pendingValue === undefined || pendingValue === null || pendingValue === "") return true;
         if (suppliedValue === undefined || suppliedValue === null || suppliedValue === "") return false;
-        if (key === "club") return String(pendingValue).trim() === String(suppliedValue).trim();
+        if (key === "club") {
+          const pendingClub = safeLegacyText(pendingValue).trim();
+          const suppliedClub = safeLegacyText(suppliedValue).trim();
+          return Boolean(pendingClub && suppliedClub && pendingClub === suppliedClub);
+        }
         const pendingNumber = finiteLegacyNumber(pendingValue);
         const suppliedNumber = finiteLegacyNumber(suppliedValue);
         return pendingNumber !== null && suppliedNumber !== null && pendingNumber === suppliedNumber;

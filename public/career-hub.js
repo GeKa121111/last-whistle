@@ -235,7 +235,16 @@
       var limit=typeof maximum==="number"&&Number.isFinite(maximum)&&maximum>=0?maximum:1000000;
       return parsed===null?0:Math.floor(Math.max(0,Math.min(limit,parsed)));
     };
-    var normalizeHistoryRows=function(rows){
+    var historyRowCompleteness=function(row){
+      // Only count fields used by the per-90 summary. Unrelated rating/stat
+      // details must not outweigh missing goals or assists.
+      var score=0;
+      ["minutes","goals","assists"].forEach(function(key){
+        if(finiteNumber(row&&row[key])!==null)score+=1;
+      });
+      return score;
+    };
+    var normalizeHistoryRows=function(rows,sourcePriority){
       return (Array.isArray(rows)?rows:[]).reduce(function(valid,row){
         if(!row||typeof row!=="object"||Array.isArray(row))return valid;
         var minutes=finiteNumber(row.minutes);
@@ -244,15 +253,23 @@
         var scope=rawScope===undefined||rawScope===null||(typeof rawScope==="string"&&rawScope.trim()==="")
           ?"league":typeof rawScope==="string"?rawScope.trim().toLowerCase():"";
         if(!scope)return valid;
-        valid.push(Object.assign({},row,{
-          minutes:minutes,goals:careerCount(row.goals,20),assists:careerCount(row.assists,20),scope:scope
-        }));
+        valid.push({
+          row:Object.assign({},row,{
+            minutes:minutes,goals:careerCount(row.goals,20),assists:careerCount(row.assists,20),scope:scope
+          }),
+          completeness:historyRowCompleteness(row),
+          priority:sourcePriority
+        });
         return valid;
       },[]);
     };
-    var legacySeasonRows=normalizeHistoryRows(s.seasonLog);
-    var historyRows=normalizeHistoryRows(s.careerMatchHistory);
-    var combinedHistoryRows=legacySeasonRows.concat(historyRows);
+    // Prefer the most complete duplicate record; use the canonical career ledger
+    // as the tie-breaker over the legacy seasonLog snapshot.
+    var legacySeasonRows=normalizeHistoryRows(s.seasonLog,0);
+    var historyRows=normalizeHistoryRows(s.careerMatchHistory,1);
+    var combinedHistoryRows=legacySeasonRows.concat(historyRows)
+      .sort(function(a,b){return b.completeness-a.completeness||b.priority-a.priority;})
+      .map(function(entry){return entry.row;});
     var uniqueHistoryRows=window.LWCareer&&typeof window.LWCareer.uniqueMatchRows==="function"
       ?window.LWCareer.uniqueMatchRows(combinedHistoryRows):combinedHistoryRows;
     var careerRows=uniqueHistoryRows.filter(function(row){return row&&row.scope!=="international";});

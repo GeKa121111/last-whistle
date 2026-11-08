@@ -51,7 +51,8 @@ const listKeys = [
   "trophyCabinet","awardCeremonies"
 ];
 const INITIAL = {
-  name: "Previous Career", age: 24, season: 2, day: 1, calendarDay: 1, money: 500,
+  name: "Previous Career", age: 24, pos: "جناح", leagueDivision: 2, clubName: "مركز شباب النور",
+  season: 2, day: 1, calendarDay: 1, money: 500,
   league: [], cupState: null, transferNegotiation: null, physical: 55, contractType: "professional",
   ...Object.fromEntries(listKeys.map(key => [key, []]))
 };
@@ -205,7 +206,8 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
   assert.equal(malformedMetadata.sandbox.state.name, "Imported Career",
     "malformed optional metadata must not reject an otherwise valid career backup");
   assert.equal(malformedMetadata.sandbox.state.age, 18);
-  assert.equal(malformedMetadata.sandbox.state.season, 1);
+  assert.equal(malformedMetadata.sandbox.state.season, INITIAL.season,
+    "a malformed season must fall back to the existing initial-season value");
   assert.equal(malformedMetadata.sandbox.state.day, 1);
   assert.equal(malformedMetadata.sandbox.state.calendarDay, 1);
   assert.equal(malformedMetadata.sandbox.state.seasonApps, 0);

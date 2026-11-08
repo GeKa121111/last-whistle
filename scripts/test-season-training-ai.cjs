@@ -400,12 +400,13 @@ assert.equal(archived[1].legacyMarker, "do-not-drop",
 const revisedArchive = upsertSeasonHistory(archived, 1, { ovr: 71 }, {
   sessions: "5", plannedSessions: "52", manualSessions: "3", xp: "150", injuries: "2",
   skills: { shooting: 4, passing: 2, unknownSkill: 1 },
-  completed: true, skipped: false, lastFocus: "shooting"
+  completed: true, skipped: false, lastFocus: ""
 }, 76, [{ key: "shooting", delta: 3 }]);
 assert.equal(revisedArchive.length, 2, "re-finalizing the same season must update its record instead of adding a duplicate");
 assert.equal(revisedArchive[0].sessions, 5, "a retry must refresh the existing season record");
 assert.equal(revisedArchive[0].totalSessions, 8);
 assert.equal(revisedArchive[0].trainingSkipped, false);
+assert.equal(revisedArchive[0].lastFocus, "shooting", "an empty retry focus must not erase the last successful training focus");
 assert.equal(revisedArchive[0].trainingBySkill.passing, 2,
   "skill counts not repeated in a later partial report must remain preserved");
 

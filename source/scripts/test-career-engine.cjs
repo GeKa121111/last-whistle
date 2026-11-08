@@ -251,7 +251,7 @@ const tournamentFlagNames = ["nationalCalled", "nationalTournamentDone", "nation
 const legacyCareerPerkFlagNames = ["academyCareer","academyReserve","academyGraduationPending","academyGraduated","privateCoach","xpMultiplier"];
 assert.ok(rootHtml.includes('if (!state.agent || typeof state.agent !== "object") state.agent = normalizeLegacyBoolean(state.agent);'),
   "the deployed browser engine must normalize primitive legacy agent flags without replacing object profiles");
-assert.ok(rootHtml.includes('if(!state.agent||typeof state.agent!=="object")state.agent=normalizeSavedBooleanFlag(state.agent);'),
+assert.ok(rootHtml.includes('if(!state.agent||typeof state.agent!=="object"||Array.isArray(state.agent))state.agent=normalizeSavedBooleanFlag(state.agent);'),
   "save migration must normalize primitive legacy agent flags without replacing object profiles");
 const cupTerminalFlagNames = ["champion", "eliminated", "abandoned"];
 for (const flag of cupTerminalFlagNames) {

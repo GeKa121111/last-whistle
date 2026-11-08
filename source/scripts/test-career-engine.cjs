@@ -3037,6 +3037,22 @@ const deployedMalformedRoleDecision = deployedCareer.evaluateSquadRole(
 assert.equal(JSON.stringify(deployedMalformedRoleDecision), JSON.stringify(malformedRoleDecision),
   "embedded browser role evaluation must match the sanitized career engine");
 
+const inflatedRatingHistory = Array.from({ length: 8 }, (_, index) => ({
+  id: "inflated-rating-" + index, scope: "league", minutes: 90, rating: 99, goals: 0, assists: 0
+}));
+const inflatedRatingDecision = career.evaluateSquadRole({
+  pos: "وسط دفاعي", role: "بديل", apps: 16, goals: 0, assists: 0, trust: 55
+}, inflatedRatingHistory);
+assert.equal(inflatedRatingDecision.role, "بديل",
+  "out-of-range ratings must not manufacture enough form evidence to promote a substitute");
+assert.equal(inflatedRatingDecision.recentAverageRating, 0,
+  "invalid high ratings must be excluded rather than clamped to a perfect 10");
+const deployedInflatedRatingDecision = deployedCareer.evaluateSquadRole({
+  pos: "وسط دفاعي", role: "بديل", apps: 16, goals: 0, assists: 0, trust: 55
+}, inflatedRatingHistory);
+assert.equal(JSON.stringify(deployedInflatedRatingDecision), JSON.stringify(inflatedRatingDecision),
+  "embedded browser role evaluation must reject invalid ratings exactly like the shared engine");
+
 
 
 // Legacy saved match rows can store playerAvailable as a string. A string "false"

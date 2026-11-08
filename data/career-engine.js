@@ -10,6 +10,13 @@
     return Number.isFinite(numeric) ? numeric : null;
   };
 
+  // Match ratings are meaningful only inside the game's 0–10 rating scale.
+  // Zero is the legacy "not rated" sentinel, not a poor performance.
+  const validSquadFormRating = value => {
+    const numeric = finiteLegacyNumber(value);
+    return numeric !== null && numeric > 0 && numeric <= 10;
+  };
+
   const CONFIG = {
     shooting: { cost: 18, xp: 28, secondary: { composure: 7 } },
     dribbling: { cost: 16, xp: 27, secondary: { speed: 7 } },
@@ -107,7 +114,7 @@
     const recentMinutes = sum(recent, "minutes");
     const recentContributions = sum(recent, "goals") + sum(recent, "assists");
     const recentContributionsPer90 = recentContributions / Math.max(1, recentMinutes / 90);
-    const ratedRows = recent.filter(row => safeMetric(row.rating, 10) > 0);
+    const ratedRows = recent.filter(row => validSquadFormRating(row.rating));
     const ratedMinutes = ratedRows.reduce((total, row) => total + safeMetric(row.minutes, 120), 0);
     // A five-minute cameo must not carry the same weight as a full match when judging squad form.
     const recentAverageRating = ratedMinutes > 0

@@ -4671,10 +4671,20 @@ function startingWeeklyWage(country,division,age,tier=0){
  const local=[250,650,1500,4000][clamp(tier,0,3)]||250;
  return country==="مصر"?local:Math.round((local/250)*(country==="إنجلترا"?85:EURO_COUNTRIES.has(country)?90:70));
 }
-function legacyPhysicalFallback(position,skills={}){
- const average=keys=>Math.round(keys.reduce((sum,key)=>sum+(Number(skills[key])||40),0)/keys.length);
+function legacyPhysicalFallback(position,skills){
+ if(!skills||typeof skills!=="object"||Array.isArray(skills))skills={};
+ const numericValue=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:NaN;
+  if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value);return Number.isFinite(numeric)?numeric:NaN;}
+  return NaN;
+ };
+ const average=keys=>Math.round(keys.reduce((sum,key)=>{
+  const numeric=numericValue(skills[key]);
+  return sum+(Number.isFinite(numeric)?numeric:40);
+ },0)/keys.length);
  const values={"حارس مرمى":average(["fitness","composure"]),"قلب دفاع":average(["defending","fitness"]),"ظهير":average(["speed","fitness"]),"وسط دفاعي":average(["defending","fitness"]),"وسط مهاجم":average(["passing","composure"]),"جناح":average(["dribbling","speed"]),"مهاجم":average(["shooting","fitness"])};
- return clamp(values[position]||50,5,70);
+ const role=typeof position==="string"?position:"";
+ return clamp(values[role]||50,5,70);
 }
 function club(){const base=CLUBS[clamp(state.clubIndex,0,CLUBS.length-1)]||CLUBS[0];return {...base,name:state.clubName||base.name,wage:state.weeklyWage||base.wage,tier:state.clubTier??state.clubIndex,ov:Number(state.clubPower)||base.ov};}
 function safeText(s){return String(s??"");}
@@ -4940,17 +4950,51 @@ async function importSaveFile(file){
   const clean=validateBackupValue(careerPayload);
   // Preserve runtime data such as worldSimulation and season-development ledgers.
   restored={...structuredCloneSafe(INITIAL),...clean};
-  if(clean.physical===undefined)restored.physical=legacyPhysicalFallback(clean.pos,clean);
-  if(clean.contractType===undefined)restored.contractType=Number(restored.age)<=18&&Number(restored.leagueDivision)>=2?"youth-amateur":restored.freeAgent?"free-agent":"professional";
+  const safeNumber = value => {
+   if(typeof value==="number")return Number.isFinite(value)?value:NaN;
+   if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value);return Number.isFinite(numeric)?numeric:NaN;}
+   return NaN;
+  };
+  const safeText = value => typeof value==="string"?value:(typeof value==="number"&&Number.isFinite(value)?String(value):"");
+  const importedAge=safeNumber(restored.age);
+  restored.age=Number.isFinite(importedAge)?Math.max(0,Math.min(100,Math.floor(importedAge))):18;
+  const importedDivision=safeNumber(restored.leagueDivision);
+  restored.leagueDivision=Number.isFinite(importedDivision)?Math.max(0,Math.floor(importedDivision)):INITIAL.leagueDivision;
+  const importedSeason=safeNumber(restored.season);
+  restored.season=Number.isSafeInteger(importedSeason)&&importedSeason>0?importedSeason:INITIAL.season;
+  const importedDay=safeNumber(restored.day);
+  restored.day=Number.isSafeInteger(importedDay)&&importedDay>0?importedDay:INITIAL.day;
+  if(typeof restored.pos!=="string"||!restored.pos.trim())restored.pos=INITIAL.pos;
+  if(typeof restored.clubName!=="string"||!restored.clubName.trim())restored.clubName=INITIAL.clubName;
+  const importedPhysical=safeNumber(clean.physical);
+  restored.physical=Number.isFinite(importedPhysical)?importedPhysical:legacyPhysicalFallback(restored.pos,clean);
+  const importedContractType=typeof clean.contractType==="string"?clean.contractType.trim():"";
+  restored.contractType=importedContractType||(restored.age<=18&&restored.leagueDivision>=2?"youth-amateur":normalizeSavedBooleanFlag(restored.freeAgent)?"free-agent":"professional");
   if(payload.version<4||clean.qualifyingAppearances===undefined)window.LWCareer?.rebuildLegacyCareerStats(restored);
   if(payload.version<5||clean.leagueRatingSum===undefined||clean.leagueRatingCount===undefined)window.LWCareer?.deriveLeagueRatingStats(restored);
-  const legacySeasonApps=Math.max(0,Number(clean.seasonApps)||0),savedLeagueApps=Number(clean.leagueApps),trustedLeagueCounter=Object.prototype.hasOwnProperty.call(clean,"leagueApps")&&(savedLeagueApps>0||legacySeasonApps===0||normalizeSavedBooleanFlag(clean.leagueSegmentIsPartial));
+  const legacySeasonAppsValue=safeNumber(clean.seasonApps);
+  const legacySeasonApps=Math.max(0,Number.isFinite(legacySeasonAppsValue)?legacySeasonAppsValue:0);
+  restored.seasonApps=legacySeasonApps;
+  const savedLeagueApps=safeNumber(clean.leagueApps);
+  const trustedLeagueCounter=Object.prototype.hasOwnProperty.call(clean,"leagueApps")&&Number.isFinite(savedLeagueApps)&&(savedLeagueApps>0||legacySeasonApps===0||normalizeSavedBooleanFlag(clean.leagueSegmentIsPartial));
   restored.leagueApps=trustedLeagueCounter?Math.max(0,savedLeagueApps):legacySeasonApps;
-  const legacyTransferThisSeason=legacySeasonApps>0&&Array.isArray(clean.transferHistory)&&clean.transferHistory.some(row=>Number(row?.season)===Number(clean.season)&&String(row?.text||"").includes(String(clean.clubName||"")));
+  const importedSeasonForTransfer=safeNumber(clean.season);
+  const importedClubName=typeof clean.clubName==="string"?clean.clubName.trim():"";
+  const legacyTransferThisSeason=legacySeasonApps>0&&Number.isFinite(importedSeasonForTransfer)&&importedClubName!==""&&Array.isArray(clean.transferHistory)&&clean.transferHistory.some(row=>{
+   if(!row||typeof row!=="object"||Array.isArray(row))return false;
+   return safeNumber(row.season)===importedSeasonForTransfer&&safeText(row.text).includes(importedClubName);
+  });
   restored.leagueSegmentIsPartial=normalizeSavedBooleanFlag(clean.leagueSegmentIsPartial)||(!trustedLeagueCounter&&legacyTransferThisSeason);
   const importedRoundHistory=Array.isArray(restored.leagueRoundHistory)?restored.leagueRoundHistory:[];
-  restored.leagueRoundIndex=Number.isInteger(Number(clean.leagueRoundIndex))?Math.max(0,Number(clean.leagueRoundIndex)):(importedRoundHistory.length?Math.max(...importedRoundHistory.map(row=>Number(row?.matchday)||0)):Math.max(0,Number(restored.leagueApps)||0));
-  if(!Object.prototype.hasOwnProperty.call(clean,"calendarDay")||!Number.isFinite(Number(clean.calendarDay))||Number(clean.calendarDay)<1)restored.calendarDay=Math.max(1,Number(restored.day)||1);
+  const savedRoundIndex=safeNumber(clean.leagueRoundIndex);
+  const historyRoundIndex=importedRoundHistory.reduce((maximum,row)=>{
+   const matchday=safeNumber(row?.matchday);
+   return Number.isFinite(matchday)?Math.max(maximum,matchday):maximum;
+  },0);
+  restored.leagueRoundIndex=Number.isSafeInteger(savedRoundIndex)?Math.max(0,savedRoundIndex):(importedRoundHistory.length?historyRoundIndex:Math.max(0,restored.leagueApps));
+  const importedCalendarDay=safeNumber(clean.calendarDay);
+  if(!Object.prototype.hasOwnProperty.call(clean,"calendarDay")||!Number.isFinite(importedCalendarDay)||importedCalendarDay<1)restored.calendarDay=Math.max(1,restored.day);
+  else restored.calendarDay=importedCalendarDay;
   restored.schemaVersion=10;
   if(clean.careerStarted===undefined)restored.careerStarted=true;
   if(window.LWCareer)window.LWCareer.ensureState(restored);
@@ -6006,7 +6050,18 @@ function renderContract(){
  setText("contractPill",state.retired?"معتزل":contractDisplayState.freeAgent?"لاعب حر":contractDisplayState.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+contractDisplayState.contractSeasons+" موسم");
  const stages=[["درجة ثانية / أكاديمية",0,0,250],["درجة أولى / نادي صاعد",55,35,650],["دوري ممتاز / نادي ثابت",62,48,1500],["نادي أوروبي كبير",70,60,4000]];
  $("clubLadder").innerHTML=stages.map((c,i)=>`<div class="feedItem"><b>${i===state.clubIndex?"📍":i<state.clubIndex?"✅":"🔒"} ${c[0]} ${i===state.clubIndex?"(أنت هنا)":""}</b><span class="muted">${i===state.clubIndex?"مرحلتك الحالية":`الشروط: تقييم ${c[1]}+ وثقة ${c[2]}+`} • مرتب نموذجي ${c[3]} ${currencyLabel()}/أسبوع</span></div>`).join("");
- $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(x=>`<div class="feedItem"><b>الموسم ${x.season} • اليوم ${x.day}</b>${x.text}</div>`).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';
+ $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(renderTransferHistoryEntry).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';
+}
+function renderTransferHistoryEntry(entry){
+ const row=entry&&typeof entry==="object"&&!Array.isArray(entry)?entry:{};
+ const safeLabel=value=>{
+  if(typeof value==="number"&&Number.isFinite(value))return String(value);
+  if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value);return Number.isFinite(numeric)?String(numeric):"—";}
+  return "—";
+ };
+ const rawText=typeof row.text==="string"?row.text:(typeof row.text==="number"&&Number.isFinite(row.text)?String(row.text):"تفاصيل سجل الانتقال غير متاحة.");
+ const escapedText=rawText.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+ return `<div class="feedItem"><b>الموسم ${safeLabel(row.season)} • اليوم ${safeLabel(row.day)}</b>${escapedText}</div>`;
 }
 function renderNational(){
  const nation=state.nationalTeam||"مصر";

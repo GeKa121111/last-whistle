@@ -71,6 +71,8 @@ jobs:
             git rebase "origin/$target_branch"
             git push origin "HEAD:$target_branch"
           fi
+      - name: Synchronize canonical runtime mirrors before integration tests
+        run: node scripts/build-static.cjs
       - run: npm test
       - run: npm run build
 

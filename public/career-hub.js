@@ -236,14 +236,12 @@
       return parsed===null?0:Math.floor(Math.max(0,Math.min(limit,parsed)));
     };
     var historyRowCompleteness=function(row){
+      // Only count fields used by the per-90 summary. Unrelated rating/stat
+      // details must not outweigh missing goals or assists.
       var score=0;
-      ["minutes","goals","assists","rating"].forEach(function(key){
+      ["minutes","goals","assists"].forEach(function(key){
         if(finiteNumber(row&&row[key])!==null)score+=1;
       });
-      try{
-        if(row&&row.stats&&typeof row.stats==="object"&&!Array.isArray(row.stats))
-          score+=Math.min(4,Object.keys(row.stats).length);
-      }catch(error){}
       return score;
     };
     var normalizeHistoryRows=function(rows,sourcePriority){

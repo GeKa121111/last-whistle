@@ -67,6 +67,18 @@
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
     return fallback;
   }
+  function safeMetadataTimestamp(value) {
+    if (typeof value === "string") return value.trim() ? value : "";
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const date = new Date(value);
+      return Number.isFinite(date.getTime()) ? date.toISOString() : "";
+    }
+    if (value instanceof Date) {
+      const timestamp = Date.prototype.getTime.call(value);
+      return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+    }
+    return "";
+  }
   // Slot identifiers can come from imported UI state. Never coerce objects or arrays.
   // Preserve the existing default-slot behavior for omitted/empty/falsy legacy values.
   function normalizeSlotId(value, fallback) {
@@ -282,10 +294,28 @@
     return new Promise(function (resolve, reject) {
       const request = db.transaction("saves", "readonly").objectStore("saves").getAll();
       request.onsuccess = function () {
-        resolve((request.result || []).map(row => ({
-          id: row.id, label: row.label, updatedAt: row.updatedAt,
-          season: row.season, playerName: row.playerName, schemaVersion: row.schemaVersion
-        })).sort((a,b) => String(b.updatedAt).localeCompare(String(a.updatedAt))));
+        const rows = Array.isArray(request.result) ? request.result : [];
+        const entries = rows.map(function (row, index) {
+          if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+          const id = normalizeSlotId(row.id, "");
+          if (!id) return null;
+          const updatedAt = safeMetadataTimestamp(row.updatedAt);
+          const parsedTimestamp = Date.parse(updatedAt);
+          return {
+            index,
+            timestamp: Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0,
+            value: {
+              id,
+              label: safeMetadataText(row.label, safeMetadataText(row.playerName, "مسيرة محفوظة")),
+              updatedAt,
+              season: finiteMetadataNumber(row.season),
+              playerName: safeMetadataText(row.playerName, "لاعب"),
+              schemaVersion: finiteMetadataNumber(row.schemaVersion)
+            }
+          };
+        }).filter(Boolean);
+        entries.sort((a, b) => b.timestamp - a.timestamp || a.index - b.index);
+        resolve(entries.map(entry => entry.value));
       };
       request.onerror = function () { reject(request.error || new Error("IndexedDB slot listing failed")); };
     });

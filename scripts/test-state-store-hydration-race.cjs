@@ -9,6 +9,7 @@ const source = fs.readFileSync(path.join(__dirname, "..", "career-state-store.js
 function createHarness() {
   let openRequest = null;
   const readRequests = [];
+  const listRequests = [];
   const writeTransactions = [];
   const writes = [];
   const committedWrites = [];
@@ -37,6 +38,12 @@ function createHarness() {
               assert.equal(id, "career:default");
               const request = {};
               readRequests.push(request);
+              return request;
+            },
+            getAll() {
+              assert.equal(mode, "readonly");
+              const request = {};
+              listRequests.push(request);
               return request;
             },
             put(record) {
@@ -72,6 +79,7 @@ function createHarness() {
     writes,
     committedWrites,
     writeTransactions,
+    listRequests,
     completeWrite(index = 0) {
       const transaction = writeTransactions[index];
       if (!transaction || transaction.aborted) return false;
@@ -388,6 +396,41 @@ function createHarness() {
   assert.equal(await boundaryOverlap, true);
   assert.deepEqual(JSON.parse(JSON.stringify(completionBoundary.committedWrites.at(-1).state)), boundaryCareer,
     "the final committed default-slot record must contain the newest career state");
+
+  const listedSaves = createHarness();
+  await listedSaves.resolveStartupRead(null);
+  const hostileListMetadata = JSON.parse('{"toString":1,"valueOf":1}');
+  const legacyRows = [
+    { id: "older", label: "Older career", updatedAt: "2026-01-01T00:00:00.000Z", season: "2", playerName: "Older player", schemaVersion: "9" },
+    { id: "newer", label: "Newer career", updatedAt: "2026-02-01T00:00:00.000Z", season: 3, playerName: "Newer player", schemaVersion: 10 },
+    { id: "numeric-date", label: "Numeric date", updatedAt: Date.UTC(2026, 2, 1), season: 4, playerName: "Numeric player", schemaVersion: 10 },
+    { id: "malformed-metadata", label: hostileListMetadata, updatedAt: hostileListMetadata, season: hostileListMetadata, playerName: hostileListMetadata, schemaVersion: hostileListMetadata },
+    { id: hostileListMetadata, label: "Invalid identifier", updatedAt: "2026-03-02T00:00:00.000Z", season: 1, playerName: "Invalid", schemaVersion: 10 },
+    null
+  ];
+  const listPromise = listedSaves.store.listSaves();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(listedSaves.listRequests.length, 1,
+    "listing saved careers must issue one readonly getAll request");
+  listedSaves.listRequests[0].result = legacyRows;
+  listedSaves.listRequests[0].onsuccess();
+  const safeRows = await listPromise;
+  assert.deepEqual(safeRows.map(row => row.id), ["numeric-date", "newer", "older", "malformed-metadata"],
+    "valid save slots must sort newest-first and malformed dates must sort last without throwing");
+  assert.equal(safeRows[0].updatedAt, new Date(Date.UTC(2026, 2, 1)).toISOString(),
+    "numeric legacy timestamps must remain readable as ISO dates");
+  assert.equal(safeRows[3].label, "مسيرة محفوظة",
+    "object-valued legacy labels must receive a safe display fallback");
+  assert.equal(safeRows[3].playerName, "لاعب",
+    "object-valued legacy player names must receive a safe display fallback");
+  assert.equal(safeRows[3].updatedAt, "",
+    "object-valued legacy timestamps must not be coerced into strings");
+  assert.equal(safeRows[3].season, null);
+  assert.equal(safeRows[3].schemaVersion, null);
+  assert.equal(legacyRows.length, 6,
+    "display normalization must not delete malformed or legacy records from IndexedDB results");
+  assert.equal(legacyRows[3].updatedAt, hostileListMetadata,
+    "display normalization must not mutate the original malformed record");
 
   console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {

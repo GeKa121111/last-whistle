@@ -34,6 +34,7 @@ function extractFunction(source, signature) {
 
 const importSource = extractFunction(html, "async function importSaveFile(file)");
 const physicalFallbackSource = extractFunction(html, "function legacyPhysicalFallback(position,skills)");
+const transferHistoryRendererSource = extractFunction(html, "function renderTransferHistoryEntry(entry)");
 const importFallbackSource = extractFunction(html, "function encodeImportFallback(value)");
 assert.match(importSource, /encodeImportFallback\(restored\)/,
   "imports must use the full-snapshot fallback encoder");
@@ -134,14 +135,21 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
       return true;
     },
     saveGame(silent) { calls.saveGame++; assert.equal(silent, true); return true; },
-    render() { calls.renders++; },
+    render() {
+      calls.renders++;
+      if (typeof sandbox.renderTransferHistoryEntry === "function") {
+        const rows = Array.isArray(sandbox.state.transferHistory) ? sandbox.state.transferHistory : [];
+        rows.forEach(row => sandbox.renderTransferHistoryEntry(row));
+      }
+    },
     showPage() {},
     closeDrawer() {},
     toast(message) { calls.toasts.push(String(message)); },
     console
   };
   vm.createContext(sandbox);
-  new vm.Script(physicalFallbackSource + "\n" + importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback;", { filename: "backup-import-helpers" }).runInContext(sandbox);
+  new vm.Script(physicalFallbackSource + "\n" + transferHistoryRendererSource + "\n" + importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback; globalThis.runTransferHistoryRenderer = renderTransferHistoryEntry;", { filename: "backup-import-helpers" }).runInContext(sandbox);
+  sandbox.renderTransferHistoryEntry = sandbox.runTransferHistoryRenderer;
   const actualImportFallbackEncoder = sandbox.runImportFallbackEncoder;
   sandbox.encodeImportFallback = value => {
     calls.encodeImportFallback++;
@@ -219,6 +227,16 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
   assert.equal(malformedMetadata.sandbox.state.physical, 55);
   assert.equal(typeof malformedMetadata.sandbox.state.transferHistory[0].text, "object",
     "metadata normalization must not delete the original transfer-history row");
+  assert.equal(malformedMetadata.calls.renders, 1,
+    "the imported career must render even when a legacy transfer-history row has malformed labels");
+  assert.equal(malformedMetadata.sandbox.runTransferHistoryRenderer({
+    season: hostileMetadata, day: hostileMetadata, text: hostileMetadata
+  }), '<div class="feedItem"><b>الموسم — • اليوم —</b>تفاصيل سجل الانتقال غير متاحة.</div>',
+    "transfer-history rendering must never coerce hostile object values");
+  assert.equal(malformedMetadata.sandbox.runTransferHistoryRenderer({
+    season: "5", day: 12, text: "<b>legacy text</b>"
+  }), '<div class="feedItem"><b>الموسم 5 • اليوم 12</b>&lt;b&gt;legacy text&lt;/b&gt;</div>',
+    "legacy transfer text must be escaped while preserving its visible content");
   assert.equal(malformedMetadata.calls.saveGame, 1);
   assert.ok(malformedMetadata.calls.toasts.some(message => message.includes("بنجاح")));
 

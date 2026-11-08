@@ -38,7 +38,7 @@ for (const [engineName, targetEngine] of [["shared", engine], ["embedded", brows
     engineName + " match-position normalization must not coerce hostile legacy objects");
   assert.equal(targetEngine.normalizePosition(hostileLegacyPositionLabel), "",
     engineName + " malformed match positions must be rejected safely");
-  assert.deepEqual(targetEngine.positionProfile("constructor"), { shooter: 0.2, creator: 0.2, defender: 0.15 },
+  assert.equal(JSON.stringify(targetEngine.positionProfile("constructor")), JSON.stringify({ shooter: 0.2, creator: 0.2, defender: 0.15 }),
     engineName + " inherited prototype names must use the neutral fallback position profile");
 }
 const malformedPositionRoleOptions = {

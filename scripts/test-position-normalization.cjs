@@ -85,9 +85,9 @@ for (const inheritedKey of ["constructor", "toString", "hasOwnProperty", "__prot
   assert.equal(window.LWMatch.normalizePosition(inheritedKey), inheritedKey,
     "match engine must not resolve inherited object-prototype aliases: " + inheritedKey);
 }
-assert.deepEqual(window.LWMatch.positionProfile("constructor"), { shooter: 0.2, creator: 0.2, defender: 0.15 },
+assert.equal(JSON.stringify(window.LWMatch.positionProfile("constructor")), JSON.stringify({ shooter: 0.2, creator: 0.2, defender: 0.15 }),
   "prototype property names must use the neutral fallback position profile");
-assert.deepEqual(window.LWMatch.positionProfile("__proto__"), { shooter: 0.2, creator: 0.2, defender: 0.15 },
+assert.equal(JSON.stringify(window.LWMatch.positionProfile("__proto__")), JSON.stringify({ shooter: 0.2, creator: 0.2, defender: 0.15 }),
   "the prototype key must not be mistaken for a match position profile");
 assert.equal(window.LWCareer.normalizeCareerPosition("CM"), "وسط");
 assert.equal(window.LWCareer.normalizeCareerPosition("CDM"), "وسط دفاعي");

@@ -5154,7 +5154,7 @@ function loadGame(options = {}){
   state.careerMatchHistory=Array.isArray(state.careerMatchHistory)?state.careerMatchHistory:[];state.seasonHistory=Array.isArray(state.seasonHistory)?state.seasonHistory:[];state.leagueArchives=Array.isArray(state.leagueArchives)?state.leagueArchives:[];state.recordedMatchIds=Array.isArray(state.recordedMatchIds)?state.recordedMatchIds:[];const legacySeasonAppsValue=safeLegacyNumber(saved.seasonApps),legacySeasonApps=Math.max(0,Number.isFinite(legacySeasonAppsValue)?Math.floor(legacySeasonAppsValue):0),savedLeagueApps=safeLegacyNumber(saved.leagueApps),trustedLeagueCounter=Object.prototype.hasOwnProperty.call(saved,"leagueApps")&&Number.isFinite(savedLeagueApps)&&(savedLeagueApps>0||legacySeasonApps===0||normalizeSavedBooleanFlag(saved.leagueSegmentIsPartial));state.seasonApps=legacySeasonApps;state.leagueApps=trustedLeagueCounter?Math.max(0,Math.floor(savedLeagueApps)):legacySeasonApps;const savedTransferSeason=safeLegacyNumber(saved.season),savedTransferClub=safeLegacyText(saved.clubName);const legacyTransferThisSeason=legacySeasonApps>0&&Number.isFinite(savedTransferSeason)&&savedTransferClub!==""&&Array.isArray(saved.transferHistory)&&saved.transferHistory.some(row=>row&&typeof row==="object"&&!Array.isArray(row)&&safeLegacyNumber(row.season)===savedTransferSeason&&safeLegacyText(row.text).includes(savedTransferClub));state.leagueSegmentIsPartial=safeLegacyFlag(saved.leagueSegmentIsPartial)||(!trustedLeagueCounter&&legacyTransferThisSeason);state.leagueArchiveSequence=safeLegacyInteger(state.leagueArchiveSequence,0,0);state.suspensions=state.suspensions&&typeof state.suspensions==="object"&&!Array.isArray(state.suspensions)?state.suspensions:{};state.bookings=state.bookings&&typeof state.bookings==="object"&&!Array.isArray(state.bookings)?state.bookings:{};state.competitionStats=state.competitionStats&&typeof state.competitionStats==="object"&&!Array.isArray(state.competitionStats)?state.competitionStats:{};state.leagueRoundHistory=Array.isArray(state.leagueRoundHistory)?state.leagueRoundHistory:[];
   // Season training reports are keyed records. Arrays silently drop named fields in JSON.stringify,
   // while hostile legacy scalar objects can throw during Number(...) at season finalization.
-  const trainingSkillKeys=["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"];
+
   if(!state.seasonTrainingReport||typeof state.seasonTrainingReport!=="object"||Array.isArray(state.seasonTrainingReport)){
    state.seasonTrainingReport={sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,manualSkills:{},manualXP:0,manualInjuries:0,completed:false,completedSeason:0,skipped:false,lastFocus:""};
   }else{
@@ -5171,9 +5171,7 @@ function loadGame(options = {}){
    report.skipped=safeLegacyFlag(report.skipped);
    report.lastFocus=safeLegacyText(report.lastFocus);
    if(report.error!==undefined)report.error=safeLegacyText(report.error);
-   for(const key of trainingSkillKeys){
-    if(Object.prototype.hasOwnProperty.call(report.skills,key))report.skills[key]=safeLegacyInteger(report.skills[key],0,0);
-   }
+   for(const [key,value] of Object.entries(report.skills))report.skills[key]=safeLegacyInteger(value,0,0);
   }
   const savedCompetition=window.LWCatalog?.clubsForCountry(state.leagueCountry||"مصر")?.competition||((state.leagueCountry||"مصر")==="مصر"?"الدوري المصري — محاكاة محلية":"دوري محلي — محاكاة");
   state.leagueCompetition=state.leagueCompetition||savedCompetition;
@@ -7925,9 +7923,7 @@ function ensureSeasonDevelopmentSnapshot(){
  report.skipped=flag(report.skipped);
  report.lastFocus=typeof report.lastFocus==="string"?report.lastFocus:"";
  if(report.error!==undefined&&typeof report.error!=="string")report.error="";
- for(const key of skills){
-  if(Object.prototype.hasOwnProperty.call(report.skills,key))report.skills[key]=nonNegativeInteger(report.skills[key]);
- }
+ for(const [key,value] of Object.entries(report.skills))report.skills[key]=nonNegativeInteger(value);
  state.seasonTrainingReport=report;
  const savedAttributes=!knownSeasonMismatch&&snapshot&&isRecord(snapshot.attributes)?snapshot.attributes:null;
  const attributesAreValid=!!savedAttributes&&skills.every(key=>Number.isFinite(finiteNumber(savedAttributes[key])));
@@ -8611,9 +8607,7 @@ function skipSeasonTrainingAndFinish(){
  report.manualXP=nonNegative(report.manualXP);
  report.manualInjuries=safeInteger(report.manualInjuries);
  const skills={};
- for(const key of ["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"]){
-  if(Object.prototype.hasOwnProperty.call(rawSkills,key))skills[key]=safeInteger(rawSkills[key]);
- }
+ for(const [key,value] of Object.entries(rawSkills))skills[key]=safeInteger(value);
  report.skills=skills;
  report.sessions=safeInteger(report.sessions);
  report.xp=nonNegative(report.xp);

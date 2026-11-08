@@ -7986,24 +7986,24 @@ function upsertSeasonDevelopmentHistory(history,season,dev,training,ovrAfter,ski
  const oldAfter=finiteNumber(existing.ovrAfter);
  const ovrBefore=Number.isFinite(beforeValue)?beforeValue:(Number.isFinite(oldBefore)?oldBefore:(Number.isFinite(afterValue)?afterValue:0));
  const nextOvr=Number.isFinite(afterValue)?afterValue:(Number.isFinite(oldAfter)?oldAfter:ovrBefore);
- const sessions=safeCount(report.sessions,safeCount(existing.sessions));
- const manualSessions=safeCount(report.manualSessions,safeCount(existing.manualSessions));
- const plannedSessions=safeCount(report.plannedSessions,safeCount(existing.plannedSessions));
- const xp=safeAmount(report.xp,safeAmount(existing.xp));
- const manualXP=safeAmount(report.manualXP,safeAmount(existing.manualXP));
- const injuries=safeCount(report.injuries,safeCount(existing.injuries));
- const manualInjuries=safeCount(report.manualInjuries,safeCount(existing.manualInjuries));
+ const sessions=Math.max(safeCount(report.sessions),safeCount(existing.sessions));
+ const manualSessions=Math.max(safeCount(report.manualSessions),safeCount(existing.manualSessions));
+ const plannedSessions=Math.max(safeCount(report.plannedSessions),safeCount(existing.plannedSessions));
+ const xp=Math.max(safeAmount(report.xp),safeAmount(existing.xp));
+ const manualXP=Math.max(safeAmount(report.manualXP),safeAmount(existing.manualXP));
+ const injuries=Math.max(safeCount(report.injuries),safeCount(existing.injuries));
+ const manualInjuries=Math.max(safeCount(report.manualInjuries),safeCount(existing.manualInjuries));
  const automaticSkillCounts=new Map();
  const oldAutomaticSkills=isRecord(existing.automaticTrainingBySkill)?existing.automaticTrainingBySkill:(isRecord(existing.trainingBySkill)?existing.trainingBySkill:{});
  const currentAutomaticSkills=isRecord(report.skills)?report.skills:{};
  for(const [key,value] of Object.entries(oldAutomaticSkills))automaticSkillCounts.set(key,safeCount(value));
- for(const [key,value] of Object.entries(currentAutomaticSkills))automaticSkillCounts.set(key,safeCount(value));
+ for(const [key,value] of Object.entries(currentAutomaticSkills))automaticSkillCounts.set(key,Math.max(automaticSkillCounts.get(key)||0,safeCount(value)));
  const automaticTrainingBySkill=Object.fromEntries(automaticSkillCounts);
  const manualSkillCounts=new Map();
  const oldManualSkills=isRecord(existing.manualTrainingBySkill)?existing.manualTrainingBySkill:{};
  const currentManualSkills=isRecord(report.manualSkills)?report.manualSkills:{};
  for(const [key,value] of Object.entries(oldManualSkills))manualSkillCounts.set(key,safeCount(value));
- for(const [key,value] of Object.entries(currentManualSkills))manualSkillCounts.set(key,safeCount(value));
+ for(const [key,value] of Object.entries(currentManualSkills))manualSkillCounts.set(key,Math.max(manualSkillCounts.get(key)||0,safeCount(value)));
  const manualTrainingBySkill=Object.fromEntries(manualSkillCounts);
  const combinedSkillCounts=new Map();
  for(const [key,value] of Object.entries(automaticTrainingBySkill))combinedSkillCounts.set(key,value);
@@ -8020,14 +8020,21 @@ function upsertSeasonDevelopmentHistory(history,season,dev,training,ovrAfter,ski
  for(const row of currentChanges){
   if(!isRecord(row)||typeof row.key!=="string"||!row.key)continue;
   const delta=finiteNumber(row.delta);
-  if(Number.isFinite(delta)&&delta>0)changeRows.set(row.key,{key:row.key,delta});
+  if(Number.isFinite(delta)&&delta>0){
+   const previous=changeRows.get(row.key);
+   changeRows.set(row.key,{key:row.key,delta:Math.max(previous?.delta||0,delta)});
+  }
  }
  const normalizedChanges=Array.from(changeRows.values()).sort((a,b)=>b.delta-a.delta).slice(0,10);
- const trainingCompleted=typeof report.completed==="boolean"?report.completed:existing.trainingCompleted===true;
- const trainingSkipped=typeof report.skipped==="boolean"?report.skipped:existing.trainingSkipped===true;
+ const legacySkills=existing.skills!==undefined&&!Array.isArray(existing.skills)?existing.skills:existing.legacySkills;
+ const legacyTrainingBySkill=existing.trainingBySkill!==undefined&&!isRecord(existing.trainingBySkill)?existing.trainingBySkill:existing.legacyTrainingBySkill;
+ const trainingCompleted=report.completed===true||existing.trainingCompleted===true;
+ const trainingSkipped=report.skipped===true||existing.trainingSkipped===true;
  const lastFocus=typeof report.lastFocus==="string"&&report.lastFocus.trim()?report.lastFocus:(typeof existing.lastFocus==="string"?existing.lastFocus:"");
  const record={
   ...existing,
+  ...(legacySkills!==undefined?{legacySkills}:{}),
+  ...(legacyTrainingBySkill!==undefined?{legacyTrainingBySkill}:{}),
   season:currentSeason,
   ovrBefore,
   ovrAfter:nextOvr,

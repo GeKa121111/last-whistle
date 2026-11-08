@@ -190,7 +190,7 @@ const vm = require("node:vm");
     id: conflictingFixture.id, scope: conflictingFixture.scope, competition: conflictingFixture.competition,
     season: conflictingFixture.season, segmentId: conflictingFixture.segmentId, club: conflictingFixture.club,
     opponent: conflictingFixture.opponent, day: conflictingFixture.day, calendarDay: conflictingFixture.calendarDay,
-    matchday: conflictingFixture.matchday, minutes: 90, rating: 8
+    matchday: conflictingFixture.matchday, minutes: 90, rating: 8, stats: { shots: 4, keyPasses: 2 }
   }];
   revision++;
   stateChangeListener({ revision });

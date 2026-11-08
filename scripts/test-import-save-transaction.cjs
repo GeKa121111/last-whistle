@@ -33,7 +33,6 @@ function extractFunction(source, signature) {
 }
 
 const importSource = extractFunction(html, "async function importSaveFile(file)");
-const validateBackupSource = extractFunction(html, "function validateBackupValue(value,depth=0)");
 const physicalFallbackSource = extractFunction(html, "function legacyPhysicalFallback(position,skills)");
 const importFallbackSource = extractFunction(html, "function encodeImportFallback(value)");
 assert.match(importSource, /encodeImportFallback\(restored\)/,
@@ -84,6 +83,7 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
       if (typeof value === "string") return ["true","1","yes","on"].includes(value.trim().toLowerCase());
       return false;
     },
+    validateBackupValue(value) { return value; },
     encodeStoredSave(value) { return corruptEncodedFallback ? "not-json" : JSON.stringify(value); },
     decodeStoredSave(value) { return value; },
     FALLBACK_STORAGE_PREFIX: "LWIDB1:",
@@ -140,7 +140,7 @@ function createHarness({ previousRaw = null, failLoad = false, corruptEncodedFal
     console
   };
   vm.createContext(sandbox);
-  new vm.Script(validateBackupSource + "\n" + physicalFallbackSource + "\n" + importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback;", { filename: "backup-import-helpers" }).runInContext(sandbox);
+  new vm.Script(physicalFallbackSource + "\n" + importFallbackSource + "\nglobalThis.runImportFallbackEncoder = encodeImportFallback;", { filename: "backup-import-helpers" }).runInContext(sandbox);
   const actualImportFallbackEncoder = sandbox.runImportFallbackEncoder;
   sandbox.encodeImportFallback = value => {
     calls.encodeImportFallback++;

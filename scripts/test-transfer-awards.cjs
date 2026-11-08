@@ -422,6 +422,14 @@ assert.equal(codeCentreBack.assists, arabicCentreBack.assists);
 assert.equal(engine.roleType("جناح"), "winger");
 assert.equal(engine.roleType("LW"), "winger");
 assert.equal(engine.roleType("مهاجم"), "attacker");
+const hostilePositionText = { toString: 1, valueOf: 1 };
+assert.doesNotThrow(() => engine.roleType(hostilePositionText),
+  "award role normalization must not coerce hostile saved position objects");
+assert.equal(engine.roleType(hostilePositionText), "midfielder",
+  "non-primitive saved positions must use the safe midfielder fallback");
+assert.equal(engine.roleType("constructor"), "midfielder",
+  "inherited Object prototype keys must not become award position roles");
+
 
 const sameStrikerStarter = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "أساسي" }, 5, 1);
 const sameStrikerSubstitute = engine.simulatePlayerSeason({ ...sameForward, position: "رأس حربة", role: "لاعب بديل" }, 5, 1);

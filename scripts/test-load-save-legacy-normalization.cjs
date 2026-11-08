@@ -228,6 +228,58 @@ function load(saved) {
   assert.deepEqual(Array.from(validNestedContainers.state.cupState.groupOpponents.groupA), ["A", "B"],
     "valid nested legacy records must remain intact");
 
+  const malformedTrainingReport = load({
+    ...INITIAL,
+    seasonTrainingReport: []
+  });
+  assert.equal(Array.isArray(malformedTrainingReport.state.seasonTrainingReport), false,
+    "an array must not be accepted as a season-training report record");
+  assert.deepEqual(JSON.parse(JSON.stringify(malformedTrainingReport.state.seasonTrainingReport)), {
+    sessions: 0, skills: {}, xp: 0, injuries: 0, plannedSessions: 0,
+    manualSessions: 0, completed: false, completedSeason: 0, skipped: false, lastFocus: ""
+  }, "malformed report arrays must become a persistable object instead of serializing as an empty array");
+
+  const hostileTrainingMetrics = load({
+    ...INITIAL,
+    seasonTrainingReport: {
+      sessions: hostile, skills: [], xp: hostile, injuries: hostile,
+      plannedSessions: hostile, manualSessions: "5", completed: hostile,
+      completedSeason: hostile, skipped: hostile, lastFocus: hostile, error: hostile
+    }
+  });
+  assert.equal(Array.isArray(hostileTrainingMetrics.state.seasonTrainingReport.skills), false,
+    "an array must not be accepted as the training skill-count record");
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.sessions, 0);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.xp, 0);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.injuries, 0);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.plannedSessions, 0);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.manualSessions, 5);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.completed, false);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.completedSeason, 0);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.skipped, false);
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.lastFocus, "");
+  assert.equal(hostileTrainingMetrics.state.seasonTrainingReport.error, "");
+
+  const validTrainingReport = load({
+    ...INITIAL,
+    seasonTrainingReport: {
+      sessions: "4", skills: { shooting: "2", passing: 3, defending: hostile },
+      xp: "24.5", injuries: "1", plannedSessions: "12", manualSessions: "3",
+      completed: true, completedSeason: "5", skipped: false, lastFocus: "shooting"
+    }
+  });
+  assert.equal(validTrainingReport.state.seasonTrainingReport.sessions, 4);
+  assert.deepEqual(JSON.parse(JSON.stringify(validTrainingReport.state.seasonTrainingReport.skills)),
+    { shooting: 2, passing: 3, defending: 0 },
+    "valid training counters and numeric-string legacy skill values must survive normalization");
+  assert.equal(validTrainingReport.state.seasonTrainingReport.xp, 24.5);
+  assert.equal(validTrainingReport.state.seasonTrainingReport.injuries, 1);
+  assert.equal(validTrainingReport.state.seasonTrainingReport.plannedSessions, 12);
+  assert.equal(validTrainingReport.state.seasonTrainingReport.manualSessions, 3);
+  assert.equal(validTrainingReport.state.seasonTrainingReport.completed, true);
+  assert.equal(validTrainingReport.state.seasonTrainingReport.completedSeason, 5);
+  assert.equal(validTrainingReport.state.seasonTrainingReport.lastFocus, "shooting");
+
   const numericStrings = load({
     ...INITIAL,
     name: "Numeric Legacy Player",

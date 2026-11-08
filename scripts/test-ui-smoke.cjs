@@ -225,11 +225,11 @@ if (seasonArchiveMarkupStart < seasonArchivePageStart || seasonArchiveMarkupStar
 const careerHub = fs.readFileSync(path.join(root, "public", "career-hub.js"), "utf8");
 const rootCareerHub = fs.readFileSync(path.join(root, "career-hub.js"), "utf8");
 const archiveBreakdownStart = careerHub.indexOf("function renderSeasonDevelopmentArchiveBreakdown(state)");
-const archiveBreakdownEnd = careerHub.indexOf("\\n  function render(force)", archiveBreakdownStart);
+const archiveBreakdownEnd = careerHub.indexOf("\n  function render(force)", archiveBreakdownStart);
 const archiveBreakdownSource = archiveBreakdownStart >= 0 && archiveBreakdownEnd > archiveBreakdownStart
   ? careerHub.slice(archiveBreakdownStart, archiveBreakdownEnd) : "";
 const careerHubRenderStart = careerHub.indexOf("function render(force)");
-const careerHubRenderEnd = careerHub.indexOf("\\n  function scheduleRender", careerHubRenderStart);
+const careerHubRenderEnd = careerHub.indexOf("\n  function scheduleRender", careerHubRenderStart);
 const careerHubRenderSource = careerHubRenderStart >= 0 && careerHubRenderEnd > careerHubRenderStart
   ? careerHub.slice(careerHubRenderStart, careerHubRenderEnd) : "";
 if (rootCareerHub !== careerHub

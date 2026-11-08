@@ -182,6 +182,7 @@ assert.equal(flaky.state.seasonTrainingReport.sessions, retried.plannedSessions,
 assert.equal(flaky.state.trainingSessions, retried.plannedSessions,
   "the career training-session count must match the once-applied annual plan");
 
+const hostileSnapshotValue = JSON.parse('{"toString":1,"valueOf":1}');
 // A malformed same-season snapshot must not erase completed/manual training progress.
 const snapshotRecovery = createSandbox("رأس حربة", poorFinishingRows, { shooting: 75, composure: 70 }, {
   primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
@@ -189,7 +190,7 @@ const snapshotRecovery = createSandbox("رأس حربة", poorFinishingRows, { s
 snapshotRecovery.state.season = 4;
 snapshotRecovery.state.trainingSessions = 8;
 snapshotRecovery.state.seasonDevelopmentSnapshot = {
-  season: hostile, ovr: 75, attributes: [], sessions: hostile
+  season: hostileSnapshotValue, ovr: 75, attributes: [], sessions: hostileSnapshotValue
 };
 snapshotRecovery.state.seasonTrainingReport = {
   sessions: "2", skills: { shooting: "1" }, xp: "30", injuries: "1",

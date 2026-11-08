@@ -6050,7 +6050,18 @@ function renderContract(){
  setText("contractPill",state.retired?"معتزل":contractDisplayState.freeAgent?"لاعب حر":contractDisplayState.contractType==="youth-amateur"?"عقد ناشئ / هاوي":"عقد "+contractDisplayState.contractSeasons+" موسم");
  const stages=[["درجة ثانية / أكاديمية",0,0,250],["درجة أولى / نادي صاعد",55,35,650],["دوري ممتاز / نادي ثابت",62,48,1500],["نادي أوروبي كبير",70,60,4000]];
  $("clubLadder").innerHTML=stages.map((c,i)=>`<div class="feedItem"><b>${i===state.clubIndex?"📍":i<state.clubIndex?"✅":"🔒"} ${c[0]} ${i===state.clubIndex?"(أنت هنا)":""}</b><span class="muted">${i===state.clubIndex?"مرحلتك الحالية":`الشروط: تقييم ${c[1]}+ وثقة ${c[2]}+`} • مرتب نموذجي ${c[3]} ${currencyLabel()}/أسبوع</span></div>`).join("");
- $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(x=>`<div class="feedItem"><b>الموسم ${x.season} • اليوم ${x.day}</b>${x.text}</div>`).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';
+ $("transferHistory").innerHTML=state.transferHistory.length?state.transferHistory.map(renderTransferHistoryEntry).join(""):'<div class="empty">لسه مفيش انتقالات أو مفاوضات مسجلة.</div>';
+}
+function renderTransferHistoryEntry(entry){
+ const row=entry&&typeof entry==="object"&&!Array.isArray(entry)?entry:{};
+ const safeLabel=value=>{
+  if(typeof value==="number"&&Number.isFinite(value))return String(value);
+  if(typeof value==="string"&&value.trim()!==""){const numeric=Number(value);return Number.isFinite(numeric)?String(numeric):"—";}
+  return "—";
+ };
+ const rawText=typeof row.text==="string"?row.text:(typeof row.text==="number"&&Number.isFinite(row.text)?String(row.text):"تفاصيل سجل الانتقال غير متاحة.");
+ const escapedText=rawText.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+ return `<div class="feedItem"><b>الموسم ${safeLabel(row.season)} • اليوم ${safeLabel(row.day)}</b>${escapedText}</div>`;
 }
 function renderNational(){
  const nation=state.nationalTeam||"مصر";

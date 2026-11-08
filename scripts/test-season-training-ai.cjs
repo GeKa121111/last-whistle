@@ -182,6 +182,77 @@ assert.equal(flaky.state.seasonTrainingReport.sessions, retried.plannedSessions,
 assert.equal(flaky.state.trainingSessions, retried.plannedSessions,
   "the career training-session count must match the once-applied annual plan");
 
+// A malformed same-season snapshot must not erase completed/manual training progress.
+const snapshotRecovery = createSandbox("رأس حربة", poorFinishingRows, { shooting: 75, composure: 70 }, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
+});
+snapshotRecovery.state.season = 4;
+snapshotRecovery.state.trainingSessions = 8;
+snapshotRecovery.state.seasonDevelopmentSnapshot = {
+  season: hostile, ovr: 75, attributes: [], sessions: hostile
+};
+snapshotRecovery.state.seasonTrainingReport = {
+  sessions: "2", skills: { shooting: "1" }, xp: "30", injuries: "1",
+  plannedSessions: "49", manualSessions: "5", completed: false,
+  completedSeason: "4", skipped: false, lastFocus: "shooting"
+};
+assert.doesNotThrow(() => snapshotRecovery.ensureSeasonDevelopmentSnapshot(),
+  "hostile snapshot metadata must be rebuilt without throwing");
+assert.equal(snapshotRecovery.state.seasonDevelopmentSnapshot.season, 4);
+assert.equal(snapshotRecovery.state.seasonDevelopmentSnapshot.sessions, 1,
+  "recovery must derive the baseline without counting already-recorded manual/AI sessions twice");
+assert.equal(snapshotRecovery.state.seasonDevelopmentSnapshot.attributes.shooting, 75);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.sessions, 2,
+  "repairing a damaged snapshot must preserve already-applied annual sessions");
+assert.equal(snapshotRecovery.state.seasonTrainingReport.skills.shooting, 1);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.xp, 30);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.manualSessions, 5);
+snapshotRecovery.state.seasonApps = 22;
+const resumedAnnual = snapshotRecovery.runSeasonAITtraining();
+assert.equal(resumedAnnual.ok, true, "annual training must resume after snapshot recovery");
+assert.equal(resumedAnnual.manualSessions, 5,
+  "manual training already completed before snapshot recovery must remain credited");
+assert.equal(resumedAnnual.sessions + resumedAnnual.manualSessions, resumedAnnual.plannedSessions,
+  "recovered annual training must finish the remaining plan without double-counting");
+assert.equal(snapshotRecovery.state.trainingSessions, 1 + resumedAnnual.plannedSessions,
+  "training-session totals must reconcile with the reconstructed season baseline");
+
+const arraySnapshot = createSandbox("مهاجم", [], {}, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
+});
+arraySnapshot.state.season = 2;
+arraySnapshot.state.trainingSessions = 6;
+arraySnapshot.state.seasonDevelopmentSnapshot = [];
+arraySnapshot.state.seasonTrainingReport = {
+  sessions: 1, skills: { shooting: 1 }, xp: 30, injuries: 0,
+  plannedSessions: 40, manualSessions: 2, completed: false
+};
+arraySnapshot.ensureSeasonDevelopmentSnapshot();
+assert.equal(arraySnapshot.state.seasonDevelopmentSnapshot.sessions, 3,
+  "array-shaped snapshots must recover the baseline while preserving recorded progress");
+assert.equal(arraySnapshot.state.seasonTrainingReport.sessions, 1);
+assert.equal(arraySnapshot.state.seasonTrainingReport.manualSessions, 2);
+
+const nextSeasonSnapshot = createSandbox("مهاجم", [], {}, {
+  primary: ["shooting"], secondary: ["composure", "physical", "fitness", "speed"]
+});
+nextSeasonSnapshot.state.season = 2;
+nextSeasonSnapshot.state.trainingSessions = 9;
+nextSeasonSnapshot.state.seasonDevelopmentSnapshot = {
+  season: 1, ovr: 75, attributes: { shooting: 75 }, sessions: 4
+};
+nextSeasonSnapshot.state.seasonTrainingReport = {
+  sessions: 3, skills: { shooting: 3 }, xp: 90, injuries: 1,
+  plannedSessions: 40, manualSessions: 2, completed: true, completedSeason: 1
+};
+nextSeasonSnapshot.ensureSeasonDevelopmentSnapshot();
+assert.equal(nextSeasonSnapshot.state.seasonDevelopmentSnapshot.season, 2);
+assert.equal(nextSeasonSnapshot.state.seasonDevelopmentSnapshot.sessions, 9,
+  "a genuine season transition must establish the new season's training baseline");
+assert.equal(nextSeasonSnapshot.state.seasonTrainingReport.sessions, 0,
+  "a genuine new season must start a fresh training report");
+assert.equal(nextSeasonSnapshot.state.seasonTrainingReport.completed, false);
+
 const finishStart = html.indexOf("function finishSeasonInternal(skipAnnualTraining=false){");
 const finishEnd = html.indexOf("\nfunction ", finishStart + 10);
 assert.ok(finishStart >= 0 && finishEnd > finishStart, "season completion handler must be present");

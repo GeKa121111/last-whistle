@@ -419,7 +419,7 @@ assert.equal(archived[0].injuries, 2);
 assert.equal(archived[0].trainingCompleted, true);
 assert.equal(archived[0].trainingSkipped, true);
 assert.equal(archived[0].lastFocus, "shooting");
-assert.equal(archived[0].trainingBySkill.shooting, 3);
+assert.equal(archived[0].trainingBySkill.shooting, 4);
 assert.equal(archived[0].trainingBySkill.passing, 2);
 assert.equal(archived[0].trainingBySkill.unknownSkill, 1,
   "future or custom training-focus keys must not be dropped by a fixed whitelist");
@@ -440,7 +440,7 @@ assert.equal(revisedArchive[0].totalSessions, 8);
 assert.equal(revisedArchive[0].totalXP, 210);
 assert.equal(revisedArchive[0].totalInjuries, 3);
 assert.equal(revisedArchive[0].trainingBySkill.shooting, 6);
-assert.equal(revisedArchive[0].trainingSkipped, false);
+assert.equal(revisedArchive[0].trainingSkipped, true, "a previously recorded explicit skip must remain part of the season history");
 assert.equal(revisedArchive[0].lastFocus, "shooting", "an empty retry focus must not erase the last successful training focus");
 assert.equal(revisedArchive[0].trainingBySkill.passing, 2,
   "skill counts not repeated in a later partial report must remain preserved");

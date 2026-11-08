@@ -34,7 +34,7 @@ function extractFunction(source, signature) {
 
 const importSource = extractFunction(html, "async function importSaveFile(file)");
 const importFallbackSource = extractFunction(html, "function encodeImportFallback(value)");
-assert.match(importSource, /encodeImportFallback\\(restored\\)/,
+assert.match(importSource, /encodeImportFallback\(restored\)/,
   "imports must use the full-snapshot fallback encoder");
 assert.doesNotMatch(importFallbackSource, /compactSnapshotForStorage/,
   "the import fallback encoder must not trim world-simulation history");

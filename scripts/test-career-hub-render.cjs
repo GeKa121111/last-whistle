@@ -170,6 +170,37 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
     "sparse duplicate rows must represent one appearance, not two");
 
+  // Match identity changes can alter deduplication without changing the four
+  // numeric fields used by the old history signature.
+  const sharedIdentityRows = [
+    { id: "shared-fixture", scope: "league", competition: "Premier League", season: 1,
+      segmentId: "segment-1", club: "Test FC", opponent: "Opponent FC", day: 11,
+      calendarDay: 11, matchday: 1, minutes: 90, goals: 1, assists: 0 },
+    { id: "shared-fixture", scope: "league", competition: "Premier League", season: 1,
+      segmentId: "segment-1", club: "Test FC", opponent: "Opponent FC", day: 11,
+      calendarDay: 11, matchday: 1, minutes: 60, goals: 1, assists: 0 }
+  ];
+  state.seasonLog = [];
+  state.careerMatchHistory = sharedIdentityRows;
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.00",
+    "same-ID duplicate fixtures with matching identity must count once");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90");
+
+  const beforeIdentityRefresh = queryCalls;
+  sharedIdentityRows[0].competition = "National Cup";
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(queryCalls, beforeIdentityRefresh + 1,
+    "a match identity change must invalidate cached career statistics even when its numeric metrics are unchanged");
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.20",
+    "a reused match ID across different competitions must remain two appearances after identity changes");
+  assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "75",
+    "career minutes per appearance must refresh when competition metadata changes");
+
   state.seasonLog = [];
   state.careerMatchHistory = [
     { id: "career-valid-league", minutes: 90, scope: "league", goals: 2, assists: 1 },

@@ -200,6 +200,33 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsAssistsPer90").textContent, "1.00",
     "choosing the best duplicate must not turn missing canonical metrics into false zeroes");
 
+  const invalidCanonicalFixture = {
+    id: "legacy-canonical-invalid-counts", scope: "league", competition: "Premier League",
+    season: 2, segmentId: "segment-2", club: "Test FC", opponent: "Opponent FC",
+    day: 14, calendarDay: 14, matchday: 4, minutes: 90, goals: 3, assists: 2
+  };
+  state.seasonLog = [{ ...invalidCanonicalFixture }];
+  state.careerMatchHistory = [{
+    ...invalidCanonicalFixture, goals: -1, assists: 21, rating: 10
+  }];
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "3.00",
+    "negative canonical goals must not outrank a valid legacy goal count");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "2.00",
+    "out-of-range canonical assists must not outrank a valid legacy assist count");
+
+  state.seasonLog = [{ ...invalidCanonicalFixture, goals: 0, assists: 0 }];
+  state.careerMatchHistory = [{ ...invalidCanonicalFixture, goals: "2", assists: "1" }];
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "2.00",
+    "valid numeric-string canonical goals must remain backward compatible");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "1.00",
+    "valid numeric-string canonical assists must remain backward compatible");
+
   // Match identity changes can alter deduplication without changing the four
   // numeric fields used by the old history signature.
   const sharedIdentityRows = [

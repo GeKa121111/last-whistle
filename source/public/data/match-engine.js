@@ -260,7 +260,7 @@
     // Morale is a confidence signal, not a squad-role override. Missing legacy values stay neutral.
     const morale = player.morale === undefined || player.morale === null ? 50 : clamp(player.morale, 0, 100);
     const confidenceFactor = 0.96 + morale * 0.0008;
-    const profile = positionProfile(String(player.position || player.pos || ""));
+    const profile = positionProfile(player.position || player.pos || "");
     const fallbackTeamGoalkeeping = clamp(options.teamGoalkeeping ?? 55, 25, 95);
     const teamPower = clamp(options.teamPower ?? options.ourPower ?? 50, 25, 95);
     const opponentPower = clamp(options.opponentPower ?? 50, 25, 95);

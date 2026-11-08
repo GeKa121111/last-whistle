@@ -213,7 +213,7 @@ snapshotRecovery.state.seasonDevelopmentSnapshot = {
   season: hostileSnapshotValue, ovr: 75, attributes: [], sessions: hostileSnapshotValue
 };
 snapshotRecovery.state.seasonTrainingReport = {
-  sessions: "2", skills: { shooting: "1" }, xp: "30", injuries: "1",
+  sessions: "2", skills: { shooting: "1", futureSkill: "2" }, xp: "30", injuries: "1",
   plannedSessions: "49", manualSessions: "5", completed: false,
   completedSeason: "4", skipped: false, lastFocus: "shooting",
   manualSkills: { shooting: "2" }, manualXP: "45", manualInjuries: "1"
@@ -227,6 +227,7 @@ assert.equal(snapshotRecovery.state.seasonDevelopmentSnapshot.attributes.shootin
 assert.equal(snapshotRecovery.state.seasonTrainingReport.sessions, 2,
   "repairing a damaged snapshot must preserve already-applied annual sessions");
 assert.equal(snapshotRecovery.state.seasonTrainingReport.skills.shooting, 1);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.skills.futureSkill, 2, "snapshot recovery must normalize future training skill keys");
 assert.equal(snapshotRecovery.state.seasonTrainingReport.xp, 30);
 assert.equal(snapshotRecovery.state.seasonTrainingReport.manualSessions, 5);
 assert.equal(snapshotRecovery.state.seasonTrainingReport.manualSkills.shooting, 2);
@@ -320,7 +321,7 @@ assert.equal(Object.prototype.hasOwnProperty.call(skipState.seasonTrainingReport
   "a consciously skipped plan must not retain a retryable error");
 const arraySkipReport = [];
 arraySkipReport.sessions = "3";
-arraySkipReport.skills = { shooting: "2", passing: 1 };
+arraySkipReport.skills = { shooting: "2", passing: 1, futureSkill: "3" };
 arraySkipReport.xp = "90";
 arraySkipReport.injuries = "1";
 arraySkipReport.plannedSessions = "40";
@@ -350,6 +351,7 @@ assert.equal(arraySkipState.seasonTrainingReport.sessions, 3,
   "successful sessions stored on a malformed array report must be preserved");
 assert.equal(arraySkipState.seasonTrainingReport.skills.shooting, 2);
 assert.equal(arraySkipState.seasonTrainingReport.skills.passing, 1);
+assert.equal(arraySkipState.seasonTrainingReport.skills.futureSkill, 3, "explicit skip must retain future training skill keys");
 assert.equal(arraySkipState.seasonTrainingReport.xp, 90);
 assert.equal(arraySkipState.seasonTrainingReport.injuries, 1);
 assert.equal(arraySkipState.seasonTrainingReport.manualSessions, 2);

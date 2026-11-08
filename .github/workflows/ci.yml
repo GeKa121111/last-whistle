@@ -74,6 +74,21 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      - name: Commit generated runtime mirrors on repair branches
+        if: github.event_name == 'pull_request' && github.base_ref == 'integration/repair-batch-20261027' && startsWith(github.head_ref, 'fix/')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js
+          if git diff --cached --quiet; then
+            echo "Generated runtime mirrors already match their canonical sources."
+          else
+            git commit -m "chore(build): sync generated match-engine runtime mirrors"
+            git fetch origin "$GITHUB_HEAD_REF"
+            git rebase "origin/$GITHUB_HEAD_REF"
+            git push origin "HEAD:$GITHUB_HEAD_REF"
+          fi
+
       - name: Install Playwright and Chromium
         run: |
           npm install --no-save --package-lock=false playwright@1.64.1

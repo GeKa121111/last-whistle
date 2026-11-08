@@ -79,14 +79,21 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js
-          if git diff --cached --quiet; then
+          patch_file="$(mktemp)"
+          git diff --binary -- index.html public/index.html data/match-engine.js public/data/match-engine.js public/sw.js > "$patch_file"
+          if [ ! -s "$patch_file" ]; then
             echo "Generated runtime mirrors already match their canonical sources."
           else
-            git commit -m "chore(build): sync generated match-engine runtime mirrors"
             git fetch origin "$GITHUB_HEAD_REF"
-            git rebase "origin/$GITHUB_HEAD_REF"
-            git push origin "HEAD:$GITHUB_HEAD_REF"
+            git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
+            git apply "$patch_file"
+            git add data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js
+            if git diff --cached --quiet; then
+              echo "No generated mirror changes remain after applying the build patch."
+            else
+              git commit -m "chore(build): sync generated match-engine runtime mirrors"
+              git push origin "HEAD:$GITHUB_HEAD_REF"
+            fi
           fi
 
       - name: Install Playwright and Chromium

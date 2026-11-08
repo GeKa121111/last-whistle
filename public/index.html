@@ -1348,9 +1348,11 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     return fallback;
   }
 
-  // Dynamic lookups against plain object tables must ignore inherited prototype keys.
+  // Dynamic lookups accept only safe primitive keys and ignore inherited prototype members.
   function ownPropertyValue(source, key, fallback) {
-    return source && Object.prototype.hasOwnProperty.call(source, key) ? source[key] : fallback;
+    const safeKey = safeLegacyText(key);
+    if (!safeKey || !source || (typeof source !== "object" && typeof source !== "function")) return fallback;
+    return Object.prototype.hasOwnProperty.call(source, safeKey) ? source[safeKey] : fallback;
   }
 
   // Define untrusted map keys as data properties; in particular, never invoke Object.prototype.__proto__.

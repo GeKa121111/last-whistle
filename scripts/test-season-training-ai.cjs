@@ -294,6 +294,62 @@ assert.equal(skipState.seasonTrainingReport.completedSeason, 6, "the skipped rep
 assert.equal(skipState.seasonTrainingReport.skipped, true, "the report must disclose that the player skipped the remaining plan");
 assert.equal(Object.prototype.hasOwnProperty.call(skipState.seasonTrainingReport, "error"), false,
   "a consciously skipped plan must not retain a retryable error");
+const arraySkipReport = [];
+arraySkipReport.sessions = "3";
+arraySkipReport.skills = { shooting: "2", passing: 1 };
+arraySkipReport.xp = "90";
+arraySkipReport.injuries = "1";
+arraySkipReport.plannedSessions = "40";
+arraySkipReport.manualSessions = "2";
+arraySkipReport.error = "temporary failure";
+const arraySkipState = { season: 7, seasonApps: 22, seasonTrainingReport: arraySkipReport };
+let arraySkipCalled = false;
+const arraySkipSandbox = {
+  state: arraySkipState,
+  log: () => {},
+  seasonMatchTotal: () => 22,
+  finishSeason: skip => { arraySkipCalled = skip === true; }
+};
+vm.createContext(arraySkipSandbox);
+new vm.Script(skipSource + "\nthis.skip = skipSeasonTrainingAndFinish;", {
+  filename: "season-training-array-skip.js"
+}).runInContext(arraySkipSandbox);
+assert.doesNotThrow(() => arraySkipSandbox.skip(),
+  "skipping annual training must safely normalize an array-shaped report");
+assert.equal(arraySkipCalled, true);
+assert.equal(Array.isArray(arraySkipState.seasonTrainingReport), false,
+  "the skipped report must be a serializable record, not an array with non-index properties");
+assert.equal(arraySkipState.seasonTrainingReport.sessions, 3,
+  "successful sessions stored on a malformed array report must be preserved");
+assert.equal(arraySkipState.seasonTrainingReport.skills.shooting, 2);
+assert.equal(arraySkipState.seasonTrainingReport.skills.passing, 1);
+assert.equal(arraySkipState.seasonTrainingReport.xp, 90);
+assert.equal(arraySkipState.seasonTrainingReport.injuries, 1);
+assert.equal(arraySkipState.seasonTrainingReport.manualSessions, 2);
+assert.equal(arraySkipState.seasonTrainingReport.completedSeason, 7);
+assert.equal(arraySkipState.seasonTrainingReport.completed, true);
+assert.equal(arraySkipState.seasonTrainingReport.skipped, true);
+assert.equal(Object.prototype.hasOwnProperty.call(arraySkipState.seasonTrainingReport, "error"), false);
+
+const hostileSkipState = {
+  season: JSON.parse('{"toString":1,"valueOf":1}'),
+  seasonApps: 22,
+  seasonTrainingReport: { sessions: JSON.parse('{"toString":1}'), skills: [], xp: [], injuries: [] }
+};
+const hostileSkipSandbox = {
+  state: hostileSkipState, log: () => {}, seasonMatchTotal: () => 22,
+  finishSeason: () => {}
+};
+vm.createContext(hostileSkipSandbox);
+new vm.Script(skipSource + "\nthis.skip = skipSeasonTrainingAndFinish;", {
+  filename: "season-training-hostile-skip.js"
+}).runInContext(hostileSkipSandbox);
+assert.doesNotThrow(() => hostileSkipSandbox.skip(),
+  "hostile season and report values must not throw in the explicit skip path");
+assert.equal(hostileSkipState.seasonTrainingReport.sessions, 0);
+assert.equal(hostileSkipState.seasonTrainingReport.xp, 0);
+assert.equal(hostileSkipState.seasonTrainingReport.completedSeason, 1);
+
 assert.ok(html.includes("لم يتم اعتماد الموسم أو أرشفة نتائجه بعد"),
   "the recovery message must make clear that the season was not partially archived");
 

@@ -8430,11 +8430,40 @@ function settleTrailingByeRounds(){
 }
 function skipSeasonTrainingAndFinish(){
  if(state.retired||state.seasonFinished||state.seasonApps<seasonMatchTotal())return;
- const report=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"
-  ?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0};
- report.skills=report.skills&&typeof report.skills==="object"?report.skills:{};
- report.sessions=Math.max(0,Number(report.sessions)||0);
- report.completed=true;report.completedSeason=Math.max(1,Number(state.season)||1);report.skipped=true;
+ const isRecord=value=>!!value&&typeof value==="object"&&!Array.isArray(value);
+ const finiteNumber=value=>{
+  if(typeof value==="number")return Number.isFinite(value)?value:NaN;
+  if(typeof value==="string"&&value.trim()!==""){
+   const parsed=Number(value);
+   return Number.isFinite(parsed)?parsed:NaN;
+  }
+  return NaN;
+ };
+ const nonNegative=value=>{
+  const numeric=finiteNumber(value);
+  return Number.isFinite(numeric)?Math.max(0,numeric):0;
+ };
+ const safeInteger=value=>Math.floor(nonNegative(value));
+ const rawReport=state.seasonTrainingReport;
+ const report=isRecord(rawReport)?rawReport:(Array.isArray(rawReport)?{
+  sessions:rawReport.sessions,skills:rawReport.skills,xp:rawReport.xp,injuries:rawReport.injuries,
+  plannedSessions:rawReport.plannedSessions,manualSessions:rawReport.manualSessions,
+  completed:rawReport.completed,completedSeason:rawReport.completedSeason,
+  skipped:rawReport.skipped,lastFocus:rawReport.lastFocus,error:rawReport.error
+ }:{sessions:0,skills:{},xp:0,injuries:0});
+ const rawSkills=isRecord(report.skills)?report.skills:{};
+ const skills={};
+ for(const key of ["shooting","dribbling","passing","speed","fitness","composure","defending","goalkeeping","vision","physical"]){
+  if(Object.prototype.hasOwnProperty.call(rawSkills,key))skills[key]=safeInteger(rawSkills[key]);
+ }
+ report.skills=skills;
+ report.sessions=safeInteger(report.sessions);
+ report.xp=nonNegative(report.xp);
+ report.injuries=safeInteger(report.injuries);
+ report.plannedSessions=safeInteger(report.plannedSessions);
+ report.manualSessions=safeInteger(report.manualSessions);
+ report.completed=true;report.completedSeason=Math.max(1,safeInteger(state.season));report.skipped=true;
+ report.lastFocus=typeof report.lastFocus==="string"?report.lastFocus:"";
  delete report.error;
  state.seasonTrainingReport=report;
  log("اختار اللاعب تجاوز بقية خطة التطوير السنوية بعد تعذر إكمالها؛ تم حفظ الجلسات التي نجحت بالفعل.");

@@ -176,6 +176,57 @@ function load(saved) {
     "career match history must remain untouched during metadata normalization");
   assert.equal(malformed.calls.ensure, 1);
 
+  const malformedNestedContainers = load({
+    ...INITIAL,
+    agent: [],
+    sponsorContract: [],
+    loan: [],
+    suspensions: [],
+    bookings: [],
+    competitionStats: [],
+    cupState: {
+      champion: false, eliminated: false, abandoned: false, createdSeason: 1,
+      history: [], teams: [], leagueOpponents: [], groupOpponents: [], groups: [], standings: []
+    }
+  });
+  assert.equal(malformedNestedContainers.state.agent, false,
+    "an array must not be accepted as an agent record");
+  assert.equal(malformedNestedContainers.state.sponsorContract, null,
+    "an array must not be accepted as a sponsor contract");
+  assert.equal(malformedNestedContainers.state.loan, null,
+    "an array must not be accepted as a loan record");
+  assert.deepEqual(malformedNestedContainers.state.suspensions, {},
+    "an array must not be accepted as suspension metadata");
+  assert.deepEqual(malformedNestedContainers.state.bookings, {},
+    "an array must not be accepted as booking metadata");
+  assert.deepEqual(malformedNestedContainers.state.competitionStats, {},
+    "an array must not be accepted as competition statistics");
+  assert.deepEqual(malformedNestedContainers.state.cupState.groupOpponents, {},
+    "an array must not be accepted as cup group-opponent metadata");
+
+  const validNestedContainers = load({
+    ...INITIAL,
+    agent: { id: "agent-legacy" },
+    sponsorContract: { brand: "Legacy Sponsor" },
+    loan: { parentClub: "Parent FC" },
+    suspensions: { red: 1 },
+    bookings: { yellow: 2 },
+    competitionStats: { league: { apps: 4 } },
+    cupState: {
+      champion: false, eliminated: false, abandoned: false, createdSeason: 1,
+      history: [], teams: [], leagueOpponents: [], groupOpponents: { groupA: ["A", "B"] },
+      groups: [], standings: []
+    }
+  });
+  assert.equal(validNestedContainers.state.agent.id, "agent-legacy");
+  assert.equal(validNestedContainers.state.sponsorContract.brand, "Legacy Sponsor");
+  assert.equal(validNestedContainers.state.loan.parentClub, "Parent FC");
+  assert.equal(validNestedContainers.state.suspensions.red, 1);
+  assert.equal(validNestedContainers.state.bookings.yellow, 2);
+  assert.equal(validNestedContainers.state.competitionStats.league.apps, 4);
+  assert.deepEqual(validNestedContainers.state.cupState.groupOpponents, { groupA: ["A", "B"] },
+    "valid nested legacy records must remain intact");
+
   const numericStrings = load({
     ...INITIAL,
     name: "Numeric Legacy Player",

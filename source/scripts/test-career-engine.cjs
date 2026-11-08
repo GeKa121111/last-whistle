@@ -1874,6 +1874,29 @@ for (const [engineName, engine] of [["shared", career], ["deployed", deployedCar
       engineName + " rejected prototype-like training must not award skill XP: " + key);
   }
 
+  // Non-primitive lookup keys must be rejected without invoking hostile coercion hooks.
+  const hostileTrainingType = { toString: 1, valueOf: 1 };
+  const hostileTrainingState = makeProgressionFixture(false);
+  engine.ensureState(hostileTrainingState);
+  const beforeHostileTraining = {
+    energy: hostileTrainingState.energy,
+    money: hostileTrainingState.money,
+    sessions: hostileTrainingState.trainingSessions,
+    trainedToday: hostileTrainingState.trainedToday,
+    trainingXP: JSON.stringify(hostileTrainingState.trainingXP)
+  };
+  let hostileTrainingResult;
+  assert.doesNotThrow(() => {
+    hostileTrainingResult = engine.train(hostileTrainingState, hostileTrainingType, { random: () => 0.5 });
+  }, engineName + " malformed object training keys must not invoke object coercion");
+  assert.equal(hostileTrainingResult.ok, false,
+    engineName + " malformed object training keys must be rejected");
+  assert.equal(hostileTrainingState.energy, beforeHostileTraining.energy);
+  assert.equal(hostileTrainingState.money, beforeHostileTraining.money);
+  assert.equal(hostileTrainingState.trainingSessions, beforeHostileTraining.sessions);
+  assert.equal(hostileTrainingState.trainedToday, beforeHostileTraining.trainedToday);
+  assert.equal(JSON.stringify(hostileTrainingState.trainingXP), beforeHostileTraining.trainingXP);
+
   const prototypeStatsFields = ["appearances", "qualifyingAppearances", "minutes", "goals", "assists"];
   const savedPrototypeDescriptors = new Map(prototypeStatsFields.map(field =>
     [field, Object.getOwnPropertyDescriptor(Object.prototype, field)]));

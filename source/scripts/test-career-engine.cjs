@@ -1096,7 +1096,7 @@ assert.equal(renewal.contractType, "professional", "renewing a contract must kee
 const hostileLegacyContractLabel = JSON.parse('{"toString":1,"valueOf":1}');
 for (const [engineName, engine] of [["shared", career]]) {
   const malformedContractTypeState = {
-    ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 1,
+    ...renewalBase, contractType: hostileLegacyContractLabel, contractSeasons: 2,
     freeAgent: false, clubName: "Test FC", daysSinceNegotiation: 7, apps: 10
   };
   assert.equal(engine.wageNegotiationStatus(malformedContractTypeState), "ready",
@@ -1106,7 +1106,7 @@ for (const [engineName, engine] of [["shared", career]]) {
   assert.equal(engine.makeContractOffer({ ...renewalBase, clubName: hostileLegacyContractLabel }).club, "",
     engineName + " contract offers must use an empty safe club label for malformed saved club names");
 
-  const safeTypeRenewal = { ...malformedContractTypeState };
+  const safeTypeRenewal = { ...malformedContractTypeState, contractSeasons: 1 };
   assert.equal(engine.resolveContractDecision(safeTypeRenewal, "accept",
     { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "renewed",
     engineName + " unknown malformed contract-type labels must not be coerced or misclassified as free-agent");
@@ -1835,7 +1835,7 @@ const deployedHostileContractTypeState = {
 assert.equal(deployedCareer.wageNegotiationStatus(deployedHostileContractTypeState), "ready");
 assert.equal(deployedCareer.loanRequestStatus(deployedHostileContractTypeState, { windowOpen: true }), "ready");
 assert.equal(deployedCareer.makeContractOffer({ ...renewalBase, clubName: hostileLegacyContractLabel }).club, "");
-const deployedSafeTypeRenewal = { ...deployedHostileContractTypeState };
+const deployedSafeTypeRenewal = { ...deployedHostileContractTypeState, contractSeasons: 1 };
 assert.equal(deployedCareer.resolveContractDecision(deployedSafeTypeRenewal, "accept",
   { club: "Test FC", season: 1, wage: 650, seasons: 3 }).status, "renewed");
 const deployedMalformedCurrentClub = { ...renewalBase, clubName: hostileLegacyContractLabel, contractSeasons: 1 };

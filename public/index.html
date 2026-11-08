@@ -5425,7 +5425,8 @@ function closeDrawer(){
  if(wasOpen&&compact&&opener&&opener.isConnected&&opener.getClientRects().length)opener.focus({preventScroll:true});
 }
 function setBar(id,val){const el=$(id);if(el)el.style.width=clamp(val)+"%";}
-function setText(id,value){const el=$(id);if(el)el.textContent=value;}
+function safeDisplayText(value,fallback=""){if(typeof value==="string")return value;if(typeof value==="number")return Number.isFinite(value)?String(value):fallback;if(typeof value==="boolean")return value?"true":"false";if(typeof value==="bigint"||typeof value==="symbol"){try{return String(value);}catch(error){return fallback;}}return fallback;}
+function setText(id,value){const el=$(id);if(el)el.textContent=safeDisplayText(value);}
 function renderProfessionalLife(){
  const stats=[
   {label:"الاحترافية",value:clamp(state.professionalism??65),desc:"الالتزام والسلوك"},
@@ -7487,7 +7488,7 @@ function render(){
  setText("heroHeadline",homeCountry==="مصر"?"من أول فرصة…\nلحد قمة الكورة.":"من أول فرصة…\nلحد الاحتراف في "+homeCountry+".");
  setText("heroDescription",`كل قرار ليه تأثير، وكل ماتش فرصة. طوّر مستواك مع ${club().name}، واكسب ثقة المدرب، وابني مسيرتك موسم ورا موسم.`);
  setText("headDay",state.day);setText("headMoney",Number(state.money||0).toLocaleString("en-US"));setText("headCurrency",currencyLabel());setText("headEnergy",state.energy);
- setText("playerName",state.name);setText("playerMeta",`${state.age} سنة • ${displayPositionLabel(state.pos)} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
+ setText("playerName",safeDisplayText(state.name,"اللاعب"));setText("playerMeta",`${state.age} سنة • ${displayPositionLabel(state.pos)} • ${state.leagueCountry||"مصر"} • ${state.leagueDivision===1?"الدرجة الأولى":"الدرجة الثانية"}`);setText("clubPill",club().name);setText("squadRole",state.role);
  setText("injuryPill",state.injuryDays>0?`مصاب: ${state.injuryDays} يوم`:"سليم");$("injuryPill").className="pill "+(state.injuryDays>0?"red":"green");
  setText("contractPill",state.retired?"معتزل":state.freeAgent?"لاعب حر":"عقد "+state.contractSeasons+" موسم");
  [["ovBar",ov],["energyBar",state.energy],["moraleBar",state.morale],["trustBar",state.trust]].forEach(([id,v])=>setBar(id,v));
@@ -7495,7 +7496,7 @@ function render(){
  setText("kpiMoney",Number(state.money||0).toLocaleString("en-US"));setText("kpiCurrency",currencyLabel());setText("storeCurrency",currencyLabel());setText("kpiFollowers",state.followers);setText("kpiApps",state.apps);
  SKILLS.forEach(k=>{setBar("skill-"+k,state[k]);setText("val-"+k,state[k]);});
  const levelThreshold=100+Math.min(80,((Number(state.careerLevel)||1)-1)*8);setBar("careerXPBar",(Number(state.levelXP)||0)/levelThreshold*100);setText("careerLevelBadge","المستوى "+(state.careerLevel||1));setText("careerLevelValue",state.careerLevel||1);setText("careerProgressText",`خبرة المستوى ${state.levelXP||0}/${levelThreshold} • إجمالي خبرة ${state.careerXP||0} • إمكانات ${state.playerPotential||82} • حصص ${state.trainingSessions||0}`);
- setText("seasonProgress",`الموسم ${state.season} • المباراة ${state.seasonApps} من ${seasonMatchTotal()} • النقاط ${state.seasonPoints}`);
+ setText("seasonProgress",`الموسم ${safeDisplayText(state.season,"1")} • المباراة ${safeDisplayText(state.seasonApps,"0")} من ${seasonMatchTotal()} • النقاط ${safeDisplayText(state.seasonPoints,"0")}`);
  setText("goalsVal",state.goals);setText("assistsVal",state.assists);setText("ratingVal",state.lastRating?state.lastRating.toFixed(1)+"/10":"—");
  setText("storyTitle",state.storyTitle);setText("storyText",state.storyText);
 

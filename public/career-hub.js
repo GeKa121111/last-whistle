@@ -3,7 +3,7 @@
   var timer=null,lastSnapshot="",lastRuntime=null;
   var lastHistoryRef=null,lastHistoryLength=-1,lastHistoryTail="",lastHistoryRevision=null,lastHistorySignature="";
   var lastSeasonLogRef=null,lastSeasonLogLength=-1,lastSeasonLogTail="",lastSeasonLogSignature="";
-  var refreshScheduled=false,queuedForce=false;
+  var refreshScheduled=false,queuedForce=false,archiveObserver=null;
   var api=function(){return window.LWStoryRuntime||null;};
   var $=function(id){return document.getElementById(id);};
   function finiteNumber(value){
@@ -96,9 +96,58 @@
       s.apps,s.totalCareerAppearances,s.goals,s.assists,s.seasonApps,s.pos,lastHistorySignature,lastSeasonLogSignature
     ]);
   }
+  
+  function renderSeasonDevelopmentArchiveBreakdown(state){
+    var root=$("seasonDevelopmentArchive");
+    if(!root)return;
+    var current=state||(api()&&api().getState?api().getState():null);
+    var history=Array.isArray(current&&current.seasonDevelopmentHistory)?current.seasonDevelopmentHistory:[];
+    var rows=history.filter(function(row){
+      if(!row||typeof row!=="object"||Array.isArray(row))return false;
+      var season=finiteNumber(row.season);
+      return season!==null&&Number.isSafeInteger(season)&&season>0;
+    }).slice().sort(function(a,b){return finiteNumber(b.season)-finiteNumber(a.season);});
+    var cards=Array.prototype.slice.call(root.querySelectorAll("details.season-development-item"));
+    if(!cards.length||cards.length!==rows.length)return;
+    cards.forEach(function(card,index){
+      if(card.querySelector(".season-development-breakdown"))return;
+      var row=rows[index]||{};
+      var section=document.createElement("div");
+      section.className="season-development-breakdown";
+      var heading=document.createElement("p");
+      heading.className="muted small";
+      heading.textContent="تفصيل الخبرة والإصابات";
+      var grid=document.createElement("div");
+      grid.className="kpiGrid";
+      grid.style.margin="8px 0";
+      function addMetric(label,value){
+        var item=document.createElement("div");
+        item.className="kpi";
+        var number=document.createElement("div");
+        number.className="kpiNum";
+        var parsed=finiteNumber(value);
+        number.textContent=parsed===null?"—":Math.round(Math.max(0,parsed)).toLocaleString("en-US");
+        var caption=document.createElement("div");
+        caption.className="kpiLabel";
+        caption.textContent=label;
+        item.append(number,caption);
+        grid.append(item);
+      }
+      addMetric("XP التدريب الآلي",row.xp);
+      addMetric("XP التدريب اليدوي",row.manualXP);
+      addMetric("إصابات التدريب الآلي",row.injuries);
+      addMetric("إصابات التدريب اليدوي",row.manualInjuries);
+      section.append(heading,grid);
+      var existingMetrics=card.querySelector(".kpiGrid");
+      if(existingMetrics&&existingMetrics.parentNode)existingMetrics.parentNode.insertBefore(section,existingMetrics.nextSibling);
+      else card.append(section);
+    });
+  }
+
   function render(force){
     var runtime=api(),s=runtime&&runtime.getState?runtime.getState():null;
     if(!s){lastSnapshot="";lastRuntime=null;lastHistoryRef=null;lastHistoryLength=-1;lastHistoryTail="";lastHistoryRevision=null;lastHistorySignature="";lastSeasonLogRef=null;lastSeasonLogLength=-1;lastSeasonLogTail="";lastSeasonLogSignature="";return;}
+    renderSeasonDevelopmentArchiveBreakdown(s);
     var store=window.LWStateStore;
     var revision=store&&typeof store.getRevision==="function"?Number(store.getRevision()):null;
     if(!Number.isFinite(revision))revision=null;
@@ -207,6 +256,13 @@
   function refresh(){if(document.hidden)return;render(true);}
   function start(){
     render(true);
+    var archiveRoot=$("seasonDevelopmentArchive");
+    if(archiveObserver){archiveObserver.disconnect();archiveObserver=null;}
+    if(archiveRoot&&typeof window.MutationObserver==="function"){
+      archiveObserver=new window.MutationObserver(function(){renderSeasonDevelopmentArchiveBreakdown();});
+      archiveObserver.observe(archiveRoot,{childList:true});
+    }
+    renderSeasonDevelopmentArchiveBreakdown();
     var store=window.LWStateStore;
     if(store&&typeof store.subscribe==="function")store.subscribe(function(){scheduleRender(false);});
     timer=window.setInterval(tick,store&&typeof store.subscribe==="function"?5000:1500);

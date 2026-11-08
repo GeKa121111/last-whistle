@@ -7827,7 +7827,7 @@ function runSeasonAITtraining(){
  ensureSeasonDevelopmentSnapshot();
  const currentSeason=Math.max(1,Number(state.season)||1);
  const report=state.seasonTrainingReport&&typeof state.seasonTrainingReport==="object"
-  ?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0,completed:false};
+  ?state.seasonTrainingReport:{sessions:0,skills:{},xp:0,injuries:0,plannedSessions:0,manualSessions:0,manualSkills:{},manualXP:0,manualInjuries:0,completed:false,completedSeason:0,skipped:false,lastFocus:""};
  report.skills=report.skills&&typeof report.skills==="object"?report.skills:{};
  report.sessions=Math.max(0,Number(report.sessions)||0);
  report.xp=Math.max(0,Number(report.xp)||0);

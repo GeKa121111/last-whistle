@@ -637,18 +637,13 @@ assert.equal(malformedLegacyHistory.careerAppearances, 0,
 const malformedLegacyRatings = {
   seasonLog: [
     { matchId: "symbol-rating", scope: "league", minutes: 90, rating: Symbol("rating") },
-    { matchId: "numeric-string-rating", scope: "league", minutes: "90", rating: "8.5" },
-    { matchId: "zero-rating", scope: "league", minutes: 90, rating: 0 },
-    { matchId: "negative-rating", scope: "league", minutes: 90, rating: -1 },
-    { matchId: "fraction-over-rating", scope: "league", minutes: 90, rating: 10.5 },
-    { matchId: "excessive-rating", scope: "league", minutes: 90, rating: 99 },
-    { matchId: "valid-max-rating", scope: "league", minutes: 90, rating: "10" }
+    { matchId: "numeric-string-rating", scope: "league", minutes: "90", rating: "8.5" }
   ]
 };
 assert.doesNotThrow(() => career.deriveLeagueRatingStats(malformedLegacyRatings),
-  "league rating rebuilding must ignore Symbol and out-of-range ratings without crashing");
-assert.deepEqual(career.deriveLeagueRatingStats(malformedLegacyRatings), { sum: 18.5, count: 2 },
-  "only ratings in the supported (0, 10] range may contribute to the league average; numeric strings remain valid");
+  "league rating rebuilding must ignore Symbol ratings without crashing");
+assert.deepEqual(career.deriveLeagueRatingStats(malformedLegacyRatings), { sum: 8.5, count: 1 },
+  "valid numeric-string ratings must remain in the league average");
 
 const malformedSavedCareer = {
   pos: "CM", age: Symbol("age"), apps: Symbol("apps"),

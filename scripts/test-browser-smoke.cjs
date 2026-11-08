@@ -1866,6 +1866,67 @@ async function main() {
     assert.deepEqual(statsDataProbe.incomplete, {
       goalsPer90: "—", assistsPer90: "—", minutesPerAppearance: "—"
     }, "the stats dashboard must not publish rates or average minutes from a truncated career ledger");
+    const seasonArchiveProbe = await page.evaluate(() => {
+      const runtime = window.LWStoryRuntime;
+      const state = runtime.getState();
+      const originalHistory = state.seasonDevelopmentHistory;
+      const maliciousKey = '<img src=x onerror="window.__seasonArchiveXss=1">';
+      state.seasonDevelopmentHistory = Array.from({ length: 25 }, (_, index) => ({
+        season: index + 1,
+        ovrBefore: 60 + index,
+        ovrAfter: 61 + index,
+        sessions: 40,
+        manualSessions: 12,
+        plannedSessions: 52,
+        totalSessions: 52,
+        xp: 120,
+        manualXP: 45,
+        totalXP: 165,
+        injuries: 2,
+        manualInjuries: 1,
+        totalInjuries: 3,
+        automaticTrainingBySkill: { shooting: 40 },
+        manualTrainingBySkill: { dribbling: 12 },
+        trainingBySkill: { shooting: 40, dribbling: 12, [maliciousKey]: 1 },
+        trainingCompleted: true,
+        trainingSkipped: index === 3,
+        lastFocus: index === 24 ? maliciousKey : "shooting",
+        skills: [{ key: "shooting", delta: 2 }]
+      })).concat([{ season: { toString: 1, valueOf: 1 }, legacyMarker: "preserve" }]);
+      runtime.showPage("stats");
+      runtime.render();
+      const archive = document.querySelector("#seasonDevelopmentArchive");
+      const cards = archive ? Array.from(archive.querySelectorAll("details")) : [];
+      const result = {
+        count: cards.length,
+        countLabel: document.querySelector("#seasonDevelopmentArchiveCount")?.textContent.trim() || "",
+        firstSeason: cards[0]?.querySelector("summary")?.textContent.trim() || "",
+        lastSeason: cards[cards.length - 1]?.querySelector("summary")?.textContent.trim() || "",
+        text: archive?.textContent || "",
+        injectedElements: archive?.querySelectorAll("img,script,iframe").length || 0,
+        malformedRowPreserved: state.seasonDevelopmentHistory.length === 26
+      };
+      state.seasonDevelopmentHistory = originalHistory;
+      runtime.render();
+      return result;
+    });
+    assert.equal(seasonArchiveProbe.count, 25,
+      "the player-development archive must render every valid season without truncating the 25-season timeline");
+    assert.equal(seasonArchiveProbe.countLabel, "25 موسم");
+    assert.ok(seasonArchiveProbe.firstSeason.includes("الموسم 25"),
+      "the newest season must appear first in the archive");
+    assert.ok(seasonArchiveProbe.lastSeason.includes("الموسم 1"),
+      "the oldest season must remain accessible at the end of the archive");
+    assert.ok(seasonArchiveProbe.text.includes("تدريب يدوي")
+      && seasonArchiveProbe.text.includes("165")
+      && seasonArchiveProbe.text.includes("تم تجاوز بقية الخطة"),
+      "the archive must show manual workload, combined XP and explicit skip status");
+    assert.ok(seasonArchiveProbe.text.includes('<img src=x onerror="window.__seasonArchiveXss=1">'),
+      "unknown/future skill labels must remain visible as literal text");
+    assert.equal(seasonArchiveProbe.injectedElements, 0,
+      "legacy skill names and focus labels must never be interpreted as HTML");
+    assert.equal(seasonArchiveProbe.malformedRowPreserved, true,
+      "unrenderable legacy history rows must remain in the saved state instead of being deleted");
     results.push("career and season statistics reconciliation, cup aggregation, international exclusion and incomplete-history fallback");
 
     await page.evaluate(() => window.LWStoryRuntime.showPage("league"));

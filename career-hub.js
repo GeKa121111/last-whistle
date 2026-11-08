@@ -235,12 +235,17 @@
       var limit=typeof maximum==="number"&&Number.isFinite(maximum)&&maximum>=0?maximum:1000000;
       return parsed===null?0:Math.floor(Math.max(0,Math.min(limit,parsed)));
     };
+    var validHistoryCount=function(value,maximum){
+      var parsed=finiteNumber(value);
+      return parsed!==null&&Number.isSafeInteger(parsed)&&parsed>=0&&parsed<=maximum;
+    };
     var historyRowCompleteness=function(row){
-      // Only count fields used by the per-90 summary. Unrelated rating/stat
-      // details must not outweigh missing goals or assists.
-      var score=0;
-      ["minutes","goals","assists"].forEach(function(key){
-        if(finiteNumber(row&&row[key])!==null)score+=1;
+      // Minutes are validated before this helper. Goal and assist counts must
+      // also be whole, non-negative, and within the same per-match cap used
+      // by the renderer; malformed finite values are not complete statistics.
+      var score=finiteNumber(row&&row.minutes)!==null?1:0;
+      ["goals","assists"].forEach(function(key){
+        if(validHistoryCount(row&&row[key],20))score+=1;
       });
       return score;
     };

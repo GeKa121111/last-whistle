@@ -170,6 +170,36 @@ const vm = require("node:vm");
   assert.equal(nodes.get("statsMinutesPerAppearance").textContent, "90",
     "sparse duplicate rows must represent one appearance, not two");
 
+  const conflictingFixture = {
+    id: "legacy-canonical-conflict", scope: "league", competition: "Premier League",
+    season: 1, segmentId: "segment-1", club: "Test FC", opponent: "Opponent FC",
+    day: 12, calendarDay: 12, matchday: 3, minutes: 90, goals: 0, assists: 0, rating: 6
+  };
+  state.seasonLog = [{ ...conflictingFixture }];
+  state.careerMatchHistory = [{ ...conflictingFixture, goals: 2, assists: 1, rating: 8 }];
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "2.00",
+    "the canonical career ledger must win when duplicate identity rows have equal completeness but newer stats");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "1.00",
+    "legacy seasonLog must not shadow newer canonical assists for the same fixture");
+
+  state.seasonLog = [{ ...conflictingFixture, goals: 1, assists: 1 }];
+  state.careerMatchHistory = [{
+    id: conflictingFixture.id, scope: conflictingFixture.scope, competition: conflictingFixture.competition,
+    season: conflictingFixture.season, segmentId: conflictingFixture.segmentId, club: conflictingFixture.club,
+    opponent: conflictingFixture.opponent, day: conflictingFixture.day, calendarDay: conflictingFixture.calendarDay,
+    matchday: conflictingFixture.matchday, minutes: 90, rating: 8
+  }];
+  revision++;
+  stateChangeListener({ revision });
+  await Promise.resolve();
+  assert.equal(nodes.get("statsGoalsPer90").textContent, "1.00",
+    "a richer legacy row must be retained when the canonical duplicate lacks goal and assist fields");
+  assert.equal(nodes.get("statsAssistsPer90").textContent, "1.00",
+    "choosing the best duplicate must not turn missing canonical metrics into false zeroes");
+
   // Match identity changes can alter deduplication without changing the four
   // numeric fields used by the old history signature.
   const sharedIdentityRows = [

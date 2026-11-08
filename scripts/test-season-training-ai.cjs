@@ -6,10 +6,30 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
+const rootHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.equal(rootHtml, html, "root and public app shells must remain byte-identical");
 const start = html.indexOf("function seasonTrainingPerformanceFocus()");
 const end = html.indexOf("\nfunction simulateSeasonBlock(targetApps)", start);
 assert.ok(start >= 0 && end > start, "season training AI functions must exist in the app");
 const source = html.slice(start, end);
+
+const historyStart = html.indexOf("function upsertSeasonDevelopmentHistory(");
+const historyEnd = html.indexOf("\nfunction simulateSeasonBlock(targetApps)", historyStart);
+assert.ok(historyStart >= 0 && historyEnd > historyStart, "season development history helper must exist");
+const historySource = html.slice(historyStart, historyEnd) + "\nglobalThis.__upsertSeasonHistory = upsertSeasonDevelopmentHistory;";
+const historySandbox = {};
+vm.createContext(historySandbox);
+new vm.Script(historySource, { filename: "season-development-history.js" }).runInContext(historySandbox);
+const upsertSeasonHistory = historySandbox.__upsertSeasonHistory;
+
+const manualHelperStart = html.indexOf("function recordManualTrainingSession(");
+const manualHelperEnd = html.indexOf("\nfunction train(type)", manualHelperStart);
+assert.ok(manualHelperStart >= 0 && manualHelperEnd > manualHelperStart, "manual training recorder must exist");
+const manualHelperSource = html.slice(manualHelperStart, manualHelperEnd) + "\nglobalThis.__recordManualTrainingSession = recordManualTrainingSession;";
+const manualHelperSandbox = {};
+vm.createContext(manualHelperSandbox);
+new vm.Script(manualHelperSource, { filename: "manual-training-recorder.js" }).runInContext(manualHelperSandbox);
+const recordManualTrainingSession = manualHelperSandbox.__recordManualTrainingSession;
 
 function createSandbox(position, rows, attributes, plan, matchTotal = 22) {
   const sandbox = {
@@ -193,9 +213,10 @@ snapshotRecovery.state.seasonDevelopmentSnapshot = {
   season: hostileSnapshotValue, ovr: 75, attributes: [], sessions: hostileSnapshotValue
 };
 snapshotRecovery.state.seasonTrainingReport = {
-  sessions: "2", skills: { shooting: "1" }, xp: "30", injuries: "1",
+  sessions: "2", skills: { shooting: "1", futureSkill: "2" }, xp: "30", injuries: "1",
   plannedSessions: "49", manualSessions: "5", completed: false,
-  completedSeason: "4", skipped: false, lastFocus: "shooting"
+  completedSeason: "4", skipped: false, lastFocus: "shooting",
+  manualSkills: { shooting: "2" }, manualXP: "45", manualInjuries: "1"
 };
 assert.doesNotThrow(() => snapshotRecovery.ensureSeasonDevelopmentSnapshot(),
   "hostile snapshot metadata must be rebuilt without throwing");
@@ -206,8 +227,12 @@ assert.equal(snapshotRecovery.state.seasonDevelopmentSnapshot.attributes.shootin
 assert.equal(snapshotRecovery.state.seasonTrainingReport.sessions, 2,
   "repairing a damaged snapshot must preserve already-applied annual sessions");
 assert.equal(snapshotRecovery.state.seasonTrainingReport.skills.shooting, 1);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.skills.futureSkill, 2, "snapshot recovery must normalize future training skill keys");
 assert.equal(snapshotRecovery.state.seasonTrainingReport.xp, 30);
 assert.equal(snapshotRecovery.state.seasonTrainingReport.manualSessions, 5);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.manualSkills.shooting, 2);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.manualXP, 45);
+assert.equal(snapshotRecovery.state.seasonTrainingReport.manualInjuries, 1);
 snapshotRecovery.state.seasonApps = 22;
 const resumedAnnual = snapshotRecovery.runSeasonAITtraining();
 assert.equal(resumedAnnual.ok, true, "annual training must resume after snapshot recovery");
@@ -296,11 +321,14 @@ assert.equal(Object.prototype.hasOwnProperty.call(skipState.seasonTrainingReport
   "a consciously skipped plan must not retain a retryable error");
 const arraySkipReport = [];
 arraySkipReport.sessions = "3";
-arraySkipReport.skills = { shooting: "2", passing: 1 };
+arraySkipReport.skills = { shooting: "2", passing: 1, futureSkill: "3" };
 arraySkipReport.xp = "90";
 arraySkipReport.injuries = "1";
 arraySkipReport.plannedSessions = "40";
 arraySkipReport.manualSessions = "2";
+arraySkipReport.manualSkills = { shooting: "2", speed: 1 };
+arraySkipReport.manualXP = "25";
+arraySkipReport.manualInjuries = "1";
 arraySkipReport.error = "temporary failure";
 const arraySkipState = { season: 7, seasonApps: 22, seasonTrainingReport: arraySkipReport };
 let arraySkipCalled = false;
@@ -323,9 +351,14 @@ assert.equal(arraySkipState.seasonTrainingReport.sessions, 3,
   "successful sessions stored on a malformed array report must be preserved");
 assert.equal(arraySkipState.seasonTrainingReport.skills.shooting, 2);
 assert.equal(arraySkipState.seasonTrainingReport.skills.passing, 1);
+assert.equal(arraySkipState.seasonTrainingReport.skills.futureSkill, 3, "explicit skip must retain future training skill keys");
 assert.equal(arraySkipState.seasonTrainingReport.xp, 90);
 assert.equal(arraySkipState.seasonTrainingReport.injuries, 1);
 assert.equal(arraySkipState.seasonTrainingReport.manualSessions, 2);
+assert.equal(arraySkipState.seasonTrainingReport.manualSkills.shooting, 2);
+assert.equal(arraySkipState.seasonTrainingReport.manualSkills.speed, 1);
+assert.equal(arraySkipState.seasonTrainingReport.manualXP, 25);
+assert.equal(arraySkipState.seasonTrainingReport.manualInjuries, 1);
 assert.equal(arraySkipState.seasonTrainingReport.completedSeason, 7);
 assert.equal(arraySkipState.seasonTrainingReport.completed, true);
 assert.equal(arraySkipState.seasonTrainingReport.skipped, true);
@@ -352,5 +385,100 @@ assert.equal(hostileSkipState.seasonTrainingReport.completedSeason, 1);
 
 assert.ok(html.includes("لم يتم اعتماد الموسم أو أرشفة نتائجه بعد"),
   "the recovery message must make clear that the season was not partially archived");
+
+
+// Full season-development archive: preserve manual/AI work, skill distribution and terminal status.
+const malformedHistorySeason = JSON.parse('{"toString":1,"valueOf":1}');
+const initialHistory = [
+  { season: "1", ovrBefore: 70, ovrAfter: 71, sessions: 1, customMarker: "keep-me",
+    skills: [{ key: "legacy-skill", delta: 1 }], trainingBySkill: { shooting: 1 } },
+  { season: malformedHistorySeason, legacyMarker: "do-not-drop" }
+];
+const archived = upsertSeasonHistory(initialHistory, "1", { ovr: 71 }, {
+  sessions: "4", plannedSessions: "52", manualSessions: "3", xp: "120", injuries: "2",
+  skills: { shooting: "3", passing: 2, unknownSkill: 1 },
+  manualSkills: { shooting: "1", dribbling: 2 }, manualXP: "45", manualInjuries: "1",
+  completed: true, skipped: true, lastFocus: "shooting"
+}, 74, [{ key: "shooting", delta: 2 }, { key: "passing", delta: 1 }]);
+assert.equal(archived.length, 2, "updating an existing season must not duplicate or discard history rows");
+assert.equal(archived[0].customMarker, "keep-me", "unknown legacy record fields must survive an upsert");
+assert.equal(archived[0].sessions, 4);
+assert.equal(archived[0].manualSessions, 3);
+assert.equal(archived[0].plannedSessions, 52);
+assert.equal(archived[0].totalSessions, 7, "manual and automatic sessions must reconcile");
+assert.equal(archived[0].manualXP, 45);
+assert.equal(archived[0].totalXP, 165);
+assert.equal(archived[0].manualInjuries, 1);
+assert.equal(archived[0].totalInjuries, 3);
+assert.equal(archived[0].automaticTrainingBySkill.shooting, 3);
+assert.equal(archived[0].manualTrainingBySkill.shooting, 1);
+assert.equal(archived[0].manualTrainingBySkill.dribbling, 2);
+assert.equal(archived[0].trainingBySkill.shooting, 4,
+  "combined skill distribution must include both manual and AI sessions");
+assert.equal(archived[0].trainingBySkill.dribbling, 2);
+assert.equal(archived[0].xp, 120);
+assert.equal(archived[0].injuries, 2);
+assert.equal(archived[0].trainingCompleted, true);
+assert.equal(archived[0].trainingSkipped, true);
+assert.equal(archived[0].lastFocus, "shooting");
+assert.equal(archived[0].trainingBySkill.shooting, 4);
+assert.equal(archived[0].trainingBySkill.passing, 2);
+assert.equal(archived[0].trainingBySkill.unknownSkill, 1,
+  "future or custom training-focus keys must not be dropped by a fixed whitelist");
+assert.equal(archived[0].ovrBefore, 71);
+assert.equal(archived[0].ovrAfter, 74);
+assert.equal(archived[1].legacyMarker, "do-not-drop",
+  "malformed historical rows must remain available for later recovery");
+
+const revisedArchive = upsertSeasonHistory(archived, 1, { ovr: 71 }, {
+  sessions: "5", plannedSessions: "52", manualSessions: "3", xp: "150", injuries: "2",
+  skills: { shooting: 4, passing: 2, unknownSkill: 1 },
+  manualSkills: { shooting: 2, dribbling: 2 }, manualXP: 60, manualInjuries: 1,
+  completed: true, skipped: false, lastFocus: ""
+}, 76, [{ key: "shooting", delta: 3 }]);
+assert.equal(revisedArchive.length, 2, "re-finalizing the same season must update its record instead of adding a duplicate");
+assert.equal(revisedArchive[0].sessions, 5, "a retry must refresh the existing season record");
+assert.equal(revisedArchive[0].totalSessions, 8);
+assert.equal(revisedArchive[0].totalXP, 210);
+assert.equal(revisedArchive[0].totalInjuries, 3);
+assert.equal(revisedArchive[0].trainingBySkill.shooting, 6);
+assert.equal(revisedArchive[0].trainingSkipped, true, "a previously recorded explicit skip must remain part of the season history");
+assert.equal(revisedArchive[0].lastFocus, "shooting", "an empty retry focus must not erase the last successful training focus");
+assert.equal(revisedArchive[0].trainingBySkill.passing, 2,
+  "skill counts not repeated in a later partial report must remain preserved");
+
+const longHistory = Array.from({ length: 25 }, (_, index) => ({ season: index + 1, marker: index }));
+const extendedHistory = upsertSeasonHistory(longHistory, 26, { ovr: 80 }, {
+  sessions: 1, manualSessions: 0, plannedSessions: 1, xp: 10, injuries: 0,
+  skills: { speed: 1 }, completed: true, skipped: false, lastFocus: "speed"
+}, 81, [{ key: "speed", delta: 1 }]);
+assert.equal(extendedHistory.length, 26, "the career timeline must not be truncated to the last 20 seasons");
+assert.equal(extendedHistory[0].season, 26);
+assert.equal(extendedHistory[1].marker, 0);
+
+const malformedHistoryContainer = { marker: "legacy-container" };
+const recoveredHistory = upsertSeasonHistory(malformedHistoryContainer, 2, { ovr: 70 }, {
+  sessions: 0, manualSessions: 0, plannedSessions: 0, xp: 0, injuries: 0,
+  skills: {}, completed: true, skipped: false, lastFocus: ""
+}, 70, []);
+assert.equal(recoveredHistory[1].legacyHistoryValue.marker, "legacy-container",
+  "a non-array legacy history container must be retained rather than silently discarded");
+assert.doesNotThrow(() => upsertSeasonHistory([], malformedHistorySeason, {}, {}, 0, []),
+  "hostile season identifiers must not crash the history archive");
+assert.ok(finishSource.includes("upsertSeasonDevelopmentHistory("),
+  "season finalization must use the tested history upsert helper");
+
+
+const manualReportOnce = recordManualTrainingSession({}, "shooting", { xp: 25, injured: true });
+assert.equal(manualReportOnce.manualSessions, 1);
+assert.equal(manualReportOnce.manualSkills.shooting, 1);
+assert.equal(manualReportOnce.manualXP, 25);
+assert.equal(manualReportOnce.manualInjuries, 1);
+assert.equal(manualReportOnce.lastFocus, "shooting");
+const manualReportTwice = recordManualTrainingSession(manualReportOnce, "shooting", { xp: "10", injured: false });
+assert.equal(manualReportTwice.manualSessions, 2, "manual training sessions must accumulate exactly once per successful session");
+assert.equal(manualReportTwice.manualSkills.shooting, 2);
+assert.equal(manualReportTwice.manualXP, 35);
+assert.equal(manualReportTwice.manualInjuries, 1, "only actual manual-training injuries should be counted");
 
 console.log("PASS: match evidence, position-specific focus, potential caps and one-time season-end training all work.");

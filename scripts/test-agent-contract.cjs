@@ -653,6 +653,7 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
 
  const frozenProfileState=makePerkState({recovery:true});
  const frozenProfile=frozenProfileState.agentProfile;
+ const frozenRelationship=frozenProfile.relationship;
  Object.freeze(frozenProfile);
  assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(frozenProfileState),
    "a frozen saved profile must be copied before the runtime applies defaults");
@@ -660,7 +661,7 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "hydration must replace an immutable profile with a writable data record");
  assert.equal(frozenProfileState.agentProfile.id,"salim",
    "immutable profile normalization must preserve the representative identity");
- assert.equal(frozenProfileState.agentProfile.relationship,52,
+ assert.equal(frozenProfileState.agentProfile.relationship,frozenRelationship,
    "immutable profile normalization must preserve the existing relationship value");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(frozenProfileState),3,
    "immutable profile normalization must preserve valid perks");

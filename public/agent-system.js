@@ -682,7 +682,30 @@ function availableAgentBalance(s){
     if(rate===null||rate<.035||rate>Number(agent.feeRate))return null;
     return Math.round(rate*1000)/1000;
   }
-    function ensureState(s){
+    function setAgentStateField(s,key,value){
+    if(!s||typeof s!=="object")return false;
+    try{
+      var descriptor=Object.getOwnPropertyDescriptor(s,key);
+      if(descriptor){
+        if(Object.prototype.hasOwnProperty.call(descriptor,"value")){
+          if(descriptor.writable){
+            s[key]=value;
+            return safeAgentField(s,key)===value;
+          }
+          if(!descriptor.configurable)return false;
+        }else if(!descriptor.configurable){
+          return false;
+        }
+        Object.defineProperty(s,key,{
+          value:value,enumerable:!!descriptor.enumerable,writable:true,configurable:true
+        });
+      }else{
+        Object.defineProperty(s,key,{value:value,enumerable:true,writable:true,configurable:true});
+      }
+      return safeAgentField(s,key)===value;
+    }catch(_){return false;}
+  }
+  function ensureState(s){
     if(!s||typeof s!=="object")return false;
     var changed=false;
     var originalProfile=safeAgentField(s,"agentProfile");
@@ -696,8 +719,12 @@ function availableAgentBalance(s){
     var originalHistory=safeAgentField(s,"agentHistory");
     var normalizedHistory=normalizeAgentHistory(originalHistory);
     if(normalizedHistory!==originalHistory){s.agentHistory=normalizedHistory;changed=true;}
+    var agentEnabled=!!safeAgentField(s,"agent");
     var profile=safeAgentField(s,"agentProfile");
-    if(safeAgentField(s,"agent")&&(!profile||!agentById(safeAgentField(profile,"id")))){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
+    if(agentEnabled&&(!profile||!agentById(safeAgentField(profile,"id")))){
+      var legacyProfile=makeProfile("legacy",s,true);
+      if(setAgentStateField(s,"agentProfile",legacyProfile))changed=true;
+    }
     profile=safeAgentField(s,"agentProfile");
     if(profile&&agentById(safeAgentField(profile,"id"))){
       var oldContractMode=safeAgentField(profile,"contractMode"),oldExpiresSeason=safeAgentField(profile,"expiresSeason");
@@ -706,12 +733,14 @@ function availableAgentBalance(s){
       ensureProfileShape(profile,s);
       if(oldPerks!==profile.perks)changed=true;
       if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==profile.feeDebt||oldFeeRate!==profile.feeRate||oldCustomFeeRate!==profile.customFeeRate)changed=true;
-      if(!s.agent){s.agent=true;changed=true;}
-    }else if(!safeAgentField(s,"agent")){s.agentProfile=null;}
-    if(s.agentNegotiationQuote!=null){
-      var rawQuote=safeAgentField(s,"agentNegotiationQuote");
+      if(safeAgentField(s,"agent")!==true&&setAgentStateField(s,"agent",true))changed=true;
+    }else if(safeAgentField(s,"agent")!==true){
+      if(setAgentStateField(s,"agentProfile",null))changed=true;
+    }
+    var rawQuote=safeAgentField(s,"agentNegotiationQuote");
+    if(rawQuote!=null){
       var normalizedQuote=normalizeAgentFeeQuote(rawQuote,s);
-      if(normalizedQuote!==rawQuote){s.agentNegotiationQuote=normalizedQuote;changed=true;}
+      if(normalizedQuote!==rawQuote&&setAgentStateField(s,"agentNegotiationQuote",normalizedQuote))changed=true;
     }
     if(ensureFeeDebtLedger(s))changed=true;
     return changed;

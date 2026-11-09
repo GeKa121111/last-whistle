@@ -829,17 +829,22 @@ function availableAgentBalance(s){
   }
   function cloneAgentMaintenancePreview(state){
     if(!state||typeof state!=="object")return null;
-    var preview=Object.assign({},state),failed=false;
-    // Only agent-owned state is cloned here; the multi-megabyte world database is read-only for this maintenance pass.
-    Object.keys(state).forEach(function(key){
-      if(failed||key.indexOf("agent")!==0)return;
-      var value=state[key];
-      if(!value||typeof value!=="object"){preview[key]=value;return;}
+    var keys=[];
+    try{keys=Object.keys(state);}catch(_){return null;}
+    var preview={};
+    for(var i=0;i<keys.length;i++){
+      var key=keys[i],value=safeAgentField(state,key);
+      // agentLead is a display-only truthy marker; preserve its reference without cloning
+      // arbitrary nested values or invoking getters while building the maintenance preview.
+      if(key==="agentLead"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
+        Object.defineProperty(preview,key,{value:value,enumerable:true,writable:true,configurable:true});
+        continue;
+      }
       var cloned=clonePostRetirementMutationState(value);
-      if(!cloned){failed=true;return;}
-      preview[key]=cloned;
-    });
-    return failed?null:preview;
+      if(!cloned)return null;
+      Object.defineProperty(preview,key,{value:cloned,enumerable:true,writable:true,configurable:true});
+    }
+    return preview;
   }
   function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;

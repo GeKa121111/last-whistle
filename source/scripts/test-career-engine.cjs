@@ -532,6 +532,40 @@ for (const [savedMoney, expectedMoney] of malformedMoneyCases) {
     "career balance normalization must leave a safe finite amount");
 }
 
+
+for (const [savedSeason, expectedSeason] of [
+  [6, 6], ["6", 6], [6.5, 1], [-2, 1], [1001, 1], [Infinity, 1], ["Infinity", 1]
+]) {
+  const repairedSeason = { pos: "جناح", season: savedSeason, trainingXP: {}, randomSeed: 1 };
+  career.ensureState(repairedSeason);
+  assert.equal(repairedSeason.season, expectedSeason,
+    "career season identifiers must be positive safe integers within the supported range");
+}
+assert.ok(rootHtml.includes("state.season = normalizeCareerSeason(state.season);"),
+  "the inline browser career engine must normalize saved season identifiers");
+
+const malformedSeasonContractOffer = career.makeContractOffer({
+  pos: "جناح", age: 24, season: 6.5, clubName: "Test FC",
+  weeklyWage: 500, trust: 50, trainingXP: {}, randomSeed: 1
+});
+assert.equal(malformedSeasonContractOffer.season, 1,
+  "new contract offers must never persist a fractional season identifier");
+
+const staleFractionalSeasonDecision = career.resolveContractDecision({
+  pos: "جناح", age: 24, season: 6.5, clubName: "Test FC",
+  contractSeasons: 1, freeAgent: false, retired: false,
+  weeklyWage: 500, trainingXP: {}, randomSeed: 1
+}, "accept", { club: "Test FC", season: 6.5, wage: 650, seasons: 3 });
+assert.equal(staleFractionalSeasonDecision.status, "stale-offer",
+  "fractional saved seasons must never validate a matching malformed contract offer");
+
+const validNumericSeasonOffer = career.makeContractOffer({
+  pos: "جناح", age: 24, season: "6", clubName: "Test FC",
+  weeklyWage: 500, trust: 50, trainingXP: {}, randomSeed: 1
+});
+assert.equal(validNumericSeasonOffer.season, 6,
+  "legacy numeric-string season identifiers must remain compatible");
+
 const legacyOutfield = {
   pos: "جناح", goalkeeping: 73, shooting: 66, money: 5000,
   trainingXP: { goalkeeping: 12 }, playerPotential: 85, randomSeed: 1

@@ -21,11 +21,12 @@ assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 
 const helperStart = source.indexOf("  function inspectAgentArrayData(");
 const helperEnd = source.indexOf("  function outstandingFeeDebt(", helperStart);
-const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(");
+const previewStart = source.indexOf("  function cloneAgentProfileForMaintenance(value){");
 const previewEnd = source.indexOf("\n  function tick(force)", previewStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "safe debt-ledger helpers must be extractable");
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "maintenance preview must be extractable");
 const helperSource = source.slice(helperStart, helperEnd);
+// Include the profile clone helper immediately before the maintenance preview.
 const previewSource = source.slice(previewStart, previewEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf('\n  document.addEventListener("click"', tickStart);

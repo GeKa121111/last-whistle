@@ -22,7 +22,7 @@ const historyStart = source.indexOf("  function isNormalizedAgentHistoryEntry(va
 const historyEnd = source.indexOf("\n  function normalizeAgentFeeQuote", historyStart);
 assert.ok(historyStart >= 0 && historyEnd > historyStart, "agent history normalization helpers must exist");
 const historySource = source.slice(historyStart, historyEnd);
-const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(state){");
+const previewStart = source.indexOf("  function cloneAgentProfileForMaintenance(value){");
 const previewEnd = source.indexOf("  function tick(force){", previewStart);
 const helperStart = source.indexOf("  var postRetirementMutationPending = false;");
 const helperEnd = source.indexOf("  async function startPostRetirementAgency", helperStart);

@@ -719,7 +719,7 @@ function availableAgentBalance(s){
     var originalHistory=safeAgentField(s,"agentHistory");
     var normalizedHistory=normalizeAgentHistory(originalHistory);
     if(normalizedHistory!==originalHistory){s.agentHistory=normalizedHistory;changed=true;}
-    var agentEnabled=safeAgentField(s,"agent")===true;
+    var agentEnabled=!!safeAgentField(s,"agent");
     var profile=safeAgentField(s,"agentProfile");
     if(agentEnabled&&(!profile||!agentById(safeAgentField(profile,"id")))){
       var legacyProfile=makeProfile("legacy",s,true);

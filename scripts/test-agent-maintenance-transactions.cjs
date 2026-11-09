@@ -96,7 +96,7 @@ function stateFixture() {
   const preview = previewHarness.sandbox.cloneAgentMaintenancePreview(largeState);
   assert.ok(preview);
   assert.notEqual(preview.agentProfile, largeState.agentProfile, "agent profile must be cloned before preview mutation");
-  assert.notEqual(preview.agentHistory, largeState.agentHistory, "agent history must be isolated in the preview");
+  assert.equal(preview.agentHistory, largeState.agentHistory, "agent history must stay by reference until descriptor-based normalization can sanitize it safely");
   assert.equal(preview.worldSimulation, largeState.worldSimulation,
     "maintenance preview must not clone the large world/player database");
   preview.agentProfile.relationship = 99;

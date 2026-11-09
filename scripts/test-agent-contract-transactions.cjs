@@ -43,6 +43,7 @@ const names = [
   "signAgent", "switchAgent", "confirmEnd", "finishStory"
 ];
 // Keep clonePostRetirementValue and cloneAgentProfileForMaintenance explicit for this isolated harness.
+// The story transaction uses the safe profile clone and validates perk keys before writing.
 const extracted = names.map(extractFunction).join("\n");
 function makeHarness(overrides = {}, flushQueue = []) {
   const events = { saves: 0, flushes: 0, renders: 0, panels: 0, closes: 0, opens: 0, toasts: [], warnings: [] };

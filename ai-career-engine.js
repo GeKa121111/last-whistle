@@ -129,7 +129,7 @@
       title = "جسمك محتاج راحة";
       summary = "الطاقة " + energy + "/100 والإجهاد " + fatigue + "/100. الراحة الآن تقلل مخاطرة تدهور الأداء قبل المباراة القادمة.";
       page = "wellness"; actionLabel = "افتح الجاهزية";
-    } else if (trust < 35 && safeText(state.role).includes("بديل")) {
+    } else if (trust < 35 && (safeText(state.role) || safeText(state.careerPhase)).includes("بديل")) {
       title = "اكسب ثقة الجهاز الفني";
       summary = "ثقة المدرب منخفضة (" + trust + "/100). حافظ على الجاهزية، واختر تدريبًا مناسبًا لمركزك، وحاول تقديم تقييم ثابت قبل طلب دور أكبر.";
       page = "wellness"; actionLabel = "راجع جاهزيتك";
@@ -188,7 +188,7 @@
     const rating = formRating(state);
     const goals = number(state.seasonGoals, 0);
     const history = recentRows(state);
-    const repeatedStyle = history.filter(row => safeText(row.tactic || row.playerTactic) === ownTactic).length;
+    const repeatedStyle = history.filter(row => (safeText(row.tactic) || safeText(row.playerTactic)) === ownTactic).length;
     let tactic = "balanced";
     if (ownTactic === "attack") tactic = "counter";
     else if (theirs >= ours + 7) tactic = "press";
@@ -389,7 +389,7 @@
   function stageFor(state) {
     const age = clamp(num(state && state.age, 24), 0, 99);
     const isAcademy = age <= 18 && (state.youthAcademy || state.inAcademy || state.academyReserve
-      || /ناشئ|أكاديمية|شباب|academy|youth/i.test(safeText(state.role || state.careerPhase)));
+      || /ناشئ|أكاديمية|شباب|academy|youth/i.test(safeText(state.role) || safeText(state.careerPhase)));
     return isAcademy ? "academy" : age >= 30 ? "veteran" : age <= 23 ? "development" : "peak";
   }
   function getLastResult(row) {
@@ -397,7 +397,7 @@
     let goalsFor = num(row.teamGoals, num(row.scoreFor, num(row.goalsFor, NaN)));
     let goalsAgainst = num(row.oppGoals, num(row.scoreAgainst, num(row.goalsAgainst, NaN)));
     if (!Number.isFinite(goalsFor) || !Number.isFinite(goalsAgainst)) {
-      const result = safeText(row.result || row.outcome).toUpperCase();
+      const result = (safeText(row.result) || safeText(row.outcome)).toUpperCase();
       return { outcome: ["W", "WIN", "فوز"].includes(result) ? "win" :
         ["L", "LOSS", "خسارة"].includes(result) ? "loss" :
         ["D", "DRAW", "تعادل"].includes(result) ? "draw" : "unknown",
@@ -411,7 +411,12 @@
     const name = normalizeClubName(state && state.clubName);
     const rows = Array.isArray(state && state.leagueTable) ? state.leagueTable :
       Array.isArray(state && state.standings) ? state.standings : Array.isArray(state && state.league) ? state.league : [];
-    const row = rows.find(item => item && normalizeClubName(item.club || item.name || item.team || "") === name);
+    if (!name) return { rank: null, points: null, teams: rows.length };
+    const row = rows.find(item => {
+      if (!item) return false;
+      const candidate = normalizeClubName(item.club || item.name || item.team || "");
+      return !!candidate && candidate === name;
+    });
     if (!row) return { rank: null, points: null, teams: rows.length };
     const rank = num(row.rank, num(row.position, rows.indexOf(row) + 1));
     const pointsValue = row.pts ?? row.points;
@@ -560,7 +565,7 @@
   }
   function recordRecommendation(state, report) {
     if (!report) return false;
-    return recordEvent(state, { type: "coach-recommendation", key: report.id || report.title,
+    return recordEvent(state, { type: "coach-recommendation", key: safeText(report.id) || safeText(report.title),
       context: { age: num(state && state.age, 0), club: safeText(state && state.clubName),
         lastResult: report.context && report.context.lastResult, utilities: report.utilities || {} } });
   }

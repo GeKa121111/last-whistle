@@ -203,9 +203,9 @@ function stateFixture() {
   assert.equal(Object.prototype.hasOwnProperty.call(hostileHistorySnapshot.agentHistory,"reduce"),false);
 
   const revokedHistoryState = stateFixture();
-  const revokedHistory = Proxy.revocable([], {});
-  revokedHistory.revoke();
-  revokedHistoryState.agentHistory = revokedHistory.proxy;
+  const revokedHistoryProxy = Proxy.revocable([], {});
+  revokedHistoryProxy.revoke();
+  revokedHistoryState.agentHistory = revokedHistoryProxy.proxy;
   const revokedHistorySnapshot = previewHarness.sandbox.cloneAgentContractMutationSnapshot(revokedHistoryState);
   assert.ok(revokedHistorySnapshot,
     "a revoked history proxy must not prevent a rollback-safe agent transaction snapshot");

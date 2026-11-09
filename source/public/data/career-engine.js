@@ -10,6 +10,14 @@
     return Number.isFinite(numeric) ? numeric : null;
   };
 
+  const MAX_CAREER_SEASON = 1000;
+  function normalizeCareerSeason(value, fallback = 1) {
+    const season = finiteLegacyNumber(value);
+    if (season === null || !Number.isSafeInteger(season)
+      || season < 1 || season > MAX_CAREER_SEASON) return fallback;
+    return season;
+  }
+
   // Match ratings are meaningful only inside the game's 0–10 rating scale.
   // Zero is the legacy "not rated" sentinel, not a poor performance.
   const validSquadFormRating = value => {
@@ -339,8 +347,7 @@
   // Awards are season-scoped: merge legacy seasonLog rows with current-season
   // career rows, but never let older seasons or cup/international matches leak in.
   function currentSeasonLeagueMatchRows(state) {
-    const seasonValue = finiteLegacyNumber(state && state.season);
-    const currentSeason = seasonValue !== null && seasonValue > 0 ? seasonValue : 1;
+    const currentSeason = normalizeCareerSeason(state && state.season);
     const isLeagueRow = row => normalizeLegacyCareerScope(row && row.scope) === "league";
     const currentSeasonSegments = new Set(
       (Array.isArray(state && state.leagueArchives) ? state.leagueArchives : [])
@@ -428,6 +435,7 @@
   }
 
   function ensureState(state) {
+    state.season = normalizeCareerSeason(state.season);
     if (state.pos) {
       const normalizedPosition = normalizeCareerPosition(state.pos);
       // Invalid object/array labels must not reach position-keyed OVR or training lookups.
@@ -933,8 +941,7 @@ function seasonAwards(state, league, teamRank) {
     const log = currentSeasonLeagueMatchRows(state);
     const competition = safeLegacyText(state.leagueCompetition);
     const country = safeLegacyText(state.leagueCountry);
-    const seasonValue = finiteLegacyNumber(state.season);
-    const currentSeason = seasonValue !== null && seasonValue > 0 ? Math.max(1, Math.floor(seasonValue)) : 1;
+    const currentSeason = normalizeCareerSeason(state.season);
     const divisionValue = finiteLegacyNumber(state.leagueDivision);
     const currentDivision = divisionValue !== null && divisionValue > 0 ? Math.max(1, Math.floor(divisionValue)) : 1;
     const ageValue = finiteLegacyNumber(state.age);
@@ -1304,8 +1311,8 @@ function seasonAwards(state, league, teamRank) {
     const trust = trustValue !== null ? Math.max(0, Math.min(100, trustValue)) : 0;
     const calculatedWage = Math.round(currentWage * (0.9 + rating / 500 + trust / 1000) * contractMultiplier);
     const wage = Math.max(currentWage, Math.min(Number.MAX_SAFE_INTEGER, calculatedWage));
-    const savedSeason = finiteLegacyNumber(safeState.season);
-    return { club: safeLegacyText(safeState.clubName), wage, seasons: 3, season: savedSeason || 1 };
+    const savedSeason = normalizeCareerSeason(safeState.season);
+    return { club: safeLegacyText(safeState.clubName), wage, seasons: 3, season: savedSeason };
   }
 
   function resolveContractDecision(state, decision, offer) {
@@ -1330,8 +1337,8 @@ function seasonAwards(state, league, teamRank) {
     if (currentClub && offeredClub && currentClub !== offeredClub) return { ok: false, status: "club-mismatch" };
     const hasOfferSeason = offer.season !== undefined && offer.season !== null && offer.season !== "";
     if (hasOfferSeason) {
-      const offerSeason = finiteLegacyNumber(offer.season);
-      const currentSeason = finiteLegacyNumber(state.season);
+      const offerSeason = normalizeCareerSeason(offer.season, null);
+      const currentSeason = normalizeCareerSeason(state.season, null);
       if (offerSeason === null || currentSeason === null || offerSeason !== currentSeason) {
         return { ok: false, status: "stale-offer" };
       }

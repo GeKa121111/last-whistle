@@ -16,6 +16,14 @@
   }
 
   const MAX_SEASON_STAT = 1000000;
+  const MAX_CAREER_SEASON = 1000;
+
+  function normalizeSeasonNumber(value, fallback = 1) {
+    const number = finiteNumericValue(value);
+    if (number === null || !Number.isSafeInteger(number)
+      || number < 1 || number > MAX_CAREER_SEASON) return fallback;
+    return number;
+  }
 
   function safeAmount(value, fallback = 0) {
     const parsed = finiteNumericValue(value);
@@ -277,8 +285,8 @@
 
   function applyDefensiveSeasonStats(row, player, season) {
     player = player || {};
-    const savedSeason = player.seasonStats && finiteNumericValue(player.seasonStats.season);
-    const currentSeason = finiteNumericValue(season);
+    const savedSeason = player.seasonStats && normalizeSeasonNumber(player.seasonStats.season, null);
+    const currentSeason = normalizeSeasonNumber(season, null);
     const saved = player.seasonStats && savedSeason !== null && currentSeason !== null && savedSeason === currentSeason
       ? player.seasonStats : {};
     const type = roleType(row.position || player.position);
@@ -347,8 +355,7 @@
       : Object.prototype.hasOwnProperty.call(knownYoung, name)
         ? knownYoung[name]
         : 24 + (stableHash(playerProjectionKey(player)) % 10);
-    const seasonValue = finiteNumericValue(season);
-    const seasonNumber = Math.max(1, Math.floor(seasonValue === null ? 1 : seasonValue));
+    const seasonNumber = normalizeSeasonNumber(season, 1);
     // Sourced age, known-player baseline, or fallback estimate all describe the
     // player's age in season one. Advance the same baseline once per season.
     return Math.min(40, firstSeasonAge + seasonNumber - 1);
@@ -356,8 +363,9 @@
 
   function simulatePlayerSeason(player, season, progress) {
     const saved = player && player.seasonStats;
-    const savedSeason = saved && finiteNumericValue(saved.season);
-    const requestedSeason = finiteNumericValue(season);
+    const savedSeason = saved && normalizeSeasonNumber(saved.season, null);
+    const requestedSeason = normalizeSeasonNumber(season, null);
+    const seasonNumber = normalizeSeasonNumber(season, 1);
     if (saved && savedSeason !== null && requestedSeason !== null && savedSeason === requestedSeason) {
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
@@ -378,7 +386,7 @@
         id: stablePlayerId(player),
         name: safeText(player.name), club: safeText(saved.club) || safeText(player.clubName) || safeText(player.club) || "نادي غير محدد",
         country: safeText(saved.country) || safeText(player.country), position: safeText(player.position) || "غير محدد",
-        age: estimatedAge(player, season), ovr, appearances, minutes, goals, assists,
+        age: estimatedAge(player, seasonNumber), ovr, appearances, minutes, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
         score: hasPlayingTime ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)) : 0,
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
@@ -388,7 +396,7 @@
     }
     const ovr = clamp(player.ovr || player.power || 60, 35, 99);
     const type = roleType(player.position);
-    const random = seeded(stableHash(season + "|" + playerProjectionKey(player)));
+    const random = seeded(stableHash(seasonNumber + "|" + playerProjectionKey(player)));
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
@@ -417,7 +425,7 @@
       club: safeText(player.clubName) || safeText(player.club) || "نادي غير محدد",
       country: safeText(player.country),
       position: safeText(player.position) || "غير محدد",
-      age: estimatedAge(player, season),
+      age: estimatedAge(player, seasonNumber),
       ovr: ovr,
       appearances: appearances,
       minutes: projectedMinutes,
@@ -666,8 +674,7 @@
 
   function buildLeagueLeaderboard(input) {
     input = input || {};
-    const seasonValue = finiteNumericValue(input.season);
-    const season = seasonValue || 1;
+    const season = normalizeSeasonNumber(input.season, 1);
     const progress = clamp(input.progress === undefined ? 1 : input.progress, 0, 1);
     const players = Array.isArray(input.players) ? input.players : [];
     const rows = [];
@@ -738,8 +745,7 @@
 
   function buildSeasonAwardCeremony(input) {
     input = input || {};
-    const seasonValue = finiteNumericValue(input.season);
-    const season = seasonValue || 1;
+    const season = normalizeSeasonNumber(input.season, 1);
     const player = input.player || {};
     const realPlayers = Array.isArray(input.realPlayers) ? input.realPlayers : [];
     const trophies = safeCount(player.trophies);
@@ -1019,7 +1025,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 28,
+    version: 29,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 28);
+assert.equal(engine.version, 29);
 
 const malformedAwardNumbers = [
   { label: "Symbol", value: Symbol("season-stat") },
@@ -1490,5 +1490,49 @@ assert.equal(fractionalGoldenGlove.winner.saves, 5,
   "saves must be normalized to whole counts before award scoring");
 assert.equal(fractionalGoldenGlove.winner.penaltiesSaved, 1,
   "penalties saved must be normalized to whole counts before award scoring");
+
+
+const fractionalSeasonFixture = {
+  name: "Season normalization regression", clubName: "Test Club", country: "Egypt",
+  position: "ST", age: 24, ovr: 72, prestige: 60, leagueStrength: 60
+};
+assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, 6, 1).age, 29,
+  "a valid integer season must continue advancing a player's estimated age");
+assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, 6.5, 1).age, 24,
+  "a fractional season identifier must fall back safely instead of creating a fractional season age");
+
+const invalidSeasonProjection = engine.simulatePlayerSeason(fractionalSeasonFixture, 6.5, 1);
+const firstSeasonProjection = engine.simulatePlayerSeason(fractionalSeasonFixture, 1, 1);
+for (const field of ["age", "appearances", "minutes", "goals", "assists", "averageRating", "score"]) {
+  assert.equal(invalidSeasonProjection[field], firstSeasonProjection[field],
+    "malformed season identifiers must use the same deterministic season-one projection for " + field);
+}
+
+assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, -2, 1).age, 24,
+  "negative season identifiers must not move a player's career age backwards");
+assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, 1001, 1).age, 24,
+  "out-of-range season identifiers must not produce invalid award years");
+
+const malformedSeasonAwards = engine.buildSeasonAwardCeremony({
+  season: 6.5,
+  player: {
+    id: "season-normalization-user", name: "Season Normalization User", club: "Test Club",
+    country: "Egypt", position: "ST", age: 24, ovr: 72,
+    appearances: 12, minutes: 1000, goals: 4, assists: 2,
+    averageRating: 7.2, leagueStrength: 60
+  },
+  realPlayers: []
+});
+assert.equal(malformedSeasonAwards.season, 1,
+  "award records must store a positive integer season identifier");
+assert.equal(malformedSeasonAwards.createdAt, "2025-07-31T00:00:00.000Z",
+  "fallback award timestamps must remain valid dates when the saved season is malformed");
+
+const invalidSeasonLeaderboard = engine.buildLeagueLeaderboard({
+  season: 6.5,
+  players: [fractionalSeasonFixture]
+});
+assert.equal(invalidSeasonLeaderboard[0].age, 24,
+  "league projections must use the same normalized season index as award records");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

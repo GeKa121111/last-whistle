@@ -365,6 +365,7 @@
     const saved = player && player.seasonStats;
     const savedSeason = saved && normalizeSeasonNumber(saved.season, null);
     const requestedSeason = normalizeSeasonNumber(season, null);
+    const seasonNumber = normalizeSeasonNumber(season, 1);
     if (saved && savedSeason !== null && requestedSeason !== null && savedSeason === requestedSeason) {
       const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
       const ovr = clamp(saved.ovr || player.ovr || player.power || 60, 35, 99);
@@ -385,7 +386,7 @@
         id: stablePlayerId(player),
         name: safeText(player.name), club: safeText(saved.club) || safeText(player.clubName) || safeText(player.club) || "نادي غير محدد",
         country: safeText(saved.country) || safeText(player.country), position: safeText(player.position) || "غير محدد",
-        age: estimatedAge(player, season), ovr, appearances, minutes, goals, assists,
+        age: estimatedAge(player, seasonNumber), ovr, appearances, minutes, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
         score: hasPlayingTime ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)) : 0,
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
@@ -395,7 +396,7 @@
     }
     const ovr = clamp(player.ovr || player.power || 60, 35, 99);
     const type = roleType(player.position);
-    const random = seeded(stableHash(season + "|" + playerProjectionKey(player)));
+    const random = seeded(stableHash(seasonNumber + "|" + playerProjectionKey(player)));
     const expectedApps = 20 + Math.floor(random() * 15);
     const scale = clamp(progress === undefined ? 1 : progress, 0, 1);
     const appearances = Math.round(expectedApps * scale);
@@ -424,7 +425,7 @@
       club: safeText(player.clubName) || safeText(player.club) || "نادي غير محدد",
       country: safeText(player.country),
       position: safeText(player.position) || "غير محدد",
-      age: estimatedAge(player, season),
+      age: estimatedAge(player, seasonNumber),
       ovr: ovr,
       appearances: appearances,
       minutes: projectedMinutes,

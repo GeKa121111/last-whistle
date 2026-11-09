@@ -27,7 +27,7 @@ if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const minimumCacheVersion = 669;
+  const minimumCacheVersion = 670;
   assert.ok(
     /url\.indexOf\("football-world-ai\.js\?"\)\s*>=\s*0/.test(serviceWorker)
       && /url\.indexOf\("football-world-db\.js\?"\)\s*>=\s*0/.test(serviceWorker)
@@ -41,7 +41,7 @@ if (require.main === module) {
     "updated world AI, database, worker, and award engine modules must bypass the browser HTTP cache during a new static-cache install");
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
-    ["career-state-store.js", 8],
+    ["career-state-store.js", 9],
     ["ai-career-engine.js", 10],
     ["data/career-engine.js", 89],
     ["data/match-engine.js", 87],

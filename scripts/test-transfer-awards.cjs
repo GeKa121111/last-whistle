@@ -1428,5 +1428,22 @@ assert.equal(engine.buildLeagueLeaderboard({
   season: 6,
   players: [{ id: hostileSavedText, name: hostileSavedText, position: "ST", appearances: 20 }]
 }).length, 0, "rows without a primitive player name must not enter leaderboard output");
+const hostileLeaderboardUser = engine.buildLeagueLeaderboard({
+  season: 6,
+  userLine: {
+    id: hostileSavedText, playerId: "legacy-user-7", name: "Safe leaderboard user",
+    club: hostileSavedText, country: hostileSavedText, position: hostileSavedText,
+    confederation: hostileSavedText, originConfederation: hostileSavedText,
+    appearances: 10, minutes: 900, goals: 2, assists: 1, averageRating: 7
+  }
+});
+assert.equal(hostileLeaderboardUser.length, 1);
+assert.equal(hostileLeaderboardUser[0].id, "legacy-user-7");
+assert.equal(hostileLeaderboardUser[0].name, "Safe leaderboard user");
+assert.equal(hostileLeaderboardUser[0].club, "");
+assert.equal(hostileLeaderboardUser[0].country, "");
+assert.equal(hostileLeaderboardUser[0].position, "غير محدد");
+assert.equal(hostileLeaderboardUser[0].confederation, "");
+assert.equal(hostileLeaderboardUser[0].originConfederation, "");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

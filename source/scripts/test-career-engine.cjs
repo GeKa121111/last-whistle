@@ -223,8 +223,8 @@ assert.equal(rootHtml.includes("Number(state.nationalTournamentPoints)"), false,
 const serviceWorkerCopies = ["sw.js", "public/sw.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.equal(serviceWorkerCopies[0], serviceWorkerCopies[1], "root and public service workers must stay synchronized");
-require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 557);
-require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 88);
+require("../../scripts/assert-static-cache-version.cjs")(serviceWorkerCopies[0], 666);
+require("../../scripts/assert-static-cache-version.cjs").assertAssetVersionAtLeast(serviceWorkerCopies[0], "data/career-engine.js", 89);
 const engineCopies = ["data/career-engine.js", "source/public/data/career-engine.js", "public/data/career-engine.js"]
   .map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8"));
 assert.ok(engineCopies[0].includes("const savedTrust = finiteLegacyNumber(state.trust);")
@@ -249,8 +249,10 @@ assert.equal(career.calendarGameDateISO({ calendarDay: 366 }), "2025-08-01T00:00
   "the in-game date must advance deterministically across season boundaries");
 const tournamentFlagNames = ["nationalCalled", "nationalTournamentDone", "nationalTournamentQualified", "nationalTournamentWinner", "internationalPlayed"];
 const legacyCareerPerkFlagNames = ["academyCareer","academyReserve","academyGraduationPending","academyGraduated","privateCoach","xpMultiplier"];
-assert.ok(rootHtml.includes('if (!state.agent || typeof state.agent !== "object") state.agent = normalizeLegacyBoolean(state.agent);'),
+assert.ok(rootHtml.includes('if (!state.agent || typeof state.agent !== "object" || Array.isArray(state.agent)) state.agent = normalizeLegacyBoolean(state.agent);'),
   "the deployed browser engine must normalize primitive legacy agent flags without replacing object profiles");
+assert.ok(rootHtml.includes('state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" && !Array.isArray(state.trainingXP) ? state.trainingXP : {};'),
+  "the deployed browser career engine must reject array-shaped training XP containers so named skill counters survive JSON saves");
 assert.ok(rootHtml.includes('if(!state.agent||typeof state.agent!=="object"||Array.isArray(state.agent))state.agent=normalizeSavedBooleanFlag(state.agent);'),
   "save migration must normalize primitive legacy agent flags without replacing object profiles");
 const cupTerminalFlagNames = ["champion", "eliminated", "abandoned"];
@@ -711,6 +713,29 @@ assert.equal(malformedSavedCareer.playerPotential, 82);
 assert.equal(malformedSavedCareer.fatigue, 0);
 assert.equal(malformedSavedCareer.trust, 25, "malformed legacy trust must fall back to the original career default");
 assert.equal(malformedSavedCareer.followers, 120, "malformed follower totals must fall back to the original career default");
+
+const malformedAgentArray = { pos: "CM", agent: [], trainingXP: {} };
+career.ensureState(malformedAgentArray);
+assert.equal(malformedAgentArray.agent, false,
+  "the career engine must reject array-shaped agent records while preserving the legacy boolean fallback");
+const validAgentProfile = { pos: "CM", agent: { id: "agent-legacy", reputation: 45 }, trainingXP: {} };
+career.ensureState(validAgentProfile);
+assert.deepEqual(validAgentProfile.agent, { id: "agent-legacy", reputation: 45 },
+  "valid saved agent profile objects must remain intact during career normalization");
+
+const arrayTrainingXPState = { pos: "CM", age: 22, trainingXP: [12, 24] };
+career.ensureState(arrayTrainingXPState);
+assert.equal(Array.isArray(arrayTrainingXPState.trainingXP), false,
+  "training XP must always be stored in a serializable skill-keyed object, never an array");
+const persistedArrayTrainingXP = JSON.parse(JSON.stringify(arrayTrainingXPState)).trainingXP;
+assert.equal(Array.isArray(persistedArrayTrainingXP), false,
+  "training XP must remain an object after JSON save/load round trips");
+assert.equal(persistedArrayTrainingXP.passing, 0,
+  "array-shaped legacy training XP must not be misread as named skill progress");
+career.addTrainingXP(arrayTrainingXPState, "passing", 10);
+assert.equal(Number.isFinite(arrayTrainingXPState.trainingXP.passing), true,
+  "training must continue to accumulate after repairing an array-shaped XP container");
+
 
 const legacyNumericSocialCounters = { pos: "CM", age: 22, trust: "63", followers: "1200" };
 career.ensureState(legacyNumericSocialCounters);

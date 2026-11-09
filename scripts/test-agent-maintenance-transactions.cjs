@@ -10,13 +10,17 @@ const source = fs.readFileSync(path.join(root, "agent-system.js"), "utf8");
 const publicSource = fs.readFileSync(path.join(root, "public", "agent-system.js"), "utf8");
 assert.equal(source, publicSource, "agent root/public runtimes must remain identical");
 
+const safeFieldStart = source.indexOf("  function safeAgentField(record,key){");
+const safeFieldEnd = source.indexOf("\n  function isPlainAgentRecord", safeFieldStart);
+assert.ok(safeFieldStart >= 0 && safeFieldEnd > safeFieldStart, "guarded state-field reader must exist");
+const safeFieldSource = source.slice(safeFieldStart, safeFieldEnd);
 const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(state){");
 const previewEnd = source.indexOf("  function tick(force){", previewStart);
 const helperStart = source.indexOf("  var postRetirementMutationPending = false;");
 const helperEnd = source.indexOf("  async function startPostRetirementAgency", helperStart);
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "lightweight maintenance preview must exist");
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "shared agent transaction helpers must exist");
-const runtimeSource = source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
+const runtimeSource = safeFieldSource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf("  function scheduleTick(force){", tickStart);
 const tickSource = source.slice(tickStart, tickEnd);
@@ -76,6 +80,27 @@ function stateFixture() {
     "maintenance preview must not clone the large world/player database");
   preview.agentProfile.relationship = 99;
   assert.equal(largeState.agentProfile.relationship, 52);
+
+  const getterLeadState = stateFixture();
+  Object.defineProperty(getterLeadState, "agentLead", {
+    enumerable: true,
+    get() { throw new Error("hostile agentLead getter"); }
+  });
+  const getterLeadPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(getterLeadState);
+  assert.ok(getterLeadPreview, "a throwing display-only lead getter must not abort maintenance preview");
+  assert.equal(getterLeadPreview.agentLead, undefined);
+
+  const proxyLeadState = stateFixture();
+  const proxyLead = new Proxy({ id: "legacy-lead" }, {
+    get(target, key, receiver) {
+      if (key === "id") throw new Error("hostile lead id getter");
+      return Reflect.get(target, key, receiver);
+    }
+  });
+  proxyLeadState.agentLead = proxyLead;
+  const proxyLeadPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(proxyLeadState);
+  assert.ok(proxyLeadPreview, "a display-only proxy lead must not prevent maintenance preview");
+  assert.equal(proxyLeadPreview.agentLead, proxyLead, "the lead marker should be retained without cloning unused nested fields");
 
   const failedState = stateFixture();
   const before = JSON.stringify(failedState);

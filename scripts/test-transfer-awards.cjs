@@ -1520,11 +1520,11 @@ assert.equal(malformedSeasonAwards.season, 1,
 assert.equal(malformedSeasonAwards.createdAt, "2025-07-31T00:00:00.000Z",
   "fallback award timestamps must remain valid dates when the saved season is malformed");
 
-const malformedSeasonLeaderboard = engine.buildLeagueLeaderboard({
+const invalidSeasonLeaderboard = engine.buildLeagueLeaderboard({
   season: 6.5,
   players: [fractionalSeasonFixture]
 });
-assert.equal(malformedSeasonLeaderboard[0].age, 24,
+assert.equal(invalidSeasonLeaderboard[0].age, 24,
   "league projections must use the same normalized season index as award records");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

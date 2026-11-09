@@ -710,7 +710,7 @@ function availableAgentBalance(s){
   }
   function rel(s){
     var profile=safeAgentField(s,"agentProfile");
-    return profile?cap(safeAgentField(profile,"relationship"),0,100):50;
+    return profile?cap(safeAgentNumber(safeAgentField(profile,"relationship"),52),0,100):50;
   }
   function canUseAgent(s){return !!(s&&safeAgentField(s,"careerStarted")&&!safeAgentField(s,"retired"));}
   function currentChapter(s){

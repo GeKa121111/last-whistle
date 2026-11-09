@@ -695,6 +695,13 @@
         realPlayer: false,
         isUser: true
       }, input.userLine);
+      user.id = safeText(user.id) || safeText(user.playerId) || safeText(user.uid);
+      user.name = safeText(user.name).trim();
+      user.club = safeText(user.club);
+      user.country = safeText(user.country);
+      user.position = safeText(user.position) || "غير محدد";
+      user.confederation = safeText(user.confederation);
+      user.originConfederation = safeText(user.originConfederation) || user.confederation;
       const appearanceValue = user.appearances !== undefined && user.appearances !== null
         ? user.appearances : user.apps;
       const userAppearances = safeCount(appearanceValue);

@@ -14,13 +14,17 @@ const safeFieldStart = source.indexOf("  function safeAgentField(record,key){");
 const safeFieldEnd = source.indexOf("\n  function isPlainAgentRecord", safeFieldStart);
 assert.ok(safeFieldStart >= 0 && safeFieldEnd > safeFieldStart, "guarded state-field reader must exist");
 const safeFieldSource = source.slice(safeFieldStart, safeFieldEnd);
+const historyStart = source.indexOf("  function isNormalizedAgentHistoryEntry(value,normalized){");
+const historyEnd = source.indexOf("\n  function normalizeAgentFeeQuote", historyStart);
+assert.ok(historyStart >= 0 && historyEnd > historyStart, "agent history normalization helpers must exist");
+const historySource = source.slice(historyStart, historyEnd);
 const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(state){");
 const previewEnd = source.indexOf("  function tick(force){", previewStart);
 const helperStart = source.indexOf("  var postRetirementMutationPending = false;");
 const helperEnd = source.indexOf("  async function startPostRetirementAgency", helperStart);
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "lightweight maintenance preview must exist");
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "shared agent transaction helpers must exist");
-const runtimeSource = safeFieldSource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
+const runtimeSource = safeFieldSource + "\n" + historySource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf("  function scheduleTick(force){", tickStart);
 const tickSource = source.slice(tickStart, tickEnd);
@@ -52,6 +56,19 @@ function makeHarness(flush) {
       : typeof value === "number" && Number.isFinite(value) ? String(value)
         : typeof value === "boolean" ? (value ? "true" : "false")
           : (typeof fallback === "string" ? fallback : ""),
+    safeWholeAmount: value => {
+      const number = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : 0;
+      return Number.isSafeInteger(number) && number > 0 ? number : 0;
+    },
+    isPlainAgentRecord: value => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      try {
+        const prototype = Object.getPrototypeOf(value);
+        return prototype === null || (Object.getPrototypeOf(prototype) === null
+          && Object.prototype.hasOwnProperty.call(prototype, "constructor")
+          && typeof prototype.constructor === "function" && prototype.constructor.name === "Object");
+      } catch (_) { return false; }
+    },
     renderPanel() { renders += 1; }
   };
   vm.createContext(sandbox);
@@ -80,6 +97,38 @@ function stateFixture() {
     "maintenance preview must not clone the large world/player database");
   preview.agentProfile.relationship = 99;
   assert.equal(largeState.agentProfile.relationship, 52);
+
+  // JSON-valid legacy arrays can own a non-callable forEach property. The old
+  // normalizer called value.forEach directly and crashed while hydrating the save.
+  const legacyHistory = JSON.parse(JSON.stringify([
+    { season: 3, day: 8, title: "تجديد العقد", text: "تم حفظ العرض القديم." },
+    { season: 3, day: 9, title: "مقابلة", text: "تمت المقابلة." }
+  ]));
+  legacyHistory.forEach = "not-callable";
+  const normalizedHistory = previewHarness.sandbox.normalizeAgentHistory(legacyHistory);
+  assert.notEqual(normalizedHistory, legacyHistory, "history arrays with custom properties must be normalized");
+  assert.equal(normalizedHistory.length, 2, "valid history records must be preserved");
+  assert.equal(normalizedHistory[0].title, "تجديد العقد");
+  assert.equal(normalizedHistory[1].text, "تمت المقابلة.");
+  assert.equal(Object.prototype.hasOwnProperty.call(normalizedHistory, "forEach"), false,
+    "non-index array properties must not survive history normalization");
+  assert.equal(legacyHistory.forEach, "not-callable", "normalization must not mutate the original save");
+
+  const getterHistory = [];
+  Object.defineProperty(getterHistory, "0", {
+    enumerable: true, configurable: true,
+    get() { throw new Error("hostile history row getter"); }
+  });
+  getterHistory.length = 1;
+  assert.doesNotThrow(() => previewHarness.sandbox.normalizeAgentHistory(getterHistory),
+    "history normalization must inspect array slots without invoking getters");
+  assert.equal(previewHarness.sandbox.normalizeAgentHistory(getterHistory).length, 0,
+    "an unreadable history row must be skipped without losing later readable records");
+
+  const revokedHistory = Proxy.revocable([], {});
+  revokedHistory.revoke();
+  assert.doesNotThrow(() => previewHarness.sandbox.normalizeAgentHistory(revokedHistory.proxy),
+    "a revoked legacy history proxy must fail closed instead of aborting hydration");
 
   const getterLeadState = stateFixture();
   Object.defineProperty(getterLeadState, "agentLead", {

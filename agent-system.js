@@ -245,12 +245,38 @@
     return isNormalizedAgentHistoryEntry(value,normalized)?value:normalized;
   }
   function normalizeAgentHistory(value){
-    if(!Array.isArray(value))return [];
-    var normalized=[],changed=false;
-    value.forEach(function(row){
-      var entry=normalizeAgentHistoryEntry(row);
+    var isArray=false;
+    try{isArray=Array.isArray(value);}catch(_){}
+    if(!isArray)return [];
+    var names=[],lengthDescriptor=null;
+    try{
+      names=Object.getOwnPropertyNames(value);
+      lengthDescriptor=Object.getOwnPropertyDescriptor(value,"length");
+    }catch(_){return [];}
+    if(!lengthDescriptor||!Object.prototype.hasOwnProperty.call(lengthDescriptor,"value")
+      ||!Number.isSafeInteger(lengthDescriptor.value)||lengthDescriptor.value<0)return [];
+    var length=lengthDescriptor.value,indices=[],changed=false;
+    names.forEach(function(key){
+      if(key==="length")return;
+      var index=Number(key);
+      if(!Number.isSafeInteger(index)||index<0||index>=4294967295||index>=length||String(index)!==key){
+        changed=true;return;
+      }
+      indices.push(index);
+    });
+    indices.sort(function(a,b){return a-b;});
+    if(indices.length!==length)changed=true;
+    var normalized=[];
+    indices.forEach(function(index){
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(value,String(index));}catch(_){}
+      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value")){
+        changed=true;return;
+      }
+      if(!descriptor.enumerable)changed=true;
+      var entry=normalizeAgentHistoryEntry(descriptor.value);
       if(!entry){changed=true;return;}
-      if(entry!==row)changed=true;
+      if(entry!==descriptor.value)changed=true;
       normalized.push(entry);
     });
     return changed?normalized:value;

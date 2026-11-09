@@ -654,6 +654,8 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  const frozenProfileState=makePerkState({recovery:true});
  const frozenProfile=frozenProfileState.agentProfile;
  const frozenRelationship=frozenProfile.relationship;
+ frozenProfile.agentName="وكيل محفوظ إضافي";
+ frozenProfile.exitFeeWeeks=.75;
  Object.freeze(frozenProfile);
  assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(frozenProfileState),
    "a frozen saved profile must be copied before the runtime applies defaults");
@@ -663,6 +665,10 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "immutable profile normalization must preserve the representative identity");
  assert.equal(frozenProfileState.agentProfile.relationship,frozenRelationship,
    "immutable profile normalization must preserve the existing relationship value");
+ assert.equal(frozenProfileState.agentProfile.agentName,"وكيل محفوظ إضافي",
+   "normalizing an immutable profile must preserve extra saved agent fields");
+ assert.equal(frozenProfileState.agentProfile.exitFeeWeeks,.75,
+   "normalizing an immutable profile must preserve extra saved fee terms");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(frozenProfileState),3,
    "immutable profile normalization must preserve valid perks");
 

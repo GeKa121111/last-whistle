@@ -71,6 +71,7 @@ const api = { getState: () => state, save: () => { saves++; } };
 const sandbox = {
   API: () => api,
   ensureState: () => false,
+  safeWholeAmount: value => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
   renewRelationship: () => false,
   cloneAgentMaintenancePreview: value => {
     const preview = {};
@@ -115,7 +116,7 @@ assert.equal(saves, 0, "render optimization must not write saves for an unchange
 // The actual production helper must keep the snapshot/panel refresh alive.
 const hostileSavedText = JSON.parse('{"toString":"not-callable","valueOf":"not-callable"}');
 state.agentProfile.perks = { legacyValue: hostileSavedText };
-state.agentHistory = [{ title: hostileSavedText, day: 3, season: 2 }];
+state.agentHistory = [{ title: hostileSavedText, text: "حدث قديم", day: 3, season: 2 }];
 assert.doesNotThrow(() => sandbox.tick(),
   "malformed but valid-JSON agent text must not crash panel snapshot generation");
 assert.equal(renders, 4, "a changed legacy agent snapshot must still refresh the panel");
@@ -136,5 +137,12 @@ Object.defineProperty(state, "agentLead", {
 });
 assert.doesNotThrow(() => sandbox.tick(), "a throwing top-level agentLead getter must fail closed");
 assert.equal(renders, 6, "the panel must remain renderable when agentLead cannot be read");
+
+const revokedHistory = Proxy.revocable([], {});
+revokedHistory.revoke();
+state.agentHistory = revokedHistory.proxy;
+assert.doesNotThrow(() => sandbox.tick(),
+  "a revoked history proxy must not break the panel snapshot or render path");
+assert.equal(renders, 7, "the panel must refresh after an unreadable history container is replaced by an empty snapshot");
 
 console.log("PASS: agent panel rendering handles hostile legacy text and agent-lead values while remaining snapshot-driven.");

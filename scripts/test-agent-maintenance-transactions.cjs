@@ -96,7 +96,7 @@ function stateFixture() {
   const preview = previewHarness.sandbox.cloneAgentMaintenancePreview(largeState);
   assert.ok(preview);
   assert.notEqual(preview.agentProfile, largeState.agentProfile, "agent profile must be cloned before preview mutation");
-  assert.notEqual(preview.agentHistory, largeState.agentHistory, "agent history must be isolated in the preview");
+  assert.equal(preview.agentHistory, largeState.agentHistory, "agent history must stay by reference until descriptor-based normalization can sanitize it safely");
   assert.equal(preview.worldSimulation, largeState.worldSimulation,
     "maintenance preview must not clone the large world/player database");
   preview.agentProfile.relationship = 99;
@@ -189,6 +189,37 @@ function stateFixture() {
   );
   assert.equal(revokedTransaction.ok,true,
     "agent contract transactions must remain durable when a legacy debt ledger is a revoked proxy");
+
+  const hostileHistoryState = stateFixture();
+  const hostileHistory = [{season:2,day:4,title:"تجديد الوكيل",text:"تم تجديد العقد."}];
+  hostileHistory.forEach = "not-callable";
+  hostileHistory.reduce = "not-callable";
+  hostileHistoryState.agentHistory = hostileHistory;
+  const hostileHistorySnapshot = previewHarness.sandbox.cloneAgentContractMutationSnapshot(hostileHistoryState);
+  assert.ok(hostileHistorySnapshot,"a hostile history array must still produce a durable rollback snapshot");
+  assert.equal(hostileHistorySnapshot.agentHistory.length,1);
+  assert.equal(hostileHistorySnapshot.agentHistory[0].title,"تجديد الوكيل");
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileHistorySnapshot.agentHistory,"forEach"),false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileHistorySnapshot.agentHistory,"reduce"),false);
+
+  const revokedHistoryState = stateFixture();
+  const revokedHistoryProxy = Proxy.revocable([], {});
+  revokedHistoryProxy.revoke();
+  revokedHistoryState.agentHistory = revokedHistoryProxy.proxy;
+  const revokedHistorySnapshot = previewHarness.sandbox.cloneAgentContractMutationSnapshot(revokedHistoryState);
+  assert.ok(revokedHistorySnapshot,
+    "a revoked history proxy must not prevent a rollback-safe agent transaction snapshot");
+  assert.equal(Array.isArray(revokedHistorySnapshot.agentHistory),true);
+  assert.equal(revokedHistorySnapshot.agentHistory.length,0);
+
+  const revokedHistoryTransactionHarness = makeHarness([true]);
+  const revokedHistoryTransaction = await revokedHistoryTransactionHarness.sandbox.runAgentContractMutation(
+    revokedHistoryState,
+    function(){revokedHistoryState.agentHistory=[];return true;},
+    null,{renderOnSuccess:false}
+  );
+  assert.equal(revokedHistoryTransaction.ok,true,
+    "agent contract transactions must remain durable when a legacy history ledger is a revoked proxy");
 
   const failedState = stateFixture();
   const before = JSON.stringify(failedState);

@@ -28,6 +28,7 @@ const helperStart = source.indexOf("  var postRetirementMutationPending = false;
 const helperEnd = source.indexOf("  async function startPostRetirementAgency", helperStart);
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "lightweight maintenance preview must exist");
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "shared agent transaction helpers must exist");
+// This isolated harness includes the descriptor-safe preview profile clone and its dependencies.
 const runtimeSource = safeFieldSource + "\n" + historySource + "\n" + debtArraySource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf("  function scheduleTick(force){", tickStart);

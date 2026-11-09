@@ -478,6 +478,11 @@
       if(!raw||typeof raw!=="object"){changed=true;continue;}
       var rawId=safeAgentField(raw,"id"),rawAgentId=safeAgentField(raw,"agentId");
       var rawAgentName=safeAgentField(raw,"agentName"),rawReason=safeAgentField(raw,"reason");
+      var persistedIdMatch=safeAgentText(rawId,"").match(/^agent-fee-debt-\\d+-\\d+-(\\d+)$/);
+      if(persistedIdMatch){
+        var persistedSequence=Number(persistedIdMatch[1]);
+        if(Number.isSafeInteger(persistedSequence)&&persistedSequence>sequence)sequence=persistedSequence;
+      }
       var rawAmount=safeAgentField(raw,"amount"),rawPaid=safeAgentField(raw,"paid");
       var rawOutstanding=safeAgentField(raw,"outstanding");
       var rawSeason=safeAgentField(raw,"createdSeason"),rawDay=safeAgentField(raw,"createdDay");

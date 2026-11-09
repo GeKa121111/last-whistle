@@ -173,7 +173,10 @@
     for(var i=0;i<fields.length;i++){
       var descriptor=null;
       try{descriptor=Object.getOwnPropertyDescriptor(value,fields[i]);}catch(_){return false;}
-      if(descriptor&&(!Object.prototype.hasOwnProperty.call(descriptor,"value")||descriptor.writable!==true))return false;
+      if(descriptor){
+        if(!Object.prototype.hasOwnProperty.call(descriptor,"value")||descriptor.writable!==true)return false;
+        if(safeAgentField(value,fields[i])!==descriptor.value)return false;
+      }
     }
     return true;
   }

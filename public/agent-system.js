@@ -149,13 +149,75 @@
     var id=safeAgentText(value,"").trim();
     return id||(typeof fallback==="string"?fallback:"");
   }
+  function safeAgentField(record,key){
+    try{return record&&(typeof record==="object"||typeof record==="function")?record[key]:undefined;}
+    catch(_){return undefined;}
+  }
+  function isPlainAgentRecord(value){
+    if(!value||typeof value!=="object"||Array.isArray(value))return false;
+    try{
+      var prototype=Object.getPrototypeOf(value);
+      if(prototype===null)return true;
+      return Object.getPrototypeOf(prototype)===null
+        &&Object.prototype.hasOwnProperty.call(prototype,"constructor")
+        &&typeof prototype.constructor==="function"
+        &&prototype.constructor.name==="Object";
+    }catch(_){return false;}
+  }
+  function isSafeAgentPerkKey(key){
+    return typeof key==="string"&&/^[a-z][a-z0-9_-]{0,39}$/i.test(key)
+      &&key!=="constructor"&&key!=="prototype"&&key!=="__proto__";
+  }
+  function normalizeAgentPerks(value){
+    if(!value||typeof value!=="object")return {};
+    var keys=[];
+    try{keys=Object.keys(value);}catch(_){return {};}
+    var validRecord=isPlainAgentRecord(value),allValid=validRecord;
+    keys.forEach(function(key){
+      if(!isSafeAgentPerkKey(key)||typeof safeAgentField(value,key)!=="boolean")allValid=false;
+    });
+    if(allValid)return value;
+    var normalized={};
+    keys.forEach(function(key){
+      if(!isSafeAgentPerkKey(key))return;
+      var flag=safeAgentField(value,key);
+      if(typeof flag==="boolean")Object.defineProperty(normalized,key,{value:flag,enumerable:true,writable:true,configurable:true});
+    });
+    return normalized;
+  }
+  function normalizeAgentProfile(value){
+    if(!value||typeof value!=="object")return null;
+    if(isPlainAgentRecord(value)){
+      var currentPerks=safeAgentField(value,"perks");
+      var normalizedPerks=normalizeAgentPerks(currentPerks);
+      if(currentPerks===normalizedPerks)return value;
+      try{
+        value.perks=normalizedPerks;
+        if(safeAgentField(value,"perks")===normalizedPerks)return value;
+      }catch(_){}
+    }
+    var normalized={};
+    var fields=["id","name","title","mark","feeRate","customFeeRate","relationship","contractMode","expiresSeason",
+      "signedApps","lastChapterApps","lastChapterSeason","lastPerformanceMilestone","hiredSeason","signedDay",
+      "storyStage","strategyOverride","feeDebt","legacyMigrated","contractMultiplierDelta","negotiationRaiseBonusDelta"];
+    fields.forEach(function(key){
+      var field=safeAgentField(value,key);
+      if(field===undefined)return;
+      if(field===null||typeof field==="string"||typeof field==="boolean"
+        ||(typeof field==="number"&&Number.isFinite(field))){
+        Object.defineProperty(normalized,key,{value:field,enumerable:true,writable:true,configurable:true});
+      }
+    });
+    normalized.perks=normalizeAgentPerks(safeAgentField(value,"perks"));
+    return Object.keys(normalized).length?normalized:null;
+  }
   function agentById(value){
     var id=safeAgentId(value,"");
     return id&&Object.prototype.hasOwnProperty.call(BY_ID,id)?BY_ID[id]:null;
   }
   function esc(v){return safeAgentText(v,"").replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});}
   function cap(v,min,max){return Math.max(min,Math.min(max,Math.round(safeAgentNumber(v,0))));}
-  function agentConfig(s){var p=s&&s.agentProfile;return p?agentById(p.id):null;}
+  function agentConfig(s){var p=safeAgentField(s,"agentProfile");return p?agentById(safeAgentField(p,"id")):null;}
   function randomUnit(s){
     var x=(safeAgentNumber(s&&s.randomSeed,0)>>>0)||0x6d2b79f5;x=(x+0x6d2b79f5)>>>0;s.randomSeed=x;
     var t=x;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);
@@ -184,7 +246,7 @@
     p.lastChapterSeason=Math.max(p.hiredSeason,safeAgentNumber(p.lastChapterSeason,p.hiredSeason));
     p.lastPerformanceMilestone=Math.max(0,safeAgentNumber(p.lastPerformanceMilestone,Math.floor(safeAgentNumber(s.apps,0)/5)));
     p.strategyOverride=safeAgentText(p.strategyOverride,"");
-    p.perks=p.perks&&typeof p.perks==="object"?p.perks:{};
+    p.perks=normalizeAgentPerks(safeAgentField(p,"perks"));
     p.feeDebt=safeWholeAmount(p.feeDebt);
     return p;
   }
@@ -206,27 +268,29 @@
     var ledger=s&&Array.isArray(s.agentFeeDebtLedger)?s.agentFeeDebtLedger:[];
     var target=agentId==null?null:safeAgentId(agentId,"legacy");
     return ledger.reduce(function(total,entry){
-      if(!entry||typeof entry!=="object"||(target!==null&&safeAgentId(entry.agentId,"legacy")!==target))return total;
-      var outstanding=entry.outstanding==null
-        ?Math.max(0,safeWholeAmount(entry.amount)-safeWholeAmount(entry.paid))
-        :safeWholeAmount(entry.outstanding);
+      if(!entry||typeof entry!=="object")return total;
+      if(target!==null&&safeAgentId(safeAgentField(entry,"agentId"),"legacy")!==target)return total;
+      var rawOutstanding=safeAgentField(entry,"outstanding");
+      var outstanding=rawOutstanding==null
+        ?Math.max(0,safeWholeAmount(safeAgentField(entry,"amount"))-safeWholeAmount(safeAgentField(entry,"paid")))
+        :safeWholeAmount(rawOutstanding);
       return Math.min(Number.MAX_SAFE_INTEGER,total+outstanding);
     },0);
   }
   function syncCurrentAgentDebt(s){
-    var profile=s&&s.agentProfile;
-    if(profile&&typeof profile==="object"&&!Array.isArray(profile))
-      profile.feeDebt=outstandingFeeDebt(s,profile.id);
+    var profile=safeAgentField(s,"agentProfile");
+    if(isPlainAgentRecord(profile))
+      profile.feeDebt=outstandingFeeDebt(s,safeAgentField(profile,"id"));
   }
   function appendFeeDebt(s,amount,reason){
     var value=safeWholeAmount(amount);
     if(!s||!value)return null;
     if(!Array.isArray(s.agentFeeDebtLedger))s.agentFeeDebtLedger=[];
     s.agentFeeDebtSequence=safeWholeAmount(s.agentFeeDebtSequence)+1;
-    var p=s.agentProfile||{},cfg=agentConfig(s)||LEGACY_AGENT;
+    var p=safeAgentField(s,"agentProfile")||{},cfg=agentConfig(s)||LEGACY_AGENT;
     var entry={
       id:"agent-fee-debt-"+(safeWholeAmount(s.season)||1)+"-"+(safeWholeAmount(s.day)||1)+"-"+s.agentFeeDebtSequence,
-      agentId:safeAgentId(p.id,"legacy"),agentName:safeAgentText(p.name,safeAgentText(cfg.name,"وكيل سابق")),
+      agentId:safeAgentId(safeAgentField(p,"id"),"legacy"),agentName:safeAgentText(safeAgentField(p,"name"),safeAgentText(cfg.name,"وكيل سابق")),
       reason:safeAgentText(reason,"أتعاب وكالة غير مسددة"),amount:value,paid:0,outstanding:value,
       createdSeason:safeWholeAmount(s.season)||1,createdDay:safeWholeAmount(s.day)||1
     };
@@ -241,20 +305,25 @@
     var sequence=safeWholeAmount(s.agentFeeDebtSequence),normalized=[];
     s.agentFeeDebtLedger.forEach(function(raw){
       if(!raw||typeof raw!=="object"){changed=true;return;}
-      var amount=safeWholeAmount(raw.amount),paid=safeWholeAmount(raw.paid);
-      if(!amount&&raw.outstanding!=null)amount=Math.min(Number.MAX_SAFE_INTEGER,safeWholeAmount(raw.outstanding)+paid);
+      var rawId=safeAgentField(raw,"id"),rawAgentId=safeAgentField(raw,"agentId");
+      var rawAgentName=safeAgentField(raw,"agentName"),rawReason=safeAgentField(raw,"reason");
+      var rawAmount=safeAgentField(raw,"amount"),rawPaid=safeAgentField(raw,"paid");
+      var rawOutstanding=safeAgentField(raw,"outstanding");
+      var rawSeason=safeAgentField(raw,"createdSeason"),rawDay=safeAgentField(raw,"createdDay");
+      var amount=safeWholeAmount(rawAmount),paid=safeWholeAmount(rawPaid);
+      if(!amount&&rawOutstanding!=null)amount=Math.min(Number.MAX_SAFE_INTEGER,safeWholeAmount(rawOutstanding)+paid);
       paid=Math.min(amount,paid);
       var entry={
-        id:safeAgentId(raw.id,""),agentId:safeAgentId(raw.agentId,"legacy"),
-        agentName:safeAgentText(raw.agentName,"وكيل سابق"),reason:safeAgentText(raw.reason,"أتعاب وكالة غير مسددة"),
+        id:safeAgentId(rawId,""),agentId:safeAgentId(rawAgentId,"legacy"),
+        agentName:safeAgentText(rawAgentName,"وكيل سابق"),reason:safeAgentText(rawReason,"أتعاب وكالة غير مسددة"),
         amount:amount,paid:paid,outstanding:Math.max(0,amount-paid),
-        createdSeason:safeWholeAmount(raw.createdSeason)||1,createdDay:safeWholeAmount(raw.createdDay)||1
+        createdSeason:safeWholeAmount(rawSeason)||1,createdDay:safeWholeAmount(rawDay)||1
       };
       if(!entry.id){sequence++;entry.id="agent-fee-debt-"+entry.createdSeason+"-"+entry.createdDay+"-"+sequence;}
-      if(entry.id!==raw.id||entry.agentId!==raw.agentId||entry.agentName!==raw.agentName
-        ||entry.reason!==raw.reason||entry.amount!==raw.amount||entry.paid!==raw.paid
-        ||entry.outstanding!==raw.outstanding||entry.createdSeason!==raw.createdSeason
-        ||entry.createdDay!==raw.createdDay)changed=true;
+      if(entry.id!==rawId||entry.agentId!==rawAgentId||entry.agentName!==rawAgentName
+        ||entry.reason!==rawReason||entry.amount!==rawAmount||entry.paid!==rawPaid
+        ||entry.outstanding!==rawOutstanding||entry.createdSeason!==rawSeason
+        ||entry.createdDay!==rawDay)changed=true;
       normalized.push(entry);
     });
     if(normalized.length!==s.agentFeeDebtLedger.length)changed=true;
@@ -264,14 +333,16 @@
     if(paidTotal!==s.agentDebtPaid){s.agentDebtPaid=paidTotal;changed=true;}
     var lastPayrollDay=safeWholeAmount(s.agentDebtLastPayrollDay);
     if(lastPayrollDay!==s.agentDebtLastPayrollDay){s.agentDebtLastPayrollDay=lastPayrollDay;changed=true;}
-    if(s.agentProfile&&typeof s.agentProfile==="object"&&!Array.isArray(s.agentProfile)){
-      var profileDebt=safeWholeAmount(s.agentProfile.feeDebt);
-      var tracked=outstandingFeeDebt(s,s.agentProfile.id);
+    var profile=safeAgentField(s,"agentProfile");
+    if(isPlainAgentRecord(profile)){
+      var profileDebt=safeWholeAmount(safeAgentField(profile,"feeDebt"));
+      var profileId=safeAgentField(profile,"id");
+      var tracked=outstandingFeeDebt(s,profileId);
       if(profileDebt>tracked){
         appendFeeDebt(s,profileDebt-tracked,"رصيد مديونية محفوظ من إصدار سابق");
-        tracked=outstandingFeeDebt(s,s.agentProfile.id);changed=true;
+        tracked=outstandingFeeDebt(s,profileId);changed=true;
       }
-      if(profileDebt!==tracked){s.agentProfile.feeDebt=tracked;changed=true;}
+      if(profileDebt!==tracked){profile.feeDebt=tracked;changed=true;}
     }
     return changed;
   }
@@ -307,7 +378,7 @@
       lastChapterApps:safeAgentNumber(s.apps,0),lastChapterSeason:safeAgentNumber(s.season,1)||1,lastPerformanceMilestone:Math.floor(safeAgentNumber(s.apps,0)/5),
       storyStage:0,strategyOverride:"",perks:{},feeDebt:0,legacyMigrated:!!legacy,contractMultiplierDelta:0,negotiationRaiseBonusDelta:0},s);
   }
-  function current(s){return s&&s.agent?agentById(s.agentProfile&&s.agentProfile.id):null;}
+  function current(s){var profile=safeAgentField(s,"agentProfile");return s&&s.agent?agentById(safeAgentField(profile,"id")):null;}
 function availableAgentBalance(s){
     var value=finiteAgentNumber(s&&s.money);
     return value===null?0:Math.max(0,value);
@@ -323,15 +394,23 @@ function availableAgentBalance(s){
     function ensureState(s){
     if(!s||typeof s!=="object")return false;
     var changed=false;
-    // Normalize the debt ledger before replacing an unknown legacy profile so its
-    // outstanding balance is retained even when the saved agent id is malformed.
+    var originalProfile=safeAgentField(s,"agentProfile");
+    var normalizedProfile=normalizeAgentProfile(originalProfile);
+    if(normalizedProfile!==originalProfile){s.agentProfile=normalizedProfile;changed=true;}
+    // Normalize the debt ledger after converting exotic profile containers to plain records,
+    // so legacy fee debt can be migrated without Date/Map/typed-array serialization loss.
     if(ensureFeeDebtLedger(s))changed=true;
     if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
-    if(s.agent&&(!s.agentProfile||!agentById(s.agentProfile.id))){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
-    if(s.agentProfile&&agentById(s.agentProfile.id)){
-      var oldContractMode=s.agentProfile.contractMode,oldExpiresSeason=s.agentProfile.expiresSeason,oldFeeDebt=s.agentProfile.feeDebt,oldFeeRate=s.agentProfile.feeRate,oldCustomFeeRate=s.agentProfile.customFeeRate;
-      ensureProfileShape(s.agentProfile,s);
-      if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==s.agentProfile.feeDebt||oldFeeRate!==s.agentProfile.feeRate||oldCustomFeeRate!==s.agentProfile.customFeeRate)changed=true;
+    var profile=safeAgentField(s,"agentProfile");
+    if(s.agent&&(!profile||!agentById(safeAgentField(profile,"id")))){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
+    profile=safeAgentField(s,"agentProfile");
+    if(profile&&agentById(safeAgentField(profile,"id"))){
+      var oldContractMode=safeAgentField(profile,"contractMode"),oldExpiresSeason=safeAgentField(profile,"expiresSeason");
+      var oldFeeDebt=safeAgentField(profile,"feeDebt"),oldFeeRate=safeAgentField(profile,"feeRate");
+      var oldCustomFeeRate=safeAgentField(profile,"customFeeRate"),oldPerks=safeAgentField(profile,"perks");
+      ensureProfileShape(profile,s);
+      if(oldPerks!==profile.perks)changed=true;
+      if(oldContractMode!=="open-ended"||oldExpiresSeason!=null||oldFeeDebt!==profile.feeDebt||oldFeeRate!==profile.feeRate||oldCustomFeeRate!==profile.customFeeRate)changed=true;
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
     if(s.agentNegotiationQuote!=null){

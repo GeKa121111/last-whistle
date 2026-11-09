@@ -11,7 +11,7 @@ assert.equal(source, deployed, "root and deployed agent-system.js must stay sync
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and public service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 557);
+require("./assert-static-cache-version.cjs")(sw, 678);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
@@ -39,6 +39,10 @@ const names = [
   "releaseSharedMutationLock",
   "safeAgentText",
   "safeAgentId",
+  "safeAgentField",
+  "inspectAgentArrayData",
+  "safePostRetirementRows",
+  "clonePostRetirementValue",
   "agentById",
   "finiteAgentNumber",
   "safeAgentNumber",
@@ -252,6 +256,74 @@ function makeHarness(stateOverrides = {}, options = {}) {
   assert.equal(malformedAppearanceState.state.retirementCareer.players[0].joinedSeason, 1);
   assert.equal(malformedAppearanceState.state.retirementCareer.reputation, 1);
   assert.equal(malformedAppearanceState.state.retirementCareer.history[0].season, 1);
+
+  const hostileAgencyPlayers = [{id:"legacy-client",name:"عميل قديم",club:"Old FC",joinedSeason:3,appearancesAtSigning:8}];
+  hostileAgencyPlayers.some = "not-callable";
+  hostileAgencyPlayers.push = "not-callable";
+  const hostileAgencyHistory = [{type:"founded",season:3,capital:250000}];
+  hostileAgencyHistory.unshift = "not-callable";
+  const hostileAgency = makeHarness({
+    retirementCareer:{type:"agency",capital:250000,players:hostileAgencyPlayers,reputation:40,history:hostileAgencyHistory}
+  });
+  const hostileRegistered = await hostileAgency.runtime.registerAgencyPlayer(hostileAgency.state,{
+    id:"new-client",name:"لاعب جديد",club:"New FC",appearances:4
+  });
+  assert.equal(hostileRegistered.ok,true,
+    "agency registration must normalize legacy player/history arrays with overridden some/push/unshift methods");
+  assert.equal(hostileAgency.state.retirementCareer.players.length,2);
+  assert.equal(hostileAgency.state.retirementCareer.players[0].id,"legacy-client",
+    "existing agency clients must survive hostile-array normalization");
+  assert.equal(hostileAgency.state.retirementCareer.players[1].id,"new-client");
+  assert.equal(hostileAgency.state.retirementCareer.history.length,2);
+  assert.equal(hostileAgency.state.retirementCareer.history[0].playerId,"new-client");
+  assert.equal(hostileAgency.state.retirementCareer.history[1].type,"founded",
+    "existing agency history must retain its order after adding a new signing event");
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileAgency.state.retirementCareer.players,"some"),false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileAgency.state.retirementCareer.players,"push"),false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileAgency.state.retirementCareer.history,"unshift"),false);
+
+  const hostileDuplicatePlayers = [{id:"duplicate-client",name:"عميل موجود"}];
+  hostileDuplicatePlayers.some = "not-callable";
+  const hostileDuplicate = makeHarness({
+    retirementCareer:{type:"agency",capital:250000,players:hostileDuplicatePlayers,reputation:40,history:[]}
+  });
+  const hostileDuplicateResult = await hostileDuplicate.runtime.registerAgencyPlayer(hostileDuplicate.state,{id:"duplicate-client"});
+  assert.equal(hostileDuplicateResult.ok,false,
+    "duplicate detection must inspect saved player rows without calling an overridden some method");
+  assert.equal(hostileDuplicate.events.saves,0);
+  assert.equal(hostileDuplicate.state.retirementCareer.players,hostileDuplicatePlayers,
+    "a rejected duplicate must not rewrite the original save");
+
+  const revokedAgencyPlayers = Proxy.revocable([], {});
+  revokedAgencyPlayers.revoke();
+  const revokedAgencyHistory = Proxy.revocable([], {});
+  revokedAgencyHistory.revoke();
+  const revokedAgency = makeHarness({
+    retirementCareer:{type:"agency",capital:250000,players:revokedAgencyPlayers.proxy,reputation:40,history:revokedAgencyHistory.proxy}
+  });
+  const revokedAgencyResult = await revokedAgency.runtime.registerAgencyPlayer(revokedAgency.state,{id:"recovered-client"});
+  assert.equal(revokedAgencyResult.ok,true,
+    "revoked legacy agency arrays must be replaced safely before a new client is registered");
+  assert.equal(revokedAgency.state.retirementCareer.players.length,1);
+  assert.equal(revokedAgency.state.retirementCareer.players[0].id,"recovered-client");
+  assert.equal(revokedAgency.state.retirementCareer.history.length,1);
+  assert.equal(revokedAgency.state.retirementCareer.history[0].playerId,"recovered-client");
+
+  const failedHostileAgencyPlayers = [{id:"kept-client",name:"عميل محفوظ"}];
+  failedHostileAgencyPlayers.push = "not-callable";
+  const failedHostileAgencyHistory = [{type:"founded",season:4,capital:250000}];
+  failedHostileAgencyHistory.unshift = "not-callable";
+  const failedHostileAgency = makeHarness({
+    retirementCareer:{type:"agency",capital:250000,players:failedHostileAgencyPlayers,reputation:40,history:failedHostileAgencyHistory}
+  },{flushQueue:[false,true]});
+  const failedHostileResult = await failedHostileAgency.runtime.registerAgencyPlayer(failedHostileAgency.state,{id:"not-committed"});
+  assert.equal(failedHostileResult.ok,false);
+  assert.equal(failedHostileAgency.state.retirementCareer.players.length,1,
+    "failed agency signing must roll back without losing pre-existing clients");
+  assert.equal(failedHostileAgency.state.retirementCareer.players[0].id,"kept-client");
+  assert.equal(failedHostileAgency.state.retirementCareer.history.length,1);
+  assert.equal(failedHostileAgency.state.retirementCareer.history[0].type,"founded");
+  assert.equal(failedHostileAgency.state.retirementCareer.reputation,40);
 
   const duplicatePlayer = await signing.runtime.registerAgencyPlayer(signing.state, {
     id: "verified-player-1", name: "Test Player"

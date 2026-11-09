@@ -14,6 +14,10 @@ const safeFieldStart = source.indexOf("  function safeAgentField(record,key){");
 const safeFieldEnd = source.indexOf("\n  function isPlainAgentRecord", safeFieldStart);
 assert.ok(safeFieldStart >= 0 && safeFieldEnd > safeFieldStart, "guarded state-field reader must exist");
 const safeFieldSource = source.slice(safeFieldStart, safeFieldEnd);
+const debtArrayStart = source.indexOf("  function inspectAgentArrayData(");
+const debtArrayEnd = source.indexOf("  function outstandingFeeDebt(", debtArrayStart);
+assert.ok(debtArrayStart >= 0 && debtArrayEnd > debtArrayStart, "safe debt array inspector must exist");
+const debtArraySource = source.slice(debtArrayStart, debtArrayEnd);
 const historyStart = source.indexOf("  function isNormalizedAgentHistoryEntry(value,normalized){");
 const historyEnd = source.indexOf("\n  function normalizeAgentFeeQuote", historyStart);
 assert.ok(historyStart >= 0 && historyEnd > historyStart, "agent history normalization helpers must exist");
@@ -24,7 +28,7 @@ const helperStart = source.indexOf("  var postRetirementMutationPending = false;
 const helperEnd = source.indexOf("  async function startPostRetirementAgency", helperStart);
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "lightweight maintenance preview must exist");
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "shared agent transaction helpers must exist");
-const runtimeSource = safeFieldSource + "\n" + historySource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
+const runtimeSource = safeFieldSource + "\n" + historySource + "\n" + debtArraySource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf("  function scheduleTick(force){", tickStart);
 const tickSource = source.slice(tickStart, tickEnd);
@@ -150,6 +154,41 @@ function stateFixture() {
   const proxyLeadPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(proxyLeadState);
   assert.ok(proxyLeadPreview, "a display-only proxy lead must not prevent maintenance preview");
   assert.equal(proxyLeadPreview.agentLead, proxyLead, "the lead marker should be retained without cloning unused nested fields");
+
+  // The durable transaction snapshot must sanitize the ledger before structuredClone.
+  const hostileLedgerState = stateFixture();
+  const hostileLedger = [{
+    id:"snapshot-debt",agentId:"former-agent",agentName:"وكيل سابق",reason:"دين محفوظ",
+    amount:200,paid:50,outstanding:150,createdSeason:2,createdDay:3
+  }];
+  hostileLedger.forEach = "not-callable";
+  hostileLedger.reduce = "not-callable";
+  hostileLedgerState.agentFeeDebtLedger = hostileLedger;
+  const hostileLedgerSnapshot = previewHarness.sandbox.cloneAgentContractMutationSnapshot(hostileLedgerState);
+  assert.ok(hostileLedgerSnapshot,"a hostile JSON ledger must still produce a durable rollback snapshot");
+  assert.equal(hostileLedgerSnapshot.agentFeeDebtLedger.length,1);
+  assert.equal(hostileLedgerSnapshot.agentFeeDebtLedger[0].outstanding,150);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileLedgerSnapshot.agentFeeDebtLedger,"forEach"),false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileLedgerSnapshot.agentFeeDebtLedger,"reduce"),false);
+
+  const revokedLedgerState = stateFixture();
+  const revokedLedger = Proxy.revocable([], {});
+  revokedLedger.revoke();
+  revokedLedgerState.agentFeeDebtLedger = revokedLedger.proxy;
+  const revokedLedgerSnapshot = previewHarness.sandbox.cloneAgentContractMutationSnapshot(revokedLedgerState);
+  assert.ok(revokedLedgerSnapshot,
+    "a revoked debt-ledger proxy must not prevent a rollback-safe agent transaction snapshot");
+  assert.equal(Array.isArray(revokedLedgerSnapshot.agentFeeDebtLedger),true);
+  assert.equal(revokedLedgerSnapshot.agentFeeDebtLedger.length,0);
+
+  const revokedTransactionHarness = makeHarness([true]);
+  const revokedTransaction = await revokedTransactionHarness.sandbox.runAgentContractMutation(
+    revokedLedgerState,
+    function(){revokedLedgerState.agentFeeDebtLedger=[];return true;},
+    null,{renderOnSuccess:false}
+  );
+  assert.equal(revokedTransaction.ok,true,
+    "agent contract transactions must remain durable when a legacy debt ledger is a revoked proxy");
 
   const failedState = stateFixture();
   const before = JSON.stringify(failedState);

@@ -633,5 +633,90 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "a debt row with a throwing field getter must not break agent migration");
  assert.equal(window.LWAgentRuntime.outstandingFeeDebt(hostileDebtRowState,"salim"),150,
    "a valid outstanding field must preserve debt when another legacy field throws");
- console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
+ // A legacy profile balance is migrated once and advances the durable debt sequence.
+const legacyDebtSequenceState = makeMalformedFeeState(0);
+legacyDebtSequenceState.agentProfile.feeDebt = 50;
+legacyDebtSequenceState.agentFeeDebtSequence = 7;
+window.LWAgentRuntime.ensureState(legacyDebtSequenceState);
+assert.equal(legacyDebtSequenceState.agentFeeDebtSequence,8,
+  "migrating a legacy profile balance must persist the next debt sequence");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(legacyDebtSequenceState),50);
+const migratedLegacyDebtId = legacyDebtSequenceState.agentFeeDebtLedger[0].id;
+assert.equal(window.LWAgentRuntime.chargeFee(legacyDebtSequenceState,"اختبار تسلسل المديونية",19000),0);
+assert.equal(legacyDebtSequenceState.agentFeeDebtSequence,9,
+  "the next unpaid fee must advance the sequence after legacy migration");
+assert.notEqual(legacyDebtSequenceState.agentFeeDebtLedger[1].id,migratedLegacyDebtId,
+  "legacy debt migration must not cause duplicate future ledger IDs");
+
+// Recover a stale sequence counter from existing generated debt IDs before appending new rows.
+const staleDebtSequenceState = makeMalformedFeeState(0);
+staleDebtSequenceState.agentFeeDebtSequence = 2;
+staleDebtSequenceState.agentFeeDebtLedger = [{
+  id:"agent-fee-debt-1-1-8",agentId:"former-agent",agentName:"وكيل سابق",reason:"دين محفوظ",
+  amount:100,paid:0,outstanding:100,createdSeason:1,createdDay:1
+}];
+window.LWAgentRuntime.ensureState(staleDebtSequenceState);
+assert.equal(staleDebtSequenceState.agentFeeDebtSequence,8,
+  "the persisted ledger ID suffix must repair a stale sequence counter");
+assert.equal(window.LWAgentRuntime.chargeFee(staleDebtSequenceState,"اختبار استعادة التسلسل",19000),0);
+assert.equal(staleDebtSequenceState.agentFeeDebtSequence,9);
+assert.notEqual(staleDebtSequenceState.agentFeeDebtLedger[1].id,staleDebtSequenceState.agentFeeDebtLedger[0].id,
+  "new debt IDs must not collide with a higher existing sequence suffix");
+
+// Saved debt ledgers may override Array.prototype methods through own JSON keys.
+const hostileDebtLedgerState = makeMalformedFeeState(0);
+const hostileDebtLedger = [
+  {id:"legacy-debt-first",agentId:"former-agent",agentName:"وكيل سابق",reason:"دين أقدم",amount:100,paid:0,outstanding:100,createdSeason:1,createdDay:1},
+  {id:"legacy-debt-second",agentId:"another-agent",agentName:"وكيل آخر",reason:"دين أحدث",amount:200,paid:0,outstanding:200,createdSeason:1,createdDay:2}
+];
+hostileDebtLedger.forEach = "not-callable";
+hostileDebtLedger.reduce = "not-callable";
+hostileDebtLedgerState.agentFeeDebtLedger = hostileDebtLedger;
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(hostileDebtLedgerState),300,
+  "debt totals must ignore overridden forEach/reduce properties without losing valid rows");
+const hostileDebtPayroll = window.LWAgentRuntime.collectDebtFromPayroll(hostileDebtLedgerState,150,88);
+assert.equal(hostileDebtPayroll.paid,150,"payroll must collect from a ledger with overridden array methods");
+assert.equal(hostileDebtPayroll.netPay,0,"debt collection must consume only the available wage");
+assert.equal(hostileDebtPayroll.remaining,150,"partial FIFO repayment must retain the exact remaining balance");
+assert.equal(hostileDebtLedgerState.agentFeeDebtLedger[0].outstanding,0,
+  "the oldest debt row must be settled first");
+assert.equal(hostileDebtLedgerState.agentFeeDebtLedger[1].outstanding,150,
+  "the newer debt row must retain its unpaid remainder");
+assert.equal(hostileDebtLedgerState.agentDebtPaid,150,
+  "payroll debt repayments must remain auditable after hostile-array normalization");
+assert.equal(Object.prototype.hasOwnProperty.call(hostileDebtLedgerState.agentFeeDebtLedger,"forEach"),false);
+assert.equal(Object.prototype.hasOwnProperty.call(hostileDebtLedgerState.agentFeeDebtLedger,"reduce"),false);
+assert.equal(JSON.parse(JSON.stringify(hostileDebtLedgerState.agentFeeDebtLedger)).length,2,
+  "both valid debt rows must survive JSON export after normalization");
+const duplicateHostileDebtPayroll = window.LWAgentRuntime.collectDebtFromPayroll(hostileDebtLedgerState,150,88);
+assert.equal(duplicateHostileDebtPayroll.paid,0,"a duplicate payroll day must not collect hostile-ledger debt twice");
+assert.equal(duplicateHostileDebtPayroll.duplicate,true);
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(hostileDebtLedgerState),150);
+
+const accessorDebtLedgerState = makeMalformedFeeState(0);
+const accessorDebtLedger = [
+  {id:"readable-debt",agentId:"legacy",amount:100,paid:0,outstanding:100,createdSeason:1,createdDay:1},
+  {id:"unreadable-debt",agentId:"legacy",amount:900,paid:0,outstanding:900,createdSeason:1,createdDay:2}
+];
+Object.defineProperty(accessorDebtLedger,"1",{enumerable:true,configurable:true,get(){throw new Error("hostile debt row getter");}});
+accessorDebtLedgerState.agentFeeDebtLedger = accessorDebtLedger;
+assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(accessorDebtLedgerState),
+  "a getter-backed ledger row must not interrupt debt migration");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(accessorDebtLedgerState),100,
+  "a readable debt row must survive when a separate row accessor throws");
+assert.equal(accessorDebtLedgerState.agentFeeDebtLedger.length,1);
+
+const revokedDebtLedgerState = makeMalformedFeeState(0);
+const revokedDebtLedger = Proxy.revocable([], {});
+revokedDebtLedger.revoke();
+revokedDebtLedgerState.agentFeeDebtLedger = revokedDebtLedger.proxy;
+assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(revokedDebtLedgerState),
+  "a revoked ledger proxy must fail closed without crashing career hydration");
+assert.equal(Array.isArray(revokedDebtLedgerState.agentFeeDebtLedger),true,
+  "an uninspectable ledger container must be replaced with a plain array");
+assert.equal(revokedDebtLedgerState.agentFeeDebtLedger.length,0,
+  "replacing an uninspectable ledger must not touch unrelated career records");
+assert.equal(window.LWAgentRuntime.outstandingFeeDebt(revokedDebtLedgerState),0);
+
+console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

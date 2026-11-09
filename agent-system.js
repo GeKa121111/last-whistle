@@ -478,7 +478,7 @@
       if(!raw||typeof raw!=="object"){changed=true;continue;}
       var rawId=safeAgentField(raw,"id"),rawAgentId=safeAgentField(raw,"agentId");
       var rawAgentName=safeAgentField(raw,"agentName"),rawReason=safeAgentField(raw,"reason");
-      var persistedIdMatch=safeAgentText(rawId,"").match(/^agent-fee-debt-\\d+-\\d+-(\\d+)$/);
+      var persistedIdMatch=safeAgentText(rawId,"").match(/^agent-fee-debt-\d+-\d+-(\d+)$/);
       if(persistedIdMatch){
         var persistedSequence=Number(persistedIdMatch[1]);
         if(Number.isSafeInteger(persistedSequence)&&persistedSequence>sequence)sequence=persistedSequence;

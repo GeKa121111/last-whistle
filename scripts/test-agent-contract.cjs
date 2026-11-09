@@ -541,6 +541,25 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  window.LWAgentRuntime.ensureState(reloadedPerkState);
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(reloadedPerkState),3,
    "agent perks must remain active after a save/export/reload round trip");
+ const nonEnumerablePerks={};
+ Object.defineProperty(nonEnumerablePerks,"recovery",{value:true,enumerable:false});
+ const nonEnumerablePerkState=makePerkState(nonEnumerablePerks);
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(nonEnumerablePerkState));
+ assert.equal(Object.prototype.propertyIsEnumerable.call(nonEnumerablePerkState.agentProfile.perks,"recovery"),true,
+   "non-enumerable legacy perks must become JSON-enumerable before persistence");
+ assert.deepEqual(JSON.parse(JSON.stringify(nonEnumerablePerkState.agentProfile.perks)),{recovery:true});
+ const accessorPerks={};
+ Object.defineProperty(accessorPerks,"recovery",{enumerable:true,get(){throw new Error("hostile perk getter");}});
+ const accessorPerkState=makePerkState(accessorPerks);
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(accessorPerkState),
+   "throwing perk getters must be ignored without interrupting agent migration");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(accessorPerkState),0);
+ const prototypeKeyPerks=JSON.parse('{"__proto__":true,"constructor":true,"recovery":true}');
+ const prototypeKeyPerkState=makePerkState(prototypeKeyPerks);
+ window.LWAgentRuntime.ensureState(prototypeKeyPerkState);
+ assert.deepEqual(JSON.parse(JSON.stringify(prototypeKeyPerkState.agentProfile.perks)),{recovery:true},
+   "prototype-like perk keys must be discarded without losing supported boolean perks");
+ assert.equal(Object.prototype.recovery,undefined,"normalizing perks must never mutate Object.prototype");
  const exoticPerkFactories=[
    () => Object.assign(new Date("2026-11-09T00:00:00.000Z"),{recovery:true}),
    () => Object.assign(new Map(),{recovery:true}),

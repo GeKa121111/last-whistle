@@ -1500,6 +1500,14 @@ assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, 6, 1).age, 29,
   "a valid integer season must continue advancing a player's estimated age");
 assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, 6.5, 1).age, 24,
   "a fractional season identifier must fall back safely instead of creating a fractional season age");
+
+const invalidSeasonProjection = engine.simulatePlayerSeason(fractionalSeasonFixture, 6.5, 1);
+const firstSeasonProjection = engine.simulatePlayerSeason(fractionalSeasonFixture, 1, 1);
+for (const field of ["age", "appearances", "minutes", "goals", "assists", "averageRating", "score"]) {
+  assert.equal(invalidSeasonProjection[field], firstSeasonProjection[field],
+    "malformed season identifiers must use the same deterministic season-one projection for " + field);
+}
+
 assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, -2, 1).age, 24,
   "negative season identifiers must not move a player's career age backwards");
 assert.equal(engine.simulatePlayerSeason(fractionalSeasonFixture, 1001, 1).age, 24,

@@ -222,6 +222,19 @@
     var fields=["id","name","title","mark","feeRate","customFeeRate","relationship","contractMode","expiresSeason",
       "signedApps","lastChapterApps","lastChapterSeason","lastPerformanceMilestone","hiredSeason","signedDay",
       "storyStage","strategyOverride","feeDebt","legacyMigrated","contractMultiplierDelta","negotiationRaiseBonusDelta"];
+    // Preserve additional saved profile data when a supported field forces normalization.
+    // Copy only own data descriptors; never invoke an unknown getter during migration.
+    var knownFields=fields.concat(["perks"]),extraNames=[];
+    try{extraNames=Object.getOwnPropertyNames(value);}catch(_){}
+    extraNames.forEach(function(key){
+      if(key==="__proto__"||key==="constructor"||key==="prototype"||knownFields.indexOf(key)>=0)return;
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value"))return;
+      Object.defineProperty(normalized,key,{
+        value:descriptor.value,enumerable:!!descriptor.enumerable,writable:true,configurable:true
+      });
+    });
     fields.forEach(function(key){
       var field=safeAgentField(value,key);
       if(field===undefined)return;

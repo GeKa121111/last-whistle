@@ -89,6 +89,8 @@ jobs:
           cp index.html "$mirror_dir/index.html"
           cp public/index.html "$mirror_dir/public-index.html"
           cp public/sw.js "$mirror_dir/public-sw.js"
+          cp career-state-store.js "$mirror_dir/root-career-state-store.js"
+          cp public/career-state-store.js "$mirror_dir/public-career-state-store.js"
           git fetch origin "$GITHUB_HEAD_REF"
           git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
           cp "$mirror_dir/root-career-engine.js" data/career-engine.js
@@ -98,7 +100,9 @@ jobs:
           cp "$mirror_dir/index.html" index.html
           cp "$mirror_dir/public-index.html" public/index.html
           cp "$mirror_dir/public-sw.js" public/sw.js
-          git add data/career-engine.js public/data/career-engine.js data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js public/ai-career-engine.js public/transfer-awards-engine.js
+          cp "$mirror_dir/root-career-state-store.js" career-state-store.js
+          cp "$mirror_dir/public-career-state-store.js" public/career-state-store.js
+          git add career-state-store.js public/career-state-store.js data/career-engine.js public/data/career-engine.js data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js public/ai-career-engine.js public/transfer-awards-engine.js
           if git diff --cached --quiet; then
             echo "Generated runtime mirrors already match their canonical sources."
           else

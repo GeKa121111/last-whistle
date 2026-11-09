@@ -106,6 +106,32 @@ assert.equal(hostileContext.clubName, "",
 assert.equal(hostileContext.leaguePosition, null,
   "empty normalized club identities must not accidentally match malformed standings rows");
 
+const throwingSavedText = {
+  toString() { throw new Error("unexpected saved-text coercion"); },
+  valueOf() { throw new Error("unexpected saved-text primitive conversion"); }
+};
+const symbolSavedText = Symbol("malformed-saved-text");
+assert.doesNotThrow(() => ai.coachAdvice({
+  pos: "وسط", role: throwingSavedText, careerPhase: symbolSavedText,
+  energy: 80, fatigue: 15, trust: 20, morale: 60, careerMatchHistory: []
+}, 65), "throwing objects and Symbols in saved role metadata must not crash coaching");
+const symbolTacticAdvice = ai.chooseOpponentTactic({
+  state: { pos: "وسط", energy: 80, fatigue: 15, careerMatchHistory: [
+    { matchId: "symbol-tactic", scope: "league", minutes: 90, rating: 7,
+      tactic: symbolSavedText, playerTactic: throwingSavedText }
+  ] },
+  ourTactic: symbolSavedText, teamPower: 65, opponentPower: 65, overall: 65
+});
+assert.equal(symbolTacticAdvice.repeatedStyle, 0,
+  "Symbol and throwing-object tactic labels must be ignored without coercion");
+assert.equal(ai.recommendTransfers({
+  clubName: symbolSavedText, leagueCountry: throwingSavedText, age: 22
+}, [
+  { name: symbolSavedText, country: "Egypt", ovr: 65 },
+  { name: "Broken Country FC", country: throwingSavedText, ovr: 65 }
+], 65).length, 0,
+"Symbol and throwing-object club metadata must be excluded safely");
+
 assert.doesNotThrow(() => ai.coachAdvice({
   pos: "مهاجم", age: 25, energy: hostileNumericValue, fatigue: 10,
   trust: 65, morale: 65, contractSeasons: 2, careerMatchHistory: []

@@ -518,5 +518,74 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.equal(prototypeAgentState.agentProfile.id, "legacy",
    "prototype-like unknown identifiers must safely fall back to the legacy agent");
 
+ // Agent perks are JSON data records, not arbitrary object containers. Named properties
+ // attached to arrays, Dates, Maps, Sets, or typed arrays must be migrated before export.
+ function makePerkState(perks){
+   const fixture=makeMalformedFeeState(5000);
+   fixture.agentProfile.id="salim";
+   fixture.agentProfile.feeDebt=0;
+   fixture.agentFeeDebtLedger=[];
+   fixture.agentProfile.perks=perks;
+   return fixture;
+ }
+ const arrayPerks=[];
+ arrayPerks.recovery=true;
+ const arrayPerkState=makePerkState(arrayPerks);
+ assert.equal(window.LWAgentRuntime.ensureState(arrayPerkState),true,
+   "array-shaped perk containers must be normalized and marked for persistence");
+ assert.equal(Array.isArray(arrayPerkState.agentProfile.perks),false);
+ assert.deepEqual(JSON.parse(JSON.stringify(arrayPerkState.agentProfile.perks)),{recovery:true},
+   "named legacy perks must survive a JSON backup after array-container migration");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(arrayPerkState),3);
+ const reloadedPerkState=JSON.parse(JSON.stringify(arrayPerkState));
+ window.LWAgentRuntime.ensureState(reloadedPerkState);
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(reloadedPerkState),3,
+   "agent perks must remain active after a save/export/reload round trip");
+ const exoticPerkFactories=[
+   () => Object.assign(new Date("2026-11-09T00:00:00.000Z"),{recovery:true}),
+   () => Object.assign(new Map(),{recovery:true}),
+   () => Object.assign(new Set(),{recovery:true}),
+   () => Object.assign(new Uint8Array([1,2]),{recovery:true}),
+   () => Object.assign(new (class LegacyPerks {})(),{recovery:true})
+ ];
+ exoticPerkFactories.forEach(function(makePerks){
+   const fixture=makePerkState(makePerks());
+   assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(fixture),
+     "exotic perk containers must be normalized without throwing");
+   assert.equal(Array.isArray(fixture.agentProfile.perks),false);
+   assert.deepEqual(JSON.parse(JSON.stringify(fixture.agentProfile.perks)),{recovery:true});
+   assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(fixture),3);
+ });
+ const throwingPerks=new Proxy({recovery:true},{ownKeys(){throw new Error("hostile perk ownKeys");}});
+ const throwingPerkState=makePerkState(throwingPerks);
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(throwingPerkState),
+   "a hostile proxy used as a perk container must fail closed without breaking migration");
+ assert.deepEqual(JSON.parse(JSON.stringify(throwingPerkState.agentProfile.perks)),{});
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(throwingPerkState),0);
+ const exoticProfile=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
+   id:"hossam",name:"حسام",feeRate:.05,customFeeRate:null,relationship:63,feeDebt:75,
+   perks:Object.assign([],{recovery:true})
+ });
+ const exoticProfileState=makePerkState({});
+ exoticProfileState.agentProfile=exoticProfile;
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(exoticProfileState),
+   "Date-shaped saved profiles must be converted to plain records before mutation or persistence");
+ assert.equal(exoticProfileState.agentProfile instanceof Date,false);
+ assert.equal(exoticProfileState.agentProfile.id,"hossam");
+ assert.equal(exoticProfileState.agentProfile.relationship,63);
+ assert.equal(exoticProfileState.agentProfile.feeDebt,75);
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(exoticProfileState,"hossam"),75,
+   "legacy profile debt must survive exotic-profile normalization");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(exoticProfileState),3);
+ assert.equal(JSON.parse(JSON.stringify(exoticProfileState.agentProfile)).feeDebt,75);
+ const hostileDebtRowState=makePerkState({});
+ const hostileDebtRow=new Proxy({id:"hostile",agentId:"salim",amount:200,paid:50,outstanding:150,createdSeason:2,createdDay:3},{
+   get(target,key,receiver){if(key==="amount")throw new Error("hostile debt getter");return Reflect.get(target,key,receiver);}
+ });
+ hostileDebtRowState.agentFeeDebtLedger=[hostileDebtRow];
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(hostileDebtRowState),
+   "a debt row with a throwing field getter must not break agent migration");
+ assert.equal(window.LWAgentRuntime.outstandingFeeDebt(hostileDebtRowState,"salim"),150,
+   "a valid outstanding field must preserve debt when another legacy field throws");
  console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

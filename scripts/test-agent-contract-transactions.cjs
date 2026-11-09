@@ -35,8 +35,8 @@ function extractFunction(name) {
 
 const names = [
   "acquireSharedMutationLock", "releaseSharedMutationLock",
-  "safeAgentText", "safeAgentId", "safeAgentField", "agentById", "finiteAgentNumber", "safeAgentNumber", "availableAgentBalance", "pendingAgentFeeQuote",
-  "inspectAgentArrayData", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
+  "safeAgentText", "safeAgentId", "safeAgentField", "agentById", "finiteAgentNumber", "safeAgentNumber", "safeWholeAmount", "availableAgentBalance", "pendingAgentFeeQuote",
+  "inspectAgentArrayData", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
   "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
   "clonePostRetirementMutationState", "restorePostRetirementMutationState",
   "flushPostRetirementMutation", "runAgentContractMutation", "applyAgentSigning",

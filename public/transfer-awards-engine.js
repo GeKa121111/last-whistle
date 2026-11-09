@@ -26,11 +26,10 @@
 
   function safeCount(value, fallback = 0) {
     const number = finiteNumericValue(value);
-    if (number === null) {
-      const fallbackNumber = finiteNumericValue(fallback);
-      return fallbackNumber === null ? 0 : Math.max(0, Math.min(MAX_SEASON_STAT, fallbackNumber));
-    }
-    return Math.max(0, Math.min(MAX_SEASON_STAT, number));
+    const candidate = number === null ? finiteNumericValue(fallback) : number;
+    if (candidate === null) return 0;
+    // Appearances, goals, cards and defensive events are counts, never fractions.
+    return Math.floor(Math.max(0, Math.min(MAX_SEASON_STAT, candidate)));
   }
 
   function safeRating(value, fallback = 0) {
@@ -907,7 +906,7 @@
     const parsed = hasAppearances
       ? parseSeasonAppearanceValue(rawAppearances)
       : parseSeasonAppearanceValue(player.apps);
-    return parsed === null ? 0 : Math.max(0, parsed);
+    return parsed === null ? 0 : safeCount(parsed);
   }
 
   function seasonMinutes(player, appearances) {
@@ -917,11 +916,11 @@
       || (typeof rawMinutes === "string" && rawMinutes.trim() === "");
     // Only legacy saves with no minute value receive the 65-minute estimate.
     // An explicitly stored but malformed value is not evidence of playing time.
-    if (missingMinutes) return appearances * 65;
+    if (missingMinutes) return safeCount(appearances * 65);
     const parsedMinutes = typeof rawMinutes === "number" || typeof rawMinutes === "string"
       ? Number(rawMinutes) : NaN;
     if (!Number.isFinite(parsedMinutes)) return 0;
-    return Math.max(0, parsedMinutes);
+    return safeCount(parsedMinutes);
   }
 
   function performanceIndex(player) {
@@ -1020,7 +1019,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 27,
+    version: 28,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

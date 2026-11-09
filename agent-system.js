@@ -1432,20 +1432,31 @@ function availableAgentBalance(s){
     if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
       return {ok:false,reason:"agent-mutation-unavailable"};
     agentContractMutationPending=true;
-    var mutationLock = acquireSharedMutationLock("agent-system");
-    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
-    var snapshot=cloneAgentContractMutationSnapshot(state);
-    if(!snapshot){
-      agentContractMutationPending=false;
-      releaseSharedMutationLock("agent-system");
-      return {ok:false,reason:"تعذر تأمين بيانات الاتفاق قبل التغيير."};
-    }
-    var payload=null;
+    var mutationLockAcquired=false,snapshot=null,mutationStarted=false,payload=null;
     try{
+      var mutationLock = acquireSharedMutationLock("agent-system");
+      if (mutationLock && typeof mutationLock.then === "function") mutationLock=await mutationLock;
+      if(mutationLock!==true){
+        try{if(api.toast)api.toast("تعذر تأمين عملية الوكيل؛ لم يتم تغيير الاتفاق.");}catch(toastError){}
+        return {ok:false,reason:"agent-mutation-lock-unavailable"};
+      }
+      mutationLockAcquired=true;
+      snapshot=cloneAgentContractMutationSnapshot(state);
+      if(!snapshot){
+        try{if(api.toast)api.toast("تعذر تأمين بيانات الاتفاق قبل التغيير؛ لم يتم تنفيذ العملية.");}catch(toastError){}
+        return {ok:false,reason:"agent-mutation-snapshot-unavailable"};
+      }
+      mutationStarted=true;
       payload=operation();
       if(payload===false||payload==null)throw new Error("agent contract mutation rejected");
       if(!(await flushPostRetirementMutation(api,state)))throw new Error("agent contract save not confirmed");
     }catch(error){
+      if(!mutationStarted||!snapshot){
+        var setupReason=mutationLockAcquired?"agent-mutation-snapshot-failed":"agent-mutation-lock-failed";
+        try{if(api.toast)api.toast("تعذر تجهيز الحفظ الآمن للوكيل؛ لم يتم تنفيذ التغيير.");}catch(toastError){}
+        if(window.console&&window.console.warn)window.console.warn("Agent contract mutation setup failed",error);
+        return {ok:false,reason:setupReason,rollbackPersisted:false};
+      }
       try{restorePostRetirementMutationState(state,snapshot);}
       catch(restoreError){
         try{if(api.toast)api.toast("تعذر استعادة اتفاق الوكيل. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
@@ -1470,7 +1481,10 @@ function availableAgentBalance(s){
       return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
     }finally{
       agentContractMutationPending=false;
-      releaseSharedMutationLock("agent-system");
+      if(mutationLockAcquired){
+        try{releaseSharedMutationLock("agent-system");}
+        catch(releaseError){if(window.console&&window.console.warn)window.console.warn("Agent contract mutation lock release failed",releaseError);}
+      }
     }
     if(renderOnSuccess){
       try{if(api.render)api.render();}catch(renderError){}
@@ -1485,20 +1499,31 @@ function availableAgentBalance(s){
     var api=API();
     if(!api||typeof api.save!=="function")return {ok:false,reason:"الحفظ غير متاح؛ لم يتم تنفيذ العملية."};
     postRetirementMutationPending=true;
-    var mutationLock = acquireSharedMutationLock("agent-system");
-    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
-    var snapshot=clonePostRetirementMutationState(state);
-    if(!snapshot){
-      postRetirementMutationPending=false;
-      releaseSharedMutationLock("agent-system");
-      return {ok:false,reason:"تعذر تأمين بيانات المسيرة قبل العملية؛ لم يتم خصم أي أموال."};
-    }
-    var payload=null;
+    var mutationLockAcquired=false,snapshot=null,mutationStarted=false,payload=null;
     try{
+      var mutationLock = acquireSharedMutationLock("agent-system");
+      if (mutationLock && typeof mutationLock.then === "function") mutationLock=await mutationLock;
+      if(mutationLock!==true){
+        try{if(api.toast)api.toast("تعذر تأمين عملية ما بعد الاعتزال؛ لم يتم تغيير المسيرة.");}catch(toastError){}
+        return {ok:false,reason:"retirement-mutation-lock-unavailable"};
+      }
+      mutationLockAcquired=true;
+      snapshot=clonePostRetirementMutationState(state);
+      if(!snapshot){
+        try{if(api.toast)api.toast("تعذر تأمين بيانات المسيرة قبل العملية؛ لم يتم خصم أي أموال.");}catch(toastError){}
+        return {ok:false,reason:"retirement-mutation-snapshot-unavailable"};
+      }
+      mutationStarted=true;
       payload=operation();
       if(payload===false||payload==null)throw new Error("retirement mutation rejected");
       if(!(await flushPostRetirementMutation(api,state)))throw new Error("durable save not confirmed");
     }catch(error){
+      if(!mutationStarted||!snapshot){
+        var setupReason=mutationLockAcquired?"retirement-mutation-snapshot-failed":"retirement-mutation-lock-failed";
+        try{if(api.toast)api.toast("تعذر تجهيز الحفظ الآمن لمسار ما بعد الاعتزال؛ لم يتم تنفيذ العملية.");}catch(toastError){}
+        if(window.console&&window.console.warn)window.console.warn("Post-retirement mutation setup failed",error);
+        return {ok:false,reason:setupReason,rollbackPersisted:false};
+      }
       try{restorePostRetirementMutationState(state,snapshot);}
       catch(restoreError){
         try{if(api.toast)api.toast("تعذر استعادة بيانات ما بعد الاعتزال. أوقف اللعب وصدّر نسخة احتياطية قبل المتابعة.");}catch(toastError){}
@@ -1517,7 +1542,10 @@ function availableAgentBalance(s){
       return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
     }finally{
       postRetirementMutationPending=false;
-      releaseSharedMutationLock("agent-system");
+      if(mutationLockAcquired){
+        try{releaseSharedMutationLock("agent-system");}
+        catch(releaseError){if(window.console&&window.console.warn)window.console.warn("Post-retirement mutation lock release failed",releaseError);}
+      }
     }
     try{if(api.render)api.render();}
     catch(renderError){try{if(api.toast)api.toast("تم حفظ العملية، لكن تعذر تحديث الواجهة. افتح المسار مرة أخرى.");}catch(toastError){}}

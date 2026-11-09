@@ -14,7 +14,7 @@ assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 684);
+require("./assert-static-cache-version.cjs")(sw, 685);
 const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
   "the offline service worker must use a versioned cache name");
@@ -616,6 +616,37 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),
    "a malformed agent flag must not crash the recovery bonus read");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),0);
+
+ // Agent profile fields can also be accessor-backed in old or externally edited saves.
+ // A throwing relationship getter must not break public bonus/commission reads, and
+ // hydration must convert the profile to a writable plain record before normalizing it.
+ const directRelationshipState=makePerkState({recovery:true});
+ const originalRelationshipProfile=directRelationshipState.agentProfile;
+ Object.defineProperty(originalRelationshipProfile,"relationship",{
+   configurable:true,enumerable:true,get(){throw new Error("hostile relationship getter");}
+ });
+ assert.doesNotThrow(() => window.LWAgentRuntime.sponsorshipMultiplier(directRelationshipState),
+   "sponsorship calculation must fail closed when a saved relationship getter throws");
+ assert.doesNotThrow(() => window.LWAgentRuntime.matchPayMultiplier(directRelationshipState),
+   "match-pay calculation must fail closed when a saved relationship getter throws");
+ assert.doesNotThrow(() => window.LWAgentRuntime.contractTerms(directRelationshipState),
+   "contract terms must not read an accessor-backed profile field directly");
+ assert.doesNotThrow(() => window.LWAgentRuntime.negotiationChanceBonus(directRelationshipState),
+   "negotiation bonuses must tolerate accessor-backed relationship data");
+ assert.doesNotThrow(() => window.LWAgentRuntime.transferOfferChance(directRelationshipState,.45),
+   "transfer-offer probability must tolerate accessor-backed relationship data");
+ assert.doesNotThrow(() => window.LWAgentRuntime.commissionRate(directRelationshipState),
+   "commission reads must not invoke a hostile custom-fee accessor");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRelationshipState),3,
+   "safe profile reads must not disable a valid recovery perk");
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(directRelationshipState),
+   "profile hydration must replace accessor-backed fields with safe data properties");
+ assert.notEqual(directRelationshipState.agentProfile,originalRelationshipProfile,
+   "an accessor-backed profile must be copied before normalization mutates it");
+ assert.equal(directRelationshipState.agentProfile.relationship,52,
+   "a throwing legacy relationship getter must use the established neutral default");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRelationshipState),3,
+   "normalizing a hostile relationship field must preserve the valid perk");
  const exoticProfile=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
    id:"hossam",name:"حسام",feeRate:.05,customFeeRate:null,relationship:63,feeDebt:75,
    perks:Object.assign([],{recovery:true})

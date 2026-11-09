@@ -473,6 +473,72 @@ function createHarness() {
   assert.equal(invalidArrayLoad.store.getState(), null,
     "an invalid array payload must not be published by explicit load");
   assert.equal(invalidArrayLoad.store.getStartupSave(), null);
+
+  const nullPrototypeCareer = Object.create(null);
+  nullPrototypeCareer.name = "Null-prototype legacy career";
+  nullPrototypeCareer.money = 900;
+  const nullPrototypeStartup = createHarness();
+  const nullPrototypeReady = await nullPrototypeStartup.resolveStartupRead({
+    id: "career:default", state: nullPrototypeCareer
+  });
+  assert.equal(nullPrototypeReady.hasSave, true,
+    "plain null-prototype records must remain valid career saves");
+  assert.strictEqual(nullPrototypeStartup.store.getState(), nullPrototypeCareer,
+    "cross-realm and null-prototype record support must preserve valid startup hydration");
+
+  const invalidCareerShapes = [
+    { label: "Date", make: () => new Date("2026-11-09T00:00:00.000Z") },
+    { label: "Map", make: () => new Map([["name", "Not a career record"]]) },
+    { label: "Set", make: () => new Set(["not", "a", "career"]) },
+    { label: "RegExp", make: () => /career-save/ },
+    { label: "typed array", make: () => new Uint8Array([1, 2, 3]) },
+    { label: "class instance", make: () => new (class LegacyCareerRecord {})() },
+    { label: "throwing proxy", make: () => new Proxy({}, {
+      getPrototypeOf() { throw new Error("untrusted prototype trap"); }
+    }) }
+  ];
+
+  for (const shape of invalidCareerShapes) {
+    const invalidPayload = shape.make();
+
+    const invalidStartup = createHarness();
+    const invalidReady = await invalidStartup.resolveStartupRead({
+      id: "career:default", state: invalidPayload
+    });
+    assert.equal(invalidReady.hasSave, false,
+      shape.label + " payloads must not hydrate as career saves");
+    assert.equal(invalidStartup.store.getState(), null);
+    assert.equal(invalidStartup.store.getStartupSave(), null);
+
+    const invalidMutation = createHarness();
+    const preservedCareer = { name: "Preserved Career", money: 1200 };
+    invalidMutation.store.publish(preservedCareer, { source: "import" });
+    const beforeInvalidMutation = invalidMutation.store.getRevision();
+    assert.equal(invalidMutation.store.publish(invalidPayload, { source: "import" }), beforeInvalidMutation,
+      shape.label + " payloads must not replace the published career");
+    assert.equal(invalidMutation.store.markDirty(invalidPayload), beforeInvalidMutation,
+      shape.label + " payloads must not replace the dirty career");
+    assert.strictEqual(invalidMutation.store.getState(), preservedCareer);
+
+    const invalidSave = createHarness();
+    await invalidSave.resolveStartupRead(null);
+    const beforeInvalidSave = invalidSave.store.getRevision();
+    await assert.rejects(invalidSave.store.save(invalidPayload), /Invalid career save/,
+      shape.label + " payloads must be rejected before save cloning or IndexedDB writes");
+    assert.equal(invalidSave.writes.length, 0);
+    assert.equal(invalidSave.store.getRevision(), beforeInvalidSave);
+
+    const invalidLoad = createHarness();
+    await invalidLoad.resolveStartupRead(null);
+    const invalidLoadPromise = invalidLoad.store.load();
+    const invalidLoadRequest = await invalidLoad.waitForRead(1);
+    invalidLoadRequest.result = { id: "career:default", state: invalidPayload };
+    invalidLoadRequest.onsuccess();
+    assert.equal(await invalidLoadPromise, null,
+      shape.label + " payloads stored in IndexedDB must be ignored on explicit load");
+    assert.equal(invalidLoad.store.getState(), null);
+    assert.equal(invalidLoad.store.getStartupSave(), null);
+  }
   console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);

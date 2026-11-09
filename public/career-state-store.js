@@ -54,10 +54,24 @@
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
     try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; }
   }
-  // A career save is a record object. Arrays are objects in JavaScript, but
-  // JSON serialization drops named properties attached to them.
+  // Career saves and IndexedDB slot records must be plain data records.
+  // Date, Map, Set, typed arrays, class instances, and unsafe proxies are not
+  // valid career containers, even though JavaScript reports them as objects.
   function isCareerState(value) {
-    return !!value && typeof value === "object" && !Array.isArray(value);
+    if (!value || typeof value !== "object") return false;
+    try {
+      if (Array.isArray(value)) return false;
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype === null) return true;
+      // Accept plain records from another realm (for example, an imported iframe
+      // object) without accepting Date/Map/Set or custom class instances.
+      return Object.getPrototypeOf(prototype) === null
+        && Object.prototype.hasOwnProperty.call(prototype, "constructor")
+        && typeof prototype.constructor === "function"
+        && prototype.constructor.name === "Object";
+    } catch (_) {
+      return false;
+    }
   }
   // Save-record metadata must never coerce arbitrary values from a legacy career.
   // Keep numeric strings for older saves, but reject arrays/objects/booleans and non-finite numbers.
@@ -153,7 +167,7 @@
         const record = await readRecord(DEFAULT_SLOT);
         // An import or new career can publish while IndexedDB is still opening.
         // Never let that older startup snapshot replace a newer live state.
-        if (record && isCareerState(record.state) && revision === startupRevision) {
+        if (isCareerState(record) && isCareerState(record.state) && revision === startupRevision) {
           startupSave = record.state;
           currentState = record.state;
         }
@@ -205,6 +219,7 @@
     options = typeof options === "string" ? { slotId: options } : (options || {});
     const id = normalizeSlotId(options.slotId, DEFAULT_SLOT);
     if (id === null) return Promise.reject(new Error("Invalid save-slot id"));
+    if (!isCareerState(state)) return Promise.reject(new Error("Invalid career save"));
     const snapshot = safeClone(state);
     if (!isCareerState(snapshot)) return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
@@ -284,8 +299,9 @@
     if (id === null) return null;
     const loadRevision = revision;
     const record = await readRecord(id);
-    if (!record || !isCareerState(record.state)) return null;
+    if (!isCareerState(record) || !isCareerState(record.state)) return null;
     const result = safeClone(record.state);
+    if (!isCareerState(result)) return null;
     // A delayed explicit load must not replace a newer import, save, or live publish.
     if (id === DEFAULT_SLOT && revision === loadRevision) {
       startupSave = result;
@@ -301,7 +317,7 @@
       request.onsuccess = function () {
         const rows = Array.isArray(request.result) ? request.result : [];
         const entries = rows.map(function (row, index) {
-          if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+          if (!isCareerState(row)) return null;
           const id = normalizeSlotId(row.id, "");
           if (!id) return null;
           const updatedAt = safeMetadataTimestamp(row.updatedAt);

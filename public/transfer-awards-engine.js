@@ -516,6 +516,8 @@
 
     return selected.map((candidate, index) => {
       const target = candidate.target;
+      const targetClub = safeText(target.club).trim();
+      const targetCountry = safeText(target.country).trim();
       const power = candidate.power;
       const currency = safeText(target.currency).trim() || "ج.م";
       const wage = currency === "ج.م"

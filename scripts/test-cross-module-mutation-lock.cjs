@@ -85,8 +85,8 @@ const helperContexts = moduleSpecs.map((spec, index) => {
   vm.createContext(careerSandbox);
   vm.runInContext("var financeMutationPending = false;\n" + careerFunctions, careerSandbox);
   const agentFunctions = [
-    "safeAgentText", "safeAgentField", "finiteAgentNumber", "safeAgentNumber", "acquireSharedMutationLock", "releaseSharedMutationLock",
-    "inspectAgentArrayData", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
+    "safeAgentText", "safeAgentField", "finiteAgentNumber", "safeAgentNumber", "safeWholeAmount", "acquireSharedMutationLock", "releaseSharedMutationLock",
+    "inspectAgentArrayData", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
     "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
     "clonePostRetirementMutationState", "restorePostRetirementMutationState",
     "flushPostRetirementMutation", "runAgentContractMutation", "runPostRetirementMutation"

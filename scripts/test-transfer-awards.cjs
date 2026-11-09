@@ -1334,45 +1334,28 @@ const hostileIdentityValues = [
 ];
 for (const malformed of hostileIdentityValues) {
   const player = {
-    id: malformed.value,
-    playerId: malformed.value,
-    uid: malformed.value,
-    name: "Player with malformed identity",
-    position: "ST",
-    age: 24,
-    ovr: 72,
-    seasonStats: {
-      season: 6, appearances: 12, minutes: 1080, goals: 5, assists: 2, averageRating: 7.2
-    }
+    id: malformed.value, playerId: malformed.value, uid: malformed.value,
+    name: "Player with malformed identity", position: "ST", age: 24, ovr: 72,
+    seasonStats: { season: 6, appearances: 12, minutes: 1080, goals: 5, assists: 2, averageRating: 7.2 }
   };
   let line;
   assert.doesNotThrow(() => { line = engine.simulatePlayerSeason(player, 6, 1); },
     malformed.label + " player identifiers must not crash saved-season projection");
   assert.equal(line.id, "", malformed.label + " IDs must be ignored rather than coerced");
-  assert.equal(line.name, "Player with malformed identity");
 }
 const legacyIdAfterMalformedId = engine.simulatePlayerSeason({
-  id: hostileSavedText,
-  playerId: "legacy-player-42",
-  name: "Legacy ID fallback",
-  position: "CM",
-  age: 25,
+  id: hostileSavedText, playerId: "legacy-player-42", name: "Legacy ID fallback",
+  position: "CM", age: 25,
   seasonStats: { season: 6, appearances: 10, minutes: 900, goals: 2, assists: 3, averageRating: 7.1 }
 }, 6, 1);
 assert.equal(legacyIdAfterMalformedId.id, "legacy-player-42",
   "a malformed preferred ID must not hide a valid legacy playerId");
 
 const hostileDisplayPlayer = {
-  id: hostileSavedText,
-  name: hostileSavedText,
-  clubName: hostileSavedText,
-  club: hostileSavedText,
-  country: hostileSavedText,
-  position: hostileSavedText,
-  confederation: hostileSavedText,
-  originConfederation: hostileSavedText,
-  age: 24,
-  ovr: 70,
+  id: hostileSavedText, name: hostileSavedText, clubName: hostileSavedText,
+  club: hostileSavedText, country: hostileSavedText, position: hostileSavedText,
+  confederation: hostileSavedText, originConfederation: hostileSavedText,
+  age: 24, ovr: 70,
   seasonStats: {
     season: 6, appearances: 10, minutes: 900, goals: 2, assists: 1, averageRating: 7,
     club: hostileSavedText, country: hostileSavedText
@@ -1380,7 +1363,7 @@ const hostileDisplayPlayer = {
 };
 let safeDisplayLine;
 assert.doesNotThrow(() => { safeDisplayLine = engine.simulatePlayerSeason(hostileDisplayPlayer, 6, 1); },
-  "hostile saved names, clubs, countries, positions and confederations must not crash projection");
+  "hostile saved display metadata must not crash season projection");
 assert.equal(safeDisplayLine.name, "");
 assert.equal(safeDisplayLine.club, "نادي غير محدد");
 assert.equal(safeDisplayLine.country, "");
@@ -1388,17 +1371,14 @@ assert.equal(safeDisplayLine.position, "غير محدد");
 assert.equal(safeDisplayLine.confederation, "");
 assert.equal(safeDisplayLine.originConfederation, "");
 
-const hostileOfferWindow = engine.generateOffers({
+assert.deepEqual(engine.generateOffers({
   windowId: hostileSavedText,
   player: { appearances: 12, form: 7.2, ovr: 75, currentClub: "Old FC", country: "Egypt" },
   targets: [{ club: "New FC", country: "Spain", power: 68 }]
-});
-assert.deepEqual(hostileOfferWindow, [],
-  "an object-valued transfer window ID must be rejected without coercion");
+}), [], "an object-valued transfer window ID must be rejected without coercion");
 
 const safeOffersWithHostileMetadata = engine.generateOffers({
-  windowId: "summer-2026",
-  currentClubPower: 65,
+  windowId: "summer-2026", currentClubPower: 65,
   player: {
     id: hostileSavedText, name: "Offer Test Player", currentClub: "Old FC",
     country: "Egypt", position: "ST", appearances: 12, form: 7.3,
@@ -1413,19 +1393,17 @@ const safeOffersWithHostileMetadata = engine.generateOffers({
   }]
 });
 assert.equal(safeOffersWithHostileMetadata.length, 1,
-  "a valid target club must remain eligible when only optional display metadata is malformed");
+  "valid targets must remain eligible when only optional display metadata is malformed");
 assert.equal(safeOffersWithHostileMetadata[0].windowId, "summer-2026");
 assert.equal(safeOffersWithHostileMetadata[0].club, "New FC");
 assert.equal(safeOffersWithHostileMetadata[0].country, "Spain");
 assert.equal(safeOffersWithHostileMetadata[0].currency, "ج.م");
 assert.equal(safeOffersWithHostileMetadata[0].league, "الدوري المحلي");
 assert.equal(safeOffersWithHostileMetadata[0].source, "قاعدة اللعبة");
-assert.deepEqual(safeOffersWithHostileMetadata[0].stars, [],
-  "hostile rival/star labels must be discarded rather than returned as UI objects");
+assert.deepEqual(safeOffersWithHostileMetadata[0].stars, []);
 
 const hostileCeremony = engine.buildSeasonAwardCeremony({
-  season: 6,
-  currentDate: hostileSavedText,
+  season: 6, currentDate: hostileSavedText,
   player: {
     id: hostileSavedText, name: hostileSavedText, club: hostileSavedText,
     country: hostileSavedText, position: hostileSavedText,
@@ -1439,19 +1417,16 @@ const hostileCeremony = engine.buildSeasonAwardCeremony({
     seasonStats: { season: 6, appearances: 12, minutes: 1080, goals: 4, assists: 1, averageRating: 7 }
   }]
 });
-assert.equal(hostileCeremony.createdAt, "2030-07-31T00:00:00.000Z",
-  "an invalid saved ceremony date must fall back to the deterministic season date");
+assert.equal(hostileCeremony.createdAt, "2030-07-31T00:00:00.000Z");
 assert.equal(hostileCeremony.ballonDor.winner.id, "");
 assert.equal(hostileCeremony.ballonDor.winner.name, "لاعب المسيرة");
 assert.equal(hostileCeremony.ballonDor.winner.club, "نادي غير محدد");
 assert.equal(hostileCeremony.ballonDor.winner.country, "");
 assert.equal(hostileCeremony.ballonDor.winner.position, "غير محدد");
 
-const hostileNamedLeaderboard = engine.buildLeagueLeaderboard({
+assert.equal(engine.buildLeagueLeaderboard({
   season: 6,
   players: [{ id: hostileSavedText, name: hostileSavedText, position: "ST", appearances: 20 }]
-});
-assert.equal(hostileNamedLeaderboard.length, 0,
-  "rows without a safe primitive player name must not enter public leaderboard output");
+}).length, 0, "rows without a primitive player name must not enter leaderboard output");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

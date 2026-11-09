@@ -301,7 +301,7 @@
       request.onsuccess = function () {
         const rows = Array.isArray(request.result) ? request.result : [];
         const entries = rows.map(function (row, index) {
-          if (!row || typeof row !== "object" || Array.isArray(row) || !isCareerState(row.state)) return null;
+          if (!row || typeof row !== "object" || Array.isArray(row)) return null;
           const id = normalizeSlotId(row.id, "");
           if (!id) return null;
           const updatedAt = safeMetadataTimestamp(row.updatedAt);

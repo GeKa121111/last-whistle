@@ -395,8 +395,10 @@ function availableAgentBalance(s){
     if(!s||typeof s!=="object")return false;
     var changed=false;
     var originalProfile=safeAgentField(s,"agentProfile");
+    var originalPerks=safeAgentField(originalProfile,"perks");
     var normalizedProfile=normalizeAgentProfile(originalProfile);
-    if(normalizedProfile!==originalProfile){s.agentProfile=normalizedProfile;changed=true;}
+    if(normalizedProfile!==originalProfile)s.agentProfile=normalizedProfile;
+    if(normalizedProfile!==originalProfile||safeAgentField(normalizedProfile,"perks")!==originalPerks)changed=true;
     // Normalize the debt ledger after converting exotic profile containers to plain records,
     // so legacy fee debt can be migrated without Date/Map/typed-array serialization loss.
     if(ensureFeeDebtLedger(s))changed=true;

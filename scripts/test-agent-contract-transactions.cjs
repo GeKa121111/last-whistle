@@ -36,7 +36,7 @@ function extractFunction(name) {
 const names = [
   "acquireSharedMutationLock", "releaseSharedMutationLock",
   "safeAgentText", "safeAgentId", "safeAgentField", "agentById", "finiteAgentNumber", "safeAgentNumber", "safeWholeAmount", "availableAgentBalance", "pendingAgentFeeQuote",
-  "inspectAgentArrayData", "clonePostRetirementValue", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
+  "inspectAgentArrayData", "clonePostRetirementValue", "isSafeAgentPerkKey", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
   "cloneAgentProfileForMaintenance", "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
   "clonePostRetirementMutationState", "restorePostRetirementMutationState",
   "flushPostRetirementMutation", "runAgentContractMutation", "applyAgentSigning",
@@ -84,7 +84,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
     closeDialog: () => { events.closes++; },
     openActive: () => { events.opens++; },
     quotedFeeRate: .06,
-    currentChapter: () => ({ title: "اختبار القصة", options: [{ effects: { money: 500, energy: -5 }, strategy: "balanced", relationship: 3, outcome: "تم الاختيار" }] }),
+    currentChapter: () => ({ title: "اختبار القصة", options: [{ effects: { money: 500, energy: -5 }, strategy: "balanced", relationship: 3, setPerk: "recovery", outcome: "تم الاختيار" }] }),
     boundedStat: (s, key, amount) => { s[key] = (Number(s[key]) || 0) + Number(amount || 0); },
     addTrust: (s, amount) => { s.agentProfile.relationship = (Number(s.agentProfile.relationship) || 0) + Number(amount || 0); },
     cap: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
@@ -136,7 +136,31 @@ function makeHarness(overrides = {}, flushQueue = []) {
   assert.equal(story.state.money, 5500, "story rewards must be persisted with the choice");
   assert.equal(story.state.energy, 75);
   assert.equal(story.state.agentProfile.storyStage, 1);
+  assert.equal(story.state.agentProfile.perks.recovery, true,
+    "a completed story choice must safely persist its configured agent perk");
   assert.equal(story.events.opens, 1);
+
+  const revokedStoryPerks = Proxy.revocable({ recovery: false }, {});
+  revokedStoryPerks.revoke();
+  const revokedPerksStory = makeHarness({
+    agentProfile: { id: "old", agentName: "Old Agent", exitFeeWeeks: .25, relationship: 50, perks: revokedStoryPerks.proxy, storyStage: 0 }
+  });
+  const revokedPerkStoryResult = await revokedPerksStory.runtime.finishStory(0);
+  assert.equal(revokedPerkStoryResult.ok, true,
+    "a story choice must still commit when the saved perks container is a revoked proxy");
+  assert.equal(revokedPerksStory.state.agentProfile.perks.recovery, true,
+    "the story perk must be applied to the sanitized profile copy");
+
+  const hostileStoryPerks = new Proxy({ recovery: false }, {
+    ownKeys() { throw new Error("hostile story perks ownKeys trap"); }
+  });
+  const hostilePerksStory = makeHarness({
+    agentProfile: { id: "old", agentName: "Old Agent", exitFeeWeeks: .25, relationship: 50, perks: hostileStoryPerks, storyStage: 0 }
+  });
+  const hostilePerkStoryResult = await hostilePerksStory.runtime.finishStory(0);
+  assert.equal(hostilePerkStoryResult.ok, true,
+    "a story choice must still commit when perks cannot be enumerated");
+  assert.equal(hostilePerksStory.state.agentProfile.perks.recovery, true);
 
   const storyRollback = makeHarness({}, [false, true]);
   const priorStoryState = JSON.stringify(storyRollback.state);

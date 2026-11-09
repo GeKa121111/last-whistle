@@ -194,6 +194,28 @@ function makeHarness(withStore = true) {
   assert.equal(Array.isArray(revokedHistoryHarness.state.agentHistory),true);
   assert.equal(revokedHistoryHarness.state.agentHistory.length,0);
 
+  const revokedPerksPollHarness = makeHarness(true);
+  const revokedPerksForPoll = Proxy.revocable({ recovery: true }, {});
+  revokedPerksForPoll.revoke();
+  revokedPerksPollHarness.state.agentProfile = {
+    id: "hossam", relationship: 52, storyStage: 0, customFeeRate: 0.05,
+    strategyOverride: "", contractMultiplierDelta: 0, negotiationRaiseBonusDelta: 0,
+    feeDebt: 0, perks: revokedPerksForPoll.proxy
+  };
+  await assert.doesNotReject(async () => { await revokedPerksPollHarness.sandbox.tick(true); },
+    "polling must build a safe snapshot when agentProfile.perks is a revoked proxy");
+  assert.equal(revokedPerksPollHarness.renders, 1,
+    "a revoked perks proxy must not prevent the agent panel from refreshing");
+
+  const revokedProfilePollHarness = makeHarness(true);
+  const revokedProfileForPoll = Proxy.revocable({ id: "hossam", relationship: 52, perks: { recovery: true } }, {});
+  revokedProfileForPoll.revoke();
+  revokedProfilePollHarness.state.agentProfile = revokedProfileForPoll.proxy;
+  await assert.doesNotReject(async () => { await revokedProfilePollHarness.sandbox.tick(true); },
+    "polling must keep running when the saved top-level agent profile is a revoked proxy");
+  assert.equal(revokedProfilePollHarness.renders, 1,
+    "a revoked top-level profile must not suppress the agent panel refresh");
+
   const fallback = makeHarness(false);
   fallback.sandbox.start();
   assert.equal(fallback.intervals[0].ms, 2500, "legacy environments should use a slower fallback");

@@ -102,6 +102,43 @@ function stateFixture() {
   preview.agentProfile.relationship = 99;
   assert.equal(largeState.agentProfile.relationship, 52);
 
+  const validPerksState = stateFixture();
+  validPerksState.agentProfile.perks = { recovery: true, negotiation: false };
+  const validPerksPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(validPerksState);
+  assert.ok(validPerksPreview);
+  assert.notEqual(validPerksPreview.agentProfile.perks, validPerksState.agentProfile.perks,
+    "maintenance preview must isolate the perks record before reading or normalizing it");
+  assert.equal(validPerksPreview.agentProfile.perks.recovery, true);
+  validPerksPreview.agentProfile.perks.recovery = false;
+  assert.equal(validPerksState.agentProfile.perks.recovery, true,
+    "preview perk changes must not mutate the saved agent profile");
+
+  const revokedPerksState = stateFixture();
+  const revokedPerksProxy = Proxy.revocable({ recovery: true }, {});
+  revokedPerksProxy.revoke();
+  revokedPerksState.agentProfile.perks = revokedPerksProxy.proxy;
+  const revokedPerksPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(revokedPerksState);
+  assert.ok(revokedPerksPreview, "a revoked perks proxy must not abort maintenance preview creation");
+  assert.equal(Object.keys(revokedPerksPreview.agentProfile.perks).length, 0,
+    "unreadable perks should become an empty preview record without invoking proxy traps");
+
+  const hostilePerksState = stateFixture();
+  hostilePerksState.agentProfile.perks = new Proxy({ recovery: true }, {
+    ownKeys() { throw new Error("hostile perks ownKeys trap"); }
+  });
+  const hostilePerksPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(hostilePerksState);
+  assert.ok(hostilePerksPreview, "a throwing perks ownKeys trap must not abort maintenance preview creation");
+  assert.equal(Object.keys(hostilePerksPreview.agentProfile.perks).length, 0);
+
+  const revokedProfileState = stateFixture();
+  const revokedProfileProxy = Proxy.revocable({ id: "hossam", relationship: 52, perks: { recovery: true } }, {});
+  revokedProfileProxy.revoke();
+  revokedProfileState.agentProfile = revokedProfileProxy.proxy;
+  const revokedProfilePreview = previewHarness.sandbox.cloneAgentMaintenancePreview(revokedProfileState);
+  assert.ok(revokedProfilePreview, "a revoked top-level agent profile must fail closed instead of cancelling maintenance");
+  assert.equal(typeof revokedProfilePreview.agentProfile, "object");
+  assert.equal(Object.keys(revokedProfilePreview.agentProfile.perks).length, 0);
+
   // JSON-valid legacy arrays can own a non-callable forEach property. The old
   // normalizer called value.forEach directly and crashed while hydrating the save.
   const legacyHistory = JSON.parse(JSON.stringify([

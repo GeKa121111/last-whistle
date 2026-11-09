@@ -597,6 +597,33 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "legacy profile debt must survive exotic-profile normalization");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(exoticProfileState),3);
  assert.equal(JSON.parse(JSON.stringify(exoticProfileState.agentProfile)).feeDebt,75);
+ const exoticHistoryState=makePerkState({});
+ const dateHistoryRow=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
+   season:2,day:9,title:"حدث محفوظ",text:"تفاصيل محفوظة"
+ });
+ const arrayHistoryRow=[];
+ Object.assign(arrayHistoryRow,{season:"3",day:"4",title:"حدث قديم",description:"وصف قديم"});
+ const nonEnumerableHistoryRow={};
+ for(const [key,value] of Object.entries({season:4,day:7,title:"حدث غير قابل للتعداد",text:"لازم يفضل محفوظ"})){
+   Object.defineProperty(nonEnumerableHistoryRow,key,{value,enumerable:false});
+ }
+ const throwingHistoryRow=new Proxy({season:5,day:8,text:"وصف متاح"},{
+   get(target,key,receiver){if(key==="title")throw new Error("hostile history title getter");return Reflect.get(target,key,receiver);}
+ });
+ const revokedHistory=Proxy.revocable({title:"غير متاح",text:""},{});revokedHistory.revoke();
+ exoticHistoryState.agentHistory=[dateHistoryRow,arrayHistoryRow,nonEnumerableHistoryRow,throwingHistoryRow,revokedHistory.proxy,null];
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(exoticHistoryState),
+   "exotic and hostile agent-history rows must be normalized without interrupting career loading");
+ assert.equal(exoticHistoryState.agentHistory.length,4,
+   "unreadable and empty history rows must be discarded while readable events remain");
+ assert.deepEqual(JSON.parse(JSON.stringify(exoticHistoryState.agentHistory)),[
+   {season:2,day:9,title:"حدث محفوظ",text:"تفاصيل محفوظة"},
+   {season:3,day:4,title:"حدث قديم",text:"وصف قديم"},
+   {season:4,day:7,title:"حدث غير قابل للتعداد",text:"لازم يفضل محفوظ"},
+   {season:5,day:8,title:"حدث مع الوكيل",text:"وصف متاح"}
+ ],"history from Date, array, non-enumerable, and getter-backed rows must survive JSON export");
+ assert.equal(window.LWAgentRuntime.ensureState(exoticHistoryState),false,
+   "normalized agent history must not trigger repeated migrations on later state checks");
  const hostileDebtRowState=makePerkState({});
  const hostileDebtRow=new Proxy({id:"hostile",agentId:"salim",amount:200,paid:50,outstanding:150,createdSeason:2,createdDay:3},{
    get(target,key,receiver){if(key==="amount")throw new Error("hostile debt getter");return Reflect.get(target,key,receiver);}

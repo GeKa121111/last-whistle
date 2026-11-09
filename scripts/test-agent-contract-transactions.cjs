@@ -10,7 +10,7 @@ const deployed = fs.readFileSync(path.join(root, "public", "agent-system.js"), "
 assert.equal(source, deployed, "root/public agent runtimes must stay identical");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 assert.equal(sw, fs.readFileSync(path.join(root, "public", "sw.js"), "utf8"));
-require("./assert-static-cache-version.cjs")(sw, 557);
+require("./assert-static-cache-version.cjs")(sw, 558);
 
 function extractFunction(name) {
   const marker = "function " + name + "(";
@@ -39,7 +39,7 @@ const names = [
   "inspectAgentArrayData", "clonePostRetirementValue", "isSafeAgentPerkKey", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
   "cloneAgentProfileForMaintenance", "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
   "clonePostRetirementMutationState", "restorePostRetirementMutationState",
-  "flushPostRetirementMutation", "runAgentContractMutation", "applyAgentSigning",
+  "flushPostRetirementMutation", "runAgentContractMutation", "runPostRetirementMutation", "applyAgentSigning",
   "signAgent", "switchAgent", "confirmEnd", "finishStory"
 ];
 // Keep clonePostRetirementValue and cloneAgentProfileForMaintenance explicit for this isolated harness.
@@ -94,7 +94,7 @@ function makeHarness(overrides = {}, flushQueue = []) {
   vm.createContext(sandbox);
   vm.runInContext("var postRetirementMutationPending=false; var agentContractMutationPending=false;\n" + extracted +
     "\nglobalThis.runtime={signAgent,switchAgent,confirmEnd,finishStory};", sandbox, { filename: "agent-contract-transactions" });
-  return { runtime: sandbox.runtime, state, events };
+  return { runtime: sandbox.runtime, state, events, sandbox, window };
 }
 
 (async () => {
@@ -201,5 +201,50 @@ function makeHarness(overrides = {}, flushQueue = []) {
   const same = await sameAgent.runtime.signAgent("old", .06, false);
   assert.equal(same.ok, false, "re-signing the current agent must not reset the agreement");
   assert.equal(sameAgent.events.saves, 0);
+
+  // Lock acquisition failures must not strand the per-module pending flag.
+  const rejectedContractLock = makeHarness();
+  rejectedContractLock.sandbox.acquireSharedMutationLock = () => Promise.reject(new Error("lock queue unavailable"));
+  const rejectedLockResult = await rejectedContractLock.runtime.switchAgent("new");
+  assert.equal(rejectedLockResult.ok, false, "a rejected shared lock must fail closed");
+  assert.equal(rejectedContractLock.sandbox.agentContractMutationPending, false,
+    "a rejected lock must always clear the contract pending flag");
+  assert.equal(rejectedContractLock.state.money, 5000, "no fee may be charged when the lock cannot be acquired");
+  assert.equal(rejectedContractLock.state.agentProfile.id, "old");
+
+  const failedContractSnapshot = makeHarness();
+  failedContractSnapshot.sandbox.cloneAgentContractMutationSnapshot = () => { throw new Error("snapshot failed"); };
+  const failedSnapshotResult = await failedContractSnapshot.runtime.switchAgent("new");
+  assert.equal(failedSnapshotResult.ok, false, "a throwing snapshot must prevent contract mutation");
+  assert.equal(failedContractSnapshot.sandbox.agentContractMutationPending, false,
+    "a throwing snapshot must clear the contract pending flag");
+  assert.equal(failedContractSnapshot.state.money, 5000);
+  assert.equal(failedContractSnapshot.state.agentProfile.id, "old");
+  assert.equal(failedContractSnapshot.window.__LW_DURABLE_MUTATION_LOCK__.owner, "",
+    "a snapshot failure must release the shared lock");
+
+  const rejectedRetirementLock = makeHarness({ retired: true, money: 5000000 });
+  rejectedRetirementLock.sandbox.acquireSharedMutationLock = () => Promise.reject(new Error("retirement lock queue unavailable"));
+  const rejectedRetirementLockResult = await rejectedRetirementLock.sandbox.runPostRetirementMutation(
+    rejectedRetirementLock.state, function(){ rejectedRetirementLock.state.money -= 250000; return true; }
+  );
+  assert.equal(rejectedRetirementLockResult.ok, false, "post-retirement mutations must fail closed when lock acquisition rejects");
+  assert.equal(rejectedRetirementLock.sandbox.postRetirementMutationPending, false,
+    "a rejected retirement lock must clear the pending flag");
+  assert.equal(rejectedRetirementLock.state.money, 5000000,
+    "no post-retirement capital may be deducted before the lock is acquired");
+
+  const failedRetirementSnapshot = makeHarness({ retired: true, money: 5000000 });
+  failedRetirementSnapshot.sandbox.clonePostRetirementMutationState = () => { throw new Error("retirement snapshot failed"); };
+  const failedRetirementSnapshotResult = await failedRetirementSnapshot.sandbox.runPostRetirementMutation(
+    failedRetirementSnapshot.state, function(){ failedRetirementSnapshot.state.money -= 250000; return true; }
+  );
+  assert.equal(failedRetirementSnapshotResult.ok, false, "a throwing retirement snapshot must prevent the mutation");
+  assert.equal(failedRetirementSnapshot.sandbox.postRetirementMutationPending, false,
+    "a throwing retirement snapshot must clear the pending flag");
+  assert.equal(failedRetirementSnapshot.state.money, 5000000);
+  assert.equal(failedRetirementSnapshot.window.__LW_DURABLE_MUTATION_LOCK__.owner, "",
+    "a retirement snapshot failure must release the shared lock");
+
   console.log("PASS: agent signing, switching, termination, and story choices are durable, atomic, rollback-safe, and serialized.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

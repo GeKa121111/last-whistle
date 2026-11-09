@@ -539,7 +539,35 @@ function createHarness() {
     assert.equal(invalidLoad.store.getState(), null);
     assert.equal(invalidLoad.store.getStartupSave(), null);
   }
-  console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; completion-boundary flush requests are drained before the shared writer is released.");
+  const revokedSelector = createHarness();
+  const revoked = Proxy.revocable({}, {});
+  revoked.revoke();
+  revokedSelector.store.publish({ selected: revoked.proxy }, { source: "import" });
+  let revokedNotifications = 0;
+  assert.doesNotThrow(() => revokedSelector.store.subscribeSelector(
+    state => state && state.selected,
+    () => { revokedNotifications += 1; }
+  ), "a selector returning a revoked proxy must not crash subscription setup");
+  revokedSelector.store.publish({ selected: { recovered: true } }, { source: "import" });
+  assert.equal(revokedNotifications, 1,
+    "a selector must recover and notify after an unserializable revoked-proxy value");
+
+  const circularSelector = createHarness();
+  const circularValue = { label: "before" };
+  circularValue.self = circularValue;
+  const circularState = { selected: circularValue };
+  circularSelector.store.publish(circularState, { source: "import" });
+  let circularNotifications = 0;
+  circularSelector.store.subscribeSelector(
+    state => state && state.selected,
+    () => { circularNotifications += 1; }
+  );
+  circularValue.label = "after";
+  circularSelector.store.publish(circularState, { source: "save" });
+  assert.equal(circularNotifications, 1,
+    "circular selector values must notify on later observations instead of reusing a stale fallback signature");
+
+  console.log("PASS: delayed hydration, stale IndexedDB writes, queued mutations, and unserializable selector values remain safe; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

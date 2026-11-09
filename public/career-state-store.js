@@ -401,6 +401,7 @@
     activeDefaultFlush = active;
     return active;
   }
+  let selectorSignatureFallbackSequence = 0;
   function selectorSignature(value) {
     if (value === undefined) return "undefined";
     if (value === null || typeof value !== "object") return typeof value + ":" + String(value);
@@ -408,7 +409,10 @@
       const encoded = JSON.stringify(value);
       return typeof encoded === "string" ? encoded : String(encoded);
     } catch (_) {
-      return Object.prototype.toString.call(value);
+      // Circular values, throwing accessors, and revoked proxies cannot be
+      // inspected safely. Treat each observation as changed rather than
+      // calling Object.prototype.toString, which can itself trigger proxy traps.
+      return "unserializable:" + (++selectorSignatureFallbackSequence);
     }
   }
   function subscribeSelector(selector, listener, equals) {

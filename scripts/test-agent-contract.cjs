@@ -14,7 +14,7 @@ assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 685);
+require("./assert-static-cache-version.cjs")(sw, 686);
 const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
   "the offline service worker must use a versioned cache name");
@@ -840,5 +840,29 @@ assert.equal(revokedDebtLedgerState.agentFeeDebtLedger.length,0,
   "replacing an uninspectable ledger must not touch unrelated career records");
 assert.equal(window.LWAgentRuntime.outstandingFeeDebt(revokedDebtLedgerState),0);
 
+// A hostile state-level agentProfile accessor must not crash strategy ranking or UI refresh.
+ const hostileStateProfile={careerStarted:true,retired:false,agent:true,agentHistory:[],agentFeeDebtLedger:[],agentNegotiationQuote:null};
+ Object.defineProperty(hostileStateProfile,"agentProfile",{enumerable:true,configurable:true,get(){throw new Error("hostile state profile getter");}});
+ const targetRows=[{id:"club-a",power:55,country:"Egypt"},{id:"club-b",power:70,country:"France"}];
+ assert.doesNotThrow(()=>window.LWAgentRuntime.prioritizeTargets(hostileStateProfile,targetRows),
+   "target prioritization must fail closed when the state-level profile accessor throws");
+ assert.equal(window.LWAgentRuntime.prioritizeTargets(hostileStateProfile,targetRows),targetRows,
+   "unreadable agent profiles must leave the caller's original target order intact");
+ assert.equal(window.LWAgentRuntime.current(hostileStateProfile),null,
+   "current-agent lookup must not invoke a throwing state-level profile accessor");
+ // The periodic UI tick must also tolerate a hostile profile property when no agent state is readable.
+ const originalAgent=state.agent,originalHistory=state.agentHistory,originalLedger=state.agentFeeDebtLedger;
+ const originalQuote=state.agentNegotiationQuote,originalSequence=state.agentFeeDebtSequence;
+ const originalDebtPaid=state.agentDebtPaid,originalCommissionPaid=state.agentCommissionPaid;
+ state.agent=false;state.agentHistory=[];state.agentFeeDebtLedger=[];state.agentNegotiationQuote=null;
+ state.agentFeeDebtSequence=0;state.agentDebtPaid=0;state.agentCommissionPaid=0;
+ Object.defineProperty(state,"agentProfile",{enumerable:true,configurable:true,get(){throw new Error("hostile UI profile getter");}});
+ assert.doesNotThrow(()=>{
+   for(const callback of documentListeners.visibilitychange||[])callback();
+ },"periodic agent UI refresh must not crash on an unreadable profile property");
+ delete state.agentProfile;state.agentProfile=null;
+ state.agent=originalAgent;state.agentHistory=originalHistory;state.agentFeeDebtLedger=originalLedger;
+ state.agentNegotiationQuote=originalQuote;state.agentFeeDebtSequence=originalSequence;
+ state.agentDebtPaid=originalDebtPaid;state.agentCommissionPaid=originalCommissionPaid;
 console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

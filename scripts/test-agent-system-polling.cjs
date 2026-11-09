@@ -34,6 +34,7 @@ const startStart = source.indexOf("  function start(){", tickEnd);
 const startEnd = source.indexOf("\n\n  // Stage 2: post-retirement career paths", startStart);
 assert.ok(tickStart >= 0 && tickEnd > tickStart, "event-driven tick block must exist");
 assert.ok(startStart > tickEnd && startEnd > startStart, "start block must be extractable");
+// The polling harness extracts the profile sanitizer with the maintenance preview.
 const tickSource = source.slice(tickStart, tickEnd);
 assert.match(tickSource, /runAgentContractMutation\(s,/,
   "agent maintenance changes must use the durable transaction helper");

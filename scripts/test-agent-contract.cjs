@@ -625,6 +625,9 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  Object.defineProperty(originalRelationshipProfile,"relationship",{
    configurable:true,enumerable:true,get(){throw new Error("hostile relationship getter");}
  });
+ Object.defineProperty(originalRelationshipProfile,"customFeeRate",{
+   configurable:true,enumerable:true,get(){throw new Error("hostile custom fee getter");}
+ });
  assert.doesNotThrow(() => window.LWAgentRuntime.sponsorshipMultiplier(directRelationshipState),
    "sponsorship calculation must fail closed when a saved relationship getter throws");
  assert.doesNotThrow(() => window.LWAgentRuntime.matchPayMultiplier(directRelationshipState),

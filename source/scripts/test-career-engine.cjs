@@ -732,9 +732,18 @@ assert.equal(Array.isArray(persistedArrayTrainingXP), false,
   "training XP must remain an object after JSON save/load round trips");
 assert.equal(persistedArrayTrainingXP.passing, 0,
   "array-shaped legacy training XP must not be misread as named skill progress");
-career.addTrainingXP(arrayTrainingXPState, "passing", 10);
+const arrayTrainingResult = career.train(arrayTrainingXPState, "passing", { random: () => 0.5 });
+assert.equal(arrayTrainingResult.ok, true,
+  "a repaired array-shaped XP container must allow a normal training session");
 assert.equal(Number.isFinite(arrayTrainingXPState.trainingXP.passing), true,
   "training must continue to accumulate after repairing an array-shaped XP container");
+assert.ok(arrayTrainingXPState.trainingXP.passing > 0,
+  "a successful training session must persist named skill XP in the repaired object");
+const persistedAfterTraining = JSON.parse(JSON.stringify(arrayTrainingXPState)).trainingXP;
+assert.equal(Array.isArray(persistedAfterTraining), false,
+  "skill progress must remain serializable after a training session");
+assert.ok(persistedAfterTraining.passing > 0,
+  "skill progress earned after container repair must survive a JSON round trip");
 
 
 const legacyNumericSocialCounters = { pos: "CM", age: 22, trust: "63", followers: "1200" };

@@ -270,23 +270,35 @@ async function runStoryMutation(state,operation){
   if(!state||typeof operation!=="function"||!api||typeof api.save!=="function")
     return {ok:false,reason:"story-persistence-unavailable"};
   storyMutationPending=true;
-  var mutationLock = acquireSharedMutationLock("story-mode");
-  if(mutationLock && typeof mutationLock.then === "function") await mutationLock;
-  var snapshot=cloneStoryState(state);
-  if(!snapshot){
-    storyMutationPending=false;
-    releaseSharedMutationLock("story-mode");
-    if(api.toast)api.toast("تعذر تأمين نسخة من المسيرة؛ القرار ما اتطبقش.");
-    return {ok:false,reason:"story-snapshot-unavailable"};
-  }
+  var mutationLockAcquired=false,snapshot=null,snapshotReady=false,mutationStarted=false;
   var payload=null,appliedSnapshot=null;
   try{
+    var mutationLock=acquireSharedMutationLock("story-mode");
+    if(mutationLock&&typeof mutationLock.then==="function")mutationLock=await mutationLock;
+    if(mutationLock!==true){
+      try{if(api.toast)api.toast("تعذر تأمين قفل الحفظ؛ القرار ما اتطبقش.");}catch(toastError){}
+      return {ok:false,reason:"story-mutation-lock-unavailable"};
+    }
+    mutationLockAcquired=true;
+    snapshot=cloneStoryState(state);
+    if(!snapshot){
+      try{if(api.toast)api.toast("تعذر تأمين نسخة من المسيرة؛ القرار ما اتطبقش.");}catch(toastError){}
+      return {ok:false,reason:"story-snapshot-unavailable"};
+    }
+    snapshotReady=true;
+    mutationStarted=true;
     payload=operation();
     appliedSnapshot=cloneStoryState(state);
     if(!appliedSnapshot)throw new Error("story-post-mutation-snapshot-unavailable");
     if(payload===false||payload==null)throw new Error("story choice rejected");
     if(!(await flushStoryState(api,state)))throw new Error("story save not confirmed");
   }catch(error){
+    if(!mutationStarted||!snapshotReady){
+      var setupReason=mutationLockAcquired?"story-mutation-snapshot-failed":"story-mutation-lock-failed";
+      try{if(api.toast)api.toast("تعذر تجهيز الحفظ الآمن للقرار القصصي؛ لم يتم تطبيقه.");}catch(toastError){}
+      if(window.console&&window.console.warn)window.console.warn("Story mutation setup failed",error);
+      return {ok:false,reason:setupReason,rollbackPersisted:false};
+    }
     if(!appliedSnapshot)appliedSnapshot=cloneStoryState(state);
     var rollbackResult=null;
     try{
@@ -312,7 +324,10 @@ async function runStoryMutation(state,operation){
     return {ok:false,reason:message,rollbackPersisted:rollbackPersisted};
   }finally{
     storyMutationPending=false;
-    releaseSharedMutationLock("story-mode");
+    if(mutationLockAcquired){
+      try{releaseSharedMutationLock("story-mode");}
+      catch(releaseError){if(window.console&&window.console.warn)window.console.warn("Story mutation lock release failed",releaseError);}
+    }
   }
   try{if(api.render)api.render();}catch(renderError){}
   return Object.assign({ok:true},payload&&typeof payload==="object"?payload:{});

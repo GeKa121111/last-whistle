@@ -1371,11 +1371,11 @@ assert.equal(safeDisplayLine.position, "غير محدد");
 assert.equal(safeDisplayLine.confederation, "");
 assert.equal(safeDisplayLine.originConfederation, "");
 
-assert.deepEqual(engine.generateOffers({
+assert.equal(engine.generateOffers({
   windowId: hostileSavedText,
   player: { appearances: 12, form: 7.2, ovr: 75, currentClub: "Old FC", country: "Egypt" },
   targets: [{ club: "New FC", country: "Spain", power: 68 }]
-}), [], "an object-valued transfer window ID must be rejected without coercion");
+}).length, 0, "an object-valued transfer window ID must be rejected without coercion");
 
 const safeOffersWithHostileMetadata = engine.generateOffers({
   windowId: "summer-2026", currentClubPower: 65,
@@ -1400,7 +1400,7 @@ assert.equal(safeOffersWithHostileMetadata[0].country, "Spain");
 assert.equal(safeOffersWithHostileMetadata[0].currency, "ج.م");
 assert.equal(safeOffersWithHostileMetadata[0].league, "الدوري المحلي");
 assert.equal(safeOffersWithHostileMetadata[0].source, "قاعدة اللعبة");
-assert.deepEqual(safeOffersWithHostileMetadata[0].stars, []);
+assert.equal(safeOffersWithHostileMetadata[0].stars.length, 0);
 
 const hostileCeremony = engine.buildSeasonAwardCeremony({
   season: 6, currentDate: hostileSavedText,

@@ -129,7 +129,7 @@
       title = "جسمك محتاج راحة";
       summary = "الطاقة " + energy + "/100 والإجهاد " + fatigue + "/100. الراحة الآن تقلل مخاطرة تدهور الأداء قبل المباراة القادمة.";
       page = "wellness"; actionLabel = "افتح الجاهزية";
-    } else if (trust < 35 && String(state.role || "").includes("بديل")) {
+    } else if (trust < 35 && (safeText(state.role) || safeText(state.careerPhase)).includes("بديل")) {
       title = "اكسب ثقة الجهاز الفني";
       summary = "ثقة المدرب منخفضة (" + trust + "/100). حافظ على الجاهزية، واختر تدريبًا مناسبًا لمركزك، وحاول تقديم تقييم ثابت قبل طلب دور أكبر.";
       page = "wellness"; actionLabel = "راجع جاهزيتك";
@@ -188,7 +188,7 @@
     const rating = formRating(state);
     const goals = number(state.seasonGoals, 0);
     const history = recentRows(state);
-    const repeatedStyle = history.filter(row => String(row.tactic || row.playerTactic || "") === ownTactic).length;
+    const repeatedStyle = history.filter(row => (safeText(row.tactic) || safeText(row.playerTactic)) === ownTactic).length;
     let tactic = "balanced";
     if (ownTactic === "attack") tactic = "counter";
     else if (theirs >= ours + 7) tactic = "press";
@@ -215,18 +215,18 @@
     clubs = Array.isArray(clubs) ? clubs : [];
     const current = clamp(overall, 35, 99);
     const age = number(state.age, 24);
-    const normalizeClubPart = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const normalizeClubPart = value => safeText(value).normalize("NFKC").trim().toLocaleLowerCase();
     const currentClubName = normalizeClubPart(state.clubName);
-    const currentCountry = normalizeClubPart(state.leagueCountry || "مصر");
+    const currentCountry = normalizeClubPart(safeText(state.leagueCountry) || "مصر");
     const seen = new Set();
-    return clubs.filter(club => club && club.name && club.country)
+    return clubs.filter(club => club && safeText(club.name).trim() && safeText(club.country).trim())
       .filter(club => !(normalizeClubPart(club.name) === currentClubName
         && normalizeClubPart(club.country) === currentCountry))
       .map(club => {
         const power = clamp(club.ovr || club.power || 55, 25, 99);
         const gap = power - current;
         const key = normalizeClubPart(club.name) + "|" + normalizeClubPart(club.country);
-        return { name: String(club.name), country: String(club.country), power, prestige: clamp(club.prestige || 50, 0, 100),
+        return { name: safeText(club.name), country: safeText(club.country), power, prestige: clamp(club.prestige || 50, 0, 100),
           gap, key, score: 100 - Math.abs(gap - 5) * 3.2 + clamp(club.prestige || 50, 0, 100) * 0.12
             - Math.max(0, gap - 14) * 2.5 - Math.max(0, -gap - 18) * 1.1 + (age <= 23 && gap >= 0 ? 3 : 0) };
       })
@@ -302,6 +302,8 @@
     return parsed === null ? fallback : parsed;
   };
   const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, num(value, 0)));
+  const safeText = value => typeof value === "string" ? value
+    : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
   const LEDGER_VERSION = 1, LEDGER_LIMIT = 180;
   const AGE_STAGES = Object.freeze({
     academy: { min: 0, max: 18, label: "ناشئ في الأكاديمية" },
@@ -338,26 +340,31 @@
     return ledger;
   }
   function hasEvent(state, type, key, season) {
+    const safeType = safeText(type), safeKey = safeText(key);
+    if (!safeType || !safeKey) return false;
     const ledger = ledgerOf(state);
-    return ledger.events.some(item => item && item.type === String(type) && item.key === String(key)
+    return ledger.events.some(item => item && item.type === safeType && item.key === safeKey
       && finiteNumber(item.season) === Math.max(1, num(season, seasonOf(state))));
   }
   function recordEvent(state, event) {
-    if (!state || typeof state !== "object" || !event || !event.type || !event.key) return false;
+    if (!state || typeof state !== "object" || !event) return false;
+    const type = safeText(event.type), key = safeText(event.key);
+    if (!type || !key) return false;
     const ledger = ledgerOf(state), season = Math.max(1, num(event.season, seasonOf(state)));
-    const type = String(event.type), key = String(event.key);
     if (ledger.events.some(item => item && item.type === type && item.key === key && finiteNumber(item.season) === season)) return false;
     ledger.events.unshift({
       id: "ai-event-" + ledger.nextId++, type, key, season, day: dayOf(state),
       context: event.context && typeof event.context === "object" ? event.context : {},
-      outcome: event.outcome == null ? null : String(event.outcome), createdAt: Date.now()
+      outcome: event.outcome == null ? null : safeText(event.outcome) || null, createdAt: Date.now()
     });
     ledger.events = ledger.events.slice(0, LEDGER_LIMIT);
     return true;
   }
   function recordDecision(state, decision) {
-    if (!state || typeof state !== "object" || !decision || !decision.type) return null;
-    const ledger = ledgerOf(state), season = seasonOf(state), day = dayOf(state), type = String(decision.type);
+    if (!state || typeof state !== "object" || !decision) return null;
+    const type = safeText(decision.type);
+    if (!type) return null;
+    const ledger = ledgerOf(state), season = seasonOf(state), day = dayOf(state);
     const signature = type + "|" + season + "|" + day;
     const duplicate = ledger.decisions.find(item => item && item.signature === signature);
     if (duplicate) return duplicate;
@@ -375,14 +382,16 @@
     return row;
   }
   function resolveDecision(state, id, outcome) {
-    const row = ledgerOf(state).decisions.find(item => item && item.id === String(id));
+    const safeId = safeText(id);
+    if (!safeId) return false;
+    const row = ledgerOf(state).decisions.find(item => item && item.id === safeId);
     if (!row) return false;
-    row.outcome = String(outcome || "resolved"); row.resolvedAt = dayOf(state); return true;
+    row.outcome = safeText(outcome) || "resolved"; row.resolvedAt = dayOf(state); return true;
   }
   function stageFor(state) {
     const age = clamp(num(state && state.age, 24), 0, 99);
     const isAcademy = age <= 18 && (state.youthAcademy || state.inAcademy || state.academyReserve
-      || /ناشئ|أكاديمية|شباب|academy|youth/i.test(String(state.role || state.careerPhase || "")));
+      || /ناشئ|أكاديمية|شباب|academy|youth/i.test(safeText(state.role) || safeText(state.careerPhase)));
     return isAcademy ? "academy" : age >= 30 ? "veteran" : age <= 23 ? "development" : "peak";
   }
   function getLastResult(row) {
@@ -390,7 +399,7 @@
     let goalsFor = num(row.teamGoals, num(row.scoreFor, num(row.goalsFor, NaN)));
     let goalsAgainst = num(row.oppGoals, num(row.scoreAgainst, num(row.goalsAgainst, NaN)));
     if (!Number.isFinite(goalsFor) || !Number.isFinite(goalsAgainst)) {
-      const result = String(row.result || row.outcome || "").toUpperCase();
+      const result = (safeText(row.result) || safeText(row.outcome)).toUpperCase();
       return { outcome: ["W", "WIN", "فوز"].includes(result) ? "win" :
         ["L", "LOSS", "خسارة"].includes(result) ? "loss" :
         ["D", "DRAW", "تعادل"].includes(result) ? "draw" : "unknown",
@@ -400,11 +409,16 @@
       goalsFor, goalsAgainst, matchId: row.matchId || row.id || null };
   }
   function clubRank(state) {
-    const normalizeClubName = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const normalizeClubName = value => safeText(value).normalize("NFKC").trim().toLocaleLowerCase();
     const name = normalizeClubName(state && state.clubName);
     const rows = Array.isArray(state && state.leagueTable) ? state.leagueTable :
       Array.isArray(state && state.standings) ? state.standings : Array.isArray(state && state.league) ? state.league : [];
-    const row = rows.find(item => item && normalizeClubName(item.club || item.name || item.team || "") === name);
+    if (!name) return { rank: null, points: null, teams: rows.length };
+    const row = rows.find(item => {
+      if (!item) return false;
+      const candidate = normalizeClubName(item.club || item.name || item.team || "");
+      return !!candidate && candidate === name;
+    });
     if (!row) return { rank: null, points: null, teams: rows.length };
     const rank = num(row.rank, num(row.position, rows.indexOf(row) + 1));
     const pointsValue = row.pts ?? row.points;
@@ -463,7 +477,7 @@
     const age = clamp(num(state.age, 24), 0, 99), stage = stageFor(state), rank = clubRank(state);
     return {
       season: currentSeason, day: dayOf(state), age, stage, stageLabel: AGE_STAGES[stage].label,
-      position, clubName: String(state.clubName || ""),
+      position, clubName: safeText(state.clubName),
       overall: clamp(num(overall, num(state.ovr, 50)), 0, 99), recentMatches: played.length,
       averageRating: Number(averageRating.toFixed(2)), goalsLastFive: goals, assistsLastFive: assists,
       tacklesLastFive: tackles, interceptionsLastFive: interceptions, savesLastFive: saves,
@@ -531,7 +545,7 @@
       report.actionLabel = context.contractSeasons <= 2 ? "راجع العقد" : "افتح التدريب";
     } else report.id = context.stage === "development" ? "development-plan" : "position-plan";
     const seen = new Set(ledgerOf(state).events.filter(item => item && item.type === "coach-recommendation"
-      && finiteNumber(item.season) === context.season).map(item => String(item.key)));
+      && finiteNumber(item.season) === context.season).map(item => safeText(item.key)).filter(Boolean));
     if (seen.has(report.id) && report.id !== "recovery") {
       const options = [
         { id: "position-plan", title: "تطوير مهارة مرتبطة بمركزك", summary: "استخدم خطة تدريب ثابتة لمهارة مرتبطة بمركزك، ثم قارن متوسط آخر خمس مباريات بدل الحكم من مباراة واحدة.", page: "training", actionLabel: "افتح التدريب", focus: core.focus },
@@ -553,14 +567,14 @@
   }
   function recordRecommendation(state, report) {
     if (!report) return false;
-    return recordEvent(state, { type: "coach-recommendation", key: report.id || report.title,
-      context: { age: num(state && state.age, 0), club: String(state && state.clubName || ""),
+    return recordEvent(state, { type: "coach-recommendation", key: safeText(report.id) || safeText(report.title),
+      context: { age: num(state && state.age, 0), club: safeText(state && state.clubName),
         lastResult: report.context && report.context.lastResult, utilities: report.utilities || {} } });
   }
   const originalTransfers = base.recommendTransfers;
   function recommendTransfers(state, clubs, overall) {
     const context = contextSnapshot(state, overall);
-    const normalizeClubPart = value => String(value == null ? "" : value).normalize("NFKC").trim().toLocaleLowerCase();
+    const normalizeClubPart = value => safeText(value).normalize("NFKC").trim().toLocaleLowerCase();
     return originalTransfers(state, clubs, overall).map(row => {
       const club = (Array.isArray(clubs) ? clubs : []).find(item => item
         && normalizeClubPart(item.name) === normalizeClubPart(row.name)

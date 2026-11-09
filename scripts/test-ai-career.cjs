@@ -63,6 +63,75 @@ assert.equal(malformedSavedNumbers.context.cleanSheetsLastFive, 0,
   "malformed conceded-goal values must not create a false clean sheet");
 assert.equal(malformedSavedNumbers.context.leaguePoints, null,
   "malformed saved league points must be ignored without throwing");
+const hostileTextValue = { toString: 1, valueOf: 1 };
+assert.doesNotThrow(() => ai.coachAdvice({
+  pos: "وسط", role: hostileTextValue, age: 24, energy: 80, fatigue: 15,
+  trust: 20, morale: 60, careerMatchHistory: []
+}, 65), "saved role objects must not crash coach advice");
+const hostileTacticAdvice = ai.chooseOpponentTactic({
+  state: { pos: "وسط", energy: 80, fatigue: 15, careerMatchHistory: [
+    { matchId: "hostile-tactic-1", scope: "league", minutes: 90, rating: 7,
+      tactic: hostileTextValue, playerTactic: hostileTextValue }
+  ] },
+  ourTactic: "balanced", teamPower: 65, opponentPower: 65, overall: 65
+});
+assert.equal(hostileTacticAdvice.repeatedStyle, 0,
+  "malformed saved tactic labels must be ignored instead of coerced");
+const hostileClubRecommendations = ai.recommendTransfers({
+  clubName: hostileTextValue, leagueCountry: hostileTextValue, age: 22
+}, [
+  { name: hostileTextValue, country: "Egypt", ovr: 65 },
+  { name: "Broken Country FC", country: hostileTextValue, ovr: 65 }
+], 65);
+assert.equal(hostileClubRecommendations.length, 0,
+  "object-valued club names and countries must be excluded from transfer recommendations");
+const hostileLedgerState = { season: 1, day: 1, aiMemoryLedger: {
+  version: 1, nextId: 1, events: [], decisions: []
+} };
+assert.equal(ai.hasEvent(hostileLedgerState, hostileTextValue, "key", 1), false,
+  "event lookup must reject non-primitive event types");
+assert.equal(ai.recordEvent(hostileLedgerState, { type: hostileTextValue, key: "key" }), false,
+  "event recording must reject non-primitive event types");
+assert.equal(ai.recordDecision(hostileLedgerState, { type: hostileTextValue }), null,
+  "decision recording must reject non-primitive decision types");
+assert.equal(ai.resolveDecision(hostileLedgerState, hostileTextValue, "resolved"), false,
+  "decision resolution must reject non-primitive IDs");
+const hostileContext = ai.utilityScores({
+  pos: "وسط", role: hostileTextValue, clubName: hostileTextValue,
+  leagueTable: [{ club: hostileTextValue, rank: 1, points: 30 }],
+  energy: 80, fatigue: 15, trust: 60, careerMatchHistory: []
+}, 65).context;
+assert.equal(hostileContext.clubName, "",
+  "malformed saved club names must be omitted from AI context without throwing");
+assert.equal(hostileContext.leaguePosition, null,
+  "empty normalized club identities must not accidentally match malformed standings rows");
+
+const throwingSavedText = {
+  toString() { throw new Error("unexpected saved-text coercion"); },
+  valueOf() { throw new Error("unexpected saved-text primitive conversion"); }
+};
+const symbolSavedText = Symbol("malformed-saved-text");
+assert.doesNotThrow(() => ai.coachAdvice({
+  pos: "وسط", role: throwingSavedText, careerPhase: symbolSavedText,
+  energy: 80, fatigue: 15, trust: 20, morale: 60, careerMatchHistory: []
+}, 65), "throwing objects and Symbols in saved role metadata must not crash coaching");
+const symbolTacticAdvice = ai.chooseOpponentTactic({
+  state: { pos: "وسط", energy: 80, fatigue: 15, careerMatchHistory: [
+    { matchId: "symbol-tactic", scope: "league", minutes: 90, rating: 7,
+      tactic: symbolSavedText, playerTactic: throwingSavedText }
+  ] },
+  ourTactic: symbolSavedText, teamPower: 65, opponentPower: 65, overall: 65
+});
+assert.equal(symbolTacticAdvice.repeatedStyle, 0,
+  "Symbol and throwing-object tactic labels must be ignored without coercion");
+assert.equal(ai.recommendTransfers({
+  clubName: symbolSavedText, leagueCountry: throwingSavedText, age: 22
+}, [
+  { name: symbolSavedText, country: "Egypt", ovr: 65 },
+  { name: "Broken Country FC", country: throwingSavedText, ovr: 65 }
+], 65).length, 0,
+"Symbol and throwing-object club metadata must be excluded safely");
+
 assert.doesNotThrow(() => ai.coachAdvice({
   pos: "مهاجم", age: 25, energy: hostileNumericValue, fatigue: 10,
   trust: 65, morale: 65, contractSeasons: 2, careerMatchHistory: []

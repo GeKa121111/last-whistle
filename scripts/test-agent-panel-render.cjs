@@ -13,6 +13,11 @@ const start = source.indexOf("  function tick(force){");
 const end = source.indexOf('\n  document.addEventListener("click"', start);
 assert.ok(start >= 0 && end > start, "agent tick must be extractable for a focused behavior test");
 const tickSource = source.slice(start, end);
+const debtHelperStart = source.indexOf("  function inspectAgentArrayData(");
+const debtHelperEnd = source.indexOf("  function outstandingFeeDebt(", debtHelperStart);
+assert.ok(debtHelperStart >= 0 && debtHelperEnd > debtHelperStart,
+  "safe debt-ledger helpers must be extractable for panel snapshot tests");
+const debtHelperSource = source.slice(debtHelperStart, debtHelperEnd);
 const safeTextStart = source.indexOf("  function safeAgentText(value,fallback){");
 const safeTextEnd = source.indexOf("\n  function safeAgentId", safeTextStart);
 assert.ok(safeTextStart >= 0 && safeTextEnd > safeTextStart, "safe persisted-text helper must exist");
@@ -88,7 +93,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext("var agentContractMutationPending=false; var postRetirementMutationPending=false;", sandbox);
-vm.runInContext(safeFieldSource + "\n" + safeTextSource + "\n" + safeNumberSource + "\n" + tickSource, sandbox, { filename: "agent-system.tick" });
+vm.runInContext(safeFieldSource + "\n" + safeTextSource + "\n" + safeNumberSource + "\n" + debtHelperSource + "\n" + tickSource, sandbox, { filename: "agent-system.tick" });
 
 sandbox.tick();
 sandbox.tick();

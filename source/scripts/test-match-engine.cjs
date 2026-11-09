@@ -2741,6 +2741,32 @@ assert.equal(engine.validateResult(numericStringLedgerFixture).ok, true,
 assert.equal(browserEngine.validateResult(numericStringLedgerFixture).ok, true,
   "the embedded validator must preserve numeric-string event compatibility");
 
+// Number.isInteger accepts magnitudes beyond IEEE-754's exact integer range.
+// Match scores and count ledgers must stay safe so totals cannot silently lose precision.
+const unsafeLedgerInteger = Number.MAX_SAFE_INTEGER + 1;
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  const unsafeScoreFixture = JSON.parse(JSON.stringify(numericLedgerFixture));
+  unsafeScoreFixture.score.for = unsafeLedgerInteger;
+  const unsafeScoreValidation = targetEngine.validateResult(unsafeScoreFixture);
+  assert.equal(unsafeScoreValidation.ok, false,
+    label + " validator must reject an unsafe integer match score");
+  assert.equal(unsafeScoreValidation.reason, "invalid-score");
+
+  const unsafePlayerCountFixture = JSON.parse(JSON.stringify(numericLedgerFixture));
+  unsafePlayerCountFixture.player.shots = unsafeLedgerInteger;
+  const unsafePlayerCountValidation = targetEngine.validateResult(unsafePlayerCountFixture);
+  assert.equal(unsafePlayerCountValidation.ok, false,
+    label + " validator must reject an unsafe integer player count");
+  assert.equal(unsafePlayerCountValidation.reason, "invalid-player-stats");
+
+  const unsafeNumericStringFixture = JSON.parse(JSON.stringify(numericLedgerFixture));
+  unsafeNumericStringFixture.player.goals = String(unsafeLedgerInteger);
+  const unsafeNumericStringValidation = targetEngine.validateResult(unsafeNumericStringFixture);
+  assert.equal(unsafeNumericStringValidation.ok, false,
+    label + " validator must reject an unsafe numeric-string player count");
+  assert.equal(unsafeNumericStringValidation.reason, "invalid-player-stats");
+}
+
 const invalidNumericLedgerMutations = [
   ["Symbol event minute", match => { match.events[0].minute = Symbol("minute"); }],
   ["coercible array event minute", match => { match.events[0].minute = [Number(match.events[0].minute)]; }],

@@ -193,6 +193,48 @@ assert.equal(renderCount, 1, "rest must refresh the UI");
 assert.ok(notices.some((message) => message.includes("راحة يوم كامل")), "rest must give the player a result message");
 assert.ok(stories.length > 0 && logs.length > 0, "rest must be recorded in the story and diary/log history");
 
+// The agent recovery perk adds three points to each recovered day, but an optional/older runtime must fail closed.
+const restWithAgentRuntime = runtime => {
+  sandbox.window.LWAgentRuntime = runtime;
+  sandbox.state = makeState({ energy: 55 });
+  sandbox.rest();
+  return sandbox.state.energy;
+};
+assert.equal(restWithAgentRuntime({ dailyRecoveryBonus: () => 3 }), 82,
+  "a valid agent recovery perk must add three energy to a rest day");
+assert.equal(restWithAgentRuntime({}), 79,
+  "a partial legacy agent runtime without the recovery method must not block rest");
+assert.equal(restWithAgentRuntime({ dailyRecoveryBonus: 3 }), 79,
+  "a non-callable recovery field must be ignored");
+assert.equal(restWithAgentRuntime({ dailyRecoveryBonus: () => "3" }), 79,
+  "a non-numeric recovery result must not be coerced into energy");
+assert.equal(restWithAgentRuntime({ dailyRecoveryBonus: () => Symbol("bad-bonus") }), 79,
+  "a symbol recovery result must fail closed");
+assert.equal(restWithAgentRuntime({ dailyRecoveryBonus: () => Infinity }), 79,
+  "an infinite recovery result must fail closed");
+assert.equal(restWithAgentRuntime({ dailyRecoveryBonus: () => 30 }), 82,
+  "the agent perk contribution must remain capped at its documented three points");
+const throwingRecoveryRuntime = {};
+Object.defineProperty(throwingRecoveryRuntime, "dailyRecoveryBonus", { get() { throw new Error("bad runtime getter"); } });
+assert.equal(restWithAgentRuntime(throwingRecoveryRuntime), 79,
+  "a throwing recovery-method getter must not interrupt calendar advancement");
+const throwingRecoveryCall = { dailyRecoveryBonus() { throw new Error("bad recovery runtime"); } };
+assert.equal(restWithAgentRuntime(throwingRecoveryCall), 79,
+  "a throwing optional recovery method must not interrupt rest");
+const originalRuntimeDescriptor = Object.getOwnPropertyDescriptor(sandbox.window, "LWAgentRuntime");
+Object.defineProperty(sandbox.window, "LWAgentRuntime", { configurable: true, get() { throw new Error("bad runtime container"); } });
+sandbox.state = makeState({ energy: 55 });
+assert.doesNotThrow(() => sandbox.rest(), "an unreadable optional agent runtime must not block rest");
+assert.equal(sandbox.state.energy, 79);
+Object.defineProperty(sandbox.window, "LWAgentRuntime", originalRuntimeDescriptor);
+sandbox.window.LWAgentRuntime = null;
+const recoveryCalls = { count: 0 };
+sandbox.window.LWAgentRuntime = { dailyRecoveryBonus() { recoveryCalls.count++; return 3; } };
+sandbox.state = makeState({ energy: 55 });
+sandbox.advanceCalendarDays(2, "two recovery days");
+assert.equal(sandbox.state.energy, 85, "the agent recovery perk must apply once per elapsed day during multi-day advancement");
+assert.equal(recoveryCalls.count, 1, "a multi-day batch should read the stable perk once and apply it across its elapsed days");
+sandbox.window.LWAgentRuntime = null;
 // The winter pause is a blocking decision, so selecting rest must open the market decision without advancing time.
 sandbox.state = makeState({ winterBreakPending: true });
 saveCount = 0; renderCount = 0; winterMarketCalls = 0;

@@ -139,6 +139,15 @@ function stateFixture() {
   assert.equal(typeof revokedProfilePreview.agentProfile, "object");
   assert.equal(Object.keys(revokedProfilePreview.agentProfile.perks).length, 0);
 
+  const legacyProfileFieldsState = stateFixture();
+  legacyProfileFieldsState.agentProfile.agentName = "Old Agent";
+  legacyProfileFieldsState.agentProfile.exitFeeWeeks = 0.25;
+  const legacyProfileFieldsPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(legacyProfileFieldsState);
+  assert.equal(legacyProfileFieldsPreview.agentProfile.agentName, "Old Agent",
+    "maintenance previews must preserve valid legacy profile fields outside the current normalized schema");
+  assert.equal(legacyProfileFieldsPreview.agentProfile.exitFeeWeeks, 0.25,
+    "rollback snapshots must retain legacy agent exit-fee metadata");
+
   // JSON-valid legacy arrays can own a non-callable forEach property. The old
   // normalizer called value.forEach directly and crashed while hydrating the save.
   const legacyHistory = JSON.parse(JSON.stringify([

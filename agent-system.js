@@ -1018,22 +1018,43 @@ function availableAgentBalance(s){
   }
   function cloneAgentProfileForMaintenance(value){
     if(!value||typeof value!=="object")return null;
-    var fields=["id","name","title","mark","feeRate","customFeeRate","relationship","contractMode","expiresSeason",
-      "signedApps","lastChapterApps","lastChapterSeason","lastPerformanceMilestone","hiredSeason","signedDay",
-      "storyStage","strategyOverride","feeDebt","legacyMigrated","contractMultiplierDelta","negotiationRaiseBonusDelta","perks"];
-    var profile={};
-    for(var i=0;i<fields.length;i++){
-      var key=fields[i],field=safeAgentField(value,key),cloned;
-      if(key==="perks"){
-        try{cloned=clonePostRetirementValue(field,0);}catch(_){cloned=undefined;}
-        if(!cloned||typeof cloned!=="object"||Array.isArray(cloned))cloned={};
+    var keys=[],profile={},inspected=false;
+    try{keys=Object.getOwnPropertyNames(value);inspected=true;}catch(_){}
+    if(inspected){
+      for(var i=0;i<keys.length;i++){
+        var key=keys[i];
+        if(key==="__proto__"||key==="constructor"||key==="prototype")continue;
+        var descriptor=null;
+        try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+        if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value"))continue;
+        var cloned;
+        if(key==="perks"){
+          try{cloned=clonePostRetirementValue(descriptor.value,0);}catch(_){cloned=undefined;}
+          if(!cloned||typeof cloned!=="object"||Array.isArray(cloned))cloned={};
+        }else{
+          try{cloned=clonePostRetirementValue(descriptor.value,0);}catch(_){cloned=undefined;}
+          if(cloned===undefined)continue;
+        }
         Object.defineProperty(profile,key,{value:cloned,enumerable:true,writable:true,configurable:true});
-        continue;
       }
-      if(field===null||typeof field==="string"||typeof field==="boolean"
-        ||(typeof field==="number"&&Number.isFinite(field))){
-        Object.defineProperty(profile,key,{value:field,enumerable:true,writable:true,configurable:true});
+    }else{
+      // A revoked or uninspectable profile proxy cannot be enumerated. Salvage only
+      // known legacy/current scalar fields through guarded reads, then let ensureState
+      // migrate a missing identity to the legacy representative when required.
+      var fields=["id","name","title","mark","agentName","feeRate","customFeeRate","exitFeeWeeks","relationship","contractMode","expiresSeason",
+        "signedApps","lastChapterApps","lastChapterSeason","lastPerformanceMilestone","hiredSeason","signedDay",
+        "storyStage","strategyOverride","feeDebt","legacyMigrated","contractMultiplierDelta","negotiationRaiseBonusDelta"];
+      for(var j=0;j<fields.length;j++){
+        var fieldKey=fields[j],field=safeAgentField(value,fieldKey);
+        if(field===null||typeof field==="string"||typeof field==="boolean"
+          ||(typeof field==="number"&&Number.isFinite(field))){
+          Object.defineProperty(profile,fieldKey,{value:field,enumerable:true,writable:true,configurable:true});
+        }
       }
+      var rawPerks=safeAgentField(value,"perks"),safePerks;
+      try{safePerks=clonePostRetirementValue(rawPerks,0);}catch(_){safePerks=undefined;}
+      if(!safePerks||typeof safePerks!=="object"||Array.isArray(safePerks))safePerks={};
+      Object.defineProperty(profile,"perks",{value:safePerks,enumerable:true,writable:true,configurable:true});
     }
     if(!Object.prototype.hasOwnProperty.call(profile,"perks"))
       Object.defineProperty(profile,"perks",{value:{},enumerable:true,writable:true,configurable:true});

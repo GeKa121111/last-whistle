@@ -1811,7 +1811,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.careerStarted = normalizeLegacyBoolean(state.careerStarted);
     state.leagueSegmentIsPartial = normalizeLegacyBoolean(state.leagueSegmentIsPartial);
     state.boots = normalizeLegacyBoolean(state.boots);
-    if (!state.agent || typeof state.agent !== "object") state.agent = normalizeLegacyBoolean(state.agent);
+    if (!state.agent || typeof state.agent !== "object" || Array.isArray(state.agent)) state.agent = normalizeLegacyBoolean(state.agent);
     state.diet = normalizeLegacyBoolean(state.diet);
     state.speedBoots = normalizeLegacyBoolean(state.speedBoots);
     state.strengthProgram = normalizeLegacyBoolean(state.strengthProgram);
@@ -1829,7 +1829,7 @@ body.lw-rebuild #page-home .grid.hub-home-grid>.seasonJourneyCard{order:2!import
     state.charityFoundation = normalizeLegacyBoolean(state.charityFoundation);
     const savedRandomSeed = finiteLegacyNumber(state.randomSeed);
     state.randomSeed = (savedRandomSeed === null ? 0 : savedRandomSeed) >>> 0 || 0x6d2b79f5;
-    state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" ? state.trainingXP : {};
+    state.trainingXP = state.trainingXP && typeof state.trainingXP === "object" && !Array.isArray(state.trainingXP) ? state.trainingXP : {};
     state.careerAwards = Array.isArray(state.careerAwards) ? state.careerAwards : [];
     const moneyValue = finiteLegacyNumber(state.money);
     state.money = moneyValue !== null

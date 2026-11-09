@@ -648,6 +648,21 @@ assert.equal(legacyDebtSequenceState.agentFeeDebtSequence,9,
 assert.notEqual(legacyDebtSequenceState.agentFeeDebtLedger[1].id,migratedLegacyDebtId,
   "legacy debt migration must not cause duplicate future ledger IDs");
 
+// Recover a stale sequence counter from existing generated debt IDs before appending new rows.
+const staleDebtSequenceState = makeMalformedFeeState(0);
+staleDebtSequenceState.agentFeeDebtSequence = 2;
+staleDebtSequenceState.agentFeeDebtLedger = [{
+  id:"agent-fee-debt-1-1-8",agentId:"former-agent",agentName:"وكيل سابق",reason:"دين محفوظ",
+  amount:100,paid:0,outstanding:100,createdSeason:1,createdDay:1
+}];
+window.LWAgentRuntime.ensureState(staleDebtSequenceState);
+assert.equal(staleDebtSequenceState.agentFeeDebtSequence,8,
+  "the persisted ledger ID suffix must repair a stale sequence counter");
+assert.equal(window.LWAgentRuntime.chargeFee(staleDebtSequenceState,"اختبار استعادة التسلسل",19000),0);
+assert.equal(staleDebtSequenceState.agentFeeDebtSequence,9);
+assert.notEqual(staleDebtSequenceState.agentFeeDebtLedger[1].id,staleDebtSequenceState.agentFeeDebtLedger[0].id,
+  "new debt IDs must not collide with a higher existing sequence suffix");
+
 // Saved debt ledgers may override Array.prototype methods through own JSON keys.
 const hostileDebtLedgerState = makeMalformedFeeState(0);
 const hostileDebtLedger = [

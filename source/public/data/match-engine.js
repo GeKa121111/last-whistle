@@ -654,7 +654,7 @@
     if (!result || typeof result !== "object" || Array.isArray(result) || !result.score || !result.player || typeof result.player !== "object" || Array.isArray(result.player) || !Array.isArray(result.events)) return { ok: false, reason: "invalid-shape" };
     const scoreValueValid = value =>
       (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
-      && Number.isFinite(Number(value)) && Number.isInteger(Number(value)) && Number(value) >= 0;
+      && Number.isFinite(Number(value)) && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
     if (!scoreValueValid(result.score.for) || !scoreValueValid(result.score.against)) {
       return { ok: false, reason: "invalid-score" };
     }
@@ -720,7 +720,7 @@
       if (field === "minutes") return Number.isInteger(numeric) && numeric <= 120;
       if (field === "rating") return numeric <= 10;
       if (field === "passingAccuracy") return numeric <= 100;
-      return !integerPlayerStatFields.has(field) || Number.isInteger(numeric);
+      return !integerPlayerStatFields.has(field) || Number.isSafeInteger(numeric);
     });
     const shotsOnTargetValid = result.player.shotsOnTarget == null || result.player.shots == null
       || Number(result.player.shotsOnTarget) <= Number(result.player.shots);
@@ -947,7 +947,7 @@
         event.type !== "penalty-shootout" && Number(event.minute) > 90);
       const isNonNegativeInteger = value =>
         (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
-        && Number.isInteger(Number(value)) && Number(value) >= 0;
+        && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
       const regulationMetadata = result.regulation;
       const regulationMetadataPresent = regulationMetadata != null;
       if (regulationMetadataPresent
@@ -1062,7 +1062,7 @@
       if (typeof shootout !== "object" || Array.isArray(shootout)) return false;
       const isNonNegativeInteger = value =>
         (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
-        && Number.isInteger(Number(value)) && Number(value) >= 0;
+        && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
       if (shootout.used !== true) {
         const unusedFlagValid = shootout.used == null || shootout.used === false;
         const unusedWinnerValid = shootout.won == null || shootout.won === false;
@@ -1140,7 +1140,7 @@
       for (const event of saveEvents) {
         if (event.creditedToPlayer !== true || event.side !== "team"
           || Number(event.minute) !== 120 || event.shootoutSide !== "opponent"
-          || !Number.isInteger(Number(event.attemptNumber))) return false;
+          || !Number.isSafeInteger(Number(event.attemptNumber))) return false;
         eventRounds.push(Number(event.attemptNumber));
       }
       savedRounds.sort((a, b) => a - b);

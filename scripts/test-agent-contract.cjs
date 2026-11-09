@@ -14,6 +14,7 @@ assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
+require("./assert-static-cache-version.cjs")(sw, 682);
 const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
   "the offline service worker must use a versioned cache name");
@@ -581,6 +582,40 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "a hostile proxy used as a perk container must fail closed without breaking migration");
  assert.deepEqual(JSON.parse(JSON.stringify(throwingPerkState.agentProfile.perks)),{});
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(throwingPerkState),0);
+ // Runtime bonus reads must also be safe before ensureState migrates a legacy save.
+ const directValidPerkState=makePerkState({recovery:true});
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directValidPerkState),3,
+   "a valid saved recovery perk must work before state normalization");
+ const directThrowingPerks=new Proxy({recovery:true},{
+   get(target,key,receiver){
+     if(key==="recovery")throw new Error("hostile direct perk read");
+     return Reflect.get(target,key,receiver);
+   }
+ });
+ const directThrowingPerkState=makePerkState(directThrowingPerks);
+ assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directThrowingPerkState),
+   "a hostile perk getter must not crash a bonus read before migration");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directThrowingPerkState),0);
+ const directRevokedPerks=Proxy.revocable({recovery:true},{});
+ directRevokedPerks.revoke();
+ const directRevokedPerkState=makePerkState(directRevokedPerks.proxy);
+ assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directRevokedPerkState),
+   "a revoked perks proxy must fail closed before state normalization");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRevokedPerkState),0);
+ const directRevokedProfile=Proxy.revocable({perks:{recovery:true}},{});
+ directRevokedProfile.revoke();
+ const directRevokedProfileState=makePerkState({});
+ directRevokedProfileState.agentProfile=directRevokedProfile.proxy;
+ assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directRevokedProfileState),
+   "a revoked agent profile must not crash the recovery bonus read");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRevokedProfileState),0);
+ const directThrowingAgentState=makePerkState({recovery:true});
+ Object.defineProperty(directThrowingAgentState,"agent",{
+   configurable:true,get(){throw new Error("hostile agent flag getter");}
+ });
+ assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),
+   "a malformed agent flag must not crash the recovery bonus read");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),0);
  const exoticProfile=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
    id:"hossam",name:"حسام",feeRate:.05,customFeeRate:null,relationship:63,feeDebt:75,
    perks:Object.assign([],{recovery:true})

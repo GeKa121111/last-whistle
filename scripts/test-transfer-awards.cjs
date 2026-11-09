@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 27);
+assert.equal(engine.version, 28);
 
 const malformedAwardNumbers = [
   { label: "Symbol", value: Symbol("season-stat") },
@@ -1445,5 +1445,50 @@ assert.equal(hostileLeaderboardUser[0].country, "");
 assert.equal(hostileLeaderboardUser[0].position, "غير محدد");
 assert.equal(hostileLeaderboardUser[0].confederation, "");
 assert.equal(hostileLeaderboardUser[0].originConfederation, "");
+
+
+const fractionalPerformance = engine.evaluateSeasonPerformance({
+  name: "Fractional statistics", age: 24, position: "ST", ovr: 72,
+  appearances: 12.9, minutes: 1000.9, goals: 4.9, assists: 2.9,
+  averageRating: 7.4, leagueStrength: 60, wage: 1200
+});
+assert.equal(fractionalPerformance.performanceSample, 12,
+  "season appearances must be whole match counts, not fractional values");
+assert.equal(fractionalPerformance.minutes, 1000,
+  "season minutes must be whole bounded minutes");
+
+const oversizedPerformance = engine.evaluateSeasonPerformance({
+  name: "Oversized statistics", age: 24, position: "ST", ovr: 72,
+  appearances: 9000000000000, minutes: 9000000000000,
+  goals: 4, assists: 2, averageRating: 7.4, leagueStrength: 60, wage: 1200
+});
+assert.equal(oversizedPerformance.performanceSample, 1000000,
+  "season appearances must be capped at the shared safe-stat boundary");
+assert.equal(oversizedPerformance.minutes, 1000000,
+  "season minutes must be capped so malformed saves cannot report unbounded playing time");
+
+const fractionalAwardCeremony = engine.buildSeasonAwardCeremony({
+  season: 6,
+  player: {
+    id: "fractional-award-user", name: "Fractional Award User", club: "Test Club",
+    country: "Egypt", position: "GK", age: 20, ovr: 72, prestige: 60,
+    appearances: 12.9, minutes: 1000.9, goals: 4.9, assists: 2.9,
+    averageRating: 7.4, cleanSheets: 3.9, saves: 5.9, penaltiesSaved: 1.9,
+    leagueStrength: 60, trophies: 0
+  },
+  realPlayers: []
+});
+assert.equal(fractionalAwardCeremony.ballonDor.topFive[0].goals, 4,
+  "award projections must not award fractional goals from malformed saved counts");
+assert.equal(fractionalAwardCeremony.ballonDor.topFive[0].assists, 2,
+  "award projections must not award fractional assists from malformed saved counts");
+const fractionalGoldenGlove = fractionalAwardCeremony.awards.find(row => row.id === "golden-glove");
+assert.ok(fractionalGoldenGlove, "a valid goalkeeper season must remain eligible for the Golden Glove");
+assert.equal(fractionalGoldenGlove.winner.cleanSheets, 3,
+  "clean sheets must be normalized to whole counts before award scoring");
+assert.equal(fractionalGoldenGlove.winner.saves, 5,
+  "saves must be normalized to whole counts before award scoring");
+assert.equal(fractionalGoldenGlove.winner.penaltiesSaved, 1,
+  "penalties saved must be normalized to whole counts before award scoring");
 
 console.log("PASS: realistic offer tiers, contract negotiation patience, league leaderboards and season award ceremony.");

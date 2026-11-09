@@ -89,9 +89,17 @@
     return fallbackNumber === null ? 50 : fallbackNumber;
   }
 
+  // Saved identity/display fields are accepted only when they are primitive text
+  // or finite numbers. Never invoke user-controlled toString/valueOf methods.
+  function safeText(value, fallback = "") {
+    if (typeof value === "string") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return fallback;
+  }
+
   function stableHash(value) {
     let hash = 2166136261;
-    for (const char of String(value)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    for (const char of safeText(value)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
     return hash >>> 0;
   }
 
@@ -107,8 +115,7 @@
   }
 
   function normalized(value) {
-    const raw = typeof value === "string" ? value
-      : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    const raw = safeText(value);
     return raw.normalize("NFD")
       .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
       .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
@@ -120,7 +127,7 @@
     player = player || {};
     for (const value of [player.id, player.playerId, player.uid]) {
       if (value === undefined || value === null) continue;
-      const id = String(value).trim();
+      const id = safeText(value).trim();
       if (id) return id;
     }
     return "";
@@ -188,8 +195,9 @@
   });
   function roleType(position) {
     const store = global.LWStateStore;
+    const safePosition = safeText(position);
     const canonical = store && typeof store.normalizePosition === "function"
-      ? store.normalizePosition(position) : position;
+      ? store.normalizePosition(safePosition) : safePosition;
     const value = normalized(canonical);
     if (Object.prototype.hasOwnProperty.call(POSITION_ROLE_ALIASES, value)) return POSITION_ROLE_ALIASES[value];
     if (value.includes("حارس")) return "keeper";
@@ -334,7 +342,7 @@
       "فرانكو ماستانتونو": 18,
       "نيكو أوريلي": 21
     };
-    const name = String(player && player.name || "");
+    const name = safeText(player && player.name);
     const sourcedAge = finiteNumericValue(player && player.age);
     const firstSeasonAge = sourcedAge !== null && sourcedAge >= 1
       ? Math.floor(sourcedAge)
@@ -370,13 +378,13 @@
       const leagueStrength = safeStrength(player.leagueStrength);
       return {
         id: stablePlayerId(player),
-        name: String(player.name || ""), club: String(saved.club || player.clubName || player.club || ""),
-        country: String(saved.country || player.country || ""), position: String(player.position || "غير محدد"),
+        name: safeText(player.name), club: safeText(saved.club) || safeText(player.clubName) || safeText(player.club) || "نادي غير محدد",
+        country: safeText(saved.country) || safeText(player.country), position: safeText(player.position) || "غير محدد",
         age: estimatedAge(player, season), ovr, appearances, minutes, goals, assists,
         averageRating: Number(averageRating.toFixed(2)),
         score: hasPlayingTime ? Number((averageRating * 9 + goals * 0.95 + assists * 0.62 + ovr * 0.08 + leagueStrength * 0.035).toFixed(3)) : 0,
         weightedGoals: Number((goals * (0.82 + leagueStrength / 450)).toFixed(3)),
-        confederation: player.confederation || "", originConfederation: player.originConfederation || player.confederation || "",
+        confederation: safeText(player.confederation), originConfederation: safeText(player.originConfederation) || safeText(player.confederation),
         leagueStrength, realPlayer: player.realPlayer !== false, isUser: !!player.isUser
       };
     }
@@ -407,10 +415,10 @@
       : 0;
     return {
       id: stablePlayerId(player),
-      name: player.name,
-      club: player.clubName || player.club || "نادي غير محدد",
-      country: player.country || "",
-      position: player.position || "غير محدد",
+      name: safeText(player.name),
+      club: safeText(player.clubName) || safeText(player.club) || "نادي غير محدد",
+      country: safeText(player.country),
+      position: safeText(player.position) || "غير محدد",
       age: estimatedAge(player, season),
       ovr: ovr,
       appearances: appearances,
@@ -420,8 +428,8 @@
       averageRating: Number(rating.toFixed(2)),
       score: Number(score.toFixed(3)),
       weightedGoals: Number((goals * (0.82 + competitionStrength / 450)).toFixed(3)),
-      confederation: player.confederation || "",
-      originConfederation: player.originConfederation || player.confederation || "",
+      confederation: safeText(player.confederation),
+      originConfederation: safeText(player.originConfederation) || safeText(player.confederation),
       leagueStrength: competitionStrength,
       realPlayer: player.realPlayer !== false,
       isUser: !!player.isUser
@@ -432,9 +440,10 @@
     input = input || {};
     const player = input.player || {};
     const targets = Array.isArray(input.targets) ? input.targets : [];
+    const windowId = safeText(input.windowId).trim();
     const appearances = parseSeasonAppearanceValue(player.appearances);
     const form = finiteNumericValue(player.form);
-    if (!input.windowId || appearances === null || appearances < 2
+    if (!windowId || appearances === null || appearances < 2
       || form === null || form < 5.8) return [];
     const playerOvr = clamp(player.ovr || 50, 35, 99);
     const currentPower = clamp(input.currentClubPower || player.currentClubPower || 50, 35, 99);
@@ -448,8 +457,11 @@
     const candidates = [];
 
     for (const raw of targets) {
-      if (!raw || !raw.club || !raw.country) continue;
-      const key = normalized(raw.country) + "|" + normalized(raw.club);
+      if (!raw) continue;
+      const targetClub = safeText(raw.club).trim();
+      const targetCountry = safeText(raw.country).trim();
+      if (!targetClub || !targetCountry) continue;
+      const key = normalized(targetCountry) + "|" + normalized(targetClub);
       if (seen.has(key)) continue;
       seen.add(key);
       if (normalized(raw.club) === normalized(player.currentClub)
@@ -466,22 +478,22 @@
         : ageValue !== null && ageValue <= 21 && potentialValue !== null && potentialValue >= 78
           ? "لاعب ناشئ" : "لاعب بديل";
       const positionRivals = (Array.isArray(raw.players) ? raw.players : [])
-        .filter(item => item && item.name && samePositionRole(item.position, player.position))
+        .filter(item => item && safeText(item.name).trim() && samePositionRole(item.position, player.position))
         .sort((a, b) => {
           const aOvr = finiteNumericValue(a.ovr);
           const bOvr = finiteNumericValue(b.ovr);
           return (bOvr === null ? 0 : bOvr) - (aOvr === null ? 0 : aOvr);
         })
-        .slice(0, 3).map(item => item.name);
+        .slice(0, 3).map(item => safeText(item.name).trim());
       const stars = (positionRivals.length ? positionRivals : (Array.isArray(raw.stars) ? raw.stars : []))
-        .filter(Boolean).slice(0, 4);
+        .map(item => safeText(item).trim()).filter(Boolean).slice(0, 4);
       const regionalBonus = normalized(raw.country) === normalized(player.country) ? -5 : 2;
       const divisionBonus = divisionValue !== null && divisionValue >= 2 ? -1.5 : 1;
       const prestigeValue = finiteNumericValue(raw.prestige);
       const prestigeForScore = prestigeValue === null || prestigeValue === 0 ? 50 : prestigeValue;
       const proximity = Math.abs(power - Math.min(maxPower, currentPower + 5));
       const scoutScore = proximity + regionalBonus + divisionBonus - prestigeForScore * 0.025
-        + (stableHash(key + "|" + input.windowId) % 13) * 0.19;
+        + (stableHash(key + "|" + windowId) % 13) * 0.19;
       candidates.push({
         target: raw,
         power: power,
@@ -506,7 +518,7 @@
     return selected.map((candidate, index) => {
       const target = candidate.target;
       const power = candidate.power;
-      const currency = String(target.currency || "ج.م");
+      const currency = safeText(target.currency).trim() || "ج.م";
       const wage = currency === "ج.م"
         ? Math.round(350 + power * 28 + playerOvr * 12)
         : Math.round(80 + power * 18 + playerOvr * 10);
@@ -521,19 +533,19 @@
       const cleanSheet = Math.max(10, Math.round(wage * 0.12));
       const releaseClause = Math.round(wage * 52 * (1.9 + power / 100));
       return {
-        id: "offer-" + String(input.windowId) + "-" + stableHash(target.country + "|" + target.club + "|" + playerIdentityKey(player)).toString(36),
-        windowId: String(input.windowId),
-        club: target.club,
-        country: target.country,
-        league: target.league || target.leagueName || "الدوري المحلي",
-        leagueEnglish: target.leagueEnglish || "",
-        season: target.season || "",
-        source: target.source || "قاعدة اللعبة",
+        id: "offer-" + windowId + "-" + stableHash(targetCountry + "|" + targetClub + "|" + playerIdentityKey(player)).toString(36),
+        windowId: windowId,
+        club: targetClub,
+        country: targetCountry,
+        league: safeText(target.league) || safeText(target.leagueName) || "الدوري المحلي",
+        leagueEnglish: safeText(target.leagueEnglish),
+        season: safeText(target.season),
+        source: safeText(target.source) || "قاعدة اللعبة",
         division: targetDivisionValue === null ? 1 : Math.max(1, Math.floor(targetDivisionValue)),
         power: power,
         prestige: displayPrestige,
         currency: currency,
-        confederation: target.confederation || "",
+        confederation: safeText(target.confederation),
         stars: candidate.stars,
         positionRivals: candidate.positionRivals,
         role: candidate.role,
@@ -661,13 +673,13 @@
     const rows = [];
     const seen = new Set();
     for (const player of players) {
-      if (!player || !player.name) continue;
+      if (!player || !safeText(player.name).trim()) continue;
       const key = playerIdentityKey(player);
       if (seen.has(key)) continue;
       seen.add(key);
       rows.push(simulatePlayerSeason(player, season, progress));
     }
-    if (input.userLine && input.userLine.name) {
+    if (input.userLine && safeText(input.userLine.name).trim()) {
       const user = Object.assign({
         club: input.userLine.club || "",
         country: input.userLine.country || "",
@@ -728,7 +740,7 @@
     const seen = new Set();
 
     for (const realPlayer of realPlayers) {
-      if (!realPlayer || !realPlayer.name) continue;
+      if (!realPlayer || !safeText(realPlayer.name).trim()) continue;
       const key = playerIdentityKey(realPlayer);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -740,7 +752,7 @@
         + safePrestige(realPlayer.prestige) * 0.025 + row.defensiveBonus;
       row.theBestScore = row.ballonScore + row.averageRating * 0.22
         + (stableHash(playerIdentityKey(row) + "|" + season + "|best") % 17) / 10;
-      row.originConfederation = realPlayer.originConfederation || realPlayer.confederation || "";
+      row.originConfederation = safeText(realPlayer.originConfederation) || safeText(realPlayer.confederation);
       candidates.push(row);
     }
 
@@ -752,10 +764,10 @@
     const userAverageRating = hasUserPlayingTime ? safeRating(player.averageRating) : 0;
     const user = {
       id: stablePlayerId(player),
-      name: String(player.name || "لاعب المسيرة"),
-      club: String(player.club || "نادي غير محدد"),
-      country: String(player.country || ""),
-      position: String(player.position || "غير محدد"),
+      name: safeText(player.name) || "لاعب المسيرة",
+      club: safeText(player.club) || "نادي غير محدد",
+      country: safeText(player.country),
+      position: safeText(player.position) || "غير محدد",
       age: safeAge(player.age),
       youthAwardEligible: isYouthAwardEligibleForPlayer(player, safeAge(player.age)),
       ovr: clamp(player.ovr || 50, 35, 99),
@@ -767,8 +779,8 @@
       score: 0,
       weightedGoals: 0,
       trophyBonus: trophies * 5,
-      confederation: String(player.confederation || ""),
-      originConfederation: String(player.originConfederation || player.confederation || ""),
+      confederation: safeText(player.confederation),
+      originConfederation: safeText(player.originConfederation) || safeText(player.confederation),
       leagueStrength: safeStrength(player.leagueStrength),
       realPlayer: false,
       isUser: true
@@ -787,7 +799,7 @@
         return (Number(b[scoreKey]) || 0) - (Number(a[scoreKey]) || 0)
           || Number(b.goals || 0) - Number(a.goals || 0)
           || Number(b.assists || 0) - Number(a.assists || 0)
-          || String(a.name).localeCompare(String(b.name), "ar")
+          || safeText(a.name).localeCompare(safeText(b.name), "ar")
         || playerIdentityKey(a).localeCompare(playerIdentityKey(b), "en");
       });
     };
@@ -814,7 +826,7 @@
         id: definition.id,
         title: definition.title,
         winner: {
-          id: String(winner.id || ""),
+          id: safeText(winner.id),
           name: winner.name,
           club: winner.club,
           country: winner.country,
@@ -829,7 +841,7 @@
           isUser: !!winner.isUser
         },
         topThree: ranked.slice(0, 3).map(function (row) {
-          return { id: String(row.id || ""), name: row.name, club: row.club,
+          return { id: safeText(row.id), name: row.name, club: row.club,
             country: row.country, position: row.position, score: Number(row[definition.metric]) || 0,
             cleanSheets: row.cleanSheets, saves: row.saves, penaltiesSaved: row.penaltiesSaved, isUser: !!row.isUser };
         })
@@ -853,12 +865,12 @@
       season: season,
       club: user.club,
       country: user.country,
-      createdAt: String(input.currentDate || (String(2024 + season) + "-07-31T00:00:00.000Z")),
+      createdAt: safeText(input.currentDate).trim() || (safeText(2024 + season) + "-07-31T00:00:00.000Z"),
       ballonDor: {
         winner: { id: String(ballonWinner.id || ""), name: ballonWinner.name, club: ballonWinner.club,
           country: ballonWinner.country, position: ballonWinner.position, isUser: !!ballonWinner.isUser },
         topFive: bestFive.map(function (row) {
-          return { id: String(row.id || ""), name: row.name, club: row.club, country: row.country,
+          return { id: safeText(row.id), name: row.name, club: row.club, country: row.country,
             position: row.position, goals: row.goals, assists: row.assists, averageRating: row.averageRating,
             score: Number(row.ballonScore) || 0, isUser: !!row.isUser };
         })
@@ -1000,7 +1012,7 @@
   }
 
   global.LWTransferAwards = Object.freeze({
-    version: 26,
+    version: 27,
     roleType: roleType,
     generateOffers: generateOffers,
     negotiationPressure: negotiationPressure,

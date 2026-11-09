@@ -103,6 +103,8 @@ const hostileContext = ai.utilityScores({
 }, 65).context;
 assert.equal(hostileContext.clubName, "",
   "malformed saved club names must be omitted from AI context without throwing");
+assert.equal(hostileContext.leaguePosition, null,
+  "empty normalized club identities must not accidentally match malformed standings rows");
 
 assert.doesNotThrow(() => ai.coachAdvice({
   pos: "مهاجم", age: 25, energy: hostileNumericValue, fatigue: 10,

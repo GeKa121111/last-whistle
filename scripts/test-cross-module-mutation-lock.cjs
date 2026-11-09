@@ -86,8 +86,8 @@ const helperContexts = moduleSpecs.map((spec, index) => {
   vm.runInContext("var financeMutationPending = false;\n" + careerFunctions, careerSandbox);
   const agentFunctions = [
     "safeAgentText", "safeAgentField", "finiteAgentNumber", "safeAgentNumber", "safeWholeAmount", "acquireSharedMutationLock", "releaseSharedMutationLock",
-    "inspectAgentArrayData", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
-    "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
+    "inspectAgentArrayData", "clonePostRetirementValue", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
+    "cloneAgentProfileForMaintenance", "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
     "clonePostRetirementMutationState", "restorePostRetirementMutationState",
     "flushPostRetirementMutation", "runAgentContractMutation", "runPostRetirementMutation"
   ].map(name => extractFunction(sources[1], name)).join("\n");

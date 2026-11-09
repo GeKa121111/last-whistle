@@ -14,7 +14,7 @@ assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 684);
+require("./assert-static-cache-version.cjs")(sw, 686);
 const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
   "the offline service worker must use a versioned cache name");
@@ -616,6 +616,93 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),
    "a malformed agent flag must not crash the recovery bonus read");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),0);
+
+ // Agent profile fields can also be accessor-backed in old or externally edited saves.
+ // A throwing relationship getter must not break public bonus/commission reads, and
+ // hydration must convert the profile to a writable plain record before normalizing it.
+ const directRelationshipState=makePerkState({recovery:true});
+ const originalRelationshipProfile=directRelationshipState.agentProfile;
+ Object.defineProperty(originalRelationshipProfile,"relationship",{
+   configurable:true,enumerable:true,get(){throw new Error("hostile relationship getter");}
+ });
+ Object.defineProperty(originalRelationshipProfile,"customFeeRate",{
+   configurable:true,enumerable:true,get(){throw new Error("hostile custom fee getter");}
+ });
+ assert.doesNotThrow(() => window.LWAgentRuntime.sponsorshipMultiplier(directRelationshipState),
+   "sponsorship calculation must fail closed when a saved relationship getter throws");
+ assert.doesNotThrow(() => window.LWAgentRuntime.matchPayMultiplier(directRelationshipState),
+   "match-pay calculation must fail closed when a saved relationship getter throws");
+ assert.doesNotThrow(() => window.LWAgentRuntime.contractTerms(directRelationshipState),
+   "contract terms must not read an accessor-backed profile field directly");
+ assert.doesNotThrow(() => window.LWAgentRuntime.negotiationChanceBonus(directRelationshipState),
+   "negotiation bonuses must tolerate accessor-backed relationship data");
+ assert.doesNotThrow(() => window.LWAgentRuntime.transferOfferChance(directRelationshipState,.45),
+   "transfer-offer probability must tolerate accessor-backed relationship data");
+ assert.doesNotThrow(() => window.LWAgentRuntime.commissionRate(directRelationshipState),
+   "commission reads must not invoke a hostile custom-fee accessor");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRelationshipState),3,
+   "safe profile reads must not disable a valid recovery perk");
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(directRelationshipState),
+   "profile hydration must replace accessor-backed fields with safe data properties");
+ assert.notEqual(directRelationshipState.agentProfile,originalRelationshipProfile,
+   "an accessor-backed profile must be copied before normalization mutates it");
+ assert.equal(directRelationshipState.agentProfile.relationship,52,
+   "a throwing legacy relationship getter must use the established neutral default");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRelationshipState),3,
+   "normalizing a hostile relationship field must preserve the valid perk");
+
+ const frozenProfileState=makePerkState({recovery:true});
+ const frozenProfile=frozenProfileState.agentProfile;
+ const frozenRelationship=frozenProfile.relationship;
+ frozenProfile.agentName="وكيل محفوظ إضافي";
+ frozenProfile.exitFeeWeeks=.75;
+ Object.freeze(frozenProfile);
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(frozenProfileState),
+   "a frozen saved profile must be copied before the runtime applies defaults");
+ assert.notEqual(frozenProfileState.agentProfile,frozenProfile,
+   "hydration must replace an immutable profile with a writable data record");
+ assert.equal(frozenProfileState.agentProfile.id,"salim",
+   "immutable profile normalization must preserve the representative identity");
+ assert.equal(frozenProfileState.agentProfile.relationship,frozenRelationship,
+   "immutable profile normalization must preserve the existing relationship value");
+ assert.equal(frozenProfileState.agentProfile.agentName,"وكيل محفوظ إضافي",
+   "normalizing an immutable profile must preserve extra saved agent fields");
+ assert.equal(frozenProfileState.agentProfile.exitFeeWeeks,.75,
+   "normalizing an immutable profile must preserve extra saved fee terms");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(frozenProfileState),3,
+   "immutable profile normalization must preserve valid perks");
+
+ const lockedProfileState=makePerkState({recovery:true});
+ const lockedProfile=lockedProfileState.agentProfile;
+ Object.defineProperty(lockedProfile,"relationship",{
+   value:64,enumerable:true,writable:false,configurable:false
+ });
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(lockedProfileState),
+   "a non-writable relationship field must be copied before profile normalization");
+ assert.notEqual(lockedProfileState.agentProfile,lockedProfile,
+   "a profile with a non-writable supported field must be replaced");
+ assert.equal(lockedProfileState.agentProfile.relationship,64,
+   "the valid read-only relationship value must survive profile normalization");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(lockedProfileState),3);
+
+ const proxyProfileState=makePerkState({recovery:true});
+ const proxyProfileOriginal=proxyProfileState.agentProfile;
+ const proxyProfile=new Proxy(proxyProfileOriginal,{
+   get(target,key,receiver){
+     if(key==="relationship")throw new Error("hostile proxy profile read");
+     return Reflect.get(target,key,receiver);
+   }
+ });
+ proxyProfileState.agentProfile=proxyProfile;
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(proxyProfileState),
+   "a proxy that lies through data descriptors but throws on property reads must be normalized safely");
+ assert.notEqual(proxyProfileState.agentProfile,proxyProfile,
+   "a profile proxy with inconsistent property reads must be replaced by a plain record");
+ assert.equal(proxyProfileState.agentProfile.relationship,52,
+   "an unreadable proxy relationship must use the neutral default");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(proxyProfileState),3,
+   "normalizing a hostile profile proxy must preserve valid perks");
+
  const exoticProfile=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
    id:"hossam",name:"حسام",feeRate:.05,customFeeRate:null,relationship:63,feeDebt:75,
    perks:Object.assign([],{recovery:true})
@@ -753,5 +840,29 @@ assert.equal(revokedDebtLedgerState.agentFeeDebtLedger.length,0,
   "replacing an uninspectable ledger must not touch unrelated career records");
 assert.equal(window.LWAgentRuntime.outstandingFeeDebt(revokedDebtLedgerState),0);
 
+// A hostile state-level agentProfile accessor must not crash strategy ranking or UI refresh.
+ const hostileStateProfile={careerStarted:true,retired:false,agent:true,agentHistory:[],agentFeeDebtLedger:[],agentNegotiationQuote:null};
+ Object.defineProperty(hostileStateProfile,"agentProfile",{enumerable:true,configurable:true,get(){throw new Error("hostile state profile getter");}});
+ const targetRows=[{id:"club-a",power:55,country:"Egypt"},{id:"club-b",power:70,country:"France"}];
+ assert.doesNotThrow(()=>window.LWAgentRuntime.prioritizeTargets(hostileStateProfile,targetRows),
+   "target prioritization must fail closed when the state-level profile accessor throws");
+ assert.equal(window.LWAgentRuntime.prioritizeTargets(hostileStateProfile,targetRows),targetRows,
+   "unreadable agent profiles must leave the caller's original target order intact");
+ assert.equal(window.LWAgentRuntime.current(hostileStateProfile),null,
+   "current-agent lookup must not invoke a throwing state-level profile accessor");
+ // The periodic UI tick must also tolerate a hostile profile property when no agent state is readable.
+ const originalAgent=state.agent,originalHistory=state.agentHistory,originalLedger=state.agentFeeDebtLedger;
+ const originalQuote=state.agentNegotiationQuote,originalSequence=state.agentFeeDebtSequence;
+ const originalDebtPaid=state.agentDebtPaid,originalCommissionPaid=state.agentCommissionPaid;
+ state.agent=false;state.agentHistory=[];state.agentFeeDebtLedger=[];state.agentNegotiationQuote=null;
+ state.agentFeeDebtSequence=0;state.agentDebtPaid=0;state.agentCommissionPaid=0;
+ Object.defineProperty(state,"agentProfile",{enumerable:true,configurable:true,get(){throw new Error("hostile UI profile getter");}});
+ assert.doesNotThrow(()=>{
+   for(const callback of documentListeners.visibilitychange||[])callback();
+ },"periodic agent UI refresh must not crash on an unreadable profile property");
+ delete state.agentProfile;state.agentProfile=null;
+ state.agent=originalAgent;state.agentHistory=originalHistory;state.agentFeeDebtLedger=originalLedger;
+ state.agentNegotiationQuote=originalQuote;state.agentFeeDebtSequence=originalSequence;
+ state.agentDebtPaid=originalDebtPaid;state.agentCommissionPaid=originalCommissionPaid;
 console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

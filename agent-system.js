@@ -405,6 +405,61 @@
       return {values:values,changed:changed};
     }catch(_){return null;}
   }
+  function safePostRetirementRows(value,kind){
+    var inspected=inspectAgentArrayData(value);
+    if(!inspected)return [];
+    var fields=kind==="players"
+      ?["id","name","club","joinedSeason","appearancesAtSigning"]
+      :["type","playerId","season","capital","club","share","cost","day","title","text","description"];
+    var rows=[];
+    for(var i=0;i<inspected.values.length;i++){
+      var raw=inspected.values[i];
+      if(!raw||typeof raw!=="object"||Array.isArray(raw))continue;
+      var row={};
+      for(var fieldIndex=0;fieldIndex<fields.length;fieldIndex++){
+        var key=fields[fieldIndex],descriptor=null;
+        try{descriptor=Object.getOwnPropertyDescriptor(raw,key);}catch(_){continue;}
+        if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value"))continue;
+        var field=descriptor.value;
+        if(field===null||typeof field==="string"||typeof field==="boolean"
+          ||(typeof field==="number"&&Number.isFinite(field))){
+          Object.defineProperty(row,key,{value:field,enumerable:true,writable:true,configurable:true});
+        }
+      }
+      if(kind==="players"&&!safeAgentId(row.id,""))continue;
+      if(Object.keys(row).length)rows.push(row);
+    }
+    return rows;
+  }
+  function clonePostRetirementValue(value,depth){
+    if(value===null||typeof value==="string"||typeof value==="boolean"
+      ||(typeof value==="number"&&Number.isFinite(value)))return value;
+    if(typeof value!=="object"||(depth||0)>8)return undefined;
+    if(Array.isArray(value)){
+      var inspected=inspectAgentArrayData(value);
+      if(!inspected)return [];
+      var array=[];
+      for(var i=0;i<inspected.values.length;i++){
+        var item=clonePostRetirementValue(inspected.values[i],(depth||0)+1);
+        array[array.length]=item===undefined?null:item;
+      }
+      return array;
+    }
+    var names=[];
+    try{names=Object.getOwnPropertyNames(value);}catch(_){return undefined;}
+    var result={};
+    for(var j=0;j<names.length;j++){
+      var key=names[j];
+      if(key==="__proto__"||key==="constructor"||key==="prototype")continue;
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){continue;}
+      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value"))continue;
+      var cloned=clonePostRetirementValue(descriptor.value,(depth||0)+1);
+      if(cloned===undefined)continue;
+      Object.defineProperty(result,key,{value:cloned,enumerable:true,writable:true,configurable:true});
+    }
+    return result;
+  }
   function safeAgentHistoryRows(value){
     var inspected=inspectAgentArrayData(value);
     if(!inspected)return [];
@@ -1100,8 +1155,39 @@ function availableAgentBalance(s){
   }
   function clonePostRetirementMutationState(state){
     if(!state||typeof state!=="object")return null;
-    try{if(typeof window.structuredClone==="function")return window.structuredClone(state);}catch(error){}
-    try{return JSON.parse(JSON.stringify(state));}catch(error){return null;}
+    var names=[],snapshotSource={};
+    try{names=Object.getOwnPropertyNames(state);}catch(_){return null;}
+    for(var i=0;i<names.length;i++){
+      var key=names[i];
+      if(key==="__proto__"||key==="constructor"||key==="prototype")continue;
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(state,key);}catch(_){continue;}
+      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value"))continue;
+      var value=descriptor.value;
+      if(key==="retirementCareer"&&value&&typeof value==="object"){
+        var careerNames=[],careerCopy={};
+        try{careerNames=Object.getOwnPropertyNames(value);}catch(_){return null;}
+        for(var j=0;j<careerNames.length;j++){
+          var careerKey=careerNames[j];
+          if(careerKey==="__proto__"||careerKey==="constructor"||careerKey==="prototype")continue;
+          var careerDescriptor=null;
+          try{careerDescriptor=Object.getOwnPropertyDescriptor(value,careerKey);}catch(_){continue;}
+          if(!careerDescriptor||!Object.prototype.hasOwnProperty.call(careerDescriptor,"value"))continue;
+          var careerValue=careerDescriptor.value,clonedCareerValue;
+          if(careerKey==="players"||careerKey==="history"){
+            clonedCareerValue=safePostRetirementRows(careerValue,careerKey);
+          }else{
+            clonedCareerValue=clonePostRetirementValue(careerValue,0);
+          }
+          if(clonedCareerValue===undefined)continue;
+          Object.defineProperty(careerCopy,careerKey,{value:clonedCareerValue,enumerable:true,writable:true,configurable:true});
+        }
+        value=careerCopy;
+      }
+      Object.defineProperty(snapshotSource,key,{value:value,enumerable:true,writable:true,configurable:true});
+    }
+    try{if(typeof window.structuredClone==="function")return window.structuredClone(snapshotSource);}catch(error){}
+    try{return JSON.parse(JSON.stringify(snapshotSource));}catch(error){return null;}
   }
   function safeAgentLedgerSnapshotScalar(value,fallback){
     if(value===null||typeof value==="string"||typeof value==="boolean"
@@ -1304,20 +1390,37 @@ function availableAgentBalance(s){
     });
   }
   async function registerAgencyPlayer(s,player){
-    if(!s||!s.retired||!s.retirementCareer||s.retirementCareer.type!=="agency"||!player||player.id==null)return {ok:false,reason:"مسار الوكالة غير متاح أو بيانات اللاعب ناقصة."};
-    var playerId=safeAgentId(player.id,"");
+    var career=safeAgentField(s,"retirementCareer"),rawPlayerId=safeAgentField(player,"id");
+    if(!s||!safeAgentField(s,"retired")||!career||safeAgentField(career,"type")!=="agency"
+      ||!player||rawPlayerId==null)return {ok:false,reason:"مسار الوكالة غير متاح أو بيانات اللاعب ناقصة."};
+    var playerId=safeAgentId(rawPlayerId,"");
     if(!playerId)return {ok:false,reason:"معرّف اللاعب غير صالح."};
-    var career=s.retirementCareer,players=Array.isArray(career.players)?career.players:[];
-    if(players.some(function(p){return safeAgentId(p&&p.id,"")===playerId;}))return {ok:false,reason:"اللاعب مسجل بالفعل."};
+    var players=safePostRetirementRows(safeAgentField(career,"players"),"players");
+    for(var i=0;i<players.length;i++){
+      if(safeAgentId(players[i].id,"")===playerId)return {ok:false,reason:"اللاعب مسجل بالفعل."};
+    }
     return runPostRetirementMutation(s,function(){
-      var current=s.retirementCareer;
-      current.players=Array.isArray(current.players)?current.players:[];
-      if(current.players.some(function(p){return safeAgentId(p&&p.id,"")===playerId;}))return false;
-      var registered={id:playerId,name:safeAgentText(player.name,"لاعب جديد"),club:safeAgentText(player.club,""),joinedSeason:safeAgentNumber(s.season,1)||1,appearancesAtSigning:Math.max(0,safeAgentNumber(player.appearances,0))};
-      current.players.push(registered);
-      current.reputation=Math.min(100,safeAgentNumber(current.reputation,0)+1);
-      current.history=Array.isArray(current.history)?current.history:[];
-      current.history.unshift({type:"player-signed",playerId:playerId,season:safeAgentNumber(s.season,1)||1});
+      var current=safeAgentField(s,"retirementCareer");
+      if(!current||safeAgentField(current,"type")!=="agency")return false;
+      var currentPlayers=safePostRetirementRows(safeAgentField(current,"players"),"players");
+      for(var j=0;j<currentPlayers.length;j++){
+        if(safeAgentId(currentPlayers[j].id,"")===playerId)return false;
+      }
+      var season=safeAgentNumber(safeAgentField(s,"season"),1)||1;
+      var registered={
+        id:playerId,
+        name:safeAgentText(safeAgentField(player,"name"),"لاعب جديد"),
+        club:safeAgentText(safeAgentField(player,"club"),""),
+        joinedSeason:season,
+        appearancesAtSigning:Math.max(0,safeAgentNumber(safeAgentField(player,"appearances"),0))
+      };
+      currentPlayers[currentPlayers.length]=registered;
+      current.players=currentPlayers;
+      current.reputation=Math.min(100,safeAgentNumber(safeAgentField(current,"reputation"),0)+1);
+      var history=safePostRetirementRows(safeAgentField(current,"history"),"history");
+      var nextHistory=[{type:"player-signed",playerId:playerId,season:season}];
+      for(var h=0;h<history.length;h++)nextHistory[nextHistory.length]=history[h];
+      current.history=nextHistory;
       return {career:current,player:registered};
     });
   }

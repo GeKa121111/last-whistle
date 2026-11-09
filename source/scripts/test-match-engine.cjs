@@ -1450,6 +1450,19 @@ assert.equal(engine.validateResult(validShootoutEvent).ok, true,
 assert.equal(browserEngine.validateResult(validShootoutEvent).ok, true,
   "the embedded validator must accept a valid shootout event");
 
+const unsafeShootoutScore = {
+  ...validShootoutEvent,
+  events: validShootoutEvent.events.map(event => ({ ...event, scoreFor: Number.MAX_SAFE_INTEGER + 1 })),
+  shootout: { ...validShootoutEvent.shootout, scoreFor: Number.MAX_SAFE_INTEGER + 1 }
+};
+for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
+  const validation = targetEngine.validateResult(unsafeShootoutScore);
+  assert.equal(validation.ok, false,
+    label + " validator must reject unsafe integer shootout summaries");
+  assert.equal(validation.shootoutLedgerConsistent, false,
+    label + " validator must mark an unsafe shootout score ledger inconsistent");
+}
+
 for (const [label, targetEngine] of [["source", engine], ["browser", browserEngine]]) {
   assert.equal(targetEngine.shootoutWinnerCertain(3, 0, 4, 3), true,
     label + " must stop when a 3-goal lead exceeds the opponent's two remaining kicks");

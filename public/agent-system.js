@@ -166,13 +166,14 @@
   }
   function hasDataAgentProfileFields(value){
     if(!value||typeof value!=="object")return false;
+    try{if(!Object.isExtensible(value))return false;}catch(_){return false;}
     var fields=["id","name","title","mark","feeRate","customFeeRate","relationship","contractMode","expiresSeason",
       "signedApps","lastChapterApps","lastChapterSeason","lastPerformanceMilestone","hiredSeason","signedDay",
       "storyStage","strategyOverride","feeDebt","legacyMigrated","contractMultiplierDelta","negotiationRaiseBonusDelta","perks"];
     for(var i=0;i<fields.length;i++){
       var descriptor=null;
       try{descriptor=Object.getOwnPropertyDescriptor(value,fields[i]);}catch(_){return false;}
-      if(descriptor&&!Object.prototype.hasOwnProperty.call(descriptor,"value"))return false;
+      if(descriptor&&(!Object.prototype.hasOwnProperty.call(descriptor,"value")||descriptor.writable!==true))return false;
     }
     return true;
   }

@@ -405,6 +405,26 @@
       return {values:values,changed:changed};
     }catch(_){return null;}
   }
+  function safeAgentHistoryRows(value){
+    var inspected=inspectAgentArrayData(value);
+    if(!inspected)return [];
+    var rows=[];
+    for(var i=0;i<inspected.values.length;i++){
+      var raw=inspected.values[i];
+      if(!raw||typeof raw!=="object")continue;
+      var title=safeAgentText(safeAgentField(raw,"title"),"");
+      var text=safeAgentText(safeAgentField(raw,"text"),"");
+      if(!text)text=safeAgentText(safeAgentField(raw,"description"),"");
+      if(!title&&!text)continue;
+      rows.push({
+        season:safeWholeAmount(safeAgentField(raw,"season"))||1,
+        day:safeWholeAmount(safeAgentField(raw,"day"))||1,
+        title:title||"حدث مع الوكيل",
+        text:text
+      });
+    }
+    return rows;
+  }
   function agentFeeDebtLedgerSnapshot(s){
     var inspected=inspectAgentArrayData(safeAgentField(s,"agentFeeDebtLedger"));
     if(!inspected)return "invalid";
@@ -609,9 +629,9 @@ function availableAgentBalance(s){
     return changed;
   }
   function record(s,title,text,silent){
-    if(!Array.isArray(s.agentHistory))s.agentHistory=[];
+    var history=safeAgentHistoryRows(safeAgentField(s,"agentHistory"));
     var e={season:safeAgentNumber(s.season,1)||1,day:safeAgentNumber(s.day,1)||1,title:safeAgentText(title,"حدث مع الوكيل"),text:safeAgentText(text,"")};
-    s.agentHistory.unshift(e);s.agentHistory=s.agentHistory.slice(0,40);
+    history.unshift(e);s.agentHistory=history.slice(0,40);
     if(!silent){var api=API();if(api&&api.log)api.log(e.title+": "+e.text);}
   }
   function save(s,message){
@@ -678,8 +698,9 @@ function availableAgentBalance(s){
         :"";
     }
     if(cards)cards.innerHTML=AGENTS.map(function(a){return renderCard(a,p&&s.agent?p.id:"");}).join("");
-    var rows=Array.isArray(s.agentHistory)?s.agentHistory.slice(0,4):[],hist=document.getElementById("lwa-agent-history"),count=document.getElementById("lwa-history-count");
-    if(count)count.textContent=(Array.isArray(s.agentHistory)?s.agentHistory.length:0)+" حدث";
+    var historyRows=safeAgentHistoryRows(safeAgentField(s,"agentHistory"));
+    var rows=historyRows.slice(0,4),hist=document.getElementById("lwa-agent-history"),count=document.getElementById("lwa-history-count");
+    if(count)count.textContent=historyRows.length+" حدث";
     if(hist)hist.innerHTML=rows.length?rows.map(function(e){return '<div class="lwa-history-item"><span class="lwa-history-marker"></span><div><strong>'+esc(e.title)+'</strong><p>'+esc(e.text)+' <small>· الموسم '+esc(e.season)+' / اليوم '+esc(e.day)+'</small></p></div></div>';}).join(""):'<p class="lwa-empty-history">مفيش أحداث مسجلة لسه. أول مقابلة أو قرار مع وكيلك هتلاقيه هنا.</p>';
     var n=document.getElementById("lwa-agent-count");if(n)n.textContent=AGENTS.length+" شخصيات";
   }
@@ -947,9 +968,9 @@ function availableAgentBalance(s){
     var preview={};
     for(var i=0;i<keys.length;i++){
       var key=keys[i],value=safeAgentField(state,key);
-      // agentLead is a display-only marker and the debt ledger is normalized from
-      // descriptors; preserve both references instead of cloning hostile containers.
-      if(key==="agentLead"||key==="agentFeeDebtLedger"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
+      // Display-only lead and descriptor-normalized history/debt containers stay by reference
+      // until ensureState can sanitize them without cloning hostile proxies or accessors.
+      if(key==="agentLead"||key==="agentHistory"||key==="agentFeeDebtLedger"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
         Object.defineProperty(preview,key,{value:value,enumerable:true,writable:true,configurable:true});
         continue;
       }
@@ -966,9 +987,12 @@ function availableAgentBalance(s){
     var debtLedgerInspection=inspectAgentArrayData(rawDebtLedger);
     var hasDebtLedger=rawDebtLedger!=null&&(!debtLedgerInspection
       ||debtLedgerInspection.changed||debtLedgerInspection.values.length>0);
+    var rawHistory=safeAgentField(s,"agentHistory");
+    var historyInspection=inspectAgentArrayData(rawHistory);
+    var hasHistory=rawHistory!=null&&(!historyInspection
+      ||historyInspection.changed||historyInspection.values.length>0);
     var hasAgentState=!!s.agent||!!(s.agentProfile&&typeof s.agentProfile==="object")
-      ||(Array.isArray(s.agentHistory)&&s.agentHistory.length>0)
-      ||hasDebtLedger||!!s.agentNegotiationQuote
+      ||hasHistory||hasDebtLedger||!!s.agentNegotiationQuote
       ||safeAgentNumber(s.agentFeeDebtSequence,0)>0||safeAgentNumber(s.agentDebtPaid,0)>0
       ||safeAgentNumber(s.agentCommissionPaid,0)>0;
     if(hasAgentState){
@@ -986,7 +1010,7 @@ function availableAgentBalance(s){
         });
       }
     }
-    var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
+    var p=s.agentProfile||null,history=safeAgentHistoryRows(rawHistory),latest=history.length?history[history.length-1]:null;
     var lead=!!safeAgentField(s,"agentLead");
     var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+safeAgentText(p.perks[key],"");}).join(","):"";
     var snapshot=[
@@ -1120,6 +1144,8 @@ function availableAgentBalance(s){
     var hasLead=Object.prototype.hasOwnProperty.call(preview,"agentLead");
     var leadValue=safeAgentField(preview,"agentLead");
     if(hasLead)delete preview.agentLead;
+    var rawHistory=safeAgentField(preview,"agentHistory");
+    if(rawHistory!=null)preview.agentHistory=safeAgentHistoryRows(rawHistory);
     var rawLedger=safeAgentField(preview,"agentFeeDebtLedger");
     if(rawLedger!=null)preview.agentFeeDebtLedger=cloneAgentDebtLedgerForSnapshot(rawLedger);
     var snapshot=clonePostRetirementMutationState(preview);

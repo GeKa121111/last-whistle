@@ -19,6 +19,14 @@ require("./assert-static-cache-version.cjs")(sw, 606);
 assert.match(sw, /agent-system\.js\?v=14/);
 assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 
+const helperStart = source.indexOf("  function inspectAgentArrayData(");
+const helperEnd = source.indexOf("  function outstandingFeeDebt(", helperStart);
+const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(");
+const previewEnd = source.indexOf("\n  function tick(force)", previewStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart, "safe debt-ledger helpers must be extractable");
+assert.ok(previewStart >= 0 && previewEnd > previewStart, "maintenance preview must be extractable");
+const helperSource = source.slice(helperStart, helperEnd);
+const previewSource = source.slice(previewStart, previewEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf('\n  document.addEventListener("click"', tickStart);
 const startStart = source.indexOf("  function start(){", tickEnd);
@@ -64,8 +72,22 @@ function makeHarness(withStore = true) {
       : typeof value === "number" && Number.isFinite(value) ? String(value)
         : typeof value === "boolean" ? (value ? "true" : "false")
           : (typeof fallback === "string" ? fallback : ""),
-    ensureState: state => { if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; return true; } return false; }, renewRelationship: () => false,
-    cloneAgentMaintenancePreview: state => Object.assign({}, state),
+    ensureState: state => {
+      let changed = false;
+      if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; changed = true; }
+      const rawLedger = state.agentFeeDebtLedger;
+      if (rawLedger != null) {
+        const inspected = inspectAgentArrayData(rawLedger);
+        if (!inspected) { state.agentFeeDebtLedger = []; changed = true; }
+        else if (inspected.changed) { state.agentFeeDebtLedger = inspected.values; changed = true; }
+      }
+      return changed;
+    },
+    renewRelationship: () => false,
+    clonePostRetirementMutationState: value => {
+      try { return structuredClone(value); }
+      catch (_) { try { return JSON.parse(JSON.stringify(value)); } catch (_) { return null; } }
+    },
     runAgentContractMutation: (state, operation) => { maintenanceCalls++; operation(); return Promise.resolve({ ok: true }); },
     agentContractMutationPending: false, postRetirementMutationPending: false,
     scheduleTick: () => {},
@@ -73,6 +95,8 @@ function makeHarness(withStore = true) {
     lastSnapshot: "", panelWasRendered: false, tickScheduled: false, tickForceQueued: false, window, document, Promise
   };
   vm.createContext(sandbox);
+  vm.runInContext(helperSource, sandbox, { filename: "agent-system.debt-ledger-helpers" });
+  vm.runInContext(previewSource, sandbox, { filename: "agent-system.maintenance-preview" });
   vm.runInContext(tickSource, sandbox, { filename: "agent-system.tick" });
   vm.runInContext(startSource, sandbox, { filename: "agent-system.start" });
   return {
@@ -111,6 +135,32 @@ function makeHarness(withStore = true) {
   current.windowListeners.pageshow[0]();
   assert.equal(current.renders, 4, "pageshow should force refresh even if snapshot matches");
   assert.equal(current.saves, 0, "event-driven rendering must not create saves without a migration");
+
+  // Polling must normalize an overridden ledger without calling its own array methods.
+  const hostileLedgerHarness = makeHarness(true);
+  hostileLedgerHarness.state.agentHistory = [];
+  const pollingLedger = [{id:"polling-debt",agentId:"legacy",agentName:"وكيل سابق",reason:"دين محفوظ",amount:120,paid:0,outstanding:120,createdSeason:1,createdDay:1}];
+  pollingLedger.forEach = "not-callable";
+  pollingLedger.reduce = "not-callable";
+  hostileLedgerHarness.state.agentFeeDebtLedger = pollingLedger;
+  await hostileLedgerHarness.sandbox.tick(true);
+  assert.equal(hostileLedgerHarness.maintenanceCalls,1,
+    "polling must route a hostile debt array through the durable maintenance transaction");
+  assert.equal(hostileLedgerHarness.state.agentFeeDebtLedger.length,1);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileLedgerHarness.state.agentFeeDebtLedger,"forEach"),false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileLedgerHarness.state.agentFeeDebtLedger,"reduce"),false);
+
+  // Preserve an uninspectable ledger reference in the preview so ensureState can replace it safely.
+  const revokedLedgerHarness = makeHarness(true);
+  revokedLedgerHarness.state.agentHistory = [];
+  const revokedLedgerProxy = Proxy.revocable([], {});
+  revokedLedgerProxy.revoke();
+  revokedLedgerHarness.state.agentFeeDebtLedger = revokedLedgerProxy.proxy;
+  await assert.doesNotReject(async () => { await revokedLedgerHarness.sandbox.tick(true); },
+    "agent polling must not throw while hydrating a revoked debt-ledger proxy");
+  assert.equal(revokedLedgerHarness.maintenanceCalls,1);
+  assert.equal(Array.isArray(revokedLedgerHarness.state.agentFeeDebtLedger),true);
+  assert.equal(revokedLedgerHarness.state.agentFeeDebtLedger.length,0);
 
   const fallback = makeHarness(false);
   fallback.sandbox.start();

@@ -273,8 +273,8 @@ async function runStoryMutation(state,operation){
   var mutationLockAcquired=false,snapshot=null,snapshotReady=false,mutationStarted=false;
   var payload=null,appliedSnapshot=null;
   try{
-    var mutationLock=acquireSharedMutationLock("story-mode");
-    if(mutationLock&&typeof mutationLock.then==="function")mutationLock=await mutationLock;
+    var mutationLock = acquireSharedMutationLock("story-mode");
+    if (mutationLock && typeof mutationLock.then === "function") mutationLock = await mutationLock;
     if(mutationLock!==true){
       try{if(api.toast)api.toast("تعذر تأمين قفل الحفظ؛ القرار ما اتطبقش.");}catch(toastError){}
       return {ok:false,reason:"story-mutation-lock-unavailable"};

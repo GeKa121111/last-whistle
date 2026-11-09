@@ -77,7 +77,7 @@ function makeHarness(withStore = true) {
       if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; changed = true; }
       const rawLedger = state.agentFeeDebtLedger;
       if (rawLedger != null) {
-        const inspected = inspectAgentArrayData(rawLedger);
+        const inspected = sandbox.inspectAgentArrayData(rawLedger);
         if (!inspected) { state.agentFeeDebtLedger = []; changed = true; }
         else if (inspected.changed) { state.agentFeeDebtLedger = inspected.values; changed = true; }
       }

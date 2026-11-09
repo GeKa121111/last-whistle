@@ -859,15 +859,21 @@ function availableAgentBalance(s){
     frame("ملف الوكيل: "+cfg.name,"YOUR REPRESENTATIVE",body,"العلاقة المرتفعة تقوّي مزايا الوكيل. قراراتك في الفصول قد تغيّر تخصصه وطريقة بحثه.");
   }
   async function finishStory(index){
-    var api=API(),s=api&&api.getState(),cfg=agentConfig(s),p=s&&s.agentProfile,chapter=currentChapter(s);
+    var api=API(),s=api&&api.getState(),cfg=agentConfig(s),p=safeAgentField(s,"agentProfile"),chapter=currentChapter(s);
     if(!cfg||!p||!chapter||!chapter.options[index])return {ok:false,reason:"اختيار قصة الوكيل غير متاح."};
     var c=chapter.options[index];
     var result=await runAgentContractMutation(s,function(){
+      // Story effects must mutate a safe profile copy, not a saved perks proxy.
+      var safeProfile=cloneAgentProfileForMaintenance(safeAgentField(s,"agentProfile"));
+      if(!safeProfile)return false;
+      s.agentProfile=safeProfile;
+      p=safeProfile;
       Object.keys(c.effects||{}).forEach(function(k){if(["trust","morale","energy","fatigue","professionalism","mediaReputation","teamChemistry","coachRelationship","money","followers"].indexOf(k)>=0)boundedStat(s,k,c.effects[k]);});
       if(c.strategy)p.strategyOverride=c.strategy;
       if(c.contractMultiplierDelta)p.contractMultiplierDelta=Math.max(-.06,Math.min(.06,safeAgentNumber(p.contractMultiplierDelta,0)+c.contractMultiplierDelta));
       if(c.negotiationRaiseBonusDelta)p.negotiationRaiseBonusDelta=Math.max(-.1,Math.min(.15,safeAgentNumber(p.negotiationRaiseBonusDelta,0)+c.negotiationRaiseBonusDelta));
-      if(c.setPerk)p.perks[c.setPerk]=true;
+      if(c.setPerk&&isSafeAgentPerkKey(c.setPerk))
+        Object.defineProperty(p.perks,c.setPerk,{value:true,enumerable:true,writable:true,configurable:true});
       addTrust(s,c.relationship);p.storyStage=cap(safeAgentNumber(p.storyStage,0)+1,0,cfg.chapters.length);
       p.lastChapterApps=safeAgentNumber(s.apps,0);p.lastChapterSeason=safeAgentNumber(s.season,1)||1;
       record(s,cfg.name+" — "+chapter.title,c.outcome+" (العلاقة: "+rel(s)+"/100)");

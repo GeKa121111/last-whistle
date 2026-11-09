@@ -599,6 +599,51 @@ function createHarness() {
   assert.equal(functionIdentityNotifications, 1,
     "replacing a function with a different closure of identical source must notify the selector subscriber");
 
+  const nestedObjectFunctionSelector = createHarness();
+  const makeNestedCareerAction = amount => function nestedCareerAction() { return amount; };
+  const firstNestedCareerAction = makeNestedCareerAction(30);
+  const secondNestedCareerAction = makeNestedCareerAction(40);
+  nestedObjectFunctionSelector.store.publish({
+    selected: { actions: { primary: firstNestedCareerAction } }
+  }, { source: "import" });
+  let nestedObjectNotifications = 0;
+  nestedObjectFunctionSelector.store.subscribeSelector(
+    state => state && state.selected && state.selected.actions,
+    () => { nestedObjectNotifications += 1; }
+  );
+  nestedObjectFunctionSelector.store.publish({
+    selected: { actions: { primary: firstNestedCareerAction } }
+  }, { source: "save" });
+  assert.equal(nestedObjectNotifications, 0,
+    "the same nested object function reference must keep its selector signature stable");
+  nestedObjectFunctionSelector.store.publish({
+    selected: { actions: { primary: secondNestedCareerAction } }
+  }, { source: "save" });
+  assert.equal(nestedObjectNotifications, 1,
+    "a different closure nested in an object must notify selector subscribers");
+
+  const nestedArrayFunctionSelector = createHarness();
+  const firstArrayCareerAction = makeNestedCareerAction(50);
+  const secondArrayCareerAction = makeNestedCareerAction(60);
+  nestedArrayFunctionSelector.store.publish({
+    selected: { actions: [firstArrayCareerAction] }
+  }, { source: "import" });
+  let nestedArrayNotifications = 0;
+  nestedArrayFunctionSelector.store.subscribeSelector(
+    state => state && state.selected && state.selected.actions,
+    () => { nestedArrayNotifications += 1; }
+  );
+  nestedArrayFunctionSelector.store.publish({
+    selected: { actions: [firstArrayCareerAction] }
+  }, { source: "save" });
+  assert.equal(nestedArrayNotifications, 0,
+    "the same function inside an array must not produce a redundant selector notification");
+  nestedArrayFunctionSelector.store.publish({
+    selected: { actions: [secondArrayCareerAction] }
+  }, { source: "save" });
+  assert.equal(nestedArrayNotifications, 1,
+    "a different closure inside an array must notify selector subscribers");
+
   console.log("PASS: delayed hydration, stale IndexedDB writes, queued mutations, and identity-safe selector signatures remain safe; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);

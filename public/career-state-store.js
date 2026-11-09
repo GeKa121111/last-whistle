@@ -404,18 +404,19 @@
   let selectorSignatureFallbackSequence = 0;
   let selectorFunctionSignatureSequence = 0;
   const selectorFunctionSignatures = new WeakMap();
-  function selectorSignature(value) {
-    if (typeof value === "function") {
-      // Function source text is not identity: closures created by the same
-      // factory can capture different career values. WeakMap also safely keys
-      // revoked callable proxies without invoking their traps.
-      let signature = selectorFunctionSignatures.get(value);
-      if (!signature) {
-        signature = "function:" + (++selectorFunctionSignatureSequence);
-        selectorFunctionSignatures.set(value, signature);
-      }
-      return signature;
+  function selectorFunctionSignature(value) {
+    // Function source text is not identity: closures created by the same
+    // factory can capture different career values. WeakMap also safely keys
+    // revoked callable proxies without invoking their traps.
+    let signature = selectorFunctionSignatures.get(value);
+    if (!signature) {
+      signature = "function:" + (++selectorFunctionSignatureSequence);
+      selectorFunctionSignatures.set(value, signature);
     }
+    return signature;
+  }
+  function selectorSignature(value) {
+    if (typeof value === "function") return selectorFunctionSignature(value);
     if (value === undefined) return "undefined";
     if (value === null) return "object:null";
     if (typeof value !== "object") {
@@ -427,7 +428,13 @@
       }
     }
     try {
-      const encoded = JSON.stringify(value);
+      const encoded = JSON.stringify(value, function (_key, nestedValue) {
+        // JSON.stringify normally drops functions in objects and turns array
+        // functions into null. Preserve their reference identity at every depth.
+        return typeof nestedValue === "function"
+          ? selectorFunctionSignature(nestedValue)
+          : nestedValue;
+      });
       return typeof encoded === "string" ? encoded : String(encoded);
     } catch (_) {
       // Circular values, throwing accessors, and revoked proxies cannot be
@@ -439,8 +446,17 @@
   function subscribeSelector(selector, listener, equals) {
     if (typeof selector !== "function" || typeof listener !== "function") return function () {};
     let selected;
-    try { selected = safeClone(selector(currentState)); } catch (_) { selected = undefined; }
-    let signature = selectorSignature(selected);
+    let initialSelection;
+    try {
+      initialSelection = selector(currentState);
+      selected = safeClone(initialSelection);
+    } catch (_) {
+      initialSelection = undefined;
+      selected = undefined;
+    }
+    // Keep the raw selector value for signature generation: safeClone is a
+    // persistence-oriented clone and intentionally cannot retain functions.
+    let signature = selectorSignature(initialSelection);
     const wrapped = function (event) {
       let next;
       try { next = selector(event && event.state); } catch (_) { return; }

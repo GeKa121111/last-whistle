@@ -17,6 +17,10 @@ const safeTextStart = source.indexOf("  function safeAgentText(value,fallback){"
 const safeTextEnd = source.indexOf("\n  function safeAgentId", safeTextStart);
 assert.ok(safeTextStart >= 0 && safeTextEnd > safeTextStart, "safe persisted-text helper must exist");
 const safeTextSource = source.slice(safeTextStart, safeTextEnd);
+const safeFieldStart = source.indexOf("  function safeAgentField(record,key){");
+const safeFieldEnd = source.indexOf("\n  function isPlainAgentRecord", safeFieldStart);
+assert.ok(safeFieldStart >= 0 && safeFieldEnd > safeFieldStart, "safe persisted-field helper must exist");
+const safeFieldSource = source.slice(safeFieldStart, safeFieldEnd);
 const finiteNumberStart = source.indexOf("  function finiteAgentNumber(value){");
 const safeNumberEnd = source.indexOf("\n  function safeWholeAmount", finiteNumberStart);
 assert.ok(finiteNumberStart >= 0 && safeNumberEnd > finiteNumberStart,
@@ -25,6 +29,12 @@ const safeNumberSource = source.slice(finiteNumberStart, safeNumberEnd);
 assert.ok(tickSource.includes("panelWasRendered"), "panel render state must handle late DOM mounting");
 assert.ok(!tickSource.includes("checkExpiry(s)"),
   "the render optimization must not reintroduce automatic expiry for open-ended agent contracts");
+const renderPanelStart = source.indexOf("  function renderPanel(s){");
+const renderPanelEnd = source.indexOf("\n  function ensureOverlay", renderPanelStart);
+assert.ok(renderPanelStart >= 0 && renderPanelEnd > renderPanelStart, "agent panel renderer must be extractable");
+const renderPanelSource = source.slice(renderPanelStart, renderPanelEnd);
+assert.ok(renderPanelSource.includes('safeAgentField(s,"agentLead")') && !renderPanelSource.includes("s.agentLead"),
+  "agent lead display must read legacy state through the guarded field helper");
 
 const state = {
   careerStarted: true,
@@ -57,7 +67,15 @@ const sandbox = {
   API: () => api,
   ensureState: () => false,
   renewRelationship: () => false,
-  cloneAgentMaintenancePreview: value => Object.assign({}, value),
+  cloneAgentMaintenancePreview: value => {
+    const preview = {};
+    Object.keys(value).forEach(key => {
+      let next;
+      try { next = value[key]; } catch (_) { next = undefined; }
+      Object.defineProperty(preview, key, { value: next, enumerable: true, writable: true, configurable: true });
+    });
+    return preview;
+  },
   runAgentContractMutation: (value, operation) => { operation(); return Promise.resolve({ ok: true }); },
   agentContractMutationPending: false,
   postRetirementMutationPending: false,
@@ -70,7 +88,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext("var agentContractMutationPending=false; var postRetirementMutationPending=false;", sandbox);
-vm.runInContext(safeTextSource + "\n" + safeNumberSource + "\n" + tickSource, sandbox, { filename: "agent-system.tick" });
+vm.runInContext(safeFieldSource + "\n" + safeTextSource + "\n" + safeNumberSource + "\n" + tickSource, sandbox, { filename: "agent-system.tick" });
 
 sandbox.tick();
 sandbox.tick();
@@ -97,4 +115,21 @@ assert.doesNotThrow(() => sandbox.tick(),
   "malformed but valid-JSON agent text must not crash panel snapshot generation");
 assert.equal(renders, 4, "a changed legacy agent snapshot must still refresh the panel");
 
-console.log("PASS: agent panel rendering handles hostile legacy text and remains snapshot-driven.");
+// Legacy agentLead is display-only state. Its object details must never be serialized into the render snapshot.
+state.agentLead = new Proxy({ id: "legacy-lead" }, {
+  get(target, key, receiver) {
+    if (key === "id") throw new Error("hostile agent lead getter");
+    return Reflect.get(target, key, receiver);
+  }
+});
+assert.doesNotThrow(() => sandbox.tick(), "a hostile legacy agent lead must not break the agent panel snapshot");
+assert.equal(renders, 5, "a changed agent lead must still refresh the panel");
+
+Object.defineProperty(state, "agentLead", {
+  configurable: true, enumerable: true,
+  get() { throw new Error("hostile agentLead state getter"); }
+});
+assert.doesNotThrow(() => sandbox.tick(), "a throwing top-level agentLead getter must fail closed");
+assert.equal(renders, 6, "the panel must remain renderable when agentLead cannot be read");
+
+console.log("PASS: agent panel rendering handles hostile legacy text and agent-lead values while remaining snapshot-driven.");

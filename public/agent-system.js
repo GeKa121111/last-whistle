@@ -545,7 +545,7 @@ function availableAgentBalance(s){
   }
   function renderPanel(s){
     if(!s||!ensurePanel())return;
-    var cfg=agentConfig(s),p=s.agentProfile,pr=p?progress(s):null,summary=document.getElementById("lwa-current-summary"),cards=document.getElementById("lwa-agent-cards");
+    var cfg=agentConfig(s),p=s.agentProfile,pr=p?progress(s):null,hasLead=!!safeAgentField(s,"agentLead"),summary=document.getElementById("lwa-current-summary"),cards=document.getElementById("lwa-agent-cards");
     if(summary){
       if(cfg&&p){
         var r=rel(s),label=r>=75?"ثقة قوية":r>=50?"علاقة مستقرة":r>=30?"علاقة متوترة":"علاقة على المحك";
@@ -554,7 +554,7 @@ function availableAgentBalance(s){
           '<div class="lwa-current-meta"><span>مستمر حتى فسخك له</span><span>'+Math.round(safeAgentNumber(p.customFeeRate==null?p.feeRate:p.customFeeRate,0)*100)+'% أتعاب</span><span>تقدر تنهيه أو تغيّره وقت ما تحب</span></div></div>'+
           '<div class="lwa-current-right"><div class="lwa-arc-mark">'+(pr.complete?"✓":(pr.stage+1)+"/"+pr.total)+'</div><strong>'+(pr.complete?"قصة مكتملة":pr.ready?"فصل جديد جاهز":"القصة مستمرة")+'</strong><p>'+(pr.complete?"خلصت الفصول الأساسية مع الوكيل.":pr.ready?"فيه موقف جديد مستني قرارك.":"العب "+pr.remaining+" مشاركة إضافية عشان تفتح الفصل التالي.")+'</p><button type="button" class="lwa-agent-action lwa-agent-action-light" data-lwag-action="agent-story">'+(pr.ready?"افتح الفصل الجديد":"راجع قصتنا")+' <b aria-hidden="true">←</b></button></div>';
       }else{
-        summary.innerHTML='<div class="lwa-current-left"><div class="lwa-current-label">NO ACTIVE REPRESENTATIVE</div><h3>'+(s.agentLead?"وصلت لمرحلة اختيار الوكيل":"مسيرتك لسه من غير وكيل أعمال")+'</h3><p>'+(s.agentLead?"قابل الوكلاء، اسمع طريقتهم وشروطهم، واختار اللي يخدم خطتك. فتح باب التمثيل مش معناه إنك مضطر توقّع.":"مش لازم توقّع من أول يوم. تقدر تبدأ من غير وكيل، وبعدها تختار شخصًا مناسبًا لما تكون مستعدًا.")+'</p></div><div class="lwa-current-right"><div class="lwa-arc-mark">06</div><strong>ست طرق مختلفة</strong><p>الاستقرار، الشهرة، الانتقالات، التفاوض، السرعة، أو الخطة الطويلة.</p></div>';
+        summary.innerHTML='<div class="lwa-current-left"><div class="lwa-current-label">NO ACTIVE REPRESENTATIVE</div><h3>'+(hasLead?"وصلت لمرحلة اختيار الوكيل":"مسيرتك لسه من غير وكيل أعمال")+'</h3><p>'+(hasLead?"قابل الوكلاء، اسمع طريقتهم وشروطهم، واختار اللي يخدم خطتك. فتح باب التمثيل مش معناه إنك مضطر توقّع.":"مش لازم توقّع من أول يوم. تقدر تبدأ من غير وكيل، وبعدها تختار شخصًا مناسبًا لما تكون مستعدًا.")+'</p></div><div class="lwa-current-right"><div class="lwa-arc-mark">06</div><strong>ست طرق مختلفة</strong><p>الاستقرار، الشهرة، الانتقالات، التفاوض، السرعة، أو الخطة الطويلة.</p></div>';
       }
     }
     var debtBox=document.getElementById("lwa-agent-debt"),debtTotal=outstandingFeeDebt(s),debtPaid=safeWholeAmount(s.agentDebtPaid);
@@ -829,17 +829,22 @@ function availableAgentBalance(s){
   }
   function cloneAgentMaintenancePreview(state){
     if(!state||typeof state!=="object")return null;
-    var preview=Object.assign({},state),failed=false;
-    // Only agent-owned state is cloned here; the multi-megabyte world database is read-only for this maintenance pass.
-    Object.keys(state).forEach(function(key){
-      if(failed||key.indexOf("agent")!==0)return;
-      var value=state[key];
-      if(!value||typeof value!=="object"){preview[key]=value;return;}
+    var keys=[];
+    try{keys=Object.keys(state);}catch(_){return null;}
+    var preview={};
+    for(var i=0;i<keys.length;i++){
+      var key=keys[i],value=safeAgentField(state,key);
+      // agentLead is a display-only truthy marker; preserve its reference without cloning
+      // arbitrary nested values or invoking getters while building the maintenance preview.
+      if(key==="agentLead"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
+        Object.defineProperty(preview,key,{value:value,enumerable:true,writable:true,configurable:true});
+        continue;
+      }
       var cloned=clonePostRetirementMutationState(value);
-      if(!cloned){failed=true;return;}
-      preview[key]=cloned;
-    });
-    return failed?null:preview;
+      if(!cloned)return null;
+      Object.defineProperty(preview,key,{value:cloned,enumerable:true,writable:true,configurable:true});
+    }
+    return preview;
   }
   function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
@@ -865,10 +870,10 @@ function availableAgentBalance(s){
       }
     }
     var p=s.agentProfile||null,history=Array.isArray(s.agentHistory)?s.agentHistory:[],latest=history.length?history[history.length-1]:null;
-    var lead=s.agentLead&&typeof s.agentLead==="object"?{id:s.agentLead.id,agentId:s.agentLead.agentId,status:s.agentLead.status,season:s.agentLead.season,day:s.agentLead.day}:s.agentLead;
+    var lead=!!safeAgentField(s,"agentLead");
     var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+safeAgentText(p.perks[key],"");}).join(","):"";
     var snapshot=[
-      s.careerStarted,s.agent,JSON.stringify(lead||null),s.retired,
+      s.careerStarted,s.agent,lead,s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
       p&&p.contractMultiplierDelta,p&&p.negotiationRaiseBonusDelta,p&&p.feeDebt,
       s.agentFeeDebtLedger&&JSON.stringify(s.agentFeeDebtLedger),s.agentDebtPaid,s.agentDebtLastPayrollDay,perks,

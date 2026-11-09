@@ -360,18 +360,66 @@
     var n=finiteAgentNumber(value);
     return n===null?0:Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(n)));
   }
+  // Arrays restored from JSON can own non-callable forEach/reduce properties.
+  // Read only canonical numeric data properties; never invoke an overridable array method
+  // or an accessor-backed row while hydrating financial records.
+  function inspectAgentArrayData(value){
+    try{
+      if(!Array.isArray(value))return null;
+      var names=Object.getOwnPropertyNames(value);
+      var lengthDescriptor=Object.getOwnPropertyDescriptor(value,"length");
+      if(!lengthDescriptor||!Object.prototype.hasOwnProperty.call(lengthDescriptor,"value"))return null;
+      var length=lengthDescriptor.value;
+      if(!Number.isSafeInteger(length)||length<0||length>4294967295)return null;
+      var entries=[],changed=false;
+      for(var i=0;i<names.length;i++){
+        var key=names[i];
+        if(key==="length")continue;
+        var index=Number(key);
+        if(!Number.isInteger(index)||index<0||index>=4294967295||String(index)!==key){
+          changed=true;
+          continue;
+        }
+        var descriptor;
+        try{descriptor=Object.getOwnPropertyDescriptor(value,key);}
+        catch(_){changed=true;continue;}
+        if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value")){
+          changed=true;
+          continue;
+        }
+        entries.push({index:index,value:descriptor.value});
+      }
+      // Proxy ownKeys traps may return numeric keys in a non-array order.
+      // Keep the ledger's FIFO semantics by sorting the extracted indices explicitly.
+      for(var sortIndex=1;sortIndex<entries.length;sortIndex++){
+        var currentEntry=entries[sortIndex],insertAt=sortIndex-1;
+        while(insertAt>=0&&entries[insertAt].index>currentEntry.index){
+          entries[insertAt+1]=entries[insertAt];
+          insertAt--;
+        }
+        entries[insertAt+1]=currentEntry;
+      }
+      if(entries.length!==length)changed=true;
+      var values=[];
+      for(var rowIndex=0;rowIndex<entries.length;rowIndex++)values.push(entries[rowIndex].value);
+      return {values:values,changed:changed};
+    }catch(_){return null;}
+  }
   function outstandingFeeDebt(s,agentId){
-    var ledger=s&&Array.isArray(s.agentFeeDebtLedger)?s.agentFeeDebtLedger:[];
-    var target=agentId==null?null:safeAgentId(agentId,"legacy");
-    return ledger.reduce(function(total,entry){
-      if(!entry||typeof entry!=="object")return total;
-      if(target!==null&&safeAgentId(safeAgentField(entry,"agentId"),"legacy")!==target)return total;
+    var inspected=inspectAgentArrayData(safeAgentField(s,"agentFeeDebtLedger"));
+    var ledger=inspected?inspected.values:[];
+    var target=agentId==null?null:safeAgentId(agentId,"legacy"),total=0;
+    for(var i=0;i<ledger.length;i++){
+      var entry=ledger[i];
+      if(!entry||typeof entry!=="object")continue;
+      if(target!==null&&safeAgentId(safeAgentField(entry,"agentId"),"legacy")!==target)continue;
       var rawOutstanding=safeAgentField(entry,"outstanding");
       var outstanding=rawOutstanding==null
         ?Math.max(0,safeWholeAmount(safeAgentField(entry,"amount"))-safeWholeAmount(safeAgentField(entry,"paid")))
         :safeWholeAmount(rawOutstanding);
-      return Math.min(Number.MAX_SAFE_INTEGER,total+outstanding);
-    },0);
+      total=Math.min(Number.MAX_SAFE_INTEGER,total+outstanding);
+    }
+    return total;
   }
   function syncCurrentAgentDebt(s){
     var profile=safeAgentField(s,"agentProfile");
@@ -381,7 +429,8 @@
   function appendFeeDebt(s,amount,reason){
     var value=safeWholeAmount(amount);
     if(!s||!value)return null;
-    if(!Array.isArray(s.agentFeeDebtLedger))s.agentFeeDebtLedger=[];
+    var inspected=inspectAgentArrayData(safeAgentField(s,"agentFeeDebtLedger"));
+    s.agentFeeDebtLedger=inspected?inspected.values:[];
     s.agentFeeDebtSequence=safeWholeAmount(s.agentFeeDebtSequence)+1;
     var p=safeAgentField(s,"agentProfile")||{},cfg=agentConfig(s)||LEGACY_AGENT;
     var entry={
@@ -397,10 +446,15 @@
   function ensureFeeDebtLedger(s){
     if(!s||typeof s!=="object")return false;
     var changed=false;
-    if(!Array.isArray(s.agentFeeDebtLedger)){s.agentFeeDebtLedger=[];changed=true;}
+    var inspected=inspectAgentArrayData(safeAgentField(s,"agentFeeDebtLedger"));
+    if(!inspected){inspected={values:[],changed:true};}
+    if(inspected.changed)changed=true;
+    var rawLedger=inspected.values;
+    s.agentFeeDebtLedger=rawLedger;
     var sequence=safeWholeAmount(s.agentFeeDebtSequence),normalized=[];
-    s.agentFeeDebtLedger.forEach(function(raw){
-      if(!raw||typeof raw!=="object"){changed=true;return;}
+    for(var rowIndex=0;rowIndex<rawLedger.length;rowIndex++){
+      var raw=rawLedger[rowIndex];
+      if(!raw||typeof raw!=="object"){changed=true;continue;}
       var rawId=safeAgentField(raw,"id"),rawAgentId=safeAgentField(raw,"agentId");
       var rawAgentName=safeAgentField(raw,"agentName"),rawReason=safeAgentField(raw,"reason");
       var rawAmount=safeAgentField(raw,"amount"),rawPaid=safeAgentField(raw,"paid");
@@ -421,8 +475,8 @@
         ||entry.outstanding!==rawOutstanding||entry.createdSeason!==rawSeason
         ||entry.createdDay!==rawDay)changed=true;
       normalized.push(entry);
-    });
-    if(normalized.length!==s.agentFeeDebtLedger.length)changed=true;
+    }
+    if(normalized.length!==rawLedger.length)changed=true;
     s.agentFeeDebtLedger=normalized;
     if(sequence!==s.agentFeeDebtSequence){s.agentFeeDebtSequence=sequence;changed=true;}
     var paidTotal=safeWholeAmount(s.agentDebtPaid);
@@ -451,14 +505,18 @@
       return {paid:0,netPay:netPay,remaining:outstandingFeeDebt(s),duplicate:true};
     if(day>0)s.agentDebtLastPayrollDay=day;
     var remainingPay=netPay,paid=0,paidAgents=[];
-    s.agentFeeDebtLedger.forEach(function(entry){
-      if(remainingPay<=0)return;
-      var outstanding=safeWholeAmount(entry.outstanding);if(!outstanding)return;
+    var ledger=safeAgentField(s,"agentFeeDebtLedger");
+    if(!Array.isArray(ledger))ledger=[];
+    for(var i=0;i<ledger.length;i++){
+      if(remainingPay<=0)break;
+      var entry=ledger[i];
+      if(!entry||typeof entry!=="object")continue;
+      var outstanding=safeWholeAmount(entry.outstanding);if(!outstanding)continue;
       var portion=Math.min(outstanding,remainingPay);
       entry.paid=Math.min(entry.amount,safeWholeAmount(entry.paid)+portion);
       entry.outstanding=Math.max(0,entry.amount-entry.paid);
       remainingPay-=portion;paid+=portion;paidAgents.push(entry.agentName+" ("+portion+")");
-    });
+    }
     if(paid>0){
       s.agentDebtPaid=Math.min(Number.MAX_SAFE_INTEGER,safeWholeAmount(s.agentDebtPaid)+paid);
       syncCurrentAgentDebt(s);

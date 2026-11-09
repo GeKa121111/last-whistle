@@ -54,6 +54,11 @@
     try { if (typeof global.structuredClone === "function") return global.structuredClone(value); } catch (_) {}
     try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; }
   }
+  // A career save is a record object. Arrays are objects in JavaScript, but
+  // JSON serialization drops named properties attached to them.
+  function isCareerState(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
   // Save-record metadata must never coerce arbitrary values from a legacy career.
   // Keep numeric strings for older saves, but reject arrays/objects/booleans and non-finite numbers.
   function finiteMetadataNumber(value) {
@@ -148,7 +153,7 @@
         const record = await readRecord(DEFAULT_SLOT);
         // An import or new career can publish while IndexedDB is still opening.
         // Never let that older startup snapshot replace a newer live state.
-        if (record && record.state && typeof record.state === "object" && revision === startupRevision) {
+        if (record && isCareerState(record.state) && revision === startupRevision) {
           startupSave = record.state;
           currentState = record.state;
         }
@@ -177,7 +182,7 @@
     }
   }
   function publish(state, meta) {
-    if (!state || typeof state !== "object") return revision;
+    if (!isCareerState(state)) return revision;
     // A load/import/newer publish supersedes any default-slot transaction that has
     // not committed yet. Protecting startupSave alone is insufficient: the stale
     // IndexedDB put itself must not be allowed to overwrite the selected career.
@@ -190,7 +195,7 @@
   // Invalidate in-flight worker snapshots as soon as an in-memory career mutation
   // is queued, without notifying render subscribers before the durable write.
   function markDirty(state) {
-    if (!state || typeof state !== "object") return revision;
+    if (!isCareerState(state)) return revision;
     abortPendingDefaultWrite();
     currentState = state;
     revision += 1;
@@ -201,7 +206,7 @@
     const id = normalizeSlotId(options.slotId, DEFAULT_SLOT);
     if (id === null) return Promise.reject(new Error("Invalid save-slot id"));
     const snapshot = safeClone(state);
-    if (!snapshot || typeof snapshot !== "object") return Promise.reject(new Error("Invalid career save"));
+    if (!isCareerState(snapshot)) return Promise.reject(new Error("Invalid career save"));
     if (id === DEFAULT_SLOT) publish(state, { source: "save", slotId: id });
     const saveRevision = revision;
     const schemaVersionValue = finiteMetadataNumber(snapshot.schemaVersion);
@@ -279,7 +284,7 @@
     if (id === null) return null;
     const loadRevision = revision;
     const record = await readRecord(id);
-    if (!record || !record.state) return null;
+    if (!record || !isCareerState(record.state)) return null;
     const result = safeClone(record.state);
     // A delayed explicit load must not replace a newer import, save, or live publish.
     if (id === DEFAULT_SLOT && revision === loadRevision) {
@@ -296,7 +301,7 @@
       request.onsuccess = function () {
         const rows = Array.isArray(request.result) ? request.result : [];
         const entries = rows.map(function (row, index) {
-          if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+          if (!row || typeof row !== "object" || Array.isArray(row) || !isCareerState(row.state)) return null;
           const id = normalizeSlotId(row.id, "");
           if (!id) return null;
           const updatedAt = safeMetadataTimestamp(row.updatedAt);
@@ -334,10 +339,10 @@
       return activeDefaultFlush;
     }
     activeDefaultFlushRequested = false;
-    const requested = state && typeof state === "object" ? state : null;
+    const requested = isCareerState(state) ? state : null;
     const work = Promise.resolve().then(async function () {
-      let target = currentState && typeof currentState === "object" ? currentState : requested;
-      if (!target || typeof target !== "object") {
+      let target = isCareerState(currentState) ? currentState : requested;
+      if (!isCareerState(target)) {
         await lastWrite;
         return true;
       }
@@ -345,19 +350,19 @@
         activeDefaultFlushRequested = false;
         const result = await save(target, { slotId: DEFAULT_SLOT });
         if (!result || result.superseded === true || activeDefaultFlushRequested) {
-          target = currentState;
-          if (!target || typeof target !== "object") return false;
+          target = isCareerState(currentState) ? currentState : null;
+          if (!isCareerState(target)) return false;
           continue;
         }
         // A mutation may land just after the IndexedDB transaction completes but
         // before this continuation runs. Compare revisions as well as references.
         if (Number.isFinite(Number(result.revision)) && Number(result.revision) !== revision) {
-          target = currentState;
-          if (!target || typeof target !== "object") return false;
+          target = isCareerState(currentState) ? currentState : null;
+          if (!isCareerState(target)) return false;
           continue;
         }
-        if (currentState && currentState !== target) {
-          target = currentState;
+        if (isCareerState(currentState) && currentState !== target) {
+          target = isCareerState(currentState) ? currentState : null;
           continue;
         }
         return true;
@@ -369,7 +374,7 @@
       if (activeDefaultFlush === active) activeDefaultFlush = null;
       if (activeDefaultFlushRequested) {
         activeDefaultFlushRequested = false;
-        return flush(currentState && typeof currentState === "object" ? currentState : requested);
+        return flush(isCareerState(currentState) ? currentState : requested);
       }
       return result;
     }, function (error) {

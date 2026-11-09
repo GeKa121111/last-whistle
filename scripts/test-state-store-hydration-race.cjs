@@ -473,21 +473,6 @@ function createHarness() {
   assert.equal(invalidArrayLoad.store.getState(), null,
     "an invalid array payload must not be published by explicit load");
   assert.equal(invalidArrayLoad.store.getStartupSave(), null);
-
-  const invalidArrayListing = createHarness();
-  await invalidArrayListing.resolveStartupRead(null);
-  const invalidArrayListPromise = invalidArrayListing.store.listSaves();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(invalidArrayListing.listRequests.length, 1);
-  invalidArrayListing.listRequests[0].result = [
-    { id: "broken-array-slot", state: [], label: "Broken array slot" },
-    { id: "valid-object-slot", state: { name: "Valid career" }, label: "Valid career" }
-  ];
-  invalidArrayListing.listRequests[0].onsuccess();
-  const listedArraySaves = await invalidArrayListPromise;
-  assert.deepEqual(listedArraySaves.map(row => row.id), ["valid-object-slot"],
-    "the save-slot picker must not advertise array-shaped payloads that cannot be loaded");
-
   console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);

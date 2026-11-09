@@ -21,11 +21,12 @@ assert.doesNotMatch(source, /window\.setInterval\(tick,1000\)/);
 
 const helperStart = source.indexOf("  function inspectAgentArrayData(");
 const helperEnd = source.indexOf("  function outstandingFeeDebt(", helperStart);
-const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(");
+const previewStart = source.indexOf("  function cloneAgentProfileForMaintenance(value){");
 const previewEnd = source.indexOf("\n  function tick(force)", previewStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "safe debt-ledger helpers must be extractable");
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "maintenance preview must be extractable");
 const helperSource = source.slice(helperStart, helperEnd);
+// Include the profile clone helper immediately before the maintenance preview.
 const previewSource = source.slice(previewStart, previewEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf('\n  document.addEventListener("click"', tickStart);
@@ -33,6 +34,7 @@ const startStart = source.indexOf("  function start(){", tickEnd);
 const startEnd = source.indexOf("\n\n  // Stage 2: post-retirement career paths", startStart);
 assert.ok(tickStart >= 0 && tickEnd > tickStart, "event-driven tick block must exist");
 assert.ok(startStart > tickEnd && startEnd > startStart, "start block must be extractable");
+// The polling harness extracts the profile sanitizer with the maintenance preview.
 const tickSource = source.slice(tickStart, tickEnd);
 assert.match(tickSource, /runAgentContractMutation\(s,/,
   "agent maintenance changes must use the durable transaction helper");
@@ -193,6 +195,28 @@ function makeHarness(withStore = true) {
   assert.equal(revokedHistoryHarness.maintenanceCalls,1);
   assert.equal(Array.isArray(revokedHistoryHarness.state.agentHistory),true);
   assert.equal(revokedHistoryHarness.state.agentHistory.length,0);
+
+  const revokedPerksPollHarness = makeHarness(true);
+  const revokedPerksForPoll = Proxy.revocable({ recovery: true }, {});
+  revokedPerksForPoll.revoke();
+  revokedPerksPollHarness.state.agentProfile = {
+    id: "hossam", relationship: 52, storyStage: 0, customFeeRate: 0.05,
+    strategyOverride: "", contractMultiplierDelta: 0, negotiationRaiseBonusDelta: 0,
+    feeDebt: 0, perks: revokedPerksForPoll.proxy
+  };
+  await assert.doesNotReject(async () => { await revokedPerksPollHarness.sandbox.tick(true); },
+    "polling must build a safe snapshot when agentProfile.perks is a revoked proxy");
+  assert.equal(revokedPerksPollHarness.renders, 1,
+    "a revoked perks proxy must not prevent the agent panel from refreshing");
+
+  const revokedProfilePollHarness = makeHarness(true);
+  const revokedProfileForPoll = Proxy.revocable({ id: "hossam", relationship: 52, perks: { recovery: true } }, {});
+  revokedProfileForPoll.revoke();
+  revokedProfilePollHarness.state.agentProfile = revokedProfileForPoll.proxy;
+  await assert.doesNotReject(async () => { await revokedProfilePollHarness.sandbox.tick(true); },
+    "polling must keep running when the saved top-level agent profile is a revoked proxy");
+  assert.equal(revokedProfilePollHarness.renders, 1,
+    "a revoked top-level profile must not suppress the agent panel refresh");
 
   const fallback = makeHarness(false);
   fallback.sandbox.start();

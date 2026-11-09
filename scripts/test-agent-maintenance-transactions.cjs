@@ -22,12 +22,13 @@ const historyStart = source.indexOf("  function isNormalizedAgentHistoryEntry(va
 const historyEnd = source.indexOf("\n  function normalizeAgentFeeQuote", historyStart);
 assert.ok(historyStart >= 0 && historyEnd > historyStart, "agent history normalization helpers must exist");
 const historySource = source.slice(historyStart, historyEnd);
-const previewStart = source.indexOf("  function cloneAgentMaintenancePreview(state){");
+const previewStart = source.indexOf("  function cloneAgentProfileForMaintenance(value){");
 const previewEnd = source.indexOf("  function tick(force){", previewStart);
 const helperStart = source.indexOf("  var postRetirementMutationPending = false;");
 const helperEnd = source.indexOf("  async function startPostRetirementAgency", helperStart);
 assert.ok(previewStart >= 0 && previewEnd > previewStart, "lightweight maintenance preview must exist");
 assert.ok(helperStart >= 0 && helperEnd > helperStart, "shared agent transaction helpers must exist");
+// This isolated harness includes the descriptor-safe preview profile clone and its dependencies.
 const runtimeSource = safeFieldSource + "\n" + historySource + "\n" + debtArraySource + "\n" + source.slice(previewStart, previewEnd) + "\n" + source.slice(helperStart, helperEnd);
 const tickStart = source.indexOf("  function tick(force){");
 const tickEnd = source.indexOf("  function scheduleTick(force){", tickStart);
@@ -101,6 +102,52 @@ function stateFixture() {
     "maintenance preview must not clone the large world/player database");
   preview.agentProfile.relationship = 99;
   assert.equal(largeState.agentProfile.relationship, 52);
+
+  const validPerksState = stateFixture();
+  validPerksState.agentProfile.perks = { recovery: true, negotiation: false };
+  const validPerksPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(validPerksState);
+  assert.ok(validPerksPreview);
+  assert.notEqual(validPerksPreview.agentProfile.perks, validPerksState.agentProfile.perks,
+    "maintenance preview must isolate the perks record before reading or normalizing it");
+  assert.equal(validPerksPreview.agentProfile.perks.recovery, true);
+  validPerksPreview.agentProfile.perks.recovery = false;
+  assert.equal(validPerksState.agentProfile.perks.recovery, true,
+    "preview perk changes must not mutate the saved agent profile");
+
+  const revokedPerksState = stateFixture();
+  const revokedPerksProxy = Proxy.revocable({ recovery: true }, {});
+  revokedPerksProxy.revoke();
+  revokedPerksState.agentProfile.perks = revokedPerksProxy.proxy;
+  const revokedPerksPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(revokedPerksState);
+  assert.ok(revokedPerksPreview, "a revoked perks proxy must not abort maintenance preview creation");
+  assert.equal(Object.keys(revokedPerksPreview.agentProfile.perks).length, 0,
+    "unreadable perks should become an empty preview record without invoking proxy traps");
+
+  const hostilePerksState = stateFixture();
+  hostilePerksState.agentProfile.perks = new Proxy({ recovery: true }, {
+    ownKeys() { throw new Error("hostile perks ownKeys trap"); }
+  });
+  const hostilePerksPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(hostilePerksState);
+  assert.ok(hostilePerksPreview, "a throwing perks ownKeys trap must not abort maintenance preview creation");
+  assert.equal(Object.keys(hostilePerksPreview.agentProfile.perks).length, 0);
+
+  const revokedProfileState = stateFixture();
+  const revokedProfileProxy = Proxy.revocable({ id: "hossam", relationship: 52, perks: { recovery: true } }, {});
+  revokedProfileProxy.revoke();
+  revokedProfileState.agentProfile = revokedProfileProxy.proxy;
+  const revokedProfilePreview = previewHarness.sandbox.cloneAgentMaintenancePreview(revokedProfileState);
+  assert.ok(revokedProfilePreview, "a revoked top-level agent profile must fail closed instead of cancelling maintenance");
+  assert.equal(typeof revokedProfilePreview.agentProfile, "object");
+  assert.equal(Object.keys(revokedProfilePreview.agentProfile.perks).length, 0);
+
+  const legacyProfileFieldsState = stateFixture();
+  legacyProfileFieldsState.agentProfile.agentName = "Old Agent";
+  legacyProfileFieldsState.agentProfile.exitFeeWeeks = 0.25;
+  const legacyProfileFieldsPreview = previewHarness.sandbox.cloneAgentMaintenancePreview(legacyProfileFieldsState);
+  assert.equal(legacyProfileFieldsPreview.agentProfile.agentName, "Old Agent",
+    "maintenance previews must preserve valid legacy profile fields outside the current normalized schema");
+  assert.equal(legacyProfileFieldsPreview.agentProfile.exitFeeWeeks, 0.25,
+    "rollback snapshots must retain legacy agent exit-fee metadata");
 
   // JSON-valid legacy arrays can own a non-callable forEach property. The old
   // normalizer called value.forEach directly and crashed while hydrating the save.

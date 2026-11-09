@@ -1016,6 +1016,50 @@ function availableAgentBalance(s){
     if(action==="agent-end-current"){endCurrent();return;}
     if(action==="agent-confirm-end"){return confirmEnd();}
   }
+  function cloneAgentProfileForMaintenance(value){
+    if(!value||typeof value!=="object")return null;
+    var keys=[],profile={},inspected=false;
+    try{keys=Object.getOwnPropertyNames(value);inspected=true;}catch(_){}
+    if(inspected){
+      for(var i=0;i<keys.length;i++){
+        var key=keys[i];
+        if(key==="__proto__"||key==="constructor"||key==="prototype")continue;
+        var descriptor=null;
+        try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+        if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,"value"))continue;
+        var cloned;
+        if(key==="perks"){
+          try{cloned=clonePostRetirementValue(descriptor.value,0);}catch(_){cloned=undefined;}
+          if(!cloned||typeof cloned!=="object"||Array.isArray(cloned))cloned={};
+        }else{
+          try{cloned=clonePostRetirementValue(descriptor.value,0);}catch(_){cloned=undefined;}
+          if(cloned===undefined)continue;
+        }
+        Object.defineProperty(profile,key,{value:cloned,enumerable:true,writable:true,configurable:true});
+      }
+    }else{
+      // A revoked or uninspectable profile proxy cannot be enumerated. Salvage only
+      // known legacy/current scalar fields through guarded reads, then let ensureState
+      // migrate a missing identity to the legacy representative when required.
+      var fields=["id","name","title","mark","agentName","feeRate","customFeeRate","exitFeeWeeks","relationship","contractMode","expiresSeason",
+        "signedApps","lastChapterApps","lastChapterSeason","lastPerformanceMilestone","hiredSeason","signedDay",
+        "storyStage","strategyOverride","feeDebt","legacyMigrated","contractMultiplierDelta","negotiationRaiseBonusDelta"];
+      for(var j=0;j<fields.length;j++){
+        var fieldKey=fields[j],field=safeAgentField(value,fieldKey);
+        if(field===null||typeof field==="string"||typeof field==="boolean"
+          ||(typeof field==="number"&&Number.isFinite(field))){
+          Object.defineProperty(profile,fieldKey,{value:field,enumerable:true,writable:true,configurable:true});
+        }
+      }
+      var rawPerks=safeAgentField(value,"perks"),safePerks;
+      try{safePerks=clonePostRetirementValue(rawPerks,0);}catch(_){safePerks=undefined;}
+      if(!safePerks||typeof safePerks!=="object"||Array.isArray(safePerks))safePerks={};
+      Object.defineProperty(profile,"perks",{value:safePerks,enumerable:true,writable:true,configurable:true});
+    }
+    if(!Object.prototype.hasOwnProperty.call(profile,"perks"))
+      Object.defineProperty(profile,"perks",{value:{},enumerable:true,writable:true,configurable:true});
+    return profile;
+  }
   function cloneAgentMaintenancePreview(state){
     if(!state||typeof state!=="object")return null;
     var keys=[];
@@ -1023,6 +1067,12 @@ function availableAgentBalance(s){
     var preview={};
     for(var i=0;i<keys.length;i++){
       var key=keys[i],value=safeAgentField(state,key);
+      // Clone the agent profile through its known scalar schema. A revoked profile proxy
+      // or unreadable perks object must not abort the maintenance preview.
+      if(key==="agentProfile"){
+        Object.defineProperty(preview,key,{value:cloneAgentProfileForMaintenance(value),enumerable:true,writable:true,configurable:true});
+        continue;
+      }
       // Display-only lead and descriptor-normalized history/debt containers stay by reference
       // until ensureState can sanitize them without cloning hostile proxies or accessors.
       if(key==="agentLead"||key==="agentHistory"||key==="agentFeeDebtLedger"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
@@ -1065,9 +1115,11 @@ function availableAgentBalance(s){
         });
       }
     }
-    var p=s.agentProfile||null,history=safeAgentHistoryRows(rawHistory),latest=history.length?history[history.length-1]:null;
+    var p=safeAgentField(preview,"agentProfile")||null,history=safeAgentHistoryRows(rawHistory),latest=history.length?history[history.length-1]:null;
     var lead=!!safeAgentField(s,"agentLead");
-    var perks=p&&p.perks&&typeof p.perks==="object"?Object.keys(p.perks).sort().map(function(key){return key+":"+safeAgentText(p.perks[key],"");}).join(","):"";
+    var perkRecord=safeAgentField(p,"perks"),perkKeys=[];
+    try{if(perkRecord&&typeof perkRecord==="object")perkKeys=Object.keys(perkRecord).sort();}catch(_){}
+    var perks=perkKeys.map(function(key){return key+":"+safeAgentText(safeAgentField(perkRecord,key),"");}).join(",");
     var snapshot=[
       s.careerStarted,s.agent,lead,s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,

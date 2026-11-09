@@ -997,7 +997,13 @@ function availableAgentBalance(s){
   }
   function sponsorshipMultiplier(s){if(!s||!s.agent||!s.agentProfile)return 1;return Math.max(1,Math.min(1.45,1+profileValue(s,"sponsorshipBonus",.1)+(rel(s)-50)*.001));}
   function matchPayMultiplier(s){if(!s||!s.agent||!s.agentProfile)return 1;return Math.max(1,Math.min(1.15,1+profileValue(s,"matchPayBonus",.02)));}
-  function dailyRecoveryBonus(s){return s&&s.agent&&s.agentProfile&&s.agentProfile.perks&&s.agentProfile.perks.recovery?3:0;}
+  function dailyRecoveryBonus(s){
+    if(!s||!safeAgentField(s,"agent"))return 0;
+    var profile=safeAgentField(s,"agentProfile");
+    if(!profile)return 0;
+    var perks=safeAgentField(profile,"perks");
+    return safeAgentField(perks,"recovery")===true?3:0;
+  }
   function renewRelationship(s,silent){
     if(!s||!s.agent||!s.agentProfile)return false;var cfg=agentConfig(s);if(!cfg)return false;
     var p=s.agentProfile,milestone=Math.floor(safeAgentNumber(s.apps,0)/5);if(milestone<=safeAgentNumber(p.lastPerformanceMilestone,0))return false;

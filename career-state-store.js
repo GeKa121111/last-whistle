@@ -402,7 +402,20 @@
     return active;
   }
   let selectorSignatureFallbackSequence = 0;
+  let selectorFunctionSignatureSequence = 0;
+  const selectorFunctionSignatures = new WeakMap();
   function selectorSignature(value) {
+    if (typeof value === "function") {
+      // Function source text is not identity: closures created by the same
+      // factory can capture different career values. WeakMap also safely keys
+      // revoked callable proxies without invoking their traps.
+      let signature = selectorFunctionSignatures.get(value);
+      if (!signature) {
+        signature = "function:" + (++selectorFunctionSignatureSequence);
+        selectorFunctionSignatures.set(value, signature);
+      }
+      return signature;
+    }
     if (value === undefined) return "undefined";
     if (value === null) return "object:null";
     if (typeof value !== "object") {

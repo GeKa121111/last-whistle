@@ -580,7 +580,26 @@ function createHarness() {
   assert.equal(callableNotifications, 1,
     "a selector must recover and notify after an unserializable revoked callable proxy");
 
-  console.log("PASS: delayed hydration, stale IndexedDB writes, queued mutations, and unserializable selector values remain safe; completion-boundary flush requests are drained before the shared writer is released.");
+  const functionIdentitySelector = createHarness();
+  const makeCapturedCareerAction = amount => function selectedCareerAction() { return amount; };
+  const firstCareerAction = makeCapturedCareerAction(10);
+  const secondCareerAction = makeCapturedCareerAction(20);
+  assert.equal(String(firstCareerAction), String(secondCareerAction),
+    "the regression must use distinct closures with identical source text");
+  functionIdentitySelector.store.publish({ selected: firstCareerAction }, { source: "import" });
+  let functionIdentityNotifications = 0;
+  functionIdentitySelector.store.subscribeSelector(
+    state => state && state.selected,
+    () => { functionIdentityNotifications += 1; }
+  );
+  functionIdentitySelector.store.publish({ selected: firstCareerAction }, { source: "save" });
+  assert.equal(functionIdentityNotifications, 0,
+    "re-publishing the same function reference must not notify a selector subscriber");
+  functionIdentitySelector.store.publish({ selected: secondCareerAction }, { source: "save" });
+  assert.equal(functionIdentityNotifications, 1,
+    "replacing a function with a different closure of identical source must notify the selector subscriber");
+
+  console.log("PASS: delayed hydration, stale IndexedDB writes, queued mutations, and identity-safe selector signatures remain safe; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);
   process.exitCode = 1;

@@ -685,6 +685,24 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "the valid read-only relationship value must survive profile normalization");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(lockedProfileState),3);
 
+ const proxyProfileState=makePerkState({recovery:true});
+ const proxyProfileOriginal=proxyProfileState.agentProfile;
+ const proxyProfile=new Proxy(proxyProfileOriginal,{
+   get(target,key,receiver){
+     if(key==="relationship")throw new Error("hostile proxy profile read");
+     return Reflect.get(target,key,receiver);
+   }
+ });
+ proxyProfileState.agentProfile=proxyProfile;
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(proxyProfileState),
+   "a proxy that lies through data descriptors but throws on property reads must be normalized safely");
+ assert.notEqual(proxyProfileState.agentProfile,proxyProfile,
+   "a profile proxy with inconsistent property reads must be replaced by a plain record");
+ assert.equal(proxyProfileState.agentProfile.relationship,52,
+   "an unreadable proxy relationship must use the neutral default");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(proxyProfileState),3,
+   "normalizing a hostile profile proxy must preserve valid perks");
+
  const exoticProfile=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
    id:"hossam",name:"حسام",feeRate:.05,customFeeRate:null,relationship:63,feeDebt:75,
    perks:Object.assign([],{recovery:true})

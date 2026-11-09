@@ -217,6 +217,45 @@
     normalized.perks=normalizeAgentPerks(safeAgentField(value,"perks"));
     return Object.keys(normalized).length?normalized:null;
   }
+  function isNormalizedAgentHistoryEntry(value,normalized){
+    if(!isPlainAgentRecord(value))return false;
+    var keys=[];
+    try{keys=Object.getOwnPropertyNames(value);}catch(_){return false;}
+    var expected=["season","day","title","text"];
+    if(keys.length!==expected.length||!expected.every(function(key){return keys.indexOf(key)>=0;}))return false;
+    return expected.every(function(key){
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+      return !!descriptor&&descriptor.enumerable&&Object.prototype.hasOwnProperty.call(descriptor,"value")
+        &&descriptor.value===normalized[key];
+    });
+  }
+  function normalizeAgentHistoryEntry(value){
+    if(!value||typeof value!=="object")return null;
+    var title=safeAgentText(safeAgentField(value,"title"),"");
+    var text=safeAgentText(safeAgentField(value,"text"),"");
+    if(!text)text=safeAgentText(safeAgentField(value,"description"),"");
+    if(!title&&!text)return null;
+    var normalized={
+      season:safeWholeAmount(safeAgentField(value,"season"))||1,
+      day:safeWholeAmount(safeAgentField(value,"day"))||1,
+      title:title||"حدث مع الوكيل",
+      text:text
+    };
+    return isNormalizedAgentHistoryEntry(value,normalized)?value:normalized;
+  }
+  function normalizeAgentHistory(value){
+    if(!Array.isArray(value))return [];
+    var normalized=[],changed=false;
+    value.forEach(function(row){
+      var entry=normalizeAgentHistoryEntry(row);
+      if(!entry){changed=true;return;}
+      if(entry!==row)changed=true;
+      normalized.push(entry);
+    });
+    if(normalized.length>40){normalized=normalized.slice(0,40);changed=true;}
+    return changed?normalized:value;
+  }
   function normalizeAgentFeeQuote(value,s){
     if(!value||typeof value!=="object")return null;
     var quoteId=safeAgentId(safeAgentField(value,"agentId"),"");
@@ -434,7 +473,9 @@ function availableAgentBalance(s){
     // Normalize the debt ledger after converting exotic profile containers to plain records,
     // so legacy fee debt can be migrated without Date/Map/typed-array serialization loss.
     if(ensureFeeDebtLedger(s))changed=true;
-    if(!Array.isArray(s.agentHistory)){s.agentHistory=[];changed=true;}
+    var originalHistory=safeAgentField(s,"agentHistory");
+    var normalizedHistory=normalizeAgentHistory(originalHistory);
+    if(normalizedHistory!==originalHistory){s.agentHistory=normalizedHistory;changed=true;}
     var profile=safeAgentField(s,"agentProfile");
     if(s.agent&&(!profile||!agentById(safeAgentField(profile,"id")))){s.agentProfile=makeProfile("legacy",s,true);changed=true;}
     profile=safeAgentField(s,"agentProfile");

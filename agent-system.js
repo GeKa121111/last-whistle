@@ -253,7 +253,6 @@
       if(entry!==row)changed=true;
       normalized.push(entry);
     });
-    if(normalized.length>40){normalized=normalized.slice(0,40);changed=true;}
     return changed?normalized:value;
   }
   function normalizeAgentFeeQuote(value,s){

@@ -171,17 +171,23 @@
   function normalizeAgentPerks(value){
     if(!value||typeof value!=="object")return {};
     var keys=[];
-    try{keys=Object.keys(value);}catch(_){return {};}
+    try{keys=Object.getOwnPropertyNames(value);}catch(_){return {};}
     var validRecord=isPlainAgentRecord(value),allValid=validRecord;
     keys.forEach(function(key){
-      if(!isSafeAgentPerkKey(key)||typeof safeAgentField(value,key)!=="boolean")allValid=false;
+      if(!isSafeAgentPerkKey(key)){allValid=false;return;}
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+      if(!descriptor||!descriptor.enumerable||!Object.prototype.hasOwnProperty.call(descriptor,"value")
+        ||typeof descriptor.value!=="boolean")allValid=false;
     });
     if(allValid)return value;
     var normalized={};
     keys.forEach(function(key){
       if(!isSafeAgentPerkKey(key))return;
-      var flag=safeAgentField(value,key);
-      if(typeof flag==="boolean")Object.defineProperty(normalized,key,{value:flag,enumerable:true,writable:true,configurable:true});
+      var descriptor=null;
+      try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+      if(descriptor&&Object.prototype.hasOwnProperty.call(descriptor,"value")&&typeof descriptor.value==="boolean")
+        Object.defineProperty(normalized,key,{value:descriptor.value,enumerable:true,writable:true,configurable:true});
     });
     return normalized;
   }

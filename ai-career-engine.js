@@ -302,6 +302,8 @@
     return parsed === null ? fallback : parsed;
   };
   const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, num(value, 0)));
+  const safeText = value => typeof value === "string" ? value
+    : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
   const LEDGER_VERSION = 1, LEDGER_LIMIT = 180;
   const AGE_STAGES = Object.freeze({
     academy: { min: 0, max: 18, label: "ناشئ في الأكاديمية" },

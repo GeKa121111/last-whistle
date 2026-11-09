@@ -7,6 +7,8 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
+assert.doesNotMatch(html, /window\.LWAgentRuntime\?\.[A-Za-z_$][\w$]*\s*\(/,
+  "optional agent runtime calls must guard the method as well as the runtime object");
 const extractFunction = (name) => {
   const start = html.indexOf("function " + name + "(");
   if (start < 0) throw new Error("Missing game function: " + name);

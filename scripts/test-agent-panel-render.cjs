@@ -67,7 +67,15 @@ const sandbox = {
   API: () => api,
   ensureState: () => false,
   renewRelationship: () => false,
-  cloneAgentMaintenancePreview: value => Object.assign({}, value),
+  cloneAgentMaintenancePreview: value => {
+    const preview = {};
+    Object.keys(value).forEach(key => {
+      let next;
+      try { next = value[key]; } catch (_) { next = undefined; }
+      Object.defineProperty(preview, key, { value: next, enumerable: true, writable: true, configurable: true });
+    });
+    return preview;
+  },
   runAgentContractMutation: (value, operation) => { operation(); return Promise.resolve({ ok: true }); },
   agentContractMutationPending: false,
   postRetirementMutationPending: false,

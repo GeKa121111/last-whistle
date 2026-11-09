@@ -1079,6 +1079,54 @@ function availableAgentBalance(s){
     try{if(typeof window.structuredClone==="function")return window.structuredClone(state);}catch(error){}
     try{return JSON.parse(JSON.stringify(state));}catch(error){return null;}
   }
+  function safeAgentLedgerSnapshotScalar(value,fallback){
+    if(value===null||typeof value==="string"||typeof value==="boolean"
+      ||(typeof value==="number"&&Number.isFinite(value)))return value;
+    return fallback;
+  }
+  function cloneAgentDebtLedgerForSnapshot(value){
+    var inspected=inspectAgentArrayData(value);
+    if(!inspected)return [];
+    var rows=[];
+    for(var i=0;i<inspected.values.length;i++){
+      var raw=inspected.values[i];
+      if(!raw||typeof raw!=="object")continue;
+      var rawId=safeAgentField(raw,"id"),rawAgentId=safeAgentField(raw,"agentId");
+      var rawAgentName=safeAgentField(raw,"agentName"),rawReason=safeAgentField(raw,"reason");
+      var rawAmount=safeAgentField(raw,"amount"),rawPaid=safeAgentField(raw,"paid");
+      var rawOutstanding=safeAgentField(raw,"outstanding");
+      var rawSeason=safeAgentField(raw,"createdSeason"),rawDay=safeAgentField(raw,"createdDay");
+      if(rawId===undefined&&rawAgentId===undefined&&rawAgentName===undefined&&rawReason===undefined
+        &&rawAmount===undefined&&rawPaid===undefined&&rawOutstanding===undefined
+        &&rawSeason===undefined&&rawDay===undefined)continue;
+      var agentId=safeAgentText(rawAgentId,"legacy");
+      rows.push({
+        id:safeAgentText(rawId,""),
+        agentId:agentId||"legacy",
+        agentName:safeAgentText(rawAgentName,"وكيل سابق"),
+        reason:safeAgentText(rawReason,"أتعاب وكالة غير مسددة"),
+        amount:safeAgentLedgerSnapshotScalar(rawAmount,0),
+        paid:safeAgentLedgerSnapshotScalar(rawPaid,0),
+        outstanding:rawOutstanding==null?null:safeAgentLedgerSnapshotScalar(rawOutstanding,0),
+        createdSeason:safeAgentLedgerSnapshotScalar(rawSeason,1),
+        createdDay:safeAgentLedgerSnapshotScalar(rawDay,1)
+      });
+    }
+    return rows;
+  }
+  function cloneAgentContractMutationSnapshot(state){
+    var preview=cloneAgentMaintenancePreview(state);
+    if(!preview)return null;
+    var hasLead=Object.prototype.hasOwnProperty.call(preview,"agentLead");
+    var leadValue=safeAgentField(preview,"agentLead");
+    if(hasLead)delete preview.agentLead;
+    var rawLedger=safeAgentField(preview,"agentFeeDebtLedger");
+    if(rawLedger!=null)preview.agentFeeDebtLedger=cloneAgentDebtLedgerForSnapshot(rawLedger);
+    var snapshot=clonePostRetirementMutationState(preview);
+    if(!snapshot)return null;
+    if(hasLead)Object.defineProperty(snapshot,"agentLead",{value:leadValue,enumerable:true,writable:true,configurable:true});
+    return snapshot;
+  }
   function restorePostRetirementMutationState(target,snapshot){
     if(!target||!snapshot||typeof snapshot!=="object")throw new Error("invalid-retirement-snapshot");
     Object.keys(target).forEach(function(key){if(!Object.prototype.hasOwnProperty.call(snapshot,key))delete target[key];});
@@ -1109,7 +1157,7 @@ function availableAgentBalance(s){
     agentContractMutationPending=true;
     var mutationLock = acquireSharedMutationLock("agent-system");
     if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
-    var snapshot=clonePostRetirementMutationState(state);
+    var snapshot=cloneAgentContractMutationSnapshot(state);
     if(!snapshot){
       agentContractMutationPending=false;
       releaseSharedMutationLock("agent-system");

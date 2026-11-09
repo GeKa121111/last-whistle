@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: "transfer-awards-engine.js" });
 const engine = sandbox.window.LWTransferAwards;
 assert.ok(engine, "transfer and awards engine must be exported");
-assert.equal(engine.version, 27);
+assert.equal(engine.version, 28);
 
 const malformedAwardNumbers = [
   { label: "Symbol", value: Symbol("season-stat") },

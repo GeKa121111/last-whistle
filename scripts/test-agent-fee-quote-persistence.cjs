@@ -34,11 +34,12 @@ function extract(name) {
 const names = [
   "acquireSharedMutationLock", "releaseSharedMutationLock",
   "safeAgentText", "safeAgentId", "safeAgentField", "isPlainAgentRecord", "isSafeAgentPerkKey", "normalizeAgentPerks", "normalizeAgentProfile", "normalizeAgentFeeQuote", "isNormalizedAgentHistoryEntry", "normalizeAgentHistoryEntry", "normalizeAgentHistory", "agentById", "finiteAgentNumber", "safeAgentNumber", "safeWholeAmount", "availableAgentBalance", "pendingAgentFeeQuote", "ensureState", "clonePostRetirementMutationState",
-  "inspectAgentArrayData", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
-  "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
+  "inspectAgentArrayData", "clonePostRetirementValue", "safeAgentHistoryRows", "safeAgentLedgerSnapshotScalar", "cloneAgentDebtLedgerForSnapshot",
+  "cloneAgentProfileForMaintenance", "cloneAgentMaintenancePreview", "cloneAgentContractMutationSnapshot",
   "restorePostRetirementMutationState", "flushPostRetirementMutation", "runAgentContractMutation",
   "openMeeting", "negotiateFee", "applyAgentSigning", "signAgent"
 ];
+// Include the safe profile clone dependencies used by the maintenance preview.
 const extracted = names.map(extract).join("\n");
 
 function makeHarness(stateOverrides = {}, options = {}) {

@@ -66,7 +66,7 @@ function makeHarness(withStore = true) {
   const sandbox = {
     API: () => api,
     safeAgentNumber: (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && value.trim() && Number.isFinite(Number(value)) ? Number(value) : fallback,
-    safeAgentNumber: (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && value.trim() && Number.isFinite(Number(value)) ? Number(value) : fallback,
+    safeWholeAmount: value => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
     safeAgentField: (record, key) => { try { return record && (typeof record === "object" || typeof record === "function") ? record[key] : undefined; } catch (_) { return undefined; } },
     safeAgentText: (value, fallback) => typeof value === "string" ? value
       : typeof value === "number" && Number.isFinite(value) ? String(value)
@@ -74,7 +74,15 @@ function makeHarness(withStore = true) {
           : (typeof fallback === "string" ? fallback : ""),
     ensureState: state => {
       let changed = false;
-      if (!Array.isArray(state.agentHistory)) { state.agentHistory = []; changed = true; }
+      const rawHistory = state.agentHistory;
+      if (rawHistory == null) { state.agentHistory = []; changed = true; }
+      else {
+        const historyInspection = sandbox.inspectAgentArrayData(rawHistory);
+        if (!historyInspection || historyInspection.changed) {
+          state.agentHistory = sandbox.safeAgentHistoryRows(rawHistory);
+          changed = true;
+        }
+      }
       const rawLedger = state.agentFeeDebtLedger;
       if (rawLedger != null) {
         const inspected = sandbox.inspectAgentArrayData(rawLedger);
@@ -161,6 +169,30 @@ function makeHarness(withStore = true) {
   assert.equal(revokedLedgerHarness.maintenanceCalls,1);
   assert.equal(Array.isArray(revokedLedgerHarness.state.agentFeeDebtLedger),true);
   assert.equal(revokedLedgerHarness.state.agentFeeDebtLedger.length,0);
+
+  const hostileHistoryHarness = makeHarness(true);
+  hostileHistoryHarness.state.agentFeeDebtLedger = [];
+  const hostileHistory = [{season:2,day:4,title:"تجديد الوكيل",text:"تم تجديد العقد."}];
+  hostileHistory.forEach = "not-callable";
+  hostileHistory.reduce = "not-callable";
+  hostileHistoryHarness.state.agentHistory = hostileHistory;
+  await hostileHistoryHarness.sandbox.tick(true);
+  assert.equal(hostileHistoryHarness.maintenanceCalls,1,
+    "polling must normalize an agent history array with overridden methods");
+  assert.equal(hostileHistoryHarness.state.agentHistory.length,1);
+  assert.equal(hostileHistoryHarness.state.agentHistory[0].title,"تجديد الوكيل");
+  assert.equal(Object.prototype.hasOwnProperty.call(hostileHistoryHarness.state.agentHistory,"forEach"),false);
+
+  const revokedHistoryHarness = makeHarness(true);
+  revokedHistoryHarness.state.agentFeeDebtLedger = [];
+  const revokedHistoryProxy = Proxy.revocable([], {});
+  revokedHistoryProxy.revoke();
+  revokedHistoryHarness.state.agentHistory = revokedHistoryProxy.proxy;
+  await assert.doesNotReject(async () => { await revokedHistoryHarness.sandbox.tick(true); },
+    "agent polling must not throw while hydrating a revoked history proxy");
+  assert.equal(revokedHistoryHarness.maintenanceCalls,1);
+  assert.equal(Array.isArray(revokedHistoryHarness.state.agentHistory),true);
+  assert.equal(revokedHistoryHarness.state.agentHistory.length,0);
 
   const fallback = makeHarness(false);
   fallback.sandbox.start();

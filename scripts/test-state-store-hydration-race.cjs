@@ -432,6 +432,62 @@ function createHarness() {
   assert.equal(legacyRows[3].updatedAt, hostileListMetadata,
     "display normalization must not mutate the original malformed record");
 
+
+  const invalidArrayStartup = createHarness();
+  const invalidArrayReady = await invalidArrayStartup.resolveStartupRead({
+    id: "career:default", state: []
+  });
+  assert.equal(invalidArrayReady.hasSave, false,
+    "startup hydration must ignore array-shaped career payloads instead of publishing them as a live save");
+  assert.equal(invalidArrayStartup.store.getState(), null);
+  assert.equal(invalidArrayStartup.store.getStartupSave(), null);
+
+  const invalidArrayMutation = createHarness();
+  const authoritativeCareer = { name: "Authoritative object career", money: 600 };
+  invalidArrayMutation.store.publish(authoritativeCareer, { source: "import" });
+  const revisionBeforeInvalidMutation = invalidArrayMutation.store.getRevision();
+  assert.equal(invalidArrayMutation.store.publish([], { source: "import" }), revisionBeforeInvalidMutation,
+    "publish must ignore array-shaped career states");
+  assert.equal(invalidArrayMutation.store.markDirty([]), revisionBeforeInvalidMutation,
+    "markDirty must ignore array-shaped career states");
+  assert.strictEqual(invalidArrayMutation.store.getState(), authoritativeCareer,
+    "invalid array mutations must not replace the authoritative career object");
+
+  const invalidArraySave = createHarness();
+  const revisionBeforeInvalidSave = invalidArraySave.store.getRevision();
+  await assert.rejects(invalidArraySave.store.save([]), /Invalid career save/,
+    "the save repository must reject array-shaped career payloads");
+  assert.equal(invalidArraySave.writes.length, 0,
+    "an array-shaped career must never be written to IndexedDB");
+  assert.equal(invalidArraySave.store.getRevision(), revisionBeforeInvalidSave,
+    "rejecting an array save must not publish or mutate the active career");
+
+  const invalidArrayLoad = createHarness();
+  await invalidArrayLoad.resolveStartupRead(null);
+  const invalidArrayLoadPromise = invalidArrayLoad.store.load();
+  const invalidArrayLoadRequest = await invalidArrayLoad.waitForRead(1);
+  invalidArrayLoadRequest.result = { id: "career:default", state: [] };
+  invalidArrayLoadRequest.onsuccess();
+  assert.equal(await invalidArrayLoadPromise, null,
+    "explicit load must treat an array-shaped IndexedDB payload as an invalid save");
+  assert.equal(invalidArrayLoad.store.getState(), null,
+    "an invalid array payload must not be published by explicit load");
+  assert.equal(invalidArrayLoad.store.getStartupSave(), null);
+
+  const invalidArrayListing = createHarness();
+  await invalidArrayListing.resolveStartupRead(null);
+  const invalidArrayListPromise = invalidArrayListing.store.listSaves();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(invalidArrayListing.listRequests.length, 1);
+  invalidArrayListing.listRequests[0].result = [
+    { id: "broken-array-slot", state: [], label: "Broken array slot" },
+    { id: "valid-object-slot", state: { name: "Valid career" }, label: "Valid career" }
+  ];
+  invalidArrayListing.listRequests[0].onsuccess();
+  const listedArraySaves = await invalidArrayListPromise;
+  assert.deepEqual(listedArraySaves.map(row => row.id), ["valid-object-slot"],
+    "the save-slot picker must not advertise array-shaped payloads that cannot be loaded");
+
   console.log("PASS: delayed hydration, stale IndexedDB writes, and queued in-memory mutations cannot overwrite the authoritative career; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);

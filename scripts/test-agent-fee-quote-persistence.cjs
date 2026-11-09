@@ -33,7 +33,7 @@ function extract(name) {
 }
 const names = [
   "acquireSharedMutationLock", "releaseSharedMutationLock",
-  "safeAgentText", "safeAgentId", "safeAgentField", "isPlainAgentRecord", "isSafeAgentPerkKey", "normalizeAgentPerks", "normalizeAgentProfile", "agentById", "finiteAgentNumber", "safeAgentNumber", "availableAgentBalance", "pendingAgentFeeQuote", "ensureState", "clonePostRetirementMutationState",
+  "safeAgentText", "safeAgentId", "safeAgentField", "isPlainAgentRecord", "isSafeAgentPerkKey", "normalizeAgentPerks", "normalizeAgentProfile", "normalizeAgentFeeQuote", "agentById", "finiteAgentNumber", "safeAgentNumber", "availableAgentBalance", "pendingAgentFeeQuote", "ensureState", "clonePostRetirementMutationState",
   "restorePostRetirementMutationState", "flushPostRetirementMutation", "runAgentContractMutation",
   "openMeeting", "negotiateFee", "applyAgentSigning", "signAgent"
 ];
@@ -117,6 +117,48 @@ function makeHarness(stateOverrides = {}, options = {}) {
   assert.equal(signed.ok, true);
   assert.equal(reloaded.state.agentProfile.customFeeRate, .045, "signing after reload must honor the negotiated fee");
   assert.equal(reloaded.state.agentNegotiationQuote, null, "a signed quote must be consumed exactly once");
+
+  const exoticDateQuote = Object.assign(new Date("2026-11-09T00:00:00.000Z"), {
+    agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39
+  });
+  const exoticDateHarness = makeHarness({ agentNegotiationQuote: exoticDateQuote });
+  assert.equal(exoticDateHarness.runtime.ensureState(exoticDateHarness.state), true,
+    "Date-shaped fee quotes must be migrated and persisted");
+  assert.equal(exoticDateHarness.state.agentNegotiationQuote instanceof Date, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(exoticDateHarness.state.agentNegotiationQuote)), {
+    agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39
+  }, "a Date-shaped legacy quote must survive JSON export as a plain record");
+  assert.equal(exoticDateHarness.runtime.pendingAgentFeeQuote(exoticDateHarness.state, "hossam"), .045);
+  const exoticArrayQuote = [];
+  Object.assign(exoticArrayQuote, { agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39 });
+  const exoticArrayHarness = makeHarness({ agentNegotiationQuote: exoticArrayQuote });
+  assert.equal(exoticArrayHarness.runtime.ensureState(exoticArrayHarness.state), true);
+  assert.equal(Array.isArray(exoticArrayHarness.state.agentNegotiationQuote), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(exoticArrayHarness.state.agentNegotiationQuote)), {
+    agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39
+  }, "named quote properties on arrays must become durable JSON fields");
+  const nonEnumerableQuote = {};
+  for (const [key, value] of Object.entries({ agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39 })) {
+    Object.defineProperty(nonEnumerableQuote, key, { value, enumerable: false });
+  }
+  const nonEnumerableQuoteHarness = makeHarness({ agentNegotiationQuote: nonEnumerableQuote });
+  nonEnumerableQuoteHarness.runtime.ensureState(nonEnumerableQuoteHarness.state);
+  assert.deepEqual(JSON.parse(JSON.stringify(nonEnumerableQuoteHarness.state.agentNegotiationQuote)), {
+    agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39
+  }, "non-enumerable legacy quote fields must be made durable before persistence");
+  const hostileQuote = new Proxy({ agentId: "hossam", feeRate: .045, season: 2, calendarDay: 39 }, {
+    get(target, key, receiver) {
+      if (key === "feeRate") throw new Error("hostile quote getter");
+      return Reflect.get(target, key, receiver);
+    }
+  });
+  const hostileQuoteHarness = makeHarness({ agentNegotiationQuote: hostileQuote });
+  assert.doesNotThrow(() => hostileQuoteHarness.runtime.ensureState(hostileQuoteHarness.state),
+    "throwing quote getters must not interrupt state migration");
+  assert.equal(hostileQuoteHarness.state.agentNegotiationQuote, null,
+    "a quote whose fee cannot be safely read must be discarded");
+  assert.equal(hostileQuoteHarness.runtime.pendingAgentFeeQuote({ agentNegotiationQuote: hostileQuote }, "hossam"), null,
+    "quote display must fail closed for hostile getter values");
 
   const wrongAgent = makeHarness({ agentNegotiationQuote: { agentId: "hossam", feeRate: .045 } });
   const otherSign = await wrongAgent.runtime.signAgent("nadine", null, false);

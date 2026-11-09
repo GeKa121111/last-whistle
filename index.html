@@ -6312,7 +6312,16 @@ function advanceCalendarDays(days,reason="نشاط",options={}){
   if(debtPaid)log(`تم تحصيل ${debtPaid} جنيه من المرتب لسداد مديونية الوكيل.`);
   log(`استلمت ${wages} مرتب أسبوعي صافي ${takeHome} جنيه بعد العمولة وسداد المديونية أثناء ${reason}.`);
  }
- const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+(window.LWAgentRuntime?.dailyRecoveryBonus(state)||0);
+ let agentRecoveryBonus=0;
+ try{
+  const agentRuntime=window.LWAgentRuntime;
+  const recoveryReader=agentRuntime&&agentRuntime.dailyRecoveryBonus;
+  if(typeof recoveryReader==="function"){
+   const rawBonus=recoveryReader.call(agentRuntime,state);
+   if(typeof rawBonus==="number"&&Number.isFinite(rawBonus))agentRecoveryBonus=Math.max(0,Math.min(3,rawBonus));
+  }
+ }catch(_){/* A missing or stale optional agent runtime must not block calendar recovery. */}
+ const dailyRecovery=12+(state.diet?8:0)+(state.sleepCoach?4:0)+(state.privateChef?4:0)+(options.rest?12:0)+(options.rest&&state.recoveryRoom?5:0)+agentRecoveryBonus;
  state.energy=clamp(state.energy+n*dailyRecovery);
  state.fatigue=clamp((Number(state.fatigue)||0)-n*(options.rest?12:8)-n*(state.sleepCoach?2:0)-(options.rest&&state.physio?n*3:0)-(options.rest&&state.recoveryRoom?n*2:0));
  state.injuryDays=Math.max(0,(state.injuryDays||0)-n-(options.rest&&state.physio?n:0));if(!state.injuryDays)state.injuryName="";

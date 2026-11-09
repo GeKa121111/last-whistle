@@ -866,7 +866,7 @@
       country: user.country,
       createdAt: safeText(input.currentDate).trim() || (safeText(2024 + season) + "-07-31T00:00:00.000Z"),
       ballonDor: {
-        winner: { id: String(ballonWinner.id || ""), name: ballonWinner.name, club: ballonWinner.club,
+        winner: { id: safeText(ballonWinner.id), name: ballonWinner.name, club: ballonWinner.club,
           country: ballonWinner.country, position: ballonWinner.position, isUser: !!ballonWinner.isUser },
         topFive: bestFive.map(function (row) {
           return { id: safeText(row.id), name: row.name, club: row.club, country: row.country,

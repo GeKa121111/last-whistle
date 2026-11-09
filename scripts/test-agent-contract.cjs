@@ -650,6 +650,34 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
    "a throwing legacy relationship getter must use the established neutral default");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directRelationshipState),3,
    "normalizing a hostile relationship field must preserve the valid perk");
+
+ const frozenProfileState=makePerkState({recovery:true});
+ const frozenProfile=frozenProfileState.agentProfile;
+ Object.freeze(frozenProfile);
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(frozenProfileState),
+   "a frozen saved profile must be copied before the runtime applies defaults");
+ assert.notEqual(frozenProfileState.agentProfile,frozenProfile,
+   "hydration must replace an immutable profile with a writable data record");
+ assert.equal(frozenProfileState.agentProfile.id,"salim",
+   "immutable profile normalization must preserve the representative identity");
+ assert.equal(frozenProfileState.agentProfile.relationship,52,
+   "immutable profile normalization must preserve the existing relationship value");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(frozenProfileState),3,
+   "immutable profile normalization must preserve valid perks");
+
+ const lockedProfileState=makePerkState({recovery:true});
+ const lockedProfile=lockedProfileState.agentProfile;
+ Object.defineProperty(lockedProfile,"relationship",{
+   value:64,enumerable:true,writable:false,configurable:false
+ });
+ assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(lockedProfileState),
+   "a non-writable relationship field must be copied before profile normalization");
+ assert.notEqual(lockedProfileState.agentProfile,lockedProfile,
+   "a profile with a non-writable supported field must be replaced");
+ assert.equal(lockedProfileState.agentProfile.relationship,64,
+   "the valid read-only relationship value must survive profile normalization");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(lockedProfileState),3);
+
  const exoticProfile=Object.assign(new Date("2026-11-09T00:00:00.000Z"),{
    id:"hossam",name:"حسام",feeRate:.05,customFeeRate:null,relationship:63,feeDebt:75,
    perks:Object.assign([],{recovery:true})

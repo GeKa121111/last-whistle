@@ -567,6 +567,19 @@ function createHarness() {
   assert.equal(circularNotifications, 1,
     "circular selector values must notify on later observations instead of reusing a stale fallback signature");
 
+  const revokedCallableSelector = createHarness();
+  const revokedCallable = Proxy.revocable(function selectedCareerValue() {}, {});
+  revokedCallable.revoke();
+  revokedCallableSelector.store.publish({ selected: revokedCallable.proxy }, { source: "import" });
+  let callableNotifications = 0;
+  assert.doesNotThrow(() => revokedCallableSelector.store.subscribeSelector(
+    state => state && state.selected,
+    () => { callableNotifications += 1; }
+  ), "a selector returning a revoked callable proxy must not crash subscription setup");
+  revokedCallableSelector.store.publish({ selected: function recoveredCareerValue() {} }, { source: "import" });
+  assert.equal(callableNotifications, 1,
+    "a selector must recover and notify after an unserializable revoked callable proxy");
+
   console.log("PASS: delayed hydration, stale IndexedDB writes, queued mutations, and unserializable selector values remain safe; completion-boundary flush requests are drained before the shared writer is released.");
 })().catch(error => {
   console.error(error && error.stack ? error.stack : error);

@@ -217,6 +217,32 @@
     normalized.perks=normalizeAgentPerks(safeAgentField(value,"perks"));
     return Object.keys(normalized).length?normalized:null;
   }
+  function normalizeAgentFeeQuote(value,s){
+    if(!value||typeof value!=="object")return null;
+    var quoteId=safeAgentId(safeAgentField(value,"agentId"),"");
+    var agent=agentById(quoteId),rate=finiteAgentNumber(safeAgentField(value,"feeRate"));
+    if(!agent||rate===null||rate<.035||rate>Number(agent.feeRate))return null;
+    var normalized={
+      agentId:quoteId,
+      feeRate:Math.round(rate*1000)/1000,
+      season:safeAgentNumber(safeAgentField(value,"season"),safeAgentNumber(s&&s.season,1))||1,
+      calendarDay:safeAgentNumber(safeAgentField(value,"calendarDay"),safeAgentNumber(s&&s.calendarDay,safeAgentNumber(s&&s.day,1)))||1
+    };
+    if(isPlainAgentRecord(value)){
+      var keys=[];
+      try{keys=Object.getOwnPropertyNames(value);}catch(_){}
+      var expected=["agentId","feeRate","season","calendarDay"];
+      var matches=keys.length===expected.length&&expected.every(function(key){return keys.indexOf(key)>=0;});
+      if(matches)matches=expected.every(function(key){
+        var descriptor=null;
+        try{descriptor=Object.getOwnPropertyDescriptor(value,key);}catch(_){}
+        return !!descriptor&&descriptor.enumerable&&Object.prototype.hasOwnProperty.call(descriptor,"value")
+          &&descriptor.value===normalized[key];
+      });
+      if(matches)return value;
+    }
+    return normalized;
+  }
   function agentById(value){
     var id=safeAgentId(value,"");
     return id&&Object.prototype.hasOwnProperty.call(BY_ID,id)?BY_ID[id]:null;
@@ -390,10 +416,10 @@ function availableAgentBalance(s){
     return value===null?0:Math.max(0,value);
   }
   function pendingAgentFeeQuote(s,id){
-    var quote=s&&s.agentNegotiationQuote,agent=agentById(id),targetId=safeAgentId(id,"");
-    var quoteId=safeAgentId(quote&&quote.agentId,"");
+    var quote=safeAgentField(s,"agentNegotiationQuote"),agent=agentById(id),targetId=safeAgentId(id,"");
+    var quoteId=safeAgentId(safeAgentField(quote,"agentId"),"");
     if(!quote||!agent||!targetId||quoteId!==targetId)return null;
-    var rate=finiteAgentNumber(quote.feeRate);
+    var rate=finiteAgentNumber(safeAgentField(quote,"feeRate"));
     if(rate===null||rate<.035||rate>Number(agent.feeRate))return null;
     return Math.round(rate*1000)/1000;
   }
@@ -422,16 +448,9 @@ function availableAgentBalance(s){
       if(!s.agent){s.agent=true;changed=true;}
     }else if(!s.agent){s.agentProfile=null;}
     if(s.agentNegotiationQuote!=null){
-      var quote=s.agentNegotiationQuote,quoteId=safeAgentId(quote.agentId,""),quoteAgent=agentById(quoteId),quoteRate=finiteAgentNumber(quote.feeRate);
-      if(!quoteAgent||quoteRate===null||quoteRate<.035||quoteRate>Number(quoteAgent.feeRate)){
-        s.agentNegotiationQuote=null;changed=true;
-      }else{
-        var normalizedRate=Math.round(quoteRate*1000)/1000;
-        if(quote.agentId!==quoteId||quote.feeRate!==normalizedRate){
-          s.agentNegotiationQuote={agentId:quoteId,feeRate:normalizedRate,season:safeAgentNumber(quote.season,safeAgentNumber(s.season,1))||1,calendarDay:safeAgentNumber(quote.calendarDay,safeAgentNumber(s.calendarDay,safeAgentNumber(s.day,1)))||1};
-          changed=true;
-        }
-      }
+      var rawQuote=safeAgentField(s,"agentNegotiationQuote");
+      var normalizedQuote=normalizeAgentFeeQuote(rawQuote,s);
+      if(normalizedQuote!==rawQuote){s.agentNegotiationQuote=normalizedQuote;changed=true;}
     }
     if(ensureFeeDebtLedger(s))changed=true;
     return changed;

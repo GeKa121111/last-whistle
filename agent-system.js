@@ -489,8 +489,11 @@
       var profileId=safeAgentField(profile,"id");
       var tracked=outstandingFeeDebt(s,profileId);
       if(profileDebt>tracked){
-        appendFeeDebt(s,profileDebt-tracked,"رصيد مديونية محفوظ من إصدار سابق");
-        tracked=outstandingFeeDebt(s,profileId);changed=true;
+        var migratedDebt=appendFeeDebt(s,profileDebt-tracked,"رصيد مديونية محفوظ من إصدار سابق");
+        // appendFeeDebt advances the persisted sequence; keep the local migration
+        // counter in sync so the final normalization cannot roll it back.
+        sequence=safeWholeAmount(s.agentFeeDebtSequence);
+        if(migratedDebt){tracked=outstandingFeeDebt(s,profileId);changed=true;}
       }
       if(profileDebt!==tracked){profile.feeDebt=tracked;changed=true;}
     }

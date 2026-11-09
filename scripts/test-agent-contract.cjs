@@ -653,6 +653,16 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.equal(hostileQuoteState.agentProfile.id,"salim",
    "a hostile quote accessor must not prevent preservation of the active agent profile");
 
+ const legacyTruthyAgentFlagState=makePerkState({});
+ legacyTruthyAgentFlagState.agent=1;
+ legacyTruthyAgentFlagState.agentProfile=null;
+ assert.doesNotThrow(()=>window.LWAgentRuntime.ensureState(legacyTruthyAgentFlagState),
+   "legacy truthy agent flags must retain their existing migration behavior");
+ assert.equal(legacyTruthyAgentFlagState.agent,true,
+   "truthy legacy agent flags must normalize to a boolean active flag");
+ assert.equal(legacyTruthyAgentFlagState.agentProfile.id,"legacy",
+   "truthy legacy agent flags without a profile must still create the legacy representative");
+
  // Agent profile fields can also be accessor-backed in old or externally edited saves.
  // A throwing relationship getter must not break public bonus/commission reads, and
  // hydration must convert the profile to a writable plain record before normalizing it.

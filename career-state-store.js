@@ -404,7 +404,15 @@
   let selectorSignatureFallbackSequence = 0;
   function selectorSignature(value) {
     if (value === undefined) return "undefined";
-    if (value === null || typeof value !== "object") return typeof value + ":" + String(value);
+    if (value === null) return "object:null";
+    if (typeof value !== "object") {
+      try { return typeof value + ":" + String(value); }
+      catch (_) {
+        // Callable revoked proxies report typeof "function", but String(value)
+        // still performs a property read and can throw after revocation.
+        return "unserializable:" + (++selectorSignatureFallbackSequence);
+      }
+    }
     try {
       const encoded = JSON.stringify(value);
       return typeof encoded === "string" ? encoded : String(encoded);

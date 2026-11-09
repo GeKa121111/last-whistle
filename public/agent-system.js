@@ -405,6 +405,27 @@
       return {values:values,changed:changed};
     }catch(_){return null;}
   }
+  function agentFeeDebtLedgerSnapshot(s){
+    var inspected=inspectAgentArrayData(safeAgentField(s,"agentFeeDebtLedger"));
+    if(!inspected)return "invalid";
+    var rows=inspected.values,parts=[];
+    for(var i=0;i<rows.length;i++){
+      var entry=rows[i];
+      if(!entry||typeof entry!=="object"){parts.push("invalid");continue;}
+      parts.push([
+        safeAgentText(safeAgentField(entry,"id"),""),
+        safeAgentText(safeAgentField(entry,"agentId"),""),
+        safeAgentText(safeAgentField(entry,"agentName"),""),
+        safeAgentText(safeAgentField(entry,"reason"),""),
+        safeAgentText(safeAgentField(entry,"amount"),""),
+        safeAgentText(safeAgentField(entry,"paid"),""),
+        safeAgentText(safeAgentField(entry,"outstanding"),""),
+        safeAgentText(safeAgentField(entry,"createdSeason"),""),
+        safeAgentText(safeAgentField(entry,"createdDay"),"")
+      ].join(":"));
+    }
+    return parts.join("|");
+  }
   function outstandingFeeDebt(s,agentId){
     var inspected=inspectAgentArrayData(safeAgentField(s,"agentFeeDebtLedger"));
     var ledger=inspected?inspected.values:[];
@@ -457,6 +478,11 @@
       if(!raw||typeof raw!=="object"){changed=true;continue;}
       var rawId=safeAgentField(raw,"id"),rawAgentId=safeAgentField(raw,"agentId");
       var rawAgentName=safeAgentField(raw,"agentName"),rawReason=safeAgentField(raw,"reason");
+      var persistedIdMatch=safeAgentText(rawId,"").match(/^agent-fee-debt-\d+-\d+-(\d+)$/);
+      if(persistedIdMatch){
+        var persistedSequence=Number(persistedIdMatch[1]);
+        if(Number.isSafeInteger(persistedSequence)&&persistedSequence>sequence)sequence=persistedSequence;
+      }
       var rawAmount=safeAgentField(raw,"amount"),rawPaid=safeAgentField(raw,"paid");
       var rawOutstanding=safeAgentField(raw,"outstanding");
       var rawSeason=safeAgentField(raw,"createdSeason"),rawDay=safeAgentField(raw,"createdDay");
@@ -921,9 +947,9 @@ function availableAgentBalance(s){
     var preview={};
     for(var i=0;i<keys.length;i++){
       var key=keys[i],value=safeAgentField(state,key);
-      // agentLead is a display-only truthy marker; preserve its reference without cloning
-      // arbitrary nested values or invoking getters while building the maintenance preview.
-      if(key==="agentLead"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
+      // agentLead is a display-only marker and the debt ledger is normalized from
+      // descriptors; preserve both references instead of cloning hostile containers.
+      if(key==="agentLead"||key==="agentFeeDebtLedger"||!value||typeof value!=="object"||key.indexOf("agent")!==0){
         Object.defineProperty(preview,key,{value:value,enumerable:true,writable:true,configurable:true});
         continue;
       }
@@ -936,9 +962,13 @@ function availableAgentBalance(s){
   function tick(force){
     var api=API();if(!api)return;var s=api.getState();if(!s)return;
     if(agentContractMutationPending||postRetirementMutationPending)return;
+    var rawDebtLedger=safeAgentField(s,"agentFeeDebtLedger");
+    var debtLedgerInspection=inspectAgentArrayData(rawDebtLedger);
+    var hasDebtLedger=rawDebtLedger!=null&&(!debtLedgerInspection
+      ||debtLedgerInspection.changed||debtLedgerInspection.values.length>0);
     var hasAgentState=!!s.agent||!!(s.agentProfile&&typeof s.agentProfile==="object")
       ||(Array.isArray(s.agentHistory)&&s.agentHistory.length>0)
-      ||(Array.isArray(s.agentFeeDebtLedger)&&s.agentFeeDebtLedger.length>0)||!!s.agentNegotiationQuote
+      ||hasDebtLedger||!!s.agentNegotiationQuote
       ||safeAgentNumber(s.agentFeeDebtSequence,0)>0||safeAgentNumber(s.agentDebtPaid,0)>0
       ||safeAgentNumber(s.agentCommissionPaid,0)>0;
     if(hasAgentState){
@@ -963,7 +993,7 @@ function availableAgentBalance(s){
       s.careerStarted,s.agent,lead,s.retired,
       p&&p.id,p&&p.relationship,p&&p.storyStage,p&&p.customFeeRate,p&&p.strategyOverride,
       p&&p.contractMultiplierDelta,p&&p.negotiationRaiseBonusDelta,p&&p.feeDebt,
-      s.agentFeeDebtLedger&&JSON.stringify(s.agentFeeDebtLedger),s.agentDebtPaid,s.agentDebtLastPayrollDay,perks,
+      agentFeeDebtLedgerSnapshot(s),s.agentDebtPaid,s.agentDebtLastPayrollDay,perks,
       s.agentNegotiationQuote&&JSON.stringify(s.agentNegotiationQuote),
       s.apps,s.season,s.seasonFinished,s.money,s.weeklyWage,
       history.length,latest&&latest.title,latest&&latest.day,latest&&latest.season

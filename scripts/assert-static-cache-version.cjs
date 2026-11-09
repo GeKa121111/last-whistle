@@ -42,13 +42,13 @@ if (require.main === module) {
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
     ["career-state-store.js", 8],
-    ["ai-career-engine.js", 8],
+    ["ai-career-engine.js", 9],
     ["data/career-engine.js", 87],
     ["data/match-engine.js", 86],
     ["football-world-ai.js", 100],
     ["football-world-db.js", 11],
     ["football-world-worker.js", 83],
-    ["transfer-awards-engine.js", 27],
+    ["transfer-awards-engine.js", 28],
     ["ui-organization.css", 5],
     ["career-experience.js", 9],
     ["career-experience.css", 2],

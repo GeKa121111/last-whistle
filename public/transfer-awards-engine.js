@@ -107,7 +107,9 @@
   }
 
   function normalized(value) {
-    return String(value == null ? "" : value).normalize("NFD")
+    const raw = typeof value === "string" ? value
+      : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+    return raw.normalize("NFD")
       .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, "")
       .replace(/[إأآ]/g, "ا").replace(/ى/g, "ي")
       .toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
@@ -189,7 +191,7 @@
     const canonical = store && typeof store.normalizePosition === "function"
       ? store.normalizePosition(position) : position;
     const value = normalized(canonical);
-    if (POSITION_ROLE_ALIASES[value]) return POSITION_ROLE_ALIASES[value];
+    if (Object.prototype.hasOwnProperty.call(POSITION_ROLE_ALIASES, value)) return POSITION_ROLE_ALIASES[value];
     if (value.includes("حارس")) return "keeper";
     // Central/attacking midfielders are still midfielders; classify their line
     // before checking role words such as "defensive" or "attacking".
@@ -203,7 +205,7 @@
 
   function isKnownPosition(position) {
     const value = normalized(position);
-    return !!value && (!!POSITION_ROLE_ALIASES[value]
+    return !!value && (Object.prototype.hasOwnProperty.call(POSITION_ROLE_ALIASES, value)
       || value.includes("حارس")
       || value.includes("وسط") || value.includes("ارتكاز") || value.includes("صانع")
       || value.includes("دفاع") || value.includes("ظهير")
@@ -254,7 +256,7 @@
       defender: { goalsPer90: 0.04, assistsPer90: 0.045 },
       keeper: { goalsPer90: 0.001, assistsPer90: 0.002 }
     };
-    return profiles[type] || profiles.midfielder;
+    return Object.prototype.hasOwnProperty.call(profiles, type) ? profiles[type] : profiles.midfielder;
   }
 
   // Use season evidence when available; otherwise create a deterministic career-world

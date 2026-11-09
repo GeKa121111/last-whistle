@@ -137,6 +137,33 @@ for (const [alias, canonical] of [
   assert.equal(ai.normalizePosition(alias), canonical,
     "career AI must normalize the shared English position alias " + alias);
 }
+const hostilePositionText = { toString: 1, valueOf: 1 };
+assert.doesNotThrow(() => ai.normalizePosition(hostilePositionText),
+  "career AI position normalization must not coerce hostile saved objects");
+assert.equal(ai.normalizePosition(hostilePositionText), "",
+  "non-primitive saved positions must use the safe empty fallback");
+assert.equal(ai.normalizePosition("constructor"), "constructor",
+  "inherited Object prototype members must not become position aliases");
+const inheritedPositionAdvice = ai.coachAdvice({
+  pos: "constructor", energy: 85, fatigue: 15, trust: 65, morale: 70,
+  speed: 60, dribbling: 58, lastRating: 7.2
+}, 70);
+assert.equal(inheritedPositionAdvice.focus, "speed",
+  "inherited position keys must use the safe winger focus fallback");
+const malformedPositionAdvice = ai.coachAdvice({
+  pos: hostilePositionText, energy: 85, fatigue: 15, trust: 65, morale: 70,
+  speed: 60, dribbling: 58, lastRating: 7.2
+}, 70);
+assert.equal(malformedPositionAdvice.focus, "speed",
+  "malformed saved positions must not break position-specific coaching");
+const inheritedTactic = ai.chooseOpponentTactic({
+  ourTactic: "constructor", teamPower: 55, opponentPower: 55, managerIQ: 50,
+  state: { energy: 80, fatigue: 10, lastRating: 6.5, seasonGoals: 0, careerMatchHistory: [] }
+});
+assert.equal(inheritedTactic.tactic, "balanced",
+  "inherited tactic labels must not be accepted as valid player tactics");
+assert.equal(inheritedTactic.label, "متوازن");
+
 const centralMidfielderAdvice = ai.coachAdvice({
   pos: "CM", energy: 85, fatigue: 15, trust: 65, morale: 70,
   passing: 62, vision: 61, lastRating: 7.2

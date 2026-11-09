@@ -98,7 +98,7 @@ jobs:
           cp "$mirror_dir/index.html" index.html
           cp "$mirror_dir/public-index.html" public/index.html
           cp "$mirror_dir/public-sw.js" public/sw.js
-          git add data/career-engine.js public/data/career-engine.js data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js
+          git add data/career-engine.js public/data/career-engine.js data/match-engine.js public/data/match-engine.js index.html public/index.html public/sw.js public/ai-career-engine.js public/transfer-awards-engine.js
           if git diff --cached --quiet; then
             echo "Generated runtime mirrors already match their canonical sources."
           else

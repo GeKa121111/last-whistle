@@ -12,6 +12,10 @@
     return parsed === null ? fallback : parsed;
   };
   const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, number(value, 0)));
+  const safeText = value => typeof value === "string" ? value
+    : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+  const ownValue = (source, key, fallback) => source
+    && Object.prototype.hasOwnProperty.call(source, key) ? source[key] : fallback;
   const POSITION_ALIASES = Object.freeze({
     gk: "حارس مرمى", goalkeeper: "حارس مرمى", keeper: "حارس مرمى", goalie: "حارس مرمى",
     cb: "قلب دفاع", lcb: "قلب دفاع", rcb: "قلب دفاع", centerback: "قلب دفاع", "center back": "قلب دفاع",
@@ -34,7 +38,7 @@
     "centre forward": "رأس حربة", "center forward": "رأس حربة"
   });
   function normalizePosition(value) {
-    const raw = String(value == null ? "" : value).normalize("NFKC").trim();
+    const raw = safeText(value).normalize("NFKC").trim();
     if (!raw) return "";
     const key = raw.toLocaleLowerCase("en")
       .replace(/[\u064B-\u065F\u0670]/g, "")
@@ -47,7 +51,7 @@
         if (normalized && normalized !== raw) return normalized;
       } catch (_) {}
     }
-    return POSITION_ALIASES[key] || raw;
+    return ownValue(POSITION_ALIASES, key, raw);
   }
   const POSITION_FOCUS = Object.freeze({
     "حارس مرمى": ["goalkeeping", "composure"],
@@ -113,7 +117,7 @@
     const trust = clamp(state.trust, 0, 100);
     const injury = Math.max(0, number(state.injuryDays, 0));
     const position = normalizePosition(state.pos || state.position || "جناح");
-    const focus = POSITION_FOCUS[position] || POSITION_FOCUS["جناح"];
+    const focus = ownValue(POSITION_FOCUS, position, POSITION_FOCUS["جناح"]);
     const primarySkill = focus[0];
     const skillValue = clamp(state[primarySkill], 0, 100);
     let title, summary, page = "training", actionLabel = "افتح التدريب";
@@ -134,7 +138,7 @@
       summary = "آخر مؤشر أداء متاح " + rating.toFixed(1) + "/10. ركّز على أساسيات مركزك بدل التدريب العشوائي، ووازن بين شدة الحصة والاستشفاء.";
     } else {
       title = "خطة تطوير مخصصة لمركزك";
-      summary = "مؤشر الأداء " + rating.toFixed(1) + "/10. الأولوية الحالية هي " + (SKILL_LABELS[primarySkill] || primarySkill)
+      summary = "مؤشر الأداء " + rating.toFixed(1) + "/10. الأولوية الحالية هي " + (ownValue(SKILL_LABELS, primarySkill, primarySkill))
         + "؛ قيمة المهارة " + skillValue + "/100. كلما استقر أداؤك زادت قوة حجتك لطلب دور أكبر.";
     }
     const priorities = [
@@ -142,7 +146,7 @@
       "التقييم العام: " + clamp(overall, 0, 99) + "/99",
       "الجاهزية: طاقة " + energy + "%، إجهاد " + fatigue + "%",
       "ثقة المدرب: " + trust + "/100",
-      "التدريب المقترح: " + (SKILL_LABELS[primarySkill] || primarySkill)
+      "التدريب المقترح: " + (ownValue(SKILL_LABELS, primarySkill, primarySkill))
     ];
     return { title, summary, page, actionLabel, rating, focus: primarySkill, priorities, score: Math.round(clamp(
       number(overall, 50) * 0.35 + trust * 0.20 + energy * 0.18 + (100 - fatigue) * 0.12
@@ -171,12 +175,13 @@
       tactic = "defend";
       reason = "التوازن الدفاعي يقلل الضغط على الخط الخلفي ويمنح الفريق وقتًا لتنظيم البناء.";
     }
-    return { tactic, label: TACTIC_LABELS[tactic], reason, teamPower: Math.round(ours), opponentPower: Math.round(theirs), gap: Math.round(gap) };
+    return { tactic, label: ownValue(TACTIC_LABELS, tactic, TACTIC_LABELS.balanced), reason, teamPower: Math.round(ours), opponentPower: Math.round(theirs), gap: Math.round(gap) };
   }
   function chooseOpponentTactic(input) {
     input = input || {};
     const state = input.state || input.player || {};
-    const ownTactic = TACTIC_LABELS[input.ourTactic] ? input.ourTactic : "balanced";
+    const requestedTactic = safeText(input.ourTactic);
+    const ownTactic = ownValue(TACTIC_LABELS, requestedTactic, null) ? requestedTactic : "balanced";
     const ours = clamp(input.teamPower, 25, 95);
     const theirs = clamp(input.opponentPower, 25, 95);
     const managerIQ = clamp(input.managerIQ ?? (theirs * 0.82 + number(input.opponentPrestige || theirs, theirs) * 0.18), 25, 98);
@@ -203,7 +208,7 @@
       : tactic === "press" ? "المنافس يرفع الضغط لمحاولة تعطيل البناء أو استغلال انخفاض الجاهزية."
       : tactic === "wide" ? "المنافس يحاول توسيع الملعب وسحبك إلى الأطراف."
       : "المنافس يبدأ بتوازن وينتظر قراءة مجريات المباراة.";
-    return { tactic, label: OPPONENT_LABELS[tactic], reason, iq: managerIQ, repeatedStyle, adapted: readYou };
+    return { tactic, label: ownValue(OPPONENT_LABELS, tactic, OPPONENT_LABELS.balanced), reason, iq: managerIQ, repeatedStyle, adapted: readYou };
   }
   function recommendTransfers(state, clubs, overall) {
     state = state || {};

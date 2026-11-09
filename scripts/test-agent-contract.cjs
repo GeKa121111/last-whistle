@@ -14,7 +14,7 @@ assert.doesNotMatch(source, /function isExpired\(|function checkExpiry\(/,
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const deployedSw = fs.readFileSync(path.join(root, "public", "sw.js"), "utf8");
 assert.equal(sw, deployedSw, "root and deployed service workers must stay synchronized");
-require("./assert-static-cache-version.cjs")(sw, 686);
+require("./assert-static-cache-version.cjs")(sw, 687);
 const cacheDeclaration = sw.split("\n").find(line => line.startsWith("const CACHE_NAME = "));
 assert.ok(cacheDeclaration && cacheDeclaration.includes("last-whistle-static-v"),
   "the offline service worker must use a versioned cache name");
@@ -616,6 +616,42 @@ assert.equal(state.agentDebtPaid, debtPaidBeforeUnsignedPayroll,
  assert.doesNotThrow(() => window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),
    "a malformed agent flag must not crash the recovery bonus read");
  assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(directThrowingAgentState),0);
+
+ // Hydration must repair a configurable throwing agent flag without losing the saved profile.
+ const repairableAgentFlagState=makePerkState({recovery:true});
+ Object.defineProperty(repairableAgentFlagState,"agent",{
+   configurable:true,enumerable:true,get(){throw new Error("hostile hydration agent flag getter");}
+ });
+ assert.doesNotThrow(()=>window.LWAgentRuntime.ensureState(repairableAgentFlagState),
+   "state hydration must not invoke a throwing agent flag getter directly");
+ assert.equal(repairableAgentFlagState.agent,true,
+   "a valid saved profile must restore the active-agent flag as a writable data property");
+ assert.equal(Object.prototype.hasOwnProperty.call(
+   Object.getOwnPropertyDescriptor(repairableAgentFlagState,"agent"),"get"),false,
+   "hydration must replace a configurable agent accessor with a data property");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(repairableAgentFlagState),3,
+   "repairing the agent flag must preserve the recovery perk");
+
+ // An unrepairable non-configurable flag must fail closed without aborting profile migration.
+ const lockedAgentFlagState=makePerkState({recovery:true});
+ Object.defineProperty(lockedAgentFlagState,"agent",{
+   configurable:false,enumerable:true,get(){throw new Error("locked hostile agent flag getter");}
+ });
+ assert.doesNotThrow(()=>window.LWAgentRuntime.ensureState(lockedAgentFlagState),
+   "an unreplaceable agent flag accessor must not crash hydration");
+ assert.equal(lockedAgentFlagState.agentProfile.id,"salim",
+   "an unreplaceable flag must not discard the readable saved agent profile");
+ assert.equal(window.LWAgentRuntime.dailyRecoveryBonus(lockedAgentFlagState),0,
+   "an unreadable active flag must not grant active-agent-only perks");
+
+ const hostileQuoteState=makePerkState({recovery:true});
+ Object.defineProperty(hostileQuoteState,"agentNegotiationQuote",{
+   configurable:true,enumerable:true,get(){throw new Error("hostile negotiation quote getter");}
+ });
+ assert.doesNotThrow(()=>window.LWAgentRuntime.ensureState(hostileQuoteState),
+   "hydration must read negotiation quote state through the guarded accessor");
+ assert.equal(hostileQuoteState.agentProfile.id,"salim",
+   "a hostile quote accessor must not prevent preservation of the active agent profile");
 
  // Agent profile fields can also be accessor-backed in old or externally edited saves.
  // A throwing relationship getter must not break public bonus/commission reads, and

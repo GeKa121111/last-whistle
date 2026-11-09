@@ -95,6 +95,24 @@ const helperContexts = moduleSpecs.map((spec, index) => {
   vm.createContext(agentSandbox);
   vm.runInContext("var agentContractMutationPending = false; var postRetirementMutationPending = false;\n" + agentFunctions, agentSandbox);
 
+  const storyFunctions = [
+    "acquireSharedMutationLock", "releaseSharedMutationLock", "cloneStoryState",
+    "storyPropertyEquals", "restoreStoryState", "flushStoryState", "runStoryMutation"
+  ].map(name => extractFunction(sources[2], name)).join("\n");
+  const storySandbox = { window: sharedWindow, API: () => api, Promise, console: sharedWindow.console };
+  vm.createContext(storySandbox);
+  vm.runInContext("var storyMutationPending = false;\n" + storyFunctions, storySandbox);
+
+  const socialFunctions = [
+    "acquireSharedMutationLock", "releaseSharedMutationLock", "cloneSocialState",
+    "restoreSocialState", "socialStateSignature", "flushSocialState", "runSocialMutation"
+  ].map(name => extractFunction(sources[3], name)).join("\n");
+  const socialSandbox = {
+    window: sharedWindow, api: () => api, Promise, console: sharedWindow.console
+  };
+  vm.createContext(socialSandbox);
+  vm.runInContext("var socialMutationPending = false; var socialPersistenceWarningShown = false;\n" + socialFunctions, socialSandbox);
+
   const flushQueue = [];
   sharedWindow.flushQueuedSave = () => new Promise(resolve => flushQueue.push(resolve));
   async function waitForFlush() {
@@ -154,5 +172,88 @@ const helperContexts = moduleSpecs.map((spec, index) => {
   assert.equal((await careerAfterRetirement).ok, true);
   assert.equal(state.money, 600);
 
-  console.log("PASS: career, agent-contract, post-retirement, story, and social mutations share a queued, durable write lock.");
+  // Setup failures must never strand the shared lock or a module-local pending flag.
+  sharedWindow.flushQueuedSave = () => Promise.resolve(true);
+  const setupCases = [
+    {
+      name: "career",
+      sandbox: careerSandbox,
+      pending: "financeMutationPending",
+      clone: "cloneFinanceState",
+      invoke: state => careerSandbox.runCareerMutation(state, function () { state.money -= 10; return true; }, null, "finance"),
+      state: { money: 1000 },
+      expectedLock: "finance-mutation-lock-failed",
+      expectedUnavailable: "finance-mutation-lock-unavailable",
+      expectedSnapshot: "finance-mutation-snapshot-failed",
+      owner: "career-experience",
+      changed(state) { return state.money === 990; }
+    },
+    {
+      name: "story",
+      sandbox: storySandbox,
+      pending: "storyMutationPending",
+      clone: "cloneStoryState",
+      invoke: state => storySandbox.runStoryMutation(state, function () { state.money -= 10; return true; }),
+      state: { money: 1000, storyHistory: [] },
+      expectedLock: "story-mutation-lock-failed",
+      expectedUnavailable: "story-mutation-lock-unavailable",
+      expectedSnapshot: "story-mutation-snapshot-failed",
+      owner: "story-mode",
+      changed(state) { return state.money === 990; }
+    },
+    {
+      name: "social",
+      sandbox: socialSandbox,
+      pending: "socialMutationPending",
+      clone: "cloneSocialState",
+      invoke: state => socialSandbox.runSocialMutation(state, function () { state.followers += 10; return true; }),
+      state: { followers: 100, socialMedia: { posts: [] } },
+      expectedLock: "social-mutation-lock-failed",
+      expectedUnavailable: "social-mutation-lock-unavailable",
+      expectedSnapshot: "social-mutation-snapshot-failed",
+      owner: "social-media",
+      changed(state) { return state.followers === 110; }
+    }
+  ];
+  for (const spec of setupCases) {
+    const originalAcquire = spec.sandbox.acquireSharedMutationLock;
+    const originalClone = spec.sandbox[spec.clone];
+    const baseline = JSON.stringify(spec.state);
+
+    spec.sandbox.acquireSharedMutationLock = () => Promise.reject(new Error(spec.name + " lock rejected"));
+    let result = await spec.invoke(spec.state);
+    assert.equal(result.ok, false, spec.name + " must fail closed when lock acquisition rejects");
+    assert.equal(result.reason, spec.expectedLock);
+    assert.equal(JSON.stringify(spec.state), baseline, spec.name + " lock failure must not mutate saved state");
+    assert.equal(spec.sandbox[spec.pending], false, spec.name + " lock failure must clear its pending flag");
+    assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "",
+      spec.name + " rejected lock must not claim the shared coordinator");
+
+    spec.sandbox.acquireSharedMutationLock = () => Promise.resolve(false);
+    result = await spec.invoke(spec.state);
+    assert.equal(result.ok, false, spec.name + " must reject an ungranted lock");
+    assert.equal(result.reason, spec.expectedUnavailable);
+    assert.equal(JSON.stringify(spec.state), baseline);
+    assert.equal(spec.sandbox[spec.pending], false);
+    assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "");
+
+    spec.sandbox.acquireSharedMutationLock = originalAcquire;
+    spec.sandbox[spec.clone] = () => { throw new Error(spec.name + " snapshot failed"); };
+    result = await spec.invoke(spec.state);
+    assert.equal(result.ok, false, spec.name + " snapshot exceptions must fail before mutation");
+    assert.equal(result.reason, spec.expectedSnapshot);
+    assert.equal(JSON.stringify(spec.state), baseline);
+    assert.equal(spec.sandbox[spec.pending], false, spec.name + " snapshot failure must clear its pending flag");
+    assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "",
+      spec.name + " snapshot failure must release the acquired shared lock");
+
+    spec.sandbox[spec.clone] = originalClone;
+    result = await spec.invoke(spec.state);
+    assert.equal(result.ok, true, spec.name + " must remain usable after setup failures");
+    assert.equal(spec.changed(spec.state), true);
+    assert.equal(spec.sandbox[spec.pending], false);
+    assert.equal(sharedWindow.__LW_DURABLE_MUTATION_LOCK__.owner, "");
+  }
+
+  console.log("PASS: career, agent-contract, post-retirement, story, and social mutations share a queued lock and recover safely from lock/snapshot setup failures.");
 })().catch(error => { console.error(error && error.stack ? error.stack : error); process.exitCode = 1; });

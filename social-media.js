@@ -234,41 +234,53 @@
       return { ok: false, reason: "social-persistence-unavailable" };
     }
     socialMutationPending = true;
-    var mutationLock = acquireSharedMutationLock("social-media");
-    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
-    var hadSocialState = socialOnly && Object.prototype.hasOwnProperty.call(state, "socialMedia");
-    var rawSocialState = socialOnly ? state.socialMedia : null;
-    var snapshot = socialOnly
-      ? (hadSocialState && rawSocialState && typeof rawSocialState === "object" ? cloneSocialState(rawSocialState) : rawSocialState)
-      : cloneSocialState(state);
-    if ((!socialOnly && !snapshot) || (socialOnly && hadSocialState && rawSocialState
-      && typeof rawSocialState === "object" && !snapshot)) {
-      socialMutationPending = false;
-      releaseSharedMutationLock("social-media");
-      return { ok: false, reason: "social-snapshot-unavailable" };
-    }
-    var before = socialOnly
-      ? socialStateSignature({ present: hadSocialState, value: snapshot })
-      : socialStateSignature(snapshot);
-    if (before === null) {
-      socialMutationPending = false;
-      releaseSharedMutationLock("social-media");
-      return { ok: false, reason: "social-snapshot-unavailable" };
-    }
-    function restoreSnapshot() {
-      if (!socialOnly) return restoreSocialState(state, snapshot);
-      if (hadSocialState) state.socialMedia = snapshot;
-      else delete state.socialMedia;
-    }
-    function currentSignature() {
-      return socialOnly
-        ? socialStateSignature({
-          present: Object.prototype.hasOwnProperty.call(state, "socialMedia"),
-          value: state.socialMedia
-        })
-        : socialStateSignature(state);
-    }
+    var mutationLockAcquired = false;
+    var snapshotReady = false;
+    var mutationStarted = false;
+    var hadSocialState = false;
+    var rawSocialState = null;
+    var snapshot = null;
+    var before = null;
+    var restoreSnapshot = null;
+    var currentSignature = null;
     try {
+      var mutationLock = acquireSharedMutationLock("social-media");
+      if (mutationLock && typeof mutationLock.then === "function") mutationLock = await mutationLock;
+      if (mutationLock !== true) return { ok: false, reason: "social-mutation-lock-unavailable" };
+      mutationLockAcquired = true;
+
+      hadSocialState = socialOnly && Object.prototype.hasOwnProperty.call(state, "socialMedia");
+      rawSocialState = socialOnly ? state.socialMedia : null;
+      snapshot = socialOnly
+        ? (hadSocialState && rawSocialState && typeof rawSocialState === "object" ? cloneSocialState(rawSocialState) : rawSocialState)
+        : cloneSocialState(state);
+      if ((!socialOnly && !snapshot) || (socialOnly && hadSocialState && rawSocialState
+        && typeof rawSocialState === "object" && !snapshot)) {
+        return { ok: false, reason: "social-snapshot-unavailable" };
+      }
+      snapshotReady = true;
+      before = socialOnly
+        ? socialStateSignature({ present: hadSocialState, value: snapshot })
+        : socialStateSignature(snapshot);
+      if (before === null) {
+        snapshotReady = false;
+        return { ok: false, reason: "social-snapshot-unavailable" };
+      }
+      restoreSnapshot = function () {
+        if (!socialOnly) return restoreSocialState(state, snapshot);
+        if (hadSocialState) state.socialMedia = snapshot;
+        else delete state.socialMedia;
+      };
+      currentSignature = function () {
+        return socialOnly
+          ? socialStateSignature({
+            present: Object.prototype.hasOwnProperty.call(state, "socialMedia"),
+            value: state.socialMedia
+          })
+          : socialStateSignature(state);
+      };
+
+      mutationStarted = true;
       var value = operation();
       if (value && typeof value.then === "function") value = await value;
       if (value && value.ok === false) {
@@ -282,6 +294,11 @@
       socialPersistenceWarningShown = false;
       return { ok: true, changed: true, value: value };
     } catch (error) {
+      if (!mutationStarted || !snapshotReady) {
+        var setupReason = mutationLockAcquired ? "social-mutation-snapshot-failed" : "social-mutation-lock-failed";
+        if (window.console && window.console.warn) window.console.warn("Social media mutation setup failed", error);
+        return { ok: false, reason: setupReason };
+      }
       try { restoreSnapshot(); }
       catch (restoreError) {
         if (window.console && window.console.warn) window.console.warn("Social media rollback restore failed", restoreError);
@@ -296,7 +313,12 @@
       return { ok: false, reason: "social-save-failed", rollbackPersisted: rollbackPersisted, error: error };
     } finally {
       socialMutationPending = false;
-      releaseSharedMutationLock("social-media");
+      if (mutationLockAcquired) {
+        try { releaseSharedMutationLock("social-media"); }
+        catch (releaseError) {
+          if (window.console && window.console.warn) window.console.warn("Social media mutation lock release failed", releaseError);
+        }
+      }
     }
   }
 

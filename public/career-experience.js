@@ -396,24 +396,39 @@
       return { ok: false, reason: isFinance ? "finance-persistence-unavailable" : "career-persistence-unavailable" };
     }
     financeMutationPending = true;
-    var mutationLock = acquireSharedMutationLock("career-experience");
-    if (mutationLock && typeof mutationLock.then === "function") await mutationLock;
-    var snapshot = cloneFinanceState(state);
-    if (!snapshot) {
-      financeMutationPending = false;
-      releaseSharedMutationLock("career-experience");
-      if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ " + label + ".");
-      return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
-    }
+    var mutationLockAcquired = false;
+    var snapshot = null;
+    var mutationStarted = false;
     var payload = null;
     var appliedSnapshot = null;
     try {
+      var mutationLock = acquireSharedMutationLock("career-experience");
+      if (mutationLock && typeof mutationLock.then === "function") mutationLock = await mutationLock;
+      if (mutationLock !== true) {
+        try { if (api.toast) api.toast("تعذر تأمين قفل الحفظ؛ لم يتم تنفيذ " + label + "."); } catch (toastError) {}
+        return { ok: false, reason: isFinance ? "finance-mutation-lock-unavailable" : "career-mutation-lock-unavailable" };
+      }
+      mutationLockAcquired = true;
+      snapshot = cloneFinanceState(state);
+      if (!snapshot) {
+        try { if (api.toast) api.toast("تعذر تأمين نسخة من المسيرة؛ لم يتم تنفيذ " + label + "."); } catch (toastError) {}
+        return { ok: false, reason: isFinance ? "finance-snapshot-unavailable" : "career-snapshot-unavailable" };
+      }
+      mutationStarted = true;
       payload = operation();
       if (payload === false || payload == null) throw new Error("career mutation rejected");
       appliedSnapshot = cloneFinanceState(state);
       if (!appliedSnapshot) throw new Error("career post-mutation snapshot unavailable");
       if (!(await flushFinanceState(api, state))) throw new Error("career save not confirmed");
     } catch (error) {
+      if (!mutationStarted || !snapshot) {
+        var setupReason = mutationLockAcquired
+          ? (isFinance ? "finance-mutation-snapshot-failed" : "career-mutation-snapshot-failed")
+          : (isFinance ? "finance-mutation-lock-failed" : "career-mutation-lock-failed");
+        try { if (api.toast) api.toast("تعذر تجهيز الحفظ الآمن؛ لم يتم تنفيذ " + label + "."); } catch (toastError) {}
+        if (window.console && window.console.warn) window.console.warn("Career mutation setup failed", error);
+        return { ok: false, reason: setupReason, rollbackPersisted: false };
+      }
       var rollbackTarget = state;
       try {
         var latestState = api && typeof api.getState === "function" ? api.getState() : null;
@@ -453,7 +468,12 @@
       return { ok: false, reason: message, rollbackPersisted: rollbackPersisted, rollbackConflicts: rollbackConflicts };
     } finally {
       financeMutationPending = false;
-      releaseSharedMutationLock("career-experience");
+      if (mutationLockAcquired) {
+        try { releaseSharedMutationLock("career-experience"); }
+        catch (releaseError) {
+          if (window.console && window.console.warn) window.console.warn("Career mutation lock release failed", releaseError);
+        }
+      }
     }
     try { if (api.render) api.render(); } catch (renderError) {}
     try { renderPanel(state, state.careerWorld && typeof state.careerWorld === "object" ? state.careerWorld : null); } catch (panelError) {}

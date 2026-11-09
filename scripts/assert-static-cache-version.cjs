@@ -41,7 +41,7 @@ if (require.main === module) {
     "updated world AI, database, worker, and award engine modules must bypass the browser HTTP cache during a new static-cache install");
   const cacheVersion = module.exports(serviceWorker, minimumCacheVersion);
   const requiredAssets = [
-    ["career-state-store.js", 9],
+    ["career-state-store.js", 8],
     ["ai-career-engine.js", 10],
     ["data/career-engine.js", 89],
     ["data/match-engine.js", 87],

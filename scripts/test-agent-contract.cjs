@@ -697,8 +697,10 @@ revokedDebtLedger.revoke();
 revokedDebtLedgerState.agentFeeDebtLedger = revokedDebtLedger.proxy;
 assert.doesNotThrow(() => window.LWAgentRuntime.ensureState(revokedDebtLedgerState),
   "a revoked ledger proxy must fail closed without crashing career hydration");
-assert.deepEqual(revokedDebtLedgerState.agentFeeDebtLedger,[],
-  "an uninspectable ledger container must be replaced without touching unrelated career records");
+assert.equal(Array.isArray(revokedDebtLedgerState.agentFeeDebtLedger),true,
+  "an uninspectable ledger container must be replaced with a plain array");
+assert.equal(revokedDebtLedgerState.agentFeeDebtLedger.length,0,
+  "replacing an uninspectable ledger must not touch unrelated career records");
 assert.equal(window.LWAgentRuntime.outstandingFeeDebt(revokedDebtLedgerState),0);
 
 console.log("PASS: agent debt migration, FIFO repayments, strict fee/quote normalization, switch/termination persistence, payroll idempotency, malformed-fee guards, and no salary for unsigned free agents.");

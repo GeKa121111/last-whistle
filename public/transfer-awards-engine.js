@@ -89,8 +89,7 @@
     return fallbackNumber === null ? 50 : fallbackNumber;
   }
 
-  // Saved identity/display fields are accepted only when they are primitive text
-  // or finite numbers. Never invoke user-controlled toString/valueOf methods.
+  // Accept only primitive saved text; never invoke hostile toString/valueOf methods.
   function safeText(value, fallback = "") {
     if (typeof value === "string") return value;
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
